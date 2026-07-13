@@ -30,15 +30,78 @@ use super::position::LineIndex;
 #[must_use]
 pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
     let wf = parse(text, FileId::new(0), ParseMode::Lenient).ok()?;
+    let index = LineIndex::new(text);
+    // member refs (`${{ vars.X }}` · `secrets.X` · `env.X`) jump to
+    // their declaration — the parser's own name spans.
+    if let Some((span, len)) = member_decl_target(&wf, text, offset) {
+        return Some(Location::new(uri.clone(), token_range(&index, span, len)));
+    }
     let id_spans = id_span_table(&wf);
     let target_id =
         depends_on_target(&wf, offset).or_else(|| template_task_target(text, offset))?;
     let (span, id_len) = id_spans.get(target_id.as_str())?;
-    let index = LineIndex::new(text);
     Some(Location::new(
         uri.clone(),
         token_range(&index, *span, *id_len),
     ))
+}
+
+/// If `offset` sits on a `vars.X` / `secrets.X` / `env.X` member inside
+/// an island, return the DECLARATION's name span (+ byte length). The
+/// same byte-scan discipline as [`template_task_target`], generalized
+/// over the three declaring roots.
+fn member_decl_target(wf: &RawWorkflow, text: &str, offset: usize) -> Option<(Span, usize)> {
+    let (root, name) = template_member_at(text, offset)?;
+    match root {
+        "vars" => wf
+            .vars
+            .iter()
+            .find(|(n, _)| n.value == name)
+            .map(|(n, _)| (n.span, n.value.len())),
+        "secrets" => wf
+            .secrets
+            .iter()
+            .find(|(n, _)| n.value == name)
+            .map(|(n, _)| (n.span, n.value.len())),
+        _ => wf
+            .env
+            .iter()
+            .find(|(n, _)| n.value == name)
+            .map(|(n, _)| (n.span, n.value.len())),
+    }
+}
+
+/// The `(root, member)` under `offset` when the cursor sits on a
+/// `vars.<ident>` / `secrets.<ident>` / `env.<ident>` run inside an
+/// island — cursor anywhere from the root keyword through the member.
+pub(crate) fn template_member_at(text: &str, offset: usize) -> Option<(&'static str, String)> {
+    let bytes = text.as_bytes();
+    for (island_start, island_end) in islands(text) {
+        if !(island_start..island_end).contains(&offset) {
+            continue;
+        }
+        let inner = text.get(island_start..island_end)?;
+        for root in ["vars", "secrets", "env"] {
+            let needle = format!("{root}.");
+            let mut search_from = 0usize;
+            while let Some(rel) = inner.get(search_from..)?.find(&needle) {
+                let kw_at = island_start + search_from + rel;
+                let mid_ident = kw_at > 0
+                    && bytes
+                        .get(kw_at - 1)
+                        .is_some_and(|b| *b == b'_' || *b == b'.' || b.is_ascii_alphanumeric());
+                if !mid_ident {
+                    let m_start = kw_at + needle.len();
+                    let m_end = ident_end(bytes, m_start);
+                    if m_end > m_start && (kw_at..m_end).contains(&offset) {
+                        return text.get(m_start..m_end).map(|m| (root, m.to_owned()));
+                    }
+                }
+                search_from = (search_from + rel + needle.len()).min(inner.len());
+            }
+        }
+    }
+    None
 }
 
 /// The task referenced under `offset` (a `depends_on:` item or a
@@ -682,5 +745,35 @@ mod tests {
             definition(&uri(), yaml, at).is_none(),
             "mid-ident match rejected"
         );
+    }
+
+    /// `${{ vars.X }}` jumps to the `X:` declaration under `vars:` —
+    /// and the same lane serves `secrets.` / `env.`. An undeclared
+    /// member resolves nowhere (no invented target).
+    #[test]
+    fn member_ref_jumps_to_its_declaration() {
+        let text = "nika: v1\nworkflow: w\nvars:\n  city: \"paris\"\nenv:\n  REGION: eu\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.city }} ${{ env.REGION }} ${{ secrets.api_key }}\" }\n";
+        let uri: Uri = "file:///w.nika.yaml".parse().expect("uri");
+        let decl_line = |needle: &str| {
+            let at = text.find(needle).expect(needle);
+            u32::try_from(text[..at].matches('\n').count()).expect("line fits")
+        };
+        for (ref_needle, decl_needle) in [
+            ("vars.city", "  city:"),
+            ("env.REGION", "  REGION:"),
+            ("secrets.api_key", "  api_key:"),
+        ] {
+            let at = text.find(ref_needle).expect(ref_needle) + ref_needle.len() - 2;
+            let loc = definition(&uri, text, at).expect(ref_needle);
+            assert_eq!(
+                loc.range.start.line,
+                decl_line(decl_needle),
+                "{ref_needle} lands on its declaration line"
+            );
+        }
+        // undeclared member → nothing
+        let at = text.find("vars.city").expect("ref");
+        let miss = text.replace("vars.city", "vars.ghost");
+        assert!(definition(&uri, &miss, at + 7).is_none());
     }
 }

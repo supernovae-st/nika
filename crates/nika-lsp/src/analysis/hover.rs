@@ -25,8 +25,74 @@ use super::vocab::{self, Entry};
 pub fn hover(text: &str, offset: usize) -> Option<Hover> {
     value_card_hover(text, offset)
         .or_else(|| task_decl_hover(text, offset))
+        .or_else(|| member_ref_hover(text, offset))
         .or_else(|| vocab_hover(text, offset))
         .or_else(|| task_ref_hover(text, offset))
+}
+
+/// Hover on a `${{ vars.X / secrets.X / env.X }}` member — the
+/// declaration's card, without leaving the line. Same resolver as
+/// go-to-definition; same prose the completion detail teaches.
+fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
+    let (root, name) = super::definition::template_member_at(text, offset)?;
+    let wf = nika_schema::parse(
+        text,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Lenient,
+    )
+    .ok()?;
+    let body = match root {
+        "vars" => {
+            let (_, decl) = wf.vars.iter().find(|(n, _)| n.value == name)?;
+            match decl {
+                nika_schema::VarDecl::Typed {
+                    r#type,
+                    required,
+                    default,
+                    description,
+                } => {
+                    use std::fmt::Write as _;
+                    let mut b = format!("**`vars.{name}`** — _{type}_");
+                    if *required {
+                        b.push_str(" · required");
+                    }
+                    if let Some(d) = default {
+                        let _ = write!(b, " · default `{d}`");
+                    }
+                    if let Some(desc) = description {
+                        let _ = write!(b, "\n\n{desc}");
+                    }
+                    b
+                }
+                nika_schema::VarDecl::Untyped(v) => {
+                    format!("**`vars.{name}`** — _var_\n\ndefault `{v}`")
+                }
+                _ => format!("**`vars.{name}`** — _var_"),
+            }
+        }
+        "secrets" => {
+            wf.secrets.iter().find(|(n, _)| n.value == name)?;
+            format!("**`secrets.{name}`** — _secret_\n\nmasked · never echoed · taint-tracked")
+        }
+        _ => {
+            let (_, value) = wf.env.iter().find(|(n, _)| n.value == name)?;
+            format!(
+                "**`env.{name}`** — _env_\n\nnon-sensitive runtime config · `{}`",
+                value.value
+            )
+        }
+    };
+    let range = word_at(text, offset).map(|(_, start, end)| {
+        let index = LineIndex::new(text);
+        Range::new(index.position(start), index.position(end))
+    });
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: body,
+        }),
+        range,
+    })
 }
 
 /// Hover on a task DECLARATION (`- id: X`) — the task's place in the
@@ -94,23 +160,10 @@ fn dag_card(wf: &nika_schema::raw::RawWorkflow, id: &str) -> Option<String> {
     Some(body)
 }
 
-/// |{ t : id →⁺ t }| — the size of the transitive closure downstream of
-/// `id`, BFS over the explicit reverse edges.
+/// |{ t : id →⁺ t }| — the one BFS lives in [`super::graph`]; the card
+/// only needs the count.
 fn downstream_reach(wf: &nika_schema::raw::RawWorkflow, id: &str) -> usize {
-    let mut seen: Vec<&str> = Vec::new();
-    let mut queue: Vec<&str> = vec![id];
-    while let Some(cur) = queue.pop() {
-        for t in &wf.tasks {
-            if t.value.depends_on.iter().any(|d| d.value == cur) {
-                let child = t.value.id.value.as_str();
-                if !seen.contains(&child) {
-                    seen.push(child);
-                    queue.push(child);
-                }
-            }
-        }
-    }
-    seen.len()
+    super::graph::downstream_ids(wf, id).len()
 }
 
 fn code_list(ids: &[&str]) -> String {
@@ -570,5 +623,23 @@ mod tests {
     fn hover_on_task_decl_in_a_cycle_stays_silent() {
         let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n";
         assert!(hover(text, text.find("- id: a").expect("a") + 7).is_none());
+    }
+
+    /// Hover on island members — the declaration's card: typed var
+    /// (type · required · default · description) · secret (masked line)
+    /// · env (its value).
+    #[test]
+    fn hover_on_member_refs_shows_the_declaration_cards() {
+        let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\nenv:\n  REGION: eu\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.city }} ${{ env.REGION }} ${{ secrets.api_key }}\" }\n";
+        let h = hover(text, text.find("vars.city").expect("ref") + 6).expect("var card");
+        let b = body(&h);
+        assert!(
+            b.contains("string") && b.contains("required") && b.contains("target city"),
+            "{b}"
+        );
+        let h = hover(text, text.find("secrets.api_key").expect("ref") + 9).expect("secret card");
+        assert!(body(&h).contains("never echoed"), "{}", body(&h));
+        let h = hover(text, text.find("env.REGION").expect("ref") + 5).expect("env card");
+        assert!(body(&h).contains("`eu`"), "{}", body(&h));
     }
 }

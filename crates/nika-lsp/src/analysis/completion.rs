@@ -550,16 +550,22 @@ fn keyword_items(table: &[Entry]) -> Vec<CompletionItem> {
 /// the parse path would yield nothing exactly when completion is needed.
 fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem> {
     // Prefer the parser's authoritative ids (with verb detail) when the
-    // document parses; fall back to the line scan otherwise. The task
-    // being edited is EXCLUDED — a self-dependency is a cycle the check
-    // would refuse, so offering it teaches an error.
+    // document parses; fall back to the line scan otherwise. The
+    // exclusion is the editing task's whole ILLEGAL set — itself plus
+    // its downstream closure: a reference downstream is a cycle (a
+    // template ref is an implicit edge) or a recover deadlock (DAG-004),
+    // and completion never offers what check refuses. The scan fallback
+    // (no graph) honestly degrades to excluding self alone.
     if let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient)
         && !wf.tasks.is_empty()
     {
+        let illegal: Vec<&str> = exclude.map_or_else(Vec::new, |id| {
+            super::graph::illegal_reference_targets(&wf, id)
+        });
         return wf
             .tasks
             .iter()
-            .filter(|t| Some(t.value.id.value.as_str()) != exclude)
+            .filter(|t| !illegal.contains(&t.value.id.value.as_str()))
             .map(|t| CompletionItem {
                 label: t.value.id.value.clone(),
                 kind: Some(CompletionItemKind::VARIABLE),
@@ -1365,13 +1371,27 @@ mod tests {
     /// `${{ secrets.` / `${{ env.` offer the file's own declared names.
     #[test]
     fn island_secrets_and_env_offer_declared_names() {
-        let text = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    env: MY_KEY\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ secrets.";
+        let text = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ secrets.";
         let labels_s = labels(&completion(text, text.len()));
         assert_eq!(labels_s, vec!["api_key"], "{labels_s:?}");
 
         let text2 = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ env.";
         let labels_e = labels(&completion(text2, text2.len()));
         assert_eq!(labels_e, vec!["REGION"], "{labels_e:?}");
+    }
+
+    /// The exclusion is the whole ILLEGAL set — not just self. In the
+    /// diamond a → {b, c} → d, task `b` editing a `${{ tasks.` island
+    /// may reference `a` (ancestor) and `c` (parallel) but never `d`:
+    /// a ref to d is an implicit edge d → b while d already waits on b
+    /// — the cycle the check refuses. Same law, one voice.
+    #[test]
+    fn island_tasks_exclude_the_downstream_closure() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output }}\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"x\" }\n";
+        // cursor mid-island inside task b (document parses whole)
+        let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
+        let got = labels(&completion(text, cursor));
+        assert_eq!(got, vec!["a", "c"], "ancestor + parallel only: {got:?}");
     }
 
     fn labels_of(text: &str) -> Vec<String> {
