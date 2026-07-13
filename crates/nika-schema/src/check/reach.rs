@@ -569,7 +569,7 @@ mod tests {
     #[test]
     fn contradiction_on_one_task_is_dead() {
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::DeadTask);
@@ -592,7 +592,7 @@ mod tests {
             write!(list, ", 'success'").expect("write to String is infallible");
         }
         let f = gates(&wf(&format!(
-            "  - id: a\n    exec: {{ command: \"true\" }}\n  - id: b\n    depends_on: [a]\n    when: ${{{{ tasks.a.status in [{list}] }}}}\n    exec: {{ command: \"true\" }}\n"
+            "  - id: a\n    exec: {{ command: [\"true\"] }}\n  - id: b\n    depends_on: [a]\n    when: ${{{{ tasks.a.status in [{list}] }}}}\n    exec: {{ command: [\"true\"] }}\n"
         )));
         assert!(
             !f.iter().any(|g| g.task == "b"),
@@ -604,7 +604,7 @@ mod tests {
     fn bad_status_literal_failed_is_caught_with_the_fix() {
         // the wild-caught class: 'failed' is not a status — 'failure' is
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failed' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failed' }}\n    exec: { command: [\"true\"] }\n",
         ));
         // == 'failed' never matches → ALSO dead
         assert_eq!(f.len(), 2, "{f:?}");
@@ -617,7 +617,7 @@ mod tests {
     fn ne_bad_literal_flags_vocabulary_but_lives() {
         // != 'failed' always holds — a bug, but the task CAN run
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::BadStatusLiteral);
@@ -628,7 +628,7 @@ mod tests {
         // `a` has no when: and no on_error:skip — it can never be
         // `skipped`, so gating b on it is dead (the spec's own note)
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'skipped' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::DeadTask);
@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn skip_route_makes_skipped_reachable() {
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n    on_error: { skip: true }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'skipped' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n    on_error: { skip: true }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -648,7 +648,7 @@ mod tests {
         // == 'failure' is the documented escalation pattern; cancelled
         // is always possible (operator stop) — neither is dead
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'cancelled' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'cancelled' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -658,7 +658,7 @@ mod tests {
         // b is dead (contradiction) → b can only be skipped/cancelled →
         // c gated on b == 'success' is dead TOO, with the diagnostic
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 2, "{f:?}");
         assert!(f.iter().all(|g| g.kind == GateFindingKind::DeadTask));
@@ -674,7 +674,7 @@ mod tests {
     fn unknown_atoms_are_sound_not_dead() {
         // vars/env/output atoms → Unknown → never a dead-claim
         let f = gates(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"staging\" }\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ vars.env == 'production' && tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [a]\n    when: \"${{ has(tasks.a.output.x) ? tasks.a.status == 'success' : false }}\"\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"staging\" }\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ vars.env == 'production' && tasks.a.status == 'success' }}\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    when: \"${{ has(tasks.a.output.x) ? tasks.a.status == 'success' : false }}\"\n    exec: { command: [\"true\"] }\n",
         );
         assert!(f.is_empty(), "{f:?}");
     }
@@ -682,7 +682,7 @@ mod tests {
     #[test]
     fn in_list_with_vocab_lives_and_bad_member_is_flagged() {
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status in ['success', 'skipped'] }}\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [a]\n    when: ${{ tasks.a.status in ['failed'] }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status in ['success', 'skipped'] }}\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    when: ${{ tasks.a.status in ['failed'] }}\n    exec: { command: [\"true\"] }\n",
         ));
         // b: alive (in-list over vocab — skipped unreachable for a, but
         // success IS reachable → satisfiable). c: bad literal AND dead.
@@ -700,7 +700,7 @@ mod tests {
     #[test]
     fn when_false_literal_is_the_documented_never_pattern_not_a_finding() {
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: false\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: false\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -760,7 +760,7 @@ mod tests {
         // tasks['a'].status — the index form must hit the same analysis:
         // alive on 'failure', dead on impossible 'skipped'
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks['a'].status == 'failure' }}\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [a]\n    when: ${{ tasks['a'].status == 'skipped' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks['a'].status == 'failure' }}\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    when: ${{ tasks['a'].status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].task, "c");
@@ -771,7 +771,7 @@ mod tests {
     fn reversed_operand_order_is_the_same_atom() {
         // 'skipped' == tasks.a.status — literal first, same verdict
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'skipped' == tasks.a.status }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'skipped' == tasks.a.status }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::DeadTask);
@@ -783,7 +783,7 @@ mod tests {
         // c gated on b == 'skipped' is ALIVE: the never-pattern makes
         // skipped a real status downstream
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: false\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'skipped' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: false\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -837,7 +837,7 @@ mod tests {
     fn reversed_operand_bad_literal_is_flagged_too() {
         // 'failed' == tasks.a.status — literal first, vocabulary still checked
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'failed' == tasks.a.status }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'failed' == tasks.a.status }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(
             f.iter()
@@ -854,10 +854,10 @@ mod tests {
         let mut tasks = String::new();
         for i in 1..=6 {
             use std::fmt::Write as _;
-            let _ = write!(tasks, "  - id: u{i}\n    exec: {{ command: \"true\" }}\n");
+            let _ = write!(tasks, "  - id: u{i}\n    exec: {{ command: [\"true\"] }}\n");
         }
         tasks.push_str(
-            "  - id: z\n    depends_on: [u1, u2, u3, u4, u5, u6]\n    when: ${{ tasks.u1.status == 'success' && tasks.u1.status == 'failure' && tasks.u2.status == 'success' && tasks.u3.status == 'success' && tasks.u4.status == 'success' && tasks.u5.status == 'success' && tasks.u6.status == 'success' }}\n    exec: { command: \"true\" }\n",
+            "  - id: z\n    depends_on: [u1, u2, u3, u4, u5, u6]\n    when: ${{ tasks.u1.status == 'success' && tasks.u1.status == 'failure' && tasks.u2.status == 'success' && tasks.u3.status == 'success' && tasks.u4.status == 'success' && tasks.u5.status == 'success' && tasks.u6.status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         );
         let f = gates(&wf(&tasks));
         assert_eq!(f.len(), 1, "{f:?}");
@@ -870,7 +870,7 @@ mod tests {
         // the |= S_SUCCESS paths must really add SUCCESS (a &= mutant
         // kills the chain and the downstream gates go dead)
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: true\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    exec: { command: \"true\" }\n  - id: d\n    depends_on: [c]\n    when: ${{ tasks.c.status == 'success' }}\n    exec: { command: \"true\" }\n",
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: true\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    exec: { command: [\"true\"] }\n  - id: d\n    depends_on: [c]\n    when: ${{ tasks.c.status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -923,10 +923,10 @@ mod tests {
         // goes DEAD. Asserting `c` is alive pins the default-gate runnable
         // path through a downstream status reference.
         let f = gates(&wf(
-            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    \
-             depends_on: [a]\n    exec: { command: \"true\" }\n  - id: c\n    \
+            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    \
+             depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: c\n    \
              depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    \
-             exec: { command: \"true\" }\n",
+             exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }

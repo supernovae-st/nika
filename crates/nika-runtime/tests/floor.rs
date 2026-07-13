@@ -49,7 +49,7 @@ tasks:
 
   - id: probe
     exec:
-      command: "wc -l ./news.json"
+      command: ["wc", "-l", "./news.json"]
 
   - id: extract
     depends_on: [gather]
@@ -80,7 +80,7 @@ tasks:
     depends_on: [write_out]
     when: ${{ vars.publish == 'yes' }}
     exec:
-      command: "echo done"
+      command: ["echo", "done"]
 
 outputs:
   report: ${{ tasks.write_out.output }}

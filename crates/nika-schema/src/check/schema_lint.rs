@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn unschema_d_tasks_are_skipped() {
         let f = findings_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n",
         );
         assert!(f.is_empty());
     }

@@ -102,7 +102,7 @@ secrets:
       - to: "exec"
 tasks:
   - id: use_it
-    exec: { command: "deploy --auth ${{ secrets.token }}" }
+    exec: { command: ["deploy", "--auth", "${{ secrets.token }}"] }
 "#;
     let shell = MockShell::new().enqueue_ok("deployed\n");
     let resolver = Arc::new(MapSecrets(BTreeMap::from([(
@@ -154,7 +154,7 @@ secrets:
       - to: "exec"
 tasks:
   - id: use_it
-    exec: { command: "deploy --auth ${{ secrets.token }}" }
+    exec: { command: ["deploy", "--auth", "${{ secrets.token }}"] }
 "#;
     // The resolver returns nothing (the env var is absent) → the secret is
     // unbound → the reference is the loud unresolved class. Its WIRE code is
@@ -193,7 +193,7 @@ secrets:
       - to: "exec"
 tasks:
   - id: use_it
-    exec: { command: "deploy --auth ${{ secrets.token }}" }
+    exec: { command: ["deploy", "--auth", "${{ secrets.token }}"] }
 "#;
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
     let report = check(&wf);

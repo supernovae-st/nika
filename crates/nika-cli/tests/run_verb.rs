@@ -32,10 +32,10 @@ nika: v1
 workflow: run-ok
 tasks:
   - id: greet
-    exec: { command: "echo hello" }
+    exec: { command: ["echo", "hello"] }
   - id: after
     depends_on: [greet]
-    exec: { command: "echo done" }
+    exec: { command: ["echo", "done"] }
 "#;
 
 const FAILING: &str = r#"
@@ -43,7 +43,7 @@ nika: v1
 workflow: run-fail
 tasks:
   - id: boom
-    exec: { command: "false" }
+    exec: { command: ["false"] }
 "#;
 
 const CYCLE: &str = r#"
@@ -52,10 +52,10 @@ workflow: run-cycle
 tasks:
   - id: a
     depends_on: [b]
-    exec: { command: "true" }
+    exec: { command: ["true"] }
   - id: b
     depends_on: [a]
-    exec: { command: "true" }
+    exec: { command: ["true"] }
 "#;
 
 const INFER: &str = r#"

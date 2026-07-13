@@ -805,7 +805,7 @@ mod tests {
         // (a) no permits block → Unbounded (the SSRF floor is the only guard).
         assert_eq!(
             net_boundary_of(&parse(
-                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n"
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n"
             )),
             NetBoundary::Unbounded
         );

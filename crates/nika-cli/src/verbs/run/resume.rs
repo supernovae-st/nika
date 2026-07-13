@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn from_removes_the_task_and_its_transitive_downstream() {
-        const WF: &str = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"true\" }\n  - id: c\n    exec: { command: \"echo ${{ tasks.b.output }}\" }\n  - id: solo\n    exec: { command: \"true\" }\n";
+        const WF: &str = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: c\n    exec: { command: [\"echo\", \"${{ tasks.b.output }}\"] }\n  - id: solo\n    exec: { command: [\"true\"] }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),
@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn answers_bind_only_known_prompt_tasks() {
-        const WF: &str = "nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  - id: build\n    exec: { command: \"true\" }\n";
+        const WF: &str = "nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  - id: build\n    exec: { command: [\"true\"] }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),

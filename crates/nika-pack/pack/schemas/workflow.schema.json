@@ -507,25 +507,15 @@
     },
     "exec": {
       "type": "object",
-      "required": [
-        "command"
-      ],
       "additionalProperties": false,
       "properties": {
         "command": {
-          "description": "String -> /bin/sh -c (shell). Array -> execve, no shell (the injection-safe form).",
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "minItems": 1
-            }
-          ]
+          "description": "argv — the program and its arguments, execve, NO shell. Each element substituted independently (the injection-safe form). Shell features (pipes · redirects · globs) live in `shell:`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
         },
         "cwd": {
           "type": "string"
@@ -547,8 +537,25 @@
             "combined",
             "structured"
           ]
+        },
+        "shell": {
+          "description": "One shell line, run via /bin/sh -c — the EXPLICIT dangerous door (pipes · redirects · globs). The blocklist applies here; interpolating untrusted values here is on the author. Exactly one of command|shell.",
+          "type": "string",
+          "minLength": 1
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "command"
+          ]
+        },
+        {
+          "required": [
+            "shell"
+          ]
+        }
+      ]
     },
     "invoke": {
       "type": "object",

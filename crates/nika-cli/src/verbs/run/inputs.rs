@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn parse_var_overrides_types_json_else_string() {
         let wf = parse(
-            "nika: v1\nworkflow: t\nvars:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: [\"a\"]\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: t\nvars:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: [\"a\"]\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n",
         );
 
         // string verbatim · integer typed · untyped JSON-guess (array).
@@ -131,7 +131,7 @@ mod tests {
         // CONTRACT — the CLI value must honor it, not be embedded
         // type-blind (`count=notanumber` used to ride through as a string).
         let wf = parse(
-            "nika: v1\nworkflow: t\nvars:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: boolean, default: false }\n  name: { type: string, required: true }\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: t\nvars:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: boolean, default: false }\n  name: { type: string, required: true }\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n",
         );
 
         // The type DRIVES the parse — well-typed values land as their type.

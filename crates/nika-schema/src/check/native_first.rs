@@ -240,9 +240,14 @@ mod tests {
     }
 
     fn exec_wf(command_yaml: &str) -> String {
-        format!(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: {{ command: {command_yaml} }}\n"
-        )
+        // D1 (0.103): the string form lives in `shell:`, argv in `command:` —
+        // the fixture router mirrors the field split the parser enforces.
+        let field = if command_yaml.trim_start().starts_with('[') {
+            "command"
+        } else {
+            "shell"
+        };
+        format!("nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: {{ {field}: {command_yaml} }}\n")
     }
 
     fn sole_native_hint(yaml: &str) -> Hint {
@@ -383,7 +388,7 @@ mod tests {
 
     #[test]
     fn on_finally_cleanups_are_scanned_too() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"make build\" }\n    on_finally:\n      - exec: { command: \"curl -X POST https://hooks.test/done\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
         let hints = hints_of(yaml);
         assert!(
             hints
@@ -403,17 +408,17 @@ workflow: site-asset
 model: mock/echo
 tasks:
   - id: crawl_site
-    exec: { command: "curl -s https://acme.test -o out/site.html" }
+    exec: { command: ["curl", "-s", "https://acme.test", "-o", "out/site.html"] }
   - id: upload_background
     depends_on: [crawl_site]
     exec:
       command: ["node", "workflows/site/bin/helper.mjs", "upload", "--file", "out/bg.png"]
   - id: render_background
     depends_on: [crawl_site]
-    exec: { command: "curl -X POST https://api.openai.com/v1/images/generations" }
+    exec: { command: ["curl", "-X", "POST", "https://api.openai.com/v1/images/generations"] }
   - id: write_manifest
     depends_on: [upload_background, render_background]
-    exec: { command: "jq -n '{done: true}' > out/manifest.json" }
+    exec: { shell: "jq -n '{done: true}' > out/manifest.json" }
 "#;
         let hints = hints_of(yaml);
         let by_task: Vec<(&str, &str)> = hints

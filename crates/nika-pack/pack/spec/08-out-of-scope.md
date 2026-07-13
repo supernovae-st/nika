@@ -49,9 +49,9 @@ tasks: ...
       workflow: ./subroutine.nika.yaml
 ```
 
-**Why deferred** · subroutine calling needs scope/binding rules that need thought · plus risks of stack overflow (recursion) and scheduler complexity. The proposed `nika:run` builtin is therefore deferred from v0.1 · use `exec: command: "nika run subroutine.yaml"` as the workaround.
+**Why deferred** · subroutine calling needs scope/binding rules that need thought · plus risks of stack overflow (recursion) and scheduler complexity. The proposed `nika:run` builtin is therefore deferred from v0.1 · use `exec: shell: "nika run subroutine.yaml"` as the workaround.
 
-Workaround in v0.1 · use `exec: command: "nika run subroutine.yaml --output json"` to launch a sibling workflow process: `--output json` (engine CLI) prints the sub-workflow's typed `outputs:` as JSON on stdout · the parent binds it back with `capture: stdout` + a jq `output:` (the typed contract survives the process boundary).
+Workaround in v0.1 · use `exec: shell: "nika run subroutine.yaml --output json"` to launch a sibling workflow process: `--output json` (engine CLI) prints the sub-workflow's typed `outputs:` as JSON on stdout · the parent binds it back with `capture: stdout` + a jq `output:` (the typed contract survives the process boundary).
 
 **Recursion guard (normative TODAY · even for the workaround)** · a run that
 launches runs (through the workaround now, through `nika:run` when it lands)
@@ -98,7 +98,7 @@ macro retry_with_backoff:
 - id: poll_until
   while: ${{ tasks.check.output.ready == false }}
   exec:
-    command: "./check.sh"
+    command: ["./check.sh"]
 ```
 
 **Why deferred** · unbounded loops break the « acyclic » guarantee of the DAG

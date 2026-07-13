@@ -456,7 +456,7 @@ vars:
 tasks:
   - id: connect
     exec:
-      command: \"ssh ${{ vars.host }} uptime\"
+      shell: \"ssh ${{ vars.host }} uptime\"
 ";
         assert!(
             lints_of(yaml).is_empty(),

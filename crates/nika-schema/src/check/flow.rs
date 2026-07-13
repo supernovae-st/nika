@@ -553,7 +553,7 @@ mod tests {
     #[test]
     fn direct_secret_into_exec_is_effect_tainted() {
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ command: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ shell: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(f.effect_taint(idx(&wf, "t")).is_some());
@@ -572,12 +572,12 @@ mod tests {
         use std::fmt::Write as _;
         const N: usize = 3_000;
         let mut y = format!("nika: v1\nworkflow: w\n{S}tasks:\n");
-        y.push_str("  - id: t0\n    exec: { command: \"echo ${{ secrets.api_key }}\" }\n");
+        y.push_str("  - id: t0\n    exec: { command: [\"echo\", \"${{ secrets.api_key }}\"] }\n");
         for k in 1..N {
             let p = k - 1;
             write!(
                 y,
-                "  - id: t{k}\n    depends_on: [t{p}]\n    exec: {{ command: \"echo ${{{{ tasks.t{p}.output }}}}\" }}\n"
+                "  - id: t{k}\n    depends_on: [t{p}]\n    exec: {{ shell: \"echo ${{{{ tasks.t{p}.output }}}}\" }}\n"
             )
             .expect("write to String is infallible");
         }
@@ -602,7 +602,7 @@ mod tests {
         // The false negative the review found: with: { tok: secret } then
         // ${{ with.tok }} into exec — one hop the old substring scan missed.
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ command: \"curl -H ${{{{ with.tok }}}}\" }}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let trace = f
@@ -621,7 +621,7 @@ mod tests {
         // A cleanup exec that sees a secret re-emits it like a main effect —
         // and a cleanup ALWAYS runs (the review's PROVEN blind spot).
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ command: \"echo build\" }}\n    on_finally:\n      - exec: {{ command: \"curl -d ${{{{ secrets.api_key }}}} x\" }}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - exec: {{ shell: \"curl -d ${{{{ secrets.api_key }}}} x\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -644,7 +644,7 @@ mod tests {
         // a leaks secret into its exec → a.output tainted → b consuming
         // a.output into ITS exec is also tainted (transitive, via the DAG).
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    exec: {{ command: \"echo ${{{{ secrets.api_key }}}}\" }}\n  - id: b\n    depends_on: [a]\n    exec: {{ command: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  - id: b\n    depends_on: [a]\n    exec: {{ shell: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let tb = f.effect_taint(idx(&wf, "b")).expect("transitive taint");
@@ -662,7 +662,7 @@ mod tests {
         // a third-party provider) — but the model's RESPONSE is NOT tainted
         // (not a verbatim echo · the OUTPUT carve-out is preserved · ADR-092).
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  - id: b\n    depends_on: [a]\n    exec: {{ command: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  - id: b\n    depends_on: [a]\n    exec: {{ shell: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         // The prompt is now a sink (an unsanctioned provider egress · leak).
@@ -787,7 +787,7 @@ tasks:
     fn secret_reaching_outputs_is_an_egress() {
         // a secret leaving the run as the return value — the literal exfil.
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    exec: {{ command: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
         );
         let (_wf, f) = facts(&y);
         let eg = f.egresses();
@@ -801,7 +801,7 @@ tasks:
         // for_each over a tainted upstream output → item is tainted → an
         // exec using ${{ item }} re-emits it.
         let y = format!(
-            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    exec: {{ command: \"echo ${{{{ secrets.api_key }}}}\" }}\n  - id: b\n    depends_on: [a]\n    for_each: ${{{{ tasks.a.output }}}}\n    exec: {{ command: \"echo ${{{{ item }}}}\" }}\n"
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  - id: b\n    depends_on: [a]\n    for_each: ${{{{ tasks.a.output }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -812,7 +812,7 @@ tasks:
 
     #[test]
     fn no_secrets_declared_is_empty() {
-        let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n";
+        let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let (_wf, f) = facts(y);
         assert!(f.effect_taint(0).is_none());
         assert!(f.egresses().is_empty());

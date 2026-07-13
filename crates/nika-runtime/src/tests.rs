@@ -82,7 +82,7 @@ async fn wave_settles_stream_before_the_join() {
     use nika_providers::{ProviderRegistry, ProvidersConfig};
     use std::sync::atomic::AtomicBool;
 
-    let yaml = "nika: v1\nworkflow: stream-settle\ntasks:\n  - id: fast\n    exec: { command: \"true\" }\n  - id: gate\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
+    let yaml = "nika: v1\nworkflow: stream-settle\ntasks:\n  - id: fast\n    exec: { command: [\"true\"] }\n  - id: gate\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -164,7 +164,7 @@ vars:
   topic: { type: string, default: "news" }
 tasks:
   - id: t
-    exec: { command: "true" }
+    exec: { command: ["true"] }
 "#;
     let wf = nika_schema::parse(
         yaml,
@@ -520,16 +520,16 @@ nika: v1
 workflow: recover-await-same-wave
 tasks:
   - id: risky
-    exec: { command: "exit 1" }
+    exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
     output:
       v: "."
   - id: source
-    exec: { command: "echo 99" }
+    exec: { command: ["echo", "99"] }
   - id: sink
     depends_on: [risky]
-    exec: { command: "use ${{ tasks.risky.output }}" }
+    exec: { command: ["use", "${{ tasks.risky.output }}"] }
 "#;
         let mut streams: Vec<Vec<Event>> = Vec::new();
         for cap in [Some(1), Some(2), None] {
@@ -581,18 +581,18 @@ nika: v1
 workflow: recover-await-chain
 tasks:
   - id: a
-    exec: { command: "exit 1" }
+    exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.b.output }}
   - id: b
-    exec: { command: "exit 2" }
+    exec: { shell: "exit 2" }
     on_error:
       recover: ${{ tasks.c.output }}
   - id: base
-    exec: { command: "echo base" }
+    exec: { command: ["echo", "base"] }
   - id: c
     depends_on: [base]
-    exec: { command: "echo 42" }
+    exec: { command: ["echo", "42"] }
 "#;
         let shell = MockShell::new()
             .enqueue_fail(1, "a boom")
@@ -626,15 +626,15 @@ nika: v1
 workflow: recover-await-skipped
 tasks:
   - id: risky
-    exec: { command: "exit 1" }
+    exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
   - id: base
-    exec: { command: "echo base" }
+    exec: { command: ["echo", "base"] }
   - id: source
     depends_on: [base]
     when: false
-    exec: { command: "echo never" }
+    exec: { command: ["echo", "never"] }
 "#;
         let shell = MockShell::new()
             .enqueue_fail(1, "boom")
@@ -662,11 +662,11 @@ nika: v1
 workflow: recover-await-mutual
 tasks:
   - id: a
-    exec: { command: "exit 1" }
+    exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.b.status }}
   - id: b
-    exec: { command: "exit 2" }
+    exec: { shell: "exit 2" }
     on_error:
       recover: ${{ tasks.a.status }}
 "#;
@@ -702,10 +702,10 @@ nika: v1
 workflow: recover-terminal-broken-path
 tasks:
   - id: done
-    exec: { command: "echo ok" }
+    exec: { command: ["echo", "ok"] }
   - id: risky
     depends_on: [done]
-    exec: { command: "exit 1" }
+    exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.done.output.missing }}
 "#;
@@ -737,7 +737,7 @@ tasks:
     #[test]
     fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         let yaml =
-            "nika: v1\nworkflow: t\ntasks:\n  - id: risky\n    exec: { command: \"exit 1\" }\n";
+            "nika: v1\nworkflow: t\ntasks:\n  - id: risky\n    exec: { shell: \"exit 1\" }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -831,11 +831,11 @@ workflow: recover-fanout-boundary
 tasks:
   - id: fan
     for_each: ["x"]
-    exec: { command: "exit 1" }
+    exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
   - id: source
-    exec: { command: "echo 9" }
+    exec: { command: ["echo", "9"] }
 "#;
         let shell = MockShell::new().enqueue_fail(1, "boom").enqueue_ok("9\n");
         let (outcome, _events) = run_yaml(yaml, shell, Some(1)).await;

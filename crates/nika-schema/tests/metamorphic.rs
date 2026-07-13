@@ -112,7 +112,7 @@ fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
             _ => {}
         }
         match t.verb {
-            0 => y.push_str("    exec: { command: \"true\" }\n"),
+            0 => y.push_str("    exec: { command: [\"true\"] }\n"),
             1 => y.push_str("    infer: { prompt: \"go\", max_tokens: 50 }\n"),
             _ => y.push_str("    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n"),
         }
@@ -250,7 +250,7 @@ proptest! {
     fn r3_literal_fanout_unfolds_to_duplicated_tasks(verb in 0..3u8, attempts in 1..=3u8) {
         let spec = |fan: bool, n: usize| {
             let body = match verb {
-                0 => "    exec: { command: \"true\" }\n",
+                0 => "    exec: { command: [\"true\"] }\n",
                 1 => "    infer: { prompt: \"go\", max_tokens: 50 }\n",
                 _ => "    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
             };
@@ -284,7 +284,7 @@ proptest! {
     fn r4_adding_an_independent_task_is_compositional(tasks in workflow_strategy()) {
         let base = run(&to_yaml(&tasks, "t")).expect("base parses");
         let mut extended_yaml = to_yaml(&tasks, "t");
-        extended_yaml.push_str("  - id: frame_extra\n    exec: { command: \"true\" }\n");
+        extended_yaml.push_str("  - id: frame_extra\n    exec: { command: [\"true\"] }\n");
         let extended = run(&extended_yaml).expect("extended parses");
         let (a1, l1, e1, _) = totals(&base.certificate);
         let (a2, l2, e2, _) = totals(&extended.certificate);

@@ -104,6 +104,7 @@ these from this file alone.
 | `NIKA-VAR-006` | expression type error at evaluation — cross-type compare · non-boolean `when:` value · `for_each` over a non-array | `variable_error` | false |
 | `NIKA-VAR-007` | bytes value substituted into a string position | `variable_error` | false |
 | `NIKA-VAR-008` | unclosed `${{` opener | `validation_error` | false |
+| `NIKA-VAR-020` | bare `tasks.X` is the envelope, not a value — pick `.output` (closed projection set · 04 §namespaces) | `validation_error` | false |
 | `NIKA-VAR-009` | typed `outputs` value did not match its declared `type:` at run end (the output half of the callable contract · [01 §engine MUST](./01-envelope.md)) | `validation_error` | false |
 | `NIKA-INFER-001` | provider call failed (HTTP error · provider refusal) | `provider_error` | engine-assessed |
 | `NIKA-INFER-002` | structured output failed `schema:` validation (after any engine-internal retries) | `validation_error` | false |
@@ -330,14 +331,14 @@ fetch-chain pattern · a local `nika:read` beside a live fetch).
 
 # Skip on error · downstream may handle
 - id: optional_step
-  exec: { command: "./optional.sh" }
+  exec: { command: ["./optional.sh"] }
   on_error:
     skip: true
 
 - id: next
   depends_on: [optional_step]
   when: ${{ tasks.optional_step.status == 'success' }}   # only run if not skipped
-  exec: { command: "..." }
+  exec: { command: ["..."] }
 ```
 
 ---

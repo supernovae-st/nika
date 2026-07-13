@@ -48,19 +48,19 @@ tasks:
   # ── the gate wave · all three run in parallel ──
   - id: tests
     exec:
-      command: "cargo test --workspace --quiet"
+      command: ["cargo", "test", "--workspace", "--quiet"]
       capture: structured
     timeout: "15m"
 
   - id: lint
     exec:
-      command: "cargo clippy --workspace --all-targets -- -D warnings"
+      command: ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
       capture: structured
     timeout: "10m"
 
   - id: audit
     exec:
-      command: "cargo audit"
+      command: ["cargo", "audit"]
       capture: structured
     timeout: "5m"
     retry:
@@ -113,7 +113,7 @@ tasks:
   - id: ship
     depends_on: [hold]
     exec:
-      command: "./scripts/release.sh ${{ vars.version }}"
+      command: ["./scripts/release.sh", "${{ vars.version }}"]   # argv: the interpolation cannot break out
       capture: structured
     timeout: "30m"
 

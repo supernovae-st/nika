@@ -682,7 +682,7 @@ mod tests {
         // must refuse to narrate and hand over to check (exit 2).
         let path = tmp(
             "dirty",
-            "nika: v1\nworkflow: dirty\ntasks:\n  - id: a\n    exec: { command: \"echo x\" }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: \"echo y\" }\n",
+            "nika: v1\nworkflow: dirty\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         );
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
@@ -767,7 +767,7 @@ mod tests {
     use nika_types::resource::Value;
     use std::time::Duration;
 
-    const FC: &str = "nika: v1\nworkflow: fc-fix\ndescription: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  - id: fetch\n    exec: { command: \"echo x\" }\n  - id: think\n    depends_on: [fetch]\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
+    const FC: &str = "nika: v1\nworkflow: fc-fix\ndescription: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  - id: fetch\n    exec: { command: [\"echo\", \"x\"] }\n  - id: think\n    depends_on: [fetch]\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
 
     /// One completed fc-fix run body: fetch (exec) + think (infer),
     /// distinct durations, optional sha/model/extras.

@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn document_symbol_request_returns_nested_tree() {
         let mut docs = BTreeMap::new();
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         open(&mut docs, yaml);
         let params = DocumentSymbolParams {
             text_document: TextDocumentIdentifier::new(uri()),
@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn diagnose_broken_workflow_yields_an_error() {
         let doc = Document::new(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n",
         );
         let diags = diagnose(&doc);
         assert!(
@@ -569,10 +569,10 @@ mod tests {
         let mut docs: Docs = BTreeMap::new();
         open(
             &mut docs,
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n",
         );
         // change to a BROKEN workflow (depends on a ghost) → an error diag.
-        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         handle_notification(&server, change_note(broken), &mut docs).expect("handled");
         assert_eq!(
             docs.get(uri_key(&uri())).map(Document::text),
@@ -908,11 +908,11 @@ mod canary {
             .expect("initialized");
 
         // 1) A broken workflow → a NIKA-* error diagnostic published.
-        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         did_open(&client, broken);
 
         // 2) A clean workflow with a verb, a dependency and a template ref.
-        let hello = "nika: v1\nworkflow: hello\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  - id: use_it\n    depends_on: [greet]\n    exec: { command: \"echo ${{ tasks.greet.output }}\" }\n";
+        let hello = "nika: v1\nworkflow: hello\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  - id: use_it\n    depends_on: [greet]\n    exec: { command: [\"echo\", \"${{ tasks.greet.output }}\"] }\n";
         let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);

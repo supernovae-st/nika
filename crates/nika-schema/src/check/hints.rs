@@ -724,7 +724,7 @@ mod tests {
     #[test]
     fn plain_success_gate_on_unskippable_dep_is_redundant() {
         let h = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { shell: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { shell: \"true\" }\n",
         );
         assert!(
             h.iter()
@@ -738,14 +738,14 @@ mod tests {
         // a may be skipped two ways — when:-gated · on_error: skip —
         // the spec's own « meaningful only when X may be skipped »
         let gated = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { go: \"y\" }\ntasks:\n  - id: root\n    exec: { command: \"true\" }\n  - id: a\n    depends_on: [root]\n    when: ${{ vars.go == 'y' }}\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { go: \"y\" }\ntasks:\n  - id: root\n    exec: { shell: \"true\" }\n  - id: a\n    depends_on: [root]\n    when: ${{ vars.go == 'y' }}\n    exec: { shell: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { shell: \"true\" }\n",
         );
         assert!(
             !gated.iter().any(|x| x.kind == "redundant-gate"),
             "{gated:?}"
         );
         let skip_route = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n    on_error: { skip: true }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { shell: \"true\" }\n    on_error: { skip: true }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { shell: \"true\" }\n",
         );
         assert!(
             !skip_route.iter().any(|x| x.kind == "redundant-gate"),
@@ -758,21 +758,21 @@ mod tests {
         // conjunct = a condition beyond the default gate; reversed
         // operand IS the same plain gate; 'failure' is not the pattern
         let compound = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"p\" }\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && vars.env == 'p' }}\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"p\" }\ntasks:\n  - id: a\n    exec: { shell: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && vars.env == 'p' }}\n    exec: { shell: \"true\" }\n",
         );
         assert!(
             !compound.iter().any(|x| x.kind == "redundant-gate"),
             "{compound:?}"
         );
         let reversed = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'success' == tasks.a.status }}\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { shell: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'success' == tasks.a.status }}\n    exec: { shell: \"true\" }\n",
         );
         assert!(
             reversed.iter().any(|x| x.kind == "redundant-gate"),
             "{reversed:?}"
         );
         let failure = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { shell: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { shell: \"true\" }\n",
         );
         assert!(
             !failure.iter().any(|x| x.kind == "redundant-gate"),
@@ -791,7 +791,7 @@ mod tests {
     #[test]
     fn unconsumed_infer_is_dead_spend() {
         let h = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    exec: { command: \"echo done\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    exec: { shell: \"echo done\" }\n",
         );
         assert!(h.iter().any(|x| x.kind == "dead-spend" && x.task == "a"));
         // consumed via outputs: → no dead-spend hint
@@ -825,7 +825,7 @@ mod tests {
         );
         // A bare envelope in a GATE is plumbing, not a trap — silent.
         let gate = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    when: ${{ size(tasks.a.output) > 0 }}\n    exec: { command: \"echo go\" }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    when: ${{ size(tasks.a.output) > 0 }}\n    exec: { shell: \"echo go\" }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(
             !gate.iter().any(|x| x.kind == "envelope-output"),
@@ -836,7 +836,7 @@ mod tests {
     #[test]
     fn deeply_referenced_unschema_d_output_gets_a_typing_hint() {
         let h = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.field }}\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    exec: { shell: \"echo ${{ tasks.a.output.field }}\" }\n",
         );
         assert!(
             h.iter().any(|x| x.kind == "typing" && x.task == "a"),
@@ -844,7 +844,7 @@ mod tests {
         );
         // shallow consumption only → no typing hint
         let h2 = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output }}\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    exec: { shell: \"echo ${{ tasks.a.output }}\" }\n",
         );
         assert!(!h2.iter().any(|x| x.kind == "typing"), "{h2:?}");
     }
@@ -852,12 +852,12 @@ mod tests {
     #[test]
     fn effectful_workflow_without_permits_gets_the_boundary_hint() {
         let h = hints_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { shell: \"echo hi\" }\n",
         );
         assert!(h.iter().any(|x| x.kind == "permits"), "{h:?}");
         // boundary declared → no hint
         let h2 = hints_of(
-            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: t\n    exec: { shell: \"echo hi\" }\n",
         );
         assert!(!h2.iter().any(|x| x.kind == "permits"), "{h2:?}");
     }
@@ -1023,7 +1023,7 @@ mod tests {
     #[test]
     fn schema_d_task_gets_no_typing_hint() {
         let h = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          field: { type: string }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.field }}\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          field: { type: string }\n  - id: b\n    depends_on: [a]\n    exec: { shell: \"echo ${{ tasks.a.output.field }}\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "typing"), "{h:?}");
     }
@@ -1031,7 +1031,7 @@ mod tests {
     #[test]
     fn retried_exec_warns_at_least_once_semantics() {
         let h = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: deploy\n    retry: { max_attempts: 3 }\n    exec: { command: \"./deploy.sh\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: deploy\n    retry: { max_attempts: 3 }\n    exec: { shell: \"./deploy.sh\" }\n",
         );
         let hit = h.iter().find(|x| x.kind == "retry-effects").expect("hint");
         assert_eq!(hit.task, "deploy");
@@ -1053,7 +1053,7 @@ mod tests {
         // builtins carry documented idempotent semantics · max_attempts
         // 1 is no retry at all — none of these hint.
         let h = hints_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: ask\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  - id: save\n    retry: { max_attempts: 3 }\n    depends_on: [ask]\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ tasks.ask.output }}\" }\n  - id: once\n    retry: { max_attempts: 1 }\n    depends_on: [save]\n    exec: { command: \"true\" }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: ask\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  - id: save\n    retry: { max_attempts: 3 }\n    depends_on: [ask]\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ tasks.ask.output }}\" }\n  - id: once\n    retry: { max_attempts: 1 }\n    depends_on: [save]\n    exec: { shell: \"true\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "retry-effects"), "{h:?}");
     }
@@ -1076,7 +1076,7 @@ mod tests {
         //   - referenced_secrets → {} / {""} / {"xyzzy"} (FOO not in set →
         //     the `referenced.contains(name)` guard fails → no hint)
         let h = hints_of(
-            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  - id: t\n    exec: { command: \"echo ${{ secrets.FOO }}\" }\n",
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  - id: t\n    exec: { shell: \"echo ${{ secrets.FOO }}\" }\n",
         );
         let hit = h
             .iter()
@@ -1094,7 +1094,7 @@ mod tests {
         // matching name would not, but a hardcoded set could) this would
         // also catch over-collection.
         let h = hints_of(
-            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  - id: t\n    exec: { shell: \"echo hi\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "secrets-store"), "{h:?}");
     }
@@ -1121,7 +1121,7 @@ mod tests {
         // baseline the from_iter([""]) / from_iter(["xyzzy"]) mutations
         // violate (they would return a non-empty set here).
         let wf = wf_of(
-            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: a\ntasks:\n  - id: t\n    exec: { command: \"echo plain\" }\n",
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: a\ntasks:\n  - id: t\n    exec: { shell: \"echo plain\" }\n",
         );
         assert!(referenced_secrets(&wf).is_empty());
     }
@@ -1151,7 +1151,7 @@ mod tests {
 
         // exec: command + stdin + env values
         let exec = wf_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec:\n      command: \"run CMD\"\n      stdin: \"STDIN\"\n      env: { K: \"ENVVAL\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec:\n      shell: \"run CMD\"\n      stdin: \"STDIN\"\n      env: { K: \"ENVVAL\" }\n",
         );
         let f = task_text_fields(&exec.tasks[0].value);
         assert!(f.contains(&"run CMD"), "{f:?}");

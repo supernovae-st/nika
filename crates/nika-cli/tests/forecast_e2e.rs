@@ -37,7 +37,7 @@ model: mock/echo
 tasks:
   - id: probe
     exec:
-      command: "echo ready"
+      command: ["echo", "ready"]
 
   - id: think
     depends_on: [probe]

@@ -51,7 +51,7 @@ fn misspelled_key_on_closed_level_is_rejected() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "report ${{ tasks.extract.output.entitties }}"
+      command: ["report", "${{ tasks.extract.output.entitties }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -63,7 +63,7 @@ fn member_step_into_scalar_typed_property_is_rejected() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "report ${{ tasks.extract.output.count.value }}"
+      command: ["report", "${{ tasks.extract.output.count.value }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -75,7 +75,7 @@ fn index_step_on_non_array_level_is_rejected() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "report ${{ tasks.extract.output[0] }}"
+      command: ["report", "${{ tasks.extract.output[0] }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -87,7 +87,7 @@ fn member_step_into_array_items_scalar_is_rejected() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "report ${{ tasks.extract.output.entities[0].name }}"
+      command: ["report", "${{ tasks.extract.output.entities[0].name }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -114,7 +114,7 @@ fn declared_property_path_is_accepted() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
+      shell: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
 "#);
     assert_eq!(codes(&yaml), Vec::<String>::new());
 }
@@ -125,7 +125,7 @@ fn valid_index_and_member_chain_is_accepted() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "first: ${{ tasks.extract.output.entities[0] }}"
+      command: ["first:", "${{ tasks.extract.output.entities[0] }}"]
 "#);
     assert_eq!(codes(&yaml), Vec::<String>::new());
 }
@@ -147,7 +147,7 @@ tasks:
   - id: report
     depends_on: [extract]
     exec:
-      command: "r ${{ tasks.extract.output.surprise }} ${{ tasks.extract.output.meta.anything.deep }}"
+      command: ["r", "${{ tasks.extract.output.surprise }}", "${{ tasks.extract.output.meta.anything.deep }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
@@ -173,7 +173,7 @@ tasks:
   - id: report
     depends_on: [extract]
     exec:
-      command: "r ${{ tasks.extract.output.result.maybe.deep }}"
+      command: ["r", "${{ tasks.extract.output.result.maybe.deep }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
@@ -185,11 +185,11 @@ nika: v1
 workflow: sbp-dyn
 tasks:
   - id: dump
-    exec: { command: "./dump.sh" }
+    exec: { command: ["./dump.sh"] }
   - id: report
     depends_on: [dump]
     exec:
-      command: "r ${{ tasks.dump.output.whatever.deep[3] }}"
+      command: ["r", "${{ tasks.dump.output.whatever.deep[3] }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
@@ -204,7 +204,7 @@ fn dynamic_index_step_ends_the_static_walk() {
     with:
       i: "0"
     exec:
-      command: "r ${{ tasks.extract.output.entities[with.i] }}"
+      command: ["r", "${{ tasks.extract.output.entities[with.i] }}"]
 "#);
     assert_eq!(codes(&yaml), Vec::<String>::new());
 }
@@ -216,7 +216,7 @@ fn string_index_form_counts_as_member_step() {
   - id: report
     depends_on: [extract]
     exec:
-      command: "r ${{ tasks.extract.output['entitties'] }}"
+      command: ["r", "${{ tasks.extract.output['entitties'] }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }

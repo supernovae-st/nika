@@ -46,7 +46,7 @@ tasks:
   - id: report
     depends_on: [extract]
     exec:
-      command: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
+      shell: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
 "#;
 
 /// One `infer` producer + `n` fan-out `exec` consumers, each binding a declared
@@ -64,7 +64,7 @@ fn large_workflow(n: usize) -> String {
         s.push_str(&i.to_string());
         s.push_str(
             "\n    depends_on: [extract]\n    exec:\n      \
-             command: \"report ${{ tasks.extract.output.entities }}\"\n",
+             command: [\"report\", \"${{ tasks.extract.output.entities }}\"]\n",
         );
     }
     s

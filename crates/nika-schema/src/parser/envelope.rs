@@ -998,7 +998,7 @@ nika: v1
 workflow: demo
 tasks:
   - id: t
-    exec: { command: \"true\" }
+    exec: { command: [\"true\"] }
 ";
 
     #[test]

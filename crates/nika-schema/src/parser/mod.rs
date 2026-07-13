@@ -616,7 +616,7 @@ tasks:
         use std::fmt::Write as _;
         let mut yaml = String::from("nika: v1\nworkflow: w\ntasks:\n");
         for i in 0..=tasks::MAX_TASKS {
-            let _ = write!(yaml, "  - id: t{i}\n    exec: {{ command: \"true\" }}\n");
+            let _ = write!(yaml, "  - id: t{i}\n    exec: {{ command: [\"true\"] }}\n");
         }
         let err = parse_strict(&yaml).expect_err("rejected");
         assert!(err.to_string().contains("resource bound"), "{err}");
@@ -827,7 +827,7 @@ tasks:
     #[test]
     fn bare_modeline_parse_failure_names_the_cause() {
         let yaml = "$schema=https://nika.sh/schema/v1/workflow.schema.json\n\
-                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n";
+                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n";
         let err = parse_strict(yaml).expect_err("bare modeline breaks the doc");
         let SchemaError::YamlSyntax { message, span } = err else {
             panic!("expected YamlSyntax, got {err:?}");
@@ -850,7 +850,7 @@ tasks:
     fn bare_language_server_line_is_the_same_class() {
         let yaml = "# SPDX-License-Identifier: Apache-2.0\n\
                     yaml-language-server: $schema=https://nika.sh/x.json\n\
-                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n";
+                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n";
         let err = parse_strict(yaml).expect_err("unknown top-level field in strict");
         let SchemaError::UnknownField {
             field, suggestion, ..
@@ -870,7 +870,7 @@ tasks:
     fn commented_modeline_never_fires_the_lint() {
         // The HEALTHY form — parse succeeds, the lint is never consulted.
         let yaml = "# yaml-language-server: $schema=https://nika.sh/x.json\n\
-                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n";
+                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n";
         parse_strict(yaml).expect("commented modeline is valid YAML");
     }
 

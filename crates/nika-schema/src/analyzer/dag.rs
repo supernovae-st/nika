@@ -263,10 +263,10 @@ mod tests {
         body: \"${{{{ tasks.report.output }}}}\"
   - id: mid
     depends_on: [fetch]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: report
     depends_on: [mid]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let errors = analyze_yaml(&yaml).expect_err("deadlock");
@@ -298,10 +298,10 @@ mod tests {
         - \"${{{{ tasks.report.output }}}}\"
   - id: mid
     depends_on: [fetch]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: report
     depends_on: [mid]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let errors = analyze_yaml(&yaml).expect_err("deadlock via array-nested ref");
@@ -328,10 +328,10 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   - id: base
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: other
     depends_on: [base]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: fetch
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
     on_error:
@@ -366,10 +366,10 @@ mod tests {
             "{HEADER}tasks:
   - id: a
     depends_on: [b]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: b
     depends_on: [a]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let errors = analyze_yaml(&yaml).expect_err("cycle");
@@ -396,10 +396,10 @@ mod tests {
             "{HEADER}tasks:
   - id: a
     depends_on: [b]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: b
     depends_on: [a]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let errors = analyze_yaml(&yaml).expect_err("cycle");
@@ -425,7 +425,7 @@ mod tests {
             "{HEADER}tasks:
   - id: a
     depends_on: [a]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let errors = analyze_yaml(&yaml).expect_err("self-cycle");
@@ -444,7 +444,7 @@ mod tests {
             "{HEADER}tasks:
   - id: a
     depends_on: [ghost]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let errors = analyze_yaml(&yaml).expect_err("unresolved");
@@ -462,16 +462,16 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   - id: a
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: b
     depends_on: [a]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: c
     depends_on: [a]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: d
     depends_on: [b, c]
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let analyzed = analyze_yaml(&yaml).expect("valid diamond");
@@ -486,9 +486,9 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   - id: x
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
   - id: y
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         let analyzed = analyze_yaml(&yaml).expect("valid");

@@ -468,7 +468,7 @@ tasks:
     #[test]
     fn resolve_skills_is_empty_for_a_skill_less_workflow() {
         let wf = crate::parse(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n",
             crate::FileId::new(0),
             crate::ParseMode::Strict,
         )
@@ -488,7 +488,7 @@ tasks:
       prompt: \"go\"
       skills: [\"s1/SKILL.md\", \"s2/SKILL.md\"]
   - id: b
-    exec: { command: \"echo hi\" }
+    exec: { command: [\"echo\", \"hi\"] }
     on_finally:
       - agent:
           prompt: \"wrap up\"

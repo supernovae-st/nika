@@ -32,7 +32,7 @@ tasks:
 
   - id: probe
     exec:
-      command: "wc -l ./news.json"
+      command: ["wc", "-l", "./news.json"]
 
   - id: fan
     depends_on: [gather]
@@ -51,7 +51,7 @@ tasks:
     depends_on: [think]
     when: ${{ vars.source != '' }}
     exec:
-      command: "echo done"
+      command: ["echo", "done"]
 "#;
 
 /// Write the fixture to a temp file owned by this test run.

@@ -233,7 +233,7 @@ mod tests {
         );
         // A non-prompt task failing with the same code text never pauses.
         let exec_wf =
-            parse("nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    exec: { command: \"true\" }\n");
+            parse("nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    exec: { command: [\"true\"] }\n");
         assert!(
             prompt_block(
                 &failed_finish("ask", PROMPT_BLOCKED_CODE),
@@ -277,7 +277,7 @@ mod tests {
         use nika_event::EventKind;
         use nika_kernel::tool_executor::{ToolErrorMeta, ToolResult};
 
-        const GATED: &str = "nika: v1\nworkflow: gated\ntasks:\n  - id: prep\n    exec: { command: \"echo ready\" }\n  - id: ask\n    depends_on: [prep]\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  - id: after\n    depends_on: [ask]\n    exec: { command: \"echo done\" }\n";
+        const GATED: &str = "nika: v1\nworkflow: gated\ntasks:\n  - id: prep\n    exec: { command: [\"echo\", \"ready\"] }\n  - id: ask\n    depends_on: [prep]\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  - id: after\n    depends_on: [ask]\n    exec: { command: [\"echo\", \"done\"] }\n";
 
         let blocked_prompt = || {
             let mut result = ToolResult::error("tc1", "non-interactive and no `default:`");
@@ -477,7 +477,7 @@ mod tests {
         // `${{ tasks.missing.output }}` cannot render (no record) — the
         // payload carries the AUTHORED text instead of blocking the pause.
         let wf = parse(
-            "nika: v1\nworkflow: t\ntasks:\n  - id: up\n    exec: { command: \"true\" }\n  - id: ask\n    depends_on: [up]\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"about ${{ tasks.up.output }}\" }\n",
+            "nika: v1\nworkflow: t\ntasks:\n  - id: up\n    exec: { command: [\"true\"] }\n  - id: ask\n    depends_on: [up]\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"about ${{ tasks.up.output }}\" }\n",
         );
         let (records, vars, markers) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
         let pause = prompt_block(
