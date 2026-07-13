@@ -59,6 +59,10 @@ serde_json = { workspace = true }
 criterion  = { workspace = true }  # gate-7 benches · parse + check hot paths
 
 [[bench]]
+name    = "refonte_baseline"
+harness = false            # own harness: explicit p50/p95 + allocs + slope (W0 gate 8)
+
+[[bench]]
 name = "parse_bench"
 harness = false
 
