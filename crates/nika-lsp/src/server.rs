@@ -682,7 +682,10 @@ fn file_uri_dir(uri: &lsp_types::Uri) -> Option<std::path::PathBuf> {
         return None;
     }
     let raw = uri.path().as_str();
-    let mut decoded = String::with_capacity(raw.len());
+    // Percent-decode at the BYTE level, then re-assemble as UTF-8 — a
+    // per-byte `as char` would latin-1 every multi-byte sequence
+    // (`é` = `%C3%A9` → `Ã©`) and the walk would root in a ghost dir.
+    let mut decoded = Vec::with_capacity(raw.len());
     let bytes = raw.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -690,14 +693,24 @@ fn file_uri_dir(uri: &lsp_types::Uri) -> Option<std::path::PathBuf> {
             && let Some(hex) = raw.get(i + 1..i + 3)
             && let Ok(v) = u8::from_str_radix(hex, 16)
         {
-            decoded.push(v as char);
+            decoded.push(v);
             i += 3;
             continue;
         }
-        decoded.push(bytes[i] as char);
+        decoded.push(bytes[i]);
         i += 1;
     }
-    let path = std::path::PathBuf::from(decoded);
+    let mut text = String::from_utf8_lossy(&decoded).into_owned();
+    // A Windows drive rides as `/C:/…` in the URI path — shed the
+    // leading slash so the PathBuf is the real drive-rooted path.
+    if text.len() >= 3
+        && text.as_bytes()[0] == b'/'
+        && text.as_bytes()[1].is_ascii_alphabetic()
+        && text.as_bytes()[2] == b':'
+    {
+        text.remove(0);
+    }
+    let path = std::path::PathBuf::from(text);
     path.parent().map(std::path::Path::to_path_buf)
 }
 
@@ -1166,6 +1179,22 @@ mod uri_tests {
         assert_eq!(
             file_uri_dir(&uri("file:///tmp/my%20proj/flow.nika.yaml")),
             Some(std::path::PathBuf::from("/tmp/my proj"))
+        );
+    }
+
+    #[test]
+    fn multibyte_percent_escapes_decode_as_utf8_not_latin1() {
+        assert_eq!(
+            file_uri_dir(&uri("file:///tmp/caf%C3%A9/flow.nika.yaml")),
+            Some(std::path::PathBuf::from("/tmp/café"))
+        );
+    }
+
+    #[test]
+    fn a_windows_drive_path_sheds_the_uri_slash() {
+        assert_eq!(
+            file_uri_dir(&uri("file:///C:/proj/flow.nika.yaml")),
+            Some(std::path::PathBuf::from("C:/proj"))
         );
     }
 

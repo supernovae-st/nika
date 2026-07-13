@@ -114,8 +114,7 @@ fn island(label: String, detail: String) -> CompletionItem {
 pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     let view = doc_view(text, offset);
     let mut items = Vec::new();
-    for (name, is_array) in view.vars.iter().filter(|(_, a)| *a) {
-        let _ = is_array;
+    for (name, _) in view.vars.iter().filter(|(_, a)| *a) {
         items.push(island(
             format!("${{{{ vars.{name} }}}}"),
             "array input — one run per element".to_owned(),
@@ -132,8 +131,7 @@ pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
             format!("upstream array output — {edge}"),
         ));
     }
-    for (name, is_array) in view.vars.iter().filter(|(_, a)| !*a) {
-        let _ = is_array;
+    for (name, _) in view.vars.iter().filter(|(_, a)| !*a) {
         items.push(island(
             format!("${{{{ vars.{name} }}}}"),
             "runs if it holds a list at launch".to_owned(),

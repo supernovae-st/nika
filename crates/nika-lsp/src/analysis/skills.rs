@@ -10,6 +10,7 @@
 //! count), and every failure degrades to silence — a completion lane
 //! must never take the server down.
 
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -50,9 +51,12 @@ pub(super) fn project_root(doc_dir: &Path) -> PathBuf {
 pub(super) fn skill_items(doc_dir: &Path) -> Vec<CompletionItem> {
     let root = project_root(doc_dir);
     let mut items = Vec::new();
-    let mut queue = vec![(root.clone(), 0usize)];
+    // A true breadth-first queue: when the dir budget bites on a huge
+    // tree, the shallow (conventional) homes have already been seen —
+    // a DFS would let one deep subtree starve `.agents/` at the root.
+    let mut queue = VecDeque::from([(root.clone(), 0usize)]);
     let mut visited = 0usize;
-    while let Some((dir, depth)) = queue.pop() {
+    while let Some((dir, depth)) = queue.pop_front() {
         if visited >= MAX_DIRS || items.len() >= MAX_ITEMS {
             break;
         }
@@ -73,7 +77,7 @@ pub(super) fn skill_items(doc_dir: &Path) -> Vec<CompletionItem> {
                     && name != "node_modules"
                     && name != "target"
                 {
-                    queue.push((path, depth + 1));
+                    queue.push_back((path, depth + 1));
                 }
                 continue;
             }
