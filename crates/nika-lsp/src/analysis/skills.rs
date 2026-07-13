@@ -13,6 +13,8 @@
 use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::parse_skill;
@@ -28,6 +30,16 @@ const MAX_DEPTH: usize = 6;
 const MAX_ITEMS: usize = 50;
 /// A `SKILL.md` past this size is not a skill card — skip, never read.
 const MAX_FILE_BYTES: u64 = 64 * 1024;
+/// Completion fires per KEYSTROKE inside `skills: ["` — without a memo
+/// every keypress replays up to `MAX_DIRS` `read_dir` calls. Three
+/// seconds covers a typing burst; a freshly authored SKILL.md shows up
+/// on the next pause.
+const WALK_TTL: Duration = Duration::from_secs(3);
+
+/// The one-slot memo (root → items). A `Mutex`, not a `RwLock`: the server
+/// loop is sync single-threaded — this exists for the keystroke burst,
+/// not for contention. A poisoned lock degrades to a fresh walk.
+static WALK_MEMO: Mutex<Option<(PathBuf, Instant, Vec<CompletionItem>)>> = Mutex::new(None);
 
 pub(super) fn project_root(doc_dir: &Path) -> PathBuf {
     let mut cur = doc_dir.to_path_buf();
@@ -50,11 +62,26 @@ pub(super) fn project_root(doc_dir: &Path) -> PathBuf {
 /// reject at compose time teaches a failure.
 pub(super) fn skill_items(doc_dir: &Path) -> Vec<CompletionItem> {
     let root = project_root(doc_dir);
+    if let Ok(guard) = WALK_MEMO.lock()
+        && let Some((cached_root, at, items)) = guard.as_ref()
+        && *cached_root == root
+        && at.elapsed() < WALK_TTL
+    {
+        return items.clone();
+    }
+    let items = walk_skills(&root);
+    if let Ok(mut guard) = WALK_MEMO.lock() {
+        *guard = Some((root, Instant::now(), items.clone()));
+    }
+    items
+}
+
+fn walk_skills(root: &Path) -> Vec<CompletionItem> {
     let mut items = Vec::new();
     // A true breadth-first queue: when the dir budget bites on a huge
     // tree, the shallow (conventional) homes have already been seen —
     // a DFS would let one deep subtree starve `.agents/` at the root.
-    let mut queue = VecDeque::from([(root.clone(), 0usize)]);
+    let mut queue = VecDeque::from([(root.to_path_buf(), 0usize)]);
     let mut visited = 0usize;
     while let Some((dir, depth)) = queue.pop_front() {
         if visited >= MAX_DIRS || items.len() >= MAX_ITEMS {
@@ -94,7 +121,7 @@ pub(super) fn skill_items(doc_dir: &Path) -> Vec<CompletionItem> {
                 continue;
             };
             let rel = path
-                .strip_prefix(&root)
+                .strip_prefix(root)
                 .unwrap_or(&path)
                 .components()
                 .map(|c| c.as_os_str().to_string_lossy().into_owned())
@@ -116,6 +143,11 @@ pub(super) fn skill_items(doc_dir: &Path) -> Vec<CompletionItem> {
 mod tests {
     use super::*;
 
+    /// The walk memo is ONE slot — parallel tests hitting different
+    /// roots would interleave writes and read each other's walks.
+    /// Every test touching `skill_items` serializes on this.
+    static SERIAL: Mutex<()> = Mutex::new(());
+
     fn write(root: &Path, rel: &str, text: &str) {
         let p = root.join(rel);
         fs::create_dir_all(p.parent().expect("parent")).expect("mkdir");
@@ -124,6 +156,7 @@ mod tests {
 
     #[test]
     fn valid_skills_surface_with_their_frontmatter_voice() {
+        let _serial = SERIAL.lock().expect("serial");
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
         fs::create_dir_all(root.join(".git")).expect("git marker");
@@ -153,6 +186,34 @@ mod tests {
             items[0].detail.as_deref(),
             Some("code-review — review the diff"),
             "the frontmatter is the detail voice"
+        );
+    }
+
+    #[test]
+    fn the_memo_serves_the_burst_and_a_new_root_invalidates() {
+        let _serial = SERIAL.lock().expect("serial");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".git")).expect("git marker");
+        write(
+            root,
+            ".agents/skills/one/SKILL.md",
+            "---\nname: one\ndescription: d\n---\n",
+        );
+        let first = skill_items(root);
+        assert_eq!(first.len(), 1);
+        // Delete the card — within the TTL the memo still answers (one
+        // walk per burst, not per keystroke). This is the assertion the
+        // memo EXISTS; freshness returns on the next pause.
+        fs::remove_file(root.join(".agents/skills/one/SKILL.md")).expect("rm");
+        let second = skill_items(root);
+        assert_eq!(second.len(), 1, "the burst is served from the memo");
+        // A DIFFERENT root never reads a stale memo.
+        let other = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(other.path().join(".git")).expect("git marker");
+        assert!(
+            skill_items(other.path()).is_empty(),
+            "a new root walks fresh"
         );
     }
 
