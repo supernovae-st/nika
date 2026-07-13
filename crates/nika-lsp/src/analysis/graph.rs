@@ -6,34 +6,50 @@
 //! math only: findings about the graph stay in the check ladder.
 
 use nika_schema::raw::RawWorkflow;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-/// The ids downstream of `id` — { t : id →⁺ t }, BFS over the explicit
-/// reverse edges. `id` itself is NOT in the set.
+/// The ids downstream of `id` — { t : id →⁺ t }, ONE reverse-adjacency
+/// build + ONE BFS = O(V+E). `id` itself is NOT in the set.
+///
+/// The previous shape re-scanned every task per queue pop with a
+/// `Vec::contains` visited check — O(V²·d) — and was the ×20 hover
+/// slope the W0 baseline caught on diamond-10k (engine#579; the same
+/// lesson the vscode client learned in its #101, now applied
+/// server-side).
 pub(super) fn downstream_ids<'a>(wf: &'a RawWorkflow, id: &str) -> Vec<&'a str> {
-    let mut seen: Vec<&'a str> = Vec::new();
-    let mut queue: Vec<&str> = vec![id];
-    while let Some(cur) = queue.pop() {
-        for t in &wf.tasks {
-            if t.value.depends_on.iter().any(|d| d.value == cur) {
-                let child = t.value.id.value.as_str();
-                if !seen.contains(&child) {
-                    seen.push(child);
-                    queue.push(child);
+    let mut children: BTreeMap<&str, Vec<&'a str>> = BTreeMap::new();
+    for t in &wf.tasks {
+        let child = t.value.id.value.as_str();
+        for d in &t.value.depends_on {
+            children.entry(d.value.as_str()).or_default().push(child);
+        }
+    }
+    let mut seen: BTreeSet<&'a str> = BTreeSet::new();
+    let mut order: Vec<&'a str> = Vec::new();
+    let mut queue: VecDeque<&str> = VecDeque::from([id]);
+    while let Some(cur) = queue.pop_front() {
+        if let Some(kids) = children.get(cur) {
+            for &kid in kids {
+                if seen.insert(kid) {
+                    order.push(kid);
+                    queue.push_back(kid);
                 }
             }
         }
     }
-    seen
+    order
 }
 
 /// The ids task `id` may legally REFERENCE — everything except itself
 /// and its downstream closure. Referencing downstream creates a cycle
 /// (a template ref is an implicit edge) or, in `recover:`, a deadlock
 /// (DAG-004): either way the check refuses it, so completion never
-/// offers it.
-pub(super) fn illegal_reference_targets<'a>(wf: &'a RawWorkflow, id: &'a str) -> Vec<&'a str> {
-    let mut set = downstream_ids(wf, id);
-    set.push(id);
+/// offers it. A set, because every caller filters candidates through
+/// membership tests (`contains` must be O(log V), not O(V) — `BTree` by
+/// workspace law: std hash types are disallowed for determinism).
+pub(super) fn illegal_reference_targets<'a>(wf: &'a RawWorkflow, id: &'a str) -> BTreeSet<&'a str> {
+    let mut set: BTreeSet<&'a str> = downstream_ids(wf, id).into_iter().collect();
+    set.insert(id);
     set
 }
 
@@ -57,7 +73,7 @@ mod tests {
     #[test]
     fn illegal_targets_are_self_plus_closure() {
         let wf = parse(DIAMOND, FileId::new(0), ParseMode::Lenient).expect("parses");
-        let mut illegal = illegal_reference_targets(&wf, "b");
+        let mut illegal: Vec<&str> = illegal_reference_targets(&wf, "b").into_iter().collect();
         illegal.sort_unstable();
         // b may not reference itself nor d (which waits on b) — a and c
         // stay legal (ancestor · parallel-independent).

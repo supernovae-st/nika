@@ -695,9 +695,10 @@ pub(super) fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem>
     if let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient)
         && !wf.tasks.is_empty()
     {
-        let illegal: Vec<&str> = exclude.map_or_else(Vec::new, |id| {
-            super::graph::illegal_reference_targets(&wf, id)
-        });
+        let illegal: std::collections::BTreeSet<&str> = exclude
+            .map_or_else(std::collections::BTreeSet::new, |id| {
+                super::graph::illegal_reference_targets(&wf, id)
+            });
         return wf
             .tasks
             .iter()

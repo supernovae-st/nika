@@ -59,9 +59,11 @@ fn doc_view(text: &str, offset: usize) -> DocView {
                 (name.value.clone(), is_array)
             })
             .collect();
-        let illegal: Vec<&str> = current
+        let illegal: std::collections::BTreeSet<&str> = current
             .as_deref()
-            .map_or_else(Vec::new, |id| graph::illegal_reference_targets(&wf, id));
+            .map_or_else(std::collections::BTreeSet::new, |id| {
+                graph::illegal_reference_targets(&wf, id)
+            });
         let upstream = wf
             .tasks
             .iter()
