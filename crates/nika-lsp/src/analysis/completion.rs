@@ -106,7 +106,7 @@ pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<C
         return cel_methods();
     }
     if is_expression_start(prefix) {
-        return expression_roots();
+        return expression_roots(scope::in_for_each_task(text, offset));
     }
     // A bare key inside `args:` of a KNOWN builtin — that tool's own
     // argument names, required ones floated first (catalog-derived).
@@ -357,17 +357,25 @@ fn cel_methods() -> Vec<CompletionItem> {
 
 /// Expression ROOTS (the five locked namespaces · D-N11) + the two free
 /// functions the parser accepts (`size` · `has` — a closed set there too).
-fn expression_roots() -> Vec<CompletionItem> {
+/// The loop-scoped pair (`item` · `index` — spec 04 §loop-scoped locals)
+/// appears ONLY when the enclosing task declares `for_each:` (#574):
+/// offering `item` outside a fan-out completes a reference the run
+/// cannot resolve — never offer what check refuses, island edition.
+fn expression_roots(in_for_each: bool) -> Vec<CompletionItem> {
     const ROOTS: &[(&str, &str)] = &[
         ("tasks", "an upstream task's output (`tasks.<id>.output`)"),
         ("vars", "a declared workflow var"),
         ("env", "an allowed environment value"),
         ("secrets", "a declared secret (never echoed)"),
         ("with", "this task's own `with:` aliases"),
-        ("item", "the current `for_each` element"),
+    ];
+    const LOOP_ROOTS: &[(&str, &str)] = &[
+        ("item", "the current `for_each` element (loop-scoped)"),
+        ("index", "the element's 0-based position (loop-scoped)"),
     ];
     let mut items: Vec<CompletionItem> = ROOTS
         .iter()
+        .chain(if in_for_each { LOOP_ROOTS } else { &[] })
         .map(|(name, doc)| CompletionItem {
             label: (*name).to_owned(),
             kind: Some(CompletionItemKind::VARIABLE),
