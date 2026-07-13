@@ -4,6 +4,7 @@ pub mod nika_lsp::analysis::code_action
 pub fn nika_lsp::analysis::code_action::code_actions(uri: &lsp_types::uri::Uri, text: &str, index: &nika_lsp::analysis::position::LineIndex, range: lsp_types::Range) -> alloc::vec::Vec<lsp_types::code_action::CodeActionOrCommand>
 pub mod nika_lsp::analysis::completion
 pub fn nika_lsp::analysis::completion::completion(text: &str, offset: usize) -> alloc::vec::Vec<lsp_types::completion::CompletionItem>
+pub fn nika_lsp::analysis::completion::completion_at(text: &str, offset: usize, doc_dir: core::option::Option<&std::path::Path>) -> alloc::vec::Vec<lsp_types::completion::CompletionItem>
 pub mod nika_lsp::analysis::definition
 pub fn nika_lsp::analysis::definition::definition(uri: &lsp_types::uri::Uri, text: &str, offset: usize) -> core::option::Option<lsp_types::Location>
 pub mod nika_lsp::analysis::diagnostics
