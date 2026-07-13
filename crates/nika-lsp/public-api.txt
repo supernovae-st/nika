@@ -93,6 +93,35 @@ pub fn nika_lsp::analysis::position::LineIndex::__clone_box(&self, _: dyn_clone:
 impl<T> nika_error::traits::AsAny for nika_lsp::analysis::position::LineIndex where T: 'static
 pub fn nika_lsp::analysis::position::LineIndex::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_lsp::analysis::scope
+pub mod nika_lsp::analysis::semantic_document
+pub struct nika_lsp::analysis::semantic_document::SemanticDocument
+pub nika_lsp::analysis::semantic_document::SemanticDocument::graph: core::option::Option<nika_graph::GraphDoc>
+pub nika_lsp::analysis::semantic_document::SemanticDocument::reason: core::option::Option<&'static str>
+pub nika_lsp::analysis::semantic_document::SemanticDocument::spans: alloc::collections::btree::map::BTreeMap<alloc::string::String, lsp_types::Range>
+impl core::fmt::Debug for nika_lsp::analysis::semantic_document::SemanticDocument
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_lsp::analysis::semantic_document::SemanticDocument
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_lsp::analysis::semantic_document::SemanticDocument
+impl<T, U> core::convert::Into<U> for nika_lsp::analysis::semantic_document::SemanticDocument where U: core::convert::From<T>
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_lsp::analysis::semantic_document::SemanticDocument where U: core::convert::Into<T>
+pub type nika_lsp::analysis::semantic_document::SemanticDocument::Error = core::convert::Infallible
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_lsp::analysis::semantic_document::SemanticDocument where U: core::convert::TryFrom<T>
+pub type nika_lsp::analysis::semantic_document::SemanticDocument::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_lsp::analysis::semantic_document::SemanticDocument where T: 'static + ?core::marker::Sized
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_lsp::analysis::semantic_document::SemanticDocument where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_lsp::analysis::semantic_document::SemanticDocument where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_lsp::analysis::semantic_document::SemanticDocument
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_lsp::analysis::semantic_document::SemanticDocument where T: 'static
+pub fn nika_lsp::analysis::semantic_document::SemanticDocument::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_lsp::analysis::semantic_document::semantic_document(text: &str) -> nika_lsp::analysis::semantic_document::SemanticDocument
 pub mod nika_lsp::analysis::symbols
 pub fn nika_lsp::analysis::symbols::document_symbols(text: &str) -> alloc::vec::Vec<lsp_types::document_symbols::DocumentSymbol>
 pub mod nika_lsp::analysis::vocab

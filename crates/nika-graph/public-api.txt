@@ -7,13 +7,25 @@ impl core::fmt::Debug for nika_graph::Edge
 pub fn nika_graph::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_graph::Edge
 pub fn nika_graph::Edge::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_graph::Edge
-impl core::marker::Send for nika_graph::Edge
-impl core::marker::Sync for nika_graph::Edge
-impl core::marker::Unpin for nika_graph::Edge
-impl core::marker::UnsafeUnpin for nika_graph::Edge
-impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::Edge
-impl core::panic::unwind_safe::UnwindSafe for nika_graph::Edge
+impl<D> owo_colors::OwoColorize for nika_graph::Edge
+impl<T, U> core::convert::Into<U> for nika_graph::Edge where U: core::convert::From<T>
+pub fn nika_graph::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_graph::Edge where U: core::convert::Into<T>
+pub type nika_graph::Edge::Error = core::convert::Infallible
+pub fn nika_graph::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_graph::Edge where U: core::convert::TryFrom<T>
+pub type nika_graph::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_graph::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_graph::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_graph::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_graph::Edge where T: ?core::marker::Sized
+pub fn nika_graph::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_graph::Edge where T: ?core::marker::Sized
+pub fn nika_graph::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_graph::Edge
+pub fn nika_graph::Edge::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_graph::Edge where T: 'static
+pub fn nika_graph::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_graph::FanOut
 pub nika_graph::FanOut::count: core::option::Option<u64>
 pub nika_graph::FanOut::kind: &'static str
@@ -21,13 +33,25 @@ impl core::fmt::Debug for nika_graph::FanOut
 pub fn nika_graph::FanOut::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_graph::FanOut
 pub fn nika_graph::FanOut::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_graph::FanOut
-impl core::marker::Send for nika_graph::FanOut
-impl core::marker::Sync for nika_graph::FanOut
-impl core::marker::Unpin for nika_graph::FanOut
-impl core::marker::UnsafeUnpin for nika_graph::FanOut
-impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::FanOut
-impl core::panic::unwind_safe::UnwindSafe for nika_graph::FanOut
+impl<D> owo_colors::OwoColorize for nika_graph::FanOut
+impl<T, U> core::convert::Into<U> for nika_graph::FanOut where U: core::convert::From<T>
+pub fn nika_graph::FanOut::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_graph::FanOut where U: core::convert::Into<T>
+pub type nika_graph::FanOut::Error = core::convert::Infallible
+pub fn nika_graph::FanOut::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_graph::FanOut where U: core::convert::TryFrom<T>
+pub type nika_graph::FanOut::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_graph::FanOut::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_graph::FanOut where T: 'static + ?core::marker::Sized
+pub fn nika_graph::FanOut::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_graph::FanOut where T: ?core::marker::Sized
+pub fn nika_graph::FanOut::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_graph::FanOut where T: ?core::marker::Sized
+pub fn nika_graph::FanOut::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_graph::FanOut
+pub fn nika_graph::FanOut::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_graph::FanOut where T: 'static
+pub fn nika_graph::FanOut::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_graph::GraphDoc
 pub nika_graph::GraphDoc::edges: alloc::vec::Vec<nika_graph::Edge>
 pub nika_graph::GraphDoc::graph_format: u32
@@ -37,13 +61,25 @@ impl core::fmt::Debug for nika_graph::GraphDoc
 pub fn nika_graph::GraphDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_graph::GraphDoc
 pub fn nika_graph::GraphDoc::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_graph::GraphDoc
-impl core::marker::Send for nika_graph::GraphDoc
-impl core::marker::Sync for nika_graph::GraphDoc
-impl core::marker::Unpin for nika_graph::GraphDoc
-impl core::marker::UnsafeUnpin for nika_graph::GraphDoc
-impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::GraphDoc
-impl core::panic::unwind_safe::UnwindSafe for nika_graph::GraphDoc
+impl<D> owo_colors::OwoColorize for nika_graph::GraphDoc
+impl<T, U> core::convert::Into<U> for nika_graph::GraphDoc where U: core::convert::From<T>
+pub fn nika_graph::GraphDoc::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_graph::GraphDoc where U: core::convert::Into<T>
+pub type nika_graph::GraphDoc::Error = core::convert::Infallible
+pub fn nika_graph::GraphDoc::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_graph::GraphDoc where U: core::convert::TryFrom<T>
+pub type nika_graph::GraphDoc::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_graph::GraphDoc::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_graph::GraphDoc where T: 'static + ?core::marker::Sized
+pub fn nika_graph::GraphDoc::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_graph::GraphDoc where T: ?core::marker::Sized
+pub fn nika_graph::GraphDoc::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_graph::GraphDoc where T: ?core::marker::Sized
+pub fn nika_graph::GraphDoc::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_graph::GraphDoc
+pub fn nika_graph::GraphDoc::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_graph::GraphDoc where T: 'static
+pub fn nika_graph::GraphDoc::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_graph::Node
 pub nika_graph::Node::cost_interval: core::option::Option<[f64; 2]>
 pub nika_graph::Node::fan_out: core::option::Option<nika_graph::FanOut>
@@ -61,11 +97,23 @@ impl core::fmt::Debug for nika_graph::Node
 pub fn nika_graph::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_graph::Node
 pub fn nika_graph::Node::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_graph::Node
-impl core::marker::Send for nika_graph::Node
-impl core::marker::Sync for nika_graph::Node
-impl core::marker::Unpin for nika_graph::Node
-impl core::marker::UnsafeUnpin for nika_graph::Node
-impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::Node
-impl core::panic::unwind_safe::UnwindSafe for nika_graph::Node
+impl<D> owo_colors::OwoColorize for nika_graph::Node
+impl<T, U> core::convert::Into<U> for nika_graph::Node where U: core::convert::From<T>
+pub fn nika_graph::Node::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_graph::Node where U: core::convert::Into<T>
+pub type nika_graph::Node::Error = core::convert::Infallible
+pub fn nika_graph::Node::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_graph::Node where U: core::convert::TryFrom<T>
+pub type nika_graph::Node::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_graph::Node::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_graph::Node where T: 'static + ?core::marker::Sized
+pub fn nika_graph::Node::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_graph::Node where T: ?core::marker::Sized
+pub fn nika_graph::Node::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_graph::Node where T: ?core::marker::Sized
+pub fn nika_graph::Node::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_graph::Node
+pub fn nika_graph::Node::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_graph::Node where T: 'static
+pub fn nika_graph::Node::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_graph::project(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport) -> nika_graph::GraphDoc
