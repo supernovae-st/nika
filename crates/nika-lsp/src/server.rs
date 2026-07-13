@@ -49,7 +49,9 @@ use lsp_types::{
 
 use crate::analysis::diagnostics;
 use crate::analysis::document::Document;
-use crate::analysis::{code_action, completion, definition, hover, semantic_document, symbols};
+use crate::analysis::{
+    code_action, completion, definition, hover, rename, semantic_document, symbols,
+};
 use crate::capabilities::server_capabilities;
 use crate::error::LspError;
 
@@ -220,6 +222,23 @@ fn handle_request(req: Request, docs: &Docs) -> Response {
                 p.range,
             ))
         }),
+        "textDocument/prepareRename" => {
+            respond(id, req, |p: lsp_types::TextDocumentPositionParams| {
+                let doc = docs.get(uri_key(&p.text_document.uri))?;
+                let offset = doc.line_index().offset(p.position);
+                rename::prepare(doc.text(), offset).map(|(range, placeholder)| {
+                    lsp_types::PrepareRenameResponse::RangeWithPlaceholder { range, placeholder }
+                })
+            })
+        }
+        "textDocument/rename" => respond_fallible(id, req, |p: lsp_types::RenameParams| {
+            let pos = p.text_document_position;
+            let doc = docs
+                .get(uri_key(&pos.text_document.uri))
+                .ok_or_else(|| "document not open".to_owned())?;
+            let offset = doc.line_index().offset(pos.position);
+            rename::rename(&pos.text_document.uri, doc.text(), offset, &p.new_name)
+        }),
         GotoDefinition::METHOD => respond(id, req, |p: GotoDefinitionParams| {
             let pos = p.text_document_position_params;
             let uri = pos.text_document.uri;
@@ -367,6 +386,32 @@ fn send(connection: &Connection, msg: Message) -> Result<(), LspError> {
 }
 
 /// The document-map key for a URI (its canonical string form).
+/// Like [`respond`], for handlers whose refusal carries a MESSAGE the
+/// client must show (LSP rename: an invalid new name is a request error,
+/// never a silent no-op edit).
+fn respond_fallible<P, R, F>(id: RequestId, req: Request, handler: F) -> Response
+where
+    P: serde::de::DeserializeOwned,
+    R: serde::Serialize,
+    F: FnOnce(P) -> Result<R, String>,
+{
+    let method = req.method.clone();
+    match req.extract::<P>(&method) {
+        Ok((_id, params)) => match handler(params) {
+            Ok(result) => Response::new_ok(id, result),
+            Err(message) => Response::new_err(id, INVALID_PARAMS, message),
+        },
+        Err(ExtractError::JsonError { method, error }) => Response::new_err(
+            id,
+            INVALID_PARAMS,
+            format!("invalid params for {method}: {error}"),
+        ),
+        Err(ExtractError::MethodMismatch(_)) => {
+            Response::new_err(id, INTERNAL_ERROR, "internal method mismatch".to_owned())
+        }
+    }
+}
+
 fn uri_key(uri: &Uri) -> &str {
     uri.as_str()
 }
@@ -852,6 +897,28 @@ mod canary {
         );
     }
 
+    /// W1 rename over the wire: prepare (14) · rename (15) · refusal (16).
+    fn queue_rename_requests(client: &Connection, hello_uri: &Uri, key_pos: Position) {
+        request(
+            client,
+            14,
+            "textDocument/prepareRename",
+            at(hello_uri, key_pos),
+        );
+        for (id, name) in [(15, "salute"), (16, "Bad-Name")] {
+            request(
+                client,
+                id,
+                "textDocument/rename",
+                lsp_types::RenameParams {
+                    text_document_position: at(hello_uri, key_pos),
+                    new_name: name.to_owned(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                },
+            );
+        }
+    }
+
     /// Run the server over the pre-queued conversation in a scoped thread
     /// (joins before the scope returns — no detached thread), then drain
     /// the buffered replies.
@@ -931,6 +998,8 @@ mod canary {
         let dep_pos = idx.position(hello.rfind("greet").expect("dep ref") + 1);
         queue_hello_requests(&client, &hello_uri, verb_pos, dep_pos);
         queue_model_completion(&client);
+        let key_pos = idx.position(hello.find("\n  greet:").expect("key") + 3);
+        queue_rename_requests(&client, &hello_uri, key_pos);
 
         // shutdown / exit (queued last — the server returns after exit)
         request(&client, 99, "shutdown", serde_json::Value::Null);
@@ -976,6 +1045,26 @@ mod canary {
         assert!(
             completion.to_string().contains("ollama/"),
             "completion: {completion}"
+        );
+        // prepareRename answers the key token + placeholder
+        let prep = response(14).result.clone().expect("prepare result");
+        assert!(prep.to_string().contains("greet"), "prepare: {prep}");
+        // rename returns a WorkspaceEdit moving the key + the dep + the ref
+        let ws = response(15).result.clone().expect("rename result");
+        let ws_str = ws.to_string();
+        assert!(ws_str.contains("salute"), "rename edit: {ws_str}");
+        assert_eq!(
+            ws_str.matches("salute").count(),
+            3,
+            "key + depends_on + island ref — three edits: {ws_str}"
+        );
+        // an invalid new name is a request ERROR carrying the teaching
+        let refusal = response(16);
+        let err = refusal.error.as_ref().expect("rename refusal is an error");
+        assert!(
+            err.message.contains("snake_case"),
+            "the refusal teaches the grammar: {}",
+            err.message
         );
     }
 

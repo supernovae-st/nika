@@ -22,6 +22,7 @@ mod islands;
 pub mod members;
 pub mod position;
 pub mod refs;
+pub mod rename;
 pub mod scope;
 pub mod semantic_document;
 mod skills;
