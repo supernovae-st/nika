@@ -34,7 +34,7 @@ locked D-2026-05-22-N1..N8) defines the canonical workflow envelope as a
 nika: v1                 # required · language name (key) + contract version (value)
 workflow: my-workflow-id # required · kebab-case · unique within file
 tasks:
-  - id: ...
+  <task-id>: ...
 ```
 
 This **supersedes** the Kubernetes-style envelope adopted in **ADR-021**

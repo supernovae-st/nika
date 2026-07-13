@@ -17,8 +17,9 @@
 # Run · nika run examples/showcase/t2-release-notes.nika.yaml
 
 nika: v1
-workflow: release-notes
-description: "git log → typed release notes → CHANGELOG insert → team ping"
+workflow:
+  id: release-notes
+  description: "git log → typed release notes → CHANGELOG insert → team ping"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large
 
@@ -34,11 +35,11 @@ secrets:
         host_from_self: true
 
 tasks:
-  - id: history
+  history:
     exec:
       command: ["git", "log", "${{ vars.since_tag }}..HEAD", "--oneline", "--no-merges"]
 
-  - id: notes
+  notes:
     depends_on: [history]
     infer:
       prompt: |
@@ -53,7 +54,7 @@ tasks:
           breaking: { type: array, items: { type: string } }
           body: { type: string }
 
-  - id: changelog
+  changelog:
     depends_on: [notes]
     invoke:
       tool: "nika:edit"
@@ -67,7 +68,7 @@ tasks:
 
           ${{ tasks.notes.output.body }}
 
-  - id: announce
+  announce:
     depends_on: [notes, changelog]
     invoke:
       tool: "nika:notify"

@@ -29,9 +29,10 @@ use std::hint::black_box;
 /// schema feeding an `exec` consumer that binds two declared output paths.
 /// (The `declared_property_path_is_accepted` shape — parses + analyzes clean.)
 const SMALL: &str = r#"nika: v1
-workflow: bench-small
+workflow:
+  id: bench-small
 tasks:
-  - id: extract
+  extract:
     infer:
       prompt: "Extract the key entities from the document."
       schema:
@@ -43,7 +44,7 @@ tasks:
             type: array
             items: { type: string }
           count: { type: integer }
-  - id: report
+  report:
     depends_on: [extract]
     exec:
       shell: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
@@ -54,16 +55,16 @@ tasks:
 /// every node. Plain `push_str` (no `format!`) keeps the `${{ }}` literal clean.
 fn large_workflow(n: usize) -> String {
     let mut s = String::from(
-        "nika: v1\nworkflow: bench-large\ntasks:\n  - id: extract\n    infer:\n      \
+        "nika: v1\nworkflow:\n  id: bench-large\ntasks:\n  extract:\n    infer:\n      \
          prompt: \"Extract entities.\"\n      schema:\n        type: object\n        \
          additionalProperties: false\n        required: [entities]\n        properties:\n          \
          entities:\n            type: array\n            items: { type: string }\n",
     );
     for i in 0..n {
-        s.push_str("  - id: report_");
+        s.push_str("  report_");
         s.push_str(&i.to_string());
         s.push_str(
-            "\n    depends_on: [extract]\n    exec:\n      \
+            ":\n    depends_on: [extract]\n    exec:\n      \
              command: [\"report\", \"${{ tasks.extract.output.entities }}\"]\n",
         );
     }

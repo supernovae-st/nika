@@ -4,11 +4,12 @@
 # run only passes if the ENGINE validates locally after extraction.
 # Expected: exit 0 · task success · usage > 0.
 nika: v1
-workflow: battery-s2-grammar-blind
+workflow:
+  id: battery-s2-grammar-blind
 model: mock/echo
 
 tasks:
-  - id: primes
+  primes:
     infer:
       prompt: |
         Name four distinct prime numbers under fifty, smallest first.

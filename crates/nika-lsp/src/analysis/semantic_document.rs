@@ -95,7 +95,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
 mod tests {
     use super::*;
 
-    const DIAMOND: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n";
+    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n";
 
     fn as_value(doc: &SemanticDocument) -> serde_json::Value {
         serde_json::to_value(doc).expect("payload serializes")
@@ -126,8 +126,9 @@ mod tests {
         let spans = doc["spans"].as_object().expect("spans object");
         assert_eq!(spans.len(), 4);
         let a = &spans["a"];
-        // `- id: a` sits on line 3 (0-based) — the span points there.
-        assert_eq!(a["start"]["line"], 3, "{a}");
+        // task `a`'s declaring KEY sits on line 4 (0-based · the
+        // workflow object added a line) — the span points there.
+        assert_eq!(a["start"]["line"], 4, "{a}");
     }
 
     /// A document with findings projects NO graph (the CLI skips PLAN
@@ -135,7 +136,7 @@ mod tests {
     /// spans it could read.
     #[test]
     fn findings_yield_a_null_graph_not_an_error() {
-        let cyclic = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        let cyclic = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
         let doc = as_value(&semantic_document(cyclic));
         assert_eq!(doc["graph"], serde_json::Value::Null);
         assert_eq!(doc["reason"], "findings", "why, in one word");

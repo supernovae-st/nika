@@ -18,8 +18,9 @@
 # Run · nika run examples/showcase/t2-support-triage.nika.yaml
 
 nika: v1
-workflow: support-triage
-description: "Ticket queue → typed triage → urgent escalation → triage board"
+workflow:
+  id: support-triage
+  description: "Ticket queue → typed triage → urgent escalation → triage board"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
 
@@ -35,17 +36,17 @@ secrets:
         host_from_self: true
 
 tasks:
-  - id: batch
+  batch:
     invoke:
       tool: "nika:uuid"
       args: { version: v7 }
 
-  - id: queue
+  queue:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.queue_path }}" }
 
-  - id: triage
+  triage:
     depends_on: [queue]
     infer:
       prompt: |
@@ -67,7 +68,7 @@ tasks:
                 urgency: { type: string, enum: [low, normal, high, critical] }
                 first_reply: { type: string }
 
-  - id: urgent
+  urgent:
     depends_on: [triage]
     invoke:
       tool: "nika:jq"
@@ -75,7 +76,7 @@ tasks:
         input: "${{ tasks.triage.output.tickets }}"
         expression: 'map(select(.urgency == "high" or .urgency == "critical"))'
 
-  - id: escalate
+  escalate:
     depends_on: [urgent, batch]
     when: ${{ size(tasks.urgent.output) > 0 }}
     invoke:
@@ -86,7 +87,7 @@ tasks:
         message: "Urgent tickets in triage batch ${{ tasks.batch.output }} · ${{ tasks.urgent.output }}"
         severity: warning
 
-  - id: board
+  board:
     depends_on: [triage, batch]
     invoke:
       tool: "nika:write"

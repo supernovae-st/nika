@@ -28,11 +28,12 @@ use nika_verb_invoke::InvokeVerb;
 
 const AGENT_WORKFLOW: &str = r#"
 nika: v1
-workflow: agent-telemetry
+workflow:
+  id: agent-telemetry
 model: mock/echo
 
 tasks:
-  - id: research
+  research:
     agent:
       prompt: "read the notes file then answer"
       tools: ["nika:read"]
@@ -251,11 +252,12 @@ async fn a_timed_out_agent_keeps_its_pre_timeout_evidence() {
     // survive the drop of the attempt future and reach the stream.
     const TIMEOUT_WORKFLOW: &str = r#"
 nika: v1
-workflow: agent-timeout
+workflow:
+  id: agent-timeout
 model: mock/echo
 
 tasks:
-  - id: wedged
+  wedged:
     timeout: "50ms"
     agent:
       prompt: "read the file"
@@ -350,11 +352,12 @@ tasks:
 async fn a_stalled_agent_puts_the_evidence_on_the_stream() {
     const STALL_WORKFLOW: &str = r#"
 nika: v1
-workflow: agent-stall
+workflow:
+  id: agent-stall
 model: mock/echo
 
 tasks:
-  - id: looper
+  looper:
     agent:
       prompt: "keep reading the same file"
       tools: ["nika:read"]
@@ -452,11 +455,12 @@ async fn agent_decisions_are_attributed_to_their_retry_attempt() {
     // returning a meaningful (non-zero, per-attempt) value.
     const RETRY_WORKFLOW: &str = r#"
 nika: v1
-workflow: agent-retry
+workflow:
+  id: agent-retry
 model: mock/echo
 
 tasks:
-  - id: flaky
+  flaky:
     retry: { max_attempts: 2 }
     agent:
       prompt: "read the file"
@@ -531,11 +535,12 @@ async fn an_agent_compose_check_rides_the_canonical_stream() {
     // never exercised through the real runtime (mutation gap).
     const COMPOSE_WORKFLOW: &str = r#"
 nika: v1
-workflow: agent-compose
+workflow:
+  id: agent-compose
 model: mock/echo
 
 tasks:
-  - id: drafter
+  drafter:
     agent:
       prompt: "draft a workflow then finish"
       tools: ["nika:compose"]
@@ -544,7 +549,7 @@ tasks:
     let wf = parse(COMPOSE_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
     let report = check(&wf);
 
-    let draft = "nika: v1\nworkflow: drafted\ntasks:\n  - id: t\n    exec:\n      command: [\"echo\", \"hi\"]\n";
+    let draft = "nika: v1\nworkflow:\n  id: drafted\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"hi\"]\n";
     let provider = MockProvider::new("mock")
         .enqueue_response(tool_use_response(
             "d1",
@@ -595,11 +600,12 @@ async fn an_error_streak_nudge_names_its_reason_on_the_stream() {
     // pins the `error_streak` slug (mutation gap on `reason_slug`).
     const STREAK_WORKFLOW: &str = r#"
 nika: v1
-workflow: agent-streak
+workflow:
+  id: agent-streak
 model: mock/echo
 
 tasks:
-  - id: failer
+  failer:
     agent:
       prompt: "keep trying different reads"
       tools: ["nika:read"]

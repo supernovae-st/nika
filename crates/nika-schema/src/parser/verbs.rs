@@ -632,7 +632,7 @@ mod tests {
 
     fn agent_wf(max_turns: &str) -> String {
         format!(
-            "tasks:\n  - id: go\n    agent:\n      system: \"do\"\n      \
+            "tasks:\n  go:\n    agent:\n      system: \"do\"\n      \
              prompt: \"task\"\n      tools: [\"nika:done\"]\n      \
              max_turns: {max_turns}\n      max_tokens_total: 1000\n"
         )
@@ -665,7 +665,7 @@ mod tests {
     fn infer_full_fields() {
         let yaml = "\
 tasks:
-  - id: analyze
+  analyze:
     infer:
       system: \"You are a precise analyst.\"
       prompt: \"Analyze ${{ vars.topic }}\"
@@ -706,7 +706,7 @@ tasks:
         // Conformance fixture verbs-shape/006-infer-without-prompt.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       system: \"You are helpful.\"
 ";
@@ -721,7 +721,7 @@ tasks:
     fn infer_temperature_out_of_range_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       prompt: hi
       temperature: 3.5
@@ -737,7 +737,7 @@ tasks:
     fn infer_schema_must_be_object() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       prompt: hi
       schema: \"not-an-object\"
@@ -753,7 +753,7 @@ tasks:
     fn infer_thinking_requires_enabled() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       prompt: hi
       thinking:
@@ -770,7 +770,7 @@ tasks:
     fn infer_vision_file_and_url() {
         let yaml = "\
 tasks:
-  - id: ocr
+  ocr:
     infer:
       prompt: \"Read the text in these images\"
       vision:
@@ -795,7 +795,7 @@ tasks:
     fn infer_vision_unknown_source_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       prompt: hi
       vision:
@@ -814,7 +814,7 @@ tasks:
         // Conformance fixture verbs-shape/009 · 'temperture' typo.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       prompt: hi
       temperture: 0.5
@@ -830,7 +830,7 @@ tasks:
     fn infer_unknown_field_lenient_ignored() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer:
       prompt: hi
       temperture: 0.5
@@ -845,7 +845,7 @@ tasks:
     fn exec_full_fields() {
         let yaml = "\
 tasks:
-  - id: build
+  build:
     exec:
       command: [\"cargo\", \"build\", \"--release\"]
       cwd: ./engine
@@ -874,7 +874,7 @@ tasks:
         // Conformance fixture verbs-shape/005-exec-without-command.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     exec:
       cwd: ./
 ";
@@ -890,7 +890,7 @@ tasks:
     fn exec_bad_capture_mode_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     exec:
       command: [ls]
       capture: everything
@@ -908,12 +908,12 @@ tasks:
     fn invoke_builtin_and_mcp() {
         let yaml = "\
 tasks:
-  - id: read_config
+  read_config:
     invoke:
       tool: \"nika:read\"
       args:
         path: \"./config.yaml\"
-  - id: query_db
+  query_db:
     invoke:
       tool: \"mcp:postgres/query\"
       args:
@@ -939,7 +939,7 @@ tasks:
         // Conformance fixture verbs-shape/007-invoke-without-tool.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     invoke:
       args: { x: 1 }
 ";
@@ -960,7 +960,7 @@ tasks:
             "custom:thing", // unknown namespace
             "nika:a:b",     // two colons
         ] {
-            let yaml = format!("tasks:\n  - id: t\n    invoke:\n      tool: \"{bad}\"\n");
+            let yaml = format!("tasks:\n  t:\n    invoke:\n      tool: \"{bad}\"\n");
             let err = parse_strict(&yaml).expect_err("bad tool ref");
             assert!(
                 matches!(err, SchemaError::Validation { .. }),
@@ -973,7 +973,7 @@ tasks:
     fn invoke_args_must_be_mapping() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     invoke:
       tool: \"nika:read\"
       args: just-a-string
@@ -991,7 +991,7 @@ tasks:
     fn agent_whitelist_rejects_an_unknown_namespace() {
         // The closed-namespace gate (ADR-096 · the compose move): a third
         // namespace fails at parse with a pointer to nika:compose.
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
         let err = parse(yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(
             err.to_string().contains("unknown tool namespace")
@@ -999,15 +999,15 @@ tasks:
             "{err}"
         );
         // nika: + mcp: globs (incl. negation) + a bare `*` stay legal.
-        let ok = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
+        let ok = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
         assert!(parse(ok, FileId::new(0), ParseMode::Strict).is_ok());
         // A SECOND colon is malformed even in a glob — parity with the
         // invoke `validate_tool_ref` boundary rule.
-        let two_colons = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
+        let two_colons = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
         let err = parse(two_colons, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(err.to_string().contains("exactly once"), "{err}");
         // Uppercase namespace is not a v1 namespace.
-        let upper = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
+        let upper = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
         assert!(parse(upper, FileId::new(0), ParseMode::Strict).is_err());
     }
 
@@ -1015,7 +1015,7 @@ tasks:
     fn agent_full_fields() {
         let yaml = "\
 tasks:
-  - id: research
+  research:
     agent:
       system: \"You are a research assistant.\"
       prompt: \"Research ${{ vars.topic }}\"
@@ -1051,7 +1051,7 @@ tasks:
         // Conformance fixture verbs-shape/008-agent-without-prompt.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     agent:
       system: \"You are helpful.\"
 ";
@@ -1066,7 +1066,7 @@ tasks:
     fn agent_tools_absent_is_default_deny() {
         let yaml = "\
 tasks:
-  - id: chat
+  chat:
     agent:
       prompt: \"Just talk\"
 ";
@@ -1080,7 +1080,7 @@ tasks:
     fn agent_skills_list_parses_in_source_order() {
         let yaml = "\
 tasks:
-  - id: research
+  research:
     agent:
       prompt: \"go\"
       skills:
@@ -1102,7 +1102,7 @@ tasks:
     fn agent_skills_absent_means_none() {
         let yaml = "\
 tasks:
-  - id: chat
+  chat:
     agent:
       prompt: \"Just talk\"
 ";
@@ -1117,7 +1117,7 @@ tasks:
         // A scalar where the sequence goes — the parse_string_list contract.
         let scalar = "\
 tasks:
-  - id: t
+  t:
     agent:
       prompt: \"go\"
       skills: \"SKILL.md\"
@@ -1130,7 +1130,7 @@ tasks:
         // A non-string entry.
         let mapping_entry = "\
 tasks:
-  - id: t
+  t:
     agent:
       prompt: \"go\"
       skills:
@@ -1149,7 +1149,7 @@ tasks:
         // parse (the permits explicitness law).
         let templated = "\
 tasks:
-  - id: t
+  t:
     agent:
       prompt: \"go\"
       skills: [\"${{ vars.skill }}\"]
@@ -1161,7 +1161,7 @@ tasks:
         );
         let empty = "\
 tasks:
-  - id: t
+  t:
     agent:
       prompt: \"go\"
       skills: [\"\"]
@@ -1179,7 +1179,7 @@ tasks:
         // strict mode for anything else (`skils` is the typo class).
         let yaml = "\
 tasks:
-  - id: t
+  t:
     agent:
       prompt: \"go\"
       skils: [\"SKILL.md\"]
@@ -1196,7 +1196,7 @@ tasks:
         // agent: MAY declare schema: (validates the final message).
         let yaml = "\
 tasks:
-  - id: extract
+  extract:
     agent:
       prompt: \"Extract the facts\"
       schema:
@@ -1214,7 +1214,7 @@ tasks:
     fn verb_body_must_be_mapping() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     infer: just-a-prompt
 ";
         let err = parse_strict(yaml).expect_err("scalar body");
@@ -1242,7 +1242,7 @@ mod argv_command {
     #[test]
     fn scalar_command_is_shell() {
         let c = exec_command(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { shell: \"a | b\" }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"a | b\" }\n",
         );
         assert!(matches!(c, RawCommand::Shell(_)));
         assert_eq!(c.shell_str(), Some("a | b"));
@@ -1252,7 +1252,7 @@ mod argv_command {
     #[test]
     fn array_command_is_argv() {
         let c = exec_command(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"git\", \"status\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"git\", \"status\"] }\n",
         );
         assert!(matches!(c, RawCommand::Argv(_)));
         assert_eq!(c.argv_program(), Some("git"), "argv[0] is the program");
@@ -1263,7 +1263,7 @@ mod argv_command {
     #[test]
     fn empty_array_command_is_rejected() {
         let err = parse(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -1276,7 +1276,7 @@ mod argv_command {
         // A nested mapping is not a scalar (a bare number `42` is a YAML
         // scalar string `"42"` and is fine — argv elements are strings).
         let err = parse(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"git\", { a: 1 }] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"git\", { a: 1 }] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )

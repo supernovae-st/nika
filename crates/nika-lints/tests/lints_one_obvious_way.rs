@@ -18,7 +18,7 @@
 mod common;
 
 use common::{fixture_dirs, skip_in_mutants_sandbox, spec_dir};
-use nika_schema::lints::{Lint, native_first, one_obvious_way};
+use nika_lints::{Lint, native_first, one_obvious_way};
 use nika_schema::{FileId, ParseMode, parse};
 
 fn lint(yaml: &str) -> Vec<Lint> {
@@ -100,11 +100,12 @@ fn lint_carries_message_and_suggestion() {
     // surface · the corpus pins rule/task only).
     let yaml = "\
 nika: v1
-workflow: fshape
+workflow:
+  id: fshape
 tasks:
-  - id: a
+  a:
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     depends_on: [a]
     when: \"${{ tasks.a.status == 'success' }}\"
     exec: { command: [\"./b.sh\"] }
@@ -120,7 +121,7 @@ tasks:
 
 // ── rule 008 · interpolated string command → use the array form ──────────
 
-fn lints_008(yaml: &str) -> Vec<nika_schema::lints::Lint> {
+fn lints_008(yaml: &str) -> Vec<nika_lints::Lint> {
     lint(yaml)
         .into_iter()
         .filter(|l| l.rule == "one-obvious-way/008")
@@ -131,11 +132,12 @@ fn lints_008(yaml: &str) -> Vec<nika_schema::lints::Lint> {
 fn rule_008_flags_interpolated_string_command_needing_no_shell() {
     let yaml = "\
 nika: v1
-workflow: interp
+workflow:
+  id: interp
 tasks:
-  - id: produce
+  produce:
     exec: { command: [\"./gen.sh\"] }
-  - id: consume
+  consume:
     depends_on: [produce]
     exec: { shell: \"process ${{ tasks.produce.output }}\" }
 ";
@@ -154,11 +156,12 @@ fn rule_008_silent_on_a_genuine_pipeline() {
     // A `|` means the author genuinely needs `/bin/sh -c` — keep the string.
     let yaml = "\
 nika: v1
-workflow: pipe
+workflow:
+  id: pipe
 tasks:
-  - id: produce
+  produce:
     exec: { command: [\"./gen.sh\"] }
-  - id: consume
+  consume:
     depends_on: [produce]
     exec: { shell: \"cat ${{ tasks.produce.output }} | wc -l\" }
 ";
@@ -169,11 +172,12 @@ tasks:
 fn rule_008_silent_on_the_array_form() {
     let yaml = "\
 nika: v1
-workflow: argv
+workflow:
+  id: argv
 tasks:
-  - id: produce
+  produce:
     exec: { command: [\"./gen.sh\"] }
-  - id: consume
+  consume:
     depends_on: [produce]
     exec:
       command: [\"process\", \"${{ tasks.produce.output }}\"]
@@ -188,9 +192,10 @@ tasks:
 fn rule_008_silent_without_interpolation() {
     let yaml = "\
 nika: v1
-workflow: plain
+workflow:
+  id: plain
 tasks:
-  - id: build
+  build:
     exec: { command: [\"cargo\", \"build\", \"--release\"] }
 ";
     assert!(
@@ -201,7 +206,7 @@ tasks:
 
 // ── rule 009 · output binding ending in a bare iterator `[]` ──────────────
 
-fn lints_009(yaml: &str) -> Vec<nika_schema::lints::Lint> {
+fn lints_009(yaml: &str) -> Vec<nika_lints::Lint> {
     lint(yaml)
         .into_iter()
         .filter(|l| l.rule == "one-obvious-way/009")
@@ -212,9 +217,10 @@ fn lints_009(yaml: &str) -> Vec<nika_schema::lints::Lint> {
 fn rule_009_flags_a_binding_that_ends_in_a_bare_iterator() {
     let yaml = "\
 nika: v1
-workflow: stream
+workflow:
+  id: stream
 tasks:
-  - id: fetch
+  fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
     output:
       emails: \".users[]\"
@@ -235,9 +241,10 @@ fn rule_009_silent_on_a_collected_stream() {
     // `[.users[]]` collects into one array value — the obvious way.
     let yaml = "\
 nika: v1
-workflow: collected
+workflow:
+  id: collected
 tasks:
-  - id: fetch
+  fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
     output:
       emails: \"[.users[].email]\"
@@ -252,9 +259,10 @@ tasks:
 fn rule_009_silent_on_an_indexed_take() {
     let yaml = "\
 nika: v1
-workflow: indexed
+workflow:
+  id: indexed
 tasks:
-  - id: fetch
+  fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
     output:
       first_user: \".users[0]\"
@@ -271,9 +279,10 @@ fn rule_009_silent_on_an_empty_array_literal_default() {
     // not an iterator — the low-false-positive contract must not flag it.
     let yaml = "\
 nika: v1
-workflow: deflt
+workflow:
+  id: deflt
 tasks:
-  - id: fetch
+  fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
     output:
       users: \".users // []\"

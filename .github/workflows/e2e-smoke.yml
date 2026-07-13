@@ -131,9 +131,10 @@ jobs:
           set -euo pipefail
           cat > hello.nika.yaml <<'WORKFLOW'
           nika: v1
-          workflow: hello-smoke
+          workflow:
+            id: hello-smoke
           tasks:
-            - id: greet
+            greet:
               exec:
                 command: echo hello-from-nika
           WORKFLOW
@@ -164,10 +165,11 @@ jobs:
           set -euo pipefail
           cat > mock-infer.nika.yaml <<'WORKFLOW'
           nika: v1
-          workflow: mock-infer-smoke
+          workflow:
+            id: mock-infer-smoke
           model: mock/echo
           tasks:
-            - id: ping
+            ping:
               infer:
                 prompt: hi
           WORKFLOW

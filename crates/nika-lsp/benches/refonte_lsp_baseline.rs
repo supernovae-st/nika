@@ -40,7 +40,9 @@ use std::time::Instant;
 fn workflow(topology: &str, n: usize) -> String {
     let mut s = String::with_capacity(n * 96);
     let slug = topology.replace('_', "-");
-    s.push_str(&format!("nika: v1\nworkflow: bench-{slug}-{n}\ntasks:\n"));
+    s.push_str(&format!(
+        "nika: v1\nworkflow:\n  id: bench-{slug}-{n}\ntasks:\n"
+    ));
     for i in 0..n {
         let deps: Vec<usize> = match topology {
             "chain" => (i > 0).then(|| vec![i - 1]).unwrap_or_default(),
@@ -55,7 +57,7 @@ fn workflow(topology: &str, n: usize) -> String {
             }
             other => panic!("unknown topology {other}"),
         };
-        s.push_str(&format!("  - id: t{i}\n"));
+        s.push_str(&format!("  t{i}:\n"));
         if !deps.is_empty() {
             let list: Vec<String> = deps.iter().map(|d| format!("t{d}")).collect();
             s.push_str(&format!("    depends_on: [{}]\n", list.join(", ")));
@@ -108,7 +110,7 @@ fn main() {
             let text = workflow(topo, n);
             let mid = n / 2;
             // hover anchor: the declaring id token of the middle task
-            let hover_off = text.find(&format!("- id: t{mid}\n")).expect("mid task") + 8;
+            let hover_off = text.find(&format!("\n  t{mid}:\n")).expect("mid task") + 3;
             // completion anchor: right after `tasks.` inside a mid-file binding
             let marker = format!("up: ${{{{ tasks.t{}.", mid.saturating_sub(1));
             let compl_off = text.find(&marker).map_or(hover_off, |p| {

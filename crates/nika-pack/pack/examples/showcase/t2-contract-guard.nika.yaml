@@ -16,8 +16,9 @@
 # Run · nika run examples/showcase/t2-contract-guard.nika.yaml --var contract_path=./contract.md
 
 nika: v1
-workflow: contract-guard
-description: "Local-model clause extraction → schema gate → risk memo"
+workflow:
+  id: contract-guard
+  description: "Local-model clause extraction → schema gate → risk memo"
 
 model: ollama/qwen3.5:4b   # the whole review runs offline · zero cloud
 
@@ -28,12 +29,12 @@ vars:
     description: "Path to the contract (markdown or plain text)"
 
 tasks:
-  - id: contract
+  contract:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.contract_path }}" }
 
-  - id: clauses
+  clauses:
     depends_on: [contract]
     infer:
       prompt: |
@@ -54,7 +55,7 @@ tasks:
                 type: { type: string, enum: [liability, termination, ip, payment, data, other] }
                 risk: { type: string, enum: [low, medium, high] }
 
-  - id: check
+  check:
     depends_on: [clauses]
     invoke:
       tool: "nika:validate"
@@ -69,7 +70,7 @@ tasks:
               type: array
               minItems: 1
 
-  - id: gate
+  gate:
     depends_on: [check]
     invoke:
       tool: "nika:assert"
@@ -77,7 +78,7 @@ tasks:
         condition: "${{ tasks.check.output.valid == true }}"
         message: "Clause extraction failed the schema gate: refusing to write the memo"
 
-  - id: memo
+  memo:
     depends_on: [clauses, gate]
     infer:
       prompt: |
@@ -85,7 +86,7 @@ tasks:
         ${{ tasks.clauses.output.clauses }}
         Order by risk · high first · cite the quoted text.
 
-  - id: save
+  save:
     depends_on: [memo]
     invoke:
       tool: "nika:write"

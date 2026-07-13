@@ -3,16 +3,17 @@
 # Two real defects: a task reads another task's output without depending on
 # it, and a typo'd task reference in the `when:` gate.
 nika: v1
-workflow: pr-risk-review
+workflow:
+  id: pr-risk-review
 model: ollama/llama3.1
 
 tasks:
-  - id: diff
+  diff:
     exec:
       command: ["git", "diff", "origin/main...HEAD"]
       capture: structured
 
-  - id: assess
+  assess:
     infer:
       prompt: |
         Risk-assess this diff. Be terse.
@@ -23,7 +24,7 @@ tasks:
         properties:
           risk: { type: string, enum: [low, medium, high] }
 
-  - id: comment
+  comment:
     when: "${{ tasks.asses.output.risk == 'high' }}"
     invoke:
       tool: "nika:write"

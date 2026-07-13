@@ -5,11 +5,12 @@
 # Expected: exit NON-ZERO · the error names the token limit · attempts=1
 # (no blind re-ask at the same budget).
 nika: v1
-workflow: battery-s5-truncation
+workflow:
+  id: battery-s5-truncation
 model: mock/echo
 
 tasks:
-  - id: bio
+  bio:
     infer:
       prompt: |
         Write a detailed three-paragraph biography of Ada Lovelace, then

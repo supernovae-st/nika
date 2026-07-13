@@ -11,8 +11,8 @@
 //! fires. This module only reshapes the verdict into [`Lint`] records
 //! (rule id · task · span · message · suggestion).
 
-use crate::check::native_first::classify;
-use crate::raw::{RawAction, RawWorkflow};
+use nika_schema::check::native_first::classify;
+use nika_schema::raw::{RawAction, RawWorkflow};
 
 use super::preference_rules::Lint;
 
@@ -37,7 +37,7 @@ pub fn native_first(wf: &RawWorkflow) -> Vec<Lint> {
     lints
 }
 
-fn push(action: &RawAction, id: &str, span: crate::source::Span, lints: &mut Vec<Lint>) {
+fn push(action: &RawAction, id: &str, span: nika_schema::source::Span, lints: &mut Vec<Lint>) {
     let RawAction::Exec(exec) = action else {
         return;
     };
@@ -55,8 +55,8 @@ fn push(action: &RawAction, id: &str, span: crate::source::Span, lints: &mut Vec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{ParseMode, parse};
-    use crate::source::FileId;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
 
     fn lints_of(yaml: &str) -> Vec<(String, String)> {
         native_first(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn mirrors_the_spec_lints_fixtures() {
         let fired = lints_of(
-            "nika: v1\nworkflow: curl-crawl\ntasks:\n  - id: crawl\n    exec: { command: [\"curl\", \"-s\", \"https://example.com\", \"-o\", \"out/site.html\"] }\n",
+            "nika: v1\nworkflow:\n  id: curl-crawl\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://example.com\", \"-o\", \"out/site.html\"] }\n",
         );
         assert_eq!(
             fired,
@@ -78,7 +78,7 @@ mod tests {
         );
 
         let helper = lints_of(
-            "nika: v1\nworkflow: helper\ntasks:\n  - id: upload\n    exec:\n      command: [\"node\", \"workflows/site/bin/helper.mjs\", \"upload\", \"--file\", \"out/bg.png\"]\n",
+            "nika: v1\nworkflow:\n  id: helper\ntasks:\n  upload:\n    exec:\n      command: [\"node\", \"workflows/site/bin/helper.mjs\", \"upload\", \"--file\", \"out/bg.png\"]\n",
         );
         assert_eq!(
             helper,
@@ -86,7 +86,7 @@ mod tests {
         );
 
         let silent = lints_of(
-            "nika: v1\nworkflow: build\ntasks:\n  - id: test\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  - id: nested\n    depends_on: [test]\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika.yaml\"] }\n",
+            "nika: v1\nworkflow:\n  id: build\ntasks:\n  test:\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  nested:\n    depends_on: [test]\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika.yaml\"] }\n",
         );
         assert!(silent.is_empty(), "{silent:?}");
     }

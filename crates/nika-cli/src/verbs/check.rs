@@ -953,8 +953,8 @@ mod tests {
     fn run_many_audits_every_file_and_keeps_the_worst_exit() {
         let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let clean = "nika: v1\nworkflow: ok\ntasks:\n  - id: t\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
-        let broken = "nika: v1\nworkflow: bad\ntasks:\n  - id: t\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
+        let clean = "nika: v1\nworkflow:\n  id: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let broken = "nika: v1\nworkflow:\n  id: bad\ntasks:\n  t:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
         let a = dir.join("many-a.nika.yaml");
         let b = dir.join("many-broken.nika.yaml");
         let c = dir.join("many-c.nika.yaml");
@@ -995,7 +995,7 @@ mod tests {
     fn run_many_is_clean_when_every_file_is() {
         let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let clean = "nika: v1\nworkflow: ok\ntasks:\n  - id: t\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let clean = "nika: v1\nworkflow:\n  id: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
         let a = dir.join("clean-a.nika.yaml");
         let b = dir.join("clean-b.nika.yaml");
         std::fs::write(&a, clean).expect("fixture a");
@@ -1015,7 +1015,7 @@ mod tests {
         let present = dir.join("present.txt");
         std::fs::write(&present, "x").expect("fixture");
         let yaml = format!(
-            "nika: v1\nworkflow: w\nvars:\n  src: \"{missing}\"\ntasks:\n  - id: a\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ vars.src }}}}\" }}\n  - id: b\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  - id: c\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
+            "nika: v1\nworkflow:\n  id: w\nvars:\n  src: \"{missing}\"\ntasks:\n  a:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ vars.src }}}}\" }}\n  b:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  c:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
             missing = dir.join("missing.txt").display(),
             present = present.display(),
         );
@@ -1034,7 +1034,7 @@ mod tests {
     #[test]
     fn pricing_section_rates_known_null_unknown() {
         let wf = parse_wf(
-            "nika: v1\nworkflow: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  - id: think\n    infer:\n      prompt: hi\n  - id: odd\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
+            "nika: v1\nworkflow:\n  id: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  think:\n    infer:\n      prompt: hi\n  odd:\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
         );
         let report = nika_schema::check(&wf);
         let section = pricing_section(&report, &unresolvable_models(&report));
@@ -1074,7 +1074,7 @@ mod tests {
     #[test]
     fn floor_escape_renders_without_a_permits_block() {
         let wf = parse_wf(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: probe\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
         );
         let report = nika_schema::check(&wf);
         assert!(
@@ -1103,7 +1103,7 @@ mod tests {
         // …and the informational line still renders when there is nothing
         // to say (the common clean case is unchanged).
         let clean = parse_wf(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: probe\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
         let clean_report = nika_schema::check(&clean);
         let mut clean_out = String::new();
@@ -1118,7 +1118,7 @@ mod tests {
     #[test]
     fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
         let wf = parse_wf(
-            "nika: v1\nworkflow: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
+            "nika: v1\nworkflow:\n  id: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
         );
         let report = nika_schema::check(&wf);
         assert!(
@@ -1139,7 +1139,7 @@ mod tests {
         );
         // …and a boundary with no loopback literal renders NO such line.
         let plain = parse_wf(
-            "nika: v1\nworkflow: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
         let plain_report = nika_schema::check(&plain);
         let mut plain_out = String::new();
@@ -1156,7 +1156,7 @@ mod tests {
     #[test]
     fn required_input_without_default_is_listed() {
         let wf = parse_wf(
-            "nika: v1\nworkflow: needs-input\nmodel: mock/echo\nvars:\n  text:\n    type: string\n    required: true\ntasks:\n  - id: a\n    infer: { prompt: \"${{ vars.text }}\" }\n",
+            "nika: v1\nworkflow:\n  id: needs-input\nmodel: mock/echo\nvars:\n  text:\n    type: string\n    required: true\ntasks:\n  a:\n    infer: { prompt: \"${{ vars.text }}\" }\n",
         );
         assert_eq!(required_inputs(&wf), vec!["text"]);
     }
@@ -1166,7 +1166,7 @@ mod tests {
     #[test]
     fn defaulted_or_optional_inputs_are_not_listed() {
         let wf = parse_wf(
-            "nika: v1\nworkflow: ok\nmodel: mock/echo\nvars:\n  a: \"has default\"\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\ntasks:\n  - id: t\n    infer: { prompt: \"${{ vars.a }} ${{ vars.b }} ${{ vars.c }}\" }\n",
+            "nika: v1\nworkflow:\n  id: ok\nmodel: mock/echo\nvars:\n  a: \"has default\"\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\ntasks:\n  t:\n    infer: { prompt: \"${{ vars.a }} ${{ vars.b }} ${{ vars.c }}\" }\n",
         );
         assert!(
             required_inputs(&wf).is_empty(),
@@ -1221,7 +1221,7 @@ mod tests {
     fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
         let out = checked_output(
             "models-azure.nika.yaml",
-            "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
             false,
         );
         assert_eq!(
@@ -1242,7 +1242,7 @@ mod tests {
     fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
         let out = checked_output(
             "models-bare.nika.yaml",
-            "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
             false,
         );
         assert_eq!(out.code, 2, "bare id is a finding: {}", out.text);
@@ -1284,7 +1284,7 @@ mod tests {
     fn models_rung_is_green_when_every_model_resolves() {
         let out = checked_output(
             "models-green.nika.yaml",
-            "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
             false,
         );
         assert_eq!(out.code, 0, "{}", out.text);
@@ -1299,7 +1299,7 @@ mod tests {
     /// the exit code must agree (the review-swarm untested-branch gap).
     #[test]
     fn native_strict_json_payload_agrees_with_the_exit_code() {
-        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        let helper = "nika: v1\nworkflow:\n  id: helper\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
         // matrix · a dev double-run) share the OS tmpdir, and a fixed
         // name let them stomp each other's fixtures mid-read (flaked
@@ -1335,7 +1335,7 @@ mod tests {
     /// 0 under strict.
     #[test]
     fn native_strict_fails_on_native_first_hints_only() {
-        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        let helper = "nika: v1\nworkflow:\n  id: helper\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         let default_run = checked_output("native-default.nika.yaml", helper, false);
         assert_eq!(
             default_run.code, 0,
@@ -1360,7 +1360,7 @@ mod tests {
             strict.text
         );
 
-        let native_twin = "nika: v1\nworkflow: native\ntasks:\n  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
+        let native_twin = "nika: v1\nworkflow:\n  id: native\ntasks:\n  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
         let twin = checked_output("native-twin.nika.yaml", native_twin, true);
         assert_eq!(twin.code, 0, "the native twin passes strict: {}", twin.text);
         assert!(!twin.text.contains("native-strict ·"), "{}", twin.text);
@@ -1373,7 +1373,7 @@ mod tests {
     fn cost_section_names_each_unbounded_reason() {
         let text = checked_text(
             "cost-reasons.nika.yaml",
-            "nika: v1\nworkflow: cost-reasons\nvars:\n  items: { type: array, required: true }\ntasks:\n  - id: a\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  - id: b\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  - id: c\n    for_each: \"${{ vars.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
+            "nika: v1\nworkflow:\n  id: cost-reasons\nvars:\n  items: { type: array, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: \"${{ vars.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
             true,
         );
         assert!(text.contains("no max_tokens declared"), "{text}");
@@ -1394,7 +1394,7 @@ mod tests {
     fn clean_report_marks_every_section() {
         let text = checked_text(
             "clean-one.nika.yaml",
-            "nika: v1\nworkflow: clean-one\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: clean-one\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             false,
         );
         let ticks = text.matches('✔').count();
@@ -1413,7 +1413,7 @@ mod tests {
     /// ASCII parity (`ok audited` · `>=`).
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
-        let yaml = "nika: v1\nworkflow: card\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"echo\", \"bye\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains("✔ audited · 2 tasks · 2 waves · permits none · est ≥$0.0000 · 1 hint"),
@@ -1442,7 +1442,7 @@ mod tests {
     fn plan_prints_wave_membership_with_verbs_and_targets() {
         let text = checked_text(
             "plan-membership.nika.yaml",
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  - id: think\n    infer: { prompt: hi }\n  - id: after\n    depends_on: [think]\n    exec:\n      command: [\"echo\", \"x\"]\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    depends_on: [think]\n    exec:\n      command: [\"echo\", \"x\"]\n",
             true,
         );
         assert!(text.contains("wave 1"), "membership renders: {text}");
@@ -1460,7 +1460,7 @@ mod tests {
     fn plan_announces_the_skip_when_conformance_fails() {
         let text = checked_text(
             "plan-skip.nika.yaml",
-            "nika: v1\nworkflow: bad-ref\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"${{ vars.nope }}\"] }\n",
+            "nika: v1\nworkflow:\n  id: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.nope }}\"] }\n",
             true,
         );
         assert!(

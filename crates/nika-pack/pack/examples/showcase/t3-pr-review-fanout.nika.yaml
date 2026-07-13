@@ -20,8 +20,9 @@
 # Run · nika run examples/showcase/t3-pr-review-fanout.nika.yaml
 
 nika: v1
-workflow: pr-review-fanout
-description: "changed files → one read-only review agent each → merged REVIEW.md"
+workflow:
+  id: pr-review-fanout
+  description: "changed files → one read-only review agent each → merged REVIEW.md"
 
 model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
 
@@ -29,11 +30,11 @@ vars:
   base_ref: "main"
 
 tasks:
-  - id: changed
+  changed:
     exec:
       command: ["git", "diff", "--name-only", "${{ vars.base_ref }}...HEAD"]
 
-  - id: files
+  files:
     depends_on: [changed]
     invoke:
       tool: "nika:jq"
@@ -41,14 +42,14 @@ tasks:
         input: "${{ tasks.changed.output }}"
         expression: 'split("\n") | map(select(length > 0))'
 
-  - id: todo_sweep
+  todo_sweep:
     invoke:
       tool: "nika:grep"
       args:
         pattern: "TODO|FIXME|HACK"
         path: "./src"
 
-  - id: reviews
+  reviews:
     depends_on: [files]
     for_each: ${{ tasks.files.output }}
     max_parallel: 4
@@ -78,7 +79,7 @@ tasks:
                 message: { type: string }
                 line: { type: integer }
 
-  - id: merged
+  merged:
     depends_on: [reviews]
     invoke:
       tool: "nika:jq"
@@ -88,7 +89,7 @@ tasks:
         # upstream) and the fan-in must survive its own good news.
         expression: '(. // []) | map(select(. != null)) | map(.findings[] + {file: .file}) | sort_by(.severity)'
 
-  - id: summary
+  summary:
     depends_on: [merged, todo_sweep]
     infer:
       prompt: |
@@ -98,7 +99,7 @@ tasks:
         ${{ tasks.todo_sweep.output }}
         End with a verdict · ship / fix-first / redesign.
 
-  - id: save
+  save:
     depends_on: [summary]
     invoke:
       tool: "nika:write"

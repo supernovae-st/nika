@@ -7,8 +7,9 @@
 #   exec ×2       assert     nika:prompt
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
-description: "verify in parallel · human GO · act · record"   # SLOT
+workflow:
+  id: human-gated-ship-template  # SLOT: kebab-case workflow id
+  description: "verify in parallel · human GO · act · record"   # SLOT
 
 permits:                            # SLOT: the blast radius · default-deny once present
   exec: ["echo"]                    # SLOT: ONLY the programs the gates + act run (argv form)
@@ -25,17 +26,17 @@ secrets:
 
 tasks:
   # ── the verification wave · all checks run in parallel ──
-  - id: check_a
+  check_a:
     exec:
       command: ["echo", "ok"]        # SLOT: gate 1 (argv form · injection-safe)
       capture: structured
 
-  - id: check_b
+  check_b:
     exec:
       command: ["echo", "ok"]        # SLOT: gate 2
       capture: structured
 
-  - id: gates
+  gates:
     depends_on: [check_a, check_b]
     invoke:
       tool: "nika:assert"
@@ -43,7 +44,7 @@ tasks:
         condition: "${{ tasks.check_a.output.exit_code == 0 && tasks.check_b.output.exit_code == 0 }}"
         message: "A gate is RED: refusing to proceed"   # SLOT
 
-  - id: human
+  human:
     depends_on: [gates]
     invoke:
       # the prompt PAUSES the run (exit 4 · not a failure) — answer and resume:
@@ -53,7 +54,7 @@ tasks:
         message: "All gates GREEN. Proceed?"   # SLOT: the decision, fully informed
         default: false
 
-  - id: act
+  act:
     depends_on: [human]
     when: ${{ tasks.human.output == true }}
     exec:
@@ -62,7 +63,7 @@ tasks:
       # never `capture: structured` on the irreversible step (exit codes
       # would become data and a red ship would read as success)
 
-  - id: record
+  record:
     depends_on: [act]
     when: true                      # the always-pattern · runs on success, failure, OR refusal
     invoke:

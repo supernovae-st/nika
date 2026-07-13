@@ -545,13 +545,14 @@ mod tests {
         let escapes = escapes_of(
             "\
 nika: v1
-workflow: t
+workflow:
+  id: t
 model: mock/echo
 permits:
   fs: { write: [\"elsewhere/**\"] }
   tools: [\"nika:chart\", \"nika:tts_generate\"]
 tasks:
-  - id: c
+  c:
     invoke:
       tool: \"nika:chart\"
       args:
@@ -559,7 +560,7 @@ tasks:
         chart: { type: bar, x: x, y: y }
         out: \"out/c.svg\"
         compile_to: vega_lite
-  - id: s
+  s:
     invoke:
       tool: \"nika:tts_generate\"
       args:
@@ -591,10 +592,11 @@ tasks:
         let wf = parse(
             "\
 nika: v1
-workflow: t
+workflow:
+  id: t
 model: mock/echo
 tasks:
-  - id: c
+  c:
     invoke:
       tool: \"nika:chart\"
       args:
@@ -602,7 +604,7 @@ tasks:
         chart: { type: bar, x: x, y: y }
         out: \"out/c.svg\"
         compile_to: vega_lite
-  - id: plain
+  plain:
     invoke:
       tool: \"nika:chart\"
       args:
@@ -634,7 +636,7 @@ tasks:
 
     #[test]
     fn no_permits_block_no_escapes() {
-        let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { shell: \"rm -rf /\" }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"rm -rf /\" }\n";
         assert!(
             escapes_of(y).is_empty(),
             "absent permits = nothing to enforce"
@@ -643,7 +645,7 @@ tasks:
 
     #[test]
     fn exec_under_false_permit_escapes() {
-        let y = "nika: v1\nworkflow: w\npermits: { exec: false }\ntasks:\n  - id: t\n    exec: { shell: \"echo hi\" }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { exec: false }\ntasks:\n  t:\n    exec: { shell: \"echo hi\" }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1);
         assert_eq!(e[0].category, "exec");
@@ -653,7 +655,7 @@ tasks:
     fn exec_outside_program_allowlist_escapes() {
         // Argv form — the ONLY form an allowlist verifies (a shell string
         // under an allowlist escapes by FORM · see the by-form tests).
-        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\", \"cargo\"] }\ntasks:\n  - id: ok\n    exec: { command: [\"git\", \"status\"] }\n  - id: bad\n    exec: { command: [\"rm\", \"-rf\", \"x\"] }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"git\", \"cargo\"] }\ntasks:\n  ok:\n    exec: { command: [\"git\", \"status\"] }\n  bad:\n    exec: { command: [\"rm\", \"-rf\", \"x\"] }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "git allowed, rm escapes");
         assert_eq!(e[0].task, "bad");
@@ -665,7 +667,7 @@ tasks:
         // `["${{ vars.bin }}", "x"]` — the program is template-built. The
         // static check must NOT compare the raw `${{ }}` island against the
         // allowlist (that was a false positive); runtime NIKA-SEC-004 owns it.
-        let y = "nika: v1\nworkflow: w\nvars: { bin: \"git\" }\npermits: { exec: [\"git\"] }\ntasks:\n  - id: t\n    exec: { command: [\"${{ vars.bin }}\", \"status\"] }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\nvars: { bin: \"git\" }\npermits: { exec: [\"git\"] }\ntasks:\n  t:\n    exec: { command: [\"${{ vars.bin }}\", \"status\"] }\n";
         assert!(
             escapes_of(y).is_empty(),
             "dynamic argv[0] is not statically checkable"
@@ -676,7 +678,7 @@ tasks:
     fn escape_fixes_are_machine_applicable() {
         // a REAL tool outside the grant → the fix is the grant line;
         // a PHANTOM builtin (typo) → fix withheld (the rename owns it).
-        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:read\"], exec: false }\ntasks:\n  - id: real\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n  - id: typo\n    invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:read\"], exec: false }\ntasks:\n  real:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n  typo:\n    invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 2);
         assert_eq!(
@@ -689,7 +691,7 @@ tasks:
     #[test]
     fn on_finally_cleanup_outside_boundary_escapes() {
         // A cleanup verb runs under the same boundary — and ALWAYS runs.
-        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  - id: build\n    exec: { command: [\"cargo\", \"build\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"./log\", content: \"x\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  build:\n    exec: { command: [\"cargo\", \"build\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"./log\", content: \"x\" } }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "the cleanup's tool grant is missing");
         assert_eq!(e[0].task, "build (on_finally)");
@@ -700,7 +702,7 @@ tasks:
     fn edit_requires_both_fs_directions() {
         // in-place find/replace reads the bytes, then rewrites the path —
         // a write-only grant leaves the read side escaping.
-        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:edit\"], fs: { write: [\"./README.md\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:edit\", args: { path: \"./README.md\", find: \"a\", replace: \"b\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:edit\"], fs: { write: [\"./README.md\"] }, exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:edit\", args: { path: \"./README.md\", find: \"a\", replace: \"b\" } }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1);
         assert!(e[0].detail.contains("fs.read"), "detail: {}", e[0].detail);
@@ -712,14 +714,14 @@ tasks:
         // split bug). Bracket-free in permits, symmetric both sides. Since
         // the declassification (#395), a granted `::1` is the author's
         // explicit act: check is GREEN (and the run reaches the host).
-        let granted = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"::1\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
+        let granted = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"::1\"] }, exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
         assert!(
             escapes_of(granted).is_empty(),
             "the exact `::1` literal declassifies its host"
         );
         // UNGRANTED, the floor holds — and the extraction still reads the
         // bare `::1` in the escape detail (the bug this test pins).
-        let ungranted = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.x.com\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
+        let ungranted = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.x.com\"] }, exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
         let e = escapes_of(ungranted);
         assert_eq!(e.len(), 1, "floor escape only — never the grant fix");
         assert!(e[0].floor);
@@ -728,18 +730,18 @@ tasks:
 
     #[test]
     fn webhook_notify_target_is_checked_as_net() {
-        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: \"webhook\", target: \"https://hooks.x.com/p\", message: \"hi\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: \"webhook\", target: \"https://hooks.x.com/p\", message: \"hi\" } }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "webhook target host needs a net grant");
         assert_eq!(e[0].category, "net");
         // a non-webhook channel rides an engine transport — no host check
-        let email = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"ops@x.com\", message: \"hi\" } }\n";
+        let email = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"ops@x.com\", message: \"hi\" } }\n";
         assert!(escapes_of(email).is_empty());
     }
 
     #[test]
     fn invoke_outside_tools_escapes() {
-        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:read\"] }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:read\"] }\ntasks:\n  t:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1);
         assert_eq!(e[0].category, "tools");
@@ -748,13 +750,13 @@ tasks:
 
     #[test]
     fn invoke_inside_tools_glob_is_clean() {
-        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"mcp:browser/*\"] }\ntasks:\n  - id: t\n    invoke: { tool: \"mcp:browser/navigate\", args: { url: \"x\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"mcp:browser/*\"] }\ntasks:\n  t:\n    invoke: { tool: \"mcp:browser/navigate\", args: { url: \"x\" } }\n";
         assert!(escapes_of(y).is_empty());
     }
 
     #[test]
     fn agent_tool_outside_permits_escapes() {
-        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"] }\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:fetch\", \"nika:write\"]\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:fetch\"] }\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:fetch\", \"nika:write\"]\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "fetch allowed, write escapes");
         assert!(e[0].detail.contains("nika:write"));
@@ -767,12 +769,13 @@ tasks:
         // pipeline can launch any program). Both tasks escape, the one
         // whose head is allowlisted (`GIT_PAGER=cat git …`) included.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits: { exec: ["git"] }
 tasks:
-  - id: head_allowed
+  head_allowed:
     exec: { shell: "GIT_PAGER=cat git log" }
-  - id: head_denied
+  head_denied:
     exec: { shell: "FOO=1 rm -rf x" }
 "#;
         let e = escapes_of(y);
@@ -788,7 +791,7 @@ tasks:
         // Before this rule the dynamic head was waved through as « a
         // runtime concern » — but the runtime refuses the string form
         // under an allowlist before it ever looks at the head.
-        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  - id: t\n    exec: { shell: \"${{ vars.cmd }} status\" }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ vars.cmd }} status\" }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "string form under an allowlist escapes");
     }
@@ -800,7 +803,7 @@ tasks:
         // classified as a net effect — kills the channel-guard→true mutant
         // (which would flag every notify target as a host escape). The
         // existing webhook-positive case kills the guard→false direction.
-        let email = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"https://hooks.evil.com/p\", message: \"hi\" } }\n";
+        let email = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"https://hooks.evil.com/p\", message: \"hi\" } }\n";
         assert!(
             escapes_of(email).is_empty(),
             "a non-webhook channel's URL-shaped target is not a net sink"
@@ -822,12 +825,13 @@ mod fs_net_regression {
     fn fetch_to_unlisted_host_escapes() {
         // The spec's own first named example: a nika:fetch to an unlisted host.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["api.anthropic.com"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "https://evil.example.com/exfil" } }
 "#;
         let e = escapes(y);
@@ -839,12 +843,13 @@ tasks:
     #[test]
     fn fetch_to_listed_host_is_clean() {
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["*.anthropic.com"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "https://api.anthropic.com/v1/x" } }
 "#;
         assert!(escapes(y).is_empty(), "glob host match is clean");
@@ -854,12 +859,13 @@ tasks:
     fn write_outside_fs_write_escapes() {
         // The spec's other named example: nika:write ./etc/x outside fs.write.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   fs: { write: ["./out/**"] }
   tools: ["nika:write"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:write", args: { path: "/etc/cron.d/x", content: "pwn" } }
 "#;
         let e = escapes(y);
@@ -871,12 +877,13 @@ tasks:
     #[test]
     fn write_inside_fs_write_glob_is_clean() {
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   fs: { write: ["./out/**"] }
   tools: ["nika:write"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:write", args: { path: "./out/report.md", content: "x" } }
 "#;
         assert!(escapes(y).is_empty(), "./out/** matches ./out/report.md");
@@ -890,12 +897,13 @@ tasks:
         // `./out/` → flagged (the runtime canonicalize-then-confine is the
         // other half · catches symlinks + dynamic paths a static pass can't).
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   fs: { write: ["./out/**"] }
   tools: ["nika:write"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:write", args: { path: "./out/../escape.txt", content: "pwn" } }
 "#;
         let e = escapes(y);
@@ -903,12 +911,13 @@ tasks:
         assert_eq!(e[0].category, "fs");
         // …while a `..` that stays INSIDE the boundary is still clean.
         let clean = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   fs: { read: ["./out/**"] }
   tools: ["nika:read"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:read", args: { path: "./out/sub/../keep.txt" } }
 "#;
         assert!(
@@ -921,12 +930,13 @@ tasks:
     fn read_under_write_only_boundary_escapes() {
         // fs declared but only write — a read is default-denied.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   fs: { write: ["./out/**"] }
   tools: ["nika:read"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:read", args: { path: "./out/x" } }
 "#;
         let e = escapes(y);
@@ -937,13 +947,14 @@ tasks:
     #[test]
     fn dynamic_url_is_a_runtime_concern() {
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 vars: { host: "api.anthropic.com" }
 permits:
   net: { http: ["api.anthropic.com"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "https://${{ vars.host }}/x" } }
 "#;
         assert!(escapes(y).is_empty(), "interpolated url = runtime check");
@@ -964,19 +975,21 @@ mod argv_program_check {
     fn argv_program_is_checked_unambiguously() {
         // argv[0] is the program — no shell-split heuristic needed.
         let allowed = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits: { exec: ["git"] }
 tasks:
-  - id: t
+  t:
     exec: { command: ["git", "status"] }
 "#;
         assert!(escapes(allowed).is_empty(), "git argv allowed");
 
         let denied = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits: { exec: ["git"] }
 tasks:
-  - id: t
+  t:
     exec: { command: ["rm", "-rf", "x"] }
 "#;
         let e = escapes(denied);
@@ -993,11 +1006,12 @@ tasks:
         // The PROGRAM (argv[0]) is literal even when later args interpolate —
         // the whole point of the argv form (injection-safe).
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 vars: { x: "y" }
 permits: { exec: ["git"] }
 tasks:
-  - id: t
+  t:
     exec: { command: ["git", "${{ vars.x }}"] }
 "#;
         assert!(escapes(y).is_empty(), "git allowed; the arg is just data");
@@ -1011,10 +1025,11 @@ tasks:
         // rule 8), even when the leading token IS allowlisted. The
         // leading-token heuristic would bless `sleep 5 && rm -rf /`.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits: { exec: ["sleep"] }
 tasks:
-  - id: t
+  t:
     exec: { shell: "sleep 5" }
 "#;
         let e = escapes(y);
@@ -1051,12 +1066,13 @@ mod floor_parity {
         // reaches the host: the two surfaces agree in the ADMITTING
         // direction, not just the refusing one.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["127.0.0.1"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: probe
+  probe:
     invoke: { tool: "nika:fetch", args: { url: "http://127.0.0.1:8080/api" } }
 "#;
         assert!(
@@ -1071,8 +1087,8 @@ tasks:
             ("[::1]", "https://[::1]/x"),
         ] {
             let y = format!(
-                "nika: v1\nworkflow: w\npermits: {{ net: {{ http: [\"{entry}\"] }}, \
-                 tools: [\"nika:fetch\"], exec: false }}\ntasks:\n  - id: t\n    \
+                "nika: v1\nworkflow:\n  id: w\npermits: {{ net: {{ http: [\"{entry}\"] }}, \
+                 tools: [\"nika:fetch\"], exec: false }}\ntasks:\n  t:\n    \
                  invoke: {{ tool: \"nika:fetch\", args: {{ url: \"{url}\" }} }}\n"
             );
             assert!(
@@ -1090,12 +1106,13 @@ tasks:
         // floor escape stays (and the entry, being live for ITS host, is
         // not dead-flagged).
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["localhost"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: probe
+  probe:
     invoke: { tool: "nika:fetch", args: { url: "http://127.0.0.1:8080/api" } }
 "#;
         let e = escapes(y);
@@ -1124,8 +1141,8 @@ tasks:
             ("api.localhost", "http://api.localhost/x"),
         ] {
             let y = format!(
-                "nika: v1\nworkflow: w\npermits: {{ net: {{ http: [\"{entry}\"] }}, \
-                 tools: [\"nika:fetch\"], exec: false }}\ntasks:\n  - id: t\n    \
+                "nika: v1\nworkflow:\n  id: w\npermits: {{ net: {{ http: [\"{entry}\"] }}, \
+                 tools: [\"nika:fetch\"], exec: false }}\ntasks:\n  t:\n    \
                  invoke: {{ tool: \"nika:fetch\", args: {{ url: \"{url}\" }} }}\n"
             );
             let e = escapes(&y);
@@ -1139,9 +1156,10 @@ tasks:
         // The floor is permits-INDEPENDENT — the seam existed with no
         // boundary declared too (check blessed, run always refused).
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "http://localhost:3000/x" } }
 "#;
         let e = escapes(y);
@@ -1150,9 +1168,10 @@ tasks:
         assert!(e[0].detail.contains("`localhost`"), "{}", e[0].detail);
         // …and a public fetch with no permits stays clean (today's law).
         let clean = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/x" } }
 "#;
         assert!(escapes(clean).is_empty());
@@ -1164,12 +1183,13 @@ tasks:
         // « add "169.254.169.254" to permits.net.http » — a lie (the grant
         // cannot help). The floor escape must be the ONLY finding.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["api.x.com"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "http://169.254.169.254/latest/meta-data/" } }
 "#;
         let e = escapes(y);
@@ -1185,12 +1205,13 @@ tasks:
         // run) — while the loopback literal beside it is LIVE (#395·the
         // declassification) and must not be dead-flagged.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["10.0.0.5", "localhost", "api.x.com"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "https://api.x.com/x" } }
 "#;
         let e = escapes(y);
@@ -1205,12 +1226,13 @@ tasks:
         // A glob may match public names — glob-vs-floor inclusion is DNS
         // knowledge the static pass does not have. Never flagged.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: ["*.internal.example", "*.localhost"] }
   tools: ["nika:fetch"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "https://api.internal.example/x" } }
 "#;
         assert!(escapes(y).is_empty(), "globs are never floor-classified");
@@ -1221,9 +1243,10 @@ tasks:
         // The floor speaks for every Net-classified builtin — webhook
         // notify rides the same nika-http boundary as fetch.
         let y = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:notify", args: { channel: "webhook", target: "http://10.0.0.8/hook", message: "hi" } }
 "#;
         let e = escapes(y);
@@ -1236,18 +1259,20 @@ tasks:
     fn localhost_family_and_dynamic_urls_split_static_vs_runtime() {
         // `api.localhost` is loopback BY STRUCTURE (RFC 6761) → static.
         let family = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "http://api.localhost/x" } }
 "#;
         assert_eq!(escapes(family).len(), 1, "the localhost FAMILY floors");
         // A dynamic URL is invisible statically — the runtime floor owns it.
         let dynamic = r#"nika: v1
-workflow: w
+workflow:
+  id: w
 vars: { target: "http://127.0.0.1/x" }
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:fetch", args: { url: "${{ vars.target }}" } }
 "#;
         assert!(escapes(dynamic).is_empty(), "dynamic = runtime concern");

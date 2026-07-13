@@ -233,9 +233,10 @@ mod tests {
         let wf = wf_of(
             "\
 nika: v1
-workflow: jq-bad
+workflow:
+  id: jq-bad
 tasks:
-  - id: transform
+  transform:
     invoke: { tool: \"nika:jq\", args: { expression: \".a |\" } }
 ",
         );
@@ -259,9 +260,10 @@ tasks:
         let wf = wf_of(
             "\
 nika: v1
-workflow: fetch-bad-jq
+workflow:
+  id: fetch-bad-jq
 tasks:
-  - id: pull
+  pull:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com\", mode: jq, jq: \".a |\" } }
 ",
         );
@@ -287,9 +289,10 @@ tasks:
         let wf = wf_of(
             "\
 nika: v1
-workflow: jq-ok
+workflow:
+  id: jq-ok
 tasks:
-  - id: transform
+  transform:
     invoke: { tool: \"nika:jq\", args: { expression: \"[.items[].name]\" } }
 ",
         );

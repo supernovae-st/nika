@@ -728,20 +728,34 @@ pub(super) fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem>
 /// that does not yet parse. A line is a task id when, after stripping
 /// leading whitespace and an optional `- ` marker, it reads `id: <ident>`.
 pub(super) fn scan_task_ids(text: &str) -> Vec<String> {
+    // W1 « the map »: a task declares as a bare `name:` key at indent 2
+    // inside the top-level `tasks:` section — the same boundary shape
+    // scope.rs walks (the `- id:` row died with the list form).
     let mut ids = Vec::new();
+    let mut in_tasks = false;
     for line in text.lines() {
-        let body = line.trim_start();
-        let body = body.strip_prefix("- ").unwrap_or(body);
-        let Some(rest) = body.strip_prefix("id:") else {
+        if !line.starts_with(' ') && !line.starts_with('#') && line.contains(':') {
+            in_tasks = line.starts_with("tasks:");
+            continue;
+        }
+        if !in_tasks {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        if indent != 2 {
+            continue;
+        }
+        let head = line.trim_start().split('#').next().unwrap_or("").trim_end();
+        let Some(name) = head.strip_suffix(':') else {
             continue;
         };
-        let id: String = rest
-            .trim()
-            .chars()
-            .take_while(|c| *c == '_' || c.is_ascii_alphanumeric())
-            .collect();
-        if !id.is_empty() && !ids.contains(&id) {
-            ids.push(id);
+        let ok = !name.is_empty()
+            && name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+        if ok && !ids.iter().any(|i| i == name) {
+            ids.push(name.to_owned());
         }
     }
     ids

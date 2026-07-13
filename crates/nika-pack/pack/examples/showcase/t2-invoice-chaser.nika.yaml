@@ -18,8 +18,9 @@
 # Run · nika run examples/showcase/t2-invoice-chaser.nika.yaml
 
 nika: v1
-workflow: invoice-chaser
-description: "Ledger CSV → overdue filter → drafted reminders → human gate → drafts file"
+workflow:
+  id: invoice-chaser
+  description: "Ledger CSV → overdue filter → drafted reminders → human gate → drafts file"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
 
@@ -27,12 +28,12 @@ vars:
   ledger_csv: "./finance/invoices.csv"
 
 tasks:
-  - id: ledger
+  ledger:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.ledger_csv }}" }
 
-  - id: rows
+  rows:
     depends_on: [ledger]
     invoke:
       tool: "nika:convert"
@@ -42,7 +43,7 @@ tasks:
         to: json
         has_header: true
 
-  - id: overdue
+  overdue:
     depends_on: [rows]
     invoke:
       tool: "nika:jq"
@@ -50,7 +51,7 @@ tasks:
         input: "${{ tasks.rows.output }}"
         expression: 'map(select(.status == "overdue"))'
 
-  - id: drafts
+  drafts:
     depends_on: [overdue]
     when: ${{ size(tasks.overdue.output) > 0 }}
     infer:
@@ -59,7 +60,7 @@ tasks:
         ${{ tasks.overdue.output }}
         Markdown · one section per client · firm but warm.
 
-  - id: approve
+  approve:
     depends_on: [drafts]
     when: ${{ tasks.drafts.output != null }}   # nothing drafted · nothing to approve
     invoke:
@@ -68,7 +69,7 @@ tasks:
         message: "Save the reminder drafts for sending?"
         default: false
 
-  - id: save
+  save:
     depends_on: [approve, drafts]
     when: ${{ tasks.drafts.output != null && tasks.approve.output == true }}   # zero overdue → drafts skipped (null) · don't write nothing
     invoke:

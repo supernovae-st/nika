@@ -93,7 +93,8 @@ async fn workflow_secret_resolves_into_a_sanctioned_sink_only() {
     // in the exec command. The resolver provides its value at run start.
     let yaml = r#"
 nika: v1
-workflow: secret-run
+workflow:
+  id: secret-run
 secrets:
   token:
     source: env
@@ -101,7 +102,7 @@ secrets:
     egress:
       - to: "exec"
 tasks:
-  - id: use_it
+  use_it:
     exec: { command: ["deploy", "--auth", "${{ secrets.token }}"] }
 "#;
     let shell = MockShell::new().enqueue_ok("deployed\n");
@@ -150,7 +151,8 @@ tasks:
 async fn absent_workflow_secret_is_a_clean_typed_error() {
     let yaml = r#"
 nika: v1
-workflow: secret-missing
+workflow:
+  id: secret-missing
 secrets:
   token:
     source: env
@@ -158,7 +160,7 @@ secrets:
     egress:
       - to: "exec"
 tasks:
-  - id: use_it
+  use_it:
     exec: { command: ["deploy", "--auth", "${{ secrets.token }}"] }
 "#;
     // The resolver returns nothing (the env var is absent) → the secret is
@@ -189,7 +191,8 @@ tasks:
 async fn no_resolver_keeps_secrets_unbound_fail_closed() {
     let yaml = r#"
 nika: v1
-workflow: secret-none
+workflow:
+  id: secret-none
 secrets:
   token:
     source: env
@@ -197,7 +200,7 @@ secrets:
     egress:
       - to: "exec"
 tasks:
-  - id: use_it
+  use_it:
     exec: { command: ["deploy", "--auth", "${{ secrets.token }}"] }
 "#;
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");

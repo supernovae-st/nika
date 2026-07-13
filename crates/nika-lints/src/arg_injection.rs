@@ -43,8 +43,8 @@
 //!   stays silent (a genuine pipeline) and this pass only sees the ARRAY form,
 //!   so neither fires. Use the array form for any interpolated value.
 
-use crate::expression::scan_templates;
-use crate::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
+use nika_schema::expression::scan_templates;
+use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 
 use super::preference_rules::Lint;
 
@@ -284,7 +284,7 @@ fn check_task(task: &RawTask, lints: &mut Vec<Lint>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FileId, ParseMode, parse};
+    use nika_schema::{FileId, ParseMode, parse};
 
     fn lints_of(yaml: &str) -> Vec<Lint> {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
@@ -293,7 +293,7 @@ mod tests {
 
     fn one_lint(prog: &str) -> Lint {
         let yaml = format!(
-            "nika: v1\nworkflow: ai\nvars:\n  x: \"v\"\ntasks:\n  - id: t\n    exec:\n      command: [\"{prog}\", \"${{{{ vars.x }}}}\"]\n"
+            "nika: v1\nworkflow:\n  id: ai\nvars:\n  x: \"v\"\ntasks:\n  t:\n    exec:\n      command: [\"{prog}\", \"${{{{ vars.x }}}}\"]\n"
         );
         let mut ls = lints_of(&yaml);
         assert_eq!(ls.len(), 1, "exactly one /001 for {prog}");
@@ -350,11 +350,12 @@ mod tests {
     fn flags_interpolated_value_for_a_catalog_binary() {
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 vars:
   host: \"example.com\"
 tasks:
-  - id: connect
+  connect:
     exec:
       command: [\"ssh\", \"${{ vars.host }}\", \"uptime\"]
 ";
@@ -375,11 +376,12 @@ tasks:
     fn dash_dash_suggestion_for_a_positional_binary() {
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 vars:
   file: \"data.tar\"
 tasks:
-  - id: extract
+  extract:
     exec:
       command: [\"tar\", \"-xf\", \"${{ vars.file }}\"]
 ";
@@ -397,11 +399,12 @@ tasks:
         // The value is AFTER a `--` separator → positional, never a flag.
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 vars:
   file: \"x\"
 tasks:
-  - id: extract
+  extract:
     exec:
       command: [\"tar\", \"-xf\", \"--\", \"${{ vars.file }}\"]
 ";
@@ -415,9 +418,10 @@ tasks:
     fn silent_without_interpolation() {
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 tasks:
-  - id: connect
+  connect:
     exec:
       command: [\"ssh\", \"host.example.com\", \"uptime\"]
 ";
@@ -431,11 +435,12 @@ tasks:
     fn silent_for_a_non_catalog_binary() {
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 vars:
   msg: \"hello\"
 tasks:
-  - id: say
+  say:
     exec:
       command: [\"echo\", \"${{ vars.msg }}\"]
 ";
@@ -450,11 +455,12 @@ tasks:
         // The shell form is one-obvious-way/008's concern, not this pass's.
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 vars:
   host: \"h\"
 tasks:
-  - id: connect
+  connect:
     exec:
       shell: \"ssh ${{ vars.host }} uptime\"
 ";
@@ -468,11 +474,12 @@ tasks:
     fn basename_resolves_an_absolute_path() {
         let yaml = "\
 nika: v1
-workflow: ai
+workflow:
+  id: ai
 vars:
   url: \"https://x\"
 tasks:
-  - id: fetch
+  fetch:
     exec:
       command: [\"/usr/bin/curl\", \"${{ vars.url }}\"]
 ";

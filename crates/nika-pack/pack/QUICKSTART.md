@@ -17,12 +17,13 @@ Two header lines + one task ·
 
 ```yaml
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 
 model: ollama/qwen3.5:4b
 
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: "Say hello in French"
 ```
@@ -49,16 +50,17 @@ graph · `${{ tasks.<id>.output }}` reads a prior task's result ·
 
 ```yaml
 nika: v1
-workflow: summarize-and-translate
+workflow:
+  id: summarize-and-translate
 
 model: ollama/qwen3.5:4b
 
 tasks:
-  - id: summarize
+  summarize:
     infer:
       prompt: "Summarize in one sentence: Nika is a declarative YAML language for AI workflows."
 
-  - id: translate
+  translate:
     depends_on: [summarize]
     infer:
       prompt: "Translate to French: ${{ tasks.summarize.output }}"
@@ -77,7 +79,8 @@ inside) ·
 
 ```yaml
 nika: v1
-workflow: translate-anything
+workflow:
+  id: translate-anything
 
 vars:
   text: "Hello, world"
@@ -86,7 +89,7 @@ vars:
 model: ollama/qwen3.5:4b
 
 tasks:
-  - id: translate
+  translate:
     infer:
       prompt: "Translate to ${{ vars.target_lang }}: ${{ vars.text }}"
 ```
@@ -117,24 +120,25 @@ Everything else (fetching a URL, querying a DB, writing a file) is a
 
 ```yaml
 nika: v1
-workflow: fetch-and-summarize
+workflow:
+  id: fetch-and-summarize
 
 model: ollama/qwen3.5:4b
 
 tasks:
-  - id: fetch_page
+  fetch_page:
     invoke:
       tool: "nika:fetch"        # fetch is a builtin tool, not a verb
       args:
         url: "https://example.com"
         mode: article           # extract readable article text
 
-  - id: summarize
+  summarize:
     depends_on: [fetch_page]
     infer:
       prompt: "Summarize: ${{ tasks.fetch_page.output }}"
 
-  - id: save
+  save:
     depends_on: [summarize]
     invoke:
       tool: "nika:write"        # a stdlib builtin (nika: namespace)

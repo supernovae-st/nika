@@ -16,23 +16,24 @@
 # Run · nika run examples/showcase/t1-standup-digest.nika.yaml
 
 nika: v1
-workflow: standup-digest
-description: "Read yesterday's commits, write today's standup note"
+workflow:
+  id: standup-digest
+  description: "Read yesterday's commits, write today's standup note"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (fast one-liner job)
 
 tasks:
   # No deps between these two → the engine runs them in parallel.
-  - id: today
+  today:
     invoke:
       tool: "nika:date"
       args: { op: now }
 
-  - id: history
+  history:
     exec:
       command: ["git", "log", "--since=yesterday", "--oneline", "--no-merges"]
 
-  - id: digest
+  digest:
     depends_on: [today, history]
     infer:
       prompt: |
@@ -43,7 +44,7 @@ tasks:
         Write my standup note · 3 bullets · done / doing / blocked.
         Plain words · no fluff.
 
-  - id: save
+  save:
     depends_on: [digest]
     invoke:
       tool: "nika:write"

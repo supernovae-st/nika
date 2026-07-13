@@ -7,8 +7,9 @@
 #               └──▶[save_state]
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: etl-state-template        # SLOT: kebab-case workflow id
-description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT
+workflow:
+  id: etl-state-template        # SLOT: kebab-case workflow id
+  description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT
 
 vars:
   source_url: "https://api.example.com/v1/records"   # SLOT: the data source
@@ -16,12 +17,12 @@ vars:
 
 tasks:
   # First run · no state file yet · recover to an empty list.
-  - id: empty
+  empty:
     invoke:
       tool: "nika:jq"
       args: { input: [], expression: "." }
 
-  - id: previous
+  previous:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.state_path }}" }
@@ -29,7 +30,7 @@ tasks:
       on_codes: [NIKA-BUILTIN-READ-001]   # not-found ONLY · a permission error still fails loudly
       recover: ${{ tasks.empty.output }}
 
-  - id: fresh
+  fresh:
     invoke:
       tool: "nika:fetch"            # SLOT: fetch / read / exec · the fresh data
       args:
@@ -39,7 +40,7 @@ tasks:
     on_error:
       recover: []                   # offline rehearsal · an empty batch, the delta stays quiet
 
-  - id: delta
+  delta:
     depends_on: [previous, fresh]
     invoke:
       tool: "nika:json_diff"        # RFC 6902 · empty patch = nothing new
@@ -47,7 +48,7 @@ tasks:
         before: "${{ tasks.previous.output }}"
         after: "${{ tasks.fresh.output }}"
 
-  - id: process
+  process:
     depends_on: [delta]
     when: ${{ size(tasks.delta.output) > 0 }}
     invoke:
@@ -56,7 +57,7 @@ tasks:
         input: "${{ tasks.delta.output }}"
         expression: "length"
 
-  - id: save_state
+  save_state:
     depends_on: [fresh]
     invoke:
       tool: "nika:write"

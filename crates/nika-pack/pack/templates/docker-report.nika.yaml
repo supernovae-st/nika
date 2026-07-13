@@ -7,8 +7,9 @@
 #   exec ×2      infer          nika:write
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: docker-report-template    # SLOT: kebab-case workflow id
-description: "read the daemon's state · explain it · keep the report"   # SLOT
+workflow:
+  id: docker-report-template    # SLOT: kebab-case workflow id
+  description: "read the daemon's state · explain it · keep the report"   # SLOT
 
 model: ollama/qwen3.5:4b            # SLOT: local-first · mock/echo for offline rehearsal
 
@@ -24,16 +25,16 @@ permits:
 tasks:
   # The reads run IN PARALLEL (no depends_on between them) — the
   # scheduler proves it from the DAG, nobody orders it.
-  - id: ps
+  ps:
     exec:
       # SLOT: argv ARRAY form — one program, exactly these arguments
       command: ["docker", "ps", "--all", "--format", "{{.Names}}\t{{.Status}}\t{{.Image}}"]
 
-  - id: df
+  df:
     exec:
       command: ["docker", "system", "df"]   # SLOT: the second read (drop the task if one suffices)
 
-  - id: diagnose
+  diagnose:
     depends_on: [ps, df]
     infer:
       # SLOT: what should the model DO with the readings?
@@ -49,7 +50,7 @@ tasks:
         usage needs attention. Plain prose, no preamble.
       max_tokens: 600               # SLOT: the spend ceiling for this call
 
-  - id: keep
+  keep:
     depends_on: [diagnose]
     invoke:
       tool: "nika:write"

@@ -592,7 +592,7 @@ mod tests {
         path
     }
 
-    const DIAMOND: &str = "nika: v1\nworkflow: brief-factory\ndescription: fetch, summarize twice, join\n\nmodel: mock/echo\n\ntasks:\n  - id: root\n    infer: { prompt: \"r\", max_tokens: 10 }\n  - id: left\n    depends_on: [root]\n    infer: { prompt: \"l\", max_tokens: 10 }\n  - id: right\n    depends_on: [root]\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: join\n    depends_on: [left, right]\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
+    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: brief-factory\n  description: fetch, summarize twice, join\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    depends_on: [root]\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    depends_on: [root]\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    depends_on: [left, right]\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
 
     #[test]
     fn narrates_the_diamond_with_cost_and_handoff() {
@@ -640,7 +640,7 @@ mod tests {
         // FLOOR and must never render a fake $0 ceiling.
         let path = tmp(
             "floor",
-            "nika: v1\nworkflow: floor-story\ntasks:\n  - id: think\n    infer: { prompt: \"x\" }\n",
+            "nika: v1\nworkflow:\n  id: floor-story\ntasks:\n  think:\n    infer: { prompt: \"x\" }\n",
         );
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
@@ -682,7 +682,7 @@ mod tests {
         // must refuse to narrate and hand over to check (exit 2).
         let path = tmp(
             "dirty",
-            "nika: v1\nworkflow: dirty\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+            "nika: v1\nworkflow:\n  id: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         );
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
@@ -767,7 +767,7 @@ mod tests {
     use nika_types::resource::Value;
     use std::time::Duration;
 
-    const FC: &str = "nika: v1\nworkflow: fc-fix\ndescription: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  - id: fetch\n    exec: { command: [\"echo\", \"x\"] }\n  - id: think\n    depends_on: [fetch]\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
+    const FC: &str = "nika: v1\nworkflow:\n  id: fc-fix\n  description: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    depends_on: [fetch]\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
 
     /// One completed fc-fix run body: fetch (exec) + think (infer),
     /// distinct durations, optional sha/model/extras.

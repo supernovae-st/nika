@@ -77,8 +77,22 @@ fn scan_direct_deps(text: &str, editing: &str) -> Vec<String> {
     let mut deps = Vec::new();
     for line in text.lines() {
         let t = line.trim_start();
-        if let Some(rest) = t.strip_prefix("- id:") {
-            in_task = rest.split('#').next().unwrap_or("").trim() == editing;
+        // W1 « the map »: the task boundary is the bare map key at
+        // indent 2 (`name:`), never an `- id:` row.
+        let indent = line.len() - t.len();
+        if indent == 2
+            && let Some(name) = t
+                .split('#')
+                .next()
+                .unwrap_or("")
+                .trim_end()
+                .strip_suffix(':')
+            && !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            in_task = name == editing;
             continue;
         }
         if in_task && let Some(rest) = t.strip_prefix("depends_on:") {

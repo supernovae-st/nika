@@ -110,6 +110,48 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// W1 « the map » · `workflow:` is a scalar — the envelope became an
+    /// object (spec `01-envelope.md` §workflow · dead form).
+    #[error(
+        "`workflow:` is a scalar — the envelope became an object; write `workflow:` then `  id: {id}` (and move any `description:` under it)"
+    )]
+    W1WorkflowScalar {
+        /// The old scalar id (reused verbatim by the migration).
+        id: String,
+        /// Span of the scalar value.
+        span: Option<Span>,
+    },
+
+    /// W1 « the map » · top-level `description:` moved into the
+    /// `workflow:` object (spec `01-envelope.md` §workflow · dead form).
+    #[error(
+        "top-level `description:` moved into the workflow object — write it as `workflow.description`"
+    )]
+    W1TopLevelDescription {
+        /// Span of the dead key.
+        span: Option<Span>,
+    },
+
+    /// W1 « the map » · `tasks:` is a sequence — it became a map keyed
+    /// by task id (spec `01-envelope.md` §tasks · dead form).
+    #[error(
+        "`tasks:` is a sequence — it became a map keyed by task id; drop `- id:`, the key IS the identity"
+    )]
+    W1TasksSequence {
+        /// Span of the `tasks:` node.
+        span: Option<Span>,
+    },
+
+    /// W1 « the map » · a task carries an `id:` field — the map key IS
+    /// the identity (spec `03-dag.md` §the task key · dead form).
+    #[error("task `{task}` carries an `id:` field — the map key IS the identity; delete the field")]
+    W1TaskIdField {
+        /// The task (named by its map key).
+        task: String,
+        /// Span of the dead `id:` node.
+        span: Option<Span>,
+    },
+
     /// A task binds zero verbs.
     ///
     /// Spec `02-verbs.md` · « A task **must** specify exactly one of
@@ -507,6 +549,10 @@ impl SchemaError {
             | Self::UnknownField { span, .. }
             | Self::BadTaskId { span, .. }
             | Self::DuplicateTaskId { span, .. }
+            | Self::W1WorkflowScalar { span, .. }
+            | Self::W1TopLevelDescription { span, .. }
+            | Self::W1TasksSequence { span, .. }
+            | Self::W1TaskIdField { span, .. }
             | Self::MissingVerb { span, .. }
             | Self::MultipleVerbs { span, .. }
             | Self::BadTimeout { span, .. }
@@ -599,6 +645,10 @@ schema_code!(SCHEMA_308, 308, "recover-await-deadlock");
 schema_code!(SCHEMA_309, 309, "bad-builtin-args");
 schema_code!(SCHEMA_310, 310, "expression-violation");
 schema_code!(SCHEMA_311, 311, "bare-task-envelope");
+schema_code!(SCHEMA_312, 312, "w1-workflow-scalar");
+schema_code!(SCHEMA_313, 313, "w1-top-level-description");
+schema_code!(SCHEMA_314, 314, "w1-tasks-sequence");
+schema_code!(SCHEMA_315, 315, "w1-task-id-field");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -610,6 +660,10 @@ impl NikaErrorCode for SchemaError {
             Self::UnknownField { .. } => SCHEMA_284,
             Self::BadTaskId { .. } => SCHEMA_285,
             Self::DuplicateTaskId { .. } => SCHEMA_286,
+            Self::W1WorkflowScalar { .. } => SCHEMA_312,
+            Self::W1TopLevelDescription { .. } => SCHEMA_313,
+            Self::W1TasksSequence { .. } => SCHEMA_314,
+            Self::W1TaskIdField { .. } => SCHEMA_315,
             Self::MissingVerb { .. } => SCHEMA_287,
             Self::MultipleVerbs { .. } => SCHEMA_288,
             Self::BadTimeout { .. } => SCHEMA_289,

@@ -12,11 +12,11 @@
 
 ```yaml
 tasks:
-  - id: a
+  a:
     infer:
       prompt: "First"
 
-  - id: b
+  b:
     depends_on: [a]
     infer:
       prompt: "Second, after a"
@@ -29,7 +29,7 @@ tasks:
 ## Task shape · full
 
 ```yaml
-- id: my_task                   # required · snake_case · unique within workflow
+my_task:                        # the map KEY is the identity · snake_case · unique
   depends_on: [task_a, task_b]  # optional · default []
   when: ${{ tasks.task_a.status == 'success' }}  # optional · conditional execution
   for_each: ${{ tasks.list.output }}  # optional · map this task over a collection
@@ -53,14 +53,19 @@ tasks:
 
 ## Field-by-field
 
-### `id` · **required · snake_case · unique**
+### the task key · **the identity · snake_case · unique**
 
 ```yaml
-- id: research_topic
+tasks:
+  research_topic:
+    ...
 ```
 
-Match · `^[a-z][a-z0-9_]*$` (snake_case · no hyphens). Must be unique within
-the workflow file.
+Since W1 « the map », a task's identity IS its map key — there is no `id:`
+field (a lingering one is `NIKA-PARSE-023`; a `tasks:` sequence is
+`NIKA-PARSE-022`). Keys match `^[a-z][a-z0-9_]*$` (snake_case · no hyphens);
+a duplicate key is refused by the YAML layer itself (PARSE-007 mechanics).
+Source order is presentation only — the graph alone schedules.
 
 **Why snake_case, not kebab** · task ids are referenced in CEL expressions as
 `tasks.<id>.output`. In CEL (and almost every expression language) a hyphen is
@@ -72,8 +77,8 @@ it is a resource name, never referenced inside an expression.)
 ### `depends_on` · *optional · default `[]`*
 
 ```yaml
-- id: c
-  depends_on: [a, b]
+c:
+    depends_on: [a, b]
 ```
 
 A list of task ids this task depends on. The engine MUST not start this task until ALL deps have completed (successfully OR with a recovered error via `on_error:`).
@@ -85,11 +90,11 @@ A list of task ids this task depends on. The engine MUST not start this task unt
 ### `when` · *optional · conditional execution*
 
 ```yaml
-- id: notify
-  depends_on: [build]                    # the success-gate — depends_on already requires it
-  when: ${{ tasks.build.output.warnings == 0 }}   # when: is for conditions BEYOND success
-  exec:
-    command: ["./notify.sh"]
+notify:
+    depends_on: [build]                    # the success-gate — depends_on already requires it
+    when: ${{ tasks.build.output.warnings == 0 }}   # when: is for conditions BEYOND success
+    exec:
+      command: ["./notify.sh"]
 ```
 
 #### Expression language · a documented subset of CEL
@@ -226,15 +231,15 @@ infer the edge (a verb-body reference is an edge too · no invisible edges).
 
 ```yaml
 # ❌ REJECTED at parse — `when:` reads tasks.test but no depends_on
-- id: deploy
-  when: ${{ tasks.test.status == 'success' }}
-  exec: { command: ["./deploy.sh"] }
+deploy:
+    when: ${{ tasks.test.status == 'success' }}
+    exec: { command: ["./deploy.sh"] }
 
 # ✅ CORRECT — the reference is backed by an explicit edge
-- id: deploy
-  depends_on: [test]
-  when: ${{ tasks.test.status == 'success' }}
-  exec: { command: ["./deploy.sh"] }
+deploy:
+    depends_on: [test]
+    when: ${{ tasks.test.status == 'success' }}
+    exec: { command: ["./deploy.sh"] }
 ```
 
 **Why explicit, not inferred** · an inferred edge is an invisible edge: it
@@ -276,10 +281,10 @@ when: ${{ !(tasks.test.status == 'failure') }}
 ### `when:` shape rules · boolean-only · one rule, two enforcement times
 
 ```yaml
-- id: send_alert
-  depends_on: [check]
-  when: ${{ tasks.check.alert_count > 0 }}     # CEL expression evaluating to bool
-  invoke: { ... }
+send_alert:
+    depends_on: [check]
+    when: ${{ tasks.check.alert_count > 0 }}     # CEL expression evaluating to bool
+    invoke: { ... }
 ```
 
 `when:` accepts exactly two forms · a **`${{ }}` CEL expression** (the general
@@ -313,15 +318,15 @@ when: ${{ size(vars.items) > 0 }}              # collection size check
 ### `for_each` · *optional · map a task over a collection*
 
 ```yaml
-- id: scrape_all
-  for_each: ${{ vars.urls }}                  # a static list OR a prior task's array output
-  max_parallel: 5                              # optional · cap concurrent iterations · default unbounded
-  fail_fast: false                             # optional · false = keep going on errors · default true
-  with:
-    page: ${{ item }}                          # ${{ item }} = the current element
-  invoke:
-    tool: nika:fetch
-    args: { url: "${{ with.page }}" }
+scrape_all:
+    for_each: ${{ vars.urls }}                  # a static list OR a prior task's array output
+    max_parallel: 5                              # optional · cap concurrent iterations · default unbounded
+    fail_fast: false                             # optional · false = keep going on errors · default true
+    with:
+      page: ${{ item }}                          # ${{ item }} = the current element
+    invoke:
+      tool: nika:fetch
+      args: { url: "${{ with.page }}" }
 ```
 
 `for_each` runs the task **once per element** of the collection. Inside the
@@ -339,11 +344,11 @@ This is **different from Python's sequential `for` loop**. If you need
 sequential iteration · set `max_parallel: 1` ·
 
 ```yaml
-- id: process_in_order
-  for_each: ${{ vars.items }}
-  max_parallel: 1                              # iterations run one-at-a-time, in order
-  exec:
-    command: ["process", "${{ item }}"]
+process_in_order:
+    for_each: ${{ vars.items }}
+    max_parallel: 1                              # iterations run one-at-a-time, in order
+    exec:
+      command: ["process", "${{ item }}"]
 ```
 
 #### `max_parallel:` · *optional · cap concurrent iterations*
@@ -432,10 +437,10 @@ without statically enumerating tasks.
 ### `timeout` · *optional · task-level timeout (Go duration string)*
 
 ```yaml
-- id: long_task
-  timeout: "5m"             # 5 minutes
-  exec:
-    command: ["./long-running.sh"]
+long_task:
+    timeout: "5m"             # 5 minutes
+    exec:
+      command: ["./long-running.sh"]
 ```
 
 Hard timeout for the entire task (including any retries and their backoff
@@ -477,15 +482,15 @@ timeout: "2.5s"            # fractional · 2500 ms
 ### `with` · *optional · variable scope injection*
 
 ```yaml
-- id: summarize
-  depends_on: [research]
-  with:
-    content: ${{ tasks.research.output }}   # task output reference
-    style: "concise"                        # literal value
-    config:                           # nested object
-      max_words: 100
-  infer:
-    prompt: "Summarize · style ${{ with.style }} · ${{ with.content }}"
+summarize:
+    depends_on: [research]
+    with:
+      content: ${{ tasks.research.output }}   # task output reference
+      style: "concise"                        # literal value
+      config:                           # nested object
+        max_words: 100
+    infer:
+      prompt: "Summarize · style ${{ with.style }} · ${{ with.content }}"
 ```
 
 Injects variables into the task's scope. The variables are referenced
@@ -504,16 +509,16 @@ See [05-errors.md](./05-errors.md).
 ### `output` · *optional · output binding*
 
 ```yaml
-- id: api_call
-  invoke:
-    tool: "nika:fetch"
-    args:
-      url: "https://api.example.com/data"
-      mode: raw
-  output:
-    user_count: ".data.users | length"
-    first_user: ".data.users[0]"
-    raw: "."
+api_call:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.example.com/data"
+        mode: raw
+    output:
+      user_count: ".data.users | length"
+      first_user: ".data.users[0]"
+      raw: "."
 ```
 
 Defines named bindings extracted from the verb's raw response via a jq expression. These bindings are available downstream as `${{ tasks.task_id.user_count }}`, `${{ tasks.task_id.first_user }}`, etc.
@@ -595,13 +600,13 @@ recoverable by that task's `on_error`.
 
 ```yaml
 tasks:
-  - id: a
+  a:
     infer: { prompt: "Step 1" }
-  - id: b
+  b:
     depends_on: [a]
     infer: { prompt: "Step 2 · prev was ${{ with.prev }}" }
     with: { prev: ${{ tasks.a.output }} }
-  - id: c
+  c:
     depends_on: [b]
     infer: { prompt: "Step 3 · prev was ${{ with.prev }}" }
     with: { prev: ${{ tasks.b.output }} }
@@ -611,18 +616,18 @@ tasks:
 
 ```yaml
 tasks:
-  - id: setup
+  setup:
     exec: { command: ["./prepare.sh"] }
-  - id: analyze_a
+  analyze_a:
     depends_on: [setup]
     infer: { prompt: "Analyze A" }
-  - id: analyze_b
+  analyze_b:
     depends_on: [setup]
     infer: { prompt: "Analyze B" }
-  - id: analyze_c
+  analyze_c:
     depends_on: [setup]
     infer: { prompt: "Analyze C" }
-  - id: merge
+  merge:
     depends_on: [analyze_a, analyze_b, analyze_c]
     with:
       a: ${{ tasks.analyze_a.output }}
@@ -638,20 +643,20 @@ tasks:
 
 ```yaml
 tasks:
-  - id: check
+  check:
     exec: { command: ["./check-env.sh"], capture: structured }
 
-  - id: build_prod
+  build_prod:
     depends_on: [check]
     when: ${{ tasks.check.output.env == 'production' }}
     exec: { command: ["./build.sh", "--release"] }
 
-  - id: build_dev
+  build_dev:
     depends_on: [check]
     when: ${{ tasks.check.output.env != 'production' }}
     exec: { command: ["./build.sh", "--debug"] }
 
-  - id: deploy
+  deploy:
     depends_on: [build_prod, build_dev]
     exec: { command: ["./deploy.sh"] }
 ```
@@ -662,7 +667,7 @@ Exactly one of `build_prod` or `build_dev` runs · the other is skipped · `depl
 
 ```yaml
 tasks:
-  - id: discover
+  discover:
     invoke:
       tool: "nika:fetch"
       args:
@@ -671,7 +676,7 @@ tasks:
     output:
       pages: "map(.loc)"   # sitemap output IS the root array of {loc, …} · a binding is single-valued, so collect the URLs into one array
 
-  - id: summarize
+  summarize:
     depends_on: [discover]
     for_each: ${{ tasks.discover.pages }}
     with:
@@ -682,7 +687,7 @@ tasks:
         url: ${{ with.page }}
         mode: article
 
-  - id: digest
+  digest:
     depends_on: [summarize]
     with:
       summaries: ${{ tasks.summarize.output }}      # array of per-page outputs
@@ -716,15 +721,15 @@ single source prevents).
 ### `on_finally` · *optional · cleanup hook · ALWAYS runs*
 
 ```yaml
-- id: process
-  exec:
-    shell: "./process.sh > /tmp/output.json"   # redirect → the explicit shell door
-  on_finally:                                  # runs always · success/fail/timeout/cancel
-    - exec:
-        command: ["rm", "-f", "/tmp/output.json"]
-    - invoke:
-        tool: nika:emit
-        args: { event: "task_completed", task_id: "process" }
+process:
+    exec:
+      shell: "./process.sh > /tmp/output.json"   # redirect → the explicit shell door
+    on_finally:                                  # runs always · success/fail/timeout/cancel
+      - exec:
+          command: ["rm", "-f", "/tmp/output.json"]
+      - invoke:
+          tool: nika:emit
+          args: { event: "task_completed", task_id: "process" }
 ```
 
 `on_finally:` declares **cleanup tasks** that run after the parent task

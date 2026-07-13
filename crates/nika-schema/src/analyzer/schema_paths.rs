@@ -625,9 +625,10 @@ mod tests {
         // `tasks.prod.output.nope` (with the required depends_on edge).
         let yaml = "\
 nika: v1
-workflow: t
+workflow:
+  id: t
 tasks:
-  - id: prod
+  prod:
     infer:
       prompt: \"produce\"
       schema:
@@ -635,7 +636,7 @@ tasks:
         additionalProperties: false
         properties:
           entities: { type: array }
-  - id: cons
+  cons:
     depends_on: [prod]
     infer:
       prompt: \"use ${{ tasks.prod.output.nope }}\"

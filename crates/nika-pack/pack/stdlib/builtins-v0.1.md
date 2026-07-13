@@ -630,14 +630,14 @@ boundary `NIKA-SEC-004` (paths outside `permits.fs`).
 ### `nika:tts_generate` · provider-backed speech synthesis (§Audio)
 
 ```yaml
-- id: narrate
-  invoke:
-    tool: "nika:tts_generate"
-    args:
-      provider: local              # sovereign first — or openai · elevenlabs · mock
-      text: "Bienvenue — the launch is live."
-      voice: "alloy"
-      output_dir: "./assets/audio"
+narrate:
+    invoke:
+      tool: "nika:tts_generate"
+      args:
+        provider: local              # sovereign first — or openai · elevenlabs · mock
+        text: "Bienvenue — the launch is live."
+        voice: "alloy"
+        output_dir: "./assets/audio"
 ```
 
 The image family's contract, applied to audio: ONE audio file lands under

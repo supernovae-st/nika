@@ -21,8 +21,9 @@
 # Run · nika run examples/showcase/t4-ceo-monday-brief.nika.yaml
 
 nika: v1
-workflow: ceo-monday-brief
-description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"
+workflow:
+  id: ceo-monday-brief
+  description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"
 
 model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
@@ -40,7 +41,7 @@ secrets:
 
 tasks:
   # ── branch 1 · market signal ──
-  - id: news
+  news:
     invoke:
       tool: "nika:fetch"
       args:
@@ -49,17 +50,17 @@ tasks:
         jq: ".hits[:10] | map(.title)"
 
   # ── branch 2 · engineering pulse ──
-  - id: pulse
+  pulse:
     exec:
       command: ["git", "shortlog", "-sn", "--since=1 week ago"]
 
   # ── branch 3 · the numbers ──
-  - id: kpi_raw
+  kpi_raw:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.kpi_csv }}" }
 
-  - id: kpis
+  kpis:
     depends_on: [kpi_raw]
     invoke:
       tool: "nika:convert"
@@ -69,7 +70,7 @@ tasks:
         to: json
         has_header: true
 
-  - id: revenue
+  revenue:
     depends_on: [kpis]
     invoke:
       tool: "nika:jq"
@@ -78,7 +79,7 @@ tasks:
         expression: "map(.weekly_revenue | tonumber) | add"
 
   # ── synthesis · with a thinking budget ──
-  - id: brief
+  brief:
     depends_on: [news, pulse, kpis, revenue]
     infer:
       model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
@@ -94,14 +95,14 @@ tasks:
         enabled: true
         budget_tokens: 10000
 
-  - id: stamp
+  stamp:
     invoke:
       tool: "nika:date"
       args: { op: now }
     output:
       day: ".[:10]"                  # nika:date returns the ISO string itself · slice YYYY-MM-DD
 
-  - id: save
+  save:
     depends_on: [brief, stamp]
     invoke:
       tool: "nika:write"
@@ -111,13 +112,13 @@ tasks:
         create_dirs: true
 
   # ── the run reports its own bill ──
-  - id: bill
+  bill:
     depends_on: [save]
     invoke:
       tool: "nika:inspect"
       args: { view: cost }
 
-  - id: ping
+  ping:
     depends_on: [bill, stamp]
     invoke:
       tool: "nika:notify"

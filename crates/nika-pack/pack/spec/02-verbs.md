@@ -53,33 +53,33 @@ A single LLM call. The result is the model's response.
 ### Minimal
 
 ```yaml
-- id: greet
-  infer:
-    prompt: "Say hello in French"
+greet:
+    infer:
+      prompt: "Say hello in French"
 ```
 
 ### Full
 
 ```yaml
-- id: research
-  infer:
-    prompt: "Research Rust async runtimes 2026 in 5 paragraphs"
-    system: "You are a senior software architect."
-    model: mistral/mistral-large         # override default · <provider>/<name>
-    temperature: 0.3
-    max_tokens: 2000
-    schema:                            # optional · structured output
-      type: object
-      required: [summary, paragraphs]
-      properties:
-        summary: { type: string }
-        paragraphs: { type: array, items: { type: string } }
-    thinking:                          # optional · extended thinking
-      enabled: true
-      budget_tokens: 4000
-    vision:                            # optional · vision input
-      - source: file
-        path: "./diagram.png"
+research:
+    infer:
+      prompt: "Research Rust async runtimes 2026 in 5 paragraphs"
+      system: "You are a senior software architect."
+      model: mistral/mistral-large         # override default · <provider>/<name>
+      temperature: 0.3
+      max_tokens: 2000
+      schema:                            # optional · structured output
+        type: object
+        required: [summary, paragraphs]
+        properties:
+          summary: { type: string }
+          paragraphs: { type: array, items: { type: string } }
+      thinking:                          # optional · extended thinking
+        enabled: true
+        budget_tokens: 4000
+      vision:                            # optional · vision input
+        - source: file
+          path: "./diagram.png"
 ```
 
 ### Fields
@@ -113,23 +113,23 @@ Run a shell command. The result is the command's stdout (default) or a structure
 ### Minimal
 
 ```yaml
-- id: build
-  exec:
-    command: ["cargo", "build", "--release"]
+build:
+    exec:
+      command: ["cargo", "build", "--release"]
 ```
 
 ### Full
 
 ```yaml
-- id: test
-  timeout: "60s"                   # task-level (applies to any verb · Go duration · see 03-dag)
-  exec:
-    command: ["cargo", "test", "--workspace", "--lib"]
-    cwd: "./engine"
-    env:
-      RUST_LOG: "debug"
-    stdin: "${{ vars.input_data }}"
-    capture: structured            # stdout | stderr | structured | combined
+test:
+    timeout: "60s"                   # task-level (applies to any verb · Go duration · see 03-dag)
+    exec:
+      command: ["cargo", "test", "--workspace", "--lib"]
+      cwd: "./engine"
+      env:
+        RUST_LOG: "debug"
+      stdin: "${{ vars.input_data }}"
+      capture: structured            # stdout | stderr | structured | combined
 ```
 
 ### Fields
@@ -224,11 +224,11 @@ spec minor. It never appears silently.
 ### Builtin call
 
 ```yaml
-- id: read_config
-  invoke:
-    tool: "nika:read"
-    args:
-      path: "./config.yaml"
+read_config:
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "./config.yaml"
 ```
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->27<!-- /canon --> builtins in v0.1).
@@ -243,12 +243,12 @@ See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical buil
 ### MCP call
 
 ```yaml
-- id: query_db
-  invoke:
-    tool: "mcp:postgres/query"
-    args:
-      sql: "SELECT * FROM users WHERE id = $1"
-      params: ["${{ vars.user_id }}"]
+query_db:
+    invoke:
+      tool: "mcp:postgres/query"
+      args:
+        sql: "SELECT * FROM users WHERE id = $1"
+        params: ["${{ vars.user_id }}"]
 ```
 
 The MCP server `postgres` must be configured in the engine's MCP server registry.
@@ -278,35 +278,35 @@ Run an agentic loop · the model + a set of tools · iterating until completion 
 ### Minimal
 
 ```yaml
-- id: research
-  agent:
-    system: "You are a research assistant."
-    prompt: "Research the topic · ${{ vars.topic }}"
-    tools: ["nika:fetch"]             # default-deny · grant explicitly
+research:
+    agent:
+      system: "You are a research assistant."
+      prompt: "Research the topic · ${{ vars.topic }}"
+      tools: ["nika:fetch"]             # default-deny · grant explicitly
 ```
 
 ### Full
 
 ```yaml
-- id: research
-  agent:
-    system: "You are a research assistant. Use tools to gather info."
-    prompt: "Research the topic · ${{ vars.topic }} · and produce a markdown brief"
-    model: mistral/mistral-large
-    tools:                            # whitelist · default-deny (no tools if omitted)
-      - "nika:fetch"
-      - "nika:write"
-      - "mcp:browser/*"               # all tools from browser MCP server
-    skills:                           # Agent Skills · SKILL.md paths (agentskills.io shape)
-      - ".agents/skills/nika-authoring/SKILL.md"
-    max_turns: 20
-    max_tokens_total: 100000
-    temperature: 0.3
-    schema:                           # optional · validate the final message as structured output
-      type: object
-      required: [findings]
-      properties:
-        findings: { type: array, items: { type: string } }
+research:
+    agent:
+      system: "You are a research assistant. Use tools to gather info."
+      prompt: "Research the topic · ${{ vars.topic }} · and produce a markdown brief"
+      model: mistral/mistral-large
+      tools:                            # whitelist · default-deny (no tools if omitted)
+        - "nika:fetch"
+        - "nika:write"
+        - "mcp:browser/*"               # all tools from browser MCP server
+      skills:                           # Agent Skills · SKILL.md paths (agentskills.io shape)
+        - ".agents/skills/nika-authoring/SKILL.md"
+      max_turns: 20
+      max_tokens_total: 100000
+      temperature: 0.3
+      schema:                           # optional · validate the final message as structured output
+        type: object
+        required: [findings]
+        properties:
+          findings: { type: array, items: { type: string } }
 ```
 
 ### Fields
@@ -402,14 +402,14 @@ frontmatter keys (`license` · `metadata` · client-specific fields) are the
 skill author's surface — a consumer MUST tolerate them.
 
 ```yaml
-- id: review
-  agent:
-    system: "You are a code reviewer."
-    prompt: "Review the diff · ${{ tasks.diff.output }}"
-    skills:
-      - ".agents/skills/code-review/SKILL.md"
-      - "docs/skills/security-pass/SKILL.md"
-    tools: ["nika:read"]
+review:
+    agent:
+      system: "You are a code reviewer."
+      prompt: "Review the diff · ${{ tasks.diff.output }}"
+      skills:
+        - ".agents/skills/code-review/SKILL.md"
+        - "docs/skills/security-pass/SKILL.md"
+      tools: ["nika:read"]
 ```
 
 **Resolution (normative)** · paths are **static** — no globs, no
@@ -465,7 +465,7 @@ The engine MUST ·
 
 ## Forward-compat
 
-The 4 verb names are **immutable forever**, and the count is **4, absolute**. The operation space is complete: call a model (`infer`), run a process (`exec`), call a tool (`invoke`), run an agentic loop (`agent`). Every other capability is either an **invoke-able tool** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). A new verb would require a `nika: v2` language contract (a frozen-forever envelope), so that is effectively never (this is about the **language** version, not the engine version).
+The 4 verb names are **ratified by the [v1 constitution](../design/v1-constitution.md)**, and the count is **4, absolute** — under the constitutional hierarchy of **three atomic calls and one bounded controller**: call a model once (`infer`), apply a typed callable once (`invoke`), run a host process once (`exec`), and orchestrate a bounded sequence of the atomic calls (`agent`). Every other capability is either an **invoke-able callable** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). There is no `nika: v2` — ever: while the reference engine is pre-1.0 a verb change would be a break INSIDE `v1` (per the [pre-1.0 stability contract](./00-overview.md#pre-10-stability-contract)), and after engine 1.0.0 the verb set is frozen with the rest of the grammar, so a fifth verb is effectively never.
 
 ### The closure argument · why no case forces a 5th verb
 

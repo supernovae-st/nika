@@ -524,7 +524,7 @@ mod tests {
     }
 
     fn wf(tasks: &str) -> String {
-        format!("nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
+        format!("nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
     }
 
     fn konst(n: u64) -> Bound {
@@ -538,22 +538,22 @@ mod tests {
     fn traverse_fetch_counts_its_page_bound_plus_robots() {
         // literal max_pages 5 + default robots → 5 + 1 effects.
         let c = cert(&wf(
-            "  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5 } } }\n",
+            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5 } } }\n",
         ));
         assert_eq!(c.effect_calls, konst(6));
         // respect_robots literally false → no probe.
         let c = cert(&wf(
-            "  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5, respect_robots: false } } }\n",
+            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5, respect_robots: false } } }\n",
         ));
         assert_eq!(c.effect_calls, konst(5));
         // a templated spec folds to the runtime cap (+ robots).
         let c = cert(&wf(
-            "  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ vars.spec }}\" } }\n",
+            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ vars.spec }}\" } }\n",
         ));
         assert_eq!(c.effect_calls, konst(MAX_TRAVERSE_PAGES + 1));
         // a plain fetch stays exactly 1 (no traverse key).
         let c = cert(&wf(
-            "  - id: one\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\" } }\n",
+            "  one:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\" } }\n",
         ));
         assert_eq!(c.effect_calls, konst(1));
     }
@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn plain_pipeline_has_exact_constant_bounds() {
         let c = cert(&wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
         ));
         assert_eq!(c.task_attempts, konst(2));
         assert_eq!(c.llm_calls, konst(0));
@@ -572,7 +572,7 @@ mod tests {
     #[test]
     fn retry_multiplies_the_body_and_its_calls() {
         let c = cert(&wf(
-            "  - id: a\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+            "  a:\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
         ));
         assert_eq!(c.task_attempts, konst(3));
         assert_eq!(c.llm_calls, konst(3));
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn literal_for_each_folds_into_the_constant() {
         let c = cert(&wf(
-            "  - id: a\n    for_each: [\"x\", \"y\", \"z\"]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n",
+            "  a:\n    for_each: [\"x\", \"y\", \"z\"]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n",
         ));
         // 3 elements × 2 attempts
         assert_eq!(c.task_attempts, konst(6));
@@ -592,7 +592,7 @@ mod tests {
     #[test]
     fn expression_for_each_yields_a_parametric_term() {
         let c = cert(&wf(
-            "  - id: src\n    exec: { command: [\"ls\"] }\n  - id: fan\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
         ));
         // src: 1 attempt · fan: 2·|fan| body runs
         assert_eq!(c.task_attempts.constant, 1);
@@ -618,11 +618,11 @@ mod tests {
     #[test]
     fn agent_counts_its_turn_cap_default_ten() {
         let defaulted = cert(&wf(
-            "  - id: a\n    agent: { prompt: \"go\", tools: [\"nika:read\"] }\n",
+            "  a:\n    agent: { prompt: \"go\", tools: [\"nika:read\"] }\n",
         ));
         assert_eq!(defaulted.llm_calls, konst(10), "spec default max_turns");
         let capped = cert(&wf(
-            "  - id: a\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 4 }\n",
+            "  a:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 4 }\n",
         ));
         assert_eq!(capped.llm_calls, konst(4));
     }
@@ -630,7 +630,7 @@ mod tests {
     #[test]
     fn on_finally_counts_once_per_iteration_not_per_attempt() {
         let c = cert(&wf(
-            "  - id: a\n    retry: { max_attempts: 5 }\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
+            "  a:\n    retry: { max_attempts: 5 }\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
         ));
         // body: 5 attempts · cleanup: ONCE (after the terminal attempt)
         assert_eq!(c.task_attempts, konst(5));
@@ -641,7 +641,7 @@ mod tests {
     fn spend_axis_is_parametric_where_cost_says_unknown_iterations() {
         // the deepening: for_each-expression spend = a degree-1 term
         let c = cert(&wf(
-            "  - id: src\n    exec: { command: [\"ls\"] }\n  - id: fan\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
         ));
         let usd = c.usd_micros.expect("priced");
         assert_eq!(usd.constant, 0);
@@ -658,13 +658,13 @@ mod tests {
     #[test]
     fn unpriceable_spender_makes_the_spend_axis_none_only() {
         // no max_tokens → spend axis None; the COUNT axes stay exact
-        let c = cert(&wf("  - id: a\n    infer: { prompt: \"x\" }\n"));
+        let c = cert(&wf("  a:\n    infer: { prompt: \"x\" }\n"));
         assert!(c.usd_micros.is_none());
         assert_eq!(c.llm_calls, konst(1));
         // agent budget is CUMULATIVE — one body run ≤ max_tokens_total,
         // never ×turns
         let a = cert(&wf(
-            "  - id: a\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 4, max_tokens_total: 1000 }\n",
+            "  a:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 4, max_tokens_total: 1000 }\n",
         ));
         let usd = a.usd_micros.expect("priced");
         assert_eq!(usd.constant, 15_000, "1000 tk × $15/M · NOT ×4 turns");
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn audit_accepts_honest_and_rejects_tampered_certificates() {
         let yaml = wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: fan\n    depends_on: [a]\n    for_each: ${{ tasks.a.output.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    depends_on: [a]\n    for_each: ${{ tasks.a.output.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -714,14 +714,14 @@ mod tests {
     fn span_is_the_longest_dependency_chain_in_attempts() {
         // chain a→b→c with retries: span = 1 + 3 + 2 = 6 = work
         let chain = cert(&wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [b]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [b]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(chain.span_attempts, 6);
         assert_eq!(chain.task_attempts, konst(6), "a pure chain: span == work");
 
         // diamond a→{b,c}→d: span = longest branch (1+3+1), work = sum
         let diamond = cert(&wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(diamond.span_attempts, 5, "longest branch: 1+3+1");
         assert_eq!(diamond.task_attempts, konst(6), "work: 1+3+1+1");
@@ -732,7 +732,7 @@ mod tests {
         // a for_each over 4 elements: work ×4, span unchanged (the
         // elements run in parallel — Brent: parallelism = work/span)
         let c = cert(&wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: fan\n    depends_on: [a]\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    depends_on: [a]\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(c.task_attempts, konst(5), "work: 1 + 4");
         assert_eq!(c.span_attempts, 2, "span: 1 + 1 (elements parallel)");
@@ -741,7 +741,7 @@ mod tests {
     #[test]
     fn audit_catches_span_and_dep_tampering() {
         let yaml = wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -759,7 +759,7 @@ mod tests {
     #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
-            "  - id: fan\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
+            "  fan:\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
         ));
         let json = serde_json::to_value(&c).expect("serializes");
         assert_eq!(
@@ -827,7 +827,7 @@ mod tests {
     // `||`→`&&` would short-circuit it to `false` and wrongly accept.
     #[test]
     fn audit_rejects_a_usd_only_mismatch() {
-        let yaml = wf("  - id: a\n    infer: { prompt: \"x\", max_tokens: 100 }\n");
+        let yaml = wf("  a:\n    infer: { prompt: \"x\", max_tokens: 100 }\n");
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
         assert!(honest.audit(&parsed).is_ok());
@@ -853,7 +853,7 @@ mod tests {
     #[test]
     fn check_row_rejects_a_main_llm_only_mismatch() {
         // single infer task: workflow says main_llm=1, main_effect=0
-        let yaml = wf("  - id: a\n    infer: { prompt: \"x\", max_tokens: 50 }\n");
+        let yaml = wf("  a:\n    infer: { prompt: \"x\", max_tokens: 50 }\n");
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
 
@@ -884,7 +884,7 @@ mod tests {
     fn check_row_rejects_a_finally_llm_only_mismatch() {
         // task whose cleanup is an invoke → finally_effect=1, finally_llm=0
         let yaml = wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -918,7 +918,7 @@ mod tests {
     #[test]
     fn finally_accumulators_sum_across_multiple_cleanups() {
         let yaml = wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 10 }\n      - invoke: { tool: \"nika:log\", args: { message: \"m\" } }\n      - infer: { prompt: \"p2\", max_tokens: 10 }\n      - invoke: { tool: \"nika:emit\", args: { event: \"e\" } }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 10 }\n      - invoke: { tool: \"nika:log\", args: { message: \"m\" } }\n      - infer: { prompt: \"p2\", max_tokens: 10 }\n      - invoke: { tool: \"nika:emit\", args: { event: \"e\" } }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -945,7 +945,7 @@ mod tests {
         // main exec (free) + two priceable infer cleanups (100 tk each ·
         // $15/M = 1500 µ$ each → finally spend 3000 µ$)
         let yaml = wf(
-            "  - id: a\n    exec: { command: [\"true\"] }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 100 }\n      - infer: { prompt: \"p2\", max_tokens: 100 }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 100 }\n      - infer: { prompt: \"p2\", max_tokens: 100 }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -969,7 +969,7 @@ mod tests {
     #[test]
     fn fold_adds_finally_contributions_to_the_main() {
         let yaml = wf(
-            "  - id: a\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 200 }\n    on_finally:\n      - infer: { prompt: \"cleanup\", max_tokens: 100 }\n",
+            "  a:\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 200 }\n    on_finally:\n      - infer: { prompt: \"cleanup\", max_tokens: 100 }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let c = certify(&parsed);
@@ -993,7 +993,7 @@ mod tests {
     fn span_traverses_deps_declared_after_their_dependents() {
         // c → b → a, written c first: forces the push branch to matter
         let c = cert(&wf(
-            "  - id: c\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: a\n    exec: { command: [\"true\"] }\n",
+            "  c:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n",
         ));
         // chain of 3 single-attempt tasks → span = 1+1+1 = 3
         assert_eq!(
@@ -1013,7 +1013,7 @@ mod tests {
         // a depends on b, b depends on a — a cycle (conformance rejects it
         // elsewhere; span must still TERMINATE with a finite value)
         let c = cert(&wf(
-            "  - id: a\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
         ));
         // with the cut, each node's chain stops at the visiting mark:
         // span = 1 + 1 = 2 (one hop before the back-edge is cut). The key

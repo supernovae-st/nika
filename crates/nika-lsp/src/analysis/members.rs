@@ -62,8 +62,21 @@ fn scan_task_with_keys(text: &str, editing: &str) -> Vec<String> {
     for line in text.lines() {
         let t = line.trim_start();
         let indent = line.len() - t.len();
-        if let Some(rest) = t.strip_prefix("- id:") {
-            in_task = rest.split('#').next().unwrap_or("").trim() == editing;
+        // W1 « the map »: the task boundary is the bare `name:` key at
+        // indent 2 — never an `- id:` row.
+        if indent == 2
+            && let Some(name) = t
+                .split('#')
+                .next()
+                .unwrap_or("")
+                .trim_end()
+                .strip_suffix(':')
+            && !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            in_task = name == editing;
             in_with = false;
             continue;
         }
@@ -262,11 +275,12 @@ struct ScannedTask {
 }
 
 /// Line-scan `task_id`'s block: its verb key and its `output:` binding
-/// names. The block runs from `- id: <task_id>` to the next `- ` item at
-/// the same indent (or a top-level key).
+/// names. W1 « the map »: the block runs from the task's map key
+/// (`<task_id>:` at indent 2) to the next key at the same or shallower
+/// indent.
 fn scan_task_block(text: &str, task_id: &str) -> Option<ScannedTask> {
     const VERBS: [&str; 4] = ["infer:", "exec:", "invoke:", "agent:"];
-    let mut found: Option<usize> = None; // the `- id:` line's indent
+    let mut found: Option<usize> = None; // the task key line's indent
     let mut verb = None;
     let mut bindings = Vec::new();
     let mut in_output = false;
@@ -276,8 +290,14 @@ fn scan_task_block(text: &str, task_id: &str) -> Option<ScannedTask> {
         let indent = line.len() - trimmed.len();
         match found {
             None => {
-                if let Some(rest) = trimmed.strip_prefix("- id:")
-                    && rest.split('#').next().unwrap_or("").trim() == task_id
+                if indent == 2
+                    && let Some(name) = trimmed
+                        .split('#')
+                        .next()
+                        .unwrap_or("")
+                        .trim_end()
+                        .strip_suffix(':')
+                    && name == task_id
                 {
                     found = Some(indent);
                 }

@@ -20,8 +20,9 @@
 # ALERTS_WEBHOOK_URL to see it fire.
 
 nika: v1
-workflow: price-watch
-description: "Watch a product price, ping me when it drops below my target"
+workflow:
+  id: price-watch
+  description: "Watch a product price, ping me when it drops below my target"
 
 vars:
   product_api: "https://api.shop.example.com/v1/products/macbook-air"
@@ -36,7 +37,7 @@ secrets:
         host_from_self: true
 
 tasks:
-  - id: check
+  check:
     invoke:
       tool: "nika:fetch"
       args:
@@ -51,7 +52,7 @@ tasks:
       # stays closed and the dry run ends green with the alert skipped.
       recover: { price: 949, name: "MacBook Air (offline sample)" }
 
-  - id: alert
+  alert:
     depends_on: [check]
     when: ${{ tasks.check.price < vars.alert_below }}
     invoke:

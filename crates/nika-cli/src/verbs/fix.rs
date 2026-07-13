@@ -74,6 +74,27 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
                     break;
                 }
             }
+            // W1 « the map » dead forms (PARSE-020..023): ONE structural
+            // repair — the shared migration (comment-preserving ·
+            // idempotent) — then the round restarts and the re-parse is
+            // the proof. The old form is repairable, never executable.
+            Err(
+                SchemaError::W1WorkflowScalar { .. }
+                | SchemaError::W1TopLevelDescription { .. }
+                | SchemaError::W1TasksSequence { .. }
+                | SchemaError::W1TaskIdField { .. },
+            ) => match crate::migrate::w1(&source) {
+                Some(migrated) => {
+                    source = migrated;
+                    repairs.push(Repair {
+                        old: "the pre-W1 envelope (workflow scalar · tasks list)".to_owned(),
+                        new: "workflow object + task map".to_owned(),
+                        kind: "w1-map",
+                        applied: true,
+                    });
+                }
+                None => break, // ambiguous document — the teaching names it
+            },
             Err(_) => break, // not a rename-shaped parse error — check will tell
             Ok(wf) => {
                 let report = nika_schema::check(&wf);
@@ -320,7 +341,7 @@ mod tests {
         let path = dir.join("broken.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: think\n    infer: { promt: \"hi\", max_tokens: 10 }\n  - id: read_it\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  - id: shape\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  think:\n    infer: { promt: \"hi\", max_tokens: 10 }\n  read_it:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  shape:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -357,7 +378,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("structural.nika.yaml");
         let body =
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:hash\" }\n";
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:hash\" }\n";
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
@@ -393,7 +414,7 @@ mod tests {
         let path = dir.join("two-site.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow: w\nvars: { topic: \"x\" }\ntasks:\n  - id: build\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ vars.topik }}\" } }\n  - id: ship\n    depends_on: [buidl]\n    invoke: { tool: \"nika:log\", args: { message: \"${{ tasks.buidl.output }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nvars: { topic: \"x\" }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ vars.topik }}\" } }\n  ship:\n    depends_on: [buidl]\n    invoke: { tool: \"nika:log\", args: { message: \"${{ tasks.buidl.output }}\" } }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -445,7 +466,7 @@ mod tests {
         let path = dir.join("idem.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
         )
         .expect("write fixture");
         let p = path.to_str().expect("utf8 path");

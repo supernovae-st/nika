@@ -138,7 +138,10 @@ fn intent_routes_and_the_file_is_stamped() {
     // DEEP: the three stamps landed in the file itself.
     let written =
         std::fs::read_to_string(dir.join("review-batch.nika.yaml")).expect("file written");
-    assert!(written.contains("workflow: review-batch"), "id stamped");
+    assert!(
+        written.contains("workflow:\n  id: review-batch"),
+        "id stamped under the workflow object"
+    );
     assert!(
         written.contains("description: 'summarize every item in parallel'"),
         "the intent is the description"
@@ -304,7 +307,7 @@ fn init_example_lane_founds_around_one_lesson() {
     let body =
         std::fs::read_to_string(dir.join("workflows/01-hello.nika.yaml")).expect("lesson written");
     assert!(
-        body.contains("workflow: hello"),
+        body.contains("workflow:\n  id: hello"),
         "verbatim example body: {body}"
     );
     assert!(

@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn clean_workflow_has_no_error_diagnostics() {
-        let yaml = "nika: v1\nworkflow: clean\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: clean\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let diags = diags_of(yaml);
         let errors: Vec<_> = diags
             .iter()
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn unknown_dep_yields_dag002_error_with_span() {
         // depends_on a ghost task — NIKA-DAG-002, carries a span.
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         let diags = diags_of(yaml);
         let dag = diags
             .iter()
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn unknown_tool_yields_error_with_did_you_mean() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
         let diags = diags_of(yaml);
         let tool = diags
             .iter()
@@ -343,14 +343,14 @@ mod tests {
     fn task_keyed_finding_anchors_on_the_task_id_not_origin() {
         // an unknown tool carries no span of its own — it must anchor on the
         // offending task's `id` source range, NOT the document origin (0,0).
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
         let diags = diags_of(yaml);
         let tool = diags
             .iter()
             .find(|d| d.message.contains("unknown tool"))
             .expect("unknown tool diagnostic");
         assert_ne!(tool.range, Range::default(), "anchored, not at the origin");
-        let id_byte = yaml.find("id: a").map(|p| p + "id: ".len()).expect("id");
+        let id_byte = yaml.find("\n  a:").map(|p| p + 3).expect("id");
         let expected = index_of(yaml).position(id_byte);
         assert_eq!(tool.range.start, expected, "anchored on the task id `a`");
     }
@@ -370,7 +370,7 @@ mod tests {
         // finding renders with the EXACT gate code (not the generic
         // NIKA-DAG-GATE fallback, not an empty/garbage string), ERROR
         // severity, the `nika` source, and a span on the `when:` expression.
-        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/c\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let dead = diags
             .iter()
@@ -398,7 +398,7 @@ mod tests {
         // `!= 'failed'` flags the wrong status literal — a BadStatusLiteral
         // gate finding with its OWN code (deleting the match arm would
         // degrade it to the generic NIKA-DAG-GATE fallback).
-        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/c\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let bad = diags
             .iter()
@@ -425,7 +425,7 @@ mod tests {
         // HINT diagnostic is a precise object: HINT severity, NO code, the
         // `nika` source, a non-empty message anchored on the task id, and a
         // range over the offending task's id span (NOT the document origin).
-        let yaml = "nika: v1\nworkflow: w\nmodel: ollama/llama3\ntasks:\n  - id: a\n    infer: { prompt: \"hi\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n";
         let diags = diags_of(yaml);
         let hint = diags
             .iter()
@@ -446,7 +446,7 @@ mod tests {
             "the exact advice text"
         );
         // anchored on the task `a` id span (line 4, char 8..9), not (0,0).
-        let id_byte = yaml.find("id: a").map(|p| p + "id: ".len()).expect("id");
+        let id_byte = yaml.find("\n  a:").map(|p| p + 3).expect("id");
         let index = index_of(yaml);
         let expected_start = index.position(id_byte);
         assert_eq!(hint.range.start, expected_start, "anchored on task id `a`");

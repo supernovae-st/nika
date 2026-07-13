@@ -19,8 +19,9 @@
 # Run · nika run examples/showcase/t4-incident-war-room.nika.yaml
 
 nika: v1
-workflow: incident-war-room
-description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"
+workflow:
+  id: incident-war-room
+  description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"
 
 model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
@@ -39,12 +40,12 @@ secrets:
 
 tasks:
   # ── the gather wave · all three run in parallel ──
-  - id: logs
+  logs:
     exec:
       command: ["journalctl", "-u", "${{ vars.service }}", "--since", "${{ vars.log_window }}", "--no-pager"]
       capture: structured
 
-  - id: status_history
+  status_history:
     invoke:
       tool: "nika:fetch"
       args:
@@ -56,13 +57,13 @@ tasks:
       backoff_strategy: exponential
       jitter: true
 
-  - id: runbook
+  runbook:
     invoke:
       tool: "nika:read"
       args: { path: "./runbooks/${{ vars.service }}.md" }
 
   # ── reconstruct · typed timeline ──
-  - id: timeline
+  timeline:
     depends_on: [logs, status_history, runbook]
     infer:
       prompt: |
@@ -87,13 +88,13 @@ tasks:
                 evidence: { type: string }
 
   # ── settle, then confirm recovery before claiming it ──
-  - id: settle
+  settle:
     depends_on: [timeline]
     invoke:
       tool: "nika:wait"
       args: { duration: "60s" }
 
-  - id: recheck
+  recheck:
     depends_on: [settle]
     invoke:
       tool: "nika:fetch"
@@ -102,7 +103,7 @@ tasks:
         mode: jq
         jq: ".current.state"
 
-  - id: confirmed
+  confirmed:
     depends_on: [recheck]
     invoke:
       tool: "nika:assert"
@@ -111,7 +112,7 @@ tasks:
         message: "Service is NOT back to operational: postmortem draft blocked"
 
   # ── the draft · only after recovery is proven ──
-  - id: postmortem
+  postmortem:
     depends_on: [timeline, confirmed]
     infer:
       model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
@@ -123,7 +124,7 @@ tasks:
         enabled: true
         budget_tokens: 6000
 
-  - id: save
+  save:
     depends_on: [postmortem]
     invoke:
       tool: "nika:write"
@@ -136,7 +137,7 @@ tasks:
   # including the designed failure path (recovery NOT confirmed → the
   # assert fails → save never starts → this still runs · when: true
   # replaces the default gate · 03 §Task states).
-  - id: ping
+  ping:
     depends_on: [save]
     when: true
     invoke:

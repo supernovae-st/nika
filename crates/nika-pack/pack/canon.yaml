@@ -53,7 +53,7 @@ counts:
   templates: 10
   error_namespaces: 14
   error_categories: 12
-  error_codes: 50
+  error_codes: 57
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -249,7 +249,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 53
+  count: 57
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -273,6 +273,10 @@ error_codes:
     - { code: NIKA-PARSE-017, category: validation_error, transient: "false", failure: "duplicate mapping key — no silent last-wins" }
     - { code: NIKA-PARSE-018, category: validation_error, transient: "false", failure: "missing required field in a verb body (infer.prompt · exec.command · invoke.tool)" }
     - { code: NIKA-PARSE-019, category: validation_error, transient: "false", failure: "generic structural validation — wrong YAML shape for a field" }
+    - { code: NIKA-PARSE-020, category: validation_error, transient: "false", failure: "workflow: is a scalar — the envelope became an object (workflow: then id: <value>)" }
+    - { code: NIKA-PARSE-021, category: validation_error, transient: "false", failure: "top-level description: — it moved into workflow.description" }
+    - { code: NIKA-PARSE-022, category: validation_error, transient: "false", failure: "tasks: is a sequence — it became a map keyed by task id (drop `- id:`, the key IS the identity)" }
+    - { code: NIKA-PARSE-023, category: validation_error, transient: "false", failure: "a task carries an id: field — the map key is the identity, the field is gone" }
     - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in depends_on (incl. self-dependency)" }
     - { code: NIKA-DAG-002, category: validation_error, transient: "false", failure: "depends_on references an undeclared task" }
     - { code: NIKA-DAG-003, category: validation_error, transient: "false", failure: "a tasks.X reference with no declared edge" }

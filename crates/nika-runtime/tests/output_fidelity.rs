@@ -92,12 +92,13 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 async fn output_named_bindings_resolve_downstream() {
     let yaml = r#"
 nika: v1
-workflow: out-bind
+workflow:
+  id: out-bind
 tasks:
-  - id: src
+  src:
     invoke: { tool: "nika:jq", args: { input: { count: 7 }, expression: "." } }
     output: { c: ".count" }
-  - id: gate
+  gate:
     depends_on: [src]
     when: ${{ tasks.src.c == 7 }}
     exec: { command: ["echo", "gated"] }
@@ -137,14 +138,15 @@ tasks:
 async fn output_binding_jq_path_and_collect() {
     let yaml = r#"
 nika: v1
-workflow: out-bind-jq
+workflow:
+  id: out-bind-jq
 tasks:
-  - id: api
+  api:
     invoke: { tool: "nika:jq", args: { input: {}, expression: "." } }
     output:
       n: ".data.users | length"
       emails: "[.data.users[].email]"
-  - id: use
+  use:
     depends_on: [api]
     when: ${{ tasks.api.n == 2 }}
     exec: { command: ["echo", "two"] }
@@ -182,9 +184,10 @@ tasks:
 async fn output_binding_cardinality_error_fails_the_task() {
     let yaml = r#"
 nika: v1
-workflow: out-bind-card
+workflow:
+  id: out-bind-card
 tasks:
-  - id: src
+  src:
     invoke: { tool: "nika:jq", args: { input: { users: [1, 2, 3] }, expression: "." } }
     output: { each: ".users[]" }
 "#;
@@ -234,15 +237,16 @@ async fn output_binding_of_skipped_task_is_defined_null() {
     // declared binding `c` must then read defined-null downstream.
     let yaml = r#"
 nika: v1
-workflow: out-bind-skip
+workflow:
+  id: out-bind-skip
 vars:
   run: "no"
 tasks:
-  - id: maybe
+  maybe:
     when: ${{ vars.run == 'yes' }}
     invoke: { tool: "nika:jq", args: { input: { count: 5 }, expression: "." } }
     output: { c: ".count" }
-  - id: join
+  join:
     depends_on: [maybe]
     when: ${{ tasks.maybe.c == null }}
     exec: { command: ["echo", "joined"] }
@@ -279,11 +283,12 @@ tasks:
 async fn exec_capture_structured_exposes_stdout_stderr_exit_code() {
     let yaml = r#"
 nika: v1
-workflow: exec-structured
+workflow:
+  id: exec-structured
 tasks:
-  - id: probe
+  probe:
     exec: { command: ["run-it"], capture: structured }
-  - id: gate
+  gate:
     depends_on: [probe]
     when: ${{ tasks.probe.output.exit_code == 3 }}
     exec: { command: ["echo", "branched"] }
@@ -332,11 +337,12 @@ tasks:
 async fn exec_plain_capture_stays_a_trimmed_string() {
     let yaml = r#"
 nika: v1
-workflow: exec-plain
+workflow:
+  id: exec-plain
 tasks:
-  - id: e
+  e:
     exec: { command: ["printf", "42"] }
-  - id: gate
+  gate:
     depends_on: [e]
     when: ${{ tasks.e.output == '42' }}
     exec: { command: ["echo", "ok"] }
@@ -370,9 +376,10 @@ tasks:
 async fn typed_output_type_mismatch_fails_the_run_with_var009() {
     let yaml = r#"
 nika: v1
-workflow: typed-out-mismatch
+workflow:
+  id: typed-out-mismatch
 tasks:
-  - id: n
+  n:
     invoke: { tool: "nika:jq", args: { input: { x: 42 }, expression: ".x" } }
 outputs:
   result:
@@ -415,11 +422,12 @@ outputs:
 async fn run_banner_reflects_a_declared_permits_boundary() {
     let yaml = r#"
 nika: v1
-workflow: permits-banner
+workflow:
+  id: permits-banner
 permits:
   tools: ["nika:jq"]
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
 "#;
     let tools = MockToolExecutor::new()
@@ -448,9 +456,10 @@ tasks:
 async fn run_banner_reports_engine_floor_when_no_permits_declared() {
     let yaml = r#"
 nika: v1
-workflow: no-permits-banner
+workflow:
+  id: no-permits-banner
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
 "#;
     let tools = MockToolExecutor::new()
@@ -480,9 +489,10 @@ tasks:
 async fn workflow_started_carries_the_source_identity_when_injected() {
     let yaml = r#"
 nika: v1
-workflow: source-identity
+workflow:
+  id: source-identity
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
 "#;
     let wf = nika_schema::parse(
@@ -555,18 +565,19 @@ tasks:
 async fn skip_and_cancel_events_carry_their_why() {
     let yaml = r#"
 nika: v1
-workflow: skip-why
+workflow:
+  id: skip-why
 tasks:
-  - id: seed
+  seed:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
-  - id: gated
+  gated:
     depends_on: [seed]
     when: "${{ tasks.seed.status == 'failure' }}"
     invoke: { tool: "nika:jq", args: { input: { x: 2 }, expression: ".x" } }
-  - id: doomed
+  doomed:
     depends_on: [seed]
     exec: { command: ["false"] }
-  - id: downstream
+  downstream:
     depends_on: [doomed]
     invoke: { tool: "nika:jq", args: { input: { x: 3 }, expression: ".x" } }
 "#;
@@ -634,7 +645,7 @@ tasks:
 #[tokio::test]
 async fn workflow_started_attests_engine_and_platform() {
     let yaml =
-        "nika: v1\nworkflow: attest\ntasks:\n  - id: a\n    exec:\n      command: [\"true\"]\n";
+        "nika: v1\nworkflow:\n  id: attest\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n";
     let (_outcome, events) = run_to_events(
         yaml,
         MockShell::new(),

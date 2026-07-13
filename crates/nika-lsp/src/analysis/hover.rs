@@ -105,23 +105,31 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
     })
 }
 
-/// Hover on a task DECLARATION (`- id: X`) — the task's place in the
+/// Hover on a task DECLARATION (the `X:` map key) — the task's place in the
 /// DAG, from the SAME wave computation the engine schedules with
 /// (`nika_schema::analyze` · Kahn levels over the EXPLICIT `depends_on`
 /// edges — one math, one voice). Cyclic or unresolved graphs stay
 /// silent here: the diagnostics lane already carries that story.
 fn task_decl_hover(text: &str, offset: usize) -> Option<Hover> {
-    let (key, id, start, end) = keyed_value_at(text, offset)?;
-    if key != "id" {
-        return None;
-    }
+    // W1 « the map »: the declaring token is the task's MAP KEY — the
+    // parser's id span (anchored on the key) is the one anchor every
+    // surface shares.
     let wf = nika_schema::parse(
         text,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Lenient,
     )
     .ok()?;
-    let body = dag_card(&wf, id)?;
+    let task = wf.tasks.iter().find(|t| {
+        let sp = t.value.id.span;
+        (sp.start.0 as usize) <= offset && offset <= (sp.end.0 as usize)
+    })?;
+    let id = task.value.id.value.clone();
+    let (start, end) = (
+        task.value.id.span.start.0 as usize,
+        task.value.id.span.end.0 as usize,
+    );
+    let body = dag_card(&wf, &id)?;
     let index = LineIndex::new(text);
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
@@ -395,7 +403,7 @@ mod tests {
 
     #[test]
     fn hover_on_verb_returns_its_doc() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"hi\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n";
         let at = yaml.find("infer").expect("verb") + 2;
         let h = hover(yaml, at).expect("hover present");
         assert!(body(&h).contains("**`infer`**"), "{}", body(&h));
@@ -405,7 +413,7 @@ mod tests {
 
     #[test]
     fn hover_on_top_level_key() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         let at = yaml.find("tasks").expect("key") + 1;
         let h = hover(yaml, at).expect("hover present");
         assert!(body(&h).contains("**`tasks`**"));
@@ -414,7 +422,7 @@ mod tests {
 
     #[test]
     fn hover_on_task_field() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: []\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: []\n    exec: { command: [\"x\"] }\n";
         let at = yaml.find("depends_on").expect("field") + 3;
         let h = hover(yaml, at).expect("hover present");
         assert!(body(&h).contains("**`depends_on`**"));
@@ -423,7 +431,7 @@ mod tests {
 
     #[test]
     fn hover_carries_a_range_over_the_token() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    agent: { prompt: \"x\", tools: [\"nika:read\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    agent: { prompt: \"x\", tools: [\"nika:read\"] }\n";
         let agent_byte = yaml.find("agent").expect("verb");
         let h = hover(yaml, agent_byte).expect("hover");
         let index = LineIndex::new(yaml);
@@ -437,15 +445,14 @@ mod tests {
         // an arbitrary VALUE (a command string) is not vocabulary, not a
         // reference, not a declaration → no hover. (A task id DEFINITION
         // now answers with its DAG card — pinned in its own test below.)
-        let yaml =
-            "nika: v1\nworkflow: w\ntasks:\n  - id: my_task\n    exec: { command: [\"xyzzy\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  my_task:\n    exec: { command: [\"xyzzy\"] }\n";
         let at = yaml.find("xyzzy").expect("command value") + 2;
         assert!(hover(yaml, at).is_none());
     }
 
     #[test]
     fn hover_on_depends_on_ref_shows_target_task_and_verb() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use_it\n    depends_on: [greet]\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    depends_on: [greet]\n    exec: { command: [\"x\"] }\n";
         // the LAST `greet` is the depends_on reference (the first is the id)
         let at = yaml.rfind("greet").expect("dep ref") + 1;
         let h = hover(yaml, at).expect("hover on the reference");
@@ -463,7 +470,7 @@ mod tests {
 
     #[test]
     fn hover_on_template_tasks_ref_shows_target_task_and_verb() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use_it\n    exec: { command: [\"echo\", \"${{ tasks.greet.output }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    exec: { command: [\"echo\", \"${{ tasks.greet.output }}\"] }\n";
         let at = yaml.find("tasks.greet").expect("tpl ref") + "tasks.gr".len();
         let h = hover(yaml, at).expect("hover on the template reference");
         assert!(body(&h).contains("**task `greet`**"), "{}", body(&h));
@@ -550,7 +557,7 @@ mod tests {
     #[test]
     fn hover_just_past_word_still_resolves() {
         // caret at the byte right after `exec` — common end-of-word position
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         let after = yaml.find("exec").expect("verb") + "exec".len();
         let h = hover(yaml, after).expect("hover");
         assert!(body(&h).contains("**`exec`**"));
@@ -560,7 +567,7 @@ mod tests {
     /// required) — derived, so a builtin's card can never lag its truth.
     #[test]
     fn hover_on_tool_value_shows_the_builtin_card() {
-        let text = "nika: v1\ntasks:\n  - id: a\n    invoke:\n      tool: nika:jq\n      args: { expression: \".\" }\n";
+        let text = "nika: v1\ntasks:\n  a:\n    invoke:\n      tool: nika:jq\n      args: { expression: \".\" }\n";
         let offset = text.find("nika:jq").expect("tool value") + 3;
         let h = hover(text, offset).expect("a card");
         let b = body(&h);
@@ -586,7 +593,7 @@ mod tests {
     /// provider is known even when the model string is the author's own.
     #[test]
     fn hover_on_unknown_tool_or_model_stays_silent() {
-        let text = "nika: v1\ntasks:\n  - id: a\n    invoke:\n      tool: github.search\n";
+        let text = "nika: v1\ntasks:\n  a:\n    invoke:\n      tool: github.search\n";
         let offset = text.find("github.search").expect("value") + 3;
         assert!(hover(text, offset).is_none());
         let text2 = "nika: v1\nmodel: nosuch/model-x\n";
@@ -606,8 +613,8 @@ mod tests {
     /// The diamond: a → {b, c} → d.
     #[test]
     fn hover_on_task_decl_shows_the_dag_card() {
-        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
-        let a = hover(text, text.find("- id: a").expect("a") + 7).expect("card for a");
+        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
+        let a = hover(text, text.find("\n  a:").expect("a") + 3).expect("card for a");
         let ab = body(&a);
         assert!(ab.contains("wave 1/3"), "{ab}");
         assert!(ab.contains("feeds: `b` · `c`"), "{ab}");
@@ -620,7 +627,7 @@ mod tests {
             "a root task waits on nothing: {ab}"
         );
 
-        let d = hover(text, text.find("- id: d").expect("d") + 7).expect("card for d");
+        let d = hover(text, text.find("\n  d:").expect("d") + 3).expect("card for d");
         let db = body(&d);
         assert!(db.contains("wave 3/3"), "{db}");
         assert!(db.contains("waits on: `b` · `c`"), "{db}");
@@ -631,8 +638,8 @@ mod tests {
     /// lane already tells that story with a span and a code.
     #[test]
     fn hover_on_task_decl_in_a_cycle_stays_silent() {
-        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n";
-        assert!(hover(text, text.find("- id: a").expect("a") + 7).is_none());
+        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [b]\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n";
+        assert!(hover(text, text.find("\n  a:").expect("a") + 3).is_none());
     }
 
     /// Hover on island members — the declaration's card: typed var
@@ -640,7 +647,7 @@ mod tests {
     /// · env (its value).
     #[test]
     fn hover_on_member_refs_shows_the_declaration_cards() {
-        let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\nenv:\n  REGION: eu\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"${{ vars.city }}\", \"${{ env.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\nenv:\n  REGION: eu\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.city }}\", \"${{ env.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
         let h = hover(text, text.find("vars.city").expect("ref") + 6).expect("var card");
         let b = body(&h);
         assert!(

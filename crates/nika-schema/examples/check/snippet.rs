@@ -102,7 +102,7 @@ pub(crate) fn render_snippet(
 mod tests {
     use super::*;
 
-    const SRC: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n";
+    const SRC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n";
 
     fn snip(span: ByteSpan, unicode: bool) -> String {
         let mut out = String::new();
@@ -122,7 +122,7 @@ mod tests {
         let ghost = SRC.find("ghost").expect("ghost");
         let s = snip(ByteSpan::new(ghost as u32, (ghost + 5) as u32), true);
         let expected = concat!(
-            "          ┌─ w.nika.yaml:5:18\n",
+            "          ┌─ w.nika.yaml:6:18\n",
             "          │       depends_on: [ghost]\n",
             "          │                    ^^^^^\n",
         );
@@ -134,7 +134,7 @@ mod tests {
         let ghost = SRC.find("ghost").expect("ghost");
         let s = snip(ByteSpan::new(ghost as u32, (ghost + 5) as u32), false);
         assert!(s.is_ascii(), "{s:?}");
-        assert!(s.contains(",- w.nika.yaml:5:18"));
+        assert!(s.contains(",- w.nika.yaml:6:18"));
         assert!(s.contains("^^^^^"));
     }
 
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn crlf_line_displays_without_the_carriage_return() {
-        let src = "nika: v1\r\nworkflow: w\r\ntasks: [x]\r\n";
+        let src = "nika: v1\r\nworkflow:\r\n  id: w\r\ntasks: [x]\r\n";
         let tasks = src.find("tasks").expect("tasks");
         let mut out = String::new();
         render_snippet(
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn lying_mid_utf8_span_is_a_noop_never_a_panic() {
-        let src = "nika: v1\nworkflow: w\u{e9}\u{e9}\ntasks: []\n";
+        let src = "nika: v1\nworkflow:\n  id: w\u{e9}\u{e9}\ntasks: []\n";
         let inside = src.find('\u{e9}').expect("é") + 1; // mid-é byte
         let s = snip_src(src, ByteSpan::new(inside as u32, (inside + 1) as u32));
         assert!(s.is_empty(), "mid-boundary span must bail: {s:?}");

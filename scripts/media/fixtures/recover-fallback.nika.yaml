@@ -3,24 +3,25 @@
 # sink still writes, the run exits 0. Deterministic + offline (the missing
 # file is the failure; the cache task is the fallback source).
 nika: v1
-workflow: rates-with-fallback
+workflow:
+  id: rates-with-fallback
 
 tasks:
-  - id: cache
+  cache:
     invoke:
       tool: "nika:jq"
       args:
         input: { rates: { eur_usd: 1.09, updated: "yesterday" }, stale: true }
         expression: "."
 
-  - id: live
+  live:
     depends_on: [cache]
     exec:
       command: ["cat", "live-rates.json"]     # the live feed is gone → exit 1
     on_error:
       recover: "${{ tasks.cache.output }}"    # degrade to the snapshot, loudly typed
 
-  - id: publish
+  publish:
     depends_on: [live]
     invoke:
       tool: "nika:write"

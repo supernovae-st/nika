@@ -595,7 +595,7 @@ mod tests {
 
     /// A chrome-only workflow (no findings · no hints): every rendered
     /// byte is OURS, so the snapshots pin the frame, not library text.
-    const CHROME_ONLY: &str = "nika: v1\nworkflow: pipeline\npermits: { exec: [\"true\"] }\ntasks:\n  - id: first\n    exec: { command: [\"true\"] }\n  - id: second\n    depends_on: [first]\n    exec: { command: [\"true\"] }\n";
+    const CHROME_ONLY: &str = "nika: v1\nworkflow:\n  id: pipeline\npermits: { exec: [\"true\"] }\ntasks:\n  first:\n    exec: { command: [\"true\"] }\n  second:\n    depends_on: [first]\n    exec: { command: [\"true\"] }\n";
 
     fn rendered(t: Theme) -> String {
         let wf = parse(CHROME_ONLY, FileId::new(0), ParseMode::Strict).expect("parse");
@@ -657,7 +657,7 @@ mod tests {
         // p→a1→x2 · p→x1 · isolated x0: Kahn waves peak at 2, the exact
         // antichain width is 3 — BOTH renderers must say so (this is
         // the example renderer's half; verbs/check.rs has the CLI's).
-        let yaml = "nika: v1\nworkflow: wide\npermits: { exec: [\"true\"] }\ntasks:\n  - id: p\n    exec: { command: [\"true\"] }\n  - id: x0\n    exec: { command: [\"true\"] }\n  - id: a1\n    depends_on: [p]\n    exec: { command: [\"true\"] }\n  - id: x1\n    depends_on: [p]\n    exec: { command: [\"true\"] }\n  - id: x2\n    depends_on: [a1]\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: wide\npermits: { exec: [\"true\"] }\ntasks:\n  p:\n    exec: { command: [\"true\"] }\n  x0:\n    exec: { command: [\"true\"] }\n  a1:\n    depends_on: [p]\n    exec: { command: [\"true\"] }\n  x1:\n    depends_on: [p]\n    exec: { command: [\"true\"] }\n  x2:\n    depends_on: [a1]\n    exec: { command: [\"true\"] }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = check(&wf);
         let analysis = report.analysis.as_ref().expect("conformant -> analysis");

@@ -35,7 +35,7 @@ mod effective;
 mod findings;
 mod flow;
 mod hints;
-pub(crate) mod native_first;
+pub mod native_first;
 mod permits_fit;
 mod permits_infer;
 mod reach;
@@ -441,9 +441,10 @@ mod tests {
         let r = check_yaml(
             "\
 nika: v1
-workflow: t
+workflow:
+  id: t
 tasks:
-  - id: a
+  a:
     depends_on: [ghost]
     exec: { command: [\"echo\", \"hi\"] }
 ",
@@ -470,9 +471,10 @@ tasks:
         let r = check_yaml(
             "\
 nika: v1
-workflow: clean
+workflow:
+  id: clean
 tasks:
-  - id: a
+  a:
     exec: { command: [\"echo\", \"hi\"] }
 ",
         );
@@ -486,13 +488,14 @@ tasks:
         // emitted fixes/suggestions, applied verbatim, reach is_clean().
         // Round 1 — assert the exact repairs the report prescribes.
         let broken = r#"nika: v1
-workflow: agent-demo
+workflow:
+  id: agent-demo
 model: anthropic/claude-sonnet-4-6
 permits:
   exec: false
   tools: ["nika:read"]
 tasks:
-  - id: extract
+  extract:
     infer:
       prompt: "extract"
       max_tokens: 200
@@ -502,10 +505,10 @@ tasks:
           summary: { type: string }
           score: { type: integre }
         required: [sumary]
-  - id: save
+  save:
     depends_on: [extract]
     invoke: { tool: "nika:wrte", args: { path: "./out.md", content: "${{ tasks.extract.output.sumarry }}" } }
-  - id: push
+  push:
     depends_on: [save]
     exec: { command: ["cargo", "publish"] }
 "#;
@@ -564,12 +567,13 @@ tasks:
         let wf = parse(
             "\
 nika: v1
-workflow: cyclic
+workflow:
+  id: cyclic
 tasks:
-  - id: a
+  a:
     depends_on: [b]
     exec: { command: [\"x\"] }
-  - id: b
+  b:
     depends_on: [a]
     exec: { command: [\"y\"] }
 ",
@@ -593,7 +597,7 @@ tasks:
     fn broken_dag_still_yields_every_dag_independent_finding() {
         // ONE round-trip: the agent gets the conformance violation AND
         // the tool typo AND the schema defect AND the hints, together.
-        let src = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    depends_on: [ghost]\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  - id: b\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
+        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    depends_on: [ghost]\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
         let r = check_yaml(src);
         assert!(
             r.conformance.iter().any(|c| c.code == "NIKA-DAG-002"),
@@ -635,7 +639,7 @@ tasks:
         // Two independent check() runs over the same input must render
         // byte-identical JSON — pins the BTree-everywhere discipline (a
         // stray HashMap would randomize field/finding order run-to-run).
-        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  - id: a\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  - id: c\n    depends_on: [b]\n    infer: { prompt: \"go ${{ tasks.b.output }}\", max_tokens: 50 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    depends_on: [a]\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    depends_on: [b]\n    infer: { prompt: \"go ${{ tasks.b.output }}\", max_tokens: 50 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let first = serde_json::to_string(&check(&wf)).expect("serialize");
         let second = serde_json::to_string(&check(&wf)).expect("serialize");
@@ -660,9 +664,10 @@ tasks:
         let r = check_yaml(
             "\
 nika: v1
-workflow: clean
+workflow:
+  id: clean
 tasks:
-  - id: a
+  a:
     exec: { command: [\"echo\", \"hi\"] }
 ",
         );
@@ -682,11 +687,12 @@ tasks:
         let r = check_yaml(
             "\
 nika: v1
-workflow: escape
+workflow:
+  id: escape
 permits:
   exec: false
 tasks:
-  - id: a
+  a:
     exec: { command: [\"cargo\", \"publish\"] }
 ",
         );
@@ -722,9 +728,10 @@ tasks:
         let r = check_yaml(
             "\
 nika: v1
-workflow: typo
+workflow:
+  id: typo
 tasks:
-  - id: a
+  a:
     invoke: { tool: \"nika:wrte\", args: { path: \"./out\", content: \"x\" } }
 ",
         );
@@ -755,14 +762,15 @@ tasks:
         let r = check_yaml(
             "\
 nika: v1
-workflow: many
+workflow:
+  id: many
 permits:
   exec: false
   tools: [\"nika:read\"]
 tasks:
-  - id: a
+  a:
     exec: { command: [\"cargo\"] }
-  - id: b
+  b:
     invoke: { tool: \"nika:wrte\", args: { path: \"./out\", content: \"x\" } }
 ",
         );

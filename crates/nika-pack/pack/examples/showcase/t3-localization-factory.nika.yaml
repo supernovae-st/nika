@@ -16,8 +16,9 @@
 # Run · nika run examples/showcase/t3-localization-factory.nika.yaml
 
 nika: v1
-workflow: localization-factory
-description: "glob docs → parallel read → parallel translate → mirror tree"
+workflow:
+  id: localization-factory
+  description: "glob docs → parallel read → parallel translate → mirror tree"
 
 model: ollama/qwen3.5:4b   # local default · swap for mistral/mistral-large (EU model for EU locales)
 
@@ -26,14 +27,14 @@ vars:
   source_glob: "./docs/**/*.md"
 
 tasks:
-  - id: files
+  files:
     invoke:
       tool: "nika:glob"
       args:
         pattern: "${{ vars.source_glob }}"
         exclude: ["**/node_modules/**"]
 
-  - id: texts
+  texts:
     depends_on: [files]
     for_each: ${{ tasks.files.output }}
     max_parallel: 8
@@ -41,7 +42,7 @@ tasks:
       tool: "nika:read"
       args: { path: "${{ item }}" }
 
-  - id: pairs
+  pairs:
     depends_on: [files, texts]
     invoke:
       tool: "nika:jq"
@@ -49,7 +50,7 @@ tasks:
         input: ["${{ tasks.files.output }}", "${{ tasks.texts.output }}"]
         expression: "transpose | map({path: .[0], text: .[1]})"
 
-  - id: translated
+  translated:
     depends_on: [pairs]
     for_each: ${{ tasks.pairs.output }}
     max_parallel: 3                    # rate-limit the provider
@@ -62,7 +63,7 @@ tasks:
         untouched, and the original tone ·
         ${{ item.text }}
 
-  - id: bundle
+  bundle:
     depends_on: [pairs, translated]
     invoke:
       tool: "nika:jq"
@@ -70,7 +71,7 @@ tasks:
         input: ["${{ tasks.pairs.output }}", "${{ tasks.translated.output }}"]
         expression: "transpose | map(select(.[1] != null)) | map({path: .[0].path, text: .[1]})"
 
-  - id: mirror
+  mirror:
     depends_on: [bundle]
     for_each: ${{ tasks.bundle.output }}
     max_parallel: 8

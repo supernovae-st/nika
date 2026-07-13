@@ -24,8 +24,9 @@
 #   nika run examples/showcase/t2-transcript-shownotes.nika.yaml
 
 nika: v1
-workflow: transcript-shownotes
-description: "Raw transcript → typed show-notes (chapters · quotes · summary) · one bounded infer"
+workflow:
+  id: transcript-shownotes
+  description: "Raw transcript → typed show-notes (chapters · quotes · summary) · one bounded infer"
 
 model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
 
@@ -40,13 +41,13 @@ permits:
   tools: ["nika:read", "nika:jq", "nika:write"]
 
 tasks:
-  - id: raw
+  raw:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.transcript }}" }
 
   # ONE bounded model call · the schema is the contract, not a suggestion.
-  - id: notes
+  notes:
     depends_on: [raw]
     infer:
       prompt: |
@@ -76,7 +77,7 @@ tasks:
             items: { type: string }
 
   # Typed JSON → markdown lines · mechanical, zero second model call.
-  - id: sections
+  sections:
     depends_on: [notes]
     invoke:
       tool: "nika:jq"
@@ -88,7 +89,7 @@ tasks:
             quotes: (.quotes | map("> \(.)") | join("\n\n"))
           }
 
-  - id: page
+  page:
     depends_on: [sections, notes]
     invoke:
       tool: "nika:write"

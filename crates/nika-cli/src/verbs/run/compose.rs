@@ -805,21 +805,21 @@ mod tests {
         // (a) no permits block → Unbounded (the SSRF floor is the only guard).
         assert_eq!(
             net_boundary_of(&parse(
-                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n"
+                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n"
             )),
             NetBoundary::Unbounded
         );
         // (b) permits present but NO net category → Declared([]) = deny-all.
         assert_eq!(
             net_boundary_of(&parse(
-                "nika: v1\nworkflow: w\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:jq\", args: { input: {}, expression: \".\" } }\n"
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { input: {}, expression: \".\" } }\n"
             )),
             NetBoundary::Declared(Vec::new())
         );
         // (c) net.http present → Declared([globs]).
         assert_eq!(
             net_boundary_of(&parse(
-                "nika: v1\nworkflow: w\npermits:\n  net: { http: [\"api.example.com\", \"*.github.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/\" } }\n"
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\", \"*.github.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/\" } }\n"
             )),
             NetBoundary::Declared(vec![
                 "api.example.com".to_owned(),
@@ -833,7 +833,7 @@ mod tests {
         // The single derivation a composition root uses — both axes from one
         // workflow (so net can't be forgotten while fs is wired).
         let caps = capabilities_of(&parse(
-            "nika: v1\nworkflow: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  fs: { write: [\"./out/**\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  fs: { write: [\"./out/**\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/\" } }\n",
         ));
         assert_eq!(
             caps.net,

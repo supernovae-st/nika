@@ -20,7 +20,8 @@
 # Run · nika run examples/06-code-review.nika.yaml --var pr_path=./changes.diff
 
 nika: v1
-workflow: code-review
+workflow:
+  id: code-review
 
 vars:
   pr_path:
@@ -29,7 +30,7 @@ vars:
     description: "Path to the changed files to review"
 
 tasks:
-  - id: review
+  review:
     agent:
       model: mistral/mistral-large
       # The agent's final message is VALIDATED against `schema:` (not

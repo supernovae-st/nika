@@ -7,7 +7,7 @@
 //! from the example FILE ITSELF at call time — the title from its own
 //! header comment (`# NN · Title — pitch` · `# showcase · T1 tier ·
 //! audience`), the verb chips from a line scan of the task keys, the
-//! task count from the `- id:` rows. No engine-side catalog to rot.
+//! task count from the task-map keys. No engine-side catalog to rot.
 //!
 //! The listing speaks FULL filenames (`01-hello.nika.yaml`) — what you
 //! see is what you type, and the pack's resolver already tolerates the

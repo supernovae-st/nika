@@ -18,10 +18,11 @@
 # Run · nika run examples/03-exec-pipeline.nika.yaml
 
 nika: v1
-workflow: exec-pipeline
+workflow:
+  id: exec-pipeline
 
 tasks:
-  - id: test
+  test:
     timeout: "5m"
     exec:
       shell: "cargo test --workspace --lib"   # shell: is the explicit shell door (was: sh -lc wrapper)
@@ -38,7 +39,7 @@ tasks:
             payload:
               status: "${{ tasks.test.status }}"
 
-  - id: deploy
+  deploy:
     depends_on: [test]
     when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
     exec:

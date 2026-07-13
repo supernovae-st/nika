@@ -48,6 +48,8 @@ impl<T> nika_error::traits::AsAny for nika_schema::analyzer::AnalyzedWorkflow wh
 pub fn nika_schema::analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_schema::analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_schema::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
 pub mod nika_schema::check
+pub mod nika_schema::check::native_first
+pub fn nika_schema::check::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
 #[non_exhaustive] pub enum nika_schema::check::FindingSeverity
 pub nika_schema::check::FindingSeverity::Error
 pub nika_schema::check::FindingSeverity::Info
@@ -1773,6 +1775,16 @@ pub nika_schema::error::SchemaError::UnresolvedNamespaceRef::suggestion: core::o
 pub nika_schema::error::SchemaError::Validation
 pub nika_schema::error::SchemaError::Validation::message: alloc::string::String
 pub nika_schema::error::SchemaError::Validation::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1TaskIdField
+pub nika_schema::error::SchemaError::W1TaskIdField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1TaskIdField::task: alloc::string::String
+pub nika_schema::error::SchemaError::W1TasksSequence
+pub nika_schema::error::SchemaError::W1TasksSequence::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1TopLevelDescription
+pub nika_schema::error::SchemaError::W1TopLevelDescription::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1WorkflowScalar
+pub nika_schema::error::SchemaError::W1WorkflowScalar::id: alloc::string::String
+pub nika_schema::error::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_schema::Span>
 pub nika_schema::error::SchemaError::WhenNotBoolean
 pub nika_schema::error::SchemaError::WhenNotBoolean::field: alloc::string::String
 pub nika_schema::error::SchemaError::WhenNotBoolean::reason: alloc::string::String
@@ -1932,52 +1944,6 @@ impl<T> outref::AsOut<T> for nika_schema::error::spec_code::SpecCode where T: co
 pub fn nika_schema::error::spec_code::SpecCode::as_out(&mut self) -> outref::Out<'_, T>
 pub mod nika_schema::keysets
 pub fn nika_schema::keysets::known_child_keys(block_key: &str, parent: core::option::Option<&str>) -> core::option::Option<&'static [&'static str]>
-pub mod nika_schema::lints
-#[non_exhaustive] pub struct nika_schema::lints::Lint
-pub nika_schema::lints::Lint::message: alloc::string::String
-pub nika_schema::lints::Lint::rule: &'static str
-pub nika_schema::lints::Lint::span: nika_schema::Span
-pub nika_schema::lints::Lint::suggestion: alloc::string::String
-pub nika_schema::lints::Lint::task_id: alloc::string::String
-impl nika_schema::lints::Lint
-pub fn nika_schema::lints::Lint::new(rule: &'static str, task_id: alloc::string::String, span: nika_schema::Span, message: alloc::string::String, suggestion: alloc::string::String) -> Self
-impl core::clone::Clone for nika_schema::lints::Lint
-pub fn nika_schema::lints::Lint::clone(&self) -> nika_schema::lints::Lint
-impl core::cmp::PartialEq for nika_schema::lints::Lint
-pub fn nika_schema::lints::Lint::eq(&self, other: &nika_schema::lints::Lint) -> bool
-impl core::fmt::Debug for nika_schema::lints::Lint
-pub fn nika_schema::lints::Lint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::lints::Lint
-impl<D> owo_colors::OwoColorize for nika_schema::lints::Lint
-impl<T, U> core::convert::Into<U> for nika_schema::lints::Lint where U: core::convert::From<T>
-pub fn nika_schema::lints::Lint::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::lints::Lint where U: core::convert::Into<T>
-pub type nika_schema::lints::Lint::Error = core::convert::Infallible
-pub fn nika_schema::lints::Lint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::lints::Lint where U: core::convert::TryFrom<T>
-pub type nika_schema::lints::Lint::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::lints::Lint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::lints::Lint where T: core::clone::Clone
-pub type nika_schema::lints::Lint::Owned = T
-pub fn nika_schema::lints::Lint::clone_into(&self, target: &mut T)
-pub fn nika_schema::lints::Lint::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::lints::Lint where T: 'static + ?core::marker::Sized
-pub fn nika_schema::lints::Lint::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::lints::Lint where T: ?core::marker::Sized
-pub fn nika_schema::lints::Lint::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::lints::Lint where T: ?core::marker::Sized
-pub fn nika_schema::lints::Lint::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::lints::Lint where T: core::clone::Clone
-pub unsafe fn nika_schema::lints::Lint::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::lints::Lint
-pub fn nika_schema::lints::Lint::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::lints::Lint where T: core::clone::Clone
-pub fn nika_schema::lints::Lint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::lints::Lint where T: 'static
-pub fn nika_schema::lints::Lint::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub fn nika_schema::lints::arg_injection(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::lints::Lint>
-pub fn nika_schema::lints::native_first(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::lints::Lint>
-pub fn nika_schema::lints::one_obvious_way(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::lints::Lint>
 pub mod nika_schema::parser
 #[non_exhaustive] pub enum nika_schema::parser::ParseMode
 pub nika_schema::parser::ParseMode::Lenient
@@ -5996,6 +5962,16 @@ pub nika_schema::SchemaError::UnresolvedNamespaceRef::suggestion: core::option::
 pub nika_schema::SchemaError::Validation
 pub nika_schema::SchemaError::Validation::message: alloc::string::String
 pub nika_schema::SchemaError::Validation::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1TaskIdField
+pub nika_schema::SchemaError::W1TaskIdField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1TaskIdField::task: alloc::string::String
+pub nika_schema::SchemaError::W1TasksSequence
+pub nika_schema::SchemaError::W1TasksSequence::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1TopLevelDescription
+pub nika_schema::SchemaError::W1TopLevelDescription::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1WorkflowScalar
+pub nika_schema::SchemaError::W1WorkflowScalar::id: alloc::string::String
+pub nika_schema::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_schema::Span>
 pub nika_schema::SchemaError::WhenNotBoolean
 pub nika_schema::SchemaError::WhenNotBoolean::field: alloc::string::String
 pub nika_schema::SchemaError::WhenNotBoolean::reason: alloc::string::String

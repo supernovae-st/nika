@@ -7,8 +7,9 @@
 #   nika:fetch    nika:fetch
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: api-upload-and-create-template  # SLOT: kebab-case workflow id
-description: "upload → create → result"   # SLOT: one honest sentence
+workflow:
+  id: api-upload-and-create-template  # SLOT: kebab-case workflow id
+  description: "upload → create → result"   # SLOT: one honest sentence
 
 model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 
@@ -25,7 +26,7 @@ secrets:
       - to: "outputs"               # the return value derives from the authed response
 
 tasks:
-  - id: upload
+  upload:
     invoke:
       tool: "nika:fetch"
       args:
@@ -39,7 +40,7 @@ tasks:
         mode: jq
         jq: ".url"                  # SLOT: where the response carries the asset URL
 
-  - id: create
+  create:
     depends_on: [upload]
     invoke:
       tool: "nika:fetch"

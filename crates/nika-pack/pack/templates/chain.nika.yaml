@@ -7,8 +7,9 @@
 #   nika:read     infer       nika:write
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: chain-template            # SLOT: kebab-case workflow id
-description: "gather → think → persist"   # SLOT: one honest sentence
+workflow:
+  id: chain-template            # SLOT: kebab-case workflow id
+  description: "gather → think → persist"   # SLOT: one honest sentence
 
 model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
@@ -17,19 +18,19 @@ vars:
                                     # skeleton runs green BEFORE you point it at real data
 
 tasks:
-  - id: gather
+  gather:
     invoke:                         # SLOT: the fact source · nika:read / nika:fetch / exec
       tool: "nika:read"
       args: { path: "${{ vars.source }}" }
 
-  - id: think
+  think:
     depends_on: [gather]
     infer:
       prompt: |
         # SLOT: the one model job · interpolate ${{ tasks.gather.output }}
         Summarize · ${{ tasks.gather.output }}
 
-  - id: persist
+  persist:
     depends_on: [think]
     invoke:
       tool: "nika:write"

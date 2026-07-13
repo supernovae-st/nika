@@ -17,12 +17,22 @@
       "description": "Language contract version · exactly `v1` for the v1 lifetime. NOT `v1.0` · `1` · `1.0`."
     },
     "workflow": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*$",
-      "description": "Workflow id · kebab-case · unique within file · the document-type discriminator."
-    },
-    "description": {
-      "type": "string"
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Workflow id · kebab-case · the document-type discriminator (W1: the envelope became an object)."
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "description": "The workflow object · a stable home for identity and metadata (W1 'the map')."
     },
     "model": {
       "type": "string",
@@ -260,11 +270,15 @@
       }
     },
     "tasks": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
         "$ref": "#/$defs/task"
-      }
+      },
+      "description": "The task map · the KEY is the task's identity (snake_case · CEL-safe). Source order is presentation only — the graph alone schedules."
     },
     "outputs": {
       "type": "object",
@@ -307,9 +321,6 @@
   "$defs": {
     "task": {
       "type": "object",
-      "required": [
-        "id"
-      ],
       "additionalProperties": false,
       "description": "A DAG node. MUST bind exactly one of the 4 verbs (infer · exec · invoke · agent).",
       "allOf": [
@@ -339,11 +350,6 @@
         }
       ],
       "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Task id · snake_case (CEL-safe · no hyphens) · unique within workflow."
-        },
         "depends_on": {
           "type": "array",
           "items": {

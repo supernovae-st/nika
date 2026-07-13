@@ -3,8 +3,9 @@
 # showcase workflow examples/showcase/t1-meeting-actions.nika.yaml with a
 # defaulted transcript path so the demo runs with zero flags.
 nika: v1
-workflow: meeting-actions
-description: "Transcript → typed action items {owner, task, due}"
+workflow:
+  id: meeting-actions
+  description: "Transcript → typed action items {owner, task, due}"
 
 model: mock/echo            # offline demo path · swap for any provider
 
@@ -12,12 +13,12 @@ vars:
   transcript_path: "scripts/media/fixtures/sample-transcript.txt"
 
 tasks:
-  - id: transcript
+  transcript:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.transcript_path }}" }
 
-  - id: extract
+  extract:
     depends_on: [transcript]
     infer:
       prompt: |
@@ -40,7 +41,7 @@ tasks:
                 task: { type: string }
                 due: { type: string }
 
-  - id: save
+  save:
     depends_on: [extract]
     invoke:
       tool: "nika:write"

@@ -7,8 +7,9 @@
 #   infer      nika:image_generate  nika:jq       nika:write
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: media-asset-pack-template # SLOT: kebab-case workflow id
-description: "brief → render → manifest"  # SLOT: one honest sentence
+workflow:
+  id: media-asset-pack-template # SLOT: kebab-case workflow id
+  description: "brief → render → manifest"  # SLOT: one honest sentence
 
 model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 
@@ -17,7 +18,7 @@ vars:
   out_dir: "./out/assets"           # SLOT: where assets land
 
 tasks:
-  - id: brief
+  brief:
     infer:
       max_tokens: 600
       prompt: |
@@ -31,7 +32,7 @@ tasks:
           image_prompt: { type: string }
         required: [image_prompt]
 
-  - id: render
+  render:
     depends_on: [brief]
     invoke:
       tool: "nika:image_generate"
@@ -41,7 +42,7 @@ tasks:
         output_dir: "${{ vars.out_dir }}"
         filename_prefix: "asset"    # SLOT: filename stem
 
-  - id: manifest
+  manifest:
     depends_on: [brief, render]
     invoke:
       tool: "nika:jq"
@@ -51,7 +52,7 @@ tasks:
           - "${{ tasks.brief.output }}"
           - "${{ tasks.render.output }}"
 
-  - id: persist
+  persist:
     depends_on: [manifest]
     invoke:
       tool: "nika:write"

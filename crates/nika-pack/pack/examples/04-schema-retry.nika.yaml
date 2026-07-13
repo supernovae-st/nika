@@ -13,7 +13,8 @@
 # Run · nika run examples/04-schema-retry.nika.yaml --var text="Ada Lovelace met Charles Babbage in London"
 
 nika: v1
-workflow: schema-retry
+workflow:
+  id: schema-retry
 
 model: mock/echo
 vars:
@@ -23,7 +24,7 @@ vars:
     description: "Free text to extract named entities from"
 
 tasks:
-  - id: extract
+  extract:
     infer:
       prompt: "Extract named entities from · ${{ vars.text }}"
       schema:                          # structured output · the contract the model must satisfy
@@ -43,7 +44,7 @@ tasks:
       backoff_strategy: exponential    # 1s · 2s · 4s …
       jitter: true                     # anti-thundering-herd (default)
 
-  - id: report
+  report:
     depends_on: [extract]
     infer:
       # .output is an object here (schema was set) → index into it directly

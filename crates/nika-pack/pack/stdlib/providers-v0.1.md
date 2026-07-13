@@ -38,7 +38,7 @@ against any backend ·
 vars:
   model: { type: string, default: "ollama/qwen3.5:9b" }
 tasks:
-  - id: x
+  x:
     infer: { model: "${{ vars.model }}", prompt: "..." }
 # nika run flow.yaml --var model=mistral/mistral-large   ← same workflow, cloud
 ```

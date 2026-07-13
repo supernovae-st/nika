@@ -29,41 +29,45 @@ fn fixture(name: &str, yaml: &str) -> std::path::PathBuf {
 
 const OK_EXEC: &str = r#"
 nika: v1
-workflow: run-ok
+workflow:
+  id: run-ok
 tasks:
-  - id: greet
+  greet:
     exec: { command: ["echo", "hello"] }
-  - id: after
+  after:
     depends_on: [greet]
     exec: { command: ["echo", "done"] }
 "#;
 
 const FAILING: &str = r#"
 nika: v1
-workflow: run-fail
+workflow:
+  id: run-fail
 tasks:
-  - id: boom
+  boom:
     exec: { command: ["false"] }
 "#;
 
 const CYCLE: &str = r#"
 nika: v1
-workflow: run-cycle
+workflow:
+  id: run-cycle
 tasks:
-  - id: a
+  a:
     depends_on: [b]
     exec: { command: ["true"] }
-  - id: b
+  b:
     depends_on: [a]
     exec: { command: ["true"] }
 "#;
 
 const INFER: &str = r#"
 nika: v1
-workflow: run-infer
+workflow:
+  id: run-infer
 model: mock/echo
 tasks:
-  - id: think
+  think:
     infer: { prompt: "hello" }
 "#;
 

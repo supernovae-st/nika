@@ -13,7 +13,8 @@
 # Run · nika run examples/07-for-each-locales.nika.yaml
 
 nika: v1
-workflow: for-each-locales
+workflow:
+  id: for-each-locales
 
 model: mock/echo
 vars:
@@ -21,7 +22,7 @@ vars:
   locales: ["fr", "es", "de", "ja", "pt"]
 
 tasks:
-  - id: translate
+  translate:
     for_each: ${{ vars.locales }}     # one iteration per locale
     max_parallel: 3                    # at most 3 concurrent translations
     fail_fast: false                   # keep going · a failed locale yields null at its index
@@ -33,7 +34,7 @@ tasks:
     infer:
       prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ vars.source }}"
 
-  - id: collect
+  collect:
     depends_on: [translate]
     infer:
       # tasks.translate.output is an array of the 5 translations

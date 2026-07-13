@@ -345,7 +345,7 @@ mod tests {
 
     fn infer_with_schema(schema_yaml: &str) -> String {
         format!(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n{schema_yaml}"
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n{schema_yaml}"
         )
     }
 
@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn unschema_d_tasks_are_skipped() {
         let f = findings_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
         assert!(f.is_empty());
     }

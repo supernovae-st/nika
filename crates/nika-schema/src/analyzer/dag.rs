@@ -246,7 +246,7 @@ mod tests {
         analyze(&wf)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow: t\n";
+    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
 
     #[test]
     fn recover_deadlock_transitive_and_nested_refs() {
@@ -255,16 +255,16 @@ mod tests {
         // recover JSON value.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: fetch
+  fetch:
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
     on_error:
       recover:
         stale: true
         body: \"${{{{ tasks.report.output }}}}\"
-  - id: mid
+  mid:
     depends_on: [fetch]
     exec: {{ command: [echo] }}
-  - id: report
+  report:
     depends_on: [mid]
     exec: {{ command: [echo] }}
 "
@@ -291,15 +291,15 @@ mod tests {
         // collected and the deadlock goes unreported.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: fetch
+  fetch:
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
     on_error:
       recover:
         - \"${{{{ tasks.report.output }}}}\"
-  - id: mid
+  mid:
     depends_on: [fetch]
     exec: {{ command: [echo] }}
-  - id: report
+  report:
     depends_on: [mid]
     exec: {{ command: [echo] }}
 "
@@ -327,12 +327,12 @@ mod tests {
         // CLEAN separates the two.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: base
+  base:
     exec: {{ command: [echo] }}
-  - id: other
+  other:
     depends_on: [base]
     exec: {{ command: [echo] }}
-  - id: fetch
+  fetch:
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
     on_error:
       recover: ${{{{ tasks.other.output }}}}
@@ -348,9 +348,9 @@ mod tests {
         // and passes acyclicity (the example-22 fetch-chain shape).
         let yaml = format!(
             "{HEADER}tasks:
-  - id: cached
+  cached:
     invoke: {{ tool: \"nika:read\", args: {{ path: \"./cache.json\" }} }}
-  - id: fetch
+  fetch:
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
     on_error:
       recover: ${{{{ tasks.cached.output }}}}
@@ -364,10 +364,10 @@ mod tests {
         // Conformance fixture dag-topology/001-cycle.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: a
+  a:
     depends_on: [b]
     exec: {{ command: [echo] }}
-  - id: b
+  b:
     depends_on: [a]
     exec: {{ command: [echo] }}
 "
@@ -394,10 +394,10 @@ mod tests {
         // the two.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: a
+  a:
     depends_on: [b]
     exec: {{ command: [echo] }}
-  - id: b
+  b:
     depends_on: [a]
     exec: {{ command: [echo] }}
 "
@@ -423,7 +423,7 @@ mod tests {
         // 1-cycle (a depends_on [a]) is a cycle ».
         let yaml = format!(
             "{HEADER}tasks:
-  - id: a
+  a:
     depends_on: [a]
     exec: {{ command: [echo] }}
 "
@@ -442,7 +442,7 @@ mod tests {
         // Conformance fixture dag-topology/002-unresolved-depends-on.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: a
+  a:
     depends_on: [ghost]
     exec: {{ command: [echo] }}
 "
@@ -461,15 +461,15 @@ mod tests {
         // Conformance fixture dag-topology/008-valid-diamond · a→b,c→d.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: a
+  a:
     exec: {{ command: [echo] }}
-  - id: b
+  b:
     depends_on: [a]
     exec: {{ command: [echo] }}
-  - id: c
+  c:
     depends_on: [a]
     exec: {{ command: [echo] }}
-  - id: d
+  d:
     depends_on: [b, c]
     exec: {{ command: [echo] }}
 "
@@ -485,9 +485,9 @@ mod tests {
     fn independent_tasks_share_wave_zero() {
         let yaml = format!(
             "{HEADER}tasks:
-  - id: x
+  x:
     exec: {{ command: [echo] }}
-  - id: y
+  y:
     exec: {{ command: [echo] }}
 "
         );

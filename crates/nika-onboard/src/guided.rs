@@ -420,15 +420,17 @@ pub(crate) fn workflow_id(dest: &str) -> String {
 /// Stamp the answers the wizard KNOWS into the template — id ·
 /// description · model (the last only when the wizard asked, i.e. the
 /// skeleton carries a top-level `model:` at column 0 — the stamp's
-/// anchor). Never stamp what wasn't answered.
+/// anchor). Never stamp what wasn't answered. W1 « the map »: the id and
+/// description live INSIDE the workflow object (`  id:` · `  description:`
+/// at indent 2, under the `workflow:` head).
 pub(crate) fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String {
     let mut out: String = body
         .lines()
         .map(|line| {
-            if line.starts_with("workflow: ") {
-                format!("workflow: {id}")
-            } else if line.starts_with("description: ") && !description.is_empty() {
-                format!("description: {}", yaml_scalar(description))
+            if line.starts_with("  id: ") {
+                format!("  id: {id}")
+            } else if line.starts_with("  description: ") && !description.is_empty() {
+                format!("  description: {}", yaml_scalar(description))
             } else if let (true, Some(model)) = (line.starts_with("model: "), model) {
                 format!("model: {}", yaml_scalar(model))
             } else {
@@ -1116,10 +1118,7 @@ mod tests {
         for name in nika_pack::template_names() {
             let body = nika_pack::template(&name).expect("embedded");
             let stamped = stamp(body, "field-demo", "their problem", Some("mock/echo"));
-            assert!(
-                stamped.contains("workflow: field-demo"),
-                "{name}: id stamped"
-            );
+            assert!(stamped.contains("  id: field-demo"), "{name}: id stamped");
             assert!(
                 !stamped.contains("-template "),
                 "{name}: no template id remnant"
@@ -1307,7 +1306,7 @@ mod tests {
         assert!(
             std::fs::read_to_string(base.join("my-first.nika.yaml"))
                 .expect("read")
-                .contains("workflow: my-first"),
+                .contains("  id: my-first"),
             "--force overwrote with the stamped template"
         );
         std::fs::remove_dir_all(&base).ok();
@@ -1335,7 +1334,7 @@ mod tests {
         // arrives already checked, not with a suggestion to check.
         assert!(v.text.contains("audited"), "the ladder ran: {}", v.text);
         let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
-        assert!(written.contains("workflow: first"));
+        assert!(written.contains("  id: first"));
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -58,8 +58,9 @@ use nika_verb_invoke::InvokeVerb;
 /// statically-closed gate. 4 waves · 6 tasks.
 const WORKFLOW_OK: &str = r#"
 nika: v1
-workflow: e2e-veille
-description: "gather facts in parallel, extract typed data, think once, persist, gated notify"
+workflow:
+  id: e2e-veille
+  description: "gather facts in parallel, extract typed data, think once, persist, gated notify"
 
 model: mock/echo
 
@@ -68,16 +69,16 @@ vars:
   publish: "no"
 
 tasks:
-  - id: gather
+  gather:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.source }}" }
 
-  - id: probe
+  probe:
     exec:
       command: ["wc", "-l", "./news.json"]
 
-  - id: extract
+  extract:
     depends_on: [gather]
     infer:
       prompt: "Extract the story fields · ${{ tasks.gather.output }}"
@@ -88,13 +89,13 @@ tasks:
           score: { type: integer }
         required: [headline, score]
 
-  - id: think
+  think:
     depends_on: [gather, probe]
     infer:
       prompt: "Summarize · ${{ tasks.gather.output }} · lines ${{ tasks.probe.output }}"
       max_tokens: 800
 
-  - id: write_out
+  write_out:
     depends_on: [think, extract]
     invoke:
       tool: "nika:write"
@@ -102,7 +103,7 @@ tasks:
         path: "./out/report.md"
         content: "${{ tasks.think.output }}"
 
-  - id: notify
+  notify:
     depends_on: [write_out]
     when: ${{ vars.publish == 'yes' }}
     exec:

@@ -83,14 +83,15 @@ schema generation for callable workflows · see [01-envelope.md](./01-envelope.m
 
 ```yaml
 nika: v1
-workflow: research-pipeline
+workflow:
+  id: research-pipeline
 
 vars:
   topic: "Rust async runtimes 2026"    # untyped · value is the default
   output_dir: "./output"
 
 tasks:
-  - id: research
+  research:
     infer:
       prompt: "Research · ${{ vars.topic }}"
 ```
@@ -113,13 +114,13 @@ Declared per-task · resolves at task dispatch time · often references upstream
 > skip it when a direct `${{ tasks.X.output }}` is clearer.
 
 ```yaml
-- id: summarize
-  depends_on: [research]
-  with:
-    content: ${{ tasks.research.output }}
-    style: "concise"
-  infer:
-    prompt: "Summarize in ${{ with.style }} style · ${{ with.content }}"
+summarize:
+    depends_on: [research]
+    with:
+      content: ${{ tasks.research.output }}
+      style: "concise"
+    infer:
+      prompt: "Summarize in ${{ with.style }} style · ${{ with.content }}"
 ```
 
 ### `${{ tasks.X.output }}` · task output reference
@@ -127,11 +128,11 @@ Declared per-task · resolves at task dispatch time · often references upstream
 Reference any upstream task's output (or status · error · duration_ms) ·
 
 ```yaml
-- id: deploy
-  depends_on: [build, test]
-  when: ${{ tasks.test.status == 'success' && tasks.test.output.coverage > 80 }}
-  exec:
-    command: ["./deploy.sh", "${{ tasks.build.output.artifact_path }}"]
+deploy:
+    depends_on: [build, test]
+    when: ${{ tasks.test.status == 'success' && tasks.test.output.coverage > 80 }}
+    exec:
+      command: ["./deploy.sh", "${{ tasks.build.output.artifact_path }}"]
 ```
 
 `tasks.X` is the task **result record**: a CEL object, NOT the bare output
@@ -165,13 +166,13 @@ a JSON value (jq's `select(. != null)` filters it). This makes the
 takes whichever ran ·
 
 ```yaml
-- id: pick
-  depends_on: [build_prod, build_dev]      # exactly one ran · the other is skipped (null)
-  invoke:
-    tool: nika:jq
-    args:
-      input: [ "${{ tasks.build_prod.output }}", "${{ tasks.build_dev.output }}" ]
-      expression: "[ .[] | select(. != null) ] | first"
+pick:
+    depends_on: [build_prod, build_dev]      # exactly one ran · the other is skipped (null)
+    invoke:
+      tool: nika:jq
+      args:
+        input: [ "${{ tasks.build_prod.output }}", "${{ tasks.build_dev.output }}" ]
+        expression: "[ .[] | select(. != null) ] | first"
 ```
 
 **One obvious way · no bare alias.** `${{ tasks.X }}` is the whole result
@@ -278,26 +279,26 @@ masked references in `secrets`.
 Use `output:` to define **named bindings** extracted from a task's raw response via a **jq expression** (the one data language). These bindings appear in the task's typed output and are referenced as `${{ tasks.X.<name> }}` ·
 
 ```yaml
-- id: api_call
-  invoke:
-    tool: "nika:fetch"
-    args:
-      url: "https://api.example.com/v1/users"   # returns JSON · output: jq extracts
-  output:
-    user_count: ".data.users | length"
-    first_user: ".data.users[0]"
-    user_emails: "[.data.users[].email]"   # [...] collects the stream into an array
+api_call:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.example.com/v1/users"   # returns JSON · output: jq extracts
+    output:
+      user_count: ".data.users | length"
+      first_user: ".data.users[0]"
+      user_emails: "[.data.users[].email]"   # [...] collects the stream into an array
 ```
 
 Downstream ·
 
 ```yaml
-- id: notify
-  depends_on: [api_call]
-  infer:
-    prompt: |
-      We have ${{ tasks.api_call.user_count }} users.
-      Emails · ${{ tasks.api_call.user_emails }}
+notify:
+    depends_on: [api_call]
+    infer:
+      prompt: |
+        We have ${{ tasks.api_call.user_count }} users.
+        Emails · ${{ tasks.api_call.user_emails }}
 ```
 
 #### Raw output vs named bindings · dual-accessible
@@ -306,13 +307,13 @@ When a task has an `output:` block defining named bindings · downstream
 access is **dual-accessible** ·
 
 ```yaml
-- id: api_call
-  invoke:
-    tool: nika:fetch
-    args: { url: "..." }
-  output:
-    body: .body
-    http_status: .status     # NOT `status:` — that name is reserved (the task's own .status)
+api_call:
+    invoke:
+      tool: nika:fetch
+      args: { url: "..." }
+    output:
+      body: .body
+      http_status: .status     # NOT `status:` — that name is reserved (the task's own .status)
 ```
 
 Downstream ·

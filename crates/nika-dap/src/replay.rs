@@ -314,7 +314,7 @@ mod tests {
 
     use super::*;
 
-    const YAML: &str = "nika: v1\nworkflow: demo\ntasks:\n  - id: alpha\n    exec:\n      command: [\"true\"]\n  - id: beta\n    depends_on: [alpha]\n    exec:\n      command: [\"true\"]\n  - id: gamma\n    depends_on: [beta]\n    exec:\n      command: [\"true\"]\n";
+    const YAML: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  alpha:\n    exec:\n      command: [\"true\"]\n  beta:\n    depends_on: [alpha]\n    exec:\n      command: [\"true\"]\n  gamma:\n    depends_on: [beta]\n    exec:\n      command: [\"true\"]\n";
 
     fn ev(seed: u8, kind: EventKind, fields: &[(&str, &str)]) -> Event {
         let mut e = Event::new(

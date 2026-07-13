@@ -84,10 +84,10 @@ fn dag_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
 fn yaml_of(specs: &[TaskSpec]) -> String {
     use std::fmt::Write as _;
     let mut y = String::from(
-        "nika: v1\nworkflow: prop\nmodel: mock/echo\nvars:\n  publish: \"no\"\n  scalar: \"not a list\"\ntasks:\n",
+        "nika: v1\nworkflow:\n  id: prop\nmodel: mock/echo\nvars:\n  publish: \"no\"\n  scalar: \"not a list\"\ntasks:\n",
     );
     for (i, spec) in specs.iter().enumerate() {
-        let _ = writeln!(y, "  - id: t{i}");
+        let _ = writeln!(y, "  t{i}:");
         if !spec.deps.is_empty() {
             let deps: Vec<String> = spec.deps.iter().map(|d| format!("t{d}")).collect();
             let _ = writeln!(y, "    depends_on: [{}]", deps.join(", "));

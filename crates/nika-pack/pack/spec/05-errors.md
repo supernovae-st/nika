@@ -92,6 +92,10 @@ these from this file alone.
 | `NIKA-PARSE-017` | duplicate mapping key — no silent last-wins | `validation_error` | false |
 | `NIKA-PARSE-018` | missing required field in a verb body (`infer.prompt` · `exec.command` · `invoke.tool`) | `validation_error` | false |
 | `NIKA-PARSE-019` | generic structural validation — wrong YAML shape for a field | `validation_error` | false |
+| `NIKA-PARSE-020` | validation_error | no | `workflow:` is a scalar — the envelope became an object (`workflow:` then `id:`) |
+| `NIKA-PARSE-021` | validation_error | no | top-level `description:` — it moved into `workflow.description` |
+| `NIKA-PARSE-022` | validation_error | no | `tasks:` is a sequence — it became a map keyed by task id |
+| `NIKA-PARSE-023` | validation_error | no | a task carries an `id:` field — the map key IS the identity |
 | `NIKA-DAG-001` | cycle in `depends_on` (incl. self-dependency) | `validation_error` | false |
 | `NIKA-DAG-002` | `depends_on` references an undeclared task | `validation_error` | false |
 | `NIKA-DAG-003` | a `${{ tasks.X }}` reference with no declared edge | `validation_error` | false |
@@ -184,20 +188,20 @@ A task MAY declare a `retry:` block. Retries apply to **transient** errors only 
 ### Syntax
 
 ```yaml
-- id: flaky_api
-  invoke:
-    tool: "nika:fetch"
-    args:
-      url: "https://flaky.example.com/data"
-  retry:
-    max_attempts: 5              # default 1 (no retry)
-    backoff_ms: 1000             # initial backoff
-    backoff_strategy: exponential  # fixed | linear | exponential
-    backoff_max_ms: 30000        # cap on backoff (default 60000)
-    jitter: true                 # randomize backoff (default true · anti-thundering-herd)
-    on_codes:                    # optional · whitelist of codes to retry
-      - NIKA-BUILTIN-FETCH-001
-      - NIKA-PROVIDER-001
+flaky_api:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://flaky.example.com/data"
+    retry:
+      max_attempts: 5              # default 1 (no retry)
+      backoff_ms: 1000             # initial backoff
+      backoff_strategy: exponential  # fixed | linear | exponential
+      backoff_max_ms: 30000        # cap on backoff (default 60000)
+      jitter: true                 # randomize backoff (default true · anti-thundering-herd)
+      on_codes:                    # optional · whitelist of codes to retry
+        - NIKA-BUILTIN-FETCH-001
+        - NIKA-PROVIDER-001
 ```
 
 ### Fields
@@ -241,18 +245,18 @@ A task MAY declare an `on_error:` block to recover from non-transient errors (or
 ### Syntax
 
 ```yaml
-- id: api_call
-  invoke:
-    tool: "nika:fetch"
-    args:
-      url: "https://api.example.com/data"
-  retry: { max_attempts: 3 }
-  on_error:
-    recover: ${{ tasks.cached_data.output }}    # recovery output · a ${{ }} ref OR a literal
-    # OR
-    # skip: true                          # skip · downstream sees status = skipped
-    # OR
-    # fail_workflow: true                 # explicit · same as no on_error
+api_call:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.example.com/data"
+    retry: { max_attempts: 3 }
+    on_error:
+      recover: ${{ tasks.cached_data.output }}    # recovery output · a ${{ }} ref OR a literal
+      # OR
+      # skip: true                          # skip · downstream sees status = skipped
+      # OR
+      # fail_workflow: true                 # explicit · same as no on_error
 ```
 
 ### Fields · exactly ONE action + an optional code filter
@@ -269,12 +273,12 @@ A task MAY declare an `on_error:` block to recover from non-transient errors (or
 
 ```yaml
 # Catch-side routing · recover ONLY on timeout · any other code still fails
-- id: slow_fetch
-  invoke: { tool: "nika:fetch", args: { url: "https://slow.example.com" } }
-  timeout: "30s"
-  on_error:
-    on_codes: [NIKA-TIMEOUT-001]
-    recover: { stale: true, items: [] }
+slow_fetch:
+    invoke: { tool: "nika:fetch", args: { url: "https://slow.example.com" } }
+    timeout: "30s"
+    on_error:
+      on_codes: [NIKA-TIMEOUT-001]
+      recover: { stale: true, items: [] }
 ```
 
 ### `recover:` reference resolution (normative)
@@ -317,28 +321,28 @@ fetch-chain pattern · a local `nika:read` beside a live fetch).
 
 ```yaml
 # Use cached data on API failure
-- id: api_call
-  invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/data" } }
-  on_error:
-    recover: ${{ tasks.cached_data.output }}   # a ${{ }} ref
+api_call:
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/data" } }
+    on_error:
+      recover: ${{ tasks.cached_data.output }}   # a ${{ }} ref
 
 # Use a default on error
-- id: get_count
-  invoke:
-    tool: "mcp:db/count_users"
-  on_error:
-    recover: 0                                 # a literal
+get_count:
+    invoke:
+      tool: "mcp:db/count_users"
+    on_error:
+      recover: 0                                 # a literal
 
 # Skip on error · downstream may handle
-- id: optional_step
-  exec: { command: ["./optional.sh"] }
-  on_error:
-    skip: true
+optional_step:
+    exec: { command: ["./optional.sh"] }
+    on_error:
+      skip: true
 
-- id: next
-  depends_on: [optional_step]
-  when: ${{ tasks.optional_step.status == 'success' }}   # only run if not skipped
-  exec: { command: ["..."] }
+next:
+    depends_on: [optional_step]
+    when: ${{ tasks.optional_step.status == 'success' }}   # only run if not skipped
+    exec: { command: ["..."] }
 ```
 
 ---
@@ -353,23 +357,23 @@ engine-configurable: the SAME rule as [02 §infer conformance](./02-verbs.md#con
 (MAY · engine choice · the two sections state one contract).
 
 ```yaml
-- id: extract
-  infer:
-    prompt: "Extract entities from · ${{ vars.text }}"
-    schema:
-      type: object
-      required: [entities]
-      properties:
-        entities:
-          type: array
-          items:
-            type: object
-            properties:
-              name: { type: string }
-              type: { type: string, enum: [person, place, organization] }
-  retry:
-    max_attempts: 3            # retry on transient errors
-  # validation failures may be retried internally · engine choice
+extract:
+    infer:
+      prompt: "Extract entities from · ${{ vars.text }}"
+      schema:
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 3            # retry on transient errors
+    # validation failures may be retried internally · engine choice
 ```
 
 ---

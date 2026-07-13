@@ -32,8 +32,9 @@ use nika_verb_invoke::InvokeVerb;
 /// wave-dispatched verbs + a statically-closed gate.
 const WORKFLOW_OK: &str = r#"
 nika: v1
-workflow: e2e-veille
-description: "gather facts in parallel, extract typed data, think once, persist, gated notify"
+workflow:
+  id: e2e-veille
+  description: "gather facts in parallel, extract typed data, think once, persist, gated notify"
 
 model: mock/echo
 
@@ -42,16 +43,16 @@ vars:
   publish: "no"
 
 tasks:
-  - id: gather
+  gather:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.source }}" }
 
-  - id: probe
+  probe:
     exec:
       command: ["wc", "-l", "./news.json"]
 
-  - id: extract
+  extract:
     depends_on: [gather]
     infer:
       prompt: "Extract the story fields · ${{ tasks.gather.output }}"
@@ -62,13 +63,13 @@ tasks:
           score: { type: integer }
         required: [headline, score]
 
-  - id: think
+  think:
     depends_on: [gather, probe]
     infer:
       prompt: "Summarize · ${{ tasks.gather.output }} · lines ${{ tasks.probe.output }}"
       max_tokens: 800
 
-  - id: write_out
+  write_out:
     depends_on: [think, extract]
     invoke:
       tool: "nika:write"
@@ -76,7 +77,7 @@ tasks:
         path: "./out/report.md"
         content: "${{ tasks.think.output }}"
 
-  - id: notify
+  notify:
     depends_on: [write_out]
     when: ${{ vars.publish == 'yes' }}
     exec:
@@ -350,12 +351,13 @@ async fn floor_dirty_report_never_executes() {
     // A cycle: a → b → a. The checker refuses · the runtime must too.
     let dirty = r"
 nika: v1
-workflow: cycle
+workflow:
+  id: cycle
 tasks:
-  - id: a
+  a:
     depends_on: [b]
     exec: { command: ['true'] }
-  - id: b
+  b:
     depends_on: [a]
     exec: { command: ['true'] }
 ";
@@ -383,10 +385,11 @@ tasks:
 async fn floor_agent_task_dispatches_through_the_runtime() {
     let yaml = r#"
 nika: v1
-workflow: agent-lane
+workflow:
+  id: agent-lane
 model: mock/echo
 tasks:
-  - id: ask
+  ask:
     agent:
       prompt: "finish in one turn"
 "#;
@@ -430,12 +433,13 @@ tasks:
 async fn floor_when_literal_true_runs_and_false_skips() {
     let yaml = r"
 nika: v1
-workflow: gates
+workflow:
+  id: gates
 tasks:
-  - id: always
+  always:
     when: true
     exec: { command: ['echo', 'a'] }
-  - id: never
+  never:
     when: false
     exec: { command: ['echo', 'b'] }
 ";
@@ -478,13 +482,14 @@ tasks:
 async fn floor_typed_var_default_and_typed_output_resolve() {
     let yaml = r"
 nika: v1
-workflow: typed-forms
+workflow:
+  id: typed-forms
 vars:
   greeting:
     type: string
     default: 'bonjour'
 tasks:
-  - id: say
+  say:
     exec: { shell: 'echo ${{ vars.greeting }}' }
 outputs:
   said:
@@ -523,10 +528,11 @@ outputs:
 async fn floor_deep_path_system_template_resolves() {
     let yaml = r#"
 nika: v1
-workflow: deep-ref
+workflow:
+  id: deep-ref
 model: mock/echo
 tasks:
-  - id: extract
+  extract:
     infer:
       prompt: 'extract from {"headline":"Rust 2.0"}'
       schema:
@@ -534,7 +540,7 @@ tasks:
         properties:
           headline: { type: string }
         required: [headline]
-  - id: think
+  think:
     depends_on: [extract]
     infer:
       prompt: "headline is ${{ tasks.extract.output.headline }}"
@@ -591,13 +597,14 @@ tasks:
 async fn floor_skipped_upstream_reads_null_downstream() {
     let yaml = r#"
 nika: v1
-workflow: gated-ref
+workflow:
+  id: gated-ref
 model: mock/echo
 tasks:
-  - id: maybe
+  maybe:
     when: false
     exec: { command: ['echo', 'never'] }
-  - id: think
+  think:
     depends_on: [maybe]
     infer:
       prompt: "value is ${{ tasks.maybe.output }} · status ${{ tasks.maybe.status }}"
@@ -639,12 +646,12 @@ tasks:
 async fn stress_deep_chain_threads_bindings_in_order() {
     const DEPTH: usize = 24;
     use std::fmt::Write as _;
-    let mut yaml = String::from("nika: v1\nworkflow: deep-chain\ntasks:\n");
-    yaml.push_str("  - id: t0\n    exec: { command: ['step', '0'] }\n");
+    let mut yaml = String::from("nika: v1\nworkflow:\n  id: deep-chain\ntasks:\n");
+    yaml.push_str("  t0:\n    exec: { command: ['step', '0'] }\n");
     for n in 1..DEPTH {
         let _ = writeln!(
             yaml,
-            "  - id: t{n}\n    depends_on: [t{prev}]\n    exec: {{ shell: 'step {n} after ${{{{ tasks.t{prev}.output }}}}' }}",
+            "  t{n}:\n    depends_on: [t{prev}]\n    exec: {{ shell: 'step {n} after ${{{{ tasks.t{prev}.output }}}}' }}",
             prev = n - 1
         );
     }
@@ -690,12 +697,9 @@ async fn stress_deep_chain_threads_bindings_in_order() {
 async fn stress_wide_fan_in_joins_every_source() {
     const WIDTH: usize = 12;
     use std::fmt::Write as _;
-    let mut yaml = String::from("nika: v1\nworkflow: wide-fan\ntasks:\n");
+    let mut yaml = String::from("nika: v1\nworkflow:\n  id: wide-fan\ntasks:\n");
     for n in 0..WIDTH {
-        let _ = writeln!(
-            yaml,
-            "  - id: src{n}\n    exec: {{ command: ['src', '{n}'] }}"
-        );
+        let _ = writeln!(yaml, "  src{n}:\n    exec: {{ command: ['src', '{n}'] }}");
     }
     let deps: Vec<String> = (0..WIDTH).map(|n| format!("src{n}")).collect();
     let parts: Vec<String> = (0..WIDTH)
@@ -703,7 +707,7 @@ async fn stress_wide_fan_in_joins_every_source() {
         .collect();
     let _ = writeln!(
         yaml,
-        "  - id: join\n    depends_on: [{}]\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./out/joined.md\", content: \"{}\" }}",
+        "  join:\n    depends_on: [{}]\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./out/joined.md\", content: \"{}\" }}",
         deps.join(", "),
         parts.join("+")
     );

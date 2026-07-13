@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn clean_report_has_zero_findings() {
         let r = report(
-            "nika: v1\nworkflow: ok\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: ok\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(r.is_clean());
         assert!(r.findings.is_empty(), "{:#?}", r.findings);
@@ -246,25 +246,25 @@ mod tests {
         let cases: Vec<(&str, &str, &str)> = vec![
             (
                 // conformance: unresolved reference
-                "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
+                "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
                 "conformance",
                 "CONFORM",
             ),
             (
                 // capability escape: exec outside a declared boundary
-                "nika: v1\nworkflow: w\npermits: { exec: false }\ntasks:\n  - id: a\n    exec: { command: [\"cargo\", \"x\"] }\n",
+                "nika: v1\nworkflow:\n  id: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
                 "capability_escape",
                 "PERMITS",
             ),
             (
                 // unknown tool (typo'd builtin)
-                "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
+                "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
                 "unknown_tool",
                 "TOOLS",
             ),
             (
                 // missing required arg
-                "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:write\", args: { path: \"./x\" } }\n",
+                "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:write\", args: { path: \"./x\" } }\n",
                 "missing_arg",
                 "ARGS",
             ),
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn codes_ride_only_where_canonical() {
         let r = report(
-            "nika: v1\nworkflow: w\npermits: { exec: false }\ntasks:\n  - id: a\n    exec: { command: [\"cargo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
         );
         let escape = r
             .findings
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn serialization_skips_absent_optionals() {
         let r = report(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
         );
         let json = serde_json::to_value(&r.findings).expect("serializes");
         let row = &json[0];

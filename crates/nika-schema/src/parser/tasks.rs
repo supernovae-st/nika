@@ -33,7 +33,6 @@ pub(super) const MAX_TASKS: usize = 10_000;
 
 /// The canonical task-level keys (verbs handled separately).
 const TASK_KEYS: &[&str] = &[
-    "id",
     "depends_on",
     "when",
     "for_each",
@@ -81,50 +80,83 @@ pub(super) fn parse_tasks(
     let Some(node) = workflow.get_node("tasks") else {
         return Ok(Vec::new());
     };
-    let Some(seq) = node.as_sequence() else {
+    // W1 « the map » — the dead sequence form gets its migration teaching.
+    if node.as_sequence().is_some() {
+        return Err(SchemaError::W1TasksSequence {
+            span: cx.span(node.span()),
+        });
+    }
+    let Some(map) = node.as_mapping() else {
         return Err(SchemaError::Validation {
-            message: "`tasks` must be a YAML sequence".to_owned(),
+            message: "`tasks` must be a YAML map keyed by task id".to_owned(),
             span: cx.span(node.span()),
         });
     };
 
     // Task-count bound (untrusted-input guard · see parser::mod security
     // note). Loud, not a silent truncate.
-    if seq.len() > MAX_TASKS {
+    if map.len() > MAX_TASKS {
         return Err(SchemaError::Validation {
             message: format!(
                 "workflow declares {} tasks (max {MAX_TASKS}) — compose \
                  sub-workflows instead (resource bound)",
-                seq.len()
+                map.len()
             ),
             span: cx.span(node.span()),
         });
     }
 
-    let mut tasks = Vec::with_capacity(seq.len());
-    for item in seq.iter() {
-        let Some(task_map) = item.as_mapping() else {
+    let mut tasks = Vec::with_capacity(map.len());
+    for (key, value) in map.iter() {
+        // the map KEY is the identity — its span anchors every surface
+        // (hover · outline · semanticDocument · goto-definition). marked-yaml
+        // gives keys a point span; widen it to the token (ids are ASCII by
+        // grammar, so byte length = token length).
+        let mut key_span = cx.span_or_zero(key.span());
+        if key_span.end.0 <= key_span.start.0 {
+            let len = u32::try_from(key.as_str().len()).unwrap_or(u32::MAX);
+            key_span.end = crate::source::ByteOffset::new(key_span.start.0.saturating_add(len));
+        }
+        let id = Spanned::new(key.as_str().to_owned(), key_span);
+        validate_task_id(&id)?;
+        let Some(task_map) = value.as_mapping() else {
             return Err(SchemaError::Validation {
-                message: "each entry in `tasks` must be a mapping".to_owned(),
-                span: cx.span(item.span()),
+                message: format!("task `{}` must be a mapping", id.value),
+                span: cx.span(value.span()),
             });
         };
-        let task = parse_task(cx, task_map)?;
-        let span = cx.span_or_zero(item.span());
+        let task = parse_task(cx, task_map, id)?;
+        // the task's span runs KEY → end of body (a breakpoint or range
+        // on the declaring key line belongs to the task)
+        let body_span = cx.span_or_zero(value.span());
+        let span = crate::source::Span {
+            file: key_span.file,
+            start: key_span.start,
+            end: if body_span.end.0 >= key_span.start.0 {
+                body_span.end
+            } else {
+                key_span.end
+            },
+        };
         tasks.push(Spanned::new(task, span));
     }
     Ok(tasks)
 }
 
-/// Parse one task mapping.
-fn parse_task(cx: &Cx<'_>, mapping: &MarkedMappingNode) -> Result<RawTask, SchemaError> {
-    let id = cx
-        .opt_scalar(mapping, "id")?
-        .ok_or_else(|| SchemaError::MissingField {
-            field: "id".to_owned(),
-            span: cx.span(mapping.span()),
-        })?;
-    validate_task_id(&id)?;
+/// Parse one task mapping (identity = the map key, passed in).
+fn parse_task(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    id: Spanned<String>,
+) -> Result<RawTask, SchemaError> {
+    // W1 « the map » — a lingering `id:` field gets its migration
+    // teaching before the generic unknown-field check.
+    if let Some(node) = mapping.get_node("id") {
+        return Err(SchemaError::W1TaskIdField {
+            task: id.value.clone(),
+            span: cx.span(node.span()),
+        });
+    }
     let task_label = id.value.clone();
 
     // Strict-mode unknown-field check · the known set is the closed
@@ -659,7 +691,7 @@ mod tests {
     fn parse_minimal_infer_task() {
         let yaml = "\
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: \"Say hello\"
 ";
@@ -672,15 +704,19 @@ tasks:
     }
 
     #[test]
-    fn task_without_id_errors() {
+    fn task_id_field_is_taught_the_key() {
+        // W1 · NIKA-PARSE-023: an `id:` field inside a task body is the dead
+        // form — the map key IS the identity.
         let yaml = "\
 tasks:
-  - exec:
+  a:
+    id: a
+    exec:
       command: [ls]
 ";
-        let err = parse_strict(yaml).expect_err("missing id");
+        let err = parse_strict(yaml).expect_err("id field");
         assert!(
-            matches!(&err, SchemaError::MissingField { field, .. } if field == "id"),
+            matches!(&err, SchemaError::W1TaskIdField { task, .. } if task == "a"),
             "{err:?}"
         );
     }
@@ -690,7 +726,7 @@ tasks:
         // Conformance fixture verbs-shape/004 · `my-task` is CEL-unsafe.
         let yaml = "\
 tasks:
-  - id: my-task
+  my-task:
     infer:
       prompt: \"hi\"
 ";
@@ -703,7 +739,7 @@ tasks:
         // Conformance fixture verbs-shape/002.
         let yaml = "\
 tasks:
-  - id: greet
+  greet:
     depends_on: []
 ";
         let err = parse_strict(yaml).expect_err("no verb");
@@ -718,7 +754,7 @@ tasks:
         // Conformance fixture verbs-shape/001.
         let yaml = "\
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: \"hi\"
     exec:
@@ -737,7 +773,7 @@ tasks:
         // invoke — a top-level `fetch:` key is an unknown field (strict).
         let yaml = "\
 tasks:
-  - id: poll
+  poll:
     fetch:
       url: https://api.example.com/v1/status
 ";
@@ -757,7 +793,7 @@ tasks:
         // here flips from expect_err to a positive parse.
         let yaml = "\
 tasks:
-  - id: capped
+  capped:
     budget: { usd: 0.50 }
     infer: { prompt: hello }
 ";
@@ -772,7 +808,7 @@ tasks:
     fn future_clause_approve_rejects_cleanly() {
         let yaml = "\
 tasks:
-  - id: gated
+  gated:
     approve: true
     exec: { shell: rm -rf ./dist }
 ";
@@ -791,7 +827,7 @@ tasks:
         // v0.2 seed ADRs are budget/approve/policy only.
         let yaml = "\
 tasks:
-  - id: flaky
+  flaky:
     retry: { max_attempts: 3, backoff_strategy: exponential, on_codes: [NIKA-INFER-001] }
     infer: { prompt: hello }
 ";
@@ -806,7 +842,7 @@ tasks:
 policy:
   human_gate_before: [exec]
 tasks:
-  - id: t
+  t:
     exec: { shell: echo hi }
 ";
         let err = parse_strict(yaml).expect_err("policy: is not shipped");
@@ -820,9 +856,9 @@ tasks:
     fn depends_on_when_for_each() {
         let yaml = "\
 tasks:
-  - id: a
+  a:
     exec: { shell: echo a }
-  - id: b
+  b:
     depends_on: [a]
     when: ${{ tasks.a.status == 'success' }}
     for_each: ${{ vars.items }}
@@ -846,7 +882,7 @@ tasks:
     fn max_parallel_and_fail_fast() {
         let yaml = "\
 tasks:
-  - id: scrape_all
+  scrape_all:
     for_each: ${{ vars.urls }}
     max_parallel: 5
     fail_fast: false
@@ -861,7 +897,7 @@ tasks:
     fn max_parallel_zero_errors() {
         let yaml = "\
 tasks:
-  - id: x
+  x:
     max_parallel: 0
     exec: { command: [echo] }
 ";
@@ -876,7 +912,7 @@ tasks:
     fn timeout_quoted_go_duration() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     timeout: \"1h30m\"
     exec: { command: [echo] }
 ";
@@ -893,7 +929,7 @@ tasks:
         // forbidden ».
         let yaml = "\
 tasks:
-  - id: t
+  t:
     timeout: 30
     exec: { command: [echo] }
 ";
@@ -909,7 +945,7 @@ tasks:
         // Conformance fixture errors/001-timeout-bad-format · "5w".
         let yaml = "\
 tasks:
-  - id: t
+  t:
     timeout: \"5w\"
     exec: { command: [echo] }
 ";
@@ -922,7 +958,7 @@ tasks:
         // Spec 05 §retry syntax example.
         let yaml = "\
 tasks:
-  - id: flaky_api
+  flaky_api:
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://flaky.example.com/data\" }
@@ -950,7 +986,7 @@ tasks:
     fn retry_defaults_applied() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     retry: { max_attempts: 3 }
     exec: { command: [echo] }
 ";
@@ -966,7 +1002,7 @@ tasks:
     fn retry_missing_max_attempts_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     retry: { backoff_ms: 500 }
     exec: { command: [echo] }
 ";
@@ -981,7 +1017,7 @@ tasks:
     fn retry_zero_max_attempts_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     retry: { max_attempts: 0 }
     exec: { command: [echo] }
 ";
@@ -994,7 +1030,7 @@ tasks:
         // Spec 05 · on_codes are canonical codes — not HTTP statuses.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     retry:
       max_attempts: 2
       on_codes: [\"503\"]
@@ -1012,7 +1048,7 @@ tasks:
         // Spec 05 · recover takes a ${{ }} ref OR a literal.
         let yaml = "\
 tasks:
-  - id: api_call
+  api_call:
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://api.example.com\" }
@@ -1032,7 +1068,7 @@ tasks:
     fn on_error_recover_literal() {
         let yaml = "\
 tasks:
-  - id: get_count
+  get_count:
     invoke: { tool: \"mcp:db/count_users\" }
     on_error:
       recover: 0
@@ -1048,10 +1084,10 @@ tasks:
     fn on_error_skip_and_fail_workflow() {
         let yaml = "\
 tasks:
-  - id: a
+  a:
     exec: { command: [echo] }
     on_error: { skip: true }
-  - id: b
+  b:
     exec: { command: [echo] }
     on_error: { fail_workflow: true }
 ";
@@ -1073,7 +1109,7 @@ tasks:
         // carries the closed action vocabulary AND a paste-able example.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     exec: { command: [echo] }
     on_error: recover
 ";
@@ -1092,7 +1128,7 @@ tasks:
         // Spec 05 · mutually exclusive · two-or-zero = parse error.
         let yaml = "\
 tasks:
-  - id: t
+  t:
     exec: { command: [echo] }
     on_error:
       skip: true
@@ -1107,7 +1143,7 @@ tasks:
         // Spec 05 · on_codes = catch-side filter beside exactly one action.
         let yaml = "\
 tasks:
-  - id: slow_fetch
+  slow_fetch:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://slow.example.com\" } }
     on_error:
       on_codes: [NIKA-TIMEOUT-001, NIKA-BUILTIN-JSON_MERGE_PATCH-001]
@@ -1127,7 +1163,7 @@ tasks:
         // A filter with nothing to filter (spec 05 · one action required).
         let yaml = "\
 tasks:
-  - id: t
+  t:
     exec: { command: [echo] }
     on_error:
       on_codes: [NIKA-TIMEOUT-001]
@@ -1143,17 +1179,17 @@ tasks:
         // bare string (marked-yaml coerces plain style only).
         let yaml = "\
 tasks:
-  - id: work
+  work:
     exec: { command: [echo] }
-  - id: record
+  record:
     depends_on: [work]
     when: true
     exec: { command: [echo] }
-  - id: never
+  never:
     depends_on: [work]
     when: false
     exec: { command: [echo] }
-  - id: quoted
+  quoted:
     depends_on: [work]
     when: \"true\"
     exec: { command: [echo] }
@@ -1181,9 +1217,9 @@ tasks:
         // spec's split (03 §when · the literal form is true/false).
         let yaml = "\
 tasks:
-  - id: work
+  work:
     exec: { command: [echo] }
-  - id: legacy
+  legacy:
     depends_on: [work]
     when: yes
     exec: { command: [echo] }
@@ -1200,7 +1236,7 @@ tasks:
     fn on_error_zero_fields_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     exec: { command: [echo] }
     on_error: {}
 ";
@@ -1212,7 +1248,7 @@ tasks:
     fn with_values_spanned_json() {
         let yaml = "\
 tasks:
-  - id: summarize
+  summarize:
     with:
       content: ${{ tasks.research.output }}
       style: \"concise\"
@@ -1231,7 +1267,7 @@ tasks:
     fn output_bindings() {
         let yaml = "\
 tasks:
-  - id: api_call
+  api_call:
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://api.example.com/data\" }
@@ -1250,7 +1286,7 @@ tasks:
         // Spec 03 §on_finally + example 16.
         let yaml = "\
 tasks:
-  - id: test
+  test:
     timeout: \"5m\"
     exec:
       shell: \"cargo test\"
@@ -1279,7 +1315,7 @@ tasks:
     fn unknown_task_field_strict_errors() {
         let yaml = "\
 tasks:
-  - id: t
+  t:
     condition: \"${{ x }}\"
     exec: { command: [echo] }
 ";
@@ -1293,25 +1329,30 @@ tasks:
     }
 
     #[test]
-    fn tasks_as_mapping_errors() {
-        let err = parse_strict("tasks:\n  a: b\n").expect_err("tasks must be a sequence");
+    fn tasks_sequence_is_taught_the_map() {
+        // W1 · NIKA-PARSE-022: the `- id:` sequence form is dead — the map
+        // is the one shape, and the teaching carries the span.
+        let err = parse_strict("tasks:\n  - just_a_scalar\n").expect_err("sequence tasks");
         assert!(
-            matches!(&err, SchemaError::Validation { message, .. } if message.contains("sequence")),
+            matches!(&err, SchemaError::W1TasksSequence { span: Some(_) }),
             "{err:?}"
         );
     }
 
     #[test]
     fn task_entry_must_be_mapping() {
-        let err = parse_strict("tasks:\n  - just_a_scalar\n").expect_err("scalar task");
-        assert!(matches!(err, SchemaError::Validation { .. }));
+        let err = parse_strict("tasks:\n  a: b\n").expect_err("scalar task");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("mapping")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn parse_preserves_task_span() {
         let yaml = "\
 tasks:
-  - id: t1
+  t1:
     exec:
       command: [echo]
 ";

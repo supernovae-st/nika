@@ -109,7 +109,8 @@ fn push_native_first(action: &RawAction, id: &str, hints: &mut Vec<Hint>) {
 /// stable rule id (`native-first/00N`) + the advice body. ONE truth:
 /// the check hint AND the reference linter ruleset
 /// (`lints::native_first`) both classify HERE.
-pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
+#[must_use]
+pub fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
     let (head, pathed) = command_head(command)?;
     if head == "nika" {
         return None; // nested `nika run …` — the sanctioned composition
@@ -248,7 +249,7 @@ mod tests {
             "shell"
         };
         format!(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: {{ {field}: {command_yaml} }}\n"
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: {{ {field}: {command_yaml} }}\n"
         )
     }
 
@@ -390,7 +391,7 @@ mod tests {
 
     #[test]
     fn on_finally_cleanups_are_scanned_too() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
         let hints = hints_of(yaml);
         assert!(
             hints
@@ -406,19 +407,20 @@ mod tests {
         // four exec tasks are all natively expressible. Spec-VALID (it
         // parses + checks) yet every task earns its native-first hint.
         let yaml = r#"nika: v1
-workflow: site-asset
+workflow:
+  id: site-asset
 model: mock/echo
 tasks:
-  - id: crawl_site
+  crawl_site:
     exec: { command: ["curl", "-s", "https://acme.test", "-o", "out/site.html"] }
-  - id: upload_background
+  upload_background:
     depends_on: [crawl_site]
     exec:
       command: ["node", "workflows/site/bin/helper.mjs", "upload", "--file", "out/bg.png"]
-  - id: render_background
+  render_background:
     depends_on: [crawl_site]
     exec: { command: ["curl", "-X", "POST", "https://api.openai.com/v1/images/generations"] }
-  - id: write_manifest
+  write_manifest:
     depends_on: [upload_background, render_background]
     exec: { shell: "jq -n '{done: true}' > out/manifest.json" }
 "#;
