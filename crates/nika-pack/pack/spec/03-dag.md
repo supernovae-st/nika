@@ -824,6 +824,66 @@ the author records it in the **exec ledger** (task · command · why no
 native path · the unlock that would remove it) — the workflow header
 comment is the conventional home.
 
+## Graph projection (`graph_format: 1`)
+
+The DAG has ONE canonical machine-readable view: the **graph document**
+a conforming implementation emits for a *checked* workflow (the
+reference engine: `nika graph <file> --format json`; the MCP surface
+mirrors it). Clients — editor canvases, graph renderers, agents —
+consume THIS document, never a private re-parse of the YAML. Without a
+valid DAG there is no projection: the document is defined only for a
+workflow whose conformance report is clean.
+
+```json
+{
+  "graph_format": 1,
+  "workflow": "release-notes",
+  "nodes": [
+    {
+      "id": "gather", "verb": "invoke", "tool": "nika:read",
+      "when": null, "fan_out": null,
+      "permits": ["fs.read:README.md"], "cost_interval": null
+    },
+    {
+      "id": "think", "verb": "infer", "model": "mistral/mistral-small",
+      "when": null, "fan_out": null, "permits": [],
+      "cost_interval": [0.0002, 0.0031],
+      "timeout_ms": 60000, "outputs": ["summary"]
+    }
+  ],
+  "edges": [ { "from": "gather", "to": "think", "kind": "depends_on" } ]
+}
+```
+
+**The envelope.** `graph_format` versions the document. Evolution is
+**additive only**: new fields and new edge `kind` values may appear in
+the SAME format number; readers MUST ignore fields and edge kinds they
+do not know (fold-tolerance — the same law the run stream follows). A
+`graph_format` bump marks a breaking reshape, and a reader MUST refuse
+a format it does not speak rather than guess.
+
+**Nodes are topologically sorted** in wave order, and the order is
+stable across runs of the projector — stable input, stable layout.
+
+**Node fields.** `id` and `verb` (one of the four) are always present.
+Three field families follow, and their absence rules are part of the
+wire contract:
+
+| Presence | Fields | Rule |
+|---|---|---|
+| always | `id` · `verb` · `permits` | `permits` may be empty — per-task capability attribution (`exec:` · `fs.read:` · `fs.write:` · `net.http:` · `tool:` families, deterministic order), the un-aggregated voice of the same effect walk `infer_permits` folds into the workflow boundary |
+| present-as-null when undeclared | `when` · `fan_out` · `cost_interval` | `when` carries the gate source (`"true"`/`"false"` literal or the CEL island) · `fan_out` is `{ "kind": "list" \| "expression" }` with `count` only for the literal-list form · `cost_interval` is `[min_path, worst_case]` USD for **priced inference tasks only** (no price, no interval — never a fabricated 0) |
+| absent when undeclared | `tool` · `model` · `retry_max_attempts` · `timeout_ms` · `on_error` · `outputs` | declared POLICY, projected so clients read it here instead of re-parsing YAML: `tool` for `invoke` tasks · `model` as resolved `provider/name` (task override else workflow default) · `retry.max_attempts` (05) · `timeout:` as parsed milliseconds (unambiguous where the source string is not) · `on_error:` action (`recover` · `skip` · `fail_workflow`) · declared `output:` binding names in source order (04) |
+
+**Edges** carry `from` · `to` · `kind`. The `kind` enum is CLOSED —
+`depends_on` today; new kinds arrive additively with the spec, and
+unknown kinds fall under the reader-tolerance rule.
+
+**The static law.** The graph document describes the workflow as
+WRITTEN — it never carries run state (no statuses, no live costs, no
+durations). Run truth lives in the run stream and the trace; a client
+that paints run state onto this graph joins the two by task `id`.
+
 ## Forward-compat
 
 v1 ships with these task fields · `id` · `depends_on` · `when` · `for_each` · `max_parallel` · `fail_fast` · `retry` · `on_error` · `timeout` · `on_finally` · `with` · `output` · plus the verb selector. Additional fields may be added in minor bumps (additive only). (Output *shape* is per-verb · not a task field · see [02-verbs.md](./02-verbs.md#what--tasksidoutput--holds--per-verb).)
