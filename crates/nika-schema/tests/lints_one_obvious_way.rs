@@ -137,7 +137,7 @@ tasks:
     exec: { command: [\"./gen.sh\"] }
   - id: consume
     depends_on: [produce]
-    exec: { command: [\"process\", \"${{ tasks.produce.output }}\"] }
+    exec: { shell: \"process ${{ tasks.produce.output }}\" }
 ";
     let eight = lints_008(yaml);
     assert_eq!(eight.len(), 1, "exactly one /008");

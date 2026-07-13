@@ -361,7 +361,13 @@ fn action_fingerprint(a: &RawAction) -> Value {
     match a {
         RawAction::Exec(e) => json!({
             "verb": "exec",
-            "command": e.command.shell_str().unwrap_or("<argv>"),
+            // Form + parts, never a placeholder: `shell_str().unwrap_or`
+            // collapsed EVERY argv command to one constant, so any two
+            // failure-guarded exec tasks fingerprinted identical and
+            // /003 fired on all of them (the argv sweep's blind helper
+            // — the rule_008 class, caught by spec#78's own fixtures).
+            "command_form": if e.command.shell_str().is_some() { "shell" } else { "argv" },
+            "command": e.command.text_fragments(),
             "cwd": e.cwd.as_ref().map(|s| s.value.clone()),
             "stdin": e.stdin.as_ref().map(|s| s.value.clone()),
             "capture": e.capture.as_ref().map(|c| format!("{:?}", c.value)),
@@ -572,7 +578,13 @@ fn is_value_producer(a: &RawAction) -> bool {
                 let c = c.trim_start();
                 c.starts_with("echo ") && !c.contains("${{")
             }
-            None => false, // argv form has no shell echo
+            // argv `["echo", …]` with template-free elements is the same
+            // mere value (spec#78 fixture 004 — the argv sweep's second
+            // blind helper in this file).
+            None => {
+                e.command.argv_program() == Some("echo")
+                    && !e.command.text_fragments().iter().any(|f| f.contains("${{"))
+            }
         },
         _ => false,
     }

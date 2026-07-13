@@ -357,7 +357,7 @@ mod tests {
     /// protocols: this pin is the MCP leg of the LSP's parity law).
     #[test]
     fn inspect_serves_the_canonical_projection_verbatim() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"y\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("clean");
         let got: Value = serde_json::from_str(&out).expect("json");
         let wf = nika_schema::parse(
@@ -376,7 +376,7 @@ mod tests {
     /// MCP leg) — never a projection of an unproven DAG.
     #[test]
     fn inspect_refuses_findings_with_a_reason() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"y\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("answers");
         let got: Value = serde_json::from_str(&out).expect("json");
         assert_eq!(got["graph"], Value::Null);
@@ -464,7 +464,8 @@ mod tests {
 
     #[test]
     fn check_a_clean_workflow_is_ok() {
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let wf =
+            "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
         assert!(out.contains("clean"), "{out}");
     }

@@ -634,14 +634,23 @@ fn value_producer_echo_with_template_is_not_one() {
 
 #[test]
 fn value_producer_argv_and_infer_are_not_value_producers() {
-    // 562:5 (→true): a non-jq invoke is already covered; here the catch-all
-    // `_ => false` paths — an `infer` action and an argv-form exec (no shell
-    // string) must both be false. A forced-true body wrongly flags them.
+    // The catch-all `_ => false` path: an `infer` action is never a mere
+    // value. The argv law flipped with spec#78 fixture 004: `["echo", …]`
+    // with template-free elements IS a value producer now — and an
+    // interpolated element or a non-echo program still is not.
     assert!(!is_value_producer(&infer_prompt("summarize this")));
-    let argv = RawAction::Exec(RawExecAction::with_command(
+    let echo = RawAction::Exec(RawExecAction::with_command(
         crate::raw::action::RawCommand::Argv(vec![sp("echo"), sp("hi")]),
     ));
-    assert!(!is_value_producer(&argv));
+    assert!(is_value_producer(&echo), "template-free argv echo = value");
+    let interp = RawAction::Exec(RawExecAction::with_command(
+        crate::raw::action::RawCommand::Argv(vec![sp("echo"), sp("${{ tasks.a.output }}")]),
+    ));
+    assert!(!is_value_producer(&interp), "interpolation = real work");
+    let prog = RawAction::Exec(RawExecAction::with_command(
+        crate::raw::action::RawCommand::Argv(vec![sp("./gen.sh")]),
+    ));
+    assert!(!is_value_producer(&prog), "non-echo argv = real work");
 }
 
 // ─────────────────────────────────────────────────────────────────────

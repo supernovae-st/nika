@@ -1137,8 +1137,7 @@ mod trace_carry_tests {
 
     #[tokio::test]
     async fn success_task_completed_carries_the_resume_fields() {
-        const WORKFLOW: &str =
-            "nika: v1\nworkflow: carry\ntasks:\n  - id: say\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        const WORKFLOW: &str = "nika: v1\nworkflow: carry\ntasks:\n  - id: say\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let wf = nika_schema::parse(
             WORKFLOW,
             nika_schema::FileId::new(0),

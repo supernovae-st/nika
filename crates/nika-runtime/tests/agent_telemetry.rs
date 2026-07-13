@@ -544,8 +544,7 @@ tasks:
     let wf = parse(COMPOSE_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
     let report = check(&wf);
 
-    let draft =
-        "nika: v1\nworkflow: drafted\ntasks:\n  - id: t\n    exec:\n      command: [\"echo\", \"hi\"]\n";
+    let draft = "nika: v1\nworkflow: drafted\ntasks:\n  - id: t\n    exec:\n      command: [\"echo\", \"hi\"]\n";
     let provider = MockProvider::new("mock")
         .enqueue_response(tool_use_response(
             "d1",

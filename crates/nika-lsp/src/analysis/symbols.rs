@@ -207,7 +207,8 @@ mod tests {
 
     #[test]
     fn workflow_root_named_by_id() {
-        let yaml = "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
+        let yaml =
+            "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(yaml);
         assert_eq!(syms.len(), 1, "one root");
         assert_eq!(syms[0].name, "my-flow");
@@ -272,7 +273,8 @@ mod tests {
         // id span. The task span is (3,6)..(5,0), the id span is the point
         // (3,8) · the union keeps the wider span. min_pos((3,6),(3,8))=(3,6),
         // max_pos((5,0),(3,8))=(5,0) → (3,6)..(5,0).
-        let yaml = "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
+        let yaml =
+            "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(yaml);
         let child = &syms[0].children.as_ref().expect("children")[0];
         assert_eq!(
