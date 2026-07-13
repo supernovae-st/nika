@@ -207,7 +207,8 @@ mod tests {
 
     #[test]
     fn workflow_root_named_by_id() {
-        let yaml = "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n";
+        let yaml =
+            "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(yaml);
         assert_eq!(syms.len(), 1, "one root");
         assert_eq!(syms[0].name, "my-flow");
@@ -230,7 +231,7 @@ mod tests {
 
     #[test]
     fn task_selection_range_is_the_id_span() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: hello\n    exec: { command: \"x\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: hello\n    exec: { command: [\"x\"] }\n";
         let index = LineIndex::new(yaml);
         let syms = document_symbols(yaml);
         let task = &syms[0].children.as_ref().expect("children")[0];
@@ -254,7 +255,7 @@ mod tests {
         // This pins union_range + min_pos (start) + max_pos (end) to exact
         // positions — Default::default() (0,0)..(0,0), a flipped min_pos
         // (returns (5,6)) or a flipped max_pos (returns (5,2)) all diverge.
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: aa\n    exec: { command: \"x\" }\n  - id: bbb\n    exec: { command: \"y\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: aa\n    exec: { command: [\"x\"] }\n  - id: bbb\n    exec: { command: [\"y\"] }\n";
         let syms = document_symbols(yaml);
         let children = syms[0].children.as_ref().expect("children");
         assert_eq!(children[0].range, rng(3, 6, 5, 2), "child 0 enclosing");
@@ -272,7 +273,8 @@ mod tests {
         // id span. The task span is (3,6)..(5,0), the id span is the point
         // (3,8) · the union keeps the wider span. min_pos((3,6),(3,8))=(3,6),
         // max_pos((5,0),(3,8))=(5,0) → (3,6)..(5,0).
-        let yaml = "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n";
+        let yaml =
+            "nika: v1\nworkflow: my-flow\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(yaml);
         let child = &syms[0].children.as_ref().expect("children")[0];
         assert_eq!(
@@ -307,7 +309,7 @@ mod tests {
 
     #[test]
     fn all_four_verbs_render() {
-        let yaml = "nika: v1\nworkflow: w\nmodel: ollama/m\ntasks:\n  - id: i\n    infer: { prompt: \"p\", max_tokens: 5 }\n  - id: e\n    exec: { command: \"x\" }\n  - id: v\n    invoke: { tool: \"nika:read\", args: { path: \"./p\" } }\n  - id: g\n    agent: { prompt: \"p\", tools: [\"nika:read\"], max_turns: 2 }\n";
+        let yaml = "nika: v1\nworkflow: w\nmodel: ollama/m\ntasks:\n  - id: i\n    infer: { prompt: \"p\", max_tokens: 5 }\n  - id: e\n    exec: { command: [\"x\"] }\n  - id: v\n    invoke: { tool: \"nika:read\", args: { path: \"./p\" } }\n  - id: g\n    agent: { prompt: \"p\", tools: [\"nika:read\"], max_turns: 2 }\n";
         let syms = document_symbols(yaml);
         let verbs: Vec<&str> = syms[0]
             .children
@@ -324,7 +326,7 @@ mod tests {
     /// range on the declaring name (the go-to-definition twin).
     #[test]
     fn outline_carries_vars_env_secrets_and_tasks() {
-        let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n  out: \"./o\"\nenv:\n  REGION: eu\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n";
+        let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n  out: \"./o\"\nenv:\n  REGION: eu\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(text);
         assert_eq!(syms.len(), 1, "one workflow root");
         let children = syms[0].children.as_ref().expect("children");
