@@ -34,27 +34,33 @@ pub(super) fn enclosing_tool(text: &str, offset: usize) -> Option<String> {
     None
 }
 
-/// Whether the cursor sits at a KEY position directly inside an `args:`
-/// block — an indented bare word (no `:` typed yet) whose nearest
-/// shallower non-blank ancestor line is `args:`. Nested maps inside an
-/// argument value (a deeper ancestor that is not `args:`) stay silent.
-pub(super) fn in_args_key_position(text: &str, offset: usize) -> bool {
+/// The indent of the cursor's KEY position — `Some(indent)` when the
+/// line so far is an indented bare word (no `:` typed yet), the shared
+/// precondition of every key-completion lane.
+fn key_position_indent(text: &str, offset: usize) -> Option<usize> {
     let upto = text.get(..offset).unwrap_or("");
     let line_start = upto.rfind('\n').map_or(0, |i| i + 1);
     let prefix = &upto[line_start..];
     let typed = prefix.trim_start();
-    // A key position: nothing yet, or a bare identifier without its colon.
     if !typed.is_empty()
         && !typed
             .chars()
             .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     {
-        return false;
+        return None;
     }
     let indent = prefix.len() - typed.len();
-    if indent == 0 {
+    (indent > 0).then_some(indent)
+}
+
+/// Whether the cursor sits at a KEY position directly inside an `args:`
+/// block — an indented bare word (no `:` typed yet) whose nearest
+/// shallower non-blank ancestor line is `args:`. Nested maps inside an
+/// argument value (a deeper ancestor that is not `args:`) stay silent.
+pub(super) fn in_args_key_position(text: &str, offset: usize) -> bool {
+    let Some(indent) = key_position_indent(text, offset) else {
         return false;
-    }
+    };
     for line in lines_upward(text, offset) {
         if line.trim().is_empty() {
             continue;
@@ -63,6 +69,81 @@ pub(super) fn in_args_key_position(text: &str, offset: usize) -> bool {
         if line_indent < indent {
             return line.trim_start().starts_with("args:");
         }
+    }
+    false
+}
+
+/// Whether the cursor sits at a KEY position whose IMMEDIATE ancestor
+/// opens a `schema:` (or a nested `items:` inside one) — the JSON-Schema
+/// vocabulary position. Direct children of `properties:` stay silent:
+/// those names belong to the author, not the spec.
+pub(super) fn in_schema_key_position(text: &str, offset: usize) -> bool {
+    let Some(indent) = key_position_indent(text, offset) else {
+        return false;
+    };
+    let mut current = indent;
+    let mut immediate = true;
+    for line in lines_upward(text, offset) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let line_indent = line.len() - line.trim_start().len();
+        if line_indent >= current {
+            continue;
+        }
+        let key = line.trim_start();
+        if immediate {
+            if key.starts_with("schema:") {
+                return true;
+            }
+            if key.starts_with("items:") {
+                // `items:` counts only when IT sits inside a schema —
+                // keep walking the chain to find out.
+                immediate = false;
+                current = line_indent;
+                continue;
+            }
+            return false;
+        }
+        if key.starts_with("schema:") {
+            return true;
+        }
+        if key.starts_with("- id:") || line_indent == 0 {
+            return false;
+        }
+        current = line_indent;
+    }
+    false
+}
+
+/// Whether the ancestor CHAIN above the cursor crosses a `schema:` key
+/// before the task boundary — anywhere inside the block, any depth. The
+/// task-field lane stays silent here (a `schema:` block speaks
+/// JSON-Schema, never `depends_on`).
+pub(super) fn in_schema_scope(text: &str, offset: usize) -> bool {
+    let upto = text.get(..offset).unwrap_or("");
+    let line_start = upto.rfind('\n').map_or(0, |i| i + 1);
+    let prefix = &upto[line_start..];
+    let mut current = prefix.len() - prefix.trim_start().len();
+    if current == 0 {
+        return false;
+    }
+    for line in lines_upward(text, offset) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let line_indent = line.len() - line.trim_start().len();
+        if line_indent >= current {
+            continue;
+        }
+        let key = line.trim_start();
+        if key.starts_with("schema:") {
+            return true;
+        }
+        if key.starts_with("- id:") || line_indent == 0 {
+            return false;
+        }
+        current = line_indent;
     }
     false
 }

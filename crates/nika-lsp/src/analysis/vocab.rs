@@ -159,6 +159,36 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
     },
 ];
 
+/// The JSON-Schema keyset inside a `schema:` block (02-verbs: the typed
+/// response/final-message contract). Direct children of `schema:` and
+/// `items:` — `properties:` children are the AUTHOR's field names.
+pub const SCHEMA_KEYS: &[Entry] = &[
+    Entry {
+        name: "type",
+        doc: "The JSON type — the portable top level is `object`.",
+    },
+    Entry {
+        name: "required",
+        doc: "The field names the response MUST carry (`[summary]`).",
+    },
+    Entry {
+        name: "properties",
+        doc: "Field name → its schema (`summary: { type: string }`).",
+    },
+    Entry {
+        name: "items",
+        doc: "The element schema of an array.",
+    },
+    Entry {
+        name: "enum",
+        doc: "The closed value set — the model cannot invent a fifth answer.",
+    },
+    Entry {
+        name: "description",
+        doc: "Teaches the model what the field means — part of the prompt.",
+    },
+];
+
 /// The canonical LLM provider names for `model: <provider>/<name>`.
 ///
 /// MIRRORED-FROM-CANON: the 16-provider catalog (spec `canon.yaml` SSOT ·
