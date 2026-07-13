@@ -17,11 +17,11 @@ use crate::types::{
 use super::{Cx, value::json_value};
 
 /// Keys of the typed `vars:` form (spec 01 §vars).
-const TYPED_VAR_KEYS: &[&str] = &["type", "required", "default", "description"];
+pub(crate) const TYPED_VAR_KEYS: &[&str] = &["type", "required", "default", "description"];
 
 /// Keys of a `secrets:` entry (spec 01 §secrets · `key` XOR `path` ·
 /// discriminated by `source` · plus the optional `egress:` declass list).
-const SECRET_KEYS: &[&str] = &["source", "key", "path", "egress"];
+pub(crate) const SECRET_KEYS: &[&str] = &["source", "key", "path", "egress"];
 
 /// Keys of one `secrets.<name>.egress[]` entry (spec 01 §secrets · the
 /// sanctioned-egress declaration · closed).
@@ -31,13 +31,13 @@ const EGRESS_KEYS: &[&str] = &["to", "host", "host_from_self"];
 const TYPED_OUTPUT_KEYS: &[&str] = &["value", "type", "description"];
 
 /// Keys of the `permits:` block (spec 01 §permits · closed).
-const PERMITS_KEYS: &[&str] = &["fs", "net", "exec", "tools"];
+pub(crate) const PERMITS_KEYS: &[&str] = &["fs", "net", "exec", "tools"];
 
 /// Keys of `permits.fs` (closed).
-const PERMITS_FS_KEYS: &[&str] = &["read", "write"];
+pub(crate) const PERMITS_FS_KEYS: &[&str] = &["read", "write"];
 
 /// Keys of `permits.net` (closed).
-const PERMITS_NET_KEYS: &[&str] = &["http"];
+pub(crate) const PERMITS_NET_KEYS: &[&str] = &["http"];
 
 /// Parse `vars:` — untyped (`name: value`) OR typed
 /// (`name: { type, required, default, description }`).

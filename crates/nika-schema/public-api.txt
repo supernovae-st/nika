@@ -1930,6 +1930,8 @@ impl<T> nika_error::traits::AsAny for nika_schema::error::spec_code::SpecCode wh
 pub fn nika_schema::error::spec_code::SpecCode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_schema::error::spec_code::SpecCode where T: core::marker::Copy
 pub fn nika_schema::error::spec_code::SpecCode::as_out(&mut self) -> outref::Out<'_, T>
+pub mod nika_schema::keysets
+pub fn nika_schema::keysets::known_child_keys(block_key: &str, parent: core::option::Option<&str>) -> core::option::Option<&'static [&'static str]>
 pub mod nika_schema::lints
 #[non_exhaustive] pub struct nika_schema::lints::Lint
 pub nika_schema::lints::Lint::message: alloc::string::String

@@ -168,6 +168,52 @@ pub(super) fn in_schema_scope(text: &str, offset: usize) -> bool {
     false
 }
 
+/// The key of the block ENCLOSING the cursor's key position, plus that
+/// block's own parent key — `(block, parent)`. The nearest shallower
+/// non-blank line's key is the block; the next shallower one is its
+/// parent. `None` when the cursor is not at an indented key position.
+pub(super) fn enclosing_block_key(text: &str, offset: usize) -> Option<(String, Option<String>)> {
+    let upto = text.get(..offset).unwrap_or("");
+    let line_start = upto.rfind('\n').map_or(0, |i| i + 1);
+    let prefix = &upto[line_start..];
+    let typed = prefix.trim_start();
+    if !typed.is_empty()
+        && !typed
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return None;
+    }
+    let indent = prefix.len() - typed.len();
+    if indent == 0 {
+        return None;
+    }
+    let mut block: Option<(String, usize)> = None;
+    for line in lines_upward(text, offset) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let t = line.trim_start();
+        let line_indent = line.len() - t.len();
+        let key = t
+            .trim_start_matches("- ")
+            .split(':')
+            .next()
+            .unwrap_or("")
+            .to_owned();
+        match &block {
+            None if line_indent < indent && t.contains(':') => {
+                block = Some((key, line_indent));
+            }
+            Some((_, block_indent)) if line_indent < *block_indent && t.contains(':') => {
+                return block.map(|(b, _)| (b, Some(key)));
+            }
+            _ => {}
+        }
+    }
+    block.map(|(b, _)| (b, None))
+}
+
 /// The lines strictly above `offset`'s line, nearest first.
 fn lines_upward(text: &str, offset: usize) -> impl Iterator<Item = &str> {
     let upto = text.get(..offset).unwrap_or("");

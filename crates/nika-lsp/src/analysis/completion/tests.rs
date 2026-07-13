@@ -1039,3 +1039,78 @@ fn skills_positions_route_to_the_walk_and_pure_callers_lose_only_that_lane() {
         "tools block items never route to the skills walk: {got:?}"
     );
 }
+
+// ─── the block-keyset door: child keys by the parser's own vocabulary ───
+
+/// A key position inside `retry:` offers EXACTLY the parser's
+/// `RETRY_KEYS` — the door returns the const by reference, so the count
+/// is the parser's own (born-stale, key edition).
+#[test]
+fn retry_block_offers_exactly_the_parser_keyset() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n    retry:\n      ";
+    let items = completion(text, text.len());
+    let expected = nika_schema::keysets::known_child_keys("retry", None).expect("keyset");
+    assert_eq!(items.len(), expected.len());
+    let got = labels(&items);
+    assert!(got.contains(&"max_attempts:".to_owned()), "{got:?}");
+    assert!(got.contains(&"backoff_strategy:".to_owned()), "{got:?}");
+    assert!(
+        items
+            .iter()
+            .all(|i| i.detail.as_deref() == Some("`retry:` field")),
+        "the detail names the block"
+    );
+}
+
+/// The verb bodies switch registers too — `infer:` children are the
+/// spec's field table, not the task keys.
+#[test]
+fn infer_block_offers_the_verb_fields() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer:\n      ";
+    let got = labels(&completion(text, text.len()));
+    assert!(got.contains(&"prompt:".to_owned()), "{got:?}");
+    assert!(got.contains(&"thinking:".to_owned()), "{got:?}");
+    assert!(
+        !got.contains(&"depends_on:".to_owned()),
+        "task keys stay out of the verb body: {got:?}"
+    );
+}
+
+/// `permits:` at the workflow level — and `fs:` switches only UNDER
+/// permits (an `fs:` block elsewhere is not the door's business).
+#[test]
+fn permits_and_fs_route_by_parent() {
+    let text = "nika: v1\nworkflow: w\npermits:\n  ";
+    let got = labels(&completion(text, text.len()));
+    assert_eq!(got, vec!["fs:", "net:", "exec:", "tools:"], "{got:?}");
+
+    let text2 = "nika: v1\nworkflow: w\npermits:\n  fs:\n    ";
+    let got2 = labels(&completion(text2, text2.len()));
+    assert_eq!(got2, vec!["read:", "write:"], "{got2:?}");
+}
+
+/// Free-form maps (`args:` of an MCP tool · `with:`) miss the door —
+/// no invented keys.
+#[test]
+fn free_form_maps_stay_free() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke:\n      tool: github.search\n      args:\n        ";
+    let got = labels(&completion(text, text.len()));
+    assert!(
+        !got.iter().any(|l| l == "prompt:" || l == "max_attempts:"),
+        "no keyset leak into a free-form map: {got:?}"
+    );
+}
+
+/// `${{ with.` offers the ENCLOSING task's own aliases only — spec 04:
+/// `with` is task-local, another task's aliases are out of scope.
+#[test]
+fn with_island_offers_the_enclosing_tasks_aliases() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    with:\n      other: 1\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    with:\n      article: \"${{ tasks.a.output }}\"\n      limit: 5\n    exec: { command: [\"echo\", \"${{ with.article }}\", \"${{ with.\"] }\n";
+    let cursor = text.rfind("${{ with.").expect("island") + "${{ with.".len();
+    let got = labels(&completion(text, cursor));
+    assert_eq!(
+        got,
+        vec!["article", "limit"],
+        "b's aliases, never a's: {got:?}"
+    );
+}

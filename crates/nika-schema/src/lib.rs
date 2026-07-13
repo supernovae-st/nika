@@ -44,6 +44,7 @@ pub mod error;
 /// the 15k crate-size wall · the trace→dap precedent). Re-exported verbatim:
 /// every `nika_schema::expression::…` path resolves unchanged.
 pub use nika_tmpl::expression;
+pub mod keysets;
 pub mod lints;
 pub mod parser;
 pub mod raw;
