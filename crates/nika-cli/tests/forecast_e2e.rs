@@ -96,13 +96,20 @@ fn stage_runs(dir: &Path, events: &[Event], n: usize) {
     }
 }
 
+/// `set_current_dir` is PROCESS-global: the two tests race on it under
+/// the parallel test runner (one test's TempDir drops under the other's
+/// feet — masked by timing until the 0.103 fixture migration shifted
+/// it). Every arena user holds this lock for its whole cwd section.
+static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// The workflow file + the cwd dance shared by both tests.
-fn arena(events: &[Event], runs: usize) -> tempfile::TempDir {
+fn arena(events: &[Event], runs: usize) -> (std::sync::MutexGuard<'static, ()>, tempfile::TempDir) {
+    let guard = CWD_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().expect("arena");
     std::fs::write(dir.path().join("fc-e2e.nika.yaml"), WORKFLOW).expect("wf written");
     stage_runs(dir.path(), events, runs);
     std::env::set_current_dir(dir.path()).expect("cwd into arena");
-    dir
+    (guard, dir)
 }
 
 #[tokio::test]

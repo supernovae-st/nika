@@ -116,10 +116,15 @@ tasks:
     assert_eq!(outcome.records["use_it"].status, TaskStatus::Success);
     let commands = shell.executed_commands();
     assert_eq!(commands.len(), 1, "the exec ran once");
+    // argv form (0.103): the secret rides its own argument, never the
+    // program — assert over the whole argv line.
+    let argv_line = std::iter::once(commands[0].program.as_str())
+        .chain(commands[0].args.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join(" ");
     assert!(
-        commands[0].program.contains("sk-SECRET-VALUE"),
-        "the resolved secret reached the sanctioned exec sink: {}",
-        commands[0].program
+        argv_line.contains("sk-SECRET-VALUE"),
+        "the resolved secret reached the sanctioned exec sink: {argv_line}"
     );
 
     // 2 · the secret value NEVER appears in the event stream (every field of
