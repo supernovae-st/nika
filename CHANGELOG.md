@@ -31,12 +31,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
-- **`nika/semanticDocument`** (#565) — the canonical graph projection
-  becomes language property (`nika-graph`, L0) and the LSP serves it:
-  one oracle, three protocols (CLI · LSP · MCP), byte-equal.
-
-### Added
-
 - **`nika/semanticDocument`** — the LSP's vendor-prefixed custom
   request (capability-gated via `experimental.nika`): the canonical
   `graph_format: 1` projection VERBATIM plus a span wrapper (task id →
