@@ -14,8 +14,28 @@ pub(super) fn current_task_id(text: &str, offset: usize) -> Option<String> {
         if let Some(rest) = t.strip_prefix("- id:") {
             return Some(unquote(rest).to_owned());
         }
+        // A column-0 key above us means we left the tasks block — a
+        // workflow-level `outputs:`/`vars:` island is NOT inside the
+        // last task that happens to sit above it.
+        if !t.is_empty() && line.len() == t.len() {
+            return None;
+        }
     }
     None
+}
+
+/// Whether the cursor's line is a `recover:` value — the DAG-003
+/// carve-out (spec 05 §recover): refs there are NOT edges, only the
+/// DAG-004 no-downstream law binds. Line-based like the rest of v0.1
+/// (a multi-line block-scalar recover value is out of this heuristic's
+/// reach — silence there, never a wrong set).
+pub(super) fn in_recover_value(text: &str, offset: usize) -> bool {
+    let upto = text.get(..offset).unwrap_or("");
+    let line_start = upto.rfind('\n').map_or(0, |i| i + 1);
+    upto.get(line_start..)
+        .unwrap_or("")
+        .trim_start()
+        .starts_with("recover:")
 }
 
 /// The `tool:` value of the invoke block enclosing `offset`, when the

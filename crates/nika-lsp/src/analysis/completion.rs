@@ -26,6 +26,7 @@ use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::{FileId, ParseMode, parse};
 
 use super::members;
+use super::refs;
 use super::scope;
 use super::vocab::{self, Entry};
 
@@ -56,7 +57,7 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
     if let Some(items) = enum_values(prefix) {
         return items;
     }
-    if in_open_depends_on(text, offset) || is_template_tasks_ref(prefix) {
+    if in_open_depends_on(text, offset) {
         return task_ids(text, scope::current_task_id(text, offset).as_deref());
     }
     // An agent's `tools: [ … ]` whitelist — the same catalog register the
@@ -64,6 +65,9 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
     // the server has no MCP registry to speak from).
     if in_open_tools_list(text, offset) {
         return builtin_tools();
+    }
+    if is_template_tasks_ref(prefix) {
+        return refs::island_task_refs(text, offset);
     }
     if let Some(root) = members::template_member_root(prefix) {
         return members::member_items(text, root);
@@ -603,7 +607,7 @@ fn keyword_items(table: &[Entry]) -> Vec<CompletionItem> {
 /// [` with nothing after it does not parse as YAML), so ids are read from
 /// a robust line scan for `id:` declarations rather than a full parse —
 /// the parse path would yield nothing exactly when completion is needed.
-fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem> {
+pub(super) fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem> {
     // Prefer the parser's authoritative ids (with verb detail) when the
     // document parses; fall back to the line scan otherwise. The
     // exclusion is the editing task's whole ILLEGAL set — itself plus
