@@ -11,18 +11,18 @@ homepage.workspace     = true
 publish                = false  # Internal L3 orchestration crate.
 
 [dependencies]
-nika-types       = { path = "../nika-types", version = "0.102.0" }        # EventId · Timestamp · KeyValue · Value
-nika-error       = { path = "../nika-error", version = "0.102.0" }        # NIKA_1700..1703 registry constants
-nika-event       = { path = "../nika-event", version = "0.102.0" }        # Event · EventKind (the stream this crate emits)
-nika-schema      = { path = "../nika-schema", version = "0.102.0" }       # RawWorkflow · RawAction · CheckReport (audit-before-run)
-nika-tmpl        = { path = "../nika-tmpl", version = "0.102.0" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
-nika-catalog     = { path = "../nika-catalog", version = "0.102.0", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
-nika-cel         = { path = "../nika-cel", version = "0.102.0" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
-nika-kernel      = { path = "../nika-kernel", version = "0.102.0" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
-nika-verb-infer  = { path = "../nika-verb-infer", version = "0.102.0" }
-nika-verb-exec   = { path = "../nika-verb-exec", version = "0.102.0" }
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.102.0" }
-nika-verb-agent  = { path = "../nika-verb-agent", version = "0.102.0" }
+nika-types       = { path = "../nika-types", version = "0.103.0" }        # EventId · Timestamp · KeyValue · Value
+nika-error       = { path = "../nika-error", version = "0.103.0" }        # NIKA_1700..1703 registry constants
+nika-event       = { path = "../nika-event", version = "0.103.0" }        # Event · EventKind (the stream this crate emits)
+nika-schema      = { path = "../nika-schema", version = "0.103.0" }       # RawWorkflow · RawAction · CheckReport (audit-before-run)
+nika-tmpl        = { path = "../nika-tmpl", version = "0.103.0" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
+nika-catalog     = { path = "../nika-catalog", version = "0.103.0", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
+nika-cel         = { path = "../nika-cel", version = "0.103.0" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
+nika-kernel      = { path = "../nika-kernel", version = "0.103.0" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.103.0" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.103.0" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.103.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.103.0" }
 futures-util     = { workspace = true }   # buffered(k) intra-wave concurrency + select (no executor · async rides the injected seams)
 jaq-core         = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
 jaq-std          = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
@@ -35,9 +35,9 @@ miette           = { workspace = true }
 uuid             = { workspace = true }
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.102.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
-nika-providers   = { path = "../nika-providers", version = "0.102.0" }    # ProviderRegistry mock/echo (the tests' InferVerb seam · the composer owns it in prod)
-nika-pack        = { path = "../nika-pack", version = "0.102.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.103.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
+nika-providers   = { path = "../nika-providers", version = "0.103.0" }    # ProviderRegistry mock/echo (the tests' InferVerb seam · the composer owns it in prod)
+nika-pack        = { path = "../nika-pack", version = "0.103.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
 bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 capturing http seam)
 insta            = { workspace = true }
 proptest         = { workspace = true }
