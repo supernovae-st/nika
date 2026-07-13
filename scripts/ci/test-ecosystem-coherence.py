@@ -33,7 +33,8 @@ def iso(hours_ago: float) -> str:
 
 def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
              sdk="0.90.0", npm="0.90.0", pack="0.1.0-draft", spec_v="0.1.0-draft",
-             engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21):
+             engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21,
+             action="0.95.0", starter="0.95.0", certeng="0.95.0"):
     R = bot.RAW
     return {
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
@@ -51,6 +52,10 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"{R}/supernovae-st/nika-registry/main/SPEC_PIN": "# pin\n" + "a" * 40 + "\n",
         f"{R}/supernovae-st/nika-registry/main/index.json": json.dumps({"artifacts": [{}] * reg_n}),
         "https://api.github.com/repos/supernovae-st/nika-spec/commits/" + "a" * 40: "{}",
+        f"{R}/supernovae-st/nika-action/v1/action.yml": f"    default: '{action}'\n",
+        f"{R}/supernovae-st/nika-actions-starter/main/.github/workflows/nika-check.yml":
+            f"        default: '{starter}'\n",
+        f"{R}/supernovae-st/nika-registry/main/scripts/cert.py": f'ENGINE_VERSION = "{certeng}"\n',
     }
 
 
@@ -104,5 +109,20 @@ try:
 except Exception as exc:  # noqa: BLE001
     check("T5 dark surfaces = WARNs, no crash", False, repr(exc))
 
-print(f"\nself-test: {'PASS (6/6)' if not fails else 'FAIL ' + str(fails)}")
+# T6 · the served action default (the @v1 ref, what users consume) follows
+# the tag ladder: grace WARN → hard FAIL; the deliberate-bump surfaces
+# (starter · certifier) stay WARN even post-grace.
+code, f = run(fixtures(age_h=2.0, action="0.94.0"))
+check("T6a stale action@v1 = WARN in grace",
+      code == 0 and any(x[0] == "WARN" and x[1] == "action@v1" for x in f), f)
+code, f = run(fixtures(age_h=48.0, action="0.94.0"))
+check("T6b stale action@v1 hard-fails post-grace",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "action@v1" for x in f), f)
+code, f = run(fixtures(age_h=48.0, starter="0.90.0", certeng="0.90.0"))
+check("T6c deliberate-bump surfaces stay WARN",
+      code == 0 and any(x[1] == "actions-starter" for x in f)
+      and any(x[1] == "registry certifier" for x in f)
+      and all(x[0] == "WARN" for x in f if x[1] in ("actions-starter", "registry certifier")), f)
+
+print(f"\nself-test: {'PASS (9/9)' if not fails else 'FAIL ' + str(fails)}")
 sys.exit(1 if fails else 0)

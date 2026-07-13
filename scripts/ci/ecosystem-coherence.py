@@ -155,6 +155,33 @@ def main():
         except Exception:  # noqa: BLE001 — an unresolvable pin is the finding
             FINDINGS.append(("FAIL", "registry", f"SPEC_PIN {spec_pin[:9]} not a nika-spec commit"))
 
+    # The distribution defaults (2026-07-13 lesson: the action default sat
+    # TWO waves behind and the fix-merge served no one until the v1 tag
+    # rolled). Probe what users actually consume — the @v1 ref, not main —
+    # so an unbumped default OR an unrolled tag is the same finding. The
+    # starter template and the registry certifier are deliberate-bump
+    # surfaces: WARN (visible nightly, never a red board on their own).
+    act = grab(f"{RAW}/supernovae-st/nika-action/v1/action.yml",
+               lambda t: next(l.split("'")[1] for l in t.splitlines() if "default: '0" in l),
+               "action@v1")
+    if act and act != tag:
+        FINDINGS.append((tag_sev, "action@v1",
+                         f"served engine-version default {act} != latest release {tag} — bump main + roll v1"))
+
+    starter = grab(f"{RAW}/supernovae-st/nika-actions-starter/main/.github/workflows/nika-check.yml",
+                   lambda t: next(l.split("'")[1] for l in t.splitlines() if "default: '0" in l),
+                   "actions-starter")
+    if starter and starter != tag:
+        FINDINGS.append(("WARN", "actions-starter",
+                         f"template engine-version default {starter} != latest release {tag}"))
+
+    cert_engine = grab(f"{RAW}/supernovae-st/nika-registry/main/scripts/cert.py",
+                       lambda t: next(l.split('"')[1] for l in t.splitlines() if l.startswith("ENGINE_VERSION")),
+                       "registry certifier")
+    if cert_engine and cert_engine != tag:
+        FINDINGS.append(("WARN", "registry certifier",
+                         f"cert.py pins nika {cert_engine} != latest release {tag} — bump + cert.py --write (sat 5 waves behind, 2026-07-13)"))
+
     # Lockstep-at-convergence · WARN preview below 0.97 · FAIL from 0.97.
     if engine_main:
         lock_sev = "FAIL" if semver_key(engine_main) >= (0, 97, 0) else "WARN"
