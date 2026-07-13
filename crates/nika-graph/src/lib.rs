@@ -17,6 +17,8 @@
 //! oracle arc): the projection is language truth, not CLI presentation
 //! — the renderers (mermaid · dot · ascii) stay CLI-side.
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 use serde::Serialize;
 
 use nika_schema::check::CheckReport;
@@ -229,5 +231,62 @@ fn action_facts(
             reason = "non_exhaustive future verb — it must teach this projector its name before it can be drawn"
         )]
         other => unreachable!("unknown verb: {other:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_schema::{FileId, ParseMode, parse};
+
+    fn doc(yaml: &str) -> GraphDoc {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "fixture must be clean");
+        project(&wf, &report)
+    }
+
+    /// Nodes come out WAVE-ORDERED (Kahn levels · stable layouts): in
+    /// the diamond a → {b, c} → d authored out of order, the projection
+    /// still reads a · b · c · d.
+    #[test]
+    fn nodes_are_wave_ordered_regardless_of_authoring_order() {
+        let g = doc(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: a\n    exec: { command: \"x\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"x\" }\n",
+        );
+        assert_eq!(g.graph_format, 1);
+        let ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
+        assert_eq!(ids[0], "a", "wave 1 first: {ids:?}");
+        assert_eq!(ids[3], "d", "the join lands last: {ids:?}");
+    }
+
+    /// Edges are (from, to)-sorted and DEDUPED — `depends_on: [a, a]`
+    /// must not lie about cardinality, and the order is independent of
+    /// authoring order (stable diffs for every consumer).
+    #[test]
+    fn edges_are_sorted_and_deduped() {
+        let g = doc(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a, a]\n    exec: { command: \"x\" }\n",
+        );
+        let pairs: Vec<(&str, &str)> = g
+            .edges
+            .iter()
+            .map(|e| (e.from.as_str(), e.to.as_str()))
+            .collect();
+        assert_eq!(pairs, vec![("a", "b")], "deduped: {pairs:?}");
+        assert!(g.edges.iter().all(|e| e.kind == "depends_on"));
+    }
+
+    /// The static facts ride the node: verb · resolved model (task
+    /// override beats the workflow default) · declared output names.
+    #[test]
+    fn node_facts_are_projected() {
+        let g = doc(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: think\n    infer: { prompt: \"hi\", max_tokens: 5 }\n    output:\n      summary: \".\"\n",
+        );
+        let n = &g.nodes[0];
+        assert_eq!(n.verb, "infer");
+        assert_eq!(n.model.as_deref(), Some("mock/echo"), "workflow default");
+        assert_eq!(n.outputs, vec!["summary"], "declared bindings in order");
     }
 }
