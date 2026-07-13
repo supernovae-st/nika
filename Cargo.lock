@@ -3976,6 +3976,7 @@ dependencies = [
  "lsp-server",
  "lsp-types",
  "nika-catalog",
+ "nika-pack",
  "nika-schema",
  "nika-types",
  "proptest",
