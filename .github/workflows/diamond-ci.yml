@@ -78,6 +78,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: supernovae-st/nika-spec
+          # PINNED, not floating: the corpus must test the spec the
+          # engine IMPLEMENTS, not the spec's future. A floating default
+          # branch reddened every engine branch the moment spec#78
+          # (gate algebra) merged ahead of its engine cascade — the
+          # cross-repo drift class. Bump the pin WITH each engine-side
+          # spec cascade (the sync-pack train).
+          ref: d497e075ca468df71fe6314c512d7b754c5b3a29
           path: nika-spec
       - name: Run rust job
         env:
