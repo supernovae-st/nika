@@ -182,6 +182,29 @@ def main():
         FINDINGS.append(("WARN", "registry certifier",
                          f"cert.py pins nika {cert_engine} != latest release {tag} — bump + cert.py --write (sat 5 waves behind, 2026-07-13)"))
 
+    # Guard-of-guards (2026-07-13): the immune system itself is a surface.
+    # Every self-heal workflow the ecosystem now leans on must EXIST on
+    # its repo's main — a deleted or renamed leg silently reopens the
+    # drift class it killed. Existence only (content is each repo's own).
+    IMMUNE = [
+        ("nika-docs", "release-heal.yml"),
+        ("nika.sh", "release-heal.yml"),
+        ("nika.sh", "spec-resync.yml"),
+        ("nika-action", "release-heal.yml"),
+        ("nika-actions-starter", "release-heal.yml"),
+        ("nika-client", "release-heal.yml"),
+        ("nika-agents", "release-heal.yml"),
+        ("nika-registry", "release-heal.yml"),
+        ("nika-vscode", "spec-pin-heal.yml"),
+        ("nika", "pack-resync.yml"),
+    ]
+    for repo, wf in IMMUNE:
+        got = grab(f"{RAW}/supernovae-st/{repo}/main/.github/workflows/{wf}", str,
+                   f"immune {repo}")
+        if got is not None and "on:" not in got:
+            FINDINGS.append(("WARN", f"immune {repo}",
+                             f"{wf} exists but carries no trigger — the leg is dead"))
+
     # Lockstep-at-convergence · WARN preview below 0.97 · FAIL from 0.97.
     if engine_main:
         lock_sev = "FAIL" if semver_key(engine_main) >= (0, 97, 0) else "WARN"
@@ -189,6 +212,18 @@ def main():
             if ver and mm(ver) != mm(engine_main):
                 FINDINGS.append((lock_sev, f"lockstep {name}",
                                  f"{name} {mm(ver)} != engine {mm(engine_main)} (doctrine active from 0.97)"))
+
+    # Wave-ripeness (operator ruling 2026-07-13 · option C): the release
+    # stays a DELIBERATE act — the mechanism proposes, the operator
+    # disposes. Informational only, never a finding.
+    ripe = grab(f"https://api.github.com/repos/supernovae-st/nika/compare/v{tag}...main",
+                lambda t: json.loads(t), "wave ripeness")
+    if ripe and isinstance(ripe.get("ahead_by"), int) and ripe["ahead_by"] > 0:
+        heads = [c["commit"]["message"].split("\n")[0]
+                 for c in ripe.get("commits", [])
+                 if c["commit"]["message"].startswith(("feat", "fix"))][-3:]
+        print(f"wave-ripeness: main is {ripe['ahead_by']} commits past v{tag}"
+              + (" · headline candidates: " + " | ".join(heads) if heads else ""))
 
     fails = [f for f in FINDINGS if f[0] == "FAIL"]
     for sev, surface, detail in FINDINGS:

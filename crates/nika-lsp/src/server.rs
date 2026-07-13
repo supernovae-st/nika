@@ -202,9 +202,13 @@ fn handle_request(req: Request, docs: &Docs) -> Response {
             let pos = p.text_document_position;
             let doc = docs.get(uri_key(&pos.text_document.uri))?;
             let offset = doc.line_index().offset(pos.position);
-            Some(CompletionResponse::Array(completion::completion(
+            // The document's directory roots the one disk-backed lane
+            // (agent `skills:`) — a non-file scheme simply loses it.
+            let doc_dir = file_uri_dir(&pos.text_document.uri);
+            Some(CompletionResponse::Array(completion::completion_at(
                 doc.text(),
                 offset,
+                doc_dir.as_deref(),
             )))
         }),
         CodeActionRequest::METHOD => respond(id, req, |p: lsp_types::CodeActionParams| {
@@ -680,6 +684,47 @@ mod tests {
     }
 }
 
+/// The parent directory of a `file://` document URI — `None` for any
+/// other scheme (an untitled buffer loses only the skills lane). The
+/// percent-decoding covers the space class (`%20`); an exotic byte
+/// sequence simply fails to resolve and degrades to `None`.
+fn file_uri_dir(uri: &lsp_types::Uri) -> Option<std::path::PathBuf> {
+    if uri.scheme().is_none_or(|s| s.as_str() != "file") {
+        return None;
+    }
+    let raw = uri.path().as_str();
+    // Percent-decode at the BYTE level, then re-assemble as UTF-8 — a
+    // per-byte `as char` would latin-1 every multi-byte sequence
+    // (`é` = `%C3%A9` → `Ã©`) and the walk would root in a ghost dir.
+    let mut decoded = Vec::with_capacity(raw.len());
+    let bytes = raw.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && let Some(hex) = raw.get(i + 1..i + 3)
+            && let Ok(v) = u8::from_str_radix(hex, 16)
+        {
+            decoded.push(v);
+            i += 3;
+            continue;
+        }
+        decoded.push(bytes[i]);
+        i += 1;
+    }
+    let mut text = String::from_utf8_lossy(&decoded).into_owned();
+    // A Windows drive rides as `/C:/…` in the URI path — shed the
+    // leading slash so the PathBuf is the real drive-rooted path.
+    if text.len() >= 3
+        && text.as_bytes()[0] == b'/'
+        && text.as_bytes()[1].is_ascii_alphabetic()
+        && text.as_bytes()[2] == b':'
+    {
+        text.remove(0);
+    }
+    let path = std::path::PathBuf::from(text);
+    path.parent().map(std::path::Path::to_path_buf)
+}
+
 /// Gate 9 — the canary E2E: drive the full server lifecycle over an
 /// in-memory connection pair and assert the live message exchange (no
 /// stdio, no Keychain, runs under `--lib`).
@@ -1122,5 +1167,51 @@ mod canary {
             matches!(result, Err(LspError::Protocol(_))),
             "a request between shutdown and exit is a protocol violation: {result:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod uri_tests {
+    use std::str::FromStr;
+
+    use super::file_uri_dir;
+
+    fn uri(s: &str) -> lsp_types::Uri {
+        lsp_types::Uri::from_str(s).expect("uri")
+    }
+
+    #[test]
+    fn file_uris_yield_their_parent_percent_decoded() {
+        assert_eq!(
+            file_uri_dir(&uri("file:///tmp/proj/flow.nika.yaml")),
+            Some(std::path::PathBuf::from("/tmp/proj"))
+        );
+        // %20 — the space class the decoding exists for.
+        assert_eq!(
+            file_uri_dir(&uri("file:///tmp/my%20proj/flow.nika.yaml")),
+            Some(std::path::PathBuf::from("/tmp/my proj"))
+        );
+    }
+
+    #[test]
+    fn multibyte_percent_escapes_decode_as_utf8_not_latin1() {
+        assert_eq!(
+            file_uri_dir(&uri("file:///tmp/caf%C3%A9/flow.nika.yaml")),
+            Some(std::path::PathBuf::from("/tmp/café"))
+        );
+    }
+
+    #[test]
+    fn a_windows_drive_path_sheds_the_uri_slash() {
+        assert_eq!(
+            file_uri_dir(&uri("file:///C:/proj/flow.nika.yaml")),
+            Some(std::path::PathBuf::from("C:/proj"))
+        );
+    }
+
+    #[test]
+    fn non_file_schemes_lose_only_the_disk_lane() {
+        assert_eq!(file_uri_dir(&uri("untitled:Untitled-1")), None);
+        assert_eq!(file_uri_dir(&uri("https://example.com/a/b.yaml")), None);
     }
 }

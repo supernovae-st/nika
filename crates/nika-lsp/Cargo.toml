@@ -23,6 +23,8 @@ thiserror   = { workspace = true }                             # LspError (trans
 
 [dev-dependencies]
 proptest = { workspace = true }   # Gate 6 — position round-trip + apply_change ≡ full replace
+tempfile = { workspace = true }   # skills lane — workspace-walk fixtures on a real tempdir
+nika-pack = { path = "../nika-pack", version = "0.102.0" }   # providers-order parity vs the vendored design tokens
 
 [lib]
 name = "nika_lsp"

@@ -222,28 +222,12 @@ pub const PROVIDERS: &[Entry] = &[
         doc: "Mistral AI (EU, open-weight models available).",
     },
     Entry {
-        name: "anthropic",
-        doc: "Anthropic Claude models (cloud).",
-    },
-    Entry {
-        name: "openai",
-        doc: "OpenAI GPT models (cloud).",
-    },
-    Entry {
-        name: "google",
-        doc: "Google Gemini models (cloud).",
-    },
-    Entry {
-        name: "deepseek",
-        doc: "DeepSeek models (cloud).",
-    },
-    Entry {
         name: "groq",
         doc: "Groq inference (cloud, low-latency).",
     },
     Entry {
-        name: "xai",
-        doc: "xAI Grok models (cloud).",
+        name: "deepseek",
+        doc: "DeepSeek models (cloud).",
     },
     Entry {
         name: "openrouter",
@@ -256,6 +240,22 @@ pub const PROVIDERS: &[Entry] = &[
     Entry {
         name: "nvidia",
         doc: "NVIDIA API (Nemotron 3 family · Open Model License · NIM self-hostable).",
+    },
+    Entry {
+        name: "anthropic",
+        doc: "Anthropic Claude models (cloud).",
+    },
+    Entry {
+        name: "openai",
+        doc: "OpenAI GPT models (cloud).",
+    },
+    Entry {
+        name: "google",
+        doc: "Google Gemini models (cloud).",
+    },
+    Entry {
+        name: "xai",
+        doc: "xAI Grok models (cloud).",
     },
     Entry {
         name: "mock",
@@ -344,5 +344,38 @@ mod tests {
                 assert!(!entry.doc.is_empty(), "{} has empty doc", entry.name);
             }
         }
+    }
+
+    /// The MIRRORED-FROM-CANON providers order answers to the SPEC's
+    /// token (design/tokens.yaml `presentation.providers_order`,
+    /// vendored into the pack) — the last row of #557: a re-order lands
+    /// spec-first, re-vendors, and THIS test stays red until the table
+    /// follows. Same law as the CLI's verb-color parity pin.
+    #[test]
+    fn providers_order_matches_the_pack_design_tokens() {
+        let tokens = nika_pack::design_tokens();
+        let section = tokens
+            .split("providers_order:")
+            .nth(1)
+            .expect("the pack tokens carry presentation.providers_order (sync-pack post spec#73)");
+        let pinned: Vec<&str> = section
+            .lines()
+            .skip(1)
+            .map_while(|l| l.trim().strip_prefix("- "))
+            .collect();
+        let ours: Vec<&str> = PROVIDERS.iter().map(|e| e.name).collect();
+        assert_eq!(
+            &ours[..pinned.len()],
+            pinned.as_slice(),
+            "vocab::PROVIDERS drifted from the spec's presentation order token"
+        );
+        // The token's own law for absentees: they rank AFTER. The one
+        // engine extra today is `mock` (the test provider — real to the
+        // engine, not a teaching row the spec orders).
+        assert_eq!(
+            &ours[pinned.len()..],
+            ["mock"],
+            "an engine-only provider must trail the spec-ordered set"
+        );
     }
 }

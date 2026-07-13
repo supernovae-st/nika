@@ -56,6 +56,14 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"{R}/supernovae-st/nika-actions-starter/main/.github/workflows/nika-check.yml":
             f"        default: '{starter}'\n",
         f"{R}/supernovae-st/nika-registry/main/scripts/cert.py": f'ENGINE_VERSION = "{certeng}"\n',
+        f"https://api.github.com/repos/supernovae-st/nika/compare/v{tag}...main":
+            json.dumps({"ahead_by": 0, "commits": []}),
+        **{f"{R}/supernovae-st/{repo}/main/.github/workflows/{wf}": "on:\n  schedule: []\n"
+           for repo, wf in (("nika-docs","release-heal.yml"),("nika.sh","release-heal.yml"),
+                            ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),
+                            ("nika-actions-starter","release-heal.yml"),("nika-client","release-heal.yml"),
+                            ("nika-agents","release-heal.yml"),("nika-registry","release-heal.yml"),
+                            ("nika-vscode","spec-pin-heal.yml"),("nika","pack-resync.yml"))},
     }
 
 
@@ -124,5 +132,16 @@ check("T6c deliberate-bump surfaces stay WARN",
       and any(x[1] == "registry certifier" for x in f)
       and all(x[0] == "WARN" for x in f if x[1] in ("actions-starter", "registry certifier")), f)
 
-print(f"\nself-test: {'PASS (9/9)' if not fails else 'FAIL ' + str(fails)}")
+# T7 · guard-of-guards: a missing immune workflow is a WARN finding
+# (fetch miss), never a crash; a trigger-less one is named.
+tbl = fixtures(age_h=48.0)
+del tbl[bot.RAW + "/supernovae-st/nika-registry/main/.github/workflows/release-heal.yml"]
+tbl[bot.RAW + "/supernovae-st/nika-agents/main/.github/workflows/release-heal.yml"] = "name: dead\n"
+code, f = run(tbl)
+check("T7 immune legs watched (missing=WARN · trigger-less named)",
+      any(x[1] == "immune nika-registry" for x in f)
+      and any(x[1] == "immune nika-agents" and "no trigger" in x[2] for x in f)
+      and all(x[0] == "WARN" for x in f if x[1].startswith("immune")), f)
+
+print(f"\nself-test: {'PASS (10/10)' if not fails else 'FAIL ' + str(fails)}")
 sys.exit(1 if fails else 0)

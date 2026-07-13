@@ -88,6 +88,30 @@ status:
   retrying: "#e0b071"
   muted: "#5a606b"
 
+# The provider PRESENTATION order (operator lock 2026-06-12): wherever a
+# surface lists or exemplifies the catalog (pickers · docs · quickstarts),
+# local & open-weight lead, then Mistral (EU · open-weight), then the
+# rest — cloud incumbents never the first suggestion. Functional code
+# (adapters · pinned e2e) is exempt: this binds the TEACHING surface.
+# A provider absent from this list ranks after it, alphabetically.
+presentation:
+  providers_order:
+    - ollama
+    - lmstudio
+    - llamacpp
+    - localai
+    - vllm
+    - mistral
+    - groq
+    - deepseek
+    - openrouter
+    - huggingface
+    - nvidia
+    - anthropic
+    - openai
+    - google
+    - xai
+
 rules:
   # Mermaid classDef fill = verb color + this alpha suffix. Derived at
   # projection time, never stored as a 5th value per verb.

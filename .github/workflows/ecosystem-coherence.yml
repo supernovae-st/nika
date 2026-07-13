@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   coherence:
@@ -26,4 +27,27 @@ jobs:
       - name: Run the coherence bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/ci/ecosystem-coherence.py | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          python3 scripts/ci/ecosystem-coherence.py | tee bot.out | tee -a "$GITHUB_STEP_SUMMARY"
+      # The findings reach a DURABLE surface: one idempotent issue —
+      # upserted while the board carries findings, closed on GREEN.
+      # Step-summary dies with the run; the issue is where a drift
+      # waits for its human. SECURITY: the body is the bot's own
+      # stdout (repo-owned script over public pins), never event data.
+      - name: The nightly board is an issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ -f bot.out ] || exit 0
+          TITLE="ecosystem coherence — nightly board"
+          NUM="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number' || true)"
+          if grep -qE "^(FAIL|WARN) " bot.out; then
+            BODY="$(printf 'Nightly run %s\n\n```\n%s\n```\n' "$GITHUB_RUN_ID" "$(cat bot.out)")"
+            if [ -n "$NUM" ]; then gh issue comment "$NUM" --body "$BODY" >/dev/null; echo "board updated: #$NUM"
+            else gh issue create --title "$TITLE" --body "$BODY" >/dev/null; echo "board opened"; fi
+          else
+            if [ -n "$NUM" ]; then gh issue close "$NUM" --comment "GREEN — every pin holds (run $GITHUB_RUN_ID)." >/dev/null; echo "board closed"; else echo "green · no board"; fi
+          fi
