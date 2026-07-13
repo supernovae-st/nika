@@ -1,0 +1,50 @@
+name: spec-pin-heal
+
+# The pin advances itself: daily, if nika-spec main moved past SPEC_PIN,
+# bump the pin and open ONE idempotent PR — the Diamond CI (conformance
+# fixtures checked out at the new pin) judges. Never a direct push. The
+# vendored pack has its own heal lane (pack-resync); this lane moves only
+# the pin the tests leg checks out. The healed file lives at the repo
+# root, never under .github/workflows/, so GITHUB_TOKEN can push it.
+# SECURITY: no github.event data is interpolated.
+
+on:
+  schedule:
+    - cron: '51 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: The pin follows the spec
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/supernovae-st/nika-spec ../spec
+          head="$(git -C ../spec rev-parse HEAD)"
+          pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"
+          if [ "$head" = "$pin" ]; then echo "pin current ($pin) — nothing to heal"; exit 0; fi
+          python3 - "$head" <<'PYEOF'
+          import io, re, sys
+          s = io.open('SPEC_PIN', encoding='utf-8').read()
+          s = re.sub(r'^[0-9a-f]{40}$', sys.argv[1], s, count=1, flags=re.M)
+          io.open('SPEC_PIN', 'w', encoding='utf-8').write(s)
+          PYEOF
+          git add SPEC_PIN
+          git config user.name "nika-release[bot]"
+          git config user.email "nika@supernovae.studio"
+          git checkout -B bot/spec-pin
+          git commit -m "chore(spec-pin): the tests leg follows the spec — $(git -C ../spec rev-parse --short HEAD)"
+          git push -f origin bot/spec-pin
+          gh pr create --head bot/spec-pin \
+            --title "chore(spec-pin): the tests leg follows the spec" \
+            --body "Automated pin advance (spec-pin-heal). The Diamond CI conformance leg judges at the new pin; merge on green." \
+            2>/dev/null || echo "PR already open — refreshed"

@@ -73,20 +73,19 @@ jobs:
       # repo's fixtures — locally a sibling ../spec checkout, here an
       # explicit NIKA_SPEC_DIR. Tests-leg only: the full battery (the
       # 2026-07-06 flip) is the first CI consumer these suites ever had.
+      # The conformance pin lives in SPEC_PIN at the repo root — ONE
+      # mechanism across the estate (file + heal bot, the vscode/registry
+      # pattern). PINNED, not floating: a floating default branch reddens
+      # every engine branch the moment a spec change merges ahead of its
+      # engine cascade — the cross-repo drift class. spec-pin-heal.yml
+      # advances the pin by PR; this CI judges at the pin.
       - name: Checkout nika-spec (conformance fixtures · tests leg)
         if: matrix.job == 'tests'
-        uses: actions/checkout@v4
-        with:
-          repository: supernovae-st/nika-spec
-          # PINNED, not floating: a floating default branch reddens
-          # every engine branch the moment a spec change merges ahead
-          # of its engine cascade — the cross-repo drift class. Bump
-          # the pin WITH each engine-side spec cascade (the sync-pack
-          # train). Current pin = spec#78 (argv|shell + gate algebra):
-          # the engine speaks argv (its #570) — the gate-algebra half
-          # (the /003 lint rescope) is the named remaining cascade.
-          ref: 12157ad949e75859c0cc41806c73876887871fac
-          path: nika-spec
+        run: |
+          set -euo pipefail
+          pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"
+          git clone --filter=blob:none https://github.com/supernovae-st/nika-spec "$GITHUB_WORKSPACE/nika-spec"
+          git -C "$GITHUB_WORKSPACE/nika-spec" checkout --detach "$pin"
       - name: Run rust job
         env:
           NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
