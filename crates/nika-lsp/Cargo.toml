@@ -40,3 +40,7 @@ err_prefix    = "none"
 
 [lints]
 workspace = true
+
+[[bench]]
+name    = "refonte_lsp_baseline"
+harness = false            # own harness: explicit p50/p95 + slope (W0 gate 8)
