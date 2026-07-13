@@ -499,7 +499,7 @@ mod tests {
         // the XOR violation (a flat-required miss like `nika:write` content
         // is now the missing-args check's concern · tested there).
         let finally = "nika: v1\nworkflow: t\ntasks:\n  - id: w\n    \
-                       exec: { command: echo }\n    on_finally:\n      - invoke:\n          \
+                       exec: { command: [echo] }\n    on_finally:\n      - invoke:\n          \
                        tool: \"nika:wait\"\n          args: {}\n";
         assert!(has_shape_error(finally, "nika:wait"));
     }

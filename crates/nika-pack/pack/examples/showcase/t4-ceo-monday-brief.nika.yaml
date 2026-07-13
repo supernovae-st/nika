@@ -51,7 +51,7 @@ tasks:
   # ── branch 2 · engineering pulse ──
   - id: pulse
     exec:
-      command: "git shortlog -sn --since='1 week ago'"
+      command: ["git", "shortlog", "-sn", "--since=1 week ago"]
 
   # ── branch 3 · the numbers ──
   - id: kpi_raw

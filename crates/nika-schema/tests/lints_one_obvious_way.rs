@@ -103,11 +103,11 @@ nika: v1
 workflow: fshape
 tasks:
   - id: a
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
     depends_on: [a]
     when: \"${{ tasks.a.status == 'success' }}\"
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
 ";
     let lints = lint(yaml);
     assert_eq!(lints.len(), 1);
@@ -134,10 +134,10 @@ nika: v1
 workflow: interp
 tasks:
   - id: produce
-    exec: { command: \"./gen.sh\" }
+    exec: { command: [\"./gen.sh\"] }
   - id: consume
     depends_on: [produce]
-    exec: { command: \"process ${{ tasks.produce.output }}\" }
+    exec: { command: [\"process\", \"${{ tasks.produce.output }}\"] }
 ";
     let eight = lints_008(yaml);
     assert_eq!(eight.len(), 1, "exactly one /008");
@@ -157,10 +157,10 @@ nika: v1
 workflow: pipe
 tasks:
   - id: produce
-    exec: { command: \"./gen.sh\" }
+    exec: { command: [\"./gen.sh\"] }
   - id: consume
     depends_on: [produce]
-    exec: { command: \"cat ${{ tasks.produce.output }} | wc -l\" }
+    exec: { shell: \"cat ${{ tasks.produce.output }} | wc -l\" }
 ";
     assert!(lints_008(yaml).is_empty(), "a real pipeline is not flagged");
 }
@@ -172,7 +172,7 @@ nika: v1
 workflow: argv
 tasks:
   - id: produce
-    exec: { command: \"./gen.sh\" }
+    exec: { command: [\"./gen.sh\"] }
   - id: consume
     depends_on: [produce]
     exec:
@@ -191,7 +191,7 @@ nika: v1
 workflow: plain
 tasks:
   - id: build
-    exec: { command: \"cargo build --release\" }
+    exec: { command: [\"cargo\", \"build\", \"--release\"] }
 ";
     assert!(
         lints_008(yaml).is_empty(),

@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn clean_workflow_has_no_error_diagnostics() {
         let yaml =
-            "nika: v1\nworkflow: clean\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n";
+            "nika: v1\nworkflow: clean\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let diags = diags_of(yaml);
         let errors: Vec<_> = diags
             .iter()
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn unknown_dep_yields_dag002_error_with_span() {
         // depends_on a ghost task — NIKA-DAG-002, carries a span.
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         let diags = diags_of(yaml);
         let dag = diags
             .iter()
@@ -371,7 +371,7 @@ mod tests {
         // finding renders with the EXACT gate code (not the generic
         // NIKA-DAG-GATE fallback, not an empty/garbage string), ERROR
         // severity, the `nika` source, and a span on the `when:` expression.
-        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/c\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: \"true\" }\n";
+        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/c\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let dead = diags
             .iter()
@@ -399,7 +399,7 @@ mod tests {
         // `!= 'failed'` flags the wrong status literal — a BadStatusLiteral
         // gate finding with its OWN code (deleting the match arm would
         // degrade it to the generic NIKA-DAG-GATE fallback).
-        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/c\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: \"true\" }\n";
+        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/c\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let bad = diags
             .iter()

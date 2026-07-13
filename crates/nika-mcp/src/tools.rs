@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     fn check_a_clean_workflow_is_ok() {
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n";
+        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
         assert!(out.contains("clean"), "{out}");
     }
@@ -384,7 +384,7 @@ mod tests {
         // Dirty is an `Err` (→ isError:true) so a wired agent's repair
         // loop triggers, mirroring the CLI's exit-2-on-dirty; the full
         // report still rides the text so the model repairs from it.
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
         assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }

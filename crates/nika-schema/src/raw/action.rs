@@ -124,7 +124,7 @@ impl RawInferAction {
 /// The `command:` of an `exec:` task — a shell string OR an argv array
 /// (spec `02-verbs.md` §exec).
 ///
-/// - **`Shell`** (`command: "a | b"`) runs through `/bin/sh -c` — pipes and
+/// - **`Shell`** (`shell: "a | b"`) runs through `/bin/sh -c` — pipes and
 ///   redirects work, the shell blocklist applies.
 /// - **`Argv`** (`command: ["prog", "arg"]`) runs through `execve` with NO
 ///   shell — the structural fix for command injection: an interpolated

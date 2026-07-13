@@ -676,7 +676,7 @@ tasks:
         let yaml = "\
 tasks:
   - exec:
-      command: ls
+      command: [ls]
 ";
         let err = parse_strict(yaml).expect_err("missing id");
         assert!(
@@ -722,7 +722,7 @@ tasks:
     infer:
       prompt: \"hi\"
     exec:
-      command: \"echo hi\"
+      shell: \"echo hi\"
 ";
         let err = parse_strict(yaml).expect_err("two verbs");
         let SchemaError::MultipleVerbs { verbs, .. } = err else {
@@ -774,7 +774,7 @@ tasks:
 tasks:
   - id: gated
     approve: true
-    exec: { command: rm -rf ./dist }
+    exec: { shell: rm -rf ./dist }
 ";
         let err = parse_strict(yaml).expect_err("approve: is not shipped");
         assert!(
@@ -807,7 +807,7 @@ policy:
   human_gate_before: [exec]
 tasks:
   - id: t
-    exec: { command: echo hi }
+    exec: { shell: echo hi }
 ";
         let err = parse_strict(yaml).expect_err("policy: is not shipped");
         assert!(
@@ -821,12 +821,12 @@ tasks:
         let yaml = "\
 tasks:
   - id: a
-    exec: { command: echo a }
+    exec: { shell: echo a }
   - id: b
     depends_on: [a]
     when: ${{ tasks.a.status == 'success' }}
     for_each: ${{ vars.items }}
-    exec: { command: echo b }
+    exec: { shell: echo b }
 ";
         let wf = parse_strict(yaml).expect("parse");
         let b = &wf.tasks[1].value;
@@ -850,7 +850,7 @@ tasks:
     for_each: ${{ vars.urls }}
     max_parallel: 5
     fail_fast: false
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let task = one_task(yaml);
         assert_eq!(task.max_parallel.expect("max_parallel").value, 5);
@@ -863,7 +863,7 @@ tasks:
 tasks:
   - id: x
     max_parallel: 0
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("zero");
         assert!(
@@ -878,7 +878,7 @@ tasks:
 tasks:
   - id: t
     timeout: \"1h30m\"
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let task = one_task(yaml);
         assert_eq!(
@@ -895,7 +895,7 @@ tasks:
 tasks:
   - id: t
     timeout: 30
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("bare number");
         assert!(
@@ -911,7 +911,7 @@ tasks:
 tasks:
   - id: t
     timeout: \"5w\"
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("bad unit");
         assert!(matches!(err, SchemaError::BadTimeout { .. }), "{err:?}");
@@ -952,7 +952,7 @@ tasks:
 tasks:
   - id: t
     retry: { max_attempts: 3 }
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let retry = one_task(yaml).retry.expect("retry").value;
         assert_eq!(retry.max_attempts, 3);
@@ -968,7 +968,7 @@ tasks:
 tasks:
   - id: t
     retry: { backoff_ms: 500 }
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("no max_attempts");
         assert!(
@@ -983,7 +983,7 @@ tasks:
 tasks:
   - id: t
     retry: { max_attempts: 0 }
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("zero attempts");
         assert!(matches!(err, SchemaError::BadRetry { .. }), "{err:?}");
@@ -998,7 +998,7 @@ tasks:
     retry:
       max_attempts: 2
       on_codes: [\"503\"]
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("http status");
         assert!(
@@ -1049,10 +1049,10 @@ tasks:
         let yaml = "\
 tasks:
   - id: a
-    exec: { command: echo }
+    exec: { command: [echo] }
     on_error: { skip: true }
   - id: b
-    exec: { command: echo }
+    exec: { command: [echo] }
     on_error: { fail_workflow: true }
 ";
         let wf = parse_strict(yaml).expect("parse");
@@ -1074,7 +1074,7 @@ tasks:
         let yaml = "\
 tasks:
   - id: t
-    exec: { command: echo }
+    exec: { command: [echo] }
     on_error: recover
 ";
         let err = parse_strict(yaml).expect_err("scalar on_error refused");
@@ -1093,7 +1093,7 @@ tasks:
         let yaml = "\
 tasks:
   - id: t
-    exec: { command: echo }
+    exec: { command: [echo] }
     on_error:
       skip: true
       fail_workflow: true
@@ -1128,7 +1128,7 @@ tasks:
         let yaml = "\
 tasks:
   - id: t
-    exec: { command: echo }
+    exec: { command: [echo] }
     on_error:
       on_codes: [NIKA-TIMEOUT-001]
 ";
@@ -1144,19 +1144,19 @@ tasks:
         let yaml = "\
 tasks:
   - id: work
-    exec: { command: echo }
+    exec: { command: [echo] }
   - id: record
     depends_on: [work]
     when: true
-    exec: { command: echo }
+    exec: { command: [echo] }
   - id: never
     depends_on: [work]
     when: false
-    exec: { command: echo }
+    exec: { command: [echo] }
   - id: quoted
     depends_on: [work]
     when: \"true\"
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let wf = parse_strict(yaml).expect("parse");
         assert_eq!(
@@ -1182,11 +1182,11 @@ tasks:
         let yaml = "\
 tasks:
   - id: work
-    exec: { command: echo }
+    exec: { command: [echo] }
   - id: legacy
     depends_on: [work]
     when: yes
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let wf = parse_strict(yaml).expect("parse");
         assert_eq!(
@@ -1201,7 +1201,7 @@ tasks:
         let yaml = "\
 tasks:
   - id: t
-    exec: { command: echo }
+    exec: { command: [echo] }
     on_error: {}
 ";
         let err = parse_strict(yaml).expect_err("zero fields");
@@ -1253,10 +1253,10 @@ tasks:
   - id: test
     timeout: \"5m\"
     exec:
-      command: \"cargo test\"
+      shell: \"cargo test\"
     on_finally:
       - exec:
-          command: \"rm -rf /tmp/x\"
+          shell: \"rm -rf /tmp/x\"
       - when: ${{ tasks.test.status == 'failed' }}
         timeout: \"10s\"
         invoke:
@@ -1281,7 +1281,7 @@ tasks:
 tasks:
   - id: t
     condition: \"${{ x }}\"
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         // `condition:` is the BROUILLON-era key — the canonical key is
         // `when:` (spec 03) · strict mode rejects it.
@@ -1313,7 +1313,7 @@ tasks:
 tasks:
   - id: t1
     exec:
-      command: echo
+      command: [echo]
 ";
         let wf = parse(yaml, FileId::new(9), ParseMode::Strict).expect("parse");
         assert_eq!(wf.tasks[0].span.file, FileId::new(9));

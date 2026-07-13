@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn mirrors_the_spec_lints_fixtures() {
         let fired = lints_of(
-            "nika: v1\nworkflow: curl-crawl\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://example.com -o out/site.html\" }\n",
+            "nika: v1\nworkflow: curl-crawl\ntasks:\n  - id: crawl\n    exec: { command: [\"curl\", \"-s\", \"https://example.com\", \"-o\", \"out/site.html\"] }\n",
         );
         assert_eq!(
             fired,
@@ -86,7 +86,7 @@ mod tests {
         );
 
         let silent = lints_of(
-            "nika: v1\nworkflow: build\ntasks:\n  - id: test\n    exec: { command: \"cargo test --workspace --lib\" }\n  - id: nested\n    depends_on: [test]\n    exec: { command: \"nika run subroutine.nika.yaml\" }\n",
+            "nika: v1\nworkflow: build\ntasks:\n  - id: test\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  - id: nested\n    depends_on: [test]\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika.yaml\"] }\n",
         );
         assert!(silent.is_empty(), "{silent:?}");
     }

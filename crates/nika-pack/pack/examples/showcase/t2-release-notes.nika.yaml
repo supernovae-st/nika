@@ -36,7 +36,7 @@ secrets:
 tasks:
   - id: history
     exec:
-      command: "git log ${{ vars.since_tag }}..HEAD --oneline --no-merges"
+      command: ["git", "log", "${{ vars.since_tag }}..HEAD", "--oneline", "--no-merges"]
 
   - id: notes
     depends_on: [history]

@@ -1299,7 +1299,7 @@ mod tests {
     /// the exit code must agree (the review-swarm untested-branch gap).
     #[test]
     fn native_strict_json_payload_agrees_with_the_exit_code() {
-        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://acme.test\" }\n";
+        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
         // matrix · a dev double-run) share the OS tmpdir, and a fixed
         // name let them stomp each other's fixtures mid-read (flaked
@@ -1335,7 +1335,7 @@ mod tests {
     /// 0 under strict.
     #[test]
     fn native_strict_fails_on_native_first_hints_only() {
-        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://acme.test\" }\n";
+        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         let default_run = checked_output("native-default.nika.yaml", helper, false);
         assert_eq!(
             default_run.code, 0,
@@ -1394,7 +1394,7 @@ mod tests {
     fn clean_report_marks_every_section() {
         let text = checked_text(
             "clean-one.nika.yaml",
-            "nika: v1\nworkflow: clean-one\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n",
+            "nika: v1\nworkflow: clean-one\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n",
             false,
         );
         let ticks = text.matches('✔').count();
@@ -1413,7 +1413,7 @@ mod tests {
     /// ASCII parity (`ok audited` · `>=`).
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
-        let yaml = "nika: v1\nworkflow: card\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo bye\" }\n";
+        let yaml = "nika: v1\nworkflow: card\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains("✔ audited · 2 tasks · 2 waves · permits none · est ≥$0.0000 · 1 hint"),
@@ -1460,7 +1460,7 @@ mod tests {
     fn plan_announces_the_skip_when_conformance_fails() {
         let text = checked_text(
             "plan-skip.nika.yaml",
-            "nika: v1\nworkflow: bad-ref\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.nope }}\" }\n",
+            "nika: v1\nworkflow: bad-ref\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"${{ vars.nope }}\"] }\n",
             true,
         );
         assert!(

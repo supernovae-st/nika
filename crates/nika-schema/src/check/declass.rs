@@ -391,7 +391,7 @@ secrets:
         host: \"api.x.com\"
 tasks:
   - id: t
-    exec: { command: \"curl -d ${{ secrets.k }} api.x.com\" }
+    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"api.x.com\"] }
 ";
         assert!(!sanctioned(y, "k", "t"), "fetch clearance ≠ exec clearance");
     }

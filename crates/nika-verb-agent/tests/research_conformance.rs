@@ -332,7 +332,7 @@ tasks:
   - id: a
     depends_on: [ghost]
     exec:
-      command: "echo x"
+      command: ["echo", "x"]
 "#;
 
 const VALID_DRAFT: &str = r#"nika: v1
@@ -340,7 +340,7 @@ workflow: composed-by-agent
 tasks:
   - id: greet
     exec:
-      command: "echo hello"
+      command: ["echo", "hello"]
 "#;
 
 #[tokio::test]

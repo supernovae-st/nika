@@ -89,7 +89,7 @@ A list of task ids this task depends on. The engine MUST not start this task unt
   depends_on: [build]                    # the success-gate — depends_on already requires it
   when: ${{ tasks.build.output.warnings == 0 }}   # when: is for conditions BEYOND success
   exec:
-    command: "./notify.sh"
+    command: ["./notify.sh"]
 ```
 
 #### Expression language · a documented subset of CEL
@@ -228,13 +228,13 @@ infer the edge (a verb-body reference is an edge too · no invisible edges).
 # ❌ REJECTED at parse — `when:` reads tasks.test but no depends_on
 - id: deploy
   when: ${{ tasks.test.status == 'success' }}
-  exec: { command: "./deploy.sh" }
+  exec: { command: ["./deploy.sh"] }
 
 # ✅ CORRECT — the reference is backed by an explicit edge
 - id: deploy
   depends_on: [test]
   when: ${{ tasks.test.status == 'success' }}
-  exec: { command: "./deploy.sh" }
+  exec: { command: ["./deploy.sh"] }
 ```
 
 **Why explicit, not inferred** · an inferred edge is an invisible edge: it
@@ -343,7 +343,7 @@ sequential iteration · set `max_parallel: 1` ·
   for_each: ${{ vars.items }}
   max_parallel: 1                              # iterations run one-at-a-time, in order
   exec:
-    command: "process ${{ item }}"
+    command: ["process", "${{ item }}"]
 ```
 
 #### `max_parallel:` · *optional · cap concurrent iterations*
@@ -435,7 +435,7 @@ without statically enumerating tasks.
 - id: long_task
   timeout: "5m"             # 5 minutes
   exec:
-    command: "./long-running.sh"
+    command: ["./long-running.sh"]
 ```
 
 Hard timeout for the entire task (including any retries and their backoff
@@ -570,9 +570,19 @@ downstream reads `status: "failure"`. Contrast · the same evaluation error
 in a verb-body position (`args:` · `prompt:` · …) is task-stage work and IS
 recoverable by that task's `on_error`.
 
-> **`depends_on` IS the success-gate.** Do NOT write
-> `when: ${{ tasks.X.status == 'success' }}` as a plain gate: it is **redundant**
-> (`depends_on` already requires success). Use `when:` ONLY for conditions BEYOND
+> **The gate algebra (normative).** The three gate forms PROPAGATE
+> differently — the pattern `when: ${{ tasks.X.status == 'success' }}`
+> is never a no-op, it is a propagation CHOICE:
+>
+> | upstream X ends | plain `depends_on` (default gate) | `when: ${{ tasks.X.status == 'success' }}` |
+> |---|---|---|
+> | `success` | run | run |
+> | `skipped` | **run** (skipped passes the default gate) | **skipped** (the anti-skip choice · [05 §skip-interaction](./05-errors.md)) |
+> | `failure` / `cancelled` | **cancelled** — and the hard stop cascades downstream | **skipped** — and downstream's default gate passes on skipped: **the chain continues** |
+>
+> Choose knowingly: the default gate is the hard-stop cascade; the
+> status-comparison converts a failure into skip-once-then-continue.
+> Use `when:` for conditions BEYOND
 > the default gate · a value check (`tasks.X.output.coverage > 80`) · an env check
 > · or to **exclude a skipped** upstream (`when: status == 'success'` is meaningful
 > only when X may be `skipped` via `on_error: skip`).
@@ -602,7 +612,7 @@ tasks:
 ```yaml
 tasks:
   - id: setup
-    exec: { command: "./prepare.sh" }
+    exec: { command: ["./prepare.sh"] }
   - id: analyze_a
     depends_on: [setup]
     infer: { prompt: "Analyze A" }
@@ -629,21 +639,21 @@ tasks:
 ```yaml
 tasks:
   - id: check
-    exec: { command: "./check-env.sh", capture: structured }
+    exec: { command: ["./check-env.sh"], capture: structured }
 
   - id: build_prod
     depends_on: [check]
     when: ${{ tasks.check.output.env == 'production' }}
-    exec: { command: "./build.sh --release" }
+    exec: { command: ["./build.sh", "--release"] }
 
   - id: build_dev
     depends_on: [check]
     when: ${{ tasks.check.output.env != 'production' }}
-    exec: { command: "./build.sh --debug" }
+    exec: { command: ["./build.sh", "--debug"] }
 
   - id: deploy
     depends_on: [build_prod, build_dev]
-    exec: { command: "./deploy.sh" }
+    exec: { command: ["./deploy.sh"] }
 ```
 
 Exactly one of `build_prod` or `build_dev` runs · the other is skipped · `deploy` runs after both (one success + one skipped).
@@ -708,10 +718,10 @@ single source prevents).
 ```yaml
 - id: process
   exec:
-    command: "./process.sh > /tmp/output.json"
+    shell: "./process.sh > /tmp/output.json"   # redirect → the explicit shell door
   on_finally:                                  # runs always · success/fail/timeout/cancel
     - exec:
-        command: "rm -f /tmp/output.json"
+        command: ["rm", "-f", "/tmp/output.json"]
     - invoke:
         tool: nika:emit
         args: { event: "task_completed", task_id: "process" }
@@ -750,7 +760,7 @@ completes · REGARDLESS of outcome (success · failure · timeout · cancel).
 ```yaml
 # 1 · cleanup temp files (scratch_dir declared in envelope vars:)
 on_finally:
-  - exec: { command: "rm -rf ${{ vars.scratch_dir }}" }
+  - exec: { command: ["rm", "-rf", "${{ vars.scratch_dir }}"] }   # argv: the var cannot break out
 
 # 2 · always-emit completion event
 on_finally:

@@ -33,7 +33,7 @@ vars:
   lang: { type: string, default: "en" }
 tasks:
   - id: say
-    exec: { command: "echo ${{ vars.topic }}" }
+    exec: { command: ["echo", "${{ vars.topic }}"] }
 outputs:
   topic_out: ${{ vars.topic }}
   lang_out: ${{ vars.lang }}

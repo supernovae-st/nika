@@ -238,7 +238,7 @@ workflow: composed-by-agent
 tasks:
   - id: greet
     exec:
-      command: "echo hello"
+      command: ["echo", "hello"]
 "#;
 
     #[test]
@@ -275,7 +275,7 @@ tasks:
   - id: a
     depends_on: [ghost]
     exec:
-      command: "echo x"
+      command: ["echo", "x"]
 "#;
         let (content, is_error, outcome) =
             run_compose(&serde_json::json!({"workflow_yaml": draft}));
