@@ -10,6 +10,34 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.102.0](https://github.com/supernovae-st/nika/compare/v0.101.0..v0.102.0) - 2026-07-13
+
+### Added
+
+- **The editor speaks the language — the LSP completes it end to end**
+  (#549 · #553 · #556 · #558). The pause after a colon answers itself
+  (space joins the triggers); the file teaches itself — `args:` keys
+  from the tool's own schema (required first), `mode:` enums scoped to
+  the enclosing tool, `${{ vars./secrets./env. }}` completions from the
+  FILE's declarations, self-reference filtered (an offered cycle is a
+  bug); hover cards on `tool:`/`model:`/`- id:` (the declaration reads
+  its own graph — wave k/N, transitive reach, a 3-tier model
+  fallback); references resolve like the graph reads — closure-aware
+  jumps, `${{ }}` goto-definition to the exact declaration span.
+- **`wave-sweep.sh`** — the whole release-wave version sweep, one
+  pattern-anchored command (matches each carrier by ROLE, uniformity
+  guard; born from the 0.101 concurrent-session misses).
+- **The coherence bot watches the three drifts caught by hand**
+  (action@v1 served default · starter template default · registry
+  certifier pin) — with the grace ladder on the served default and a
+  9/9 offline harness.
+
+### Fixed
+
+- **The changelog workflow heals its own stale PRs** (#555) — the
+  auto-prepend guard closes superseded cliff PRs instead of stacking
+  them.
+
 ## [0.101.0](https://github.com/supernovae-st/nika/compare/v0.100.0..v0.101.0) - 2026-07-13
 
 ### Added

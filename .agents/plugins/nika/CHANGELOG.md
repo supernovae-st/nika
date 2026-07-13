@@ -3,6 +3,10 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.102.0 — 2026-07-13
+
+Lockstep on the engine wave.
+
 ## 0.101.0 — 2026-07-13
 
 Lockstep on the engine wave (the sovereign lane ships whole — every
