@@ -11,8 +11,8 @@
 //! fires. This module only reshapes the verdict into [`Lint`] records
 //! (rule id · task · span · message · suggestion).
 
-use crate::check::native_first::classify;
-use crate::raw::{RawAction, RawWorkflow};
+use nika_schema::check::native_first::classify;
+use nika_schema::raw::{RawAction, RawWorkflow};
 
 use super::preference_rules::Lint;
 
@@ -37,7 +37,7 @@ pub fn native_first(wf: &RawWorkflow) -> Vec<Lint> {
     lints
 }
 
-fn push(action: &RawAction, id: &str, span: crate::source::Span, lints: &mut Vec<Lint>) {
+fn push(action: &RawAction, id: &str, span: nika_schema::source::Span, lints: &mut Vec<Lint>) {
     let RawAction::Exec(exec) = action else {
         return;
     };
@@ -55,8 +55,8 @@ fn push(action: &RawAction, id: &str, span: crate::source::Span, lints: &mut Vec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{ParseMode, parse};
-    use crate::source::FileId;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
 
     fn lints_of(yaml: &str) -> Vec<(String, String)> {
         native_first(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))

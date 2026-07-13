@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+    )
+)]
+
 //! Lint passes — advisory diagnostics over a parsed workflow.
 //!
 //! Lints are **warnings · never errors** (spec `03-dag.md` §One obvious
 //! way · « the discouraged forms are legal · just not canonical »). They
-//! run on the raw AST after [`crate::parse`] succeeds and are orthogonal
-//! to [`crate::analyze`] (which emits spec ERRORS).
+//! run on the raw AST after [`nika_schema::parse`] succeeds and are orthogonal
+//! to [`nika_schema::analyze`] (which emits spec ERRORS).
 //!
 //! v0.1 ships THREE rule sets · [`one_obvious_way`] — the control-flow
 //! preference rules the spec marks « normative for linters » —

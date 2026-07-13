@@ -43,8 +43,8 @@
 //!   stays silent (a genuine pipeline) and this pass only sees the ARRAY form,
 //!   so neither fires. Use the array form for any interpolated value.
 
-use crate::expression::scan_templates;
-use crate::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
+use nika_schema::expression::scan_templates;
+use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 
 use super::preference_rules::Lint;
 
@@ -284,7 +284,7 @@ fn check_task(task: &RawTask, lints: &mut Vec<Lint>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FileId, ParseMode, parse};
+    use nika_schema::{FileId, ParseMode, parse};
 
     fn lints_of(yaml: &str) -> Vec<Lint> {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");

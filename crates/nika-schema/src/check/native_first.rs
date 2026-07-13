@@ -109,7 +109,8 @@ fn push_native_first(action: &RawAction, id: &str, hints: &mut Vec<Hint>) {
 /// stable rule id (`native-first/00N`) + the advice body. ONE truth:
 /// the check hint AND the reference linter ruleset
 /// (`lints::native_first`) both classify HERE.
-pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
+#[must_use]
+pub fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
     let (head, pathed) = command_head(command)?;
     if head == "nika" {
         return None; // nested `nika run …` — the sanctioned composition

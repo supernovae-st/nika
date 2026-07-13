@@ -1,0 +1,28 @@
+[package]
+name          = "nika-lints"
+description   = "The spec-normative lint passes — one-obvious-way preference rules (03-dag.md · normative for linters), native-first verb-choice advisories, and argument-injection advisories for the exec array form. Warnings, never errors; descended from nika-schema (D-2026-07-09-N1 · one unit, two members)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-022.
+
+[dependencies]
+nika-schema = { path = "../nika-schema", version = "0.103.0" } # RawWorkflow + spans + the native-first classifier
+serde_json  = { workspace = true }                             # rule-table payload shapes
+
+[dev-dependencies]
+serde       = { workspace = true }  # conformance fixture expected.json shapes
+
+[package.metadata.lore]
+daemon        = "sentinelle"
+archetype     = "style-warden"
+spirit_role   = "murmure la forme canonique · jamais une erreur · la voie évidente reste évidente"
+voice_pattern = "advisory"
+layer         = "L2"
+
+[lints]
+workspace = true

@@ -35,7 +35,7 @@ mod effective;
 mod findings;
 mod flow;
 mod hints;
-pub(crate) mod native_first;
+pub mod native_first;
 mod permits_fit;
 mod permits_infer;
 mod reach;

@@ -83,7 +83,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
                 | SchemaError::W1TopLevelDescription { .. }
                 | SchemaError::W1TasksSequence { .. }
                 | SchemaError::W1TaskIdField { .. },
-            ) => match nika_schema::migrate::w1(&source) {
+            ) => match crate::migrate::w1(&source) {
                 Some(migrated) => {
                     source = migrated;
                     repairs.push(Repair {

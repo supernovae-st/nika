@@ -45,8 +45,6 @@ pub mod error;
 /// every `nika_schema::expression::…` path resolves unchanged.
 pub use nika_tmpl::expression;
 pub mod keysets;
-pub mod lints;
-pub mod migrate;
 pub mod parser;
 pub mod raw;
 pub mod skill;

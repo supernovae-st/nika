@@ -1,8 +1,8 @@
 use super::*;
-use crate::expression::{parse_expression, scan_templates};
-use crate::raw::{RawExecAction, RawInferAction, RawInvokeAction};
-use crate::source::{Span, Spanned};
-use crate::{FileId, ParseMode, parse};
+use nika_schema::expression::{parse_expression, scan_templates};
+use nika_schema::raw::{RawExecAction, RawInferAction, RawInvokeAction};
+use nika_schema::source::{Span, Spanned};
+use nika_schema::{FileId, ParseMode, parse};
 use serde_json::{Value, json};
 
 // ───────────────────────── rule-level helpers ─────────────────────────
@@ -648,15 +648,15 @@ fn value_producer_argv_and_infer_are_not_value_producers() {
     // interpolated element or a non-echo program still is not.
     assert!(!is_value_producer(&infer_prompt("summarize this")));
     let echo = RawAction::Exec(RawExecAction::with_command(
-        crate::raw::action::RawCommand::Argv(vec![sp("echo"), sp("hi")]),
+        nika_schema::raw::action::RawCommand::Argv(vec![sp("echo"), sp("hi")]),
     ));
     assert!(is_value_producer(&echo), "template-free argv echo = value");
     let interp = RawAction::Exec(RawExecAction::with_command(
-        crate::raw::action::RawCommand::Argv(vec![sp("echo"), sp("${{ tasks.a.output }}")]),
+        nika_schema::raw::action::RawCommand::Argv(vec![sp("echo"), sp("${{ tasks.a.output }}")]),
     ));
     assert!(!is_value_producer(&interp), "interpolation = real work");
     let prog = RawAction::Exec(RawExecAction::with_command(
-        crate::raw::action::RawCommand::Argv(vec![sp("./gen.sh")]),
+        nika_schema::raw::action::RawCommand::Argv(vec![sp("./gen.sh")]),
     ));
     assert!(!is_value_producer(&prog), "non-echo argv = real work");
 }

@@ -20,12 +20,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 
-use crate::expression::{
+use nika_schema::expression::{
     Expr, Literal, NamespaceRef, RelOp, TemplateIsland, expr_refs, scan_templates,
 };
-use crate::raw::{RawAction, RawTask, RawWorkflow};
-use crate::source::Span;
-use crate::types::OnErrorAction;
+use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
+use nika_schema::source::Span;
+use nika_schema::types::OnErrorAction;
 
 /// One advisory finding from a lint pass.
 ///
@@ -388,9 +388,6 @@ fn action_fingerprint(a: &RawAction) -> Value {
             "system": f.system.as_ref().map(|s| s.value.clone()),
             "model": f.model.as_ref().map(|s| s.value.clone()),
         }),
-        // Exhaustive on purpose — a NEW verb variant must fail to
-        // compile here until its fingerprint is defined (structural
-        // enforcement · `#[non_exhaustive]` only binds external crates).
         RawAction::Agent(g) => json!({
             "verb": "agent",
             "prompt": g.prompt.value,
@@ -398,6 +395,11 @@ fn action_fingerprint(a: &RawAction) -> Value {
             "model": g.model.as_ref().map(|s| s.value.clone()),
             "tools": g.tools.iter().map(|t| t.value.clone()).collect::<Vec<_>>(),
         }),
+        // The 4 verbs are locked forever (D-2026-05-22-N18) — outside the
+        // defining crate `#[non_exhaustive]` demands this arm, but by
+        // language law it is unreachable; the verb name keeps the
+        // fingerprint sound if the law ever changes.
+        other => json!({ "verb": other.verb() }),
     }
 }
 
@@ -741,12 +743,15 @@ fn is_shard_chain(tasks: &[&RawTask], chain: &[usize]) -> bool {
                 .filter_map(|a| {
                     if let RawAction::Exec(e) = a {
                         match &e.command {
-                            crate::raw::RawCommand::Argv(parts) => {
+                            nika_schema::raw::RawCommand::Argv(parts) => {
                                 Some(parts.iter().map(|p| p.value.as_str()).collect())
                             }
-                            crate::raw::RawCommand::Shell(c) => {
+                            nika_schema::raw::RawCommand::Shell(c) => {
                                 Some(c.value.split_whitespace().collect())
                             }
+                            // exec is argv-or-shell by the v0.103 field law —
+                            // a third form is spec-gated; advisory pass skips
+                            _ => None,
                         }
                     } else {
                         None

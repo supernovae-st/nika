@@ -24,7 +24,7 @@
 /// Apply the W1 migration. `Some(new)` when the document changed,
 /// `None` when it is already in the new form (idempotence by contract).
 #[must_use]
-pub fn w1(source: &str) -> Option<String> {
+pub(crate) fn w1(source: &str) -> Option<String> {
     let lines: Vec<&str> = source.split('\n').collect();
 
     // pass 1 · locate the top-level `description:` (to hoist) and the

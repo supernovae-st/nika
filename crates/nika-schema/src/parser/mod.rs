@@ -143,30 +143,9 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
         workflow.nika = Some(parse_nika_version(&cx, scalar)?);
     }
     if let Some(node) = mapping.get_node("workflow") {
-        if let Some(scalar) = node.as_scalar() {
-            // the dead scalar form — refused with the migration teaching
-            return Err(SchemaError::W1WorkflowScalar {
-                id: scalar.as_str().to_owned(),
-                span: yaml_span_to_span(file_id, scalar.span(), &char_to_byte),
-            });
-        }
-        let Some(obj) = node.as_mapping() else {
-            return Err(SchemaError::Validation {
-                message: "`workflow` must be a mapping (`id:` + optional `description:`)"
-                    .to_owned(),
-                span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
-            });
-        };
-        cx.check_unknown_keys(obj, &["id", "description"], "the `workflow:` object")?;
-        let Some(id) = extract_scalar(obj, "id", file_id, &char_to_byte)? else {
-            return Err(SchemaError::MissingField {
-                field: "workflow.id".to_owned(),
-                span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
-            });
-        };
-        validate_workflow_id(&id)?;
+        let (id, description) = parse_workflow_object(&cx, node)?;
         workflow.workflow = Some(id);
-        workflow.description = extract_scalar(obj, "description", file_id, &char_to_byte)?;
+        workflow.description = description;
     }
     if let Some(s) = extract_scalar(mapping, "model", file_id, &char_to_byte)? {
         workflow.model = Some(s);
@@ -496,6 +475,41 @@ impl CharToByte {
 /// Returns `Ok(None)` if the key is absent. Returns a
 /// [`SchemaError::Validation`] if the key exists but the value is a
 /// mapping or a sequence.
+/// Parse the W1 `workflow:` object — `id:` (required · validated) plus the
+/// optional `description:`. The dead scalar form gets its migration
+/// teaching (`NIKA-PARSE-020`); any other shape is a plain validation
+/// error naming the two-field contract.
+fn parse_workflow_object(
+    cx: &Cx<'_>,
+    node: &marked_yaml::types::Node,
+) -> Result<(Spanned<String>, Option<Spanned<String>>), SchemaError> {
+    let file_id = cx.file_id;
+    let char_to_byte = cx.char_to_byte;
+    if let Some(scalar) = node.as_scalar() {
+        // the dead scalar form — refused with the migration teaching
+        return Err(SchemaError::W1WorkflowScalar {
+            id: scalar.as_str().to_owned(),
+            span: yaml_span_to_span(file_id, scalar.span(), char_to_byte),
+        });
+    }
+    let Some(obj) = node.as_mapping() else {
+        return Err(SchemaError::Validation {
+            message: "`workflow` must be a mapping (`id:` + optional `description:`)".to_owned(),
+            span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+        });
+    };
+    cx.check_unknown_keys(obj, &["id", "description"], "the `workflow:` object")?;
+    let Some(id) = extract_scalar(obj, "id", file_id, char_to_byte)? else {
+        return Err(SchemaError::MissingField {
+            field: "workflow.id".to_owned(),
+            span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+        });
+    };
+    validate_workflow_id(&id)?;
+    let description = extract_scalar(obj, "description", file_id, char_to_byte)?;
+    Ok((id, description))
+}
+
 pub(super) fn extract_scalar(
     mapping: &marked_yaml::types::MarkedMappingNode,
     key: &str,

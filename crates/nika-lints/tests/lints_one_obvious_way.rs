@@ -18,7 +18,7 @@
 mod common;
 
 use common::{fixture_dirs, skip_in_mutants_sandbox, spec_dir};
-use nika_schema::lints::{Lint, native_first, one_obvious_way};
+use nika_lints::{Lint, native_first, one_obvious_way};
 use nika_schema::{FileId, ParseMode, parse};
 
 fn lint(yaml: &str) -> Vec<Lint> {
@@ -121,7 +121,7 @@ tasks:
 
 // ── rule 008 · interpolated string command → use the array form ──────────
 
-fn lints_008(yaml: &str) -> Vec<nika_schema::lints::Lint> {
+fn lints_008(yaml: &str) -> Vec<nika_lints::Lint> {
     lint(yaml)
         .into_iter()
         .filter(|l| l.rule == "one-obvious-way/008")
@@ -206,7 +206,7 @@ tasks:
 
 // ── rule 009 · output binding ending in a bare iterator `[]` ──────────────
 
-fn lints_009(yaml: &str) -> Vec<nika_schema::lints::Lint> {
+fn lints_009(yaml: &str) -> Vec<nika_lints::Lint> {
     lint(yaml)
         .into_iter()
         .filter(|l| l.rule == "one-obvious-way/009")
