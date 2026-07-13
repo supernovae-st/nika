@@ -828,7 +828,7 @@ comment is the conventional home.
 
 The DAG has ONE canonical machine-readable view: the **graph document**
 a conforming implementation emits for a *checked* workflow (the
-reference engine: `nika graph <file> --format json`; the MCP surface
+reference engine: `nika inspect <file> --format json`; the MCP surface
 mirrors it). Clients — editor canvases, graph renderers, agents —
 consume THIS document, never a private re-parse of the YAML. Without a
 valid DAG there is no projection: the document is defined only for a
