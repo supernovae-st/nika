@@ -166,6 +166,33 @@ fn unquote(rest: &str) -> &str {
     v.trim_matches('"').trim_matches('\'')
 }
 
+/// Whether the cursor sits on a block-list ITEM line (`- ` · `- "…`
+/// partial) whose nearest shallower non-blank ancestor is `<key>:` —
+/// the block-form twin of the flow-list detectors.
+pub(super) fn in_block_list_item(text: &str, offset: usize, key: &str) -> bool {
+    let upto = text.get(..offset).unwrap_or("");
+    let line_start = upto.rfind('\n').map_or(0, |i| i + 1);
+    let prefix = &upto[line_start..];
+    let typed = prefix.trim_start();
+    if !typed.starts_with('-') {
+        return false;
+    }
+    let indent = prefix.len() - typed.len();
+    if indent == 0 {
+        return false; // a top-level list is never a task-field register
+    }
+    for line in lines_upward(text, offset) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let line_indent = line.len() - line.trim_start().len();
+        if line_indent < indent {
+            return line.trim_start().starts_with(key);
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

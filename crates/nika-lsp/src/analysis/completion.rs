@@ -22,19 +22,43 @@
 //! best-effort parse (lenient · a partially-typed document still parses
 //! enough of its tasks to suggest their ids).
 
+use std::path::Path;
+
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::{FileId, ParseMode, parse};
 
+use super::islands;
 use super::members;
 use super::scope;
+use super::skills;
 use super::vocab::{self, Entry};
 
-/// Compute completion items for the cursor at `offset` in `text`.
+/// Compute completion items for the cursor at `offset` in `text` —
+/// the pure lane set (everything derivable from the text alone).
 #[must_use]
 pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
+    completion_at(text, offset, None)
+}
+
+/// The full lane set: the pure lanes plus the one disk-backed lane
+/// (agent `skills:` — the workspace's own `SKILL.md` files, rooted at
+/// the document's directory). The server passes the document's dir;
+/// pure callers (tests · non-file documents) pass `None` and lose only
+/// that lane.
+#[must_use]
+pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<CompletionItem> {
     let offset = floor_char_boundary(text, offset);
     let line = current_line(text, offset);
     let prefix = line_prefix(text, offset);
+
+    // The agent skills list — checked FIRST among list lanes: `skills:`
+    // and `tools:` share the flow-list shape, and the skills walk only
+    // fires when a document directory exists to root it.
+    if in_open_flow_list(text, offset, "skills:")
+        || scope::in_block_list_item(text, offset, "skills:")
+    {
+        return doc_dir.map(skills::skill_items).unwrap_or_default();
+    }
 
     if is_model_value(prefix) {
         // A provider already typed (`model: ollama/`) narrows to ITS
@@ -86,6 +110,16 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
         && let Some(items) = builtin_arg_keys(text, offset)
     {
         return items;
+    }
+    // A bare `for_each:` / `when:` value — whole islands composed from
+    // THIS document (typed arrays · upstream gates · the size() idiom).
+    // Once an island opens, the expression lanes above take over.
+    if let Some(key) = islands::island_value_key(prefix) {
+        return if key == "for_each" {
+            islands::for_each_items(text, offset)
+        } else {
+            islands::when_items(text, offset)
+        };
     }
     if is_top_level_key(prefix) {
         return keyword_items(vocab::TOP_LEVEL_KEYS);
@@ -645,7 +679,7 @@ fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem> {
 /// id in source order (deduplicated). Robust to a partially-typed document
 /// that does not yet parse. A line is a task id when, after stripping
 /// leading whitespace and an optional `- ` marker, it reads `id: <ident>`.
-fn scan_task_ids(text: &str) -> Vec<String> {
+pub(super) fn scan_task_ids(text: &str) -> Vec<String> {
     let mut ids = Vec::new();
     for line in text.lines() {
         let body = line.trim_start();

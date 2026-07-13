@@ -917,3 +917,92 @@ fn task_fields_survive_outside_schema() {
         "the task-field lane is untouched outside schema: {got:?}"
     );
 }
+
+// ─── the wave-2 lanes: for_each/when islands · skills list ──────────────────
+
+const FLOW_DOC: &str = "nika: v1\nworkflow: w\nvars:\n  urls:\n    type: array\n    default: []\n  topic: \"rust\"\ntasks:\n  - id: gather\n    exec:\n      command: ls\n  - id: fan\n    depends_on: [gather]\n    for_each: \n    exec:\n      command: echo\n  - id: last\n    depends_on: [fan]\n    exec:\n      command: true\n";
+
+#[test]
+fn for_each_offers_typed_arrays_first_then_upstream_cycle_safe() {
+    let at = FLOW_DOC.find("for_each: ").expect("key") + "for_each: ".len();
+    let items = completion(FLOW_DOC, at);
+    let got = labels(&items);
+    assert_eq!(
+        got.first().map(String::as_str),
+        Some("${{ vars.urls }}"),
+        "the typed array floats first: {got:?}"
+    );
+    assert!(
+        got.contains(&"${{ tasks.gather.output }}".to_owned()),
+        "upstream rides: {got:?}"
+    );
+    assert!(
+        !got.iter().any(|l| l.contains("tasks.last")),
+        "a downstream task is cycle territory: {got:?}"
+    );
+    assert!(
+        !got.iter().any(|l| l.contains("tasks.fan")),
+        "self never offered: {got:?}"
+    );
+    // The wired edge is named as already wired; topic is offered honestly.
+    let gather = items
+        .iter()
+        .find(|i| i.label.contains("tasks.gather"))
+        .and_then(|i| i.detail.clone())
+        .unwrap_or_default();
+    assert!(gather.contains("already wired"), "edge detail: {gather}");
+    assert!(
+        got.contains(&"${{ vars.topic }}".to_owned()),
+        "other vars offered honestly: {got:?}"
+    );
+}
+
+#[test]
+fn when_composes_the_cel_shapes_from_the_document() {
+    let doc = FLOW_DOC.replace("for_each: ", "when: ");
+    let at = doc.find("when: ").expect("key") + "when: ".len();
+    let got = labels(&completion(&doc, at));
+    assert!(
+        got.contains(&"${{ tasks.gather.status == 'success' }}".to_owned()),
+        "the status gate: {got:?}"
+    );
+    assert!(
+        got.contains(&"${{ size(tasks.gather.output) > 0 }}".to_owned()),
+        "the size() empty-check (the subset's one function): {got:?}"
+    );
+    assert!(
+        got.contains(&"${{ vars.topic }}".to_owned()),
+        "the var switch: {got:?}"
+    );
+}
+
+#[test]
+fn a_partial_non_island_value_stays_silent() {
+    let doc = FLOW_DOC.replace("for_each: \n", "for_each: som\n");
+    let at = doc.find("for_each: som").expect("key") + "for_each: som".len();
+    assert!(
+        completion(&doc, at).is_empty(),
+        "the author is typing their own value — silence beats noise"
+    );
+}
+
+#[test]
+fn skills_positions_route_to_the_walk_and_pure_callers_lose_only_that_lane() {
+    // Flow form and block form both detect; with no doc_dir (the pure
+    // caller) the lane yields empty INSTEAD of falling through to some
+    // other register.
+    let flow = "nika: v1\ntasks:\n  - id: a\n    agent:\n      prompt: \"p\"\n      skills: [\"";
+    assert!(completion(flow, flow.len()).is_empty());
+    let block =
+        "nika: v1\ntasks:\n  - id: a\n    agent:\n      prompt: \"p\"\n      skills:\n        - ";
+    assert!(completion(block, block.len()).is_empty());
+    // A block item under TOOLS (not skills) keeps its own lane silent-or-
+    // catalog — never the skills walk; the ancestor check is exact.
+    let other =
+        "nika: v1\ntasks:\n  - id: a\n    agent:\n      prompt: \"p\"\n      tools:\n        - ";
+    let got = labels(&completion(other, other.len()));
+    assert!(
+        !got.iter().any(|l| l.ends_with("SKILL.md")),
+        "tools block items never route to the skills walk: {got:?}"
+    );
+}

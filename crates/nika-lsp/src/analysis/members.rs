@@ -103,6 +103,13 @@ fn member_item(name: &str, detail: String) -> CompletionItem {
     }
 }
 
+/// The `vars:` names by line shape — the mid-keystroke fallback the
+/// island lanes share (a `for_each:`/`when:` position often sits in a
+/// document that no longer parses).
+pub(super) fn scan_vars_keys(text: &str) -> Vec<String> {
+    scan_block_keys(text, "vars")
+}
+
 /// The immediate child keys of a top-level `vars:` / `secrets:` / `env:`
 /// block, by line shape — the fallback when the document mid-keystroke
 /// no longer parses.
