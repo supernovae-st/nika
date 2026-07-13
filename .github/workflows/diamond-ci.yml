@@ -97,7 +97,7 @@ jobs:
       # local pre-push hook has proven for months (one lane, no wrapper).
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-deny
-      - run: cargo deny check --all-features
+      - run: cargo deny --all-features check
 
   hack:
     name: cargo-hack (feature matrix)
