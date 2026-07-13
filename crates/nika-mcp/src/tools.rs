@@ -25,12 +25,39 @@ use serde_json::{Value, json};
 /// (JSON Schema the client validates arguments against).
 #[must_use]
 pub(crate) fn catalog() -> Value {
+    let mut all = validate_tools().as_array().cloned().unwrap_or_default();
+    all.extend(learn_tools().as_array().cloned().unwrap_or_default());
+    Value::Array(all)
+}
+
+/// The VALIDATE half — audit and project a workflow before a token.
+fn validate_tools() -> Value {
     json!([
         {
             "name": "nika_check",
             "description": "Statically audit a Nika workflow (schema · DAG · CEL · \
                             effects · permits · cost) BEFORE running it. Returns the \
                             findings, or a clean verdict — auditable before a token is spent.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workflow": {
+                        "type": "string",
+                        "description": "The *.nika.yaml workflow source."
+                    }
+                },
+                "required": ["workflow"]
+            }
+        },
+        {
+            "name": "nika_inspect",
+            "description": "Project a Nika workflow's DAG as the canonical \
+                            graph document (graph_format: 1 — the same bytes \
+                            `nika inspect --format json` prints and the LSP's \
+                            nika/semanticDocument serves): wave-ordered nodes \
+                            with verbs, models, permits, cost intervals; \
+                            depends_on edges. Null graph + a one-word reason \
+                            while the document has findings.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -56,6 +83,12 @@ pub(crate) fn catalog() -> Value {
                 "required": ["code"]
             }
         },
+    ])
+}
+
+/// The LEARN half — the embedded canon an agent reads.
+fn learn_tools() -> Value {
+    json!([
         {
             "name": "nika_schema",
             "description": "The embedded JSON Schema for *.nika.yaml — the structural \
@@ -125,6 +158,7 @@ pub(crate) fn catalog() -> Value {
 pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
     match name {
         "nika_check" => check(args),
+        "nika_inspect" => inspect(args),
         "nika_explain" => explain(args),
         "nika_schema" => Ok(nika_pack::schema_json().to_owned()),
         "nika_examples" => examples(args),
@@ -133,9 +167,9 @@ pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
         "nika_catalog" => catalog_payload(),
         "nika_tools" => tools_payload(),
         other => Err(format!(
-            "unknown tool `{other}` — nika exposes nika_check · nika_explain · \
-             nika_schema · nika_examples · nika_template · nika_canon · \
-             nika_catalog · nika_tools"
+            "unknown tool `{other}` — nika exposes nika_check · nika_inspect · \
+             nika_explain · nika_schema · nika_examples · nika_template · \
+             nika_canon · nika_catalog · nika_tools"
         )),
     }
 }
@@ -233,6 +267,31 @@ fn template(args: &Value) -> Result<String, String> {
 /// `nika_catalog` — the versioned provider/model projection: the SAME
 /// payload `nika catalog --json` emits (built by `nika-catalog::export`,
 /// the one owning builder — CLI and MCP never drift).
+/// `nika_inspect` — the canonical graph projection (`graph_format: 1`),
+/// the SAME contract the LSP's `nika/semanticDocument` serves: the
+/// projection verbatim when the ladder is clean, `{"graph": null,
+/// "reason": …}` otherwise (`"findings"` — parse failures error like
+/// every other tool). One projector, three protocols.
+fn inspect(args: &Value) -> Result<String, String> {
+    let yaml = args
+        .get("workflow")
+        .and_then(Value::as_str)
+        .ok_or("missing `workflow` (the *.nika.yaml source)")?;
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .map_err(|e| format!("PARSE ✗ {e}"))?;
+    let report = nika_schema::check(&wf);
+    if report.is_clean() {
+        serde_json::to_string_pretty(&nika_graph::project(&wf, &report))
+            .map_err(|e| format!("projection serialization failed: {e}"))
+    } else {
+        Ok(serde_json::json!({ "graph": null, "reason": "findings" }).to_string())
+    }
+}
+
 fn catalog_payload() -> Result<String, String> {
     serde_json::to_string_pretty(&nika_catalog::export::catalog_export())
         .map_err(|e| format!("catalog projection failed: {e}"))
@@ -293,6 +352,37 @@ fn explain(args: &Value) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    /// `nika_inspect` serves the projection VERBATIM — byte-equal with
+    /// `nika_graph::project` on the same source (one projector, three
+    /// protocols: this pin is the MCP leg of the LSP's parity law).
+    #[test]
+    fn inspect_serves_the_canonical_projection_verbatim() {
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"y\" }\n";
+        let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("clean");
+        let got: Value = serde_json::from_str(&out).expect("json");
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        let report = nika_schema::check(&wf);
+        let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
+        assert_eq!(got, expected);
+        assert_eq!(got["graph_format"], 1, "in-payload version");
+    }
+
+    /// Findings → null graph + the one-word reason (the LSP contract,
+    /// MCP leg) — never a projection of an unproven DAG.
+    #[test]
+    fn inspect_refuses_findings_with_a_reason() {
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"y\" }\n";
+        let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("answers");
+        let got: Value = serde_json::from_str(&out).expect("json");
+        assert_eq!(got["graph"], Value::Null);
+        assert_eq!(got["reason"], "findings");
+    }
+
     /// #320 repro 3, closed: a hallucinated model over the MCP lane was
     /// the LAST surface still auditing green — the rung now reds it with
     /// the same payload keys the CLI --json lane carries.
@@ -337,6 +427,7 @@ mod tests {
             names,
             [
                 "nika_check",
+                "nika_inspect",
                 "nika_explain",
                 "nika_schema",
                 "nika_examples",
@@ -458,6 +549,7 @@ mod tests {
             .collect();
         for expected in [
             "nika_check",
+            "nika_inspect",
             "nika_explain",
             "nika_schema",
             "nika_examples",
