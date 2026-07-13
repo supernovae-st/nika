@@ -17,7 +17,7 @@ pub(super) fn template_member_root(prefix: &str) -> Option<&'static str> {
         return None;
     }
     let t = after.trim_end();
-    for root in ["vars", "secrets", "env"] {
+    for root in ["vars", "secrets", "env", "with"] {
         if t.ends_with(&format!("{root}.")) {
             return Some(root);
         }
@@ -29,6 +29,68 @@ pub(super) fn template_member_root(prefix: &str) -> Option<&'static str> {
 /// of the document itself, so the workflow teaches its own names. A
 /// mid-keystroke document that no longer parses falls back to a line
 /// scan of the block (same spirit as `scan_task_ids`).
+/// The `with.` lane — the ENCLOSING task's own aliases (spec 04: `with`
+/// is task-local; another task's aliases are not in scope). Parse-first
+/// with the same line-scan fallback discipline as the other roots.
+pub(super) fn with_items(text: &str, offset: usize) -> Vec<CompletionItem> {
+    let Some(editing) = super::scope::current_task_id(text, offset) else {
+        return Vec::new();
+    };
+    if let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient)
+        && let Some(task) = wf.tasks.iter().find(|t| t.value.id.value == editing)
+    {
+        return task
+            .value
+            .with
+            .iter()
+            .map(|(name, _)| member_item(&name.value, "with · this task's alias".to_owned()))
+            .collect();
+    }
+    scan_task_with_keys(text, &editing)
+        .into_iter()
+        .map(|name| member_item(&name, "with · this task's alias".to_owned()))
+        .collect()
+}
+
+/// Line-scan fallback: the `with:` child keys of the task block named
+/// `editing` (mid-keystroke documents keep their aliases).
+fn scan_task_with_keys(text: &str, editing: &str) -> Vec<String> {
+    let mut in_task = false;
+    let mut in_with = false;
+    let mut with_indent = 0usize;
+    let mut keys = Vec::new();
+    for line in text.lines() {
+        let t = line.trim_start();
+        let indent = line.len() - t.len();
+        if let Some(rest) = t.strip_prefix("- id:") {
+            in_task = rest.split('#').next().unwrap_or("").trim() == editing;
+            in_with = false;
+            continue;
+        }
+        if in_task && t.starts_with("with:") {
+            in_with = true;
+            with_indent = indent;
+            continue;
+        }
+        if in_with {
+            if !t.is_empty() && indent <= with_indent {
+                in_with = false;
+                continue;
+            }
+            if indent == with_indent + 2
+                && let Some((name, _)) = t.split_once(':')
+                && !name.is_empty()
+                && name
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+            {
+                keys.push(name.to_owned());
+            }
+        }
+    }
+    keys
+}
+
 pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
     let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient) else {
         return scan_block_keys(text, root)

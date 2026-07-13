@@ -93,8 +93,8 @@ pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<C
     if is_template_tasks_ref(prefix) {
         return refs::island_task_refs(text, offset);
     }
-    if let Some(root) = members::template_member_root(prefix) {
-        return members::member_items(text, root);
+    if let Some(items) = member_root_items(text, offset, prefix) {
+        return items;
     }
     // `${{ tasks.<id>. }}` — the task's member facts (output · status ·
     // error · its named bindings), BEFORE the CEL post-dot lane: a data
@@ -144,6 +144,18 @@ pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<C
         return items;
     }
     Vec::new()
+}
+
+/// An open island ending in a member root (`vars.` · `secrets.` ·
+/// `env.` · `with.`) — `with` routes to the task-local lane, the
+/// workflow-level roots to the declaration lane.
+fn member_root_items(text: &str, offset: usize, prefix: &str) -> Option<Vec<CompletionItem>> {
+    let root = members::template_member_root(prefix)?;
+    Some(if root == "with" {
+        members::with_items(text, offset)
+    } else {
+        members::member_items(text, root)
+    })
 }
 
 /// A key position inside a KNOWN block (`retry:` · `on_error:` · a

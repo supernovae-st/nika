@@ -1100,3 +1100,17 @@ fn free_form_maps_stay_free() {
         "no keyset leak into a free-form map: {got:?}"
     );
 }
+
+/// `${{ with.` offers the ENCLOSING task's own aliases only — spec 04:
+/// `with` is task-local, another task's aliases are out of scope.
+#[test]
+fn with_island_offers_the_enclosing_tasks_aliases() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    with:\n      other: 1\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    with:\n      article: \"${{ tasks.a.output }}\"\n      limit: 5\n    exec: { command: \"echo ${{ with.article }} ${{ with.\" }\n";
+    let cursor = text.rfind("${{ with.").expect("island") + "${{ with.".len();
+    let got = labels(&completion(text, cursor));
+    assert_eq!(
+        got,
+        vec!["article", "limit"],
+        "b's aliases, never a's: {got:?}"
+    );
+}

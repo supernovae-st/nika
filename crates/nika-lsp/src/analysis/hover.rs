@@ -74,6 +74,16 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
             wf.secrets.iter().find(|(n, _)| n.value == name)?;
             format!("**`secrets.{name}`** — _secret_\n\nmasked · never echoed · taint-tracked")
         }
+        "with" => {
+            // task-local: the ENCLOSING task's alias (spec 04)
+            let editing = super::scope::current_task_id(text, offset)?;
+            let task = wf.tasks.iter().find(|t| t.value.id.value == editing)?;
+            let (_, value) = task.value.with.iter().find(|(n, _)| n.value == name)?;
+            format!(
+                "**`with.{name}`** — _this task's alias_\n\nbinds `{}`",
+                value.value
+            )
+        }
         _ => {
             let (_, value) = wf.env.iter().find(|(n, _)| n.value == name)?;
             format!(

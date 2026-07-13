@@ -52,6 +52,17 @@ pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
 /// over the three declaring roots.
 fn member_decl_target(wf: &RawWorkflow, text: &str, offset: usize) -> Option<(Span, usize)> {
     let (root, name) = template_member_at(text, offset)?;
+    if root == "with" {
+        // task-local: resolve within the ENCLOSING task only (spec 04)
+        let editing = super::scope::current_task_id(text, offset)?;
+        let task = wf.tasks.iter().find(|t| t.value.id.value == editing)?;
+        return task
+            .value
+            .with
+            .iter()
+            .find(|(n, _)| n.value == name)
+            .map(|(n, _)| (n.span, n.value.len()));
+    }
     match root {
         "vars" => wf
             .vars
@@ -81,7 +92,7 @@ pub(crate) fn template_member_at(text: &str, offset: usize) -> Option<(&'static 
             continue;
         }
         let inner = text.get(island_start..island_end)?;
-        for root in ["vars", "secrets", "env"] {
+        for root in ["vars", "secrets", "env", "with"] {
             let needle = format!("{root}.");
             let mut search_from = 0usize;
             while let Some(rel) = inner.get(search_from..)?.find(&needle) {
@@ -775,5 +786,22 @@ mod tests {
         let at = text.find("vars.city").expect("ref");
         let miss = text.replace("vars.city", "vars.ghost");
         assert!(definition(&uri, &miss, at + 7).is_none());
+    }
+
+    /// `${{ with.X }}` jumps to the alias declaration in the ENCLOSING
+    /// task — and never to a same-named alias of another task.
+    #[test]
+    fn with_ref_jumps_to_the_enclosing_tasks_alias() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    with:\n      article: 1\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    with:\n      article: \"${{ tasks.a.output }}\"\n    exec: { command: \"echo ${{ with.article }}\" }\n";
+        let uri: Uri = "file:///w.nika.yaml".parse().expect("uri");
+        let at = text.rfind("with.article").expect("ref") + 7;
+        let loc = definition(&uri, text, at).expect("resolves");
+        // b's declaration line, not a's — the SECOND `article:`
+        let b_decl = text.rfind("      article:").expect("b decl");
+        let decl_line = u32::try_from(text[..b_decl].matches('\n').count()).expect("fits");
+        assert_eq!(
+            loc.range.start.line, decl_line,
+            "the ENCLOSING task's alias"
+        );
     }
 }
