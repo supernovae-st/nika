@@ -195,6 +195,8 @@ def main():
         ("nika-client", "release-heal.yml"),
         ("nika-agents", "release-heal.yml"),
         ("nika-registry", "release-heal.yml"),
+        ("nika-vscode", "spec-pin-heal.yml"),
+        ("nika", "pack-resync.yml"),
     ]
     for repo, wf in IMMUNE:
         got = grab(f"{RAW}/supernovae-st/{repo}/main/.github/workflows/{wf}", str,
