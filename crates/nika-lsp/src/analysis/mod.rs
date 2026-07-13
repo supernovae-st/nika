@@ -21,5 +21,6 @@ pub mod hover;
 pub mod members;
 pub mod position;
 pub mod scope;
+pub mod semantic_document;
 pub mod symbols;
 pub mod vocab;

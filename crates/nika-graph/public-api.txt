@@ -1,0 +1,71 @@
+pub mod nika_graph
+pub struct nika_graph::Edge
+pub nika_graph::Edge::from: alloc::string::String
+pub nika_graph::Edge::kind: &'static str
+pub nika_graph::Edge::to: alloc::string::String
+impl core::fmt::Debug for nika_graph::Edge
+pub fn nika_graph::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_graph::Edge
+pub fn nika_graph::Edge::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for nika_graph::Edge
+impl core::marker::Send for nika_graph::Edge
+impl core::marker::Sync for nika_graph::Edge
+impl core::marker::Unpin for nika_graph::Edge
+impl core::marker::UnsafeUnpin for nika_graph::Edge
+impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::Edge
+impl core::panic::unwind_safe::UnwindSafe for nika_graph::Edge
+pub struct nika_graph::FanOut
+pub nika_graph::FanOut::count: core::option::Option<u64>
+pub nika_graph::FanOut::kind: &'static str
+impl core::fmt::Debug for nika_graph::FanOut
+pub fn nika_graph::FanOut::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_graph::FanOut
+pub fn nika_graph::FanOut::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for nika_graph::FanOut
+impl core::marker::Send for nika_graph::FanOut
+impl core::marker::Sync for nika_graph::FanOut
+impl core::marker::Unpin for nika_graph::FanOut
+impl core::marker::UnsafeUnpin for nika_graph::FanOut
+impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::FanOut
+impl core::panic::unwind_safe::UnwindSafe for nika_graph::FanOut
+pub struct nika_graph::GraphDoc
+pub nika_graph::GraphDoc::edges: alloc::vec::Vec<nika_graph::Edge>
+pub nika_graph::GraphDoc::graph_format: u32
+pub nika_graph::GraphDoc::nodes: alloc::vec::Vec<nika_graph::Node>
+pub nika_graph::GraphDoc::workflow: alloc::string::String
+impl core::fmt::Debug for nika_graph::GraphDoc
+pub fn nika_graph::GraphDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_graph::GraphDoc
+pub fn nika_graph::GraphDoc::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for nika_graph::GraphDoc
+impl core::marker::Send for nika_graph::GraphDoc
+impl core::marker::Sync for nika_graph::GraphDoc
+impl core::marker::Unpin for nika_graph::GraphDoc
+impl core::marker::UnsafeUnpin for nika_graph::GraphDoc
+impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::GraphDoc
+impl core::panic::unwind_safe::UnwindSafe for nika_graph::GraphDoc
+pub struct nika_graph::Node
+pub nika_graph::Node::cost_interval: core::option::Option<[f64; 2]>
+pub nika_graph::Node::fan_out: core::option::Option<nika_graph::FanOut>
+pub nika_graph::Node::id: alloc::string::String
+pub nika_graph::Node::model: core::option::Option<alloc::string::String>
+pub nika_graph::Node::on_error: core::option::Option<&'static str>
+pub nika_graph::Node::outputs: alloc::vec::Vec<alloc::string::String>
+pub nika_graph::Node::permits: alloc::vec::Vec<alloc::string::String>
+pub nika_graph::Node::retry_max_attempts: core::option::Option<u32>
+pub nika_graph::Node::timeout_ms: core::option::Option<u64>
+pub nika_graph::Node::tool: core::option::Option<alloc::string::String>
+pub nika_graph::Node::verb: &'static str
+pub nika_graph::Node::when: core::option::Option<alloc::string::String>
+impl core::fmt::Debug for nika_graph::Node
+pub fn nika_graph::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_graph::Node
+pub fn nika_graph::Node::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for nika_graph::Node
+impl core::marker::Send for nika_graph::Node
+impl core::marker::Sync for nika_graph::Node
+impl core::marker::Unpin for nika_graph::Node
+impl core::marker::UnsafeUnpin for nika_graph::Node
+impl core::panic::unwind_safe::RefUnwindSafe for nika_graph::Node
+impl core::panic::unwind_safe::UnwindSafe for nika_graph::Node
+pub fn nika_graph::project(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport) -> nika_graph::GraphDoc

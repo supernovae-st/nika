@@ -49,7 +49,7 @@ use lsp_types::{
 
 use crate::analysis::diagnostics;
 use crate::analysis::document::Document;
-use crate::analysis::{code_action, completion, definition, hover, symbols};
+use crate::analysis::{code_action, completion, definition, hover, semantic_document, symbols};
 use crate::capabilities::server_capabilities;
 use crate::error::LspError;
 
@@ -59,6 +59,13 @@ type Docs = BTreeMap<String, Document>;
 /// The document-symbol request method id (its request marker type is not
 /// re-exported by name, so we match the method string directly).
 const DOCUMENT_SYMBOL_METHOD: &str = "textDocument/documentSymbol";
+
+/// `nika/semanticDocument` — the vendor-prefixed custom request (the
+/// rust-analyzer `lsp_ext` convention: permanent extensions live under
+/// the vendor name; capability-gated via `experimental.nika`). Params:
+/// `{ "textDocument": { "uri": … } }`. Result: the semantic-document
+/// payload (see `analysis::semantic_document`).
+const SEMANTIC_DOCUMENT_METHOD: &str = "nika/semanticDocument";
 
 /// The `exit` notification method string.
 const EXIT_METHOD: &str = "exit";
@@ -221,6 +228,10 @@ fn handle_request(req: Request, docs: &Docs) -> Response {
             Some(DocumentSymbolResponse::Nested(symbols::document_symbols(
                 doc.text(),
             )))
+        }),
+        SEMANTIC_DOCUMENT_METHOD => respond(id, req, |p: lsp_types::TextDocumentIdentifier| {
+            let doc = docs.get(uri_key(&p.uri))?;
+            Some(semantic_document::semantic_document(doc.text()))
         }),
         // Unknown request → null result (a valid JSON-RPC reply the client
         // tolerates; v0.1 advertises only the four read features).

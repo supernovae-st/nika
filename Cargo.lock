@@ -3699,6 +3699,7 @@ dependencies = [
  "nika-event",
  "nika-exec-runner",
  "nika-fs",
+ "nika-graph",
  "nika-http",
  "nika-kernel",
  "nika-kernel-mock",
@@ -3842,6 +3843,15 @@ name = "nika-fx"
 version = "0.102.0"
 
 [[package]]
+name = "nika-graph"
+version = "0.102.0"
+dependencies = [
+ "nika-schema",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "nika-http"
 version = "0.102.0"
 dependencies = [
@@ -3976,6 +3986,7 @@ dependencies = [
  "lsp-server",
  "lsp-types",
  "nika-catalog",
+ "nika-graph",
  "nika-schema",
  "nika-types",
  "proptest",
