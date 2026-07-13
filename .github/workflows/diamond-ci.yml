@@ -89,11 +89,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          log-level: warn
-          command: check
-          arguments: --all-features
+      # The floating EmbarkStudios/cargo-deny-action@v2 broke 2026-07-13:
+      # its musl container trips over our rust-toolchain.toml pin
+      # (`override toolchain '1.91-…-musl' is not installed`) and its
+      # arg plumbing regressed (`unrecognized subcommand 'warn'`).
+      # Install the binary and run it directly — the SAME invocation the
+      # local pre-push hook has proven for months (one lane, no wrapper).
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-deny
+      - run: cargo deny --all-features check
 
   hack:
     name: cargo-hack (feature matrix)
