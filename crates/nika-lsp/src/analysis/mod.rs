@@ -16,6 +16,7 @@ pub mod completion;
 pub mod definition;
 pub mod diagnostics;
 pub mod document;
+pub mod graph;
 pub mod hover;
 pub mod members;
 pub mod position;
