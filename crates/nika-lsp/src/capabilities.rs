@@ -16,7 +16,8 @@
 
 use lsp_types::{
     CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CompletionOptions, OneOf,
-    PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    PositionEncodingKind, RenameOptions, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind, WorkDoneProgressOptions,
 };
 
 /// The capabilities advertised in the initialize response.
@@ -44,6 +45,13 @@ pub fn server_capabilities() -> ServerCapabilities {
         }),
         definition_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
+        // W1: a task's identity is its map key — server-side rename moves
+        // the key + every depends_on entry + every `tasks.<id>` island ref
+        // atomically. prepareRename gates the gesture to identity sites.
+        rename_provider: Some(OneOf::Right(RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
         // v0.2 surface: quickfix-only — the `check --fix` rename engine
         // projected (one fix engine, every editor).
         code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
@@ -129,6 +137,11 @@ mod tests {
             panic!("code actions advertise as Options");
         };
         assert_eq!(opts.code_action_kinds, Some(vec![CodeActionKind::QUICKFIX]));
+        // W1: rename with prepare support (the map key is the identity).
+        let Some(OneOf::Right(rename)) = caps.rename_provider else {
+            panic!("rename advertises as Options with prepare");
+        };
+        assert_eq!(rename.prepare_provider, Some(true));
         // still out of scope:
         assert!(caps.inlay_hint_provider.is_none());
         assert!(caps.semantic_tokens_provider.is_none());

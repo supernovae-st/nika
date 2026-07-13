@@ -187,7 +187,7 @@ fn template_task_target(text: &str, offset: usize) -> Option<String> {
 /// The byte ranges `[start, end)` of every `${{ … }}` island in `text`
 /// (`start` is just past `${{`, `end` is at the closing `}}`). Honors the
 /// `\${{` literal escape and quote-aware close detection.
-fn islands(text: &str) -> Vec<(usize, usize)> {
+pub(super) fn islands(text: &str) -> Vec<(usize, usize)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0usize;
@@ -255,7 +255,7 @@ fn find_close(bytes: &[u8], from: usize) -> Option<usize> {
 
 /// The byte offset just past an identifier starting at `start` (CEL ids
 /// are `[A-Za-z_][A-Za-z0-9_]*` · matches the `snake_case` task-id grammar).
-fn ident_end(bytes: &[u8], start: usize) -> usize {
+pub(super) fn ident_end(bytes: &[u8], start: usize) -> usize {
     let mut i = start;
     while let Some(&b) = bytes.get(i) {
         if b == b'_' || b.is_ascii_alphanumeric() {
@@ -270,7 +270,7 @@ fn ident_end(bytes: &[u8], start: usize) -> usize {
 /// Whether `offset` falls within the token a `span` anchors, given the
 /// token's byte length. A point span (`start == end`) is widened to
 /// `[start, start + token_len)`; a real range uses its own end.
-fn token_span_contains(span: Span, token_len: usize, offset: u32) -> bool {
+pub(super) fn token_span_contains(span: Span, token_len: usize, offset: u32) -> bool {
     let end = if span.end.0 > span.start.0 {
         span.end.0
     } else {
@@ -281,7 +281,7 @@ fn token_span_contains(span: Span, token_len: usize, offset: u32) -> bool {
 
 /// The LSP range over the token a point/real span anchors, widened to the
 /// token byte length so the jump target highlights the whole id.
-fn token_range(index: &LineIndex, span: Span, token_len: usize) -> Range {
+pub(super) fn token_range(index: &LineIndex, span: Span, token_len: usize) -> Range {
     let start = span.start.0 as usize;
     let end = if span.end.0 > span.start.0 {
         span.end.0 as usize
