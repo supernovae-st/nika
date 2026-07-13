@@ -812,7 +812,8 @@ tasks:
 
     #[test]
     fn no_secrets_declared_is_empty() {
-        let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let y =
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let (_wf, f) = facts(y);
         assert!(f.effect_taint(0).is_none());
         assert!(f.egresses().is_empty());

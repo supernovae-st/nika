@@ -217,8 +217,7 @@ secrets:
 
     #[test]
     fn no_secrets_declared_no_scan() {
-        let yaml =
-            "nika: v1\nworkflow: none\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let yaml = "nika: v1\nworkflow: none\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n";
         assert!(leaks_of(yaml).is_empty());
     }
 
