@@ -144,6 +144,7 @@ pub fn nika_lsp::analysis::vocab::Entry::as_any(&self) -> &(dyn core::any::Any +
 impl<T> outref::AsOut<T> for nika_lsp::analysis::vocab::Entry where T: core::marker::Copy
 pub fn nika_lsp::analysis::vocab::Entry::as_out(&mut self) -> outref::Out<'_, T>
 pub const nika_lsp::analysis::vocab::PROVIDERS: &[nika_lsp::analysis::vocab::Entry]
+pub const nika_lsp::analysis::vocab::SCHEMA_KEYS: &[nika_lsp::analysis::vocab::Entry]
 pub const nika_lsp::analysis::vocab::TASK_FIELD_KEYS: &[nika_lsp::analysis::vocab::Entry]
 pub const nika_lsp::analysis::vocab::TOP_LEVEL_KEYS: &[nika_lsp::analysis::vocab::Entry]
 pub const nika_lsp::analysis::vocab::VERBS: &[nika_lsp::analysis::vocab::Entry]
