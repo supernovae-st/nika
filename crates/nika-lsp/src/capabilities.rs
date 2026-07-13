@@ -50,6 +50,13 @@ pub fn server_capabilities() -> ServerCapabilities {
             code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
             ..CodeActionOptions::default()
         })),
+        // Custom extensions, capability-gated the rust-analyzer way —
+        // a client (or agent) reads this to know the oracle surface.
+        // `graphFormat` mirrors the IN-PAYLOAD version of the projection
+        // (spec 03 §graph-projection) — additive, spec-first evolution.
+        experimental: Some(serde_json::json!({
+            "nika": { "semanticDocument": { "graphFormat": 1 } }
+        })),
         ..ServerCapabilities::default()
     }
 }
@@ -102,6 +109,16 @@ mod tests {
             ]),
             "exactly `.`, `/`, `[` and ` ` as triggers"
         );
+    }
+
+    /// The experimental block advertises the oracle surface — a client
+    /// discovers `nika/semanticDocument` (and its `graphFormat`) here
+    /// instead of probing blind.
+    #[test]
+    fn experimental_advertises_the_semantic_document() {
+        let caps = server_capabilities();
+        let exp = caps.experimental.expect("experimental block");
+        assert_eq!(exp["nika"]["semanticDocument"]["graphFormat"], 1);
     }
 
     #[test]

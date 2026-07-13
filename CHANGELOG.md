@@ -10,6 +10,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika/semanticDocument`** — the LSP's vendor-prefixed custom
+  request (capability-gated via `experimental.nika`): the canonical
+  `graph_format: 1` projection VERBATIM plus a span wrapper (task id →
+  declaring token range). One projector, every surface — the graph
+  moves to its own L0 member **`nika-graph`** (split from nika-schema
+  at the 15k cap; the CLI keeps the renderers and re-exports), so
+  `inspect --format json`, the LSP and future canvases read one truth.
+
 ## [0.102.0](https://github.com/supernovae-st/nika/compare/v0.101.0..v0.102.0) - 2026-07-13
 
 ### Added
