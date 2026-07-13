@@ -136,11 +136,34 @@ pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<C
         return keyword_items(vocab::SCHEMA_KEYS);
     }
     if is_task_field_key(line, prefix) && !scope::in_schema_scope(text, offset) {
+        if let Some(items) = block_keyset_items(text, offset) {
+            return items;
+        }
         let mut items = keyword_items(vocab::TASK_FIELD_KEYS);
         items.extend(verb_items());
         return items;
     }
     Vec::new()
+}
+
+/// A key position inside a KNOWN block (`retry:` · `on_error:` · a
+/// verb body · `permits:` …) offers that block's OWN keyset — the
+/// parser's exact vocabulary via the keysets door (born-stale: a
+/// field added to the parser const appears here with zero LSP edits).
+/// Free-form maps (`args:` · `with:` · `env:`) miss the door → `None`.
+fn block_keyset_items(text: &str, offset: usize) -> Option<Vec<CompletionItem>> {
+    let (block, parent) = scope::enclosing_block_key(text, offset)?;
+    let keys = nika_schema::keysets::known_child_keys(&block, parent.as_deref())?;
+    Some(
+        keys.iter()
+            .map(|k| CompletionItem {
+                label: format!("{k}:"),
+                kind: Some(CompletionItemKind::FIELD),
+                detail: Some(format!("`{block}:` field")),
+                ..CompletionItem::default()
+            })
+            .collect(),
+    )
 }
 
 /// Clamp `offset` to a valid UTF-8 char boundary ≤ `text.len()`. A request

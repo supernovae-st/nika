@@ -27,7 +27,7 @@ use super::{Cx, tasks::parse_string_list};
 pub(super) const VERB_KEYS: &[&str] = &["infer", "exec", "invoke", "agent"];
 
 /// `infer:` fields (spec `02-verbs.md` §infer field table).
-const INFER_KEYS: &[&str] = &[
+pub(crate) const INFER_KEYS: &[&str] = &[
     "prompt",
     "system",
     "model",
@@ -39,13 +39,13 @@ const INFER_KEYS: &[&str] = &[
 ];
 
 /// `exec:` fields (spec `02-verbs.md` §exec field table).
-const EXEC_KEYS: &[&str] = &["command", "cwd", "env", "stdin", "capture"];
+pub(crate) const EXEC_KEYS: &[&str] = &["command", "cwd", "env", "stdin", "capture"];
 
 /// `invoke:` fields (spec `02-verbs.md` §invoke field table).
-const INVOKE_KEYS: &[&str] = &["tool", "args"];
+pub(crate) const INVOKE_KEYS: &[&str] = &["tool", "args"];
 
 /// `agent:` fields (spec `02-verbs.md` §agent field table).
-const AGENT_KEYS: &[&str] = &[
+pub(crate) const AGENT_KEYS: &[&str] = &[
     "prompt",
     "system",
     "model",
@@ -58,7 +58,7 @@ const AGENT_KEYS: &[&str] = &[
 ];
 
 /// `thinking:` sub-fields (spec `02-verbs.md` · `{ enabled, budget_tokens }`).
-const THINKING_KEYS: &[&str] = &["enabled", "budget_tokens"];
+pub(crate) const THINKING_KEYS: &[&str] = &["enabled", "budget_tokens"];
 
 /// Locate the task's verb and parse its body.
 ///

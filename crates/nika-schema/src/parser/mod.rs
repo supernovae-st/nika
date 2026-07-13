@@ -18,10 +18,10 @@
 //! analyzer's job (collected errors) — the parser only validates the
 //! fields it sees.
 
-mod envelope;
-mod tasks;
+pub(crate) mod envelope;
+pub(crate) mod tasks;
 mod value;
-mod verbs;
+pub(crate) mod verbs;
 
 use marked_yaml::types::MarkedScalarNode;
 use marked_yaml::{LoadError, LoaderOptions, Span as YamlSpan, parse_yaml_with_options};

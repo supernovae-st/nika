@@ -49,10 +49,10 @@ const TASK_KEYS: &[&str] = &[
 
 /// Keys allowed on an `on_finally:` mini-task (spec 03 §`on_finally` ·
 /// `when` + per-cleanup `timeout` + the verb).
-const FINALLY_KEYS: &[&str] = &["when", "timeout"];
+pub(crate) const FINALLY_KEYS: &[&str] = &["when", "timeout"];
 
 /// Keys of a `retry:` block (spec 05 §retry).
-const RETRY_KEYS: &[&str] = &[
+pub(crate) const RETRY_KEYS: &[&str] = &[
     "max_attempts",
     "backoff_ms",
     "backoff_strategy",
@@ -63,7 +63,7 @@ const RETRY_KEYS: &[&str] = &[
 
 /// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
 /// ACTION + the optional `on_codes` filter).
-const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
+pub(crate) const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
 
 /// The `on_error:` ACTION keys (mutually exclusive · exactly one).
 const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
