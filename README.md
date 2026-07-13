@@ -441,7 +441,7 @@ check-on-edit hook · the read-only MCP oracle) for three ecosystems:
 ```sh
 codex plugin marketplace add supernovae-st/nika-agents && codex plugin add nika@nika
 claude plugin marketplace add supernovae-st/nika-agents && claude plugin install nika@nika
-# Cursor: search "nika" in Settings → Plugins — one Add installs the bundle
+# Cursor: search "nika" in Settings → Plugins · one Add installs the bundle
 ```
 
 Agents discover a working prompt chain once; Nika keeps it as a file your
@@ -484,7 +484,7 @@ each with one job:
 | [nika-docs](https://github.com/supernovae-st/nika-docs) | the source of [docs.nika.sh](https://docs.nika.sh) |
 | [nika.sh](https://github.com/supernovae-st/nika.sh) | the source of [nika.sh](https://nika.sh) |
 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | the editor extension: VS Code, Cursor, Windsurf, VSCodium |
-| [nika-agents](https://github.com/supernovae-st/nika-agents) | the plugin marketplace: skill + subagent + commands + hooks + the read-only MCP oracle — Claude Code, Codex, Cursor |
+| [nika-agents](https://github.com/supernovae-st/nika-agents) | the plugin marketplace: skill + subagent + commands + hooks + the read-only MCP oracle · Claude Code, Codex, Cursor |
 | [nika-registry](https://github.com/supernovae-st/nika-registry) | the verifiable workflow registry: every entry pinned and re-proven in CI |
 | [nika-client](https://github.com/supernovae-st/nika-client) | the TypeScript SDK (targets the `nika serve` HTTP surface) |
 | [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula: `brew install supernovae-st/tap/nika` |
