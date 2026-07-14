@@ -88,7 +88,7 @@ carries its `NIKA-XXXX` code, the exact source span, and the fix:
 | The mistake | What `nika check` says |
 |---|---|
 | A reference to a task that doesn't exist | `NIKA-VAR-001`: unresolved reference `tasks.digets`, *did you mean `tasks.digest`?* |
-| Reading a task you never declared | `NIKA-DAG-003`: references `tasks.stats` without declaring `stats` in `depends_on` |
+| Reading another task from a verb body | `NIKA-VAR-021`: `tasks.stats` outside the boundary — *hoist it into `with:` and read `${{ with.stats }}`* |
 | A typo'd tool | TOOLS: `nika:wrte` is not a canonical builtin, *did you mean `nika:write`?* |
 | A task reaching beyond its `permits:` boundary | PERMITS: the escape, with the machine-applicable widening line |
 | A secret flowing where it shouldn't | SECRETS: the information-flow escape, statically |
@@ -116,12 +116,11 @@ model: ollama/qwen3.5:9b             # local by default. swap to any provider
 tasks:
   diff:                               # exec: a read-only shell command
     exec:
-      command: "git diff origin/main...HEAD"
+      command: ["git", "diff", "origin/main...HEAD"]
       capture: structured
 
   assess:                             # infer: structured LLM judgment
-    depends_on: [diff]
-    with:
+    with:                             # the binding IS the edge — no separate wiring
       patch: ${{ tasks.diff.output.stdout }}
     infer:
       prompt: "Risk-assess this diff (secrets, breaking changes, missing tests). Be terse.\n${{ with.patch }}"
@@ -133,12 +132,14 @@ tasks:
           risk: { type: string, enum: [low, medium, high] }
 
   comment:                            # invoke: the only write, gated on the verdict
-    depends_on: [assess]
-    when: ${{ tasks.assess.output.risk == 'high' }}
+    with:
+      risk: ${{ tasks.assess.output.risk }}
+      verdict: ${{ tasks.assess.output }}
+    when: ${{ with.risk == 'high' }}
     invoke:
       tool: "mcp:github/pr-comment"
       args:
-        body: ${{ tasks.assess.output }}
+        body: ${{ with.verdict }}
 ```
 
 ## Check before it runs
@@ -147,7 +148,7 @@ tasks:
 dependencies, schema and permission problems **before any model is called**,
 and when something is off, it points at the exact fix:
 
-![nika check catches a missing depends_on and a typo'd task reference, shows the three-line fix, then the same audit passes clean](media/gifs/static-check-fix.optimized.gif)
+![nika check catches a boundary violation and a typo'd task reference, shows the hoist fix, then the same audit passes clean](media/gifs/static-check-fix.optimized.gif)
 
 The two fixtures behind this capture live in
 [`scripts/media/fixtures/`](scripts/media/fixtures/), gated in both
