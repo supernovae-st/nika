@@ -253,7 +253,11 @@ fn recovered_success_emits_task_recovered_before_completed() {
         result: task::RunResult::Success {
             value: Value::Number(99.into()),
             tokens: None,
-            recovered_from: Some("NIKA-EXEC-001".to_owned()),
+            recovered_from: Some(crate::record::TaskErrorRecord {
+                code: "NIKA-EXEC-001".to_owned(),
+                message: "exit 9".to_owned(),
+                transient: false,
+            }),
             warning: None,
             cost_usd: None,
             cost_unpriced: None,

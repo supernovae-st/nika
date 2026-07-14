@@ -29,11 +29,12 @@ use crate::source::{Span, Spanned};
 use crate::types::WhenGate;
 
 /// The reserved result-record fields (spec `04-variables.md` §result
-/// record) — valid `tasks.<id>.<field>` accessors + forbidden
-/// `output:` binding names.
+/// record + spec 13 `cause`) — valid `tasks.<id>.<field>` accessors +
+/// forbidden `output:` binding names.
 pub(super) const RESERVED_RECORD_FIELDS: &[&str] = &[
     "output",
     "status",
+    "cause",
     "error",
     "started_at",
     "ended_at",

@@ -121,6 +121,18 @@ pub(crate) struct RanTask {
     pub result: RunResult,
 }
 
+impl RanTask {
+    /// Attempts made, counting every attempt including the settling one
+    /// (spec 13 §payload): one per SCHEDULED retry plus the first — for
+    /// a budget-cut task the in-flight attempt the race dropped IS the
+    /// settling one, so the count stays honest there too.
+    pub(crate) fn attempts(&self) -> u32 {
+        u32::try_from(self.retries.len())
+            .unwrap_or(u32::MAX)
+            .saturating_add(1)
+    }
+}
+
 /// One scheduled retry (the `TaskRetrying` event payload).
 pub(crate) struct RetryStamp {
     pub attempt: u32,
@@ -168,10 +180,12 @@ pub(crate) enum RunResult {
     Success {
         value: Value,
         tokens: Option<i64>,
-        /// `Some(code)` when `on_error.recover` repaired this success —
-        /// the settle path emits `task_recovered` (one site · INV#24)
-        /// before the terminal `task_completed`.
-        recovered_from: Option<String>,
+        /// `Some(original error)` when `on_error.recover` repaired this
+        /// success — the settle path emits `task_recovered` (one site ·
+        /// INV#24) before the terminal `task_completed`, and the record
+        /// keeps the WHOLE original error as `recovered_from`
+        /// (spec 13 §payload · success(recovered)).
+        recovered_from: Option<TaskErrorRecord>,
         warning: Option<String>,
         /// Real spend (catalog × usage split + tool-reported) · None =
         /// unpriced · honest. (The by-source attribution key lives on
@@ -1171,11 +1185,37 @@ fn references_loop_locals(value: &Value) -> bool {
 /// deferred render has produced no value when the cleanup runs (the
 /// cleanup is task-scoped · it never awaits the spine).
 fn preview_record(ran: &RanTask) -> TaskRecord {
-    let mut record = TaskRecord::unran(match ran.result {
-        RunResult::Success { .. } => TaskStatus::Success,
-        RunResult::SkippedWithError { .. } => TaskStatus::Skipped,
-        RunResult::Failed { .. } | RunResult::PendingRecovery(_) => TaskStatus::Failure,
-    });
+    use crate::record::{TerminalCause, failure_cause};
+    let attempts = ran.attempts();
+    let mut record = match &ran.result {
+        RunResult::Success { recovered_from, .. } => {
+            let cause = if recovered_from.is_some() {
+                TerminalCause::Recovered
+            } else {
+                TerminalCause::Normal
+            };
+            let mut rec = TaskRecord::unran(TaskStatus::Success, cause);
+            rec.attempts = Some(attempts);
+            rec.recovered_from.clone_from(recovered_from);
+            rec
+        }
+        RunResult::SkippedWithError { .. } => {
+            TaskRecord::unran(TaskStatus::Skipped, TerminalCause::ErrorSkip)
+        }
+        RunResult::Failed { error, .. } => {
+            let mut rec = TaskRecord::unran(TaskStatus::Failure, failure_cause(error, attempts));
+            rec.attempts = Some(attempts);
+            rec
+        }
+        RunResult::PendingRecovery(pending) => {
+            let mut rec = TaskRecord::unran(
+                TaskStatus::Failure,
+                failure_cause(&pending.failed.record, attempts),
+            );
+            rec.attempts = Some(attempts);
+            rec
+        }
+    };
     match &ran.result {
         RunResult::Success { value, .. } => record.output = value.clone(),
         RunResult::SkippedWithError { error, .. } | RunResult::Failed { error, .. } => {
@@ -1257,8 +1297,9 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             Ok(recovered) => RunResult::Success {
                 value: recovered,
                 tokens: None,
-                // the ONE producer of the marker (spec 05 §recover)
-                recovered_from: Some(error.code),
+                // the ONE producer of the marker (spec 05 §recover) —
+                // the WHOLE original error rides (spec 13 §payload)
+                recovered_from: Some(error),
                 // A recovered value is author-supplied · no model reasoning
                 // — but the FAILED attempts' spend already happened and
                 // stays on the frame (recovery does not refund it).

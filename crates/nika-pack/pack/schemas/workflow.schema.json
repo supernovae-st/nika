@@ -705,6 +705,7 @@
                 "nika:compose",
                 "nika:convert",
                 "nika:date",
+                "nika:decide",
                 "nika:done",
                 "nika:edit",
                 "nika:emit",

@@ -263,9 +263,9 @@ pub enum SchemaError {
     /// An `output:` binding name collides with a reserved result-record
     /// field.
     ///
-    /// Spec `04-variables.md` · « `<name>` collisions with reserved words
-    /// `output` · `status` · `error` · `started_at` · `ended_at` ·
-    /// `duration_ms` are forbidden at parse time. »
+    /// Spec `04-variables.md` + spec 13 · « `<name>` collisions with
+    /// reserved `output` · `status` · `cause` · `error` · `started_at`
+    /// · `ended_at` · `duration_ms` are forbidden at parse time. »
     #[error("output binding `{name}` in task `{task}` collides with a reserved field")]
     ReservedBindingName {
         /// The reserved name used.
@@ -490,9 +490,9 @@ pub enum SchemaError {
 
     /// `tasks.<id>.<field>` names an unknown result-record field.
     ///
-    /// Spec `04-variables.md` §result record · valid fields are `output`
-    /// · `status` · `error` · `started_at` · `ended_at` · `duration_ms`
-    /// · plus the task's declared `output:` binding names.
+    /// Spec `04-variables.md` §result record + spec 13 · valid fields:
+    /// `output` · `status` · `cause` · `error` · `started_at` ·
+    /// `ended_at` · `duration_ms` · plus declared `output:` bindings.
     #[error("unknown field `tasks.{task}.{field}` — not a result-record field or declared binding")]
     UnknownTaskField {
         /// The referenced task.

@@ -137,6 +137,99 @@ pub fn error_codes() -> Vec<ErrorCodeRow> {
     out
 }
 
+/// The canon's `outcome_transitions` table, typed (spec 13 · W5) — THE
+/// one parser for the normative `(class × cause)` law. The runtime's
+/// Rust table parity-tests against THIS (never a private re-derivation),
+/// and future consumers (the trace validator · the assertion layer)
+/// read the same accessor. Output-only: constructed solely by
+/// [`outcome_transitions`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OutcomeTransitions {
+    /// The trace format the table binds to (`trace_format: 2`).
+    pub trace_format: u32,
+    /// The four terminal classes, in canon order.
+    pub classes: Vec<&'static str>,
+    /// class → its legal causes (canon order · the 10 rows).
+    pub legal: Vec<(&'static str, Vec<&'static str>)>,
+    /// class → its payload fields (`?`-suffixed = optional).
+    pub payload: Vec<(&'static str, Vec<&'static str>)>,
+}
+
+/// Parse the canon's `outcome_transitions:` section (spec 13 · the ONE
+/// machine-readable transition table). Same anchored-scan discipline as
+/// [`error_codes`]: the scan is bound to the section, a malformed line
+/// is skipped, and `None` = the section is absent or incomplete (a
+/// drifted pack — the integrity tests fail before any user sees it).
+#[must_use]
+pub fn outcome_transitions() -> Option<OutcomeTransitions> {
+    let mut in_section = false;
+    // Which nested map the ≥4-indent rows belong to (`legal` · `payload`).
+    let mut nest: Option<&str> = None;
+    let mut trace_format: Option<u32> = None;
+    let mut classes: Vec<&'static str> = Vec::new();
+    let mut legal: Vec<(&'static str, Vec<&'static str>)> = Vec::new();
+    let mut payload: Vec<(&'static str, Vec<&'static str>)> = Vec::new();
+    for line in canon().lines() {
+        if line.starts_with("outcome_transitions:") {
+            in_section = true;
+            continue;
+        }
+        if in_section && !line.trim().is_empty() && !line.starts_with([' ', '#']) {
+            break; // next top-level key — the section is closed
+        }
+        if !in_section {
+            continue;
+        }
+        let item = line.trim_start();
+        if item.is_empty() || item.starts_with('#') {
+            continue;
+        }
+        let indent = line.len() - item.len();
+        let Some((key, value)) = item.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        if indent == 2 {
+            match key {
+                "trace_format" => trace_format = value.parse().ok(),
+                "classes" => classes = flow_list(value),
+                "legal" | "payload" => nest = Some(key),
+                _ => nest = None,
+            }
+        } else if indent >= 4 {
+            match nest {
+                Some("legal") => legal.push((key, flow_list(value))),
+                Some("payload") => payload.push((key, flow_list(value))),
+                _ => {}
+            }
+        }
+    }
+    let trace_format = trace_format?;
+    (!classes.is_empty() && !legal.is_empty() && !payload.is_empty()).then_some(
+        OutcomeTransitions {
+            trace_format,
+            classes,
+            legal,
+            payload,
+        },
+    )
+}
+
+/// A YAML flow list `[a, b, "c?"]` → its items, quotes stripped
+/// (the `?` optional-marker survives — it is data, not quoting).
+fn flow_list(value: &'static str) -> Vec<&'static str> {
+    let inner = value
+        .strip_prefix('[')
+        .and_then(|v| v.strip_suffix(']'))
+        .unwrap_or("");
+    inner
+        .split(',')
+        .map(|item| item.trim().trim_matches('"'))
+        .filter(|item| !item.is_empty())
+        .collect()
+}
+
 /// `key: value` where the value runs to the next `,` or `}` (unquoted).
 fn bare_field(tail: &'static str, key: &str) -> Option<&'static str> {
     let start = tail.find(key)? + key.len();
@@ -275,4 +368,69 @@ pub fn lean(yaml_text: &str) -> &str {
         }
     }
     yaml_text
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    fn table() -> OutcomeTransitions {
+        outcome_transitions().expect("the vendored canon carries outcome_transitions (spec 13)")
+    }
+
+    #[test]
+    fn outcome_table_has_the_four_classes_and_ten_rows() {
+        let t = table();
+        assert_eq!(t.classes, ["success", "failure", "skipped", "cancelled"]);
+        let rows: usize = t.legal.iter().map(|(_, causes)| causes.len()).sum();
+        assert_eq!(rows, 10, "spec 13 · the table is exactly 10 rows");
+        // Every legal/payload key IS a class, and every class has both.
+        for (key, _) in t.legal.iter().chain(&t.payload) {
+            assert!(t.classes.contains(key), "unknown class {key}");
+        }
+        assert_eq!(t.legal.len(), t.classes.len());
+        assert_eq!(t.payload.len(), t.classes.len());
+    }
+
+    #[test]
+    fn outcome_table_rows_match_spec_13() {
+        let t = table();
+        let causes = |class: &str| -> &[&str] {
+            t.legal
+                .iter()
+                .find(|(k, _)| *k == class)
+                .map(|(_, v)| v.as_slice())
+                .expect("class present")
+        };
+        assert_eq!(causes("success"), ["normal", "recovered"]);
+        assert_eq!(
+            causes("failure"),
+            ["verb_error", "timeout", "retry_exhausted"]
+        );
+        assert_eq!(causes("skipped"), ["gate", "error_skip"]);
+        assert_eq!(causes("cancelled"), ["upstream", "operator", "budget"]);
+    }
+
+    #[test]
+    fn outcome_payload_law_fields_parse_with_optional_markers() {
+        let t = table();
+        let fields = |class: &str| -> &[&str] {
+            t.payload
+                .iter()
+                .find(|(k, _)| *k == class)
+                .map(|(_, v)| v.as_slice())
+                .expect("class present")
+        };
+        // The `?` marker survives parsing (quoted in YAML · data here).
+        assert_eq!(fields("success"), ["value", "attempts", "recovered_from?"]);
+        assert_eq!(fields("failure"), ["error", "attempts"]);
+        assert_eq!(fields("skipped"), ["error?"]);
+        assert_eq!(fields("cancelled"), ["reason"]);
+    }
+
+    #[test]
+    fn outcome_table_binds_trace_format_2() {
+        assert_eq!(table().trace_format, 2, "spec 13 · trace_format: 2");
+    }
 }

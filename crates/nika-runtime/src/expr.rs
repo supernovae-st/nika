@@ -225,9 +225,10 @@ fn tasks_object(records: &BTreeMap<String, TaskRecord>) -> Value {
 /// surface). Reserved-name collisions are a parse error (the checker),
 /// so a binding never overwrites a reserved field.
 fn record_object(rec: &TaskRecord) -> Value {
-    const FIELDS: [&str; 6] = [
+    const FIELDS: [&str; 7] = [
         "output",
         "status",
+        "cause",
         "error",
         "started_at",
         "ended_at",
@@ -351,10 +352,16 @@ pub(crate) fn eval_when(expr: &str, scope: &Scope<'_>) -> Result<bool, RuntimeEr
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::record::{TaskRecord, TaskStatus};
+    use crate::record::{TaskRecord, TaskStatus, TerminalCause};
 
     fn record(status: TaskStatus, output: Value) -> TaskRecord {
-        let mut rec = TaskRecord::unran(status);
+        let cause = match status {
+            TaskStatus::Success => TerminalCause::Normal,
+            TaskStatus::Failure => TerminalCause::VerbError,
+            TaskStatus::Cancelled => TerminalCause::Upstream,
+            TaskStatus::Skipped => TerminalCause::Gate,
+        };
+        let mut rec = TaskRecord::unran(status, cause);
         rec.output = output;
         rec
     }

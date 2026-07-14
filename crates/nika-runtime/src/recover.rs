@@ -360,7 +360,10 @@ pub(crate) fn resolve_at_end(
     }
     let mut view = records.clone();
     for (id, park) in &parked.entries {
-        view.insert(id.clone(), failed_view_record(&park.pending.failed.record));
+        view.insert(
+            id.clone(),
+            failed_view_record(&park.pending.failed.record, park.retries.len()),
+        );
     }
     let ids: Vec<String> = parked.entries.keys().cloned().collect();
     let mut resolved = Vec::with_capacity(ids.len());
@@ -375,9 +378,16 @@ pub(crate) fn resolve_at_end(
 }
 
 /// A still-parked task as the workflow-end view reads it: its
-/// pre-recovery failure (status + the original typed error).
-fn failed_view_record(error: &TaskErrorRecord) -> TaskRecord {
-    let mut record = TaskRecord::unran(TaskStatus::Failure);
+/// pre-recovery failure (status + the original typed error + the
+/// outcome axis — a recover template may read `tasks.<parked>.cause`,
+/// so the view triages exactly like a live settle · spec 13).
+fn failed_view_record(error: &TaskErrorRecord, retries: usize) -> TaskRecord {
+    let attempts = u32::try_from(retries).unwrap_or(u32::MAX).saturating_add(1);
+    let mut record = TaskRecord::unran(
+        TaskStatus::Failure,
+        crate::record::failure_cause(error, attempts),
+    );
+    record.attempts = Some(attempts);
     record.error = Some(error.clone());
     record
 }
@@ -431,7 +441,8 @@ fn resolve_parked(
                 Ok(value) => RunResult::Success {
                     value,
                     tokens: None,
-                    recovered_from: Some(record.code),
+                    // the WHOLE original error rides (spec 13 §payload)
+                    recovered_from: Some(record),
                     warning: None,
                     cost_usd,
                     cost_unpriced,
