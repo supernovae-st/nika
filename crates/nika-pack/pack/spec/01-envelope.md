@@ -34,6 +34,10 @@ workflow:                               # required · the workflow object (W1: t
 # Workflow-level default model · any task may override · <provider>/<name>
 model: ollama/qwen3.5:4b         # optional · anthropic/claude-sonnet-4-6 for cloud
 
+# Named types · referenced by returns:/outputs: (09-types.md)
+types:
+  Summary: { object: { title: string, bullets: { array: string } } }
+
 # Inputs · available as ${{ vars.<name> }} · untyped OR typed
 vars:
   output_dir: "./output"                 # untyped · the value is the default
@@ -165,6 +169,22 @@ backend and decides local-vs-cloud (`ollama/` · `lmstudio/` = local · the rest
 
 A task may override this. If absent · each `infer:`/`agent:` task must specify
 its own `model:`.
+
+### `types` · *optional · named type declarations*
+
+```yaml
+types:
+  Summary:
+    object:
+      title: string
+      bullets: { array: string }
+```
+
+Named, PascalCase, acyclic type declarations — referenced by task
+`returns:` and typed `outputs:`. The grammar, the subtyping lattice and
+the JSON-Schema lowering are the whole of [09-types.md](./09-types.md);
+the envelope only owns the block's position. Unknown names are
+`NIKA-TYPE-001` · recursion is `NIKA-TYPE-002`.
 
 ### `vars` · *optional · workflow inputs · untyped OR typed*
 
@@ -453,7 +473,7 @@ outputs:
   # Typed form — declares the return shape · powers the callable-workflow output schema
   report:
     value: ${{ tasks.write_report.output }}
-    type: string
+    type: string                # flat enum today — widens to 09-types.md with typed vars: (G9 · one break)
     description: "The final markdown brief"
 ```
 

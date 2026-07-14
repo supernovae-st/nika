@@ -48,6 +48,10 @@ pub struct RawWorkflow {
     /// `permits:` — the declared capability boundary (spec 01 §permits ·
     /// `None` = absent = today's behavior · `Some` = default-deny).
     pub permits: Option<Spanned<Permits>>,
+    /// `types:` — named type declarations (spec 09 · `PascalCase` name →
+    /// RAW type expression · parsed/validated by the type core at
+    /// check time, never here — the parser is shape-only).
+    pub types: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
     /// `tasks:` — the DAG.
     pub tasks: Vec<Spanned<RawTask>>,
     /// `outputs:` — the workflow's return contract.
@@ -67,6 +71,7 @@ impl RawWorkflow {
             env: Vec::new(),
             secrets: Vec::new(),
             permits: None,
+            types: Vec::new(),
             tasks: Vec::new(),
             outputs: Vec::new(),
         }
@@ -92,6 +97,7 @@ mod tests {
         assert!(w.vars.is_empty());
         assert!(w.env.is_empty());
         assert!(w.secrets.is_empty());
+        assert!(w.types.is_empty());
         assert!(w.outputs.is_empty());
     }
 }

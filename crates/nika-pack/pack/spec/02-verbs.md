@@ -91,7 +91,7 @@ research:
 | `model` | no | string | Override workflow default · `<provider>/<name>` · see stdlib/providers-v0.1.md |
 | `temperature` | no | number 0-2 | Sampling temperature |
 | `max_tokens` | no | integer | Max output tokens · provider-dependent default |
-| `schema` | no | object | JSON Schema · structured output validation |
+| `schema` | no | object | raw JSON Schema · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`) |
 | `thinking` | no | object | Extended thinking · `{ enabled, budget_tokens }` |
 | `vision` | no | array | Image inputs · each `{ source: file|url, path|url, … }` |
 
@@ -141,7 +141,8 @@ test:
 | `cwd` | no | string | Working directory · default = engine's cwd |
 | `env` | no | object | OS environment variables for **this subprocess** · key→value map |
 | `stdin` | no | string | Stdin data · may use `${{ ... }}` |
-| `capture` | no | enum | `stdout` (default) · `stderr` · `combined` · `structured` (= `{ stdout, stderr, exit_code }`) |
+| `capture` | no | enum | `stdout` (default) · `stderr` · `combined` · `structured` (= `{ stdout, stderr, exit_code }`) — the **source** |
+| `decode` | no | enum | `text` (default) · `json` · `jsonl` · `bytes` — how the captured **string** becomes a value ([09 §decode](./09-types.md#decode--how-exec-bytes-become-a-value-normative)) · illegal with `capture: structured` (`NIKA-PARSE-025` — that capture already IS an object) · a non-parsing stream settles the task `failure` inside `on_error:` scope |
 
 > **`exec.env` ≠ the envelope `env:`**: different scopes, same word (the one
 > overlap to know). The envelope `env:` is *workflow config* read via
@@ -321,7 +322,7 @@ research:
 | `max_turns` | no | integer | Loop limit · default 10 |
 | `max_tokens_total` | no | integer | Cumulative token budget · default engine-configurable |
 | `temperature` | no | number 0-2 | Sampling temperature |
-| `schema` | no | object | JSON Schema · validates the agent's **final message** as structured output (same contract as `infer.schema:`) · `.output` becomes the matching object |
+| `schema` | no | object | raw JSON Schema · validates the agent's **final message** as structured output (same contract as `infer.schema:` · the out-of-core hatch — the typed door is `returns:` · [09](./09-types.md)) · `.output` becomes the matching object |
 
 ### Loop semantics
 

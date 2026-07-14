@@ -307,6 +307,32 @@ mod tests {
     }
 
     #[test]
+    fn a_type_finding_projects_with_its_span_and_code() {
+        // W3 one-voice proof: a `types:` grammar refusal born in the check
+        // ladder (`NIKA-TYPE-001` · unknown name with a did-you-mean) rides
+        // the SAME from_report projection every ladder finding rides — the
+        // LSP never re-judges types.
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntypes:\n  Story: { object: { headline: strng } }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        let diags = diags_of(yaml);
+        let ty = diags
+            .iter()
+            .find(|d| matches!(&d.code, Some(NumberOrString::String(c)) if c == "NIKA-TYPE-001"))
+            .expect("NIKA-TYPE-001 diagnostic present");
+        assert_eq!(ty.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(ty.source.as_deref(), Some("nika"));
+        assert!(
+            ty.message.contains("not a type") && ty.message.contains("types.Story"),
+            "the teaching + the place survive the projection: {}",
+            ty.message
+        );
+        assert!(
+            ty.range.start.line > 0,
+            "the finding anchors a real span (never 0:0): {:?}",
+            ty.range
+        );
+    }
+
+    #[test]
     fn unknown_dep_yields_dag002_error_with_span() {
         // an `after:` entry naming a ghost task — NIKA-DAG-002, carries
         // a span on the target token.

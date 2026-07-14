@@ -41,6 +41,7 @@ pub mod resource;
 pub mod retry;
 pub mod schema;
 pub mod trust;
+pub mod types;
 
 // ─── L0 shared types (descended from kernel, Phase 0) ──────────────
 pub mod cancel;

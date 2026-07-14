@@ -77,6 +77,7 @@ pub fn nika_verb_exec::ExecCommand::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_exec::ExecCommand where T: 'static
 pub fn nika_verb_exec::ExecCommand::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_verb_exec::ExecValue
+pub nika_verb_exec::ExecValue::Raw(alloc::vec::Vec<u8>)
 pub nika_verb_exec::ExecValue::Structured
 pub nika_verb_exec::ExecValue::Structured::exit_code: i32
 pub nika_verb_exec::ExecValue::Structured::stderr: alloc::string::String
@@ -162,6 +163,7 @@ pub nika_verb_exec::ExecInput::capture: nika_verb_exec::CaptureMode
 pub nika_verb_exec::ExecInput::command: nika_verb_exec::ExecCommand
 pub nika_verb_exec::ExecInput::cwd: core::option::Option<std::path::PathBuf>
 pub nika_verb_exec::ExecInput::env: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_verb_exec::ExecInput::raw_capture: bool
 pub nika_verb_exec::ExecInput::stdin: core::option::Option<alloc::string::String>
 pub nika_verb_exec::ExecInput::timeout: core::option::Option<core::time::Duration>
 impl nika_verb_exec::ExecInput

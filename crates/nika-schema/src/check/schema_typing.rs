@@ -61,7 +61,11 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
     // for_each source typing reads VAR declarations, not output shapes —
     // it must run even when no task carries a `schema:`/`output:`.
     scan_for_each_sources(wf, &mut findings);
-    let shapes = declared_shapes(wf);
+    // `returns:` contracts walk through the SAME door as `schema:` —
+    // lowered once (spec 09 §lowering · one direction), owned here so
+    // the shapes map can borrow either surface.
+    let lowered = crate::analyzer::lowered_returns(wf);
+    let shapes = declared_shapes(wf, &lowered);
     if shapes.is_empty() {
         return findings; // no output shapes → only the for_each findings
     }
@@ -159,7 +163,14 @@ fn var_type_word(t: VarType) -> &'static str {
 
 /// Collect each task's declared output address space. `output:` bindings
 /// REBIND the output namespace, so they take precedence over `schema:`.
-fn declared_shapes(wf: &RawWorkflow) -> BTreeMap<&str, Shape<'_>> {
+/// A `returns:` contract walks through the SAME door — its
+/// `lower(returns)` projection (`lowered` · owned by the caller) is the
+/// task's schema when no verb-level `schema:` exists (`NIKA-TYPE-003`
+/// forbids both, so at most one is ever present).
+fn declared_shapes<'a>(
+    wf: &'a RawWorkflow,
+    lowered: &'a BTreeMap<String, Value>,
+) -> BTreeMap<&'a str, Shape<'a>> {
     let mut shapes = BTreeMap::new();
     for task in &wf.tasks {
         let t = &task.value;
@@ -178,6 +189,8 @@ fn declared_shapes(wf: &RawWorkflow) -> BTreeMap<&str, Shape<'_>> {
         };
         if let Some(s) = schema {
             shapes.insert(id, Shape::Schema(&s.value));
+        } else if let Some(low) = lowered.get(id) {
+            shapes.insert(id, Shape::Schema(low));
         }
     }
     shapes

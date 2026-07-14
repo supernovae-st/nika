@@ -2023,10 +2023,15 @@ pub fn nika_kernel_core::io::process::ShellCommand::as_any(&self) -> &(dyn core:
 pub nika_kernel_core::io::process::ShellResult::duration: core::time::Duration
 pub nika_kernel_core::io::process::ShellResult::status: i32
 pub nika_kernel_core::io::process::ShellResult::stderr: alloc::string::String
+pub nika_kernel_core::io::process::ShellResult::stderr_raw: core::option::Option<alloc::vec::Vec<u8>>
 pub nika_kernel_core::io::process::ShellResult::stdout: alloc::string::String
+pub nika_kernel_core::io::process::ShellResult::stdout_raw: core::option::Option<alloc::vec::Vec<u8>>
 impl nika_kernel_core::io::process::ShellResult
 pub fn nika_kernel_core::io::process::ShellResult::new(status: i32, stdout: impl core::convert::Into<alloc::string::String>, stderr: impl core::convert::Into<alloc::string::String>, duration: core::time::Duration) -> Self
+pub fn nika_kernel_core::io::process::ShellResult::stderr_octets(&self) -> &[u8]
+pub fn nika_kernel_core::io::process::ShellResult::stdout_octets(&self) -> &[u8]
 pub fn nika_kernel_core::io::process::ShellResult::success(&self) -> bool
+pub fn nika_kernel_core::io::process::ShellResult::with_raw(self, stdout_raw: alloc::vec::Vec<u8>, stderr_raw: alloc::vec::Vec<u8>) -> Self
 impl core::clone::Clone for nika_kernel_core::io::process::ShellResult
 pub fn nika_kernel_core::io::process::ShellResult::clone(&self) -> nika_kernel_core::io::process::ShellResult
 impl core::fmt::Debug for nika_kernel_core::io::process::ShellResult

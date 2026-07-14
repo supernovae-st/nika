@@ -134,6 +134,37 @@ const fn var(num: u16, category: SpecCategory) -> SpecCode {
     }
 }
 
+const fn typ(num: u16) -> SpecCode {
+    SpecCode {
+        namespace: "TYPE",
+        num,
+        category: SpecCategory::ValidationError,
+        transient: false,
+    }
+}
+
+/// The BUILTIN arg-shape codes — `nika:done` carries its REGISTERED
+/// exact code (deep fixture 010 matches on it) · the other shapes emit
+/// the generic builtin namespace.
+const fn builtin_spec_code(tool: &str) -> SpecCode {
+    // const-friendly comparison: namespace choice is the only fork
+    if matches!(tool.as_bytes(), b"nika:done") {
+        SpecCode {
+            namespace: "BUILTIN-DONE",
+            num: 1,
+            category: SpecCategory::ValidationError,
+            transient: false,
+        }
+    } else {
+        SpecCode {
+            namespace: "BUILTIN",
+            num: 1,
+            category: SpecCategory::ValidationError,
+            transient: false,
+        }
+    }
+}
+
 impl SchemaError {
     /// Map to the spec-facing code (spec `05-errors.md`).
     ///
@@ -195,21 +226,8 @@ impl SchemaError {
             Self::RecoverAwaitDeadlock { .. } => dag(4),
             Self::UnknownAfterPredicate { .. } => dag(5),
 
-            // ── NIKA-BUILTIN · arg-shape contracts ── nika:done carries
-            // its REGISTERED exact code (deep fixture 010 matches on it) ·
-            // the other shapes emit the generic builtin namespace.
-            Self::BadBuiltinArgs { tool, .. } if tool == "nika:done" => SpecCode {
-                namespace: "BUILTIN-DONE",
-                num: 1,
-                category: ValidationError,
-                transient: false,
-            },
-            Self::BadBuiltinArgs { .. } => SpecCode {
-                namespace: "BUILTIN",
-                num: 1,
-                category: ValidationError,
-                transient: false,
-            },
+            // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
+            Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),
 
             // ── NIKA-VAR · the ${{ }} surface ───────────────────────
             // NIKA-VAR-001 · reference resolution (fixtures 001-007 ·
@@ -234,6 +252,18 @@ impl SchemaError {
             // NIKA-VAR-021 · a tasks.* reference outside the boundary
             // (04 §the reference boundary · the hoist is machine-applicable).
             Self::RefOutsideBoundary { .. } => var(21, ValidationError),
+
+            // ── NIKA-TYPE · the type core (spec 09 · W3) ────────────
+            // TYPE-001 (grammar) or TYPE-006 (regex dialect) — the num
+            // rides the payload, carried verbatim from the type core's
+            // ParseTypeError (one truth · never re-derived here).
+            Self::TypeExprInvalid { num, .. } => typ(*num),
+            Self::TypeRecursive { .. } => typ(2),
+            Self::TypeContractDuplicated { .. } => typ(3),
+            Self::TypeUndecodable { .. } => typ(4),
+            // NIKA-PARSE-025 · decode: with capture: structured (the
+            // spec files it in the PARSE namespace · 05 §registry).
+            Self::DecodeWithStructuredCapture { .. } => parse(25, ValidationError),
         }
     }
 }
@@ -402,11 +432,92 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 33 variants · 3 share VAR-001 · 2 share VAR-005 → 30
+        // 38 variants · 3 share VAR-001 · 2 share VAR-005 → 35
         // distinct codes (DAG-003 retired with its variant in W2 ·
         // PARSE-024 + DAG-005 + VAR-021 join · VAR-020 bare-envelope
         // joined 0.103 · the nika:done arm adds BUILTIN-DONE-001 only
-        // when the tool matches — the enumerator carries the generic arm).
-        assert_eq!(seen.len(), 30, "{seen:?}");
+        // when the tool matches — the enumerator carries the generic arm ·
+        // the W3 type core adds TYPE-001/2/3/4 + PARSE-025; TYPE-006
+        // shares the TypeExprInvalid variant, enumerated once as num 1).
+        assert_eq!(seen.len(), 35, "{seen:?}");
+    }
+
+    #[test]
+    fn type_expr_invalid_maps_both_wire_numbers() {
+        // The ONE variant carries TWO wire codes by payload — TYPE-001
+        // (grammar) and TYPE-006 (regex dialect), both from the type
+        // core's ParseTypeError. Pin both arms AND their canon
+        // registration (the enumerator only carries num 1, so the
+        // TYPE-006 side of the emitted⊆registered ratchet lives here).
+        let grammar = SchemaError::TypeExprInvalid {
+            num: 1,
+            detail: String::new(),
+            span: None,
+        }
+        .spec_code();
+        assert_eq!(grammar.to_string(), "NIKA-TYPE-001");
+        assert_eq!(grammar.category.as_str(), "validation_error");
+
+        let dialect = SchemaError::TypeExprInvalid {
+            num: 6,
+            detail: String::new(),
+            span: None,
+        }
+        .spec_code();
+        assert_eq!(dialect.to_string(), "NIKA-TYPE-006");
+        assert_eq!(dialect.category.as_str(), "validation_error");
+
+        let registered: std::collections::BTreeSet<&str> = nika_pack::error_codes()
+            .into_iter()
+            .map(|row| row.code)
+            .collect();
+        assert!(
+            registered.contains("NIKA-TYPE-006"),
+            "TYPE-006 must be registered in the canon error_codes table"
+        );
+    }
+
+    #[test]
+    fn type_core_codes_map_to_the_spec_registry() {
+        // The W3 contract layer (spec 09 §errors) — each variant to its
+        // exact canon row · TYPE codes are validation_error · the
+        // decode/structured conflict files under PARSE (05 §registry).
+        let cases: [(SchemaError, &str); 4] = [
+            (
+                SchemaError::TypeRecursive {
+                    name: String::new(),
+                    span: None,
+                },
+                "NIKA-TYPE-002",
+            ),
+            (
+                SchemaError::TypeContractDuplicated {
+                    task: String::new(),
+                    verb: "infer",
+                    span: None,
+                },
+                "NIKA-TYPE-003",
+            ),
+            (
+                SchemaError::TypeUndecodable {
+                    task: String::new(),
+                    decode: String::new(),
+                    span: None,
+                },
+                "NIKA-TYPE-004",
+            ),
+            (
+                SchemaError::DecodeWithStructuredCapture {
+                    task: String::new(),
+                    span: None,
+                },
+                "NIKA-PARSE-025",
+            ),
+        ];
+        for (err, code) in cases {
+            let spec = err.spec_code();
+            assert_eq!(spec.to_string(), code);
+            assert_eq!(spec.category.as_str(), "validation_error");
+        }
     }
 }

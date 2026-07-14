@@ -181,6 +181,7 @@ impl<T: PartialEq> PartialEq for Spanned<T> {
 impl<T: Eq> Eq for Spanned<T> {}
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -273,14 +274,14 @@ mod tests {
         assert!(span.is_empty());
     }
 
-    fn _assert_send_sync<T: Send + Sync>() {}
+    fn assert_send_sync<T: Send + Sync>() {}
 
     #[test]
     fn source_types_are_send_sync() {
-        _assert_send_sync::<FileId>();
-        _assert_send_sync::<ByteOffset>();
-        _assert_send_sync::<Span>();
-        _assert_send_sync::<LineCol>();
-        _assert_send_sync::<Spanned<String>>();
+        assert_send_sync::<FileId>();
+        assert_send_sync::<ByteOffset>();
+        assert_send_sync::<Span>();
+        assert_send_sync::<LineCol>();
+        assert_send_sync::<Spanned<String>>();
     }
 }

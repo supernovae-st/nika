@@ -1,0 +1,17 @@
+[package]
+name          = "nika-source"
+description   = "Source tracking for Nika diagnostics: spans, file IDs, line:col conversion. Layer L0 — pure, zero I/O. Second member of the nika-schema architectural unit (size-cap split, D-2026-07-09-N1)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-017.
+
+[dependencies]
+serde = { workspace = true }
+
+[lints]
+workspace = true

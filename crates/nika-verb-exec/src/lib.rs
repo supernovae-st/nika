@@ -101,6 +101,12 @@ pub struct ExecInput {
     pub stdin: Option<String>,
     /// Output capture mode (default `Stdout`).
     pub capture: CaptureMode,
+    /// Return the captured stream's RAW octets ([`ExecValue::Raw`])
+    /// instead of lossy text — set by the engine when a `decode:`
+    /// pipeline or a `returns:` contract needs the exact bytes (spec
+    /// 09 §decode). Ignored under `capture: structured` (that value is
+    /// already an object). Default `false` = today's text behavior.
+    pub raw_capture: bool,
     /// Task-level timeout, resolved by the engine (03-dag) — the runner
     /// enforces the hard kill.
     pub timeout: Option<Duration>,
@@ -147,6 +153,7 @@ impl ExecInput {
             env: BTreeMap::new(),
             stdin: None,
             capture: CaptureMode::Stdout,
+            raw_capture: false,
             timeout: None,
         }
     }
@@ -173,6 +180,12 @@ pub enum CaptureMode {
 pub enum ExecValue {
     /// Captured text (`stdout` · `stderr` · `combined` modes).
     Text(String),
+    /// The captured stream's RAW octets — returned instead of `Text`
+    /// when the caller set [`ExecInput::raw_capture`] (the `decode:`
+    /// pipeline · spec 09 §decode · « raw bytes → decode → value,
+    /// never bytes → lossy string → decode »). The decode itself is
+    /// the caller's (the runtime owns the contract).
+    Raw(Vec<u8>),
     /// The structured outcome (`structured` mode) — exit code included.
     Structured {
         /// Captured standard output.
@@ -235,6 +248,7 @@ where
     pub async fn run(&self, input: ExecInput) -> Result<ExecOutput, VerbExecError> {
         validate_params(&input)?;
         let capture = input.capture;
+        let raw_capture = input.raw_capture;
 
         let result = self
             .shell
@@ -249,7 +263,10 @@ where
         }
 
         let duration = result.duration;
-        Ok(ExecOutput::new(shape_output(capture, result), duration))
+        Ok(ExecOutput::new(
+            shape_output(capture, raw_capture, result),
+            duration,
+        ))
     }
 }
 
@@ -383,14 +400,38 @@ fn build_command(input: ExecInput) -> ShellCommand {
 ///
 /// Total over `CaptureMode` — no panic arm: `structured` returns the exit
 /// code as DATA; the default modes fail on a non-zero exit (review lens
-/// 1+2 · P1 · the prior `unreachable!` is gone).
-fn shape_output(capture: CaptureMode, result: ShellResult) -> ExecValue {
+/// 1+2 · P1 · the prior `unreachable!` is gone). Under `raw_capture` the
+/// text modes return the stream's exact octets instead ([`ExecValue::Raw`]
+/// · the `decode:` pipeline's input · spec 09 §decode); `structured` is
+/// already an object and ignores the flag.
+fn shape_output(capture: CaptureMode, raw_capture: bool, result: ShellResult) -> ExecValue {
     match capture {
         CaptureMode::Structured => ExecValue::Structured {
             stdout: result.stdout,
             stderr: result.stderr,
             exit_code: result.status,
         },
+        CaptureMode::Stdout if raw_capture => ExecValue::Raw(
+            result
+                .stdout_raw
+                .unwrap_or_else(|| result.stdout.into_bytes()),
+        ),
+        CaptureMode::Stderr if raw_capture => ExecValue::Raw(
+            result
+                .stderr_raw
+                .unwrap_or_else(|| result.stderr.into_bytes()),
+        ),
+        CaptureMode::Combined if raw_capture => {
+            let mut bytes = result
+                .stdout_raw
+                .unwrap_or_else(|| result.stdout.into_bytes());
+            bytes.extend_from_slice(
+                &result
+                    .stderr_raw
+                    .unwrap_or_else(|| result.stderr.into_bytes()),
+            );
+            ExecValue::Raw(bytes)
+        }
         CaptureMode::Stdout => ExecValue::Text(result.stdout),
         CaptureMode::Stderr => ExecValue::Text(result.stderr),
         CaptureMode::Combined => ExecValue::Text(format!("{}{}", result.stdout, result.stderr)),
@@ -781,13 +822,22 @@ mod proptests {
                 status, stdout.clone(), stderr.clone(), Duration::from_millis(1),
             );
             let structured_ok = matches!(
-                shape_output(CaptureMode::Structured, result()),
+                shape_output(CaptureMode::Structured, false, result()),
                 ExecValue::Structured { exit_code, .. } if exit_code == status
             );
             prop_assert!(structured_ok);
             for mode in [CaptureMode::Stdout, CaptureMode::Stderr, CaptureMode::Combined] {
-                prop_assert!(matches!(shape_output(mode, result()), ExecValue::Text(_)));
+                prop_assert!(matches!(shape_output(mode, false, result()), ExecValue::Text(_)));
+                // raw_capture flips the text modes to the exact octets
+                // (the decode pipeline's input) — never Text, never a panic.
+                prop_assert!(matches!(shape_output(mode, true, result()), ExecValue::Raw(_)));
             }
+            // structured ignores the flag — that value is already an object.
+            let structured_ignores_flag = matches!(
+                shape_output(CaptureMode::Structured, true, result()),
+                ExecValue::Structured { .. }
+            );
+            prop_assert!(structured_ignores_flag);
         }
 
         /// The whole `run()` split: a non-zero exit fails the default modes
@@ -827,10 +877,25 @@ mod proptests {
             );
             let expected = format!("{stdout}{stderr}");
             let combined_ok = matches!(
-                shape_output(CaptureMode::Combined, result),
+                shape_output(CaptureMode::Combined, false, result),
                 ExecValue::Text(t) if t == expected
             );
             prop_assert!(combined_ok);
+        }
+
+        /// Combined under raw_capture = stdout octets ⧺ stderr octets —
+        /// the SAME concatenation order as the text mode (one behavior).
+        #[test]
+        fn combined_raw_is_octet_concatenation(stdout in ".{0,40}", stderr in ".{0,40}") {
+            let result = nika_kernel::process::ShellResult::new(
+                0, stdout.clone(), stderr.clone(), Duration::from_millis(1),
+            );
+            let expected = [stdout.as_bytes(), stderr.as_bytes()].concat();
+            let raw_ok = matches!(
+                shape_output(CaptureMode::Combined, true, result),
+                ExecValue::Raw(b) if b == expected
+            );
+            prop_assert!(raw_ok);
         }
 
         /// Argv injection-safety, over ALL inputs: for any program + args

@@ -349,7 +349,11 @@ async fn outcome_to_result(
             String::from_utf8_lossy(&stdout),
             String::from_utf8_lossy(&stderr),
             start.elapsed(),
-        )),
+        )
+        // The raw octets ride alongside the lossy text projections —
+        // the `decode:` pipeline (spec 09 §decode) reads bytes, never
+        // a lossy string.
+        .with_raw(stdout, stderr)),
     }
 }
 

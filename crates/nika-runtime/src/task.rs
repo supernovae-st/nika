@@ -137,6 +137,14 @@ pub(crate) struct FailedOutcome {
     pub cost_unpriced: Option<nika_types::cost::UnpricedReason>,
 }
 
+/// The three read-only value namespaces every lane threads whole
+/// (`vars` · `env` · `secrets`) — one alias, four signatures.
+type ValueBags<'a> = (
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+);
+
 impl FailedOutcome {
     fn new(
         record: TaskErrorRecord,
@@ -219,7 +227,7 @@ where
     /// is sound and keeps the read side shareable across the wave's
     /// concurrent pipelines.
     // REASON: the pipeline threads the run's shared read surfaces + the
-    // spend ledger — 8 params, each one a distinct run-scoped seam.
+    // spend ledger — 9 params, each one a distinct run-scoped seam.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn run_task_pipeline(
         &self,
@@ -229,6 +237,7 @@ where
         env: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
+        types: &BTreeMap<String, nika_types::types::NikaType>,
         resume_ctx: &crate::resume::ResumeContext,
         ledger: &crate::ledger::RunLedger,
     ) -> Finish {
@@ -294,10 +303,9 @@ where
                 task,
                 boundary_with,
                 records,
-                vars,
-                env,
-                secrets,
+                (vars, env, secrets),
                 permits,
+                types,
                 ledger,
             )
             .await;
@@ -320,17 +328,16 @@ where
 
     /// The execution lane split: `for_each:` fan-out when declared ·
     /// the single lane otherwise (spec 03 §dispatch pipeline).
-    // REASON: the same run-scoped seams as the pipeline — 8 params.
+    // REASON: the same run-scoped seams as the pipeline.
     #[allow(clippy::too_many_arguments)]
     async fn run_lanes(
         &self,
         task: &RawTask,
         boundary_with: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        vars: &BTreeMap<String, Value>,
-        env: &BTreeMap<String, Value>,
-        secrets: &BTreeMap<String, Value>,
+        (vars, env, secrets): ValueBags<'_>,
         permits: Option<&Permits>,
+        types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         match task.for_each.as_ref() {
@@ -339,10 +346,9 @@ where
                     task,
                     boundary_with,
                     records,
-                    vars,
-                    env,
-                    secrets,
+                    (vars, env, secrets),
                     permits,
+                    types,
                     ledger,
                 )
                 .await
@@ -353,10 +359,9 @@ where
                     &spanned.value,
                     &boundary_with,
                     records,
-                    vars,
-                    env,
-                    secrets,
+                    (vars, env, secrets),
                     permits,
+                    types,
                     ledger,
                 )
                 .await
@@ -429,17 +434,16 @@ where
     }
 
     /// The single-execution lane (no `for_each:`).
-    // REASON: the run-scoped seams plus the boundary render — 9 params.
+    // REASON: the run-scoped seams plus the boundary render.
     #[allow(clippy::too_many_arguments)]
     async fn run_single(
         &self,
         task: &RawTask,
         with_ns: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        vars: &BTreeMap<String, Value>,
-        env: &BTreeMap<String, Value>,
-        secrets: &BTreeMap<String, Value>,
+        (vars, env, secrets): ValueBags<'_>,
         permits: Option<&Permits>,
+        types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         // `with:` materialized at the boundary (spec 03 §dispatch
@@ -455,7 +459,7 @@ where
             permits,
         };
         let started = self.clock.now();
-        let mut ran = self.attempt_loop(task, &scope, ledger).await;
+        let mut ran = self.attempt_loop(task, &scope, types, ledger).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG).
         self.run_finally(task, &scope, &ran).await;
@@ -464,7 +468,7 @@ where
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
-    // REASON: same run-scoped seams as the pipeline — 8 distinct params.
+    // REASON: same run-scoped seams as the pipeline.
     #[allow(clippy::too_many_arguments)]
     async fn run_fan_out(
         &self,
@@ -472,10 +476,9 @@ where
         collection: &ForEachValue,
         boundary_with: &BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        vars: &BTreeMap<String, Value>,
-        env: &BTreeMap<String, Value>,
-        secrets: &BTreeMap<String, Value>,
+        (vars, env, secrets): ValueBags<'_>,
         permits: Option<&Permits>,
+        types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         // The collection resolves on the PRE-fan-out surface (the
@@ -507,7 +510,15 @@ where
                 .take_while(|_| !ledger.tripped())
                 .map(|(index, item)| {
                     let locals = IterationLocals { item, index };
-                    self.run_iteration(task, records, vars, env, secrets, locals, permits, ledger)
+                    self.run_iteration(
+                        task,
+                        records,
+                        (vars, env, secrets),
+                        locals,
+                        permits,
+                        types,
+                        ledger,
+                    )
                 }),
         )
         .buffered(cap);
@@ -565,11 +576,10 @@ where
         &self,
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
-        vars: &BTreeMap<String, Value>,
-        env: &BTreeMap<String, Value>,
-        secrets: &BTreeMap<String, Value>,
+        (vars, env, secrets): ValueBags<'_>,
         locals: IterationLocals<'_>,
         permits: Option<&Permits>,
+        types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
     ) -> RanTask {
         let with_ns = match render_with(
@@ -606,7 +616,7 @@ where
             index: Some(locals.index),
             permits,
         };
-        let mut ran = self.attempt_loop(task, &scope, ledger).await;
+        let mut ran = self.attempt_loop(task, &scope, types, ledger).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
         #[allow(clippy::cast_possible_truncation)] // fan-out ≪ u32::MAX
@@ -624,6 +634,7 @@ where
         &self,
         task: &RawTask,
         scope: &Scope<'_>,
+        types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
     ) -> RanTask {
         let started = self.clock.now();
@@ -639,42 +650,45 @@ where
         let agent_buffer = crate::agent_events::BufferingObserver::new();
         let mut attempt_marks: Vec<usize> = Vec::new();
         let outcome = {
-            // The attempt loop borrows the accumulators; the borrow ends
-            // when the loop future is consumed/dropped (both arms below).
-            // `budget` = the task's ONE `timeout:` — the total enforced
-            // below AND handed to dispatch (the infer transport · F1).
+            // Accumulators borrowed by the loop future. `budget` = the
+            // task's ONE `timeout:` — enforced below AND at dispatch (F1).
             let budget = task.timeout.as_ref().map(|t| t.value);
+            // The `returns:` contract, resolved ONCE against the run's
+            // named types (spec 09 · W3) — `None` = gradual/Unknown.
+            let contract = crate::contract::TaskContract::of(task, types);
             let attempts = async {
                 let mut attempt = 1_u32;
-                // Spend of FAILED attempts (ledger-debited per attempt) —
-                // folded onto the terminal frame at the end.
+                // Spend of FAILED attempts — folded onto the terminal frame.
                 let mut failed_cost: Option<f64> = None;
                 let mut failed_unpriced: Option<nika_types::cost::UnpricedReason> = None;
                 loop {
                     let dispatched = self
-                        .dispatch(&task.action, scope, &agent_buffer, budget)
+                        .dispatch(
+                            &task.action,
+                            scope,
+                            &agent_buffer,
+                            budget,
+                            contract.as_ref(),
+                        )
                         .await;
                     note.clone_from(&dispatched.note);
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
                         Ok(mut ok) => {
                             // THE leaf debit site (its OWN spend — failed
-                            // attempts debited theirs already; the frame
-                            // then reports the whole task's cost).
+                            // attempts debited theirs; frame reports all).
                             ledger.debit_ok(&ok);
                             ok.fold_failed_spend(failed_cost, failed_unpriced);
                             return Ok(ok);
                         }
                         Err(failed) => {
-                            // Debits PER ATTEMPT — a retry storm is never
-                            // invisible to `--max-cost-usd`.
+                            // Debits PER ATTEMPT — a retry storm is never invisible.
                             let error = failed.debit_and_fold(
                                 ledger,
                                 &mut failed_cost,
                                 &mut failed_unpriced,
                             );
-                            // Retry iff attempts remain AND the policy
-                            // admits the error (spec 05).
+                            // Retry iff attempts remain AND the policy admits (spec 05).
                             let Some(delay) =
                                 self.retry_delay(task, &error, attempt, max_attempts, &jitter_key)
                             else {
@@ -701,8 +715,7 @@ where
 
         let duration_ms = self.since_ms(started);
         if note.is_empty() {
-            // Timed out before the first dispatch note landed.
-            verb_note_prefix(&task.action).clone_into(&mut note);
+            verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
         }
 
         let result = dispatch_result(task, scope, outcome);
@@ -828,8 +841,9 @@ where
         // outcome dropped by design) — a throwaway buffer satisfies the
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
+        // Mini-tasks carry no `returns:` (closed shape) — no contract.
         let attempt =
-            std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer, Some(limit)));
+            std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer, Some(limit), None));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         // Either way the outcome is dropped — cleanup observability is
         // the cleanup's own effects (e.g. `nika:emit` · spec 03).

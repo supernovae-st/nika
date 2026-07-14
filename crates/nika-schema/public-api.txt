@@ -1,4 +1,11 @@
 pub mod nika_schema
+pub use nika_schema::ByteOffset
+pub use nika_schema::FileId
+pub use nika_schema::LineCol
+pub use nika_schema::SourceFile
+pub use nika_schema::SourceRegistry
+pub use nika_schema::Span
+pub use nika_schema::Spanned
 pub use nika_schema::expression
 pub mod nika_schema::analyzer
 pub mod nika_schema::analyzer::edges
@@ -107,7 +114,7 @@ pub fn nika_schema::analyzer::edges::SettledState::as_out(&mut self) -> outref::
 pub nika_schema::analyzer::edges::Edge::binding: core::option::Option<alloc::string::String>
 pub nika_schema::analyzer::edges::Edge::from: usize
 pub nika_schema::analyzer::edges::Edge::kind: nika_schema::analyzer::edges::EdgeKind
-pub nika_schema::analyzer::edges::Edge::span: nika_schema::Span
+pub nika_schema::analyzer::edges::Edge::span: nika_source::span::Span
 pub nika_schema::analyzer::edges::Edge::to: usize
 impl core::clone::Clone for nika_schema::analyzer::edges::Edge
 pub fn nika_schema::analyzer::edges::Edge::clone(&self) -> nika_schema::analyzer::edges::Edge
@@ -194,12 +201,16 @@ impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::RecoveryRead where
 pub fn nika_schema::analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::RecoveryRead where T: 'static
 pub fn nika_schema::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub fn nika_schema::analyzer::edges::derive_edges(tasks: &[nika_schema::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_schema::analyzer::edges::Edge>
-pub fn nika_schema::analyzer::edges::derive_recovery_reads(tasks: &[nika_schema::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>
+pub fn nika_schema::analyzer::edges::derive_edges(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_schema::analyzer::edges::Edge>
+pub fn nika_schema::analyzer::edges::derive_recovery_reads(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>
 pub fn nika_schema::analyzer::edges::incoming_of(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<(alloc::string::String, nika_schema::analyzer::edges::EdgeKind)>
 pub fn nika_schema::analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_schema::analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_schema::analyzer::edges::EdgeKind
 pub fn nika_schema::analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
+pub mod nika_schema::analyzer::types_contract
+pub fn nika_schema::analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_schema::analyzer::types_contract::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
+pub fn nika_schema::analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 #[non_exhaustive] pub enum nika_schema::analyzer::EdgeKind
 pub nika_schema::analyzer::EdgeKind::Control(nika_schema::types::after::AfterPredicate)
 pub nika_schema::analyzer::EdgeKind::FailureObservation
@@ -352,7 +363,7 @@ pub fn nika_schema::analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any
 pub nika_schema::analyzer::Edge::binding: core::option::Option<alloc::string::String>
 pub nika_schema::analyzer::Edge::from: usize
 pub nika_schema::analyzer::Edge::kind: nika_schema::analyzer::edges::EdgeKind
-pub nika_schema::analyzer::Edge::span: nika_schema::Span
+pub nika_schema::analyzer::Edge::span: nika_source::span::Span
 pub nika_schema::analyzer::Edge::to: usize
 impl core::clone::Clone for nika_schema::analyzer::edges::Edge
 pub fn nika_schema::analyzer::edges::Edge::clone(&self) -> nika_schema::analyzer::edges::Edge
@@ -440,6 +451,9 @@ pub fn nika_schema::analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clo
 impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::RecoveryRead where T: 'static
 pub fn nika_schema::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_schema::analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_schema::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
+pub fn nika_schema::analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_schema::analyzer::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
+pub fn nika_schema::analyzer::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 pub fn nika_schema::analyzer::role_of_field(field: core::option::Option<&str>) -> nika_schema::analyzer::edges::EdgeKind
 pub mod nika_schema::check
 pub mod nika_schema::check::native_first
@@ -2065,145 +2079,163 @@ pub fn nika_schema::error::spec_code::SpecCode::as_out(&mut self) -> outref::Out
 #[non_exhaustive] pub enum nika_schema::error::SchemaError
 pub nika_schema::error::SchemaError::BadBuiltinArgs
 pub nika_schema::error::SchemaError::BadBuiltinArgs::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadBuiltinArgs::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadBuiltinArgs::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadBuiltinArgs::task: alloc::string::String
 pub nika_schema::error::SchemaError::BadBuiltinArgs::tool: alloc::string::String
 pub nika_schema::error::SchemaError::BadNikaVersion
-pub nika_schema::error::SchemaError::BadNikaVersion::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadNikaVersion::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadNikaVersion::version: alloc::string::String
 pub nika_schema::error::SchemaError::BadOnError
 pub nika_schema::error::SchemaError::BadOnError::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadOnError::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadOnError::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadRetry
 pub nika_schema::error::SchemaError::BadRetry::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadRetry::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadRetry::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadSecretRef
 pub nika_schema::error::SchemaError::BadSecretRef::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadSecretRef::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadSecretRef::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadTaskId
 pub nika_schema::error::SchemaError::BadTaskId::id: alloc::string::String
-pub nika_schema::error::SchemaError::BadTaskId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadTaskId::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadTimeout
 pub nika_schema::error::SchemaError::BadTimeout::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadTimeout::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadTimeout::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadTypedVar
 pub nika_schema::error::SchemaError::BadTypedVar::name: alloc::string::String
 pub nika_schema::error::SchemaError::BadTypedVar::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadTypedVar::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadTypedVar::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadWorkflowId
 pub nika_schema::error::SchemaError::BadWorkflowId::id: alloc::string::String
-pub nika_schema::error::SchemaError::BadWorkflowId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BadWorkflowId::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BareTaskEnvelope
 pub nika_schema::error::SchemaError::BareTaskEnvelope::location: alloc::string::String
-pub nika_schema::error::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BareTaskEnvelope::task: alloc::string::String
 pub nika_schema::error::SchemaError::Cycle
 pub nika_schema::error::SchemaError::Cycle::cycle: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::error::SchemaError::DecodeWithStructuredCapture
+pub nika_schema::error::SchemaError::DecodeWithStructuredCapture::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::DecodeWithStructuredCapture::task: alloc::string::String
 pub nika_schema::error::SchemaError::DuplicateKey
 pub nika_schema::error::SchemaError::DuplicateKey::message: alloc::string::String
-pub nika_schema::error::SchemaError::DuplicateKey::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::DuplicateKey::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::DuplicateTaskId
 pub nika_schema::error::SchemaError::DuplicateTaskId::id: alloc::string::String
-pub nika_schema::error::SchemaError::DuplicateTaskId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::DuplicateTaskId::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::ExpressionViolation
 pub nika_schema::error::SchemaError::ExpressionViolation::reason: alloc::string::String
-pub nika_schema::error::SchemaError::ExpressionViolation::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::ExpressionViolation::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::JqBindingContainsTemplate
 pub nika_schema::error::SchemaError::JqBindingContainsTemplate::name: alloc::string::String
-pub nika_schema::error::SchemaError::JqBindingContainsTemplate::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::JqBindingContainsTemplate::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::JqBindingContainsTemplate::task: alloc::string::String
 pub nika_schema::error::SchemaError::LoopLocalOutsideForEach
 pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::local: alloc::string::String
-pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::task: alloc::string::String
 pub nika_schema::error::SchemaError::MissingEnvelopeField
 pub nika_schema::error::SchemaError::MissingEnvelopeField::field: alloc::string::String
-pub nika_schema::error::SchemaError::MissingEnvelopeField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::MissingEnvelopeField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::MissingField
 pub nika_schema::error::SchemaError::MissingField::field: alloc::string::String
-pub nika_schema::error::SchemaError::MissingField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::MissingField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::MissingVerb
-pub nika_schema::error::SchemaError::MissingVerb::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::MissingVerb::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::MissingVerb::task: alloc::string::String
 pub nika_schema::error::SchemaError::MultipleVerbs
-pub nika_schema::error::SchemaError::MultipleVerbs::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::MultipleVerbs::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::MultipleVerbs::task: alloc::string::String
 pub nika_schema::error::SchemaError::MultipleVerbs::verbs: alloc::string::String
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::path: alloc::string::String
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::reason: alloc::string::String
-pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::task: alloc::string::String
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock
-pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::target: alloc::string::String
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::task: alloc::string::String
 pub nika_schema::error::SchemaError::RefOutsideBoundary
 pub nika_schema::error::SchemaError::RefOutsideBoundary::reference: alloc::string::String
-pub nika_schema::error::SchemaError::RefOutsideBoundary::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::RefOutsideBoundary::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::RefOutsideBoundary::surface: alloc::string::String
 pub nika_schema::error::SchemaError::RefOutsideBoundary::task: alloc::string::String
 pub nika_schema::error::SchemaError::ReservedBindingName
 pub nika_schema::error::SchemaError::ReservedBindingName::name: alloc::string::String
-pub nika_schema::error::SchemaError::ReservedBindingName::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::ReservedBindingName::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::ReservedBindingName::task: alloc::string::String
 pub nika_schema::error::SchemaError::TemplateSyntax
 pub nika_schema::error::SchemaError::TemplateSyntax::reason: alloc::string::String
-pub nika_schema::error::SchemaError::TemplateSyntax::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::TemplateSyntax::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::TypeContractDuplicated
+pub nika_schema::error::SchemaError::TypeContractDuplicated::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::TypeContractDuplicated::task: alloc::string::String
+pub nika_schema::error::SchemaError::TypeContractDuplicated::verb: &'static str
+pub nika_schema::error::SchemaError::TypeExprInvalid
+pub nika_schema::error::SchemaError::TypeExprInvalid::detail: alloc::string::String
+pub nika_schema::error::SchemaError::TypeExprInvalid::num: u16
+pub nika_schema::error::SchemaError::TypeExprInvalid::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::TypeRecursive
+pub nika_schema::error::SchemaError::TypeRecursive::name: alloc::string::String
+pub nika_schema::error::SchemaError::TypeRecursive::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::TypeUndecodable
+pub nika_schema::error::SchemaError::TypeUndecodable::decode: alloc::string::String
+pub nika_schema::error::SchemaError::TypeUndecodable::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::TypeUndecodable::task: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownAfterPredicate
 pub nika_schema::error::SchemaError::UnknownAfterPredicate::predicate: alloc::string::String
-pub nika_schema::error::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnknownAfterPredicate::target: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownAfterPredicate::task: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownDependency
 pub nika_schema::error::SchemaError::UnknownDependency::from: alloc::string::String
-pub nika_schema::error::SchemaError::UnknownDependency::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnknownDependency::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnknownDependency::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::error::SchemaError::UnknownDependency::to: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownField
 pub nika_schema::error::SchemaError::UnknownField::field: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownField::location: alloc::string::String
-pub nika_schema::error::SchemaError::UnknownField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnknownField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnknownField::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::error::SchemaError::UnknownTaskField
 pub nika_schema::error::SchemaError::UnknownTaskField::field: alloc::string::String
-pub nika_schema::error::SchemaError::UnknownTaskField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnknownTaskField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnknownTaskField::task: alloc::string::String
 pub nika_schema::error::SchemaError::UnresolvedNamespaceRef
 pub nika_schema::error::SchemaError::UnresolvedNamespaceRef::location: alloc::string::String
 pub nika_schema::error::SchemaError::UnresolvedNamespaceRef::reference: alloc::string::String
-pub nika_schema::error::SchemaError::UnresolvedNamespaceRef::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnresolvedNamespaceRef::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnresolvedNamespaceRef::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::error::SchemaError::Validation
 pub nika_schema::error::SchemaError::Validation::message: alloc::string::String
-pub nika_schema::error::SchemaError::Validation::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::Validation::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W1TaskIdField
-pub nika_schema::error::SchemaError::W1TaskIdField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1TaskIdField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W1TaskIdField::task: alloc::string::String
 pub nika_schema::error::SchemaError::W1TasksSequence
-pub nika_schema::error::SchemaError::W1TasksSequence::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1TasksSequence::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W1TopLevelDescription
-pub nika_schema::error::SchemaError::W1TopLevelDescription::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1TopLevelDescription::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W1WorkflowScalar
 pub nika_schema::error::SchemaError::W1WorkflowScalar::id: alloc::string::String
-pub nika_schema::error::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W2DependsOnField
-pub nika_schema::error::SchemaError::W2DependsOnField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W2DependsOnField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W2DependsOnField::task: alloc::string::String
 pub nika_schema::error::SchemaError::W2DependsOnField::task_hint: alloc::string::String
 pub nika_schema::error::SchemaError::WhenNotBoolean
 pub nika_schema::error::SchemaError::WhenNotBoolean::field: alloc::string::String
 pub nika_schema::error::SchemaError::WhenNotBoolean::reason: alloc::string::String
-pub nika_schema::error::SchemaError::WhenNotBoolean::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::WhenNotBoolean::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::WhenNotBoolean::task: alloc::string::String
 pub nika_schema::error::SchemaError::YamlSyntax
 pub nika_schema::error::SchemaError::YamlSyntax::message: alloc::string::String
-pub nika_schema::error::SchemaError::YamlSyntax::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::YamlSyntax::span: core::option::Option<nika_source::span::Span>
 impl nika_schema::error::SchemaError
 pub fn nika_schema::error::SchemaError::rename_repair(&self) -> core::option::Option<(alloc::string::String, alloc::string::String)>
-pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_schema::Span>
+pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_source::span::Span>
 pub fn nika_schema::error::SchemaError::validation(message: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_schema::error::SchemaError::validation_at(message: impl core::convert::Into<alloc::string::String>, span: nika_schema::Span) -> Self
+pub fn nika_schema::error::SchemaError::validation_at(message: impl core::convert::Into<alloc::string::String>, span: nika_source::span::Span) -> Self
 impl nika_schema::error::SchemaError
 pub fn nika_schema::error::SchemaError::spec_code(&self) -> nika_schema::error::spec_code::SpecCode
 impl core::error::Error for nika_schema::error::SchemaError
@@ -2400,7 +2432,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::parser::ParseMode where T: 's
 pub fn nika_schema::parser::ParseMode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_schema::parser::ParseMode where T: core::marker::Copy
 pub fn nika_schema::parser::ParseMode::as_out(&mut self) -> outref::Out<'_, T>
-pub fn nika_schema::parser::parse(yaml: &str, file_id: nika_schema::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
+pub fn nika_schema::parser::parse(yaml: &str, file_id: nika_source::span::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub mod nika_schema::raw
 pub mod nika_schema::raw::action
 #[non_exhaustive] pub enum nika_schema::raw::action::RawAction
@@ -2442,8 +2474,8 @@ pub fn nika_schema::raw::action::RawAction::__clone_box(&self, _: dyn_clone::sea
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAction where T: 'static
 pub fn nika_schema::raw::action::RawAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::raw::action::RawCommand
-pub nika_schema::raw::action::RawCommand::Argv(alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>)
-pub nika_schema::raw::action::RawCommand::Shell(nika_schema::Spanned<alloc::string::String>)
+pub nika_schema::raw::action::RawCommand::Argv(alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>)
+pub nika_schema::raw::action::RawCommand::Shell(nika_source::span::Spanned<alloc::string::String>)
 impl nika_schema::raw::action::RawCommand
 pub fn nika_schema::raw::action::RawCommand::argv_program(&self) -> core::option::Option<&str>
 pub fn nika_schema::raw::action::RawCommand::shell_str(&self) -> core::option::Option<&str>
@@ -2481,9 +2513,9 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawCommand where
 pub fn nika_schema::raw::action::RawCommand::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::raw::action::VisionInput
 pub nika_schema::raw::action::VisionInput::File
-pub nika_schema::raw::action::VisionInput::File::path: nika_schema::Spanned<alloc::string::String>
+pub nika_schema::raw::action::VisionInput::File::path: nika_source::span::Spanned<alloc::string::String>
 pub nika_schema::raw::action::VisionInput::Url
-pub nika_schema::raw::action::VisionInput::Url::url: nika_schema::Spanned<alloc::string::String>
+pub nika_schema::raw::action::VisionInput::Url::url: nika_source::span::Spanned<alloc::string::String>
 impl core::clone::Clone for nika_schema::raw::action::VisionInput
 pub fn nika_schema::raw::action::VisionInput::clone(&self) -> nika_schema::raw::action::VisionInput
 impl core::cmp::Eq for nika_schema::raw::action::VisionInput
@@ -2526,17 +2558,17 @@ pub fn nika_schema::raw::action::VisionInput::__clone_box(&self, _: dyn_clone::s
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::VisionInput where T: 'static
 pub fn nika_schema::raw::action::VisionInput::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawAgentAction
-pub nika_schema::raw::action::RawAgentAction::max_tokens_total: core::option::Option<nika_schema::Spanned<u64>>
-pub nika_schema::raw::action::RawAgentAction::max_turns: core::option::Option<nika_schema::Spanned<u32>>
-pub nika_schema::raw::action::RawAgentAction::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::action::RawAgentAction::prompt: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::raw::action::RawAgentAction::schema: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
-pub nika_schema::raw::action::RawAgentAction::skills: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::action::RawAgentAction::system: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::action::RawAgentAction::temperature: core::option::Option<nika_schema::Spanned<f64>>
-pub nika_schema::raw::action::RawAgentAction::tools: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
+pub nika_schema::raw::action::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
+pub nika_schema::raw::action::RawAgentAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawAgentAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::action::RawAgentAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::action::RawAgentAction::skills: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawAgentAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawAgentAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
+pub nika_schema::raw::action::RawAgentAction::tools: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::action::RawAgentAction
-pub fn nika_schema::raw::action::RawAgentAction::new(prompt: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawAgentAction::new(prompt: nika_source::span::Spanned<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawAgentAction
 pub fn nika_schema::raw::action::RawAgentAction::clone(&self) -> nika_schema::raw::action::RawAgentAction
 impl core::fmt::Debug for nika_schema::raw::action::RawAgentAction
@@ -2569,13 +2601,14 @@ pub fn nika_schema::raw::action::RawAgentAction::__clone_box(&self, _: dyn_clone
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAgentAction where T: 'static
 pub fn nika_schema::raw::action::RawAgentAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawExecAction
-pub nika_schema::raw::action::RawExecAction::capture: core::option::Option<nika_schema::Spanned<nika_schema::types::capture::CaptureMode>>
+pub nika_schema::raw::action::RawExecAction::capture: core::option::Option<nika_source::span::Spanned<nika_schema::types::capture::CaptureMode>>
 pub nika_schema::raw::action::RawExecAction::command: nika_schema::raw::action::RawCommand
-pub nika_schema::raw::action::RawExecAction::cwd: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::action::RawExecAction::env: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<alloc::string::String>)>
-pub nika_schema::raw::action::RawExecAction::stdin: core::option::Option<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawExecAction::cwd: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawExecAction::decode: core::option::Option<nika_source::span::Spanned<nika_schema::types::decode::DecodeMode>>
+pub nika_schema::raw::action::RawExecAction::env: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<alloc::string::String>)>
+pub nika_schema::raw::action::RawExecAction::stdin: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::action::RawExecAction
-pub fn nika_schema::raw::action::RawExecAction::new(command: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawExecAction::new(command: nika_source::span::Spanned<alloc::string::String>) -> Self
 pub fn nika_schema::raw::action::RawExecAction::with_command(command: nika_schema::raw::action::RawCommand) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawExecAction
 pub fn nika_schema::raw::action::RawExecAction::clone(&self) -> nika_schema::raw::action::RawExecAction
@@ -2609,16 +2642,16 @@ pub fn nika_schema::raw::action::RawExecAction::__clone_box(&self, _: dyn_clone:
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawExecAction where T: 'static
 pub fn nika_schema::raw::action::RawExecAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawInferAction
-pub nika_schema::raw::action::RawInferAction::max_tokens: core::option::Option<nika_schema::Spanned<u32>>
-pub nika_schema::raw::action::RawInferAction::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::action::RawInferAction::prompt: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::raw::action::RawInferAction::schema: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
-pub nika_schema::raw::action::RawInferAction::system: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::action::RawInferAction::temperature: core::option::Option<nika_schema::Spanned<f64>>
-pub nika_schema::raw::action::RawInferAction::thinking: core::option::Option<nika_schema::Spanned<nika_schema::raw::action::Thinking>>
-pub nika_schema::raw::action::RawInferAction::vision: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::action::VisionInput>>
+pub nika_schema::raw::action::RawInferAction::max_tokens: core::option::Option<nika_source::span::Spanned<u32>>
+pub nika_schema::raw::action::RawInferAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawInferAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::action::RawInferAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::action::RawInferAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawInferAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
+pub nika_schema::raw::action::RawInferAction::thinking: core::option::Option<nika_source::span::Spanned<nika_schema::raw::action::Thinking>>
+pub nika_schema::raw::action::RawInferAction::vision: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::action::VisionInput>>
 impl nika_schema::raw::action::RawInferAction
-pub fn nika_schema::raw::action::RawInferAction::new(prompt: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawInferAction::new(prompt: nika_source::span::Spanned<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawInferAction
 pub fn nika_schema::raw::action::RawInferAction::clone(&self) -> nika_schema::raw::action::RawInferAction
 impl core::fmt::Debug for nika_schema::raw::action::RawInferAction
@@ -2651,10 +2684,10 @@ pub fn nika_schema::raw::action::RawInferAction::__clone_box(&self, _: dyn_clone
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawInferAction where T: 'static
 pub fn nika_schema::raw::action::RawInferAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawInvokeAction
-pub nika_schema::raw::action::RawInvokeAction::args: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
-pub nika_schema::raw::action::RawInvokeAction::tool: nika_schema::Spanned<alloc::string::String>
+pub nika_schema::raw::action::RawInvokeAction::args: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::action::RawInvokeAction::tool: nika_source::span::Spanned<alloc::string::String>
 impl nika_schema::raw::action::RawInvokeAction
-pub fn nika_schema::raw::action::RawInvokeAction::new(tool: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawInvokeAction::new(tool: nika_source::span::Spanned<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawInvokeAction
 pub fn nika_schema::raw::action::RawInvokeAction::clone(&self) -> nika_schema::raw::action::RawInvokeAction
 impl core::fmt::Debug for nika_schema::raw::action::RawInvokeAction
@@ -2772,8 +2805,8 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::task::ForEachValue where
 pub fn nika_schema::raw::task::ForEachValue::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::task::RawFinallyTask
 pub nika_schema::raw::task::RawFinallyTask::action: nika_schema::raw::action::RawAction
-pub nika_schema::raw::task::RawFinallyTask::timeout: core::option::Option<nika_schema::Spanned<core::time::Duration>>
-pub nika_schema::raw::task::RawFinallyTask::when: core::option::Option<nika_schema::Spanned<nika_schema::types::when_gate::WhenGate>>
+pub nika_schema::raw::task::RawFinallyTask::timeout: core::option::Option<nika_source::span::Spanned<core::time::Duration>>
+pub nika_schema::raw::task::RawFinallyTask::when: core::option::Option<nika_source::span::Spanned<nika_schema::types::when_gate::WhenGate>>
 impl nika_schema::raw::task::RawFinallyTask
 pub fn nika_schema::raw::task::RawFinallyTask::new(action: nika_schema::raw::action::RawAction) -> Self
 impl core::clone::Clone for nika_schema::raw::task::RawFinallyTask
@@ -2809,20 +2842,21 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawFinallyTask whe
 pub fn nika_schema::raw::task::RawFinallyTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::task::RawTask
 pub nika_schema::raw::task::RawTask::action: nika_schema::raw::action::RawAction
-pub nika_schema::raw::task::RawTask::after: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::after::AfterPredicate>)>
-pub nika_schema::raw::task::RawTask::fail_fast: core::option::Option<nika_schema::Spanned<bool>>
-pub nika_schema::raw::task::RawTask::for_each: core::option::Option<nika_schema::Spanned<nika_schema::raw::task::ForEachValue>>
-pub nika_schema::raw::task::RawTask::id: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::raw::task::RawTask::max_parallel: core::option::Option<nika_schema::Spanned<u32>>
-pub nika_schema::raw::task::RawTask::on_error: core::option::Option<nika_schema::Spanned<nika_schema::types::on_error::OnError>>
-pub nika_schema::raw::task::RawTask::on_finally: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::task::RawFinallyTask>>
-pub nika_schema::raw::task::RawTask::output: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<alloc::string::String>)>
-pub nika_schema::raw::task::RawTask::retry: core::option::Option<nika_schema::Spanned<nika_schema::types::retry::RetryConfig>>
-pub nika_schema::raw::task::RawTask::timeout: core::option::Option<nika_schema::Spanned<core::time::Duration>>
-pub nika_schema::raw::task::RawTask::when: core::option::Option<nika_schema::Spanned<nika_schema::types::when_gate::WhenGate>>
-pub nika_schema::raw::task::RawTask::with: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<serde_json::value::Value>)>
+pub nika_schema::raw::task::RawTask::after: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_schema::types::after::AfterPredicate>)>
+pub nika_schema::raw::task::RawTask::fail_fast: core::option::Option<nika_source::span::Spanned<bool>>
+pub nika_schema::raw::task::RawTask::for_each: core::option::Option<nika_source::span::Spanned<nika_schema::raw::task::ForEachValue>>
+pub nika_schema::raw::task::RawTask::id: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::task::RawTask::max_parallel: core::option::Option<nika_source::span::Spanned<u32>>
+pub nika_schema::raw::task::RawTask::on_error: core::option::Option<nika_source::span::Spanned<nika_schema::types::on_error::OnError>>
+pub nika_schema::raw::task::RawTask::on_finally: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawFinallyTask>>
+pub nika_schema::raw::task::RawTask::output: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<alloc::string::String>)>
+pub nika_schema::raw::task::RawTask::retry: core::option::Option<nika_source::span::Spanned<nika_schema::types::retry::RetryConfig>>
+pub nika_schema::raw::task::RawTask::returns: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::task::RawTask::timeout: core::option::Option<nika_source::span::Spanned<core::time::Duration>>
+pub nika_schema::raw::task::RawTask::when: core::option::Option<nika_source::span::Spanned<nika_schema::types::when_gate::WhenGate>>
+pub nika_schema::raw::task::RawTask::with: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
 impl nika_schema::raw::task::RawTask
-pub fn nika_schema::raw::task::RawTask::new(id: nika_schema::Spanned<alloc::string::String>, action: nika_schema::raw::action::RawAction) -> Self
+pub fn nika_schema::raw::task::RawTask::new(id: nika_source::span::Spanned<alloc::string::String>, action: nika_schema::raw::action::RawAction) -> Self
 impl core::clone::Clone for nika_schema::raw::task::RawTask
 pub fn nika_schema::raw::task::RawTask::clone(&self) -> nika_schema::raw::task::RawTask
 impl core::fmt::Debug for nika_schema::raw::task::RawTask
@@ -2856,16 +2890,17 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawTask where T: '
 pub fn nika_schema::raw::task::RawTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_schema::raw::workflow
 #[non_exhaustive] pub struct nika_schema::raw::workflow::RawWorkflow
-pub nika_schema::raw::workflow::RawWorkflow::description: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::workflow::RawWorkflow::env: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<alloc::string::String>)>
-pub nika_schema::raw::workflow::RawWorkflow::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::workflow::RawWorkflow::nika: core::option::Option<nika_schema::Spanned<nika_schema::types::schema_version::SchemaVersion>>
-pub nika_schema::raw::workflow::RawWorkflow::outputs: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
-pub nika_schema::raw::workflow::RawWorkflow::permits: core::option::Option<nika_schema::Spanned<nika_cap::permits::Permits>>
-pub nika_schema::raw::workflow::RawWorkflow::secrets: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::secret::SecretRef>)>
-pub nika_schema::raw::workflow::RawWorkflow::tasks: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::task::RawTask>>
-pub nika_schema::raw::workflow::RawWorkflow::vars: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::var_decl::VarDecl)>
-pub nika_schema::raw::workflow::RawWorkflow::workflow: core::option::Option<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::workflow::RawWorkflow::description: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::workflow::RawWorkflow::env: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<alloc::string::String>)>
+pub nika_schema::raw::workflow::RawWorkflow::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::workflow::RawWorkflow::nika: core::option::Option<nika_source::span::Spanned<nika_schema::types::schema_version::SchemaVersion>>
+pub nika_schema::raw::workflow::RawWorkflow::outputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
+pub nika_schema::raw::workflow::RawWorkflow::permits: core::option::Option<nika_source::span::Spanned<nika_cap::permits::Permits>>
+pub nika_schema::raw::workflow::RawWorkflow::secrets: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_schema::types::secret::SecretRef>)>
+pub nika_schema::raw::workflow::RawWorkflow::tasks: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawTask>>
+pub nika_schema::raw::workflow::RawWorkflow::types: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
+pub nika_schema::raw::workflow::RawWorkflow::vars: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_schema::types::var_decl::VarDecl)>
+pub nika_schema::raw::workflow::RawWorkflow::workflow: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::workflow::RawWorkflow
 pub fn nika_schema::raw::workflow::RawWorkflow::new() -> Self
 impl core::clone::Clone for nika_schema::raw::workflow::RawWorkflow
@@ -2977,8 +3012,8 @@ pub fn nika_schema::raw::action::RawAction::__clone_box(&self, _: dyn_clone::sea
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAction where T: 'static
 pub fn nika_schema::raw::action::RawAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::raw::RawCommand
-pub nika_schema::raw::RawCommand::Argv(alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>)
-pub nika_schema::raw::RawCommand::Shell(nika_schema::Spanned<alloc::string::String>)
+pub nika_schema::raw::RawCommand::Argv(alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>)
+pub nika_schema::raw::RawCommand::Shell(nika_source::span::Spanned<alloc::string::String>)
 impl nika_schema::raw::action::RawCommand
 pub fn nika_schema::raw::action::RawCommand::argv_program(&self) -> core::option::Option<&str>
 pub fn nika_schema::raw::action::RawCommand::shell_str(&self) -> core::option::Option<&str>
@@ -3016,9 +3051,9 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawCommand where
 pub fn nika_schema::raw::action::RawCommand::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::raw::VisionInput
 pub nika_schema::raw::VisionInput::File
-pub nika_schema::raw::VisionInput::File::path: nika_schema::Spanned<alloc::string::String>
+pub nika_schema::raw::VisionInput::File::path: nika_source::span::Spanned<alloc::string::String>
 pub nika_schema::raw::VisionInput::Url
-pub nika_schema::raw::VisionInput::Url::url: nika_schema::Spanned<alloc::string::String>
+pub nika_schema::raw::VisionInput::Url::url: nika_source::span::Spanned<alloc::string::String>
 impl core::clone::Clone for nika_schema::raw::action::VisionInput
 pub fn nika_schema::raw::action::VisionInput::clone(&self) -> nika_schema::raw::action::VisionInput
 impl core::cmp::Eq for nika_schema::raw::action::VisionInput
@@ -3061,17 +3096,17 @@ pub fn nika_schema::raw::action::VisionInput::__clone_box(&self, _: dyn_clone::s
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::VisionInput where T: 'static
 pub fn nika_schema::raw::action::VisionInput::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawAgentAction
-pub nika_schema::raw::RawAgentAction::max_tokens_total: core::option::Option<nika_schema::Spanned<u64>>
-pub nika_schema::raw::RawAgentAction::max_turns: core::option::Option<nika_schema::Spanned<u32>>
-pub nika_schema::raw::RawAgentAction::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawAgentAction::prompt: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::raw::RawAgentAction::schema: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
-pub nika_schema::raw::RawAgentAction::skills: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawAgentAction::system: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawAgentAction::temperature: core::option::Option<nika_schema::Spanned<f64>>
-pub nika_schema::raw::RawAgentAction::tools: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
+pub nika_schema::raw::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
+pub nika_schema::raw::RawAgentAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawAgentAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::RawAgentAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawAgentAction::skills: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawAgentAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawAgentAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
+pub nika_schema::raw::RawAgentAction::tools: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::action::RawAgentAction
-pub fn nika_schema::raw::action::RawAgentAction::new(prompt: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawAgentAction::new(prompt: nika_source::span::Spanned<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawAgentAction
 pub fn nika_schema::raw::action::RawAgentAction::clone(&self) -> nika_schema::raw::action::RawAgentAction
 impl core::fmt::Debug for nika_schema::raw::action::RawAgentAction
@@ -3104,13 +3139,14 @@ pub fn nika_schema::raw::action::RawAgentAction::__clone_box(&self, _: dyn_clone
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAgentAction where T: 'static
 pub fn nika_schema::raw::action::RawAgentAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawExecAction
-pub nika_schema::raw::RawExecAction::capture: core::option::Option<nika_schema::Spanned<nika_schema::types::capture::CaptureMode>>
+pub nika_schema::raw::RawExecAction::capture: core::option::Option<nika_source::span::Spanned<nika_schema::types::capture::CaptureMode>>
 pub nika_schema::raw::RawExecAction::command: nika_schema::raw::action::RawCommand
-pub nika_schema::raw::RawExecAction::cwd: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawExecAction::env: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<alloc::string::String>)>
-pub nika_schema::raw::RawExecAction::stdin: core::option::Option<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawExecAction::cwd: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawExecAction::decode: core::option::Option<nika_source::span::Spanned<nika_schema::types::decode::DecodeMode>>
+pub nika_schema::raw::RawExecAction::env: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<alloc::string::String>)>
+pub nika_schema::raw::RawExecAction::stdin: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::action::RawExecAction
-pub fn nika_schema::raw::action::RawExecAction::new(command: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawExecAction::new(command: nika_source::span::Spanned<alloc::string::String>) -> Self
 pub fn nika_schema::raw::action::RawExecAction::with_command(command: nika_schema::raw::action::RawCommand) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawExecAction
 pub fn nika_schema::raw::action::RawExecAction::clone(&self) -> nika_schema::raw::action::RawExecAction
@@ -3145,8 +3181,8 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawExecAction wh
 pub fn nika_schema::raw::action::RawExecAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawFinallyTask
 pub nika_schema::raw::RawFinallyTask::action: nika_schema::raw::action::RawAction
-pub nika_schema::raw::RawFinallyTask::timeout: core::option::Option<nika_schema::Spanned<core::time::Duration>>
-pub nika_schema::raw::RawFinallyTask::when: core::option::Option<nika_schema::Spanned<nika_schema::types::when_gate::WhenGate>>
+pub nika_schema::raw::RawFinallyTask::timeout: core::option::Option<nika_source::span::Spanned<core::time::Duration>>
+pub nika_schema::raw::RawFinallyTask::when: core::option::Option<nika_source::span::Spanned<nika_schema::types::when_gate::WhenGate>>
 impl nika_schema::raw::task::RawFinallyTask
 pub fn nika_schema::raw::task::RawFinallyTask::new(action: nika_schema::raw::action::RawAction) -> Self
 impl core::clone::Clone for nika_schema::raw::task::RawFinallyTask
@@ -3181,16 +3217,16 @@ pub fn nika_schema::raw::task::RawFinallyTask::__clone_box(&self, _: dyn_clone::
 impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawFinallyTask where T: 'static
 pub fn nika_schema::raw::task::RawFinallyTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawInferAction
-pub nika_schema::raw::RawInferAction::max_tokens: core::option::Option<nika_schema::Spanned<u32>>
-pub nika_schema::raw::RawInferAction::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawInferAction::prompt: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::raw::RawInferAction::schema: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
-pub nika_schema::raw::RawInferAction::system: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawInferAction::temperature: core::option::Option<nika_schema::Spanned<f64>>
-pub nika_schema::raw::RawInferAction::thinking: core::option::Option<nika_schema::Spanned<nika_schema::raw::action::Thinking>>
-pub nika_schema::raw::RawInferAction::vision: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::action::VisionInput>>
+pub nika_schema::raw::RawInferAction::max_tokens: core::option::Option<nika_source::span::Spanned<u32>>
+pub nika_schema::raw::RawInferAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawInferAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::RawInferAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawInferAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawInferAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
+pub nika_schema::raw::RawInferAction::thinking: core::option::Option<nika_source::span::Spanned<nika_schema::raw::action::Thinking>>
+pub nika_schema::raw::RawInferAction::vision: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::action::VisionInput>>
 impl nika_schema::raw::action::RawInferAction
-pub fn nika_schema::raw::action::RawInferAction::new(prompt: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawInferAction::new(prompt: nika_source::span::Spanned<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawInferAction
 pub fn nika_schema::raw::action::RawInferAction::clone(&self) -> nika_schema::raw::action::RawInferAction
 impl core::fmt::Debug for nika_schema::raw::action::RawInferAction
@@ -3223,10 +3259,10 @@ pub fn nika_schema::raw::action::RawInferAction::__clone_box(&self, _: dyn_clone
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawInferAction where T: 'static
 pub fn nika_schema::raw::action::RawInferAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawInvokeAction
-pub nika_schema::raw::RawInvokeAction::args: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
-pub nika_schema::raw::RawInvokeAction::tool: nika_schema::Spanned<alloc::string::String>
+pub nika_schema::raw::RawInvokeAction::args: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawInvokeAction::tool: nika_source::span::Spanned<alloc::string::String>
 impl nika_schema::raw::action::RawInvokeAction
-pub fn nika_schema::raw::action::RawInvokeAction::new(tool: nika_schema::Spanned<alloc::string::String>) -> Self
+pub fn nika_schema::raw::action::RawInvokeAction::new(tool: nika_source::span::Spanned<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_schema::raw::action::RawInvokeAction
 pub fn nika_schema::raw::action::RawInvokeAction::clone(&self) -> nika_schema::raw::action::RawInvokeAction
 impl core::fmt::Debug for nika_schema::raw::action::RawInvokeAction
@@ -3260,20 +3296,21 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawInvokeAction 
 pub fn nika_schema::raw::action::RawInvokeAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawTask
 pub nika_schema::raw::RawTask::action: nika_schema::raw::action::RawAction
-pub nika_schema::raw::RawTask::after: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::after::AfterPredicate>)>
-pub nika_schema::raw::RawTask::fail_fast: core::option::Option<nika_schema::Spanned<bool>>
-pub nika_schema::raw::RawTask::for_each: core::option::Option<nika_schema::Spanned<nika_schema::raw::task::ForEachValue>>
-pub nika_schema::raw::RawTask::id: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::raw::RawTask::max_parallel: core::option::Option<nika_schema::Spanned<u32>>
-pub nika_schema::raw::RawTask::on_error: core::option::Option<nika_schema::Spanned<nika_schema::types::on_error::OnError>>
-pub nika_schema::raw::RawTask::on_finally: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::task::RawFinallyTask>>
-pub nika_schema::raw::RawTask::output: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<alloc::string::String>)>
-pub nika_schema::raw::RawTask::retry: core::option::Option<nika_schema::Spanned<nika_schema::types::retry::RetryConfig>>
-pub nika_schema::raw::RawTask::timeout: core::option::Option<nika_schema::Spanned<core::time::Duration>>
-pub nika_schema::raw::RawTask::when: core::option::Option<nika_schema::Spanned<nika_schema::types::when_gate::WhenGate>>
-pub nika_schema::raw::RawTask::with: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<serde_json::value::Value>)>
+pub nika_schema::raw::RawTask::after: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_schema::types::after::AfterPredicate>)>
+pub nika_schema::raw::RawTask::fail_fast: core::option::Option<nika_source::span::Spanned<bool>>
+pub nika_schema::raw::RawTask::for_each: core::option::Option<nika_source::span::Spanned<nika_schema::raw::task::ForEachValue>>
+pub nika_schema::raw::RawTask::id: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::RawTask::max_parallel: core::option::Option<nika_source::span::Spanned<u32>>
+pub nika_schema::raw::RawTask::on_error: core::option::Option<nika_source::span::Spanned<nika_schema::types::on_error::OnError>>
+pub nika_schema::raw::RawTask::on_finally: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawFinallyTask>>
+pub nika_schema::raw::RawTask::output: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<alloc::string::String>)>
+pub nika_schema::raw::RawTask::retry: core::option::Option<nika_source::span::Spanned<nika_schema::types::retry::RetryConfig>>
+pub nika_schema::raw::RawTask::returns: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawTask::timeout: core::option::Option<nika_source::span::Spanned<core::time::Duration>>
+pub nika_schema::raw::RawTask::when: core::option::Option<nika_source::span::Spanned<nika_schema::types::when_gate::WhenGate>>
+pub nika_schema::raw::RawTask::with: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
 impl nika_schema::raw::task::RawTask
-pub fn nika_schema::raw::task::RawTask::new(id: nika_schema::Spanned<alloc::string::String>, action: nika_schema::raw::action::RawAction) -> Self
+pub fn nika_schema::raw::task::RawTask::new(id: nika_source::span::Spanned<alloc::string::String>, action: nika_schema::raw::action::RawAction) -> Self
 impl core::clone::Clone for nika_schema::raw::task::RawTask
 pub fn nika_schema::raw::task::RawTask::clone(&self) -> nika_schema::raw::task::RawTask
 impl core::fmt::Debug for nika_schema::raw::task::RawTask
@@ -3306,16 +3343,17 @@ pub fn nika_schema::raw::task::RawTask::__clone_box(&self, _: dyn_clone::sealed:
 impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawTask where T: 'static
 pub fn nika_schema::raw::task::RawTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawWorkflow
-pub nika_schema::raw::RawWorkflow::description: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawWorkflow::env: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<alloc::string::String>)>
-pub nika_schema::raw::RawWorkflow::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
-pub nika_schema::raw::RawWorkflow::nika: core::option::Option<nika_schema::Spanned<nika_schema::types::schema_version::SchemaVersion>>
-pub nika_schema::raw::RawWorkflow::outputs: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
-pub nika_schema::raw::RawWorkflow::permits: core::option::Option<nika_schema::Spanned<nika_cap::permits::Permits>>
-pub nika_schema::raw::RawWorkflow::secrets: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::secret::SecretRef>)>
-pub nika_schema::raw::RawWorkflow::tasks: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::task::RawTask>>
-pub nika_schema::raw::RawWorkflow::vars: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::var_decl::VarDecl)>
-pub nika_schema::raw::RawWorkflow::workflow: core::option::Option<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawWorkflow::description: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawWorkflow::env: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<alloc::string::String>)>
+pub nika_schema::raw::RawWorkflow::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawWorkflow::nika: core::option::Option<nika_source::span::Spanned<nika_schema::types::schema_version::SchemaVersion>>
+pub nika_schema::raw::RawWorkflow::outputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
+pub nika_schema::raw::RawWorkflow::permits: core::option::Option<nika_source::span::Spanned<nika_cap::permits::Permits>>
+pub nika_schema::raw::RawWorkflow::secrets: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_schema::types::secret::SecretRef>)>
+pub nika_schema::raw::RawWorkflow::tasks: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawTask>>
+pub nika_schema::raw::RawWorkflow::types: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
+pub nika_schema::raw::RawWorkflow::vars: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_schema::types::var_decl::VarDecl)>
+pub nika_schema::raw::RawWorkflow::workflow: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::workflow::RawWorkflow
 pub fn nika_schema::raw::workflow::RawWorkflow::new() -> Self
 impl core::clone::Clone for nika_schema::raw::workflow::RawWorkflow
@@ -3588,371 +3626,15 @@ impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillFinding where T: 
 pub fn nika_schema::skill::SkillFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_schema::skill::parse_skill(text: &str) -> core::result::Result<nika_schema::skill::SkillDoc, nika_schema::skill::SkillDefect>
 pub fn nika_schema::skill::resolve_skills(wf: &nika_schema::raw::workflow::RawWorkflow, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_schema::skill::ResolvedSkills
-pub fn nika_schema::skill::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_schema::Spanned<alloc::string::String>)>
+pub fn nika_schema::skill::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_source::span::Spanned<alloc::string::String>)>
 pub mod nika_schema::source
-#[non_exhaustive] pub struct nika_schema::source::ByteOffset(pub u32)
-impl nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::as_usize(self) -> usize
-pub fn nika_schema::ByteOffset::new(offset: u32) -> Self
-impl core::clone::Clone for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::clone(&self) -> nika_schema::ByteOffset
-impl core::cmp::Eq for nika_schema::ByteOffset
-impl core::cmp::Ord for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::cmp(&self, other: &nika_schema::ByteOffset) -> core::cmp::Ordering
-impl core::cmp::PartialEq for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::eq(&self, other: &nika_schema::ByteOffset) -> bool
-impl core::cmp::PartialOrd for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::partial_cmp(&self, other: &nika_schema::ByteOffset) -> core::option::Option<core::cmp::Ordering>
-impl core::default::Default for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::default() -> nika_schema::ByteOffset
-impl core::fmt::Debug for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_schema::ByteOffset
-impl core::marker::StructuralPartialEq for nika_schema::ByteOffset
-impl serde_core::ser::Serialize for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::ByteOffset
-impl<Q, K> equivalent::Comparable<K> for nika_schema::ByteOffset where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::compare(&self, key: &K) -> core::cmp::Ordering
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::ByteOffset where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::ByteOffset where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::ByteOffset where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::ByteOffset::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::ByteOffset where U: core::convert::From<T>
-pub fn nika_schema::ByteOffset::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::ByteOffset where U: core::convert::Into<T>
-pub type nika_schema::ByteOffset::Error = core::convert::Infallible
-pub fn nika_schema::ByteOffset::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::ByteOffset where U: core::convert::TryFrom<T>
-pub type nika_schema::ByteOffset::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::ByteOffset::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::ByteOffset where T: core::clone::Clone
-pub type nika_schema::ByteOffset::Owned = T
-pub fn nika_schema::ByteOffset::clone_into(&self, target: &mut T)
-pub fn nika_schema::ByteOffset::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::ByteOffset where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::ByteOffset where T: 'static + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::ByteOffset where T: ?core::marker::Sized
-pub fn nika_schema::ByteOffset::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::ByteOffset where T: ?core::marker::Sized
-pub fn nika_schema::ByteOffset::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::ByteOffset where T: core::clone::Clone
-pub unsafe fn nika_schema::ByteOffset::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::ByteOffset where T: core::clone::Clone
-pub fn nika_schema::ByteOffset::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::ByteOffset where T: 'static
-pub fn nika_schema::ByteOffset::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::ByteOffset where T: core::marker::Copy
-pub fn nika_schema::ByteOffset::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::ByteOffset where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::source::FileId(pub u32)
-impl nika_schema::FileId
-pub fn nika_schema::FileId::new(id: u32) -> Self
-impl core::clone::Clone for nika_schema::FileId
-pub fn nika_schema::FileId::clone(&self) -> nika_schema::FileId
-impl core::cmp::Eq for nika_schema::FileId
-impl core::cmp::PartialEq for nika_schema::FileId
-pub fn nika_schema::FileId::eq(&self, other: &nika_schema::FileId) -> bool
-impl core::default::Default for nika_schema::FileId
-pub fn nika_schema::FileId::default() -> nika_schema::FileId
-impl core::fmt::Debug for nika_schema::FileId
-pub fn nika_schema::FileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::FileId
-pub fn nika_schema::FileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_schema::FileId
-pub fn nika_schema::FileId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_schema::FileId
-impl core::marker::StructuralPartialEq for nika_schema::FileId
-impl serde_core::ser::Serialize for nika_schema::FileId
-pub fn nika_schema::FileId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::FileId
-pub fn nika_schema::FileId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::FileId
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::FileId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::FileId::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::FileId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::FileId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::FileId::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::FileId::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::FileId where U: core::convert::From<T>
-pub fn nika_schema::FileId::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::FileId where U: core::convert::Into<T>
-pub type nika_schema::FileId::Error = core::convert::Infallible
-pub fn nika_schema::FileId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::FileId where U: core::convert::TryFrom<T>
-pub type nika_schema::FileId::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::FileId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::FileId where T: core::clone::Clone
-pub type nika_schema::FileId::Owned = T
-pub fn nika_schema::FileId::clone_into(&self, target: &mut T)
-pub fn nika_schema::FileId::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::FileId where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::FileId::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::FileId where T: 'static + ?core::marker::Sized
-pub fn nika_schema::FileId::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::FileId where T: ?core::marker::Sized
-pub fn nika_schema::FileId::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::FileId where T: ?core::marker::Sized
-pub fn nika_schema::FileId::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::FileId where T: core::clone::Clone
-pub unsafe fn nika_schema::FileId::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::FileId
-pub fn nika_schema::FileId::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::FileId where T: core::clone::Clone
-pub fn nika_schema::FileId::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::FileId where T: 'static
-pub fn nika_schema::FileId::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::FileId where T: core::marker::Copy
-pub fn nika_schema::FileId::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::FileId where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::source::LineCol
-pub nika_schema::source::LineCol::col: u32
-pub nika_schema::source::LineCol::line: u32
-impl nika_schema::LineCol
-pub fn nika_schema::LineCol::new(line: u32, col: u32) -> Self
-impl core::clone::Clone for nika_schema::LineCol
-pub fn nika_schema::LineCol::clone(&self) -> nika_schema::LineCol
-impl core::cmp::Eq for nika_schema::LineCol
-impl core::cmp::PartialEq for nika_schema::LineCol
-pub fn nika_schema::LineCol::eq(&self, other: &nika_schema::LineCol) -> bool
-impl core::fmt::Debug for nika_schema::LineCol
-pub fn nika_schema::LineCol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::LineCol
-pub fn nika_schema::LineCol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_schema::LineCol
-impl core::marker::StructuralPartialEq for nika_schema::LineCol
-impl serde_core::ser::Serialize for nika_schema::LineCol
-pub fn nika_schema::LineCol::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::LineCol
-pub fn nika_schema::LineCol::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::LineCol
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::LineCol where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::LineCol::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::LineCol where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::LineCol where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::LineCol::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::LineCol::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::LineCol where U: core::convert::From<T>
-pub fn nika_schema::LineCol::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::LineCol where U: core::convert::Into<T>
-pub type nika_schema::LineCol::Error = core::convert::Infallible
-pub fn nika_schema::LineCol::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::LineCol where U: core::convert::TryFrom<T>
-pub type nika_schema::LineCol::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::LineCol::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::LineCol where T: core::clone::Clone
-pub type nika_schema::LineCol::Owned = T
-pub fn nika_schema::LineCol::clone_into(&self, target: &mut T)
-pub fn nika_schema::LineCol::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::LineCol where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::LineCol::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::LineCol where T: 'static + ?core::marker::Sized
-pub fn nika_schema::LineCol::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::LineCol where T: ?core::marker::Sized
-pub fn nika_schema::LineCol::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::LineCol where T: ?core::marker::Sized
-pub fn nika_schema::LineCol::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::LineCol where T: core::clone::Clone
-pub unsafe fn nika_schema::LineCol::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::LineCol
-pub fn nika_schema::LineCol::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::LineCol where T: core::clone::Clone
-pub fn nika_schema::LineCol::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::LineCol where T: 'static
-pub fn nika_schema::LineCol::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::LineCol where T: core::marker::Copy
-pub fn nika_schema::LineCol::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::LineCol where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::source::SourceFile
-pub nika_schema::source::SourceFile::content: alloc::sync::Arc<alloc::string::String>
-pub nika_schema::source::SourceFile::id: nika_schema::FileId
-pub nika_schema::source::SourceFile::path: std::path::PathBuf
-impl core::clone::Clone for nika_schema::SourceFile
-pub fn nika_schema::SourceFile::clone(&self) -> nika_schema::SourceFile
-impl core::fmt::Debug for nika_schema::SourceFile
-pub fn nika_schema::SourceFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_schema::SourceFile
-impl<T, U> core::convert::Into<U> for nika_schema::SourceFile where U: core::convert::From<T>
-pub fn nika_schema::SourceFile::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::SourceFile where U: core::convert::Into<T>
-pub type nika_schema::SourceFile::Error = core::convert::Infallible
-pub fn nika_schema::SourceFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::SourceFile where U: core::convert::TryFrom<T>
-pub type nika_schema::SourceFile::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::SourceFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::SourceFile where T: core::clone::Clone
-pub type nika_schema::SourceFile::Owned = T
-pub fn nika_schema::SourceFile::clone_into(&self, target: &mut T)
-pub fn nika_schema::SourceFile::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::SourceFile where T: 'static + ?core::marker::Sized
-pub fn nika_schema::SourceFile::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::SourceFile where T: ?core::marker::Sized
-pub fn nika_schema::SourceFile::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::SourceFile where T: ?core::marker::Sized
-pub fn nika_schema::SourceFile::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::SourceFile where T: core::clone::Clone
-pub unsafe fn nika_schema::SourceFile::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::SourceFile
-pub fn nika_schema::SourceFile::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::SourceFile where T: core::clone::Clone
-pub fn nika_schema::SourceFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::SourceFile where T: 'static
-pub fn nika_schema::SourceFile::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::source::SourceRegistry
-impl nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::add(&mut self, path: impl core::convert::Into<std::path::PathBuf>, content: alloc::string::String) -> nika_schema::FileId
-pub fn nika_schema::SourceRegistry::get(&self, id: nika_schema::FileId) -> core::option::Option<&nika_schema::SourceFile>
-pub fn nika_schema::SourceRegistry::is_empty(&self) -> bool
-pub fn nika_schema::SourceRegistry::len(&self) -> usize
-pub fn nika_schema::SourceRegistry::line_col(&self, file: nika_schema::FileId, offset: nika_schema::ByteOffset) -> core::option::Option<nika_schema::LineCol>
-pub fn nika_schema::SourceRegistry::new() -> Self
-impl core::default::Default for nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::default() -> nika_schema::SourceRegistry
-impl core::fmt::Debug for nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_schema::SourceRegistry
-impl<T, U> core::convert::Into<U> for nika_schema::SourceRegistry where U: core::convert::From<T>
-pub fn nika_schema::SourceRegistry::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::SourceRegistry where U: core::convert::Into<T>
-pub type nika_schema::SourceRegistry::Error = core::convert::Infallible
-pub fn nika_schema::SourceRegistry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::SourceRegistry where U: core::convert::TryFrom<T>
-pub type nika_schema::SourceRegistry::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::SourceRegistry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_schema::SourceRegistry where T: 'static + ?core::marker::Sized
-pub fn nika_schema::SourceRegistry::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::SourceRegistry where T: ?core::marker::Sized
-pub fn nika_schema::SourceRegistry::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::SourceRegistry where T: ?core::marker::Sized
-pub fn nika_schema::SourceRegistry::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_schema::SourceRegistry where T: 'static
-pub fn nika_schema::SourceRegistry::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::source::Span
-pub nika_schema::source::Span::end: nika_schema::ByteOffset
-pub nika_schema::source::Span::file: nika_schema::FileId
-pub nika_schema::source::Span::start: nika_schema::ByteOffset
-impl nika_schema::Span
-pub fn nika_schema::Span::contains(&self, offset: nika_schema::ByteOffset) -> bool
-pub fn nika_schema::Span::is_empty(&self) -> bool
-pub fn nika_schema::Span::len(&self) -> u32
-pub fn nika_schema::Span::merge(self, other: Self) -> Self
-pub fn nika_schema::Span::new(file: nika_schema::FileId, start: nika_schema::ByteOffset, end: nika_schema::ByteOffset) -> Self
-pub fn nika_schema::Span::point(file: nika_schema::FileId, offset: nika_schema::ByteOffset) -> Self
-impl core::clone::Clone for nika_schema::Span
-pub fn nika_schema::Span::clone(&self) -> nika_schema::Span
-impl core::cmp::Eq for nika_schema::Span
-impl core::cmp::PartialEq for nika_schema::Span
-pub fn nika_schema::Span::eq(&self, other: &nika_schema::Span) -> bool
-impl core::default::Default for nika_schema::Span
-pub fn nika_schema::Span::default() -> nika_schema::Span
-impl core::fmt::Debug for nika_schema::Span
-pub fn nika_schema::Span::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::Span
-pub fn nika_schema::Span::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_schema::Span
-impl core::marker::StructuralPartialEq for nika_schema::Span
-impl serde_core::ser::Serialize for nika_schema::Span
-pub fn nika_schema::Span::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::Span
-pub fn nika_schema::Span::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::Span
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::Span where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Span::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Span where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Span where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Span::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::Span::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::Span where U: core::convert::From<T>
-pub fn nika_schema::Span::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::Span where U: core::convert::Into<T>
-pub type nika_schema::Span::Error = core::convert::Infallible
-pub fn nika_schema::Span::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::Span where U: core::convert::TryFrom<T>
-pub type nika_schema::Span::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::Span::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::Span where T: core::clone::Clone
-pub type nika_schema::Span::Owned = T
-pub fn nika_schema::Span::clone_into(&self, target: &mut T)
-pub fn nika_schema::Span::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::Span where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::Span::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::Span where T: 'static + ?core::marker::Sized
-pub fn nika_schema::Span::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::Span where T: ?core::marker::Sized
-pub fn nika_schema::Span::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::Span where T: ?core::marker::Sized
-pub fn nika_schema::Span::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::Span where T: core::clone::Clone
-pub unsafe fn nika_schema::Span::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::Span
-pub fn nika_schema::Span::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::Span where T: core::clone::Clone
-pub fn nika_schema::Span::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::Span where T: 'static
-pub fn nika_schema::Span::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::Span where T: core::marker::Copy
-pub fn nika_schema::Span::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::Span where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::source::Spanned<T>
-pub nika_schema::source::Spanned::span: nika_schema::Span
-pub nika_schema::source::Spanned::value: T
-impl<T> nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::map<U>(self, f: impl core::ops::function::FnOnce(T) -> U) -> nika_schema::Spanned<U>
-pub fn nika_schema::Spanned<T>::new(value: T, span: nika_schema::Span) -> Self
-impl<T: core::clone::Clone> core::clone::Clone for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::clone(&self) -> nika_schema::Spanned<T>
-impl<T: core::cmp::Eq> core::cmp::Eq for nika_schema::Spanned<T>
-impl<T: core::cmp::PartialEq> core::cmp::PartialEq for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::eq(&self, other: &Self) -> bool
-impl<T: core::fmt::Debug> core::fmt::Debug for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_schema::Spanned<T>
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::Spanned<T> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Spanned<T> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Spanned<T> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::Spanned<T>::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::Spanned<T> where U: core::convert::From<T>
-pub fn nika_schema::Spanned<T>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::Spanned<T> where U: core::convert::Into<T>
-pub type nika_schema::Spanned<T>::Error = core::convert::Infallible
-pub fn nika_schema::Spanned<T>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::Spanned<T> where U: core::convert::TryFrom<T>
-pub type nika_schema::Spanned<T>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::Spanned<T>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::Spanned<T> where T: core::clone::Clone
-pub type nika_schema::Spanned<T>::Owned = T
-pub fn nika_schema::Spanned<T>::clone_into(&self, target: &mut T)
-pub fn nika_schema::Spanned<T>::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::Spanned<T> where T: 'static + ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::Spanned<T> where T: ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::Spanned<T> where T: ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::Spanned<T> where T: core::clone::Clone
-pub unsafe fn nika_schema::Spanned<T>::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::Spanned<T> where T: core::clone::Clone
-pub fn nika_schema::Spanned<T>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::Spanned<T> where T: 'static
-pub fn nika_schema::Spanned<T>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub use nika_schema::source::ByteOffset
+pub use nika_schema::source::FileId
+pub use nika_schema::source::LineCol
+pub use nika_schema::source::SourceFile
+pub use nika_schema::source::SourceRegistry
+pub use nika_schema::source::Span
+pub use nika_schema::source::Spanned
 pub mod nika_schema::trust
 pub use nika_schema::trust::TrustLevel
 #[non_exhaustive] pub enum nika_schema::trust::InvocationSource
@@ -4141,6 +3823,71 @@ pub fn nika_schema::types::capture::CaptureMode::as_any(&self) -> &(dyn core::an
 impl<T> outref::AsOut<T> for nika_schema::types::capture::CaptureMode where T: core::marker::Copy
 pub fn nika_schema::types::capture::CaptureMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::capture::CaptureMode where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_schema::types::decode
+#[non_exhaustive] pub enum nika_schema::types::decode::DecodeMode
+pub nika_schema::types::decode::DecodeMode::Bytes
+pub nika_schema::types::decode::DecodeMode::Json
+pub nika_schema::types::decode::DecodeMode::Jsonl
+pub nika_schema::types::decode::DecodeMode::Text
+impl nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::from_str_opt(s: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::clone(&self) -> nika_schema::types::decode::DecodeMode
+impl core::cmp::Eq for nika_schema::types::decode::DecodeMode
+impl core::cmp::PartialEq for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::eq(&self, other: &nika_schema::types::decode::DecodeMode) -> bool
+impl core::default::Default for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::default() -> nika_schema::types::decode::DecodeMode
+impl core::fmt::Debug for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_schema::types::decode::DecodeMode
+impl core::marker::StructuralPartialEq for nika_schema::types::decode::DecodeMode
+impl serde_core::ser::Serialize for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_schema::types::decode::DecodeMode
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::types::decode::DecodeMode where U: core::convert::From<T>
+pub fn nika_schema::types::decode::DecodeMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::types::decode::DecodeMode where U: core::convert::Into<T>
+pub type nika_schema::types::decode::DecodeMode::Error = core::convert::Infallible
+pub fn nika_schema::types::decode::DecodeMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::types::decode::DecodeMode where U: core::convert::TryFrom<T>
+pub type nika_schema::types::decode::DecodeMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::types::decode::DecodeMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub type nika_schema::types::decode::DecodeMode::Owned = T
+pub fn nika_schema::types::decode::DecodeMode::clone_into(&self, target: &mut T)
+pub fn nika_schema::types::decode::DecodeMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::types::decode::DecodeMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::types::decode::DecodeMode where T: 'static + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::types::decode::DecodeMode where T: ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::types::decode::DecodeMode where T: ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub unsafe fn nika_schema::types::decode::DecodeMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub fn nika_schema::types::decode::DecodeMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::types::decode::DecodeMode where T: 'static
+pub fn nika_schema::types::decode::DecodeMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::types::decode::DecodeMode where T: core::marker::Copy
+pub fn nika_schema::types::decode::DecodeMode::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_schema::types::decode::DecodeMode where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_schema::types::duration
 #[non_exhaustive] pub enum nika_schema::types::duration::GoDurationError
 pub nika_schema::types::duration::GoDurationError::BadNumber
@@ -4326,7 +4073,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_schema::types::extract::Respon
 pub mod nika_schema::types::on_error
 #[non_exhaustive] pub enum nika_schema::types::on_error::OnErrorAction
 pub nika_schema::types::on_error::OnErrorAction::FailWorkflow
-pub nika_schema::types::on_error::OnErrorAction::Recover(nika_schema::Spanned<serde_json::value::Value>)
+pub nika_schema::types::on_error::OnErrorAction::Recover(nika_source::span::Spanned<serde_json::value::Value>)
 pub nika_schema::types::on_error::OnErrorAction::Skip
 impl core::clone::Clone for nika_schema::types::on_error::OnErrorAction
 pub fn nika_schema::types::on_error::OnErrorAction::clone(&self) -> nika_schema::types::on_error::OnErrorAction
@@ -4364,7 +4111,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::types::on_error::OnErrorActio
 pub fn nika_schema::types::on_error::OnErrorAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::types::on_error::OnError
 pub nika_schema::types::on_error::OnError::action: nika_schema::types::on_error::OnErrorAction
-pub nika_schema::types::on_error::OnError::on_codes: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::types::on_error::OnError::on_codes: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::types::on_error::OnError
 pub fn nika_schema::types::on_error::OnError::new(action: nika_schema::types::on_error::OnErrorAction) -> Self
 impl core::clone::Clone for nika_schema::types::on_error::OnError
@@ -4406,10 +4153,10 @@ pub mod nika_schema::types::output_decl
 pub nika_schema::types::output_decl::OutputDecl::Typed
 pub nika_schema::types::output_decl::OutputDecl::Typed::description: core::option::Option<alloc::string::String>
 pub nika_schema::types::output_decl::OutputDecl::Typed::type: core::option::Option<nika_schema::types::var_decl::VarType>
-pub nika_schema::types::output_decl::OutputDecl::Typed::value: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::types::output_decl::OutputDecl::Untyped(nika_schema::Spanned<alloc::string::String>)
+pub nika_schema::types::output_decl::OutputDecl::Typed::value: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::types::output_decl::OutputDecl::Untyped(nika_source::span::Spanned<alloc::string::String>)
 impl nika_schema::types::output_decl::OutputDecl
-pub fn nika_schema::types::output_decl::OutputDecl::value(&self) -> &nika_schema::Spanned<alloc::string::String>
+pub fn nika_schema::types::output_decl::OutputDecl::value(&self) -> &nika_source::span::Spanned<alloc::string::String>
 impl core::clone::Clone for nika_schema::types::output_decl::OutputDecl
 pub fn nika_schema::types::output_decl::OutputDecl::clone(&self) -> nika_schema::types::output_decl::OutputDecl
 impl core::cmp::PartialEq for nika_schema::types::output_decl::OutputDecl
@@ -5140,6 +4887,70 @@ pub fn nika_schema::types::capture::CaptureMode::as_any(&self) -> &(dyn core::an
 impl<T> outref::AsOut<T> for nika_schema::types::capture::CaptureMode where T: core::marker::Copy
 pub fn nika_schema::types::capture::CaptureMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::capture::CaptureMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_schema::types::DecodeMode
+pub nika_schema::types::DecodeMode::Bytes
+pub nika_schema::types::DecodeMode::Json
+pub nika_schema::types::DecodeMode::Jsonl
+pub nika_schema::types::DecodeMode::Text
+impl nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::from_str_opt(s: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::clone(&self) -> nika_schema::types::decode::DecodeMode
+impl core::cmp::Eq for nika_schema::types::decode::DecodeMode
+impl core::cmp::PartialEq for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::eq(&self, other: &nika_schema::types::decode::DecodeMode) -> bool
+impl core::default::Default for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::default() -> nika_schema::types::decode::DecodeMode
+impl core::fmt::Debug for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_schema::types::decode::DecodeMode
+impl core::marker::StructuralPartialEq for nika_schema::types::decode::DecodeMode
+impl serde_core::ser::Serialize for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_schema::types::decode::DecodeMode
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::types::decode::DecodeMode where U: core::convert::From<T>
+pub fn nika_schema::types::decode::DecodeMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::types::decode::DecodeMode where U: core::convert::Into<T>
+pub type nika_schema::types::decode::DecodeMode::Error = core::convert::Infallible
+pub fn nika_schema::types::decode::DecodeMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::types::decode::DecodeMode where U: core::convert::TryFrom<T>
+pub type nika_schema::types::decode::DecodeMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::types::decode::DecodeMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub type nika_schema::types::decode::DecodeMode::Owned = T
+pub fn nika_schema::types::decode::DecodeMode::clone_into(&self, target: &mut T)
+pub fn nika_schema::types::decode::DecodeMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::types::decode::DecodeMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::types::decode::DecodeMode where T: 'static + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::types::decode::DecodeMode where T: ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::types::decode::DecodeMode where T: ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub unsafe fn nika_schema::types::decode::DecodeMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub fn nika_schema::types::decode::DecodeMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::types::decode::DecodeMode where T: 'static
+pub fn nika_schema::types::decode::DecodeMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::types::decode::DecodeMode where T: core::marker::Copy
+pub fn nika_schema::types::decode::DecodeMode::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_schema::types::decode::DecodeMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_schema::types::ExtractMode
 pub nika_schema::types::ExtractMode::Full
 pub nika_schema::types::ExtractMode::Jmespath
@@ -5260,7 +5071,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::types::duration::GoDurationEr
 pub fn nika_schema::types::duration::GoDurationError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::types::OnErrorAction
 pub nika_schema::types::OnErrorAction::FailWorkflow
-pub nika_schema::types::OnErrorAction::Recover(nika_schema::Spanned<serde_json::value::Value>)
+pub nika_schema::types::OnErrorAction::Recover(nika_source::span::Spanned<serde_json::value::Value>)
 pub nika_schema::types::OnErrorAction::Skip
 impl core::clone::Clone for nika_schema::types::on_error::OnErrorAction
 pub fn nika_schema::types::on_error::OnErrorAction::clone(&self) -> nika_schema::types::on_error::OnErrorAction
@@ -5300,10 +5111,10 @@ pub fn nika_schema::types::on_error::OnErrorAction::as_any(&self) -> &(dyn core:
 pub nika_schema::types::OutputDecl::Typed
 pub nika_schema::types::OutputDecl::Typed::description: core::option::Option<alloc::string::String>
 pub nika_schema::types::OutputDecl::Typed::type: core::option::Option<nika_schema::types::var_decl::VarType>
-pub nika_schema::types::OutputDecl::Typed::value: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::types::OutputDecl::Untyped(nika_schema::Spanned<alloc::string::String>)
+pub nika_schema::types::OutputDecl::Typed::value: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::types::OutputDecl::Untyped(nika_source::span::Spanned<alloc::string::String>)
 impl nika_schema::types::output_decl::OutputDecl
-pub fn nika_schema::types::output_decl::OutputDecl::value(&self) -> &nika_schema::Spanned<alloc::string::String>
+pub fn nika_schema::types::output_decl::OutputDecl::value(&self) -> &nika_source::span::Spanned<alloc::string::String>
 impl core::clone::Clone for nika_schema::types::output_decl::OutputDecl
 pub fn nika_schema::types::output_decl::OutputDecl::clone(&self) -> nika_schema::types::output_decl::OutputDecl
 impl core::cmp::PartialEq for nika_schema::types::output_decl::OutputDecl
@@ -5731,7 +5542,7 @@ pub fn nika_schema::types::secret::EgressRule::as_any(&self) -> &(dyn core::any:
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::secret::EgressRule where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::types::OnError
 pub nika_schema::types::OnError::action: nika_schema::types::on_error::OnErrorAction
-pub nika_schema::types::OnError::on_codes: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::types::OnError::on_codes: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::types::on_error::OnError
 pub fn nika_schema::types::on_error::OnError::new(action: nika_schema::types::on_error::OnErrorAction) -> Self
 impl core::clone::Clone for nika_schema::types::on_error::OnError
@@ -6005,6 +5816,70 @@ pub fn nika_schema::types::capture::CaptureMode::as_any(&self) -> &(dyn core::an
 impl<T> outref::AsOut<T> for nika_schema::types::capture::CaptureMode where T: core::marker::Copy
 pub fn nika_schema::types::capture::CaptureMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::capture::CaptureMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_schema::DecodeMode
+pub nika_schema::DecodeMode::Bytes
+pub nika_schema::DecodeMode::Json
+pub nika_schema::DecodeMode::Jsonl
+pub nika_schema::DecodeMode::Text
+impl nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::from_str_opt(s: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::clone(&self) -> nika_schema::types::decode::DecodeMode
+impl core::cmp::Eq for nika_schema::types::decode::DecodeMode
+impl core::cmp::PartialEq for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::eq(&self, other: &nika_schema::types::decode::DecodeMode) -> bool
+impl core::default::Default for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::default() -> nika_schema::types::decode::DecodeMode
+impl core::fmt::Debug for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_schema::types::decode::DecodeMode
+impl core::marker::StructuralPartialEq for nika_schema::types::decode::DecodeMode
+impl serde_core::ser::Serialize for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_schema::types::decode::DecodeMode
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::types::decode::DecodeMode::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::types::decode::DecodeMode where U: core::convert::From<T>
+pub fn nika_schema::types::decode::DecodeMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::types::decode::DecodeMode where U: core::convert::Into<T>
+pub type nika_schema::types::decode::DecodeMode::Error = core::convert::Infallible
+pub fn nika_schema::types::decode::DecodeMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::types::decode::DecodeMode where U: core::convert::TryFrom<T>
+pub type nika_schema::types::decode::DecodeMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::types::decode::DecodeMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub type nika_schema::types::decode::DecodeMode::Owned = T
+pub fn nika_schema::types::decode::DecodeMode::clone_into(&self, target: &mut T)
+pub fn nika_schema::types::decode::DecodeMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::types::decode::DecodeMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::types::decode::DecodeMode where T: 'static + ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::types::decode::DecodeMode where T: ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::types::decode::DecodeMode where T: ?core::marker::Sized
+pub fn nika_schema::types::decode::DecodeMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub unsafe fn nika_schema::types::decode::DecodeMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::types::decode::DecodeMode
+pub fn nika_schema::types::decode::DecodeMode::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::types::decode::DecodeMode where T: core::clone::Clone
+pub fn nika_schema::types::decode::DecodeMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::types::decode::DecodeMode where T: 'static
+pub fn nika_schema::types::decode::DecodeMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::types::decode::DecodeMode where T: core::marker::Copy
+pub fn nika_schema::types::decode::DecodeMode::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_schema::types::decode::DecodeMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_schema::ExtractMode
 pub nika_schema::ExtractMode::Full
 pub nika_schema::ExtractMode::Jmespath
@@ -6228,10 +6103,10 @@ pub fn nika_schema::types::duration::GoDurationError::as_any(&self) -> &(dyn cor
 pub nika_schema::OutputDecl::Typed
 pub nika_schema::OutputDecl::Typed::description: core::option::Option<alloc::string::String>
 pub nika_schema::OutputDecl::Typed::type: core::option::Option<nika_schema::types::var_decl::VarType>
-pub nika_schema::OutputDecl::Typed::value: nika_schema::Spanned<alloc::string::String>
-pub nika_schema::OutputDecl::Untyped(nika_schema::Spanned<alloc::string::String>)
+pub nika_schema::OutputDecl::Typed::value: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::OutputDecl::Untyped(nika_source::span::Spanned<alloc::string::String>)
 impl nika_schema::types::output_decl::OutputDecl
-pub fn nika_schema::types::output_decl::OutputDecl::value(&self) -> &nika_schema::Spanned<alloc::string::String>
+pub fn nika_schema::types::output_decl::OutputDecl::value(&self) -> &nika_source::span::Spanned<alloc::string::String>
 impl core::clone::Clone for nika_schema::types::output_decl::OutputDecl
 pub fn nika_schema::types::output_decl::OutputDecl::clone(&self) -> nika_schema::types::output_decl::OutputDecl
 impl core::cmp::PartialEq for nika_schema::types::output_decl::OutputDecl
@@ -6379,145 +6254,163 @@ impl<T> serde_core::de::DeserializeOwned for nika_schema::types::extract::Respon
 #[non_exhaustive] pub enum nika_schema::SchemaError
 pub nika_schema::SchemaError::BadBuiltinArgs
 pub nika_schema::SchemaError::BadBuiltinArgs::reason: alloc::string::String
-pub nika_schema::SchemaError::BadBuiltinArgs::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadBuiltinArgs::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadBuiltinArgs::task: alloc::string::String
 pub nika_schema::SchemaError::BadBuiltinArgs::tool: alloc::string::String
 pub nika_schema::SchemaError::BadNikaVersion
-pub nika_schema::SchemaError::BadNikaVersion::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadNikaVersion::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadNikaVersion::version: alloc::string::String
 pub nika_schema::SchemaError::BadOnError
 pub nika_schema::SchemaError::BadOnError::reason: alloc::string::String
-pub nika_schema::SchemaError::BadOnError::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadOnError::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadRetry
 pub nika_schema::SchemaError::BadRetry::reason: alloc::string::String
-pub nika_schema::SchemaError::BadRetry::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadRetry::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadSecretRef
 pub nika_schema::SchemaError::BadSecretRef::reason: alloc::string::String
-pub nika_schema::SchemaError::BadSecretRef::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadSecretRef::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadTaskId
 pub nika_schema::SchemaError::BadTaskId::id: alloc::string::String
-pub nika_schema::SchemaError::BadTaskId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadTaskId::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadTimeout
 pub nika_schema::SchemaError::BadTimeout::reason: alloc::string::String
-pub nika_schema::SchemaError::BadTimeout::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadTimeout::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadTypedVar
 pub nika_schema::SchemaError::BadTypedVar::name: alloc::string::String
 pub nika_schema::SchemaError::BadTypedVar::reason: alloc::string::String
-pub nika_schema::SchemaError::BadTypedVar::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadTypedVar::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadWorkflowId
 pub nika_schema::SchemaError::BadWorkflowId::id: alloc::string::String
-pub nika_schema::SchemaError::BadWorkflowId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BadWorkflowId::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BareTaskEnvelope
 pub nika_schema::SchemaError::BareTaskEnvelope::location: alloc::string::String
-pub nika_schema::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BareTaskEnvelope::task: alloc::string::String
 pub nika_schema::SchemaError::Cycle
 pub nika_schema::SchemaError::Cycle::cycle: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::SchemaError::DecodeWithStructuredCapture
+pub nika_schema::SchemaError::DecodeWithStructuredCapture::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::DecodeWithStructuredCapture::task: alloc::string::String
 pub nika_schema::SchemaError::DuplicateKey
 pub nika_schema::SchemaError::DuplicateKey::message: alloc::string::String
-pub nika_schema::SchemaError::DuplicateKey::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::DuplicateKey::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::DuplicateTaskId
 pub nika_schema::SchemaError::DuplicateTaskId::id: alloc::string::String
-pub nika_schema::SchemaError::DuplicateTaskId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::DuplicateTaskId::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::ExpressionViolation
 pub nika_schema::SchemaError::ExpressionViolation::reason: alloc::string::String
-pub nika_schema::SchemaError::ExpressionViolation::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::ExpressionViolation::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::JqBindingContainsTemplate
 pub nika_schema::SchemaError::JqBindingContainsTemplate::name: alloc::string::String
-pub nika_schema::SchemaError::JqBindingContainsTemplate::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::JqBindingContainsTemplate::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::JqBindingContainsTemplate::task: alloc::string::String
 pub nika_schema::SchemaError::LoopLocalOutsideForEach
 pub nika_schema::SchemaError::LoopLocalOutsideForEach::local: alloc::string::String
-pub nika_schema::SchemaError::LoopLocalOutsideForEach::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::LoopLocalOutsideForEach::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::LoopLocalOutsideForEach::task: alloc::string::String
 pub nika_schema::SchemaError::MissingEnvelopeField
 pub nika_schema::SchemaError::MissingEnvelopeField::field: alloc::string::String
-pub nika_schema::SchemaError::MissingEnvelopeField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::MissingEnvelopeField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::MissingField
 pub nika_schema::SchemaError::MissingField::field: alloc::string::String
-pub nika_schema::SchemaError::MissingField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::MissingField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::MissingVerb
-pub nika_schema::SchemaError::MissingVerb::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::MissingVerb::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::MissingVerb::task: alloc::string::String
 pub nika_schema::SchemaError::MultipleVerbs
-pub nika_schema::SchemaError::MultipleVerbs::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::MultipleVerbs::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::MultipleVerbs::task: alloc::string::String
 pub nika_schema::SchemaError::MultipleVerbs::verbs: alloc::string::String
 pub nika_schema::SchemaError::OutputPathProvablyInvalid
 pub nika_schema::SchemaError::OutputPathProvablyInvalid::path: alloc::string::String
 pub nika_schema::SchemaError::OutputPathProvablyInvalid::reason: alloc::string::String
-pub nika_schema::SchemaError::OutputPathProvablyInvalid::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::OutputPathProvablyInvalid::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::OutputPathProvablyInvalid::task: alloc::string::String
 pub nika_schema::SchemaError::RecoverAwaitDeadlock
-pub nika_schema::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::target: alloc::string::String
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::task: alloc::string::String
 pub nika_schema::SchemaError::RefOutsideBoundary
 pub nika_schema::SchemaError::RefOutsideBoundary::reference: alloc::string::String
-pub nika_schema::SchemaError::RefOutsideBoundary::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::RefOutsideBoundary::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::RefOutsideBoundary::surface: alloc::string::String
 pub nika_schema::SchemaError::RefOutsideBoundary::task: alloc::string::String
 pub nika_schema::SchemaError::ReservedBindingName
 pub nika_schema::SchemaError::ReservedBindingName::name: alloc::string::String
-pub nika_schema::SchemaError::ReservedBindingName::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::ReservedBindingName::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::ReservedBindingName::task: alloc::string::String
 pub nika_schema::SchemaError::TemplateSyntax
 pub nika_schema::SchemaError::TemplateSyntax::reason: alloc::string::String
-pub nika_schema::SchemaError::TemplateSyntax::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::TemplateSyntax::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::TypeContractDuplicated
+pub nika_schema::SchemaError::TypeContractDuplicated::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::TypeContractDuplicated::task: alloc::string::String
+pub nika_schema::SchemaError::TypeContractDuplicated::verb: &'static str
+pub nika_schema::SchemaError::TypeExprInvalid
+pub nika_schema::SchemaError::TypeExprInvalid::detail: alloc::string::String
+pub nika_schema::SchemaError::TypeExprInvalid::num: u16
+pub nika_schema::SchemaError::TypeExprInvalid::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::TypeRecursive
+pub nika_schema::SchemaError::TypeRecursive::name: alloc::string::String
+pub nika_schema::SchemaError::TypeRecursive::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::TypeUndecodable
+pub nika_schema::SchemaError::TypeUndecodable::decode: alloc::string::String
+pub nika_schema::SchemaError::TypeUndecodable::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::TypeUndecodable::task: alloc::string::String
 pub nika_schema::SchemaError::UnknownAfterPredicate
 pub nika_schema::SchemaError::UnknownAfterPredicate::predicate: alloc::string::String
-pub nika_schema::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnknownAfterPredicate::target: alloc::string::String
 pub nika_schema::SchemaError::UnknownAfterPredicate::task: alloc::string::String
 pub nika_schema::SchemaError::UnknownDependency
 pub nika_schema::SchemaError::UnknownDependency::from: alloc::string::String
-pub nika_schema::SchemaError::UnknownDependency::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnknownDependency::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnknownDependency::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::SchemaError::UnknownDependency::to: alloc::string::String
 pub nika_schema::SchemaError::UnknownField
 pub nika_schema::SchemaError::UnknownField::field: alloc::string::String
 pub nika_schema::SchemaError::UnknownField::location: alloc::string::String
-pub nika_schema::SchemaError::UnknownField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnknownField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnknownField::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::SchemaError::UnknownTaskField
 pub nika_schema::SchemaError::UnknownTaskField::field: alloc::string::String
-pub nika_schema::SchemaError::UnknownTaskField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnknownTaskField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnknownTaskField::task: alloc::string::String
 pub nika_schema::SchemaError::UnresolvedNamespaceRef
 pub nika_schema::SchemaError::UnresolvedNamespaceRef::location: alloc::string::String
 pub nika_schema::SchemaError::UnresolvedNamespaceRef::reference: alloc::string::String
-pub nika_schema::SchemaError::UnresolvedNamespaceRef::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnresolvedNamespaceRef::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnresolvedNamespaceRef::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::SchemaError::Validation
 pub nika_schema::SchemaError::Validation::message: alloc::string::String
-pub nika_schema::SchemaError::Validation::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::Validation::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W1TaskIdField
-pub nika_schema::SchemaError::W1TaskIdField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1TaskIdField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W1TaskIdField::task: alloc::string::String
 pub nika_schema::SchemaError::W1TasksSequence
-pub nika_schema::SchemaError::W1TasksSequence::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1TasksSequence::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W1TopLevelDescription
-pub nika_schema::SchemaError::W1TopLevelDescription::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1TopLevelDescription::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W1WorkflowScalar
 pub nika_schema::SchemaError::W1WorkflowScalar::id: alloc::string::String
-pub nika_schema::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W2DependsOnField
-pub nika_schema::SchemaError::W2DependsOnField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W2DependsOnField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W2DependsOnField::task: alloc::string::String
 pub nika_schema::SchemaError::W2DependsOnField::task_hint: alloc::string::String
 pub nika_schema::SchemaError::WhenNotBoolean
 pub nika_schema::SchemaError::WhenNotBoolean::field: alloc::string::String
 pub nika_schema::SchemaError::WhenNotBoolean::reason: alloc::string::String
-pub nika_schema::SchemaError::WhenNotBoolean::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::WhenNotBoolean::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::WhenNotBoolean::task: alloc::string::String
 pub nika_schema::SchemaError::YamlSyntax
 pub nika_schema::SchemaError::YamlSyntax::message: alloc::string::String
-pub nika_schema::SchemaError::YamlSyntax::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::YamlSyntax::span: core::option::Option<nika_source::span::Span>
 impl nika_schema::error::SchemaError
 pub fn nika_schema::error::SchemaError::rename_repair(&self) -> core::option::Option<(alloc::string::String, alloc::string::String)>
-pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_schema::Span>
+pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_source::span::Span>
 pub fn nika_schema::error::SchemaError::validation(message: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_schema::error::SchemaError::validation_at(message: impl core::convert::Into<alloc::string::String>, span: nika_schema::Span) -> Self
+pub fn nika_schema::error::SchemaError::validation_at(message: impl core::convert::Into<alloc::string::String>, span: nika_source::span::Span) -> Self
 impl nika_schema::error::SchemaError
 pub fn nika_schema::error::SchemaError::spec_code(&self) -> nika_schema::error::spec_code::SpecCode
 impl core::error::Error for nika_schema::error::SchemaError
@@ -6987,73 +6880,6 @@ impl<T> dyn_clone::DynClone for nika_schema::Bound where T: core::clone::Clone
 pub fn nika_schema::Bound::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::Bound where T: 'static
 pub fn nika_schema::Bound::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::ByteOffset(pub u32)
-impl nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::as_usize(self) -> usize
-pub fn nika_schema::ByteOffset::new(offset: u32) -> Self
-impl core::clone::Clone for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::clone(&self) -> nika_schema::ByteOffset
-impl core::cmp::Eq for nika_schema::ByteOffset
-impl core::cmp::Ord for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::cmp(&self, other: &nika_schema::ByteOffset) -> core::cmp::Ordering
-impl core::cmp::PartialEq for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::eq(&self, other: &nika_schema::ByteOffset) -> bool
-impl core::cmp::PartialOrd for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::partial_cmp(&self, other: &nika_schema::ByteOffset) -> core::option::Option<core::cmp::Ordering>
-impl core::default::Default for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::default() -> nika_schema::ByteOffset
-impl core::fmt::Debug for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_schema::ByteOffset
-impl core::marker::StructuralPartialEq for nika_schema::ByteOffset
-impl serde_core::ser::Serialize for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::ByteOffset
-impl<Q, K> equivalent::Comparable<K> for nika_schema::ByteOffset where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::compare(&self, key: &K) -> core::cmp::Ordering
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::ByteOffset where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::ByteOffset where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::ByteOffset where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::ByteOffset::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::ByteOffset where U: core::convert::From<T>
-pub fn nika_schema::ByteOffset::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::ByteOffset where U: core::convert::Into<T>
-pub type nika_schema::ByteOffset::Error = core::convert::Infallible
-pub fn nika_schema::ByteOffset::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::ByteOffset where U: core::convert::TryFrom<T>
-pub type nika_schema::ByteOffset::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::ByteOffset::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::ByteOffset where T: core::clone::Clone
-pub type nika_schema::ByteOffset::Owned = T
-pub fn nika_schema::ByteOffset::clone_into(&self, target: &mut T)
-pub fn nika_schema::ByteOffset::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::ByteOffset where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::ByteOffset where T: 'static + ?core::marker::Sized
-pub fn nika_schema::ByteOffset::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::ByteOffset where T: ?core::marker::Sized
-pub fn nika_schema::ByteOffset::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::ByteOffset where T: ?core::marker::Sized
-pub fn nika_schema::ByteOffset::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::ByteOffset where T: core::clone::Clone
-pub unsafe fn nika_schema::ByteOffset::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::ByteOffset
-pub fn nika_schema::ByteOffset::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::ByteOffset where T: core::clone::Clone
-pub fn nika_schema::ByteOffset::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::ByteOffset where T: 'static
-pub fn nika_schema::ByteOffset::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::ByteOffset where T: core::marker::Copy
-pub fn nika_schema::ByteOffset::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::ByteOffset where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::ByteSpan
 pub nika_schema::ByteSpan::end: u32
 pub nika_schema::ByteSpan::start: u32
@@ -7348,66 +7174,6 @@ impl<T> dyn_clone::DynClone for nika_schema::CostCeiling where T: core::clone::C
 pub fn nika_schema::CostCeiling::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::CostCeiling where T: 'static
 pub fn nika_schema::CostCeiling::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::FileId(pub u32)
-impl nika_schema::FileId
-pub fn nika_schema::FileId::new(id: u32) -> Self
-impl core::clone::Clone for nika_schema::FileId
-pub fn nika_schema::FileId::clone(&self) -> nika_schema::FileId
-impl core::cmp::Eq for nika_schema::FileId
-impl core::cmp::PartialEq for nika_schema::FileId
-pub fn nika_schema::FileId::eq(&self, other: &nika_schema::FileId) -> bool
-impl core::default::Default for nika_schema::FileId
-pub fn nika_schema::FileId::default() -> nika_schema::FileId
-impl core::fmt::Debug for nika_schema::FileId
-pub fn nika_schema::FileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::FileId
-pub fn nika_schema::FileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_schema::FileId
-pub fn nika_schema::FileId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_schema::FileId
-impl core::marker::StructuralPartialEq for nika_schema::FileId
-impl serde_core::ser::Serialize for nika_schema::FileId
-pub fn nika_schema::FileId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::FileId
-pub fn nika_schema::FileId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::FileId
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::FileId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::FileId::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::FileId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::FileId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::FileId::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::FileId::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::FileId where U: core::convert::From<T>
-pub fn nika_schema::FileId::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::FileId where U: core::convert::Into<T>
-pub type nika_schema::FileId::Error = core::convert::Infallible
-pub fn nika_schema::FileId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::FileId where U: core::convert::TryFrom<T>
-pub type nika_schema::FileId::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::FileId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::FileId where T: core::clone::Clone
-pub type nika_schema::FileId::Owned = T
-pub fn nika_schema::FileId::clone_into(&self, target: &mut T)
-pub fn nika_schema::FileId::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::FileId where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::FileId::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::FileId where T: 'static + ?core::marker::Sized
-pub fn nika_schema::FileId::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::FileId where T: ?core::marker::Sized
-pub fn nika_schema::FileId::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::FileId where T: ?core::marker::Sized
-pub fn nika_schema::FileId::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::FileId where T: core::clone::Clone
-pub unsafe fn nika_schema::FileId::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::FileId
-pub fn nika_schema::FileId::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::FileId where T: core::clone::Clone
-pub fn nika_schema::FileId::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::FileId where T: 'static
-pub fn nika_schema::FileId::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::FileId where T: core::marker::Copy
-pub fn nika_schema::FileId::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::FileId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::GateFinding
 pub nika_schema::GateFinding::detail: alloc::string::String
 pub nika_schema::GateFinding::fix: core::option::Option<alloc::string::String>
@@ -7543,67 +7309,9 @@ impl<T> dyn_clone::DynClone for nika_schema::InferredPermits where T: core::clon
 pub fn nika_schema::InferredPermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::InferredPermits where T: 'static
 pub fn nika_schema::InferredPermits::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::LineCol
-pub nika_schema::LineCol::col: u32
-pub nika_schema::LineCol::line: u32
-impl nika_schema::LineCol
-pub fn nika_schema::LineCol::new(line: u32, col: u32) -> Self
-impl core::clone::Clone for nika_schema::LineCol
-pub fn nika_schema::LineCol::clone(&self) -> nika_schema::LineCol
-impl core::cmp::Eq for nika_schema::LineCol
-impl core::cmp::PartialEq for nika_schema::LineCol
-pub fn nika_schema::LineCol::eq(&self, other: &nika_schema::LineCol) -> bool
-impl core::fmt::Debug for nika_schema::LineCol
-pub fn nika_schema::LineCol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::LineCol
-pub fn nika_schema::LineCol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_schema::LineCol
-impl core::marker::StructuralPartialEq for nika_schema::LineCol
-impl serde_core::ser::Serialize for nika_schema::LineCol
-pub fn nika_schema::LineCol::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::LineCol
-pub fn nika_schema::LineCol::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::LineCol
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::LineCol where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::LineCol::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::LineCol where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::LineCol where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::LineCol::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::LineCol::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::LineCol where U: core::convert::From<T>
-pub fn nika_schema::LineCol::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::LineCol where U: core::convert::Into<T>
-pub type nika_schema::LineCol::Error = core::convert::Infallible
-pub fn nika_schema::LineCol::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::LineCol where U: core::convert::TryFrom<T>
-pub type nika_schema::LineCol::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::LineCol::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::LineCol where T: core::clone::Clone
-pub type nika_schema::LineCol::Owned = T
-pub fn nika_schema::LineCol::clone_into(&self, target: &mut T)
-pub fn nika_schema::LineCol::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::LineCol where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::LineCol::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::LineCol where T: 'static + ?core::marker::Sized
-pub fn nika_schema::LineCol::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::LineCol where T: ?core::marker::Sized
-pub fn nika_schema::LineCol::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::LineCol where T: ?core::marker::Sized
-pub fn nika_schema::LineCol::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::LineCol where T: core::clone::Clone
-pub unsafe fn nika_schema::LineCol::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::LineCol
-pub fn nika_schema::LineCol::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::LineCol where T: core::clone::Clone
-pub fn nika_schema::LineCol::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::LineCol where T: 'static
-pub fn nika_schema::LineCol::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::LineCol where T: core::marker::Copy
-pub fn nika_schema::LineCol::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::LineCol where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::OnError
 pub nika_schema::OnError::action: nika_schema::types::on_error::OnErrorAction
-pub nika_schema::OnError::on_codes: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::OnError::on_codes: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::types::on_error::OnError
 pub fn nika_schema::types::on_error::OnError::new(action: nika_schema::types::on_error::OnErrorAction) -> Self
 impl core::clone::Clone for nika_schema::types::on_error::OnError
@@ -8081,184 +7789,6 @@ impl<T> dyn_clone::DynClone for nika_schema::skill::SkillFinding where T: core::
 pub fn nika_schema::skill::SkillFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillFinding where T: 'static
 pub fn nika_schema::skill::SkillFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::SourceFile
-pub nika_schema::SourceFile::content: alloc::sync::Arc<alloc::string::String>
-pub nika_schema::SourceFile::id: nika_schema::FileId
-pub nika_schema::SourceFile::path: std::path::PathBuf
-impl core::clone::Clone for nika_schema::SourceFile
-pub fn nika_schema::SourceFile::clone(&self) -> nika_schema::SourceFile
-impl core::fmt::Debug for nika_schema::SourceFile
-pub fn nika_schema::SourceFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_schema::SourceFile
-impl<T, U> core::convert::Into<U> for nika_schema::SourceFile where U: core::convert::From<T>
-pub fn nika_schema::SourceFile::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::SourceFile where U: core::convert::Into<T>
-pub type nika_schema::SourceFile::Error = core::convert::Infallible
-pub fn nika_schema::SourceFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::SourceFile where U: core::convert::TryFrom<T>
-pub type nika_schema::SourceFile::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::SourceFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::SourceFile where T: core::clone::Clone
-pub type nika_schema::SourceFile::Owned = T
-pub fn nika_schema::SourceFile::clone_into(&self, target: &mut T)
-pub fn nika_schema::SourceFile::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::SourceFile where T: 'static + ?core::marker::Sized
-pub fn nika_schema::SourceFile::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::SourceFile where T: ?core::marker::Sized
-pub fn nika_schema::SourceFile::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::SourceFile where T: ?core::marker::Sized
-pub fn nika_schema::SourceFile::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::SourceFile where T: core::clone::Clone
-pub unsafe fn nika_schema::SourceFile::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::SourceFile
-pub fn nika_schema::SourceFile::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::SourceFile where T: core::clone::Clone
-pub fn nika_schema::SourceFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::SourceFile where T: 'static
-pub fn nika_schema::SourceFile::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::SourceRegistry
-impl nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::add(&mut self, path: impl core::convert::Into<std::path::PathBuf>, content: alloc::string::String) -> nika_schema::FileId
-pub fn nika_schema::SourceRegistry::get(&self, id: nika_schema::FileId) -> core::option::Option<&nika_schema::SourceFile>
-pub fn nika_schema::SourceRegistry::is_empty(&self) -> bool
-pub fn nika_schema::SourceRegistry::len(&self) -> usize
-pub fn nika_schema::SourceRegistry::line_col(&self, file: nika_schema::FileId, offset: nika_schema::ByteOffset) -> core::option::Option<nika_schema::LineCol>
-pub fn nika_schema::SourceRegistry::new() -> Self
-impl core::default::Default for nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::default() -> nika_schema::SourceRegistry
-impl core::fmt::Debug for nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_schema::SourceRegistry
-impl<T, U> core::convert::Into<U> for nika_schema::SourceRegistry where U: core::convert::From<T>
-pub fn nika_schema::SourceRegistry::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::SourceRegistry where U: core::convert::Into<T>
-pub type nika_schema::SourceRegistry::Error = core::convert::Infallible
-pub fn nika_schema::SourceRegistry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::SourceRegistry where U: core::convert::TryFrom<T>
-pub type nika_schema::SourceRegistry::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::SourceRegistry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_schema::SourceRegistry where T: 'static + ?core::marker::Sized
-pub fn nika_schema::SourceRegistry::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::SourceRegistry where T: ?core::marker::Sized
-pub fn nika_schema::SourceRegistry::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::SourceRegistry where T: ?core::marker::Sized
-pub fn nika_schema::SourceRegistry::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_schema::SourceRegistry
-pub fn nika_schema::SourceRegistry::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_schema::SourceRegistry where T: 'static
-pub fn nika_schema::SourceRegistry::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::Span
-pub nika_schema::Span::end: nika_schema::ByteOffset
-pub nika_schema::Span::file: nika_schema::FileId
-pub nika_schema::Span::start: nika_schema::ByteOffset
-impl nika_schema::Span
-pub fn nika_schema::Span::contains(&self, offset: nika_schema::ByteOffset) -> bool
-pub fn nika_schema::Span::is_empty(&self) -> bool
-pub fn nika_schema::Span::len(&self) -> u32
-pub fn nika_schema::Span::merge(self, other: Self) -> Self
-pub fn nika_schema::Span::new(file: nika_schema::FileId, start: nika_schema::ByteOffset, end: nika_schema::ByteOffset) -> Self
-pub fn nika_schema::Span::point(file: nika_schema::FileId, offset: nika_schema::ByteOffset) -> Self
-impl core::clone::Clone for nika_schema::Span
-pub fn nika_schema::Span::clone(&self) -> nika_schema::Span
-impl core::cmp::Eq for nika_schema::Span
-impl core::cmp::PartialEq for nika_schema::Span
-pub fn nika_schema::Span::eq(&self, other: &nika_schema::Span) -> bool
-impl core::default::Default for nika_schema::Span
-pub fn nika_schema::Span::default() -> nika_schema::Span
-impl core::fmt::Debug for nika_schema::Span
-pub fn nika_schema::Span::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_schema::Span
-pub fn nika_schema::Span::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_schema::Span
-impl core::marker::StructuralPartialEq for nika_schema::Span
-impl serde_core::ser::Serialize for nika_schema::Span
-pub fn nika_schema::Span::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::Span
-pub fn nika_schema::Span::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::Span
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::Span where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Span::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Span where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Span where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Span::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::Span::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::Span where U: core::convert::From<T>
-pub fn nika_schema::Span::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::Span where U: core::convert::Into<T>
-pub type nika_schema::Span::Error = core::convert::Infallible
-pub fn nika_schema::Span::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::Span where U: core::convert::TryFrom<T>
-pub type nika_schema::Span::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::Span::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::Span where T: core::clone::Clone
-pub type nika_schema::Span::Owned = T
-pub fn nika_schema::Span::clone_into(&self, target: &mut T)
-pub fn nika_schema::Span::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_schema::Span where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_schema::Span::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_schema::Span where T: 'static + ?core::marker::Sized
-pub fn nika_schema::Span::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::Span where T: ?core::marker::Sized
-pub fn nika_schema::Span::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::Span where T: ?core::marker::Sized
-pub fn nika_schema::Span::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::Span where T: core::clone::Clone
-pub unsafe fn nika_schema::Span::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::Span
-pub fn nika_schema::Span::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::Span where T: core::clone::Clone
-pub fn nika_schema::Span::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::Span where T: 'static
-pub fn nika_schema::Span::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_schema::Span where T: core::marker::Copy
-pub fn nika_schema::Span::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_schema::Span where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::Spanned<T>
-pub nika_schema::Spanned::span: nika_schema::Span
-pub nika_schema::Spanned::value: T
-impl<T> nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::map<U>(self, f: impl core::ops::function::FnOnce(T) -> U) -> nika_schema::Spanned<U>
-pub fn nika_schema::Spanned<T>::new(value: T, span: nika_schema::Span) -> Self
-impl<T: core::clone::Clone> core::clone::Clone for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::clone(&self) -> nika_schema::Spanned<T>
-impl<T: core::cmp::Eq> core::cmp::Eq for nika_schema::Spanned<T>
-impl<T: core::cmp::PartialEq> core::cmp::PartialEq for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::eq(&self, other: &Self) -> bool
-impl<T: core::fmt::Debug> core::fmt::Debug for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_schema::Spanned<T>
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::Spanned<T> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Spanned<T> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::Spanned<T> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::Spanned<T>::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::Spanned<T> where U: core::convert::From<T>
-pub fn nika_schema::Spanned<T>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::Spanned<T> where U: core::convert::Into<T>
-pub type nika_schema::Spanned<T>::Error = core::convert::Infallible
-pub fn nika_schema::Spanned<T>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::Spanned<T> where U: core::convert::TryFrom<T>
-pub type nika_schema::Spanned<T>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::Spanned<T>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::Spanned<T> where T: core::clone::Clone
-pub type nika_schema::Spanned<T>::Owned = T
-pub fn nika_schema::Spanned<T>::clone_into(&self, target: &mut T)
-pub fn nika_schema::Spanned<T>::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::Spanned<T> where T: 'static + ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::Spanned<T> where T: ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::Spanned<T> where T: ?core::marker::Sized
-pub fn nika_schema::Spanned<T>::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::Spanned<T> where T: core::clone::Clone
-pub unsafe fn nika_schema::Spanned<T>::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::Spanned<T>
-pub fn nika_schema::Spanned<T>::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::Spanned<T> where T: core::clone::Clone
-pub fn nika_schema::Spanned<T>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::Spanned<T> where T: 'static
-pub fn nika_schema::Spanned<T>::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::SpecCode
 pub nika_schema::SpecCode::category: nika_schema::error::spec_code::SpecCategory
 pub nika_schema::SpecCode::namespace: &'static str
@@ -8414,9 +7944,12 @@ pub fn nika_schema::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> cor
 pub fn nika_schema::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_schema::check::CheckReport
 pub fn nika_schema::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_schema::InferredPermits
 pub fn nika_schema::is_valid_error_code(code: &str) -> bool
+pub fn nika_schema::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_schema::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
 pub fn nika_schema::nika_builtin_tool_enum_schema() -> serde_json::value::Value
-pub fn nika_schema::parse(yaml: &str, file_id: nika_schema::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
+pub fn nika_schema::parse(yaml: &str, file_id: nika_source::span::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub fn nika_schema::parse_go_duration(input: &str) -> core::result::Result<core::time::Duration, nika_schema::types::duration::GoDurationError>
 pub fn nika_schema::parse_skill(text: &str) -> core::result::Result<nika_schema::skill::SkillDoc, nika_schema::skill::SkillDefect>
 pub fn nika_schema::resolve_skills(wf: &nika_schema::raw::workflow::RawWorkflow, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_schema::skill::ResolvedSkills
-pub fn nika_schema::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_schema::Spanned<alloc::string::String>)>
+pub fn nika_schema::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+pub fn nika_schema::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_source::span::Spanned<alloc::string::String>)>

@@ -539,6 +539,77 @@ pub enum SchemaError {
         /// Source span.
         span: Option<Span>,
     },
+
+    // ── Type core · NIKA-TYPE (W3 « the contract » · spec 09) ───────
+    /// A type expression outside the closed v1 grammar (`NIKA-TYPE-001`
+    /// — unknown name · reserved constructor · optional outside a field
+    /// · bad shape) or a regex pattern outside the locked dialect
+    /// (`NIKA-TYPE-006`). The detail comes VERBATIM from the type core
+    /// (`nika-types` · the one truth) — place + why + did-you-mean.
+    #[error("{detail}")]
+    TypeExprInvalid {
+        /// The `NIKA-TYPE` wire number (1 grammar · 6 dialect) — carried
+        /// from [`nika_types::types::ParseTypeError::code`].
+        num: u16,
+        /// The type core's teaching diagnostic.
+        detail: String,
+        /// Span of the offending declaration/expression.
+        span: Option<Span>,
+    },
+
+    /// A `types:` declaration participates in a reference cycle —
+    /// unbounded recursion would make subtyping and lowering
+    /// undecidable; v1 keeps every judgment total (`NIKA-TYPE-002`).
+    #[error("types.{name} · recursive type reference — the types: graph must be acyclic")]
+    TypeRecursive {
+        /// The cyclic declaration's name.
+        name: String,
+        /// Span of the declaration name.
+        span: Option<Span>,
+    },
+
+    /// `returns:` and a verb-level `schema:` on the same task — two
+    /// spellings of one contract (`NIKA-TYPE-003` · one-obvious-way).
+    #[error(
+        "task `{task}` · returns: and {verb}.schema: are two spellings of one \
+         contract — keep returns: (the typed door) or the schema: hatch, never both"
+    )]
+    TypeContractDuplicated {
+        /// The task carrying both spellings.
+        task: String,
+        /// The verb whose body carries `schema:` (`infer` · `agent`).
+        verb: &'static str,
+        /// Span of the `returns:` expression.
+        span: Option<Span>,
+    },
+
+    /// A `returns:` type that cannot come out of the declared `decode:`
+    /// (`NIKA-TYPE-004` · an object contract over `decode: text` · …).
+    #[error(
+        "task `{task}` · returns: cannot come out of decode: {decode} — an \
+         object/array contract needs decode: json or jsonl"
+    )]
+    TypeUndecodable {
+        /// The task whose contract is unreachable.
+        task: String,
+        /// The effective decode mode (`text` when defaulted).
+        decode: String,
+        /// Span of the `returns:` expression.
+        span: Option<Span>,
+    },
+
+    /// `decode:` with `capture: structured` (`NIKA-PARSE-025`) — that
+    /// capture already IS an object (`{stdout, stderr, exit_code}`).
+    #[error(
+        "task `{task}` · decode: with capture: structured — that capture \
+         already IS an object · type it with returns:"
+    )]
+    DecodeWithStructuredCapture {
+        /// The task declaring both.
+        task: String,
+        /// Span of the `decode:` value.
+        span: Option<Span>,
+    },
 }
 
 impl SchemaError {
@@ -611,7 +682,12 @@ impl SchemaError {
             | Self::LoopLocalOutsideForEach { span, .. }
             | Self::UnknownTaskField { span, .. }
             | Self::OutputPathProvablyInvalid { span, .. }
-            | Self::BareTaskEnvelope { span, .. } => *span,
+            | Self::BareTaskEnvelope { span, .. }
+            | Self::TypeExprInvalid { span, .. }
+            | Self::TypeRecursive { span, .. }
+            | Self::TypeContractDuplicated { span, .. }
+            | Self::TypeUndecodable { span, .. }
+            | Self::DecodeWithStructuredCapture { span, .. } => *span,
             Self::Cycle { .. } => None,
         }
     }
@@ -689,6 +765,11 @@ schema_code!(SCHEMA_315, 315, "w1-task-id-field");
 schema_code!(SCHEMA_316, 316, "w2-depends-on-field");
 schema_code!(SCHEMA_317, 317, "unknown-after-predicate");
 schema_code!(SCHEMA_318, 318, "ref-outside-boundary");
+schema_code!(SCHEMA_319, 319, "type-expr-invalid");
+schema_code!(SCHEMA_320, 320, "type-recursive");
+schema_code!(SCHEMA_321, 321, "type-contract-duplicated");
+schema_code!(SCHEMA_322, 322, "type-undecodable");
+schema_code!(SCHEMA_323, 323, "decode-with-structured-capture");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -731,6 +812,11 @@ impl NikaErrorCode for SchemaError {
             Self::UnknownTaskField { .. } => SCHEMA_306,
             Self::OutputPathProvablyInvalid { .. } => SCHEMA_307,
             Self::BareTaskEnvelope { .. } => SCHEMA_311,
+            Self::TypeExprInvalid { .. } => SCHEMA_319,
+            Self::TypeRecursive { .. } => SCHEMA_320,
+            Self::TypeContractDuplicated { .. } => SCHEMA_321,
+            Self::TypeUndecodable { .. } => SCHEMA_322,
+            Self::DecodeWithStructuredCapture { .. } => SCHEMA_323,
         }
     }
 
@@ -910,6 +996,33 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::BareTaskEnvelope {
             task: String::new(),
             location: String::new(),
+            span: None,
+        },
+        // NIKA-TYPE-001 here — the SAME variant also emits TYPE-006
+        // (regex dialect) via `num: 6`; enumerating it once keeps the
+        // engine-internal `nika_code()` uniqueness law intact, and the
+        // TYPE-006 wire mapping is pinned by its own spec_code test.
+        SchemaError::TypeExprInvalid {
+            num: 1,
+            detail: String::new(),
+            span: None,
+        },
+        SchemaError::TypeRecursive {
+            name: String::new(),
+            span: None,
+        },
+        SchemaError::TypeContractDuplicated {
+            task: String::new(),
+            verb: "infer",
+            span: None,
+        },
+        SchemaError::TypeUndecodable {
+            task: String::new(),
+            decode: String::new(),
+            span: None,
+        },
+        SchemaError::DecodeWithStructuredCapture {
+            task: String::new(),
             span: None,
         },
     ]

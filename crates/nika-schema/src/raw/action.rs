@@ -12,7 +12,7 @@
 //! is CLOSED per the spec field tables — strict mode rejects unknowns.
 
 use crate::source::Spanned;
-use crate::types::CaptureMode;
+use crate::types::{CaptureMode, DecodeMode};
 
 /// The action a task performs — one of the 4 verbs.
 #[derive(Debug, Clone)]
@@ -190,6 +190,9 @@ pub struct RawExecAction {
     pub stdin: Option<Spanned<String>>,
     /// `capture:` — stdout (default) · stderr · combined · structured.
     pub capture: Option<Spanned<CaptureMode>>,
+    /// `decode:` — how the captured bytes become a value (spec 09
+    /// §decode · text default · illegal with `capture: structured`).
+    pub decode: Option<Spanned<DecodeMode>>,
 }
 
 impl RawExecAction {
@@ -208,6 +211,7 @@ impl RawExecAction {
             env: Vec::new(),
             stdin: None,
             capture: None,
+            decode: None,
         }
     }
 }
@@ -286,10 +290,7 @@ mod tests {
     use crate::source::Span;
 
     fn span_str(s: &str) -> Spanned<String> {
-        Spanned {
-            value: s.into(),
-            span: Span::default(),
-        }
+        Spanned::new(s.into(), Span::default())
     }
 
     #[test]
@@ -307,6 +308,7 @@ mod tests {
         assert_eq!(a.command.shell_str(), Some("ls -la"));
         assert!(a.env.is_empty());
         assert!(a.capture.is_none());
+        assert!(a.decode.is_none());
     }
 
     #[test]

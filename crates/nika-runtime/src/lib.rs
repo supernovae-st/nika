@@ -40,6 +40,7 @@
 #![forbid(unsafe_code)]
 
 mod agent_events;
+mod contract;
 mod dispatch;
 mod emit_task;
 mod errors;
@@ -253,12 +254,15 @@ pub struct Runtime<S, T, H, P, D, C> {
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
-/// `permits`), a single loan the pipeline fan-out threads whole.
+/// `permits` · `types`), a single loan the pipeline fan-out threads
+/// whole (the named-type map is the `returns:` contract environment ·
+/// spec 09 · W3).
 type WaveScope<'a> = (
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
     Option<&'a nika_schema::types::Permits>,
+    &'a BTreeMap<String, nika_types::types::NikaType>,
 );
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -542,12 +546,11 @@ where
             return Err(RuntimeError::DirtyReport);
         }
         let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
-        // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
-        // injected composer resolver reads env/file). A miss leaves that
-        // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
-        // (fail-closed · clean typed error · no token spent on a broken
-        // secret). The resolved values flow ONLY where the IFC sanctioned
-        // them (the clean check) and are never emitted to the event stream.
+        // Resolve the `secrets:` namespace ONCE at run start (MINOR-B ·
+        // composer resolver reads env/file). A miss leaves the secret
+        // unbound → `${{ secrets.X }}` raises NIKA-1702 (fail-closed ·
+        // no token spent). Resolved values flow ONLY where the IFC
+        // sanctioned them and are never emitted to the event stream.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
@@ -557,6 +560,10 @@ where
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
+        // The acyclic named types (spec 09 · `types:`) — resolved ONCE
+        // per run through the schema's one projection; every task's
+        // `returns:` contract parses against THIS environment (W3).
+        let types = nika_schema::named_types(wf);
         emit_prologue(
             wf,
             &workflow_name,
@@ -588,7 +595,7 @@ where
             let early = self
                 .run_one_wave(
                     wave,
-                    (&workflow_name, permits),
+                    (&workflow_name, permits, &types),
                     &resolve_scope,
                     &run_ledger,
                     &mut parked,
@@ -643,7 +650,11 @@ where
     async fn run_one_wave(
         &self,
         wave: &[usize],
-        (workflow_name, permits): (&str, Option<&nika_schema::types::Permits>),
+        (workflow_name, permits, types): (
+            &str,
+            Option<&nika_schema::types::Permits>,
+            &BTreeMap<String, nika_types::types::NikaType>,
+        ),
         resolve_scope: &recover::ResolveScope<'_>,
         run_ledger: &ledger::RunLedger,
         parked: &mut recover::ParkedRecoveries,
@@ -667,7 +678,7 @@ where
                 wave,
                 wf,
                 &frozen,
-                (vars, env, secrets, permits),
+                (vars, env, secrets, permits, types),
                 resolve_scope.resume_ctx,
                 run_ledger,
                 (ok, cache_hits),
@@ -759,7 +770,7 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<(BTreeMap<String, TaskRecord>, Option<WorkflowPause>), RuntimeError> {
-        let (vars, env, secrets, permits) = scope;
+        let (vars, env, secrets, permits, types) = scope;
         let resolve_scope = recover::ResolveScope {
             wf,
             vars,
@@ -787,7 +798,7 @@ where
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
-                        task, frozen, vars, env, secrets, permits, resume_ctx, ledger,
+                        task, frozen, vars, env, secrets, permits, types, resume_ctx, ledger,
                     )
                 },
             ))

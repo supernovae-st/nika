@@ -102,6 +102,31 @@ pub enum RuntimeError {
         /// The binding-relative message (which `<name>` · the jq cause).
         message: String,
     },
+
+    /// The exec `decode:` pipeline failed to turn the captured bytes
+    /// into a value (spec 09 §decode) — strict-UTF-8 text violation ·
+    /// unparseable JSON/JSONL. Task-stage (inside `on_error:` scope ·
+    /// « settles the task `failure`, honestly »); the engine-internal
+    /// [`codes::NIKA_1705`] is the wire form until the spec registers a
+    /// dedicated `NIKA-EXEC` row.
+    #[error("NIKA-1705 · {message}")]
+    #[diagnostic(code(nika::runtime::decode_failure))]
+    Decode {
+        /// What failed to decode and why (mode + cause + the fix).
+        message: String,
+    },
+
+    /// A run-time contract violation (spec 09 · `NIKA-TYPE-101`) — the
+    /// decoded value does not fit the task's `returns:` type. Task-stage
+    /// (`exec:`/`invoke:` lane · `infer:`/`agent:` violations stay
+    /// `NIKA-INFER-002`-class, one voice with the structured-output
+    /// lane). Engine-internal identity [`codes::NIKA_1706`].
+    #[error("NIKA-TYPE-101 · {message}")]
+    #[diagnostic(code(nika::runtime::contract_violation))]
+    ContractViolation {
+        /// Which contract the value broke (task + type + value class).
+        message: String,
+    },
 }
 
 /// The actionable suffix for an unresolved `vars.*` reference — the CLI
@@ -126,6 +151,10 @@ impl RuntimeError {
     pub fn spec_code(&self) -> String {
         match self {
             Self::CelEval { code, .. } | Self::OutputBinding { code, .. } => (*code).to_owned(),
+            // A contract violation is the SPEC-PLANE NIKA-TYPE-101 (spec
+            // 09 §errors · registered in the canon table) — the 1706 is
+            // its engine-internal identity only.
+            Self::ContractViolation { .. } => "NIKA-TYPE-101".to_owned(),
             // An unresolved `${{ }}` reference (unknown ns · out-of-range
             // index · missing map key · unprovided secret) is the spec-plane
             // NIKA-VAR-001 (variable_error) — NEVER the engine-internal
@@ -204,6 +233,8 @@ impl NikaErrorCode for RuntimeError {
             Self::WhenUnsupported { .. } | Self::CelEval { .. } | Self::OutputBinding { .. } => {
                 codes::NIKA_1703
             }
+            Self::Decode { .. } => codes::NIKA_1705,
+            Self::ContractViolation { .. } => codes::NIKA_1706,
         }
     }
 
@@ -218,7 +249,7 @@ impl NikaErrorCode for RuntimeError {
 mod tests {
     use super::*;
 
-    fn all() -> [RuntimeError; 4] {
+    fn all() -> [RuntimeError; 6] {
         [
             RuntimeError::DirtyReport,
             RuntimeError::WaveOutOfBounds {
@@ -231,6 +262,12 @@ mod tests {
             RuntimeError::WhenUnsupported {
                 expr: "vars.a ~= 1".into(),
             },
+            RuntimeError::Decode {
+                message: "decode: json · expected value at line 1".into(),
+            },
+            RuntimeError::ContractViolation {
+                message: "tasks.stats · the decoded value does not fit `returns:`".into(),
+            },
         ]
     }
 
@@ -239,8 +276,27 @@ mod tests {
         let mut nums: Vec<u16> = all().iter().map(|e| e.nika_code().num).collect();
         nums.sort_unstable();
         nums.dedup();
-        assert_eq!(nums.len(), 4, "duplicate code in the 1700 range");
+        assert_eq!(nums.len(), 6, "duplicate code in the 1700 range");
         assert!(nums.iter().all(|n| (1700..1800).contains(n)));
+    }
+
+    #[test]
+    fn contract_violation_wires_the_spec_plane_type_101() {
+        // The W3 runtime contract (spec 09 §errors): the WIRE code an
+        // author filters on (`on_codes:` · `tasks.X.error.code`) is the
+        // spec-plane NIKA-TYPE-101 — the 1706 stays engine-internal.
+        let err = RuntimeError::ContractViolation {
+            message: "x".into(),
+        };
+        assert_eq!(err.spec_code(), "NIKA-TYPE-101");
+        assert_eq!(err.nika_code().num, 1706);
+        // Decode failures keep the engine-internal wire form (no spec
+        // row yet · the honest numeric — the InvalidParam precedent).
+        let err = RuntimeError::Decode {
+            message: "x".into(),
+        };
+        assert_eq!(err.spec_code(), "NIKA-1705");
+        assert_eq!(err.nika_code().num, 1705);
     }
 
     #[test]

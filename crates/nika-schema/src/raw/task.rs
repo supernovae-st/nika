@@ -50,6 +50,10 @@ pub struct RawTask {
     pub with: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
     /// `output:` — named jq bindings over the verb's raw response.
     pub output: Vec<(Spanned<String>, Spanned<String>)>,
+    /// `returns:` — the task's output contract (spec 09 · a named type
+    /// or an inline type expression · RAW here, parsed by the type core
+    /// at check time).
+    pub returns: Option<Spanned<serde_json::Value>>,
     /// `on_finally:` — cleanup mini-tasks · ALWAYS run (spec 03).
     pub on_finally: Vec<Spanned<RawFinallyTask>>,
     /// The verb (exactly one · parser-enforced).
@@ -72,6 +76,7 @@ impl RawTask {
             timeout: None,
             with: Vec::new(),
             output: Vec::new(),
+            returns: None,
             on_finally: Vec::new(),
             action,
         }
@@ -141,6 +146,7 @@ mod tests {
         assert!(task.timeout.is_none());
         assert!(task.with.is_empty());
         assert!(task.output.is_empty());
+        assert!(task.returns.is_none());
         assert!(task.on_finally.is_empty());
     }
 

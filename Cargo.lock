@@ -4167,6 +4167,7 @@ dependencies = [
  "nika-error",
  "nika-event",
  "nika-pack",
+ "nika-source",
  "nika-tmpl",
  "nika-types",
  "proptest",
@@ -4189,6 +4190,13 @@ dependencies = [
  "proptest",
  "tokio",
  "xcap",
+]
+
+[[package]]
+name = "nika-source"
+version = "0.103.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

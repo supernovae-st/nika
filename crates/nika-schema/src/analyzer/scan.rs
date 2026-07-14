@@ -51,6 +51,11 @@ pub(super) struct WorkflowIndex<'a> {
     /// task id → declared structured-output `schema:` (infer/agent ·
     /// spec 04 §Static binding validation).
     schemas: BTreeMap<&'a str, &'a serde_json::Value>,
+    /// task id → `lower(returns)` — the SAME walkable contract, derived
+    /// from the typed door (spec 09 §returns · the walk runs on it with
+    /// full precision · owned: the lowering is a projection, not a
+    /// borrow of the AST).
+    lowered: BTreeMap<String, serde_json::Value>,
 }
 
 impl<'a> WorkflowIndex<'a> {
@@ -85,12 +90,19 @@ impl<'a> WorkflowIndex<'a> {
             task_ids: wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect(),
             bindings,
             schemas,
+            lowered: super::types_contract::lowered_returns(wf),
         }
     }
 
-    /// The declared structured-output schema of a task · if any.
+    /// The declared output contract of a task, as a walkable JSON
+    /// Schema · a verb-level `schema:` OR the `lower(returns)`
+    /// projection (spec 09 — `NIKA-TYPE-003` forbids both, so at most
+    /// one exists; `returns:` reads through the same door).
     pub(super) fn schema_of(&self, task_id: &str) -> Option<&serde_json::Value> {
-        self.schemas.get(task_id).copied()
+        self.schemas
+            .get(task_id)
+            .copied()
+            .or_else(|| self.lowered.get(task_id))
     }
 }
 

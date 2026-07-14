@@ -10,6 +10,7 @@
 
 pub mod after;
 pub mod capture;
+pub mod decode;
 pub mod duration;
 pub mod extract;
 pub mod on_error;
@@ -24,6 +25,7 @@ pub mod when_gate;
 // Re-exports for convenience.
 pub use after::AfterPredicate;
 pub use capture::CaptureMode;
+pub use decode::DecodeMode;
 pub use duration::{GoDurationError, parse_go_duration};
 pub use extract::{ExtractMode, ResponseMode};
 pub use on_error::{OnError, OnErrorAction};

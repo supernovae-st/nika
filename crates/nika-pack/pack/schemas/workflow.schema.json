@@ -38,6 +38,16 @@
       "type": "string",
       "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo)."
     },
+    "types": {
+      "type": "object",
+      "description": "Named type declarations (spec 09-types.md · PascalCase · acyclic)",
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Za-z0-9]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/typeExpr"
+      }
+    },
     "vars": {
       "type": "object",
       "description": "Workflow inputs · `${{ vars.X }}`. Each value is untyped (the literal default) OR a typed declaration object.",
@@ -307,7 +317,8 @@
                   "boolean",
                   "array",
                   "object"
-                ]
+                ],
+                "description": "flat closed enum — the workflow-contract halves (typed vars/outputs) widen to the 09-types grammar together at the input-authority window (G9)"
               },
               "description": {
                 "type": "string"
@@ -450,6 +461,10 @@
         },
         "agent": {
           "$ref": "#/$defs/agent"
+        },
+        "returns": {
+          "$ref": "#/$defs/typeExpr",
+          "description": "The task's output contract (spec 09-types.md) — exclusive with a verb-level schema: (NIKA-TYPE-003)"
         }
       }
     },
@@ -553,6 +568,16 @@
             "combined",
             "structured"
           ]
+        },
+        "decode": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json",
+            "jsonl",
+            "bytes"
+          ],
+          "description": "How the captured string becomes a value (spec 09 §decode) — illegal with capture: structured (NIKA-PARSE-025)"
         },
         "shell": {
           "description": "One shell line, run via /bin/sh -c — the EXPLICIT dangerous door (pipes · redirects · globs). The blocklist applies here; interpolating untrusted values here is on the author. Exactly one of command|shell.",
@@ -815,6 +840,120 @@
           "required": [
             "agent"
           ]
+        }
+      ]
+    },
+    "typeExpr": {
+      "description": "A Nika type expression (spec 09-types.md · closed v1 grammar · optional is FIELD-ONLY, see fieldTypeExpr)",
+      "oneOf": [
+        {
+          "type": "null",
+          "description": "the bare YAML null scalar spells the null type"
+        },
+        {
+          "type": "string",
+          "pattern": "^(null|bool|integer|number|string|bytes|uri|path|duration|timestamp|[A-Z][A-Za-z0-9]*)$",
+          "description": "a primitive name or a declared PascalCase type reference (money/result/artifact/secret are reserved — the checker refuses them with their wave)"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 2,
+          "properties": {
+            "array": {
+              "$ref": "#/$defs/typeExpr"
+            },
+            "map": {
+              "$ref": "#/$defs/typeExpr"
+            },
+            "object": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/fieldTypeExpr"
+              }
+            },
+            "additional": {
+              "type": "boolean"
+            },
+            "union": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "$ref": "#/$defs/typeExpr"
+              }
+            },
+            "enum": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "integer": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "min": {
+                  "type": "integer"
+                },
+                "max": {
+                  "type": "integer"
+                }
+              }
+            },
+            "number": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              }
+            },
+            "string": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "min_len": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max_len": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "fieldTypeExpr": {
+      "description": "A field slot (spec 09 §optional is presence): a type expression, or { optional: T } — the presence modifier is legal ONLY here",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/typeExpr"
+        },
+        {
+          "type": "object",
+          "required": [
+            "optional"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "optional": {
+              "$ref": "#/$defs/typeExpr"
+            }
+          }
         }
       ]
     }
