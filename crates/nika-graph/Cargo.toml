@@ -5,7 +5,7 @@ version     = "0.103.0"
 edition     = "2024"
 rust-version = "1.88"
 license     = "AGPL-3.0-or-later"
-description = "nika's canonical graph projection — graph_format: 1 (spec 03 §graph-projection): ONE projector for every surface (CLI inspect · LSP semanticDocument · future canvases)"
+description = "nika's canonical graph projection — graph_format: 2, typed edges (spec 03 §graph projection): ONE projector for every surface (CLI inspect · LSP semanticDocument · future canvases)"
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]

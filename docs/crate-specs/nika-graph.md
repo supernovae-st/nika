@@ -7,7 +7,8 @@ with the workspace train.
 ## What it is
 
 ONE projector: `project(&RawWorkflow, &CheckReport) -> GraphDoc` — the
-versioned `graph_format: 1` document (spec 03 §graph-projection). Every
+versioned `graph_format: 2` document (spec 03 §graph projection format 2 ·
+typed edges). Every
 surface that draws or reasons about a workflow graph consumes THIS
 document, never a private re-derivation:
 
@@ -19,7 +20,8 @@ document, never a private re-derivation:
 
 ## The shape (wire contract · additive, spec-first)
 
-`GraphDoc { graph_format: 1, workflow, nodes[], edges[] }` — nodes are
+`GraphDoc { graph_format: 2, workflow, nodes[], edges[] }` — edges are
+typed `{from, to, kind, predicate?, binding?}` — nodes are
 topologically sorted (wave order · stable layouts); `Node` carries the
 static facts only (verb · tool · resolved model · when · fan_out ·
 permits attribution · cost interval · retry/timeout/on_error · declared
