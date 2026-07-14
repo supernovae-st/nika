@@ -76,6 +76,7 @@ nika-verb-agent
 # (pub → pub(crate)); the lock stops it GROWING further unaudited.
 nika-extract
 nika-infer-local
+nika-lints
 nika-lsp
 nika-mcp
 nika-runtime
