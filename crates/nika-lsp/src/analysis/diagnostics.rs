@@ -192,6 +192,21 @@ fn push_security_findings(
             msg,
         ));
     }
+    // Hard policy: rule violations (spec 10 · W4) — born in the check
+    // ladder, projected with the canonical code (one-voice: the LSP never
+    // re-judges the law). Task-keyed findings anchor on the offending
+    // task's id; workflow-level ones (limits) render at the origin.
+    for p in &report.policy_findings {
+        let range = p
+            .task
+            .as_deref()
+            .map_or_else(Range::default, |t| task_range(index, task_spans, t));
+        diags.push(error_diag(
+            range,
+            Some("NIKA-POLICY-001".to_owned()),
+            p.detail.clone(),
+        ));
+    }
     // Advisory hints — never a failure (anchored on the task).
     for hint in &report.hints {
         let msg = format!("[{}] {}: {}", hint.kind, hint.task, hint.advice);
@@ -330,6 +345,32 @@ mod tests {
             "the finding anchors a real span (never 0:0): {:?}",
             ty.range
         );
+    }
+
+    #[test]
+    fn a_policy_finding_projects_with_its_code_and_span() {
+        // W4 one-voice proof: a hard `policy:` violation born in the check
+        // ladder (`NIKA-POLICY-001` · spec 10) rides the SAME from_report
+        // projection — the LSP never re-judges the law. The task-keyed
+        // finding anchors on the offending task's id (a real span).
+        let yaml = "nika: v1\nworkflow:\n  id: w\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\ntasks:\n  act:\n    exec: { command: [\"echo\", \"unattended\"] }\n";
+        let diags = diags_of(yaml);
+        let pol = diags
+            .iter()
+            .find(|d| matches!(&d.code, Some(NumberOrString::String(c)) if c == "NIKA-POLICY-001"))
+            .expect("NIKA-POLICY-001 diagnostic present");
+        assert_eq!(pol.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(pol.source.as_deref(), Some("nika"));
+        assert!(
+            pol.message.contains("no nika:prompt ancestor"),
+            "the witness survives the projection: {}",
+            pol.message
+        );
+        // anchored on the task id `act`, not the origin
+        let id_byte = yaml.find("\n  act:").map(|p| p + 3).expect("id");
+        let expected = index_of(yaml).position(id_byte);
+        assert_eq!(pol.range.start, expected, "anchored on the task id");
+        assert!(pol.range.start.line > 0, "a real span, never 0:0");
     }
 
     #[test]

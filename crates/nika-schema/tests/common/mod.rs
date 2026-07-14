@@ -140,6 +140,25 @@ pub(crate) fn check_extra(yaml: &str, mode: ParseMode) -> Vec<SpecCode> {
     }
 }
 
+/// The `policy:` surface (spec 10 · the `core/policy/**` fixtures) — a
+/// CORE concern the `analyze()` tier does not emit: the lane lives in
+/// `check()` (it reads the derived graph), and the reference oracle
+/// judges policy on every tier. The core verdict therefore adds exactly
+/// the POLICY-namespace codes — never the deep-only builtin/permits
+/// classes, which stay deep concerns.
+pub(crate) fn check_policy_codes(yaml: &str, mode: ParseMode) -> Vec<SpecCode> {
+    match parse(yaml, FileId::new(0), mode) {
+        Ok(wf) => check(&wf)
+            .extra_conformance_codes()
+            .into_iter()
+            .filter(|c| c.namespace == "POLICY")
+            .collect(),
+        // A parse error (fixture 009's closed-set refusal) surfaces
+        // through `run_engine` (analyze) as a SchemaError.
+        Err(_) => Vec::new(),
+    }
+}
+
 /// One fixture's verdict against its `expected.json` (None = conformant).
 ///
 /// `deep` selects the conformance TIER (spec `07-conformance.md` §Levels):
@@ -157,13 +176,15 @@ pub(crate) fn fixture_verdict(dir: &Path, deep: bool) -> Option<String> {
         std::fs::read_to_string(dir.join("expected.json")).expect("read expected.json");
     let expected: Expected = serde_json::from_str(&expected_raw).expect("parse expected.json");
     let mode = expected.parse_mode();
-    // The Core tier is `analyze()` (rich SchemaErrors); the Deep tier adds the
-    // check-only invalidating surfaces (builtin args · capability escapes).
+    // The Core tier is `analyze()` (rich SchemaErrors) PLUS the policy
+    // surface (spec 10 files its fixtures under core/); the Deep tier
+    // adds every check-only invalidating surface (builtin args ·
+    // capability escapes · policy included via `extra_conformance_codes`).
     let emitted = run_engine(&yaml, mode);
     let extra = if deep {
         check_extra(&yaml, mode)
     } else {
-        Vec::new()
+        check_policy_codes(&yaml, mode)
     };
 
     if expected.valid {

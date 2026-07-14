@@ -21,8 +21,10 @@
 //! (or any capability-aware crate) can consume without pulling in the parser.
 
 mod algebra;
+mod effect;
 mod fit;
 mod permits;
+mod policy;
 mod shape;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·
@@ -30,5 +32,16 @@ mod shape;
 // nothing outside consumes them yet, and an L0 API is frozen forever — widening
 // pub(crate)→pub later is additive, narrowing pub→pub(crate) would break. So the
 // surface starts minimal (Gate-11 rust-pro + spn-nika L1).
+// The fine-grained builtin effect table (boundary checking · inference) —
+// extracted from nika-schema's permits_fit under the same 15k pressure as
+// shape.rs; the coarse policy table (EffectClass) lives beside it.
+pub use effect::{BuiltinEffect, builtin_effect, chart_vl_sibling};
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
+// W4 « the authority » (spec 10) — the policy: vocabulary (closed at the
+// type level) + the pure judge + the certificate's authority projection.
+pub use policy::{
+    Allow, CertEffects, EffectClass, Forbid, HUMAN_GATE_TOOL, Limits, Objective, POLICY_KEYS,
+    Policy, PolicySubject, PolicyViolation, Prefer, ProviderPin, Require, policy_child_keys,
+    policy_violations,
+};
 pub use shape::builtin_shape_findings;

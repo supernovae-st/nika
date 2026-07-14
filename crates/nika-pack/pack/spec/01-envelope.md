@@ -289,7 +289,9 @@ By default, a `secrets.<name>` value reaching ANY effect, an `exec:` or
 `invoke:` sink, OR an `infer:`/`agent:` **prompt** (`prompt:` + `system:`),
 is a **blocking leak**: the engine masks its own output but cannot follow a
 secret a subprocess, a tool, or a third-party provider re-emits (`nika check`
-reports it · the workflow is refused). An `infer:`/`agent:` prompt is a
+refuses the workflow — `NIKA-SEC-006`, the taint path in the diagnostic;
+a tainted value reaching `outputs:` is `NIKA-SEC-007` ·
+[10 §secret flow](./10-authority.md#secret-flow-refusals-carry-their-codes-normative)). An `infer:`/`agent:` prompt is a
 provider-egress sink like any other: a secret in it LEAVES the run to the
 provider, so it needs an explicit sanction (`egress: [{ to: "infer" }]` /
 `{ to: "agent" }`) exactly as a tool sink does.

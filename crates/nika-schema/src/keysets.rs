@@ -21,6 +21,10 @@ use crate::parser::{envelope, tasks, verbs};
 #[must_use]
 pub fn known_child_keys(block_key: &str, parent: Option<&str>) -> Option<&'static [&'static str]> {
     match block_key {
+        // policy vocabulary FIRST (spec 10 · nika-cap is the SSOT — the
+        // serde type and this door are pinned coherent by test)
+        key if parent == Some("policy") => nika_cap::policy_child_keys(key),
+        "policy" => Some(nika_cap::POLICY_KEYS),
         "retry" => Some(tasks::RETRY_KEYS),
         "on_error" => Some(tasks::ON_ERROR_KEYS),
         "on_finally" => Some(tasks::FINALLY_KEYS),
@@ -62,5 +66,51 @@ mod tests {
         assert!(known_child_keys("fs", Some("permits")).is_some());
         assert!(known_child_keys("fs", None).is_none());
         assert!(known_child_keys("net", Some("args")).is_none());
+    }
+
+    /// The `policy:` door (spec 10) serves the nika-cap vocabulary — root
+    /// families under `policy`, rule keys under each family — and stays
+    /// silent everywhere else (a free-form `require:` arg is not policy).
+    #[test]
+    fn policy_door_serves_the_closed_families_and_rules() {
+        let families = known_child_keys("policy", None).expect("policy keyset");
+        assert_eq!(
+            families,
+            ["require", "forbid", "allow", "limits", "prefer", "optimize"]
+        );
+        assert_eq!(
+            known_child_keys("require", Some("policy")),
+            Some(&["human_gate_before"][..])
+        );
+        assert_eq!(
+            known_child_keys("limits", Some("policy")),
+            Some(&["max_tasks"][..])
+        );
+        assert!(known_child_keys("require", None).is_none());
+        // an unknown key under policy: no keyset (the parser refuses it)
+        assert!(known_child_keys("ghost", Some("policy")).is_none());
+    }
+
+    /// Drift-porte: every key this door OFFERS under `policy:` is ACCEPTED
+    /// by the enforcing serde type — the offer surface and the closed set
+    /// are the same vocabulary (nika-cap pins the reverse direction).
+    #[test]
+    fn policy_door_offers_only_what_the_parser_accepts() {
+        use crate::parser::{ParseMode, parse};
+        use crate::source::FileId;
+        for family in known_child_keys("policy", None).expect("families") {
+            let block = if *family == "optimize" {
+                "optimize: cost".to_owned()
+            } else {
+                let rule = known_child_keys(family, Some("policy")).expect("rules")[0];
+                let value = if rule == "max_tasks" { "1" } else { "[]" };
+                format!("{family}:\n    {rule}: {value}")
+            };
+            let yaml = format!(
+                "nika: v1\nworkflow:\n  id: w\npolicy:\n  {block}\ntasks:\n  t:\n    infer: {{ prompt: \"x\" }}\n"
+            );
+            parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .unwrap_or_else(|e| panic!("door-offered `{family}` must parse: {e}"));
+        }
     }
 }

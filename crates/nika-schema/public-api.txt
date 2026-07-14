@@ -865,6 +865,7 @@ pub nika_schema::check::CheckReport::gate_findings: alloc::vec::Vec<nika_schema:
 pub nika_schema::check::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::check::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
 pub nika_schema::check::CheckReport::permits: nika_schema::check::EffectivePermits
+pub nika_schema::check::CheckReport::policy_findings: alloc::vec::Vec<nika_cap::policy::PolicyViolation>
 pub nika_schema::check::CheckReport::report_version: u32
 pub nika_schema::check::CheckReport::requirements: nika_schema::check::Requirements
 pub nika_schema::check::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::SchemaTypeFinding>
@@ -1399,6 +1400,7 @@ pub fn nika_schema::check::Requirements::as_any(&self) -> &(dyn core::any::Any +
 #[non_exhaustive] pub struct nika_schema::check::RunCertificate
 pub nika_schema::check::RunCertificate::derivation: alloc::vec::Vec<nika_schema::check::certificate::TaskContribution>
 pub nika_schema::check::RunCertificate::effect_calls: nika_schema::Bound
+pub nika_schema::check::RunCertificate::effects: nika_cap::policy::CertEffects
 pub nika_schema::check::RunCertificate::llm_calls: nika_schema::Bound
 pub nika_schema::check::RunCertificate::span_attempts: u64
 pub nika_schema::check::RunCertificate::task_attempts: nika_schema::Bound
@@ -2896,6 +2898,7 @@ pub nika_schema::raw::workflow::RawWorkflow::model: core::option::Option<nika_so
 pub nika_schema::raw::workflow::RawWorkflow::nika: core::option::Option<nika_source::span::Spanned<nika_schema::types::schema_version::SchemaVersion>>
 pub nika_schema::raw::workflow::RawWorkflow::outputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
 pub nika_schema::raw::workflow::RawWorkflow::permits: core::option::Option<nika_source::span::Spanned<nika_cap::permits::Permits>>
+pub nika_schema::raw::workflow::RawWorkflow::policy: core::option::Option<nika_source::span::Spanned<nika_cap::policy::Policy>>
 pub nika_schema::raw::workflow::RawWorkflow::secrets: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_schema::types::secret::SecretRef>)>
 pub nika_schema::raw::workflow::RawWorkflow::tasks: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawTask>>
 pub nika_schema::raw::workflow::RawWorkflow::types: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
@@ -3349,6 +3352,7 @@ pub nika_schema::raw::RawWorkflow::model: core::option::Option<nika_source::span
 pub nika_schema::raw::RawWorkflow::nika: core::option::Option<nika_source::span::Spanned<nika_schema::types::schema_version::SchemaVersion>>
 pub nika_schema::raw::RawWorkflow::outputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
 pub nika_schema::raw::RawWorkflow::permits: core::option::Option<nika_source::span::Spanned<nika_cap::permits::Permits>>
+pub nika_schema::raw::RawWorkflow::policy: core::option::Option<nika_source::span::Spanned<nika_cap::policy::Policy>>
 pub nika_schema::raw::RawWorkflow::secrets: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_schema::types::secret::SecretRef>)>
 pub nika_schema::raw::RawWorkflow::tasks: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawTask>>
 pub nika_schema::raw::RawWorkflow::types: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
@@ -3696,10 +3700,14 @@ pub fn nika_schema::trust::InvocationSource::as_out(&mut self) -> outref::Out<'_
 pub fn nika_schema::trust::builtin_output_trust(tool: &str, input_trust: nika_types::trust::TrustLevel) -> nika_types::trust::TrustLevel
 pub fn nika_schema::trust::is_categorized_builtin(tool: &str) -> bool
 pub mod nika_schema::types
+pub use nika_schema::types::EffectClass
 pub use nika_schema::types::ExecPermit
 pub use nika_schema::types::FsPermits
 pub use nika_schema::types::NetPermits
+pub use nika_schema::types::Objective
 pub use nika_schema::types::Permits
+pub use nika_schema::types::Policy
+pub use nika_schema::types::PolicyViolation
 pub mod nika_schema::types::after
 #[non_exhaustive] pub enum nika_schema::types::after::AfterPredicate
 pub nika_schema::types::after::AfterPredicate::Failed
@@ -7037,6 +7045,7 @@ pub nika_schema::CheckReport::gate_findings: alloc::vec::Vec<nika_schema::GateFi
 pub nika_schema::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
 pub nika_schema::CheckReport::permits: nika_schema::check::EffectivePermits
+pub nika_schema::CheckReport::policy_findings: alloc::vec::Vec<nika_cap::policy::PolicyViolation>
 pub nika_schema::CheckReport::report_version: u32
 pub nika_schema::CheckReport::requirements: nika_schema::check::Requirements
 pub nika_schema::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::SchemaTypeFinding>
@@ -7445,6 +7454,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_schema::types::retry::RetryCon
 #[non_exhaustive] pub struct nika_schema::RunCertificate
 pub nika_schema::RunCertificate::derivation: alloc::vec::Vec<nika_schema::check::certificate::TaskContribution>
 pub nika_schema::RunCertificate::effect_calls: nika_schema::Bound
+pub nika_schema::RunCertificate::effects: nika_cap::policy::CertEffects
 pub nika_schema::RunCertificate::llm_calls: nika_schema::Bound
 pub nika_schema::RunCertificate::span_attempts: u64
 pub nika_schema::RunCertificate::task_attempts: nika_schema::Bound

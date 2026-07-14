@@ -922,18 +922,32 @@ tasks:
     }
 
     #[test]
-    fn future_clause_policy_rejects_cleanly() {
-        // Workflow-level seed clause · same forward-compat contract.
+    fn shipped_clause_policy_parses_with_the_real_grammar() {
+        // W4 « the authority » shipped the seed clause (spec 10) — the
+        // forward-compat anchor flips to its shipped twin: the REAL
+        // grammar nests rules under families, and a rule floated to the
+        // family level is a closed-set refusal (never a silent no-op).
         let yaml = "\
+policy:
+  require:
+    human_gate_before: [exec]
+tasks:
+  t:
+    exec: { shell: echo hi }
+";
+        let wf = parse_strict(yaml).expect("policy with the real grammar parses");
+        assert!(wf.policy.is_some());
+
+        let floated = "\
 policy:
   human_gate_before: [exec]
 tasks:
   t:
     exec: { shell: echo hi }
 ";
-        let err = parse_strict(yaml).expect_err("policy: is not shipped");
+        let err = parse_strict(floated).expect_err("a rule is not a family");
         assert!(
-            matches!(&err, SchemaError::UnknownField { field, .. } if field == "policy"),
+            err.to_string().contains("human_gate_before") && err.to_string().contains("require"),
             "{err:?}"
         );
     }

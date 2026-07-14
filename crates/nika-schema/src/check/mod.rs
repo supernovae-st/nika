@@ -38,6 +38,7 @@ mod hints;
 pub mod native_first;
 mod permits_fit;
 mod permits_infer;
+mod policy;
 mod reach;
 mod requirements;
 mod schema_lint;
@@ -211,6 +212,10 @@ pub struct CheckReport {
     /// Every statically-detectable effect outside the declared `permits:`
     /// boundary (empty when no `permits:` block is present).
     pub capability_escapes: Vec<CapabilityEscape>,
+    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` —
+    /// judged on the derived graph, so empty when `conformance` has
+    /// entries). Additive: `report_version` stays 1.
+    pub policy_findings: Vec<nika_cap::PolicyViolation>,
     /// Every deep `tasks.X.output.<path>` reference the declared shape
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
@@ -277,6 +282,7 @@ impl CheckReport {
             && self.secret_leaks.is_empty()
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
+            && self.policy_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
             && self.unknown_args.is_empty()
@@ -294,7 +300,9 @@ impl CheckReport {
     /// adds), so a fixture like « `nika:write` without `content` » (caught by
     /// `missing_args`, not by `analyze`) is tested. Mirrors the spec's
     /// namespace allocation: builtin arg-contract violations → `NIKA-BUILTIN`,
-    /// a body outside the declared `permits:` → `NIKA-SEC-004`.
+    /// a body outside the declared `permits:` → `NIKA-SEC-004`, a hard
+    /// `policy:` rule violation → `NIKA-POLICY-001` (spec 10 · the
+    /// `core/policy` fixtures match on it).
     #[must_use]
     pub fn extra_conformance_codes(&self) -> Vec<SpecCode> {
         let builtin = SpecCode::new("BUILTIN", 1, SpecCategory::ValidationError);
@@ -308,6 +316,9 @@ impl CheckReport {
                 SpecCategory::SecurityError,
             )
         }));
+        // Hard policy: violations (spec 10) → NIKA-POLICY-001.
+        let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
+        codes.extend(self.policy_findings.iter().map(|_| policy_code));
         codes.extend(self.unknown_tools.iter().map(|_| builtin));
         codes.extend(self.unknown_args.iter().map(|_| builtin));
         codes.extend(self.missing_args.iter().map(|_| builtin));
@@ -382,6 +393,12 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
     hints.extend(dag_read.conflicts);
+    // policy reads graph ancestors — valid order or no claim (IFC gating)
+    let policy_findings = if conformance.is_empty() {
+        policy::scan_policy(wf, &edges)
+    } else {
+        Vec::new()
+    };
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -392,6 +409,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
+        policy_findings,
         schema_findings: schema_typing::scan_types(wf),
         unknown_tools: tools::scan_unknown_tools(wf),
         unknown_args: tools::scan_unknown_args(wf),
@@ -788,6 +806,7 @@ tasks:
 ",
         );
         let expected = r.capability_escapes.len()
+            + r.policy_findings.len()
             + r.unknown_tools.len()
             + r.unknown_args.len()
             + r.missing_args.len();
