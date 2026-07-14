@@ -1,0 +1,46 @@
+pub mod nika_lints
+#[non_exhaustive] pub struct nika_lints::Lint
+pub nika_lints::Lint::message: alloc::string::String
+pub nika_lints::Lint::rule: &'static str
+pub nika_lints::Lint::span: nika_schema::source::span::Span
+pub nika_lints::Lint::suggestion: alloc::string::String
+pub nika_lints::Lint::task_id: alloc::string::String
+impl nika_lints::Lint
+pub fn nika_lints::Lint::new(rule: &'static str, task_id: alloc::string::String, span: nika_schema::source::span::Span, message: alloc::string::String, suggestion: alloc::string::String) -> Self
+impl core::clone::Clone for nika_lints::Lint
+pub fn nika_lints::Lint::clone(&self) -> nika_lints::Lint
+impl core::cmp::PartialEq for nika_lints::Lint
+pub fn nika_lints::Lint::eq(&self, other: &nika_lints::Lint) -> bool
+impl core::fmt::Debug for nika_lints::Lint
+pub fn nika_lints::Lint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_lints::Lint
+impl<D> owo_colors::OwoColorize for nika_lints::Lint
+impl<T, U> core::convert::Into<U> for nika_lints::Lint where U: core::convert::From<T>
+pub fn nika_lints::Lint::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_lints::Lint where U: core::convert::Into<T>
+pub type nika_lints::Lint::Error = core::convert::Infallible
+pub fn nika_lints::Lint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_lints::Lint where U: core::convert::TryFrom<T>
+pub type nika_lints::Lint::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_lints::Lint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_lints::Lint where T: core::clone::Clone
+pub type nika_lints::Lint::Owned = T
+pub fn nika_lints::Lint::clone_into(&self, target: &mut T)
+pub fn nika_lints::Lint::to_owned(&self) -> T
+impl<T> core::any::Any for nika_lints::Lint where T: 'static + ?core::marker::Sized
+pub fn nika_lints::Lint::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_lints::Lint where T: ?core::marker::Sized
+pub fn nika_lints::Lint::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_lints::Lint where T: ?core::marker::Sized
+pub fn nika_lints::Lint::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_lints::Lint where T: core::clone::Clone
+pub unsafe fn nika_lints::Lint::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_lints::Lint
+pub fn nika_lints::Lint::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_lints::Lint where T: core::clone::Clone
+pub fn nika_lints::Lint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_lints::Lint where T: 'static
+pub fn nika_lints::Lint::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_lints::arg_injection(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_lints::Lint>
+pub fn nika_lints::native_first(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_lints::Lint>
+pub fn nika_lints::one_obvious_way(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_lints::Lint>
