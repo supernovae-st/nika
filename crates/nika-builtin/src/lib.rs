@@ -40,6 +40,7 @@ pub(crate) mod chart;
 pub mod core_tools;
 pub mod data;
 pub mod date;
+pub mod decide;
 pub mod defs;
 pub mod file;
 pub mod image;
@@ -418,19 +419,8 @@ where
             // `..` nor follows symlinked dirs), so its results are confined
             // to the cwd subtree by construction — gate on `.` being readable.
             "glob" => Ok(self.guarded_glob(args).await),
-            // data 8
-            // jq is synchronous CPU (jaq eval) with model-controlled cost —
-            // it runs on the blocking pool so a heavy expression can't
-            // starve the async executor (the nika-ocr/a11y precedent).
-            "jq" => {
-                let owned = args.clone();
-                tokio::task::spawn_blocking(move || data::jq(&owned))
-                    .await
-                    .map_err(|e| ToolExecError::ExecutionFailed {
-                        name: name.to_owned(),
-                        reason: format!("jq evaluation task failed: {e}"),
-                    })
-            }
+            // data 9
+            "jq" => Self::route_jq(name, args).await,
             "json_diff" => Ok(data::json_diff(args)),
             "validate" => Ok(data::validate(args)),
             "json_merge_patch" => Ok(data::json_merge_patch(args)),
@@ -438,6 +428,10 @@ where
             "uuid" => Ok(date::uuid(args)),
             "date" => Ok(date::date(self.clock.as_ref(), args)),
             "hash" => Ok(data::hash(args)),
+            // decide is PURE compute over its two args (spec 11 §nika:decide);
+            // the ONE effectful form — a `bundle:` path — rides the permits.fs
+            // READ boundary like any fs.read, gated inside the builtin.
+            "decide" => Ok(decide::run(self.fs.as_ref(), &self.fs_boundary, args).await),
             // network 2 — fetch's `multipart:` file parts ride the SAME
             // permits.fs READ boundary as the file builtins (gated inside
             // resolve_multipart · before any byte is read).
@@ -471,6 +465,21 @@ where
                 name: name.to_owned(),
             }),
         }
+    }
+
+    /// The `nika:jq` plumbing (kept out of `route`'s match for the
+    /// fn-length budget). jq is synchronous CPU (jaq eval) with
+    /// model-controlled cost — it runs on the blocking pool so a heavy
+    /// expression can't starve the async executor (the nika-ocr/a11y
+    /// precedent).
+    async fn route_jq(name: &str, args: &Args) -> Result<BuiltinOutcome, ToolExecError> {
+        let owned = args.clone();
+        tokio::task::spawn_blocking(move || data::jq(&owned))
+            .await
+            .map_err(|e| ToolExecError::ExecutionFailed {
+                name: name.to_owned(),
+                reason: format!("jq evaluation task failed: {e}"),
+            })
     }
 
     /// The `nika:image_fx` plumbing (kept out of `route`'s match for the
@@ -863,9 +872,10 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 27 (stdlib v0.1 · +compose per
-        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio).
-        assert_eq!(tool_defs().len(), 27);
+        // …and the count is the canonical 28 (stdlib v0.1 · +compose per
+        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
+        // +decide spec 11 W-DEC).
+        assert_eq!(tool_defs().len(), 28);
     }
 
     #[tokio::test]
@@ -925,7 +935,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 27);
+        assert_eq!(defs.len(), 28);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

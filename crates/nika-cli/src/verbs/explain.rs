@@ -203,6 +203,21 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              task with `type: array`, or a literal list), and comparisons \
              need both sides the same type",
         ),
+        "NIKA-DECIDE-001" => Some(
+            "the bundle breaks its own laws — weights/thresholds are INTEGER \
+             basis-points (8735 = 87.35% · never a float), rules read only \
+             evidence_schema keys, identity keys never feed technical \
+             dimensions, transforms are total on min..max, and the fixtures \
+             must include a `contradictory` case and respect every declared \
+             monotonicity (the reference evaluator refuses identically)",
+        ),
+        "NIKA-DECIDE-002" => Some(
+            "the snapshot must satisfy the bundle's evidence_schema — every \
+             item's key declared, its value fitting the declared spec-09 \
+             type, its source in the authorized list, its integrity at or \
+             above the declared floor; a MISSING required key is not an \
+             error (the evaluation defers — abstention is a safety property)",
+        ),
         _ => None,
     }
 }

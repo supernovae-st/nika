@@ -232,7 +232,7 @@ read_config:
         path: "./config.yaml"
 ```
 
-See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->27<!-- /canon --> builtins in v0.1).
+See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->28<!-- /canon --> builtins in v0.1).
 
 > **Grouped paths are grammar-legal · v0.1 ships none.** The reference
 > grammar admits `nika:<group>/<tool>` (the `nika:connectome/recall`

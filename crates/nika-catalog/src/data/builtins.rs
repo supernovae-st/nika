@@ -15,15 +15,16 @@
 //! `nika:json_merge_patch` stays for RFC-7396 null-delete which `jq *` cannot
 //! express) + `nika:compose` (ADR-096) + `nika:image_generate` (stdlib
 //! §Media · the first deferred-media graduate) + `nika:tts_generate`
-//! (stdlib §Audio · sovereign-first).
+//! (stdlib §Audio · sovereign-first) + `nika:decide` (spec 11 W-DEC · the
+//! deterministic decision kernel).
 //!
-//! 6 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 · Media 3 = 26.
+//! 6 categories · Core 6 · File 5 · Data 9 · Network 2 · Introspection 2 · Media 4 = 28.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 
-/// All 27 builtin tools, **sorted alphabetically by name**.
+/// All 28 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
@@ -62,6 +63,17 @@ pub static ALL_BUILTINS: &[Builtin] = &[
             "op", "tz", "base", "duration", "input", "format", "start", "end", "unit",
         ],
         &["op"],
+    ),
+    // `decide` (spec 11 · the deterministic decision kernel — evaluates a
+    // portable Decision Bundle against an EvidenceSnapshot · full receipt
+    // out · byte-equal with the stdlib-Python reference evaluator ·
+    // NIKA-DECIDE-001/002 · pure compute; a `bundle:` PATH reads like any
+    // fs.read).
+    Builtin::with_required(
+        "decide",
+        Data,
+        &["bundle", "evidence"],
+        &["bundle", "evidence"],
     ),
     // `done` (the agent-loop completion sentinel · loop-only · no required
     // args · the builtin_shape ladder rejects it as a standalone invoke).
@@ -234,7 +246,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 27);
+        assert_eq!(ALL_BUILTINS.len(), 28);
     }
 
     #[test]
@@ -328,7 +340,10 @@ mod tests {
             "expected 6 core builtins (post-ADR-087 wait merge)"
         );
         assert_eq!(file, 5, "expected 5 file builtins");
-        assert_eq!(data, 8, "expected 8 data builtins");
+        assert_eq!(
+            data, 9,
+            "expected 9 data builtins (decide joins per spec 11 W-DEC)"
+        );
         assert_eq!(network, 2, "expected 2 network builtins");
         assert_eq!(
             intro, 2,
@@ -340,8 +355,8 @@ mod tests {
         );
         assert_eq!(
             core + file + data + network + intro + media,
-            27,
-            "total must equal 27"
+            28,
+            "total must equal 28"
         );
     }
 

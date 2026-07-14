@@ -293,6 +293,15 @@ fn data_defs() -> Vec<ToolDef> {
             }),
             &["content"],
         ),
+        def(
+            "decide",
+            "Deterministic decision kernel (spec 11) · evaluates a portable Decision Bundle against an EvidenceSnapshot · returns the full receipt (outcome · term-by-term contributions · intervals · conflicts+witnesses · determination provenance). The LLM never decides — collect facts first, then apply the rubric here.",
+            serde_json::json!({
+                "bundle": { "description": "the Decision Bundle · a ./path.bundle.json string (a permits.fs read) or the inline bundle object" },
+                "evidence": { "type": "object", "description": "the EvidenceSnapshot { t, evidence: [{key, value, source, integrity, digest, ...}] }" }
+            }),
+            &["bundle", "evidence"],
+        ),
     ]
 }
 
@@ -491,10 +500,10 @@ mod tests {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            27,
-            "stdlib ships exactly 27 (22 Rams-swept + nika:compose ADR-096 + \
+            28,
+            "stdlib ships exactly 28 (22 Rams-swept + nika:compose ADR-096 + \
              nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + \
-             nika:image_fx stdlib §Media)"
+             nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();

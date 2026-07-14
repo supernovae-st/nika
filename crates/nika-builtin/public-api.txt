@@ -2,6 +2,54 @@ pub mod nika_builtin
 pub mod nika_builtin::core_tools
 pub mod nika_builtin::data
 pub mod nika_builtin::date
+pub mod nika_builtin::decide
+#[non_exhaustive] pub enum nika_builtin::decide::DecideError
+pub nika_builtin::decide::DecideError::Bundle(alloc::string::String)
+pub nika_builtin::decide::DecideError::Snapshot(alloc::string::String)
+impl core::clone::Clone for nika_builtin::decide::DecideError
+pub fn nika_builtin::decide::DecideError::clone(&self) -> nika_builtin::decide::DecideError
+impl core::cmp::Eq for nika_builtin::decide::DecideError
+impl core::cmp::PartialEq for nika_builtin::decide::DecideError
+pub fn nika_builtin::decide::DecideError::eq(&self, other: &nika_builtin::decide::DecideError) -> bool
+impl core::convert::From<nika_builtin::decide::DecideError> for nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::from(e: nika_builtin::decide::DecideError) -> Self
+impl core::fmt::Debug for nika_builtin::decide::DecideError
+pub fn nika_builtin::decide::DecideError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_builtin::decide::DecideError
+impl<D> owo_colors::OwoColorize for nika_builtin::decide::DecideError
+impl<Q, K> equivalent::Equivalent<K> for nika_builtin::decide::DecideError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::decide::DecideError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_builtin::decide::DecideError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::decide::DecideError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_builtin::decide::DecideError where U: core::convert::From<T>
+pub fn nika_builtin::decide::DecideError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::decide::DecideError where U: core::convert::Into<T>
+pub type nika_builtin::decide::DecideError::Error = core::convert::Infallible
+pub fn nika_builtin::decide::DecideError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::decide::DecideError where U: core::convert::TryFrom<T>
+pub type nika_builtin::decide::DecideError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::decide::DecideError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::decide::DecideError where T: core::clone::Clone
+pub type nika_builtin::decide::DecideError::Owned = T
+pub fn nika_builtin::decide::DecideError::clone_into(&self, target: &mut T)
+pub fn nika_builtin::decide::DecideError::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::decide::DecideError where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::decide::DecideError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::decide::DecideError where T: ?core::marker::Sized
+pub fn nika_builtin::decide::DecideError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::decide::DecideError where T: ?core::marker::Sized
+pub fn nika_builtin::decide::DecideError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::decide::DecideError where T: core::clone::Clone
+pub unsafe fn nika_builtin::decide::DecideError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::decide::DecideError
+pub fn nika_builtin::decide::DecideError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::decide::DecideError where T: core::clone::Clone
+pub fn nika_builtin::decide::DecideError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::decide::DecideError where T: 'static
+pub fn nika_builtin::decide::DecideError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::decide::DecideError
+pub type nika_builtin::decide::DecideError::Output = T
+pub fn nika_builtin::decide::evaluate(bundle: &serde_json::value::Value, snapshot: &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, nika_builtin::decide::DecideError>
 pub mod nika_builtin::defs
 pub const nika_builtin::defs::TOOLS_EXPORT_VERSION: u32
 pub fn nika_builtin::defs::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
@@ -183,6 +231,8 @@ pub fn nika_builtin::BuiltinFailure::clone(&self) -> nika_builtin::BuiltinFailur
 impl core::cmp::Eq for nika_builtin::BuiltinFailure
 impl core::cmp::PartialEq for nika_builtin::BuiltinFailure
 pub fn nika_builtin::BuiltinFailure::eq(&self, other: &nika_builtin::BuiltinFailure) -> bool
+impl core::convert::From<nika_builtin::decide::DecideError> for nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::from(e: nika_builtin::decide::DecideError) -> Self
 impl core::fmt::Debug for nika_builtin::BuiltinFailure
 pub fn nika_builtin::BuiltinFailure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_builtin::BuiltinFailure

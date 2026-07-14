@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->27<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->28<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -41,9 +41,9 @@
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
 | Media | 4 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **<!-- canon:builtins -->27<!-- /canon -->** | |
+| **Total v0.1** | **<!-- canon:builtins -->28<!-- /canon -->** | |
 
-A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->27<!-- /canon -->.
+A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->28<!-- /canon -->.
 
 ---
 
@@ -249,6 +249,16 @@ Reference implementation · `serde_transcode` 1.1+ orchestrator (zero-allocation
 invoke: { tool: "nika:uuid", args: { version: v7 } }   # v7 default (timestamped/sortable · RFC 9562) | v4 (random)
 ```
 Generate a UUID. (Generators are not jq · jq is pure transform.) Returns the canonical lowercase-hyphenated string. No failure codes.
+
+### `nika:decide`
+```yaml
+invoke:
+  tool: "nika:decide"
+  args:
+    bundle: "./decisions/pr-triage.bundle.json"   # path OR inline bundle object
+    evidence: "${{ tasks.collect.output }}"       # the EvidenceSnapshot { t, evidence: [...] }
+```
+The deterministic decision kernel (spec [11-decision.md](../spec/11-decision.md)) · evaluates a portable **Decision Bundle** against an **EvidenceSnapshot** and returns the full Decision Receipt (outcome ∈ {recommend · defer · human_required · opted_out · overridden} · per-dimension term-by-term contributions · intervals · conflicts+witnesses · determination provenance). PURE compute — zero required effects (a `bundle:` path reads like any declared `fs.read`; an inline object needs no filesystem) · zero floats (fixed-point basis-points) · same inputs, same bytes, both evaluators (the stdlib-Python reference interpreter is the conformance oracle — byte-equal canonical JSON). **The LLM never decides**: `infer:` produces closed cited facts; this kernel applies the rubric. Throws · `NIKA-DECIDE-001` (the bundle violates its own laws) · `NIKA-DECIDE-002` (the snapshot does not satisfy the evidence schema) · both `validation_error`, deterministic.
 
 ### `nika:date`
 ```yaml
@@ -738,4 +748,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->27<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->28<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
