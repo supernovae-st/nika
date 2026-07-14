@@ -360,7 +360,7 @@ struct FlowEdge {
 }
 
 /// `nika trace flow <trace> <workflow>` — the data waterfall: edges
-/// from the checked definition's bindings (`depends_on` + `${{ tasks.X
+/// from the checked definition's bindings (`after:` + `${{ tasks.X
 /// }}` references · the SAME over-collecting scan `--resume --from`
 /// walks) × output sizes from the trace, plus the `outputs.<name>`
 /// terminal edges. The time-waterfall shows WHEN; this shows WHY.
@@ -817,7 +817,7 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: geo-audit\nmodel: mock/echo\ntasks:\n  read_payload:\n    invoke: { tool: \"nika:read\", args: { path: \"x.json\" } }\n  audit:\n    depends_on: [read_payload]\n    infer: { prompt: \"score ${{ tasks.read_payload.output }}\" }\noutputs:\n  geo_score: ${{ tasks.audit.output }}\n",
+            "nika: v1\nworkflow:\n  id: geo-audit\nmodel: mock/echo\ntasks:\n  read_payload:\n    invoke: { tool: \"nika:read\", args: { path: \"x.json\" } }\n  audit:\n    with:\n      payload: ${{ tasks.read_payload.output }}\n    infer: { prompt: \"score ${{ with.payload }}\" }\noutputs:\n  geo_score: ${{ tasks.audit.output }}\n",
         )
         .expect("workflow staged");
         path

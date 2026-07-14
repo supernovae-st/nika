@@ -44,13 +44,14 @@ tasks:
             items: { type: string }
 
   investigate:
-    depends_on: [plan]
+    with:
+      plan_queries: ${{ tasks.plan.output.queries }}
     agent:
       system: |
         You are a rigorous researcher. Work the queries one by one ·
         fetch sources · keep verbatim quotes · note what each source
         actually supports. Call nika:done when the plan is exhausted.
-      prompt: "Research plan · ${{ tasks.plan.output.queries }}"
+      prompt: "Research plan · ${{ with.plan_queries }}"
       tools:
         - "nika:fetch"                 # the web
         - "nika:write"                 # scratch notes
@@ -69,11 +70,13 @@ tasks:
             items: { type: string }
 
   brief:
-    depends_on: [investigate]
+    with:
+      investigate_findings: ${{ tasks.investigate.output.findings }}
+      investigate_sources: ${{ tasks.investigate.output.sources }}
     infer:
       prompt: |
-        Findings · ${{ tasks.investigate.output.findings }}
-        Sources · ${{ tasks.investigate.output.sources }}
+        Findings · ${{ with.investigate_findings }}
+        Sources · ${{ with.investigate_sources }}
         Write the executive brief · what's true · what's contested ·
         what it means · what to do. Two pages max.
       thinking:
@@ -81,12 +84,13 @@ tasks:
         budget_tokens: 8000
 
   save:
-    depends_on: [brief]
+    with:
+      brief: ${{ tasks.brief.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./research/${{ vars.topic }}.md"
-        content: "${{ tasks.brief.output }}"
+        content: "${{ with.brief }}"
         create_dirs: true
 
 outputs:

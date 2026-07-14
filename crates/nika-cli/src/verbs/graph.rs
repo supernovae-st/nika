@@ -3,7 +3,7 @@
 
 //! The ONE graph projector (spec 03 §graph-projection) — `--json` is the canonical
 //! projection; mermaid/dot/ASCII derive from it, never from the workflow
-//! directly. Versioned envelope (`graph_format: 1`) · nodes topologically
+//! directly. Versioned envelope (`graph_format: 2` · typed edges) · nodes topologically
 //! sorted (stable order = stable layouts) · `edges.kind` closed enum ·
 //! the static graph NEVER carries run state.
 
@@ -277,7 +277,7 @@ mod tests {
     /// (`skip_serializing` — no fake defaults).
     #[test]
     fn declared_policy_projects_and_undeclared_stays_absent() {
-        let yaml = "nika: v1\nworkflow:\n  id: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    depends_on: [guarded]\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: succeeded\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

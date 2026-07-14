@@ -17,11 +17,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 /// lesson the vscode client learned in its #101, now applied
 /// server-side).
 pub(super) fn downstream_ids<'a>(wf: &'a RawWorkflow, id: &str) -> Vec<&'a str> {
-    let mut children: BTreeMap<&str, Vec<&'a str>> = BTreeMap::new();
+    let mut children: BTreeMap<String, Vec<&'a str>> = BTreeMap::new();
     for t in &wf.tasks {
         let child = t.value.id.value.as_str();
-        for d in &t.value.depends_on {
-            children.entry(d.value.as_str()).or_default().push(child);
+        for producer in nika_schema::analyzer::edges::producer_ids(&t.value) {
+            children.entry(producer).or_default().push(child);
         }
     }
     let mut seen: BTreeSet<&'a str> = BTreeSet::new();
@@ -58,8 +58,10 @@ mod tests {
     use super::*;
     use nika_schema::{FileId, ParseMode, parse};
 
-    // the diamond: a → {b, c} → d
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
+    // the diamond: a → {b, c} → d (control edges via `after:` — the
+    // W2 boundary; `producer_ids` reads the same derived edge set for
+    // `with:` refs too)
+    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: succeeded, c: succeeded }\n    exec: { command: [\"x\"] }\n";
 
     #[test]
     fn downstream_of_the_root_is_everything_else() {

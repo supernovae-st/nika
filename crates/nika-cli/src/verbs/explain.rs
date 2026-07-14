@@ -5,9 +5,11 @@
 //!
 //! Two registries, ONE voice: the numeric crate registry
 //! (`nika-error::codes` · `NIKA-440`) AND the spec's conformance codes
-//! (`NIKA-DAG-003` · the canon's `error_codes` table) — every code the
-//! checker can emit gets an answer here. Never invents: a code in
-//! neither registry is a finding (`exit 2`), not a guess.
+//! (`NIKA-DAG-002` · the canon's `error_codes` table) — every code the
+//! checker can emit gets an answer here. Retired codes (`NIKA-DAG-003` ·
+//! `NIKA-PARSE-016`) teach their retirement and point at the successor.
+//! Never invents: a code in no registry is a finding (`exit 2`), not a
+//! guess.
 
 use nika_error::codes::{code_help, lookup};
 
@@ -20,8 +22,8 @@ use crate::verbs::VerbOutput;
 const DOCS_ERRORS_URL: &str = "https://docs.nika.sh/errors";
 const DOCS_ERRORS_TEXT: &str = "docs.nika.sh/errors";
 
-/// The `nika explain <code>` verb. Accepts `NIKA-440`, `NIKA-DAG-003`,
-/// or the bare forms (`440` · `DAG-003`). The theme comes from the global
+/// The `nika explain <code>` verb. Accepts `NIKA-440`, `NIKA-DAG-002`,
+/// or the bare forms (`440` · `DAG-002`). The theme comes from the global
 /// `--color`/`--hyperlink` chain: on a TTY the doc-site reference rides an
 /// OSC-8 hyperlink; a piped explain keeps its exact bytes.
 #[must_use]
@@ -36,9 +38,15 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
     };
     let Some(code) = lookup(&normalized) else {
         // Not a numeric registry code — the spec conformance codes
-        // (NIKA-DAG-003 …) live in the embedded canon's error_codes
+        // (NIKA-DAG-002 …) live in the embedded canon's error_codes
         // table. Same binary, same single source of truth.
         if let Some(text) = canon_row(&normalized) {
+            return VerbOutput::ok(text);
+        }
+        // Retired conformance codes are ANSWERED, not 404'd: the hole in
+        // the registry is deliberate (spec 05 · never reuse) and the
+        // teaching survives — what the class became, and where it went.
+        if let Some(text) = retired_row(&normalized) {
             return VerbOutput::ok(text);
         }
         // Runtime namespaces (per-builtin `NIKA-BUILTIN-<NAME>-<NNN>` ·
@@ -89,6 +97,32 @@ fn canon_row(code: &str) -> Option<String> {
     ))
 }
 
+/// The retirement teaching for a conformance code the canon table no
+/// longer carries (spec 05 · retired codes are never reused — the
+/// allocation hole is deliberate). States what the class BECAME so an
+/// old trace, doc or memory that names the code still gets an answer.
+fn retired_row(code: &str) -> Option<String> {
+    let teaching = match code {
+        "NIKA-DAG-003" => {
+            "« a `tasks.X` reference with no declared edge » became \
+             INEXPRESSIBLE in W2 « the flow »: the `with:` binding IS the \
+             edge (derived, never restated), and a reference outside the \
+             boundary is NIKA-VAR-021 (hoist it into `with:` — \
+             `nika check --fix` applies it)"
+        }
+        "NIKA-PARSE-016" => {
+            "the jq-binding-contains-template class folded into \
+             NIKA-VAR-005 at the deep-conformance registry remap"
+        }
+        _ => return None,
+    };
+    Some(format!(
+        "{code} · retired — never reused\n\n  {teaching}\n\n\
+         full docs: https://nika.sh/errors/{code} — retired codes keep \
+         their page; the successor code carries the live teaching.\n"
+    ))
+}
+
 /// The ENGINE-side actionable fix for a spec code, when this binary
 /// ships one (the canon row states the FAILURE — the SSOT never carries
 /// per-CLI affordances, so the flag lives here with the flag itself).
@@ -105,18 +139,43 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         // WHAT, this states the edit; the canon row never carries
         // per-CLI affordances, so the fix-form lives here).
         "NIKA-DAG-001" => Some(
-            "break the loop — one task in the cycle must drop its \
-             `depends_on` on the other (a task can never wait on itself, \
-             directly or through a chain)",
+            "break the loop — one task in the cycle must drop the `with:` \
+             binding or `after:` entry that closes it (a task can never \
+             wait on itself, directly or through a chain)",
         ),
         "NIKA-DAG-002" => Some(
-            "the `depends_on:` entry names a task that does not exist — \
-             match it to a declared task `id:` (check for a typo first)",
+            "the `with:` binding or `after:` entry names a task that does \
+             not exist — match it to a declared task key (check for a \
+             typo first)",
         ),
-        "NIKA-DAG-003" => Some(
-            "declare the edge the reference implies — add `depends_on: \
-             [<that task>]` to the task whose template reads \
-             `tasks.<that task>.output`",
+        "NIKA-PARSE-024" => Some(
+            "`depends_on` is dead since W2 — a data read becomes a `with:` \
+             binding (the binding IS the edge · the body reads \
+             `${{ with.<name> }}`), a pure ordering becomes `after: \
+             {<task>: succeeded}` (or `terminal` for the always-pattern); \
+             `nika check --fix` migrates the provable cases",
+        ),
+        "NIKA-DAG-005" => Some(
+            "the `after:` predicate set is closed — pick one of \
+             `succeeded` · `failed` · `skipped` · `terminal`",
+        ),
+        "NIKA-DAG-006" => Some(
+            "the task is statically dead — an incoming edge's pass-set \
+             excludes every state its producer can reach (e.g. `after: \
+             {x: skipped}` on a task that can never skip), or the `when:` \
+             gate is false under every reachable upstream combination; \
+             loosen the predicate, give the producer the missing route, \
+             or delete the dead task",
+        ),
+        "NIKA-DAG-007" => Some(
+            "the status vocabulary is closed — compare against `success` · \
+             `failure` · `skipped` · `cancelled` (the finding's \
+             did-you-mean names the nearest one)",
+        ),
+        "NIKA-VAR-021" => Some(
+            "hoist the reference into `with:` — the binding declares the \
+             edge, the body reads `${{ with.<name> }}` (`nika check --fix` \
+             applies it)",
         ),
         "NIKA-PARSE-002" => Some(
             "every workflow starts with three lines — `nika: v1`, \
@@ -169,25 +228,62 @@ mod tests {
     #[test]
     fn spec_conformance_codes_answer_from_the_canon() {
         // ONE voice: every code `nika check` emits is explainable.
-        let out = run("NIKA-DAG-003");
+        let out = run("NIKA-VAR-021");
         assert_eq!(
             out.code,
             exit::OK,
             "spec codes must teach, not 404:\n{}",
             out.text
         );
-        assert!(out.text.contains("NIKA-DAG-003"));
+        assert!(out.text.contains("NIKA-VAR-021"));
         assert!(out.text.contains("validation_error"));
         assert!(
-            out.text.contains("https://nika.sh/errors/NIKA-DAG-003"),
+            out.text.contains("https://nika.sh/errors/NIKA-VAR-021"),
             "the footer links the code's own page:\n{}",
             out.text
         );
         assert!(
-            out.text.contains("depends_on"),
+            out.text.contains("hoist the reference into `with:`"),
             "the fix-form states the concrete YAML edit (#145 P1):\n{}",
             out.text
         );
+    }
+
+    #[test]
+    fn retired_codes_teach_the_retirement_not_a_404() {
+        // NIKA-DAG-003 died in W2 « the flow » (the binding IS the edge);
+        // NIKA-PARSE-016 folded into NIKA-VAR-005. Old traces and docs
+        // still name them — the answer is the retirement, never a guess.
+        let out = run("NIKA-DAG-003");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("retired"), "{}", out.text);
+        assert!(
+            out.text.contains("NIKA-VAR-021"),
+            "points at the successor class:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("the `with:` binding IS the edge"),
+            "teaches the W2 law that made it inexpressible:\n{}",
+            out.text
+        );
+        let folded = run("NIKA-PARSE-016");
+        assert_eq!(folded.code, exit::OK, "{}", folded.text);
+        assert!(folded.text.contains("retired"), "{}", folded.text);
+        assert!(folded.text.contains("NIKA-VAR-005"), "{}", folded.text);
+    }
+
+    #[test]
+    fn parse_024_names_both_w2_doors_and_the_codemod() {
+        // The dead-form code is the highest-traffic migration surface:
+        // its fix-form must name the two doors (`with:` data · `after:`
+        // control) and the machine path (`nika check --fix`).
+        let out = run("NIKA-PARSE-024");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("depends_on"), "{}", out.text);
+        assert!(out.text.contains("`with:`"), "{}", out.text);
+        assert!(out.text.contains("after:"), "{}", out.text);
+        assert!(out.text.contains("nika check --fix"), "{}", out.text);
     }
 
     #[test]
@@ -206,9 +302,9 @@ mod tests {
 
     #[test]
     fn bare_prefixed_form_normalizes() {
-        let out = run("DAG-003");
+        let out = run("DAG-005");
         assert_eq!(out.code, exit::OK);
-        assert!(out.text.contains("NIKA-DAG-003"));
+        assert!(out.text.contains("NIKA-DAG-005"));
     }
 
     #[test]

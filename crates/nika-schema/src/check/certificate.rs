@@ -179,7 +179,7 @@ fn check_row(t: &crate::raw::RawTask, row: &TaskContribution) -> Result<(), Stri
     if row.task != id {
         return Err(format!("row names `{}` but the task is `{id}`", row.task));
     }
-    let deps: Vec<String> = t.depends_on.iter().map(|d| d.value.clone()).collect();
+    let deps: Vec<String> = crate::analyzer::edges::producer_ids(t);
     if row.deps != deps {
         return Err(format!("`{id}`: dependency list mismatch"));
     }
@@ -399,7 +399,7 @@ fn contribution(t: &crate::raw::RawTask, default_model: Option<&str>) -> TaskCon
     }
     TaskContribution {
         task: t.id.value.clone(),
-        deps: t.depends_on.iter().map(|d| d.value.clone()).collect(),
+        deps: crate::analyzer::edges::producer_ids(t),
         attempts,
         fanout,
         main_llm,
@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn plain_pipeline_has_exact_constant_bounds() {
         let c = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
         ));
         assert_eq!(c.task_attempts, konst(2));
         assert_eq!(c.llm_calls, konst(0));
@@ -592,7 +592,7 @@ mod tests {
     #[test]
     fn expression_for_each_yields_a_parametric_term() {
         let c = cert(&wf(
-            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
         ));
         // src: 1 attempt · fan: 2·|fan| body runs
         assert_eq!(c.task_attempts.constant, 1);
@@ -641,7 +641,7 @@ mod tests {
     fn spend_axis_is_parametric_where_cost_says_unknown_iterations() {
         // the deepening: for_each-expression spend = a degree-1 term
         let c = cert(&wf(
-            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
         ));
         let usd = c.usd_micros.expect("priced");
         assert_eq!(usd.constant, 0);
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn audit_accepts_honest_and_rejects_tampered_certificates() {
         let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    depends_on: [a]\n    for_each: ${{ tasks.a.output.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    with: { items: \"${{ tasks.a.output.items }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -714,14 +714,14 @@ mod tests {
     fn span_is_the_longest_dependency_chain_in_attempts() {
         // chain a→b→c with retries: span = 1 + 3 + 2 = 6 = work
         let chain = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [b]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    after: { b: succeeded }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(chain.span_attempts, 6);
         assert_eq!(chain.task_attempts, konst(6), "a pure chain: span == work");
 
         // diamond a→{b,c}→d: span = longest branch (1+3+1), work = sum
         let diamond = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: succeeded, c: succeeded }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(diamond.span_attempts, 5, "longest branch: 1+3+1");
         assert_eq!(diamond.task_attempts, konst(6), "work: 1+3+1+1");
@@ -732,7 +732,7 @@ mod tests {
         // a for_each over 4 elements: work ×4, span unchanged (the
         // elements run in parallel — Brent: parallelism = work/span)
         let c = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    depends_on: [a]\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: succeeded }\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(c.task_attempts, konst(5), "work: 1 + 4");
         assert_eq!(c.span_attempts, 2, "span: 1 + 1 (elements parallel)");
@@ -741,7 +741,7 @@ mod tests {
     #[test]
     fn audit_catches_span_and_dep_tampering() {
         let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -993,7 +993,7 @@ mod tests {
     fn span_traverses_deps_declared_after_their_dependents() {
         // c → b → a, written c first: forces the push branch to matter
         let c = cert(&wf(
-            "  c:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n",
+            "  c:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n",
         ));
         // chain of 3 single-attempt tasks → span = 1+1+1 = 3
         assert_eq!(
@@ -1013,7 +1013,7 @@ mod tests {
         // a depends on b, b depends on a — a cycle (conformance rejects it
         // elsewhere; span must still TERMINATE with a finite value)
         let c = cert(&wf(
-            "  a:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
         ));
         // with the cut, each node's chain stops at the visiting mark:
         // span = 1 + 1 = 2 (one hop before the back-edge is cut). The key

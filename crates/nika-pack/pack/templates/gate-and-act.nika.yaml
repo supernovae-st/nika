@@ -3,8 +3,8 @@
 #
 # TEMPLATE · gate-and-act · check a condition, act only when it holds.
 #
-#   [check]────when(cond)────▶[act]
-#   nika:fetch                 nika:notify
+#   [check]────with · when(cond)────▶[act]
+#   nika:fetch                        nika:notify
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow:
@@ -39,15 +39,16 @@ tasks:
       recover: { value: 42 }
 
   act:
-    depends_on: [check]
+    with:
+      value: ${{ tasks.check.value }}   # the binding IS the edge · check → act
     # when: is a SKIP gate — routing, not failure (a skipped task is not an error)
-    when: ${{ tasks.check.value > vars.threshold }}   # SLOT: the CEL condition
+    when: ${{ with.value > vars.threshold }}   # SLOT: the CEL condition
     invoke:
       tool: "nika:notify"           # SLOT: the action · notify / write / exec
       args:
         channel: webhook
         target: "${{ secrets.webhook }}"
-        message: "Threshold crossed · ${{ tasks.check.value }}"   # SLOT
+        message: "Threshold crossed · ${{ with.value }}"   # SLOT
         severity: warning
 
 outputs:

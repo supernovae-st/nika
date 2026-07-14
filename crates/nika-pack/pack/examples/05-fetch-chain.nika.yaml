@@ -46,9 +46,11 @@ tasks:
           body: "The archived copy — good enough for a summary when the live API is down."
 
   summarize:
-    depends_on: [fetch_article]
+    with:
+      fetch_article_title: ${{ tasks.fetch_article.title }}
+      fetch_article_body: ${{ tasks.fetch_article.body }}
     infer:
       prompt: |
         Summarize this article in 3 bullets.
-        Title · ${{ tasks.fetch_article.title }}
-        Body · ${{ tasks.fetch_article.body }}
+        Title · ${{ with.fetch_article_title }}
+        Body · ${{ with.fetch_article_body }}

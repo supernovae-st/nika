@@ -88,9 +88,22 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
     );
     for (i, spec) in specs.iter().enumerate() {
         let _ = writeln!(y, "  t{i}:");
+        // W2 doors: a Normal consumer BINDS its inputs (the binding IS the
+        // edge); every other kind orders on state via `after:`.
         if !spec.deps.is_empty() {
-            let deps: Vec<String> = spec.deps.iter().map(|d| format!("t{d}")).collect();
-            let _ = writeln!(y, "    depends_on: [{}]", deps.join(", "));
+            if matches!(spec.kind, Kind::Normal) {
+                let _ = writeln!(y, "    with:");
+                for d in &spec.deps {
+                    let _ = writeln!(y, "      b{d}: \"${{{{ tasks.t{d}.output }}}}\"");
+                }
+            } else {
+                let entries: Vec<String> = spec
+                    .deps
+                    .iter()
+                    .map(|d| format!("t{d}: succeeded"))
+                    .collect();
+                let _ = writeln!(y, "    after: {{ {} }}", entries.join(", "));
+            }
         }
         match spec.kind {
             Kind::Gated => {
@@ -104,7 +117,7 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
             Kind::Normal => {
                 let mut refs = String::new();
                 for d in &spec.deps {
-                    let _ = write!(refs, " ${{{{ tasks.t{d}.output }}}}");
+                    let _ = write!(refs, " ${{{{ with.b{d} }}}}");
                 }
                 let _ = writeln!(y, "    infer: {{ prompt: \"t{i}{refs}\" }}");
             }
@@ -233,40 +246,47 @@ proptest! {
             prop_assert_eq!(terminals, 1, "task {} settles exactly once:\n{}", id, yaml);
         }
 
-        // ── 4 · cascade soundness (Dead-Path-Elimination · transitive):
-        // a DEFAULT-gate task over any dep in {failure, cancelled} is
-        // cancelled · a Gated task is always skipped (publish=no · the
-        // explicit gate replaces the default · evaluated even over dead
-        // deps) · a Fails task with live deps is failure.
+        // ── 4 · cascade soundness (GATE-v2 · spec 03 §gate algebra):
+        // per-edge pass-sets judge admission — a Normal consumer's value
+        // edges pass {success, skipped}; every other kind's `after:
+        // succeeded` edges pass {success} only. Any producer outside a
+        // pass-set cancels the consumer (dead-path elimination,
+        // transitive). Admitted: Gated skips (publish=no · POST-gate) ·
+        // Fails fails (for_each over a scalar) · Normal/Agent succeed.
         for (i, spec) in specs.iter().enumerate() {
             let id = format!("t{i}");
             let status = outcome_a.records[&id].status;
-            let dead_dep = spec.deps.iter().any(|d| {
-                matches!(
-                    outcome_a.records[&format!("t{d}")].status,
-                    TaskStatus::Failure | TaskStatus::Cancelled
-                )
+            let admitted = spec.deps.iter().all(|d| {
+                let dep = outcome_a.records[&format!("t{d}")].status;
+                if matches!(spec.kind, Kind::Normal) {
+                    matches!(dep, TaskStatus::Success | TaskStatus::Skipped)
+                } else {
+                    matches!(dep, TaskStatus::Success)
+                }
             });
+            if !admitted {
+                prop_assert_eq!(
+                    status, TaskStatus::Cancelled,
+                    "t{}'s gate did not admit — cancelled (dead path):\n{}", i, yaml
+                );
+                continue;
+            }
             match spec.kind {
                 Kind::Gated => prop_assert_eq!(
                     status, TaskStatus::Skipped,
-                    "gated t{} is skipped whatever its deps:\n{}", i, yaml
-                ),
-                Kind::Normal | Kind::Fails | Kind::Agent if dead_dep => prop_assert_eq!(
-                    status, TaskStatus::Cancelled,
-                    "default-gate t{} over a dead dep is cancelled:\n{}", i, yaml
+                    "admitted gated t{} skips (when is POST-gate):\n{}", i, yaml
                 ),
                 Kind::Fails => prop_assert_eq!(
                     status, TaskStatus::Failure,
-                    "live fails-task t{} is failure:\n{}", i, yaml
+                    "admitted fails-task t{} is failure:\n{}", i, yaml
                 ),
                 Kind::Normal => prop_assert_eq!(
                     status, TaskStatus::Success,
-                    "live normal t{} succeeds:\n{}", i, yaml
+                    "admitted normal t{} succeeds:\n{}", i, yaml
                 ),
                 Kind::Agent => prop_assert_eq!(
                     status, TaskStatus::Success,
-                    "live agent t{} succeeds (one echo turn):\n{}", i, yaml
+                    "admitted agent t{} succeeds (one echo turn):\n{}", i, yaml
                 ),
             }
         }

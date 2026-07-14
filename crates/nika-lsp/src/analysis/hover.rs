@@ -19,7 +19,7 @@ use super::position::LineIndex;
 use super::vocab::{self, Entry};
 
 /// Compute hover for the token under `offset` — a language-vocabulary token
-/// (verb / envelope / task-field key) OR a task REFERENCE (`depends_on:` item
+/// (verb / envelope / task-field key) OR a task REFERENCE (an `after:` target
 /// or `${{ tasks.X }}`) showing the target task's verb.
 #[must_use]
 pub fn hover(text: &str, offset: usize) -> Option<Hover> {
@@ -107,7 +107,7 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
 
 /// Hover on a task DECLARATION (the `X:` map key) — the task's place in the
 /// DAG, from the SAME wave computation the engine schedules with
-/// (`nika_schema::analyze` · Kahn levels over the EXPLICIT `depends_on`
+/// (`nika_schema::analyze` · Kahn levels over the DERIVED `with:`/`after:`
 /// edges — one math, one voice). Cyclic or unresolved graphs stay
 /// silent here: the diagnostics lane already carries that story.
 fn task_decl_hover(text: &str, offset: usize) -> Option<Hover> {
@@ -154,15 +154,33 @@ fn dag_card(wf: &nika_schema::raw::RawWorkflow, id: &str) -> Option<String> {
         wave + 1,
         waves.len()
     );
-    let waits: Vec<&str> = task.depends_on.iter().map(|d| d.value.as_str()).collect();
+    // incoming edges with their ROLES (spec 03 §with/§after · the two doors)
+    let incoming = nika_schema::analyzer::edges::incoming_of(task);
+    let waits: Vec<String> = {
+        let mut seen = std::collections::BTreeSet::new();
+        incoming
+            .iter()
+            .filter(|(p, _)| seen.insert(p.clone()))
+            .map(|(p, kind)| match kind {
+                nika_schema::analyzer::EdgeKind::Control(pred) => {
+                    format!("`{p}` (control · {pred})")
+                }
+                other => format!("`{p}` ({})", other.wire_kind()),
+            })
+            .collect()
+    };
     if !waits.is_empty() {
-        let _ = write!(body, "\n\nwaits on: {}", code_list(&waits));
+        let _ = write!(body, "\n\nwaits on: {}", waits.join(", "));
     }
-    // reverse edges + transitive closure over the SAME explicit edge set
+    // reverse edges + transitive closure over the SAME derived edge set
     let feeds: Vec<&str> = wf
         .tasks
         .iter()
-        .filter(|t| t.value.depends_on.iter().any(|d| d.value == id))
+        .filter(|t| {
+            nika_schema::analyzer::edges::producer_ids(&t.value)
+                .iter()
+                .any(|p| p == id)
+        })
         .map(|t| t.value.id.value.as_str())
         .collect();
     if feeds.is_empty() {
@@ -312,7 +330,7 @@ fn vocab_hover(text: &str, offset: usize) -> Option<Hover> {
     })
 }
 
-/// Hover for a task REFERENCE (a `depends_on:` item or a `${{ tasks.X }}`
+/// Hover for a task REFERENCE (an `after:` target or a `${{ tasks.X }}`
 /// ref) → the target task's id + verb, so the cursor shows what it points at
 /// without leaving the line. Reuses the go-to-definition resolver.
 fn task_ref_hover(text: &str, offset: usize) -> Option<Hover> {
@@ -422,10 +440,10 @@ mod tests {
 
     #[test]
     fn hover_on_task_field() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: []\n    exec: { command: [\"x\"] }\n";
-        let at = yaml.find("depends_on").expect("field") + 3;
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    timeout: 30s\n    exec: { command: [\"x\"] }\n";
+        let at = yaml.find("timeout").expect("field") + 3;
         let h = hover(yaml, at).expect("hover present");
-        assert!(body(&h).contains("**`depends_on`**"));
+        assert!(body(&h).contains("**`timeout`**"));
         assert!(body(&h).contains("task field"));
     }
 
@@ -451,10 +469,10 @@ mod tests {
     }
 
     #[test]
-    fn hover_on_depends_on_ref_shows_target_task_and_verb() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    depends_on: [greet]\n    exec: { command: [\"x\"] }\n";
-        // the LAST `greet` is the depends_on reference (the first is the id)
-        let at = yaml.rfind("greet").expect("dep ref") + 1;
+    fn hover_on_after_target_shows_target_task_and_verb() {
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    after: { greet: succeeded }\n    exec: { command: [\"x\"] }\n";
+        // the LAST `greet` is the after: target (the first is the id)
+        let at = yaml.rfind("greet").expect("after target") + 1;
         let h = hover(yaml, at).expect("hover on the reference");
         assert!(
             body(&h).contains("**task `greet`**"),
@@ -470,7 +488,7 @@ mod tests {
 
     #[test]
     fn hover_on_template_tasks_ref_shows_target_task_and_verb() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    exec: { command: [\"echo\", \"${{ tasks.greet.output }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
         let at = yaml.find("tasks.greet").expect("tpl ref") + "tasks.gr".len();
         let h = hover(yaml, at).expect("hover on the template reference");
         assert!(body(&h).contains("**task `greet`**"), "{}", body(&h));
@@ -609,11 +627,14 @@ mod tests {
     }
 
     /// Hover on a task DECLARATION → its DAG card, from the engine's
-    /// own wave computation (`analyze` · Kahn levels · explicit edges).
-    /// The diamond: a → {b, c} → d.
+    /// own wave computation (`analyze` · Kahn levels · the DERIVED
+    /// edges). The diamond a → {b, c} → d rides BOTH doors: `b` reads
+    /// `a` through a `with:` binding (a value edge), `c` and `d` wait
+    /// through `after:` (control edges) — and « waits on » names each
+    /// producer WITH its role.
     #[test]
     fn hover_on_task_decl_shows_the_dag_card() {
-        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      data: \"${{ tasks.a.output }}\"\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: succeeded, c: terminal }\n    exec: { command: [\"x\"] }\n";
         let a = hover(text, text.find("\n  a:").expect("a") + 3).expect("card for a");
         let ab = body(&a);
         assert!(ab.contains("wave 1/3"), "{ab}");
@@ -627,10 +648,20 @@ mod tests {
             "a root task waits on nothing: {ab}"
         );
 
+        let b = hover(text, text.find("\n  b:").expect("b") + 3).expect("card for b");
+        let bb = body(&b);
+        assert!(
+            bb.contains("waits on: `a` (value)"),
+            "a with: binding is a VALUE edge: {bb}"
+        );
+
         let d = hover(text, text.find("\n  d:").expect("d") + 3).expect("card for d");
         let db = body(&d);
         assert!(db.contains("wave 3/3"), "{db}");
-        assert!(db.contains("waits on: `b` · `c`"), "{db}");
+        assert!(
+            db.contains("waits on: `b` (control · succeeded), `c` (control · terminal)"),
+            "control edges carry their predicate: {db}"
+        );
         assert!(db.contains("terminal task"), "{db}");
     }
 
@@ -638,7 +669,7 @@ mod tests {
     /// lane already tells that story with a span and a code.
     #[test]
     fn hover_on_task_decl_in_a_cycle_stays_silent() {
-        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [b]\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: succeeded }\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n";
         assert!(hover(text, text.find("\n  a:").expect("a") + 3).is_none());
     }
 

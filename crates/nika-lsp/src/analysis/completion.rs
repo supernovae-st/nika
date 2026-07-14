@@ -61,34 +61,8 @@ pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<C
         return doc_dir.map(skills::skill_items).unwrap_or_default();
     }
 
-    if is_model_value(prefix) {
-        // A provider already typed (`model: ollama/`) narrows to ITS
-        // models — the second half of the address, catalog-derived.
-        if let Some(models) = provider_models(prefix) {
-            return models;
-        }
-        return providers();
-    }
-    if is_tool_value(prefix) {
-        return builtin_tools();
-    }
-    // `mode:` inside a `nika:fetch` block — the stdlib extract vocabulary
-    // (L0-derived). Contextual: a `mode:` argument of some OTHER tool
-    // (an MCP tool with its own vocabulary) stays silent.
-    if is_extract_mode_value(text, offset, prefix) {
-        return extract_mode_items();
-    }
-    if let Some(items) = enum_values(prefix) {
+    if let Some(items) = value_lane_items(text, offset, line, prefix) {
         return items;
-    }
-    if in_open_depends_on(text, offset) {
-        return task_ids(text, scope::current_task_id(text, offset).as_deref());
-    }
-    // An agent's `tools: [ … ]` whitelist — the same catalog register the
-    // singular `tool:` value gets (MCP refs stay the author's to type:
-    // the server has no MCP registry to speak from).
-    if in_open_tools_list(text, offset) {
-        return builtin_tools();
     }
     if is_template_tasks_ref(prefix) {
         return refs::island_task_refs(text, offset);
@@ -125,6 +99,56 @@ pub fn completion_at(text: &str, offset: usize, doc_dir: Option<&Path>) -> Vec<C
             islands::when_items(text, offset)
         };
     }
+    key_lane_items(text, offset, line, prefix)
+}
+
+/// The value lanes: `model:` · `tool:` · extract `mode:` · closed enums ·
+/// the two `after:` positions · the agent `tools: [ … ]` whitelist.
+fn value_lane_items(
+    text: &str,
+    offset: usize,
+    line: &str,
+    prefix: &str,
+) -> Option<Vec<CompletionItem>> {
+    if is_model_value(prefix) {
+        // A provider already typed (`model: ollama/`) narrows to ITS
+        // models — the second half of the address, catalog-derived.
+        if let Some(models) = provider_models(prefix) {
+            return Some(models);
+        }
+        return Some(providers());
+    }
+    if is_tool_value(prefix) {
+        return Some(builtin_tools());
+    }
+    // `mode:` inside a `nika:fetch` block — the stdlib extract vocabulary
+    // (L0-derived). Contextual: a `mode:` argument of some OTHER tool
+    // (an MCP tool with its own vocabulary) stays silent.
+    if is_extract_mode_value(text, offset, prefix) {
+        return Some(extract_mode_items());
+    }
+    if let Some(items) = enum_values(prefix) {
+        return Some(items);
+    }
+    // `after:` — the control boundary's two positions: a bare KEY under
+    // the block completes the LEGAL producers (everything but self and
+    // its downstream closure — never offer what check refuses); the
+    // VALUE after `<producer>: ` completes the closed predicate set.
+    if let Some(items) = after_lane_items(text, offset, line, prefix) {
+        return Some(items);
+    }
+    // An agent's `tools: [ … ]` whitelist — the same catalog register the
+    // singular `tool:` value gets (MCP refs stay the author's to type:
+    // the server has no MCP registry to speak from).
+    if in_open_tools_list(text, offset) {
+        return Some(builtin_tools());
+    }
+    None
+}
+
+/// The key lanes (checked last): top-level keys · the `schema:` JSON
+/// Schema vocabulary · task-field keys + verbs.
+fn key_lane_items(text: &str, offset: usize, line: &str, prefix: &str) -> Vec<CompletionItem> {
     if is_top_level_key(prefix) {
         return keyword_items(vocab::TOP_LEVEL_KEYS);
     }
@@ -225,12 +249,46 @@ fn is_model_value(prefix: &str) -> bool {
     !after.contains(char::is_whitespace) || after.trim().is_empty()
 }
 
-/// Whether `offset` sits inside an unclosed `depends_on:` flow list — works
-/// ACROSS line breaks (`depends_on: [\n  a,\n  <cursor>`), not only the
-/// opening line. The nearest `depends_on:` before the cursor must have an
-/// unbalanced `[` up to the cursor.
-fn in_open_depends_on(text: &str, offset: usize) -> bool {
-    in_open_flow_list(text, offset, "depends_on:")
+/// The `after:` completion lane — `None` when the cursor is not inside
+/// an `after:` block (spec 03 §after · the CLOSED predicate set).
+fn after_lane_items(
+    text: &str,
+    offset: usize,
+    line: &str,
+    prefix: &str,
+) -> Option<Vec<CompletionItem>> {
+    if !scope::in_task_block(text, offset, "after") {
+        return None;
+    }
+    let head = line.trim_start();
+    if head == "after:" || head.starts_with("after:") {
+        return None; // the block head line itself — field lanes own it
+    }
+    // `<producer>: <cursor>` — the predicate position.
+    if let Some((_key, rest)) = prefix.trim_start().split_once(':') {
+        let _ = rest;
+        return Some(
+            nika_schema::types::AfterPredicate::all()
+                .iter()
+                .map(|p| CompletionItem {
+                    label: (*p).to_owned(),
+                    kind: Some(CompletionItemKind::ENUM_MEMBER),
+                    detail: Some(match *p {
+                        "succeeded" => "admits on success".to_owned(),
+                        "failed" => "admits on failure".to_owned(),
+                        "skipped" => "admits on skipped".to_owned(),
+                        _ => "admits on any settled state — incl. cancelled".to_owned(),
+                    }),
+                    ..CompletionItem::default()
+                })
+                .collect(),
+        );
+    }
+    // bare key position — the legal producers.
+    Some(task_ids(
+        text,
+        scope::current_task_id(text, offset).as_deref(),
+    ))
 }
 
 /// Whether `offset` sits inside an unclosed agent `tools:` flow list —

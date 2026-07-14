@@ -4,7 +4,7 @@
 //! `nika check` — the ADR-092 static ladder, rendered (spec §2).
 //!
 //! The human surface: grep-stable section keywords (CONFORM/PLAN/COST/
-//! SECRETS/TYPES/TOOLS/SCHEMA/PERMITS/HINT) through the ONE colour seam
+//! SECRETS/TYPES/TOOLS/SCHEMA/GATES/PERMITS/HINT) through the ONE colour seam
 //! (`display::theme` · semantic-only). The machine surface (`--json`):
 //! the full [`CheckReport`] + a `clean` flag, NEVER coloured — the
 //! contract bytes are the contract. Check is INFALLIBLE past parse
@@ -19,6 +19,9 @@ use nika_schema::types::VarDecl;
 
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
+
+mod models_rung;
+use models_rung::{ModelFinding, pricing_section, unresolvable_models};
 
 /// The `nika check <file>` verb. `native_strict` promotes the advisory
 /// `native-first` hints to failures (exit 2) — the agent/CI posture:
@@ -196,85 +199,6 @@ fn json_verdict(
     }
 }
 
-/// One MODELS-rung finding — a `model:` this binary cannot run (#320).
-struct ModelFinding {
-    model: String,
-    tasks: Vec<String>,
-    why: String,
-}
-
-/// Cross `requirements.models` against the RESOLVER (the runnable
-/// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor
-/// catalog, which advertises providers this binary cannot drive (the
-/// azure class: cataloged, unresolvable, green until the run died).
-fn unresolvable_models(report: &nika_schema::check::CheckReport) -> Vec<ModelFinding> {
-    report
-        .requirements
-        .models
-        .iter()
-        .filter_map(|m| {
-            // The ONE law, shared with the MCP lane (#320 follow-up:
-            // the two machine surfaces consult the same fn beside the
-            // resolver — they cannot drift apart again).
-            let why = nika_providers::resolve_refusal(&m.model)?;
-            Some(ModelFinding {
-                model: m.model.clone(),
-                tasks: m.tasks.clone(),
-                why,
-            })
-        })
-        .collect()
-}
-
-/// The rates the preflight shows BEFORE the first run: each model the
-/// requirements collected (#213), priced from the vendored catalog.
-/// UNKNOWN is null, never 0.00 — a missing price must look missing.
-/// Rates only (USD per 1M tokens): token counts are unknowable
-/// statically; the estimate with honest bounds is the next arc.
-///
-/// A model the resolver cannot run is NEVER priced (#320): the pricing
-/// table fuzzy-matches by name, so a hallucinated id could wear a
-/// CONJURED price — unpriced beats conjured, always.
-///
-/// `snapshot` = the vendored catalog's provenance (source · `as_of` ·
-/// sha) + derived counts — the machine-readable answer to « priced
-/// against WHAT, from WHEN? » (no surveyed tool ships this · 2026-07).
-fn pricing_section(
-    report: &nika_schema::check::CheckReport,
-    model_findings: &[ModelFinding],
-) -> serde_json::Value {
-    let models: Vec<serde_json::Value> = report
-        .requirements
-        .models
-        .iter()
-        .map(|m| {
-            let resolvable = !model_findings.iter().any(|f| f.model == m.model);
-            let priced = resolvable
-                .then(|| nika_catalog::find_pricing_for(&m.model))
-                .flatten();
-            serde_json::json!({
-                "model": m.model,
-                "input_per_million": priced.map(|p| p.input_per_million),
-                "output_per_million": priced.map(|p| p.output_per_million),
-            })
-        })
-        .collect();
-    let snap = nika_catalog::pricing_snapshot();
-    let rules = nika_catalog::all_pricing();
-    let providers: std::collections::BTreeSet<&str> = rules.iter().map(|p| p.provider).collect();
-    serde_json::json!({
-        "snapshot": {
-            "source": snap.source,
-            "as_of": snap.as_of,
-            "source_sha256_16": snap.source_sha256_16,
-            // DERIVED at read time, never embedded (the born-stale law).
-            "rules": rules.len(),
-            "providers": providers.len(),
-        },
-        "models": models,
-    })
-}
-
 /// Section mark: `✔`-class verdict glyphs through the theme seam.
 fn mark(theme: Theme, ok: bool) -> String {
     let (uni, asc, role) = if ok {
@@ -403,6 +327,13 @@ fn render(
             .map(|l| format!("task `{}` at {} — {}", l.task, l.path, l.detail))
             .collect(),
     );
+    section_list(
+        &mut out,
+        t,
+        "GATES",
+        "every task is statically reachable · status literals in vocabulary",
+        gate_rows(report),
+    );
     permits(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t);
     // The MAP beside the verdict — the same themed wire art `graph
@@ -438,6 +369,28 @@ fn fix_clause(suggestion: Option<&str>) -> String {
     suggestion
         .map(|s| format!(" · fix: did you mean `{s}`?"))
         .unwrap_or_default()
+}
+
+/// One row per gate-liveness refusal (DAG-006 statically dead · DAG-007
+/// out-of-vocabulary status literal) — code first, one-voice.
+fn gate_rows(report: &CheckReport) -> Vec<String> {
+    report
+        .gate_findings
+        .iter()
+        .map(|g| {
+            let fix = g
+                .fix
+                .as_deref()
+                .map(|f| format!(" · fix: {f}"))
+                .unwrap_or_default();
+            format!(
+                "[{}] task `{}` — {}{fix}",
+                g.kind.wire_code(),
+                g.task,
+                g.detail
+            )
+        })
+        .collect()
 }
 
 /// One row per `nika:` tool that names no canonical builtin.
@@ -1413,7 +1366,7 @@ mod tests {
     /// ASCII parity (`ok audited` · `>=`).
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
-        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"bye\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains("✔ audited · 2 tasks · 2 waves · permits none · est ≥$0.0000 · 1 hint"),
@@ -1442,7 +1395,7 @@ mod tests {
     fn plan_prints_wave_membership_with_verbs_and_targets() {
         let text = checked_text(
             "plan-membership.nika.yaml",
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    depends_on: [think]\n    exec:\n      command: [\"echo\", \"x\"]\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: succeeded\n    exec:\n      command: [\"echo\", \"x\"]\n",
             true,
         );
         assert!(text.contains("wave 1"), "membership renders: {text}");

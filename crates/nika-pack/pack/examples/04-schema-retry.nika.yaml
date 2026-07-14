@@ -45,10 +45,11 @@ tasks:
       jitter: true                     # anti-thundering-herd (default)
 
   report:
-    depends_on: [extract]
+    with:
+      extract_entities: ${{ tasks.extract.output.entities }}
     infer:
       # .output is an object here (schema was set) → index into it directly
-      prompt: "Write one sentence summarizing these entities · ${{ tasks.extract.output.entities }}"
+      prompt: "Write one sentence summarizing these entities · ${{ with.extract_entities }}"
 
 # Typed return contract · the output half of the callable-workflow schema.
 outputs:

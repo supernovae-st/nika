@@ -52,12 +52,14 @@ fn validate_tools() -> Value {
         {
             "name": "nika_inspect",
             "description": "Project a Nika workflow's DAG as the canonical \
-                            graph document (graph_format: 1 — the same bytes \
+                            graph document (graph_format: 2 — the same bytes \
                             `nika inspect --format json` prints and the LSP's \
                             nika/semanticDocument serves): wave-ordered nodes \
                             with verbs, models, permits, cost intervals; \
-                            depends_on edges. Null graph + a one-word reason \
-                            while the document has findings.",
+                            typed edges (value/observation from `with:` \
+                            bindings · control from `after:` · recovery). \
+                            Null graph + a one-word reason while the \
+                            document has findings.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -267,7 +269,7 @@ fn template(args: &Value) -> Result<String, String> {
 /// `nika_catalog` — the versioned provider/model projection: the SAME
 /// payload `nika catalog --json` emits (built by `nika-catalog::export`,
 /// the one owning builder — CLI and MCP never drift).
-/// `nika_inspect` — the canonical graph projection (`graph_format: 1`),
+/// `nika_inspect` — the canonical graph projection (`graph_format: 2`),
 /// the SAME contract the LSP's `nika/semanticDocument` serves: the
 /// projection verbatim when the ladder is clean, `{"graph": null,
 /// "reason": …}` otherwise (`"findings"` — parse failures error like
@@ -357,7 +359,7 @@ mod tests {
     /// protocols: this pin is the MCP leg of the LSP's parity law).
     #[test]
     fn inspect_serves_the_canonical_projection_verbatim() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("clean");
         let got: Value = serde_json::from_str(&out).expect("json");
         let wf = nika_schema::parse(
@@ -369,14 +371,14 @@ mod tests {
         let report = nika_schema::check(&wf);
         let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
         assert_eq!(got, expected);
-        assert_eq!(got["graph_format"], 1, "in-payload version");
+        assert_eq!(got["graph_format"], 2, "in-payload version");
     }
 
     /// Findings → null graph + the one-word reason (the LSP contract,
     /// MCP leg) — never a projection of an unproven DAG.
     #[test]
     fn inspect_refuses_findings_with_a_reason() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after:\n      b: succeeded\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("answers");
         let got: Value = serde_json::from_str(&out).expect("json");
         assert_eq!(got["graph"], Value::Null);
@@ -471,11 +473,11 @@ mod tests {
 
     #[test]
     fn check_a_broken_workflow_is_an_error_carrying_the_findings() {
-        // A dangling depends_on edge — a DAG finding the ladder catches.
+        // A dangling `after:` edge — a DAG finding the ladder catches.
         // Dirty is an `Err` (→ isError:true) so a wired agent's repair
         // loop triggers, mirroring the CLI's exit-2-on-dirty; the full
         // report still rides the text so the model repairs from it.
-        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    after:\n      ghost: succeeded\n    exec: { command: [\"x\"] }\n";
         let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
         assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }

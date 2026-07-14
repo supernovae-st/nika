@@ -11,6 +11,7 @@
 #   - sovereignty · `model: ollama/qwen3.5:4b`: sensitive docs stay local
 #   - `nika:validate` · re-check the extraction against a stricter schema
 #   - `nika:assert` · the fail-fast guard (vs `when:` · the skip-guard)
+#   - `after: succeeded` · the memo is control-gated on the assert
 #   - belt-and-braces · schema at infer time + validate + assert downstream
 #
 # Run · nika run examples/showcase/t2-contract-guard.nika.yaml --var contract_path=./contract.md
@@ -35,11 +36,12 @@ tasks:
       args: { path: "${{ vars.contract_path }}" }
 
   clauses:
-    depends_on: [contract]
+    with:
+      contract: ${{ tasks.contract.output }}
     infer:
       prompt: |
         Extract every risk-bearing clause from this contract ·
-        ${{ tasks.contract.output }}
+        ${{ with.contract }}
         Quote each clause verbatim · classify its risk.
       schema:
         type: object
@@ -56,11 +58,12 @@ tasks:
                 risk: { type: string, enum: [low, medium, high] }
 
   check:
-    depends_on: [clauses]
+    with:
+      clauses: ${{ tasks.clauses.output }}
     invoke:
       tool: "nika:validate"
       args:
-        data: "${{ tasks.clauses.output }}"
+        data: "${{ with.clauses }}"
         format: json
         schema:
           type: object
@@ -71,28 +74,33 @@ tasks:
               minItems: 1
 
   gate:
-    depends_on: [check]
+    with:
+      extraction_ok: ${{ tasks.check.output.valid == true }}   # the whole condition crosses as ONE boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ tasks.check.output.valid == true }}"
+        condition: "${{ with.extraction_ok }}"
         message: "Clause extraction failed the schema gate: refusing to write the memo"
 
   memo:
-    depends_on: [clauses, gate]
+    with:
+      clauses: ${{ tasks.clauses.output.clauses }}
+    after:
+      gate: succeeded              # state, no data · the assert passed or the memo is cancelled
     infer:
       prompt: |
         Write a one-page risk memo from these clauses ·
-        ${{ tasks.clauses.output.clauses }}
+        ${{ with.clauses }}
         Order by risk · high first · cite the quoted text.
 
   save:
-    depends_on: [memo]
+    with:
+      memo: ${{ tasks.memo.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./legal/risk-memo.md"
-        content: "${{ tasks.memo.output }}"
+        content: "${{ with.memo }}"
         create_dirs: true
 
 outputs:

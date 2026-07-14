@@ -36,8 +36,8 @@ struct DocView {
     /// Upstream candidates: every task except the editing one and its
     /// downstream closure (a reference downstream is a cycle).
     upstream: Vec<String>,
-    /// Ids already wired into the editing task's `depends_on`.
-    wired: Vec<String>,
+    /// The editing task's own `with:` binding names (its LOCAL scope).
+    bindings: Vec<String>,
 }
 
 fn doc_view(text: &str, offset: usize) -> DocView {
@@ -71,19 +71,16 @@ fn doc_view(text: &str, offset: usize) -> DocView {
             .filter(|id| Some(*id) != current.as_deref() && !illegal.contains(id))
             .map(str::to_owned)
             .collect();
-        let wired = current
+        let editing = current
             .as_deref()
-            .and_then(|id| {
-                wf.tasks
-                    .iter()
-                    .find(|t| t.value.id.value == id)
-                    .map(|t| t.value.depends_on.iter().map(|d| d.value.clone()).collect())
-            })
+            .and_then(|id| wf.tasks.iter().find(|t| t.value.id.value == id));
+        let bindings = editing
+            .map(|t| t.value.with.iter().map(|(k, _)| k.value.clone()).collect())
             .unwrap_or_default();
         return DocView {
             vars,
             upstream,
-            wired,
+            bindings,
         };
     }
     // Mid-keystroke fallback — the same honest degradation as task_ids:
@@ -97,7 +94,7 @@ fn doc_view(text: &str, offset: usize) -> DocView {
             .into_iter()
             .filter(|id| Some(id.as_str()) != current.as_deref())
             .collect(),
-        wired: Vec::new(),
+        bindings: Vec::new(),
     }
 }
 
@@ -111,8 +108,11 @@ fn island(label: String, detail: String) -> CompletionItem {
 }
 
 /// `for_each:` — the collection candidates: typed array inputs lead,
-/// upstream outputs follow (the `depends_on` law named in the detail),
-/// other vars offered honestly.
+/// the task's OWN bindings follow (the collection is a pre-fan-out
+/// LOCAL surface · spec 03 §`for_each` — an upstream array crosses
+/// through `with:` first), other vars offered honestly. No `tasks.*`
+/// form is ever offered here (NIKA-VAR-021 · never offer what check
+/// refuses).
 pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     let view = doc_view(text, offset);
     let mut items = Vec::new();
@@ -122,15 +122,16 @@ pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
             "array input — one run per element".to_owned(),
         ));
     }
-    for id in &view.upstream {
-        let edge = if view.wired.iter().any(|w| w == id) {
-            "edge already wired".to_owned()
-        } else {
-            format!("needs depends_on: [{id}]")
-        };
+    for name in &view.bindings {
         items.push(island(
-            format!("${{{{ tasks.{id}.output }}}}"),
-            format!("upstream array output — {edge}"),
+            format!("${{{{ with.{name} }}}}"),
+            "a with: binding — the boundary import of the collection".to_owned(),
+        ));
+    }
+    if view.bindings.is_empty() && !view.upstream.is_empty() {
+        items.push(island(
+            "${{ with.items }}".to_owned(),
+            "bind the upstream array first — with: { items: ${{ tasks.<id>.output }} }".to_owned(),
         ));
     }
     for (name, _) in view.vars.iter().filter(|(_, a)| !*a) {
@@ -142,9 +143,10 @@ pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     items
 }
 
-/// `when:` — the CEL v0.1 gate shapes composed from the document: a
-/// var as a switch, an upstream status gate, the `size()` empty-check
-/// (the subset's one function).
+/// `when:` — the CEL v0.1 POST-gate shapes composed from the document:
+/// a var as a switch · a binding's null test (the skip-acknowledgement
+/// idiom) · the `size()` empty-check. `tasks.*` never appears (the
+/// boundary · NIKA-VAR-021): status gating lives in `after:`.
 pub(super) fn when_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     let view = doc_view(text, offset);
     let mut items = Vec::new();
@@ -154,19 +156,14 @@ pub(super) fn when_items(text: &str, offset: usize) -> Vec<CompletionItem> {
             "the input as a boolean switch".to_owned(),
         ));
     }
-    for id in &view.upstream {
-        let edge = if view.wired.iter().any(|w| w == id) {
-            String::new()
-        } else {
-            format!(" — needs depends_on: [{id}]")
-        };
+    for name in &view.bindings {
         items.push(island(
-            format!("${{{{ tasks.{id}.status == 'success' }}}}"),
-            format!("run only when `{id}` succeeded{edge}"),
+            format!("${{{{ with.{name} != null }}}}"),
+            format!("run only when the `{name}` binding carries a value"),
         ));
         items.push(island(
-            format!("${{{{ size(tasks.{id}.output) > 0 }}}}"),
-            format!("run only when `{id}` produced content{edge}"),
+            format!("${{{{ size(with.{name}) > 0 }}}}"),
+            format!("run only when `{name}` holds content"),
         ));
     }
     items

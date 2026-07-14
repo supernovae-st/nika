@@ -45,6 +45,10 @@ struct Repair {
     applied: bool,
 }
 
+/// Equivalence-or-stop diagnostics from the W2 migration (spec 03
+/// §`depends_on`) — rendered verbatim; the file is left untouched.
+struct StopNotes(Vec<String>);
+
 /// Rounds cap — each parse-level repair costs one round (parse aborts at
 /// the first defect), so this bounds pathological inputs, not real files.
 const MAX_ROUNDS: usize = 16;
@@ -58,6 +62,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     };
     let mut source = original.clone();
     let mut repairs: Vec<Repair> = Vec::new();
+    let mut stop_notes = StopNotes(Vec::new());
 
     for _ in 0..MAX_ROUNDS {
         let mut round_applied = false;
@@ -83,45 +88,34 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
                 | SchemaError::W1TopLevelDescription { .. }
                 | SchemaError::W1TasksSequence { .. }
                 | SchemaError::W1TaskIdField { .. },
-            ) => match crate::migrate::w1(&source) {
-                Some(migrated) => {
-                    source = migrated;
-                    repairs.push(Repair {
-                        old: "the pre-W1 envelope (workflow scalar · tasks list)".to_owned(),
-                        new: "workflow object + task map".to_owned(),
-                        kind: "w1-map",
-                        applied: true,
-                    });
+            ) => {
+                if !apply_w1_map(&mut source, &mut repairs) {
+                    break; // ambiguous document — the teaching names it
                 }
-                None => break, // ambiguous document — the teaching names it
-            },
+            }
+            // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
+            // stop migration (spec 03 §depends_on): data → with: bindings ·
+            // provably-strict control → after: {d: succeeded} · every
+            // ambiguous case STOPS with its candidates (never guess).
+            Err(SchemaError::W2DependsOnField { .. }) => {
+                if !apply_w2_flow(&mut source, &mut repairs, &mut stop_notes) {
+                    break; // human decision — the diagnostics name each case
+                }
+            }
             Err(_) => break, // not a rename-shaped parse error — check will tell
             Ok(wf) => {
                 let report = nika_schema::check(&wf);
+                if let Some(stop_or_continue) =
+                    try_w2_hoist(&report, &mut source, &mut repairs, &mut stop_notes)
+                {
+                    if stop_or_continue {
+                        continue; // re-parse + re-check the hoisted form
+                    }
+                    break;
+                }
                 // Collect this round's typed renames FIRST (splicing
                 // invalidates nothing — each token is unique by the gate).
-                let mut renames: Vec<(String, String, &'static str)> = Vec::new();
-                for t in &report.unknown_tools {
-                    if let Some(s) = &t.suggestion {
-                        renames.push((t.tool.clone(), s.clone(), "tool"));
-                    }
-                }
-                for a in &report.unknown_args {
-                    if let Some(s) = &a.suggestion {
-                        renames.push((a.arg.clone(), s.clone(), "arg"));
-                    }
-                }
-                // Conformance renames (typed `offending`/`suggestion` —
-                // unknown depends_on target · unresolved `${{ }}` ref,
-                // both fully qualified so a splice keeps the namespace).
-                for v in &report.conformance {
-                    if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {
-                        renames.push((o.clone(), s.clone(), "ref"));
-                    }
-                }
-                renames.sort();
-                renames.dedup();
-                for (old, new, kind) in renames {
+                for (old, new, kind) in collect_typed_renames(&report) {
                     round_applied |= splice(&mut source, &old, &new, kind, &mut repairs);
                 }
                 if !round_applied {
@@ -140,9 +134,131 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     // The final truth is the NORMAL check of what is now on disk —
     // --fix is check plus a pen, never a different audit.
     let verdict = super::check::run(path, false, native_strict, model, theme);
+    let stops = render_stops(&stop_notes, theme);
     VerbOutput {
-        text: format!("{}{}", summary(&repairs, applied, theme), verdict.text),
+        text: format!(
+            "{}{}{}",
+            summary(&repairs, applied, theme),
+            stops,
+            verdict.text
+        ),
         code: verdict.code,
+    }
+}
+
+/// This round's typed renames from the check report (tools · args ·
+/// conformance refs) — sorted + deduped.
+fn collect_typed_renames(
+    report: &nika_schema::check::CheckReport,
+) -> Vec<(String, String, &'static str)> {
+    let mut renames: Vec<(String, String, &'static str)> = Vec::new();
+    for t in &report.unknown_tools {
+        if let Some(s) = &t.suggestion {
+            renames.push((t.tool.clone(), s.clone(), "tool"));
+        }
+    }
+    for a in &report.unknown_args {
+        if let Some(s) = &a.suggestion {
+            renames.push((a.arg.clone(), s.clone(), "arg"));
+        }
+    }
+    // Conformance renames (typed `offending`/`suggestion` —
+    // an unknown `after:`/`with:` edge target rides the BARE
+    // task name · an unresolved `${{ }}` ref rides fully
+    // qualified so a splice keeps the namespace).
+    for v in &report.conformance {
+        if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {
+            renames.push((o.clone(), s.clone(), "ref"));
+        }
+    }
+    renames.sort();
+    renames.dedup();
+    renames
+}
+
+/// Render the STOP diagnostic lines (verbatim W2 notes · warn glyph).
+fn render_stops(stop_notes: &StopNotes, theme: Theme) -> String {
+    let mut stops = String::new();
+    for note in &stop_notes.0 {
+        let _ = writeln!(
+            stops,
+            " {} {}  {note}",
+            theme.paint(Role::Warn, "◼"),
+            theme.paint(Role::Strong, "STOP"),
+        );
+    }
+    stops
+}
+
+/// The W1 dead-form arm — the shared map migration. `true` = applied.
+fn apply_w1_map(source: &mut String, repairs: &mut Vec<Repair>) -> bool {
+    match crate::migrate::w1(source) {
+        Some(migrated) => {
+            *source = migrated;
+            repairs.push(Repair {
+                old: "the pre-W1 envelope (workflow scalar · tasks list)".to_owned(),
+                new: "workflow object + task map".to_owned(),
+                kind: "w1-map",
+                applied: true,
+            });
+            true
+        }
+        None => false,
+    }
+}
+
+/// The PARSE-024 arm — the whole-document W2 migration. `true` =
+/// applied (the round restarts) · `false` = STOP diagnostics captured.
+fn apply_w2_flow(
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+) -> bool {
+    match crate::migrate::w2(source) {
+        crate::migrate::W2Outcome::Changed(migrated) => {
+            *source = migrated;
+            repairs.push(Repair {
+                old: "the pre-W2 flow (depends_on · body tasks.* reads)".to_owned(),
+                new: "with: bindings + after: predicates".to_owned(),
+                kind: "w2-flow",
+                applied: true,
+            });
+            true
+        }
+        crate::migrate::W2Outcome::Stop(notes) => {
+            stop_notes.0 = notes;
+            false
+        }
+    }
+}
+
+/// The NIKA-VAR-021 hoist arm — `Some(true)` = applied (re-run the
+/// round) · `Some(false)` = STOP diagnostics captured (end the loop) ·
+/// `None` = no boundary finding this round.
+fn try_w2_hoist(
+    report: &nika_schema::check::CheckReport,
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+) -> Option<bool> {
+    if !report.conformance.iter().any(|v| v.code == "NIKA-VAR-021") {
+        return None;
+    }
+    match crate::migrate::w2(source) {
+        crate::migrate::W2Outcome::Changed(migrated) => {
+            *source = migrated;
+            repairs.push(Repair {
+                old: "body tasks.* reads".to_owned(),
+                new: "with: bindings (hoisted)".to_owned(),
+                kind: "w2-hoist",
+                applied: true,
+            });
+            Some(true)
+        }
+        crate::migrate::W2Outcome::Stop(notes) => {
+            stop_notes.0 = notes;
+            Some(false)
+        }
     }
 }
 
@@ -232,9 +348,10 @@ fn splice(
 ) -> bool {
     // An APPLIED token never re-applies. A SKIPPED one stays retryable:
     // an earlier round's splice can make it unique (the two-site case —
-    // `buidl` in `depends_on` is ambiguous while `tasks.buidl` exists;
-    // once the reference heals, the dependency token stands alone and
-    // the next round heals it too). Convergence, not one-shot.
+    // `buidl` in `after:` is ambiguous while a qualified `tasks.buidl`
+    // reference exists; once the reference heals, the control-edge token
+    // stands alone and the next round heals it too). Convergence, not
+    // one-shot.
     if repairs
         .iter()
         .any(|r| r.applied && r.old == old && r.kind == kind)
@@ -403,18 +520,19 @@ mod tests {
     #[test]
     fn dep_and_ref_renames_converge_across_rounds() {
         // The two-site convergence case the retryable-skip design exists
-        // for: `buidl` occurs TWICE (bare in depends_on · inside the
-        // `tasks.buidl` reference), so the dependency rename is ambiguous
-        // in round 1 — but the fully-qualified reference rename
-        // (`tasks.buidl` → `tasks.build`) is unique, applies, and leaves
-        // the bare token standing alone for round 2. Both heal; a
-        // one-shot skip would have left the file half-repaired.
+        // for: `buidl` occurs TWICE (bare as an `after:` control-edge
+        // target · inside the qualified `tasks.buidl` outputs reference),
+        // so the bare rename is ambiguous in round 1 — but the
+        // fully-qualified reference rename (`tasks.buidl` →
+        // `tasks.build`) is unique, applies, and leaves the bare token
+        // standing alone for round 2. Both heal; a one-shot skip would
+        // have left the file half-repaired.
         let dir = std::env::temp_dir().join(format!("nika-fix-conv-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("two-site.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nvars: { topic: \"x\" }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ vars.topik }}\" } }\n  ship:\n    depends_on: [buidl]\n    invoke: { tool: \"nika:log\", args: { message: \"${{ tasks.buidl.output }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nvars: { topic: \"x\" }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ vars.topik }}\" } }\n  ship:\n    after:\n      buidl: succeeded\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
         )
         .expect("write fixture");
         let out = run(
@@ -425,8 +543,8 @@ mod tests {
         );
         let healed = std::fs::read_to_string(&path).expect("re-read");
         assert!(
-            healed.contains("depends_on: [build]"),
-            "dep healed: {healed}"
+            healed.contains("build: succeeded"),
+            "control edge healed: {healed}"
         );
         assert!(
             healed.contains("tasks.build.output"),

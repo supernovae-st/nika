@@ -15,7 +15,7 @@
 //! - [`scan_templates`] — find + parse all `${{ … }}` islands in a
 //!   string (honors the `\${{` literal escape).
 //! - [`expr_refs`] — classify root references against the 5 namespaces
-//!   + 2 `for_each` loop-locals (feeds `NIKA-VAR-001` / `NIKA-DAG-003`).
+//!   + 2 `for_each` loop-locals (feeds `NIKA-VAR-001` / `NIKA-VAR-021`).
 //! - [`task_output_paths`] — every `tasks.<id>.output.<path…>` chain
 //!   with its FULL path (the dataflow schema-typing surface · ADR-092 #4).
 //! - [`is_boolean_shaped`] — the static `when:` shape gate

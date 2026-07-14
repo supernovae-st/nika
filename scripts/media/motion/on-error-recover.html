@@ -51,16 +51,17 @@
     <div class="act" id="act0">
       <div class="act-label" id="tease"><span class="warn">live-rates.json does not exist</span> — this task WILL fail</div>
       <div class="yaml">
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">cache</span><span class="d">          # yesterday's snapshot · the fallback source</span></span>
+<span class="ln">  <span class="k">cache</span><span class="d">:</span><span class="d">          # yesterday's snapshot · the fallback source</span></span>
 <span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:jq"</span><span class="d">, … }</span></span>
 <span class="ln"> </span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">live</span></span>
-<span class="ln">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[cache]</span></span>
+<span class="ln">  <span class="k">live</span><span class="d">:</span></span>
+<span class="ln">    <span class="k">with</span><span class="d">:</span></span>
+<span class="ln">      <span class="k">cache</span><span class="d">:</span> <span class="s">${{ tasks.cache.output }}</span><span class="d">      # the snapshot crosses the boundary here</span></span>
 <span class="ln" id="fail-line">    <span class="k">exec</span><span class="d">:</span> <span class="d">{</span> <span class="k">command</span><span class="d">:</span> <span class="hl warnbox" id="fail-hl"><span class="s">["cat", "live-rates.json"]</span></span> <span class="d">}</span>   <span class="d"># the live feed is gone</span></span>
 <span class="ln" id="recover-line">    <span class="k">on_error</span><span class="d">:</span></span>
-<span class="ln" id="recover-line2">      <span class="hl" id="recover-hl"><span class="k">recover</span><span class="d">:</span> <span class="s">"${{ tasks.cache.output }}"</span></span>  <span class="d"># degrade to the snapshot — declared, reviewable</span></span>
+<span class="ln" id="recover-line2">      <span class="hl" id="recover-hl"><span class="k">recover</span><span class="d">:</span> <span class="s">"${{ with.cache }}"</span></span>  <span class="d"># degrade to the snapshot — declared, reviewable</span></span>
 <span class="ln"> </span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">publish</span><span class="d">        # still runs · still writes · exit 0</span></span>
+<span class="ln">  <span class="k">publish</span><span class="d">:</span><span class="d">        # still runs · still writes · exit 0</span></span>
 <span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">,</span> <span class="k">path</span><span class="d">:</span> <span class="s">./out/rates.json</span><span class="d">, … }</span></span>
       </div>
     </div>

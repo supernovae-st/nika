@@ -138,6 +138,11 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
                 None => format!("{} (task `{}`)", g.detail, g.task),
             },
         );
+        // The wire code (DAG-006 statically dead · DAG-007 bad status
+        // literal — spec 05-errors) · one-voice: the refusal names it.
+        let code = g.kind.wire_code();
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(g.task.clone());
         f.span = g.span;
         out.push(f);

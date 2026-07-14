@@ -4,9 +4,9 @@
 //! Task-list parsing — YAML `tasks:` sequence → `Vec<Spanned<RawTask>>`.
 //!
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
-//! §forward-compat) · `id` · `depends_on` · `when` · `for_each` ·
+//! §forward-compat) · `with` · `after` · `when` · `for_each` ·
 //! `max_parallel` · `fail_fast` · `retry` · `on_error` · `timeout` ·
-//! `on_finally` · `with` · `output` · plus exactly one verb key.
+//! `on_finally` · `output` · plus exactly one verb key.
 
 use std::time::Duration;
 
@@ -16,8 +16,8 @@ use crate::error::SchemaError;
 use crate::raw::{ForEachValue, RawFinallyTask, RawTask};
 use crate::source::Spanned;
 use crate::types::{
-    BackoffStrategy, OnError, OnErrorAction, RetryConfig, WhenGate, is_valid_error_code,
-    parse_go_duration,
+    AfterPredicate, BackoffStrategy, OnError, OnErrorAction, RetryConfig, WhenGate,
+    is_valid_error_code, parse_go_duration,
 };
 
 use super::value::json_value;
@@ -26,14 +26,14 @@ use super::{Cx, validate_task_id};
 
 /// Maximum tasks per workflow (untrusted-input resource bound · see the
 /// security note on `parser::CharToByte::new`). The analyzer's DAG
-/// passes (cycle detection · `depends_on` resolution) are super-linear
+/// passes (cycle detection · edge-target resolution) are super-linear
 /// in places; >10k tasks is machine-generated and should compose
 /// sub-workflows. Generous — no hand-written workflow approaches it.
 pub(super) const MAX_TASKS: usize = 10_000;
 
 /// The canonical task-level keys (verbs handled separately).
 const TASK_KEYS: &[&str] = &[
-    "depends_on",
+    "after",
     "when",
     "for_each",
     "max_parallel",
@@ -157,6 +157,21 @@ fn parse_task(
             span: cx.span(node.span()),
         });
     }
+    // W2 « the flow » — a lingering `depends_on:` gets its migration
+    // teaching (data → with: · control → after:) before the generic
+    // unknown-field check. The first dep seeds the teaching's example.
+    if let Some(node) = mapping.get_node("depends_on") {
+        let task_hint = node
+            .as_sequence()
+            .and_then(|seq| seq.iter().next())
+            .and_then(marked_yaml::Node::as_scalar)
+            .map_or_else(|| "producer".to_owned(), |s| s.as_str().to_owned());
+        return Err(SchemaError::W2DependsOnField {
+            task: id.value.clone(),
+            task_hint,
+            span: cx.span(node.span()),
+        });
+    }
     let task_label = id.value.clone();
 
     // Strict-mode unknown-field check · the known set is the closed
@@ -168,7 +183,7 @@ fn parse_task(
     let action = parse_verb(cx, mapping, &task_label)?;
     let mut task = RawTask::new(id, action);
 
-    task.depends_on = parse_string_list(cx, mapping, "depends_on")?;
+    task.after = parse_after(cx, mapping, &task_label)?;
     task.when = parse_when(cx, mapping)?;
     task.for_each = parse_for_each(cx, mapping)?;
     task.max_parallel = parse_max_parallel(cx, mapping)?;
@@ -181,6 +196,57 @@ fn parse_task(
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
 
     Ok(task)
+}
+
+/// One parsed `after:` map — `(producer, predicate)` entries in source order.
+type AfterEntries = Vec<(Spanned<String>, Spanned<AfterPredicate>)>;
+
+/// `after:` — the CONTROL boundary · a map `{producer: predicate}`
+/// over the CLOSED predicate set (spec 03 §after · `NIKA-DAG-005`
+/// outside it · target resolution is the analyzer's DAG-002).
+fn parse_after(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    task: &str,
+) -> Result<AfterEntries, SchemaError> {
+    let Some(node) = mapping.get_node("after") else {
+        return Ok(Vec::new());
+    };
+    let Some(map) = node.as_mapping() else {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "task `{task}` `after:` must be a map {{producer-task: predicate}} — \
+                 never a list (03-dag.md §after)"
+            ),
+            span: cx.span(node.span()),
+        });
+    };
+    let mut out = Vec::with_capacity(map.len());
+    for (key, value) in map.iter() {
+        let target = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
+        let Some(scalar) = value.as_scalar() else {
+            return Err(SchemaError::UnknownAfterPredicate {
+                task: task.to_owned(),
+                target: target.value,
+                predicate: "(not a string)".to_owned(),
+                span: cx.span(value.span()),
+            });
+        };
+        let raw = scalar.as_str();
+        let Some(predicate) = AfterPredicate::parse(raw) else {
+            return Err(SchemaError::UnknownAfterPredicate {
+                task: task.to_owned(),
+                target: target.value,
+                predicate: raw.to_owned(),
+                span: cx.span(value.span()),
+            });
+        };
+        out.push((
+            target,
+            Spanned::new(predicate, cx.span_or_zero(value.span())),
+        ));
+    }
+    Ok(out)
 }
 
 /// `when:` — a `${{ … }}` CEL string OR the YAML boolean literal
@@ -677,7 +743,7 @@ mod tests {
     use crate::parser::{ParseMode, parse};
     use crate::raw::{RawAction, RawWorkflow};
     use crate::source::FileId;
-    use crate::types::{BackoffStrategy, OnErrorAction, WhenGate};
+    use crate::types::{AfterPredicate, BackoffStrategy, OnErrorAction, WhenGate};
 
     fn parse_strict(yaml: &str) -> Result<RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)
@@ -736,11 +802,12 @@ tasks:
 
     #[test]
     fn task_no_verb_errors() {
-        // Conformance fixture verbs-shape/002.
+        // Conformance fixture verbs-shape/002 · a task carrying only
+        // flow-control keys binds zero verbs.
         let yaml = "\
 tasks:
   greet:
-    depends_on: []
+    when: true
 ";
         let err = parse_strict(yaml).expect_err("no verb");
         assert!(
@@ -853,24 +920,25 @@ tasks:
     }
 
     #[test]
-    fn depends_on_when_for_each() {
+    fn after_when_for_each() {
         let yaml = "\
 tasks:
   a:
     exec: { shell: echo a }
   b:
-    depends_on: [a]
-    when: ${{ tasks.a.status == 'success' }}
+    after: { a: succeeded }
+    when: ${{ vars.flag == true }}
     for_each: ${{ vars.items }}
     exec: { shell: echo b }
 ";
         let wf = parse_strict(yaml).expect("parse");
         let b = &wf.tasks[1].value;
-        assert_eq!(b.depends_on.len(), 1);
-        assert_eq!(b.depends_on[0].value, "a");
+        assert_eq!(b.after.len(), 1);
+        assert_eq!(b.after[0].0.value, "a");
+        assert_eq!(b.after[0].1.value, AfterPredicate::Succeeded);
         assert_eq!(
             b.when.as_ref().expect("when").value,
-            WhenGate::Expr("${{ tasks.a.status == 'success' }}".into())
+            WhenGate::Expr("${{ vars.flag == true }}".into())
         );
         assert_eq!(
             b.for_each.as_ref().expect("for_each").value,
@@ -1182,15 +1250,15 @@ tasks:
   work:
     exec: { command: [echo] }
   record:
-    depends_on: [work]
+    after: { work: terminal }
     when: true
     exec: { command: [echo] }
   never:
-    depends_on: [work]
+    after: { work: terminal }
     when: false
     exec: { command: [echo] }
   quoted:
-    depends_on: [work]
+    after: { work: terminal }
     when: \"true\"
     exec: { command: [echo] }
 ";
@@ -1220,7 +1288,7 @@ tasks:
   work:
     exec: { command: [echo] }
   legacy:
-    depends_on: [work]
+    after: { work: terminal }
     when: yes
     exec: { command: [echo] }
 ";

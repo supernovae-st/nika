@@ -9,17 +9,20 @@
 //! - envelope presence · `nika:` + `workflow:` + non-empty `tasks:`
 //!   (spec `01-envelope.md` · « That's the **whole minimum** »)
 //! - duplicate task ids
-//! - `NIKA-DAG-002` · `depends_on` entries resolve
-//! - `NIKA-DAG-001` · cycle detection (incl. self-dependency)
-//! - `NIKA-DAG-003` · `tasks.<id>` refs require the explicit edge
+//! - `NIKA-DAG-002` · `with:`/`after:` edge targets resolve
+//! - `NIKA-DAG-001` · cycle detection over `G_p` = `E_d` ∪ `E_c` (incl.
+//!   self-dependency)
+//! - `NIKA-VAR-021` · `tasks.*` confined to the boundary (spec
+//!   `04-variables.md` §the reference boundary)
 //! - `NIKA-VAR-001` class · namespace-ref resolution (5 namespaces +
 //!   `item`/`index` loop-locals · spec `04-variables.md`)
-//! - `NIKA-PARSE-WHEN-001` · `when:` boolean shape
+//! - `when:` boolean shape (`NIKA-VAR-005` class)
 //! - `output:` binding rules · reserved names + pure-jq
-//! - topological waves (spec `03-dag.md` execution model)
+//! - topological waves over the derived edges (spec `03-dag.md`)
 
 mod builtin_shape;
 mod dag;
+pub mod edges;
 mod jq_lint;
 mod scan;
 mod schema_lint;
@@ -30,10 +33,18 @@ use std::collections::BTreeMap;
 use crate::error::SchemaError;
 use crate::raw::RawWorkflow;
 
-/// The analyzer's output — minimal · lowering is the runtime's job.
+pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
+
+/// The analyzer's output — the Graph IR plus its waves · lowering is
+/// the runtime's job.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AnalyzedWorkflow {
+    /// The derived scheduling edges (`G_p` = `E_d` ∪ `E_c`) — THE one edge
+    /// computation every surface projects (spec 03 §the four graphs).
+    pub edges: Vec<Edge>,
+    /// The recovery reads (`E_r` · `on_error.recover` · non-scheduling).
+    pub recovery_reads: Vec<RecoveryRead>,
     /// Topological execution waves · `topo_waves[n]` holds indices into
     /// `wf.tasks` that may run in parallel once wave `n-1` completed.
     pub topo_waves: Vec<Vec<usize>>,
@@ -42,8 +53,16 @@ pub struct AnalyzedWorkflow {
 impl AnalyzedWorkflow {
     /// Create an analyzed workflow.
     #[must_use]
-    pub fn new(topo_waves: Vec<Vec<usize>>) -> Self {
-        Self { topo_waves }
+    pub fn new(
+        edges: Vec<Edge>,
+        recovery_reads: Vec<RecoveryRead>,
+        topo_waves: Vec<Vec<usize>>,
+    ) -> Self {
+        Self {
+            edges,
+            recovery_reads,
+            topo_waves,
+        }
     }
 }
 
@@ -58,16 +77,19 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
 
     check_envelope(wf, &mut errors);
     let ids = task_id_index(wf, &mut errors);
-    dag::check_depends_on_resolve(&wf.tasks, &ids, &mut errors);
-    dag::check_cycles(&wf.tasks, &ids, &mut errors);
-    dag::check_recover_acyclic(&wf.tasks, &ids, &mut errors);
+    let derived = edges::derive_edges(&wf.tasks, &ids);
+    dag::check_edge_targets_resolve(&wf.tasks, &ids, &mut errors);
+    dag::check_cycles(&wf.tasks, &ids, &derived, &mut errors);
+    dag::check_recover_acyclic(&wf.tasks, &ids, &derived, &mut errors);
     builtin_shape::check_builtin_shapes(&wf.tasks, &mut errors);
     scan::scan_workflow(wf, &mut errors);
     jq_lint::scan_jq(wf, &mut errors);
     schema_lint::scan_schemas(wf, &mut errors);
 
     if errors.is_empty() {
-        Ok(AnalyzedWorkflow::new(dag::topo_waves(&wf.tasks, &ids)))
+        let waves = dag::topo_waves(wf.tasks.len(), &derived);
+        let reads = edges::derive_recovery_reads(&wf.tasks, &ids);
+        Ok(AnalyzedWorkflow::new(derived, reads, waves))
     } else {
         Err(errors)
     }
@@ -240,11 +262,13 @@ tasks:
         );
     }
 
-    // ── NIKA-DAG-003 · refs require the edge ────────────────────────
+    // ── NIKA-VAR-021 · the reference boundary ───────────────────────
 
     #[test]
-    fn when_ref_without_edge_errors() {
-        // Conformance fixture dag-topology/003.
+    fn when_task_ref_is_outside_the_boundary() {
+        // Conformance fixture dag-topology/003-when-task-ref-illegal ·
+        // `when:` reads LOCAL names only — even WITH a control edge in
+        // place, a `tasks.*` read there is refused (hoist into `with:`).
         let yaml = "\
 nika: v1
 workflow:
@@ -253,20 +277,24 @@ tasks:
   test:
     exec: { command: [\"./test.sh\"] }
   deploy:
+    after: { test: succeeded }
     when: ${{ tasks.test.status == 'success' }}
     exec: { command: [\"./deploy.sh\"] }
 ";
-        let errors = analyze_yaml(yaml).expect_err("no edge");
+        let errors = analyze_yaml(yaml).expect_err("ref outside the boundary");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::MissingDependsOnEdge { referenced, .. } if referenced == "test"),
-            "DAG-003",
+            |e| matches!(e, SchemaError::RefOutsideBoundary { reference, surface, .. } if reference == "test" && surface == "when:"),
+            "VAR-021 in when:",
         );
     }
 
     #[test]
-    fn with_ref_without_edge_errors() {
-        // Conformance fixture dag-topology/005.
+    fn with_binding_is_the_edge() {
+        // Conformance fixture dag-topology/005-with-binding-is-the-edge ·
+        // pre-W2 this exact shape was the NIKA-DAG-003 class (a `with:`
+        // reference without its `depends_on:` restatement); W2 derives the
+        // edge FROM the binding, so the shape is simply valid.
         let yaml = "\
 nika: v1
 workflow:
@@ -279,17 +307,14 @@ tasks:
       content: ${{ tasks.research.output }}
     infer: { prompt: \"summarize ${{ with.content }}\" }
 ";
-        let errors = analyze_yaml(yaml).expect_err("no edge");
-        assert_has(
-            &errors,
-            |e| matches!(e, SchemaError::MissingDependsOnEdge { referenced, .. } if referenced == "research"),
-            "DAG-003 via with",
-        );
+        let analyzed = analyze_yaml(yaml).expect("the binding IS the edge");
+        assert_eq!(analyzed.edges.len(), 1);
+        assert_eq!(analyzed.topo_waves, vec![vec![0], vec![1]]);
     }
 
     #[test]
-    fn verb_body_ref_without_edge_errors() {
-        // Conformance fixture dag-topology/006.
+    fn verb_body_ref_is_outside_the_boundary() {
+        // Conformance fixture dag-topology/006-verb-body-reference-illegal.
         let yaml = "\
 nika: v1
 workflow:
@@ -301,17 +326,18 @@ tasks:
     infer:
       prompt: \"Brief from ${{ tasks.research.output }}\"
 ";
-        let errors = analyze_yaml(yaml).expect_err("no edge");
+        let errors = analyze_yaml(yaml).expect_err("ref outside the boundary");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::MissingDependsOnEdge { referenced, .. } if referenced == "research"),
-            "DAG-003 via prompt",
+            |e| matches!(e, SchemaError::RefOutsideBoundary { reference, surface, .. } if reference == "research" && surface == "a verb field"),
+            "VAR-021 via prompt",
         );
     }
 
     #[test]
-    fn for_each_ref_without_edge_errors() {
-        // Conformance fixture dag-topology/007.
+    fn for_each_ref_is_outside_the_boundary() {
+        // Conformance fixture dag-topology/007-for-each-reference-illegal ·
+        // the collection crosses through `with:`, never directly.
         let yaml = "\
 nika: v1
 workflow:
@@ -323,20 +349,20 @@ tasks:
     for_each: ${{ tasks.discover.output }}
     exec: { command: [echo] }
 ";
-        let errors = analyze_yaml(yaml).expect_err("no edge");
+        let errors = analyze_yaml(yaml).expect_err("ref outside the boundary");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::MissingDependsOnEdge { referenced, .. } if referenced == "discover"),
-            "DAG-003 via for_each",
+            |e| matches!(e, SchemaError::RefOutsideBoundary { reference, surface, .. } if reference == "discover" && surface == "for_each:"),
+            "VAR-021 via for_each",
         );
     }
 
     #[test]
-    fn dag_003_message_is_not_double_backticked() {
-        // The DAG-003 #[error] template wraps the task id (`task `{task}``);
-        // the scan used to pass the already-wrapped `task `x`` LOCATION into
-        // the id field, rendering `task `task `x```. The id field now carries
-        // the BARE id — the message reads `task `b` references …` cleanly.
+    fn var_021_message_is_not_double_backticked() {
+        // The VAR-021 #[error] template wraps the task id (`task `{task}``);
+        // passing an already-wrapped `task `x`` location into the id field
+        // would render `task `task `x```. The id field carries the BARE id —
+        // the message reads `task `b` a verb field references …` cleanly.
         let yaml = "\
 nika: v1
 workflow:
@@ -347,14 +373,14 @@ tasks:
   b:
     exec: { command: [\"echo\", \"${{ tasks.a.output }}\"] }
 ";
-        let errors = analyze_yaml(yaml).expect_err("no edge");
+        let errors = analyze_yaml(yaml).expect_err("ref outside the boundary");
         let rendered = errors
             .iter()
-            .find(|e| matches!(e, SchemaError::MissingDependsOnEdge { .. }))
+            .find(|e| matches!(e, SchemaError::RefOutsideBoundary { .. }))
             .map(std::string::ToString::to_string)
-            .expect("a DAG-003 finding");
+            .expect("a VAR-021 finding");
         assert!(
-            rendered.contains("task `b` references"),
+            rendered.contains("task `b` a verb field references"),
             "the id renders once, cleanly: {rendered}"
         );
         assert!(
@@ -393,8 +419,10 @@ tasks:
     }
 
     #[test]
-    fn paired_ref_with_edge_is_valid() {
-        // Conformance fixture dag-topology/009.
+    fn tightened_value_edge_is_valid() {
+        // Conformance fixture dag-topology/009-valid-tightened-value-edge ·
+        // `after: {fetch: succeeded}` BESIDE the value edge is a meaningful
+        // tightening (edges compose by intersection · spec 03 §after).
         let yaml = "\
 nika: v1
 workflow:
@@ -403,7 +431,7 @@ tasks:
   fetch:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://x.io\" } }
   use:
-    depends_on: [fetch]
+    after: { fetch: succeeded }
     with:
       data: ${{ tasks.fetch.output }}
     infer: { prompt: \"use ${{ with.data }}\" }
@@ -679,6 +707,8 @@ tasks:
 
     #[test]
     fn task_record_field_and_binding_resolution() {
+        // A declared `output:` binding and a reserved record field both
+        // resolve — judged at the boundary (`with:`), where refs live now.
         let yaml = "\
 nika: v1
 workflow:
@@ -689,15 +719,18 @@ tasks:
     output:
       user_count: \".data.users | length\"
   report:
-    depends_on: [api]
+    with:
+      count: ${{ tasks.api.user_count }}
+      outcome: ${{ tasks.api.status }}
     infer:
-      prompt: \"count ${{ tasks.api.user_count }} status ${{ tasks.api.status }}\"
+      prompt: \"count ${{ with.count }} status ${{ with.outcome }}\"
 ";
         analyze_yaml(yaml).expect("record field + declared binding valid");
     }
 
     #[test]
     fn unknown_task_field_errors() {
+        // The record-shape check fires on the boundary surface.
         let yaml = "\
 nika: v1
 workflow:
@@ -706,9 +739,10 @@ tasks:
   api:
     invoke: { tool: \"nika:fetch\" }
   report:
-    depends_on: [api]
+    with:
+      bad: ${{ tasks.api.nonexistent_field }}
     infer:
-      prompt: \"${{ tasks.api.nonexistent_field }}\"
+      prompt: \"${{ with.bad }}\"
 ";
         let errors = analyze_yaml(yaml).expect_err("bad field");
         assert_has(
@@ -852,8 +886,10 @@ tasks:
   extract:
     exec: { command: [echo] }
   report:
-    depends_on: [extarct]
-    exec: { command: [\"echo\", \"${{ vars.topci }}\", \"${{ tasks.extract.output }}\"] }
+    after: { extarct: succeeded }
+    with:
+      data: ${{ tasks.extract.output }}
+    exec: { command: [\"echo\", \"${{ vars.topci }}\", \"${{ with.data }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("typos");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
@@ -861,7 +897,7 @@ tasks:
             rendered
                 .iter()
                 .any(|m| m.contains("`extarct`") && m.contains("did you mean `extract`?")),
-            "depends_on typo repaired: {rendered:?}"
+            "after: target typo repaired: {rendered:?}"
         );
         assert!(
             rendered
@@ -922,7 +958,7 @@ workflow:
   id: t
 tasks:
   a:
-    depends_on: [ghost]
+    after: { ghost: succeeded }
     when: ${{ vars.nope }}
     exec: { command: [echo] }
 ";

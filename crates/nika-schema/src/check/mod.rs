@@ -311,6 +311,16 @@ impl CheckReport {
         codes.extend(self.unknown_tools.iter().map(|_| builtin));
         codes.extend(self.unknown_args.iter().map(|_| builtin));
         codes.extend(self.missing_args.iter().map(|_| builtin));
+        // Gate liveness (03 §static liveness · check-only, reach.rs):
+        // DAG-006 statically dead task · DAG-007 out-of-vocabulary literal.
+        codes.extend(self.gate_findings.iter().map(|g| match g.kind {
+            reach::GateFindingKind::DeadTask => {
+                SpecCode::new("DAG", 6, SpecCategory::ValidationError)
+            }
+            reach::GateFindingKind::BadStatusLiteral => {
+                SpecCode::new("DAG", 7, SpecCategory::ValidationError)
+            }
+        }));
         codes
     }
 }
@@ -326,8 +336,10 @@ impl CheckReport {
 /// (empty · documented on the fields).
 #[must_use]
 pub fn check(wf: &RawWorkflow) -> CheckReport {
-    let (conformance, topo_waves) = match analyzer::analyze(wf) {
-        Ok(AnalyzedWorkflow { topo_waves }) => (Vec::new(), topo_waves),
+    let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
+        Ok(AnalyzedWorkflow {
+            topo_waves, edges, ..
+        }) => (Vec::new(), topo_waves, edges),
         Err(errors) => (
             errors
                 .iter()
@@ -352,6 +364,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
                     }
                 })
                 .collect(),
+            Vec::new(),
             Vec::new(),
         ),
     };
@@ -386,7 +399,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         schema_lints: schema_lint::scan_schemas(wf),
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)
-        gate_findings: reach::scan_gates(wf, &topo_waves),
+        gate_findings: reach::scan_gates(wf, &topo_waves, &edges),
         hints,
         waves: topo_waves,
         analysis: dag_read.analysis,
@@ -445,7 +458,7 @@ workflow:
   id: t
 tasks:
   a:
-    depends_on: [ghost]
+    after: { ghost: succeeded }
     exec: { command: [\"echo\", \"hi\"] }
 ",
         );
@@ -506,10 +519,10 @@ tasks:
           score: { type: integre }
         required: [sumary]
   save:
-    depends_on: [extract]
-    invoke: { tool: "nika:wrte", args: { path: "./out.md", content: "${{ tasks.extract.output.sumarry }}" } }
+    with: { content: "${{ tasks.extract.output.sumarry }}" }
+    invoke: { tool: "nika:wrte", args: { path: "./out.md", content: "${{ with.content }}" } }
   push:
-    depends_on: [save]
+    after: { save: succeeded }
     exec: { command: ["cargo", "publish"] }
 "#;
         let wf = parse(broken, FileId::new(0), ParseMode::Strict).expect("parse");
@@ -571,10 +584,10 @@ workflow:
   id: cyclic
 tasks:
   a:
-    depends_on: [b]
+    after: { b: succeeded }
     exec: { command: [\"x\"] }
   b:
-    depends_on: [a]
+    after: { a: succeeded }
     exec: { command: [\"y\"] }
 ",
             FileId::new(0),
@@ -597,7 +610,7 @@ tasks:
     fn broken_dag_still_yields_every_dag_independent_finding() {
         // ONE round-trip: the agent gets the conformance violation AND
         // the tool typo AND the schema defect AND the hints, together.
-        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    depends_on: [ghost]\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
+        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: succeeded }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
         let r = check_yaml(src);
         assert!(
             r.conformance.iter().any(|c| c.code == "NIKA-DAG-002"),
@@ -639,7 +652,7 @@ tasks:
         // Two independent check() runs over the same input must render
         // byte-identical JSON — pins the BTree-everywhere discipline (a
         // stray HashMap would randomize field/finding order run-to-run).
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    depends_on: [a]\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    depends_on: [b]\n    infer: { prompt: \"go ${{ tasks.b.output }}\", max_tokens: 50 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let first = serde_json::to_string(&check(&wf)).expect("serialize");
         let second = serde_json::to_string(&check(&wf)).expect("serialize");

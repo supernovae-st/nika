@@ -42,8 +42,9 @@ tasks:
       args: { pattern: "${{ vars.cv_glob }}" }
 
   cvs:
-    depends_on: [pool]
-    for_each: ${{ tasks.pool.output }}
+    with:
+      paths: ${{ tasks.pool.output }}    # the collection crosses the boundary here
+    for_each: ${{ with.paths }}
     max_parallel: 8
     fail_fast: false                   # one unreadable CV must not stop the batch
     on_error:
@@ -53,22 +54,24 @@ tasks:
       args: { path: "${{ item }}" }
 
   pairs:
-    depends_on: [pool, cvs]
+    with:
+      paths: ${{ tasks.pool.output }}
+      texts: ${{ tasks.cvs.output }}
     invoke:                            # zip path + content · order survived the nulls
       tool: "nika:jq"
       args:
-        input: ["${{ tasks.pool.output }}", "${{ tasks.cvs.output }}"]
+        input: ["${{ with.paths }}", "${{ with.texts }}"]
         expression: "transpose | map(select(.[1] != null)) | map({path: .[0], text: .[1]})"
 
   screened:
-    depends_on: [pairs]
-    for_each: ${{ tasks.pairs.output }}
+    with:
+      pairs: ${{ tasks.pairs.output }}   # pre-fan-out import · the collection
+      cv_path: ${{ item.path }}          # re-evaluated per iteration
+    for_each: ${{ with.pairs }}
     max_parallel: 2                    # local model · don't thrash the GPU
     fail_fast: false
     on_error:
       recover: null
-    with:
-      cv_path: ${{ item.path }}
     infer:
       prompt: |
         Role · ${{ vars.role }}
@@ -88,39 +91,43 @@ tasks:
           concerns: { type: array, items: { type: string } }
 
   ranked:
-    depends_on: [screened]
+    with:
+      screened: ${{ tasks.screened.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.screened.output }}"
+        input: "${{ with.screened }}"
         expression: 'map(select(. != null)) | map(select(.fit != "weak")) | sort_by(.fit != "strong", -(.years_relevant // 0))'
 
   shortlist:
-    depends_on: [ranked]
+    with:
+      ranked: ${{ tasks.ranked.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.ranked.output }}"
+        input: "${{ with.ranked }}"
         expression: ".[:${{ vars.shortlist_size }}]"
 
   brief:
-    depends_on: [shortlist]
-    when: ${{ size(tasks.shortlist.output) > 0 }}
+    with:
+      shortlist: ${{ tasks.shortlist.output }}
+    when: ${{ size(with.shortlist) > 0 }}
     infer:
       prompt: |
         Write the screening brief for these shortlisted candidates ·
-        ${{ tasks.shortlist.output }}
+        ${{ with.shortlist }}
         One paragraph each · lead with the evidence quotes · end with
         the suggested interview focus.
 
   save:
-    depends_on: [brief]
-    when: ${{ tasks.brief.output != null }}    # skip cascades by VALUE · a skipped brief is null
+    with:
+      brief: ${{ tasks.brief.output }}
+    when: ${{ with.brief != null }}    # skip cascades by VALUE · a skipped brief reads null
     invoke:
       tool: "nika:write"
       args:
         path: "./hiring/shortlist-brief.md"
-        content: "${{ tasks.brief.output }}"
+        content: "${{ with.brief }}"
         create_dirs: true
 
 outputs:

@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Template-island scanning rules — `NIKA-DAG-003` · `NIKA-VAR-001` ·
+//! Template-island scanning rules — `NIKA-VAR-021` · `NIKA-VAR-001` ·
 //! `NIKA-PARSE-WHEN-001` · output-binding rules.
 //!
-//! Spec `03-dag.md` §referencing · « If a task references `tasks.<id>`
-//! **anywhere** — in `when:` · `with:` · any verb field (`prompt:` ·
-//! `command:` · `args:` · …) — that task **MUST** declare `<id>` in its
-//! `depends_on:` » · the engine does NOT infer the edge.
+//! Spec `04-variables.md` §the reference boundary (W2 « the flow ») ·
+//! `tasks.*` crosses a task boundary through exactly two doors —
+//! `with:` (data · the binding IS the edge) and `after:` (control) —
+//! and body surfaces (`when:` · `for_each:` · any verb field) read
+//! LOCAL names only: a `tasks.*` reference there is `NIKA-VAR-021`
+//! with a machine-applicable fix (hoist into `with:`). The pre-W2
+//! edge-restatement rule (`NIKA-DAG-003`) is retired — the boundary
+//! replaces it in both directions (no invisible edges to infer · no
+//! visible edges to restate).
 //!
-//! Exemptions (per the spec's own examples) · `on_finally:` bodies
-//! reference the OWNING task's result (example 16 · `tasks.test.status`
-//! inside `test`'s own cleanup) and `on_error.recover:` references a
-//! fallback task (example 22 · `tasks.cached.output` with no edge) —
-//! both are scanned for RESOLUTION (`NIKA-VAR`) but not for the edge.
+//! Resolution-only surfaces · `on_error.recover:` reads a fallback
+//! task's settled record (spec 05 · a recovery edge, non-scheduling)
+//! and an `on_finally:` body reads its PARENT task only (a sibling
+//! read would race) — both are scanned for RESOLUTION (`NIKA-VAR`),
+//! never for edges.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -89,7 +94,28 @@ impl<'a> WorkflowIndex<'a> {
     }
 }
 
-/// Where a scanned string lives — drives the edge / loop-local /
+/// How a surface treats a `tasks.*` reference (spec `04-variables.md`
+/// §the reference boundary · W2).
+#[derive(Clone, Copy)]
+enum TaskRefRule {
+    /// A `with:` value — the binding IS the edge. Existence is the DAG
+    /// layer's report (`NIKA-DAG-002`); the scan keeps the record-shape
+    /// checks (bare envelope · unknown field) for KNOWN tasks.
+    Boundary,
+    /// A body surface (`when:` · `for_each:` · a verb field) — ANY
+    /// `tasks.*` reference is outside the boundary (`NIKA-VAR-021` ·
+    /// the hoist is machine-applicable).
+    Body(&'static str),
+    /// A read-only resolution surface (workflow `outputs:` · `model:` ·
+    /// `on_error.recover`) — existence + record-shape checks apply ·
+    /// no edge semantics.
+    Resolution,
+    /// An `on_finally:` surface — the PARENT is the only readable task
+    /// (a sibling read would race · `NIKA-VAR-021` otherwise).
+    FinallyParentOnly,
+}
+
+/// Where a scanned string lives — drives the boundary / loop-local /
 /// `with.` resolution rules.
 struct ScanCtx<'a> {
     /// Human location for error messages (a task label · `outputs`). Used
@@ -98,13 +124,11 @@ struct ScanCtx<'a> {
     location: String,
     /// The BARE owning task id (empty at workflow level). Used for the
     /// `task:` field of errors whose thiserror template already wraps the id
-    /// in backticks ([`SchemaError::MissingDependsOnEdge`] ·
-    /// [`SchemaError::LoopLocalOutsideForEach`]) — passing the wrapped
-    /// [`Self::location`] there double-backticked the id in the rendered
-    /// message.
+    /// in backticks — passing the wrapped [`Self::location`] there
+    /// double-backticked the id in the rendered message.
     task_id: &'a str,
-    /// `depends_on` of the owning task — `Some` ⟺ NIKA-DAG-003 applies.
-    edge_set: Option<&'a BTreeSet<&'a str>>,
+    /// How `tasks.*` references are judged on this surface.
+    task_rule: TaskRefRule,
     /// The owning task's `with:` names (None at workflow level).
     with_names: Option<&'a BTreeSet<&'a str>>,
     /// `item` / `index` in scope (the owning task has `for_each:`).
@@ -126,7 +150,7 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     let envelope_ctx = |location: &str| ScanCtx {
         location: location.to_owned(),
         task_id: "",
-        edge_set: None,
+        task_rule: TaskRefRule::Resolution,
         with_names: None,
         allow_loop_locals: false,
     };
@@ -143,59 +167,67 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
 /// Scan one task's surfaces.
 fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaError>) {
     let id = task.id.value.as_str();
-    let edge_set: BTreeSet<&str> = task.depends_on.iter().map(|d| d.value.as_str()).collect();
     let with_names: BTreeSet<&str> = task.with.iter().map(|(k, _)| k.value.as_str()).collect();
     let has_for_each = task.for_each.is_some();
 
-    let body_ctx = ScanCtx {
+    // `with:` — the data boundary (the binding IS the edge).
+    let boundary_ctx = ScanCtx {
         location: format!("task `{id}`"),
         task_id: id,
-        edge_set: Some(&edge_set),
+        task_rule: TaskRefRule::Boundary,
+        with_names: Some(&with_names),
+        allow_loop_locals: has_for_each,
+    };
+    // Body surfaces read LOCAL names only (04 §the reference boundary).
+    let body_ctx = |surface: &'static str| ScanCtx {
+        location: format!("task `{id}`"),
+        task_id: id,
+        task_rule: TaskRefRule::Body(surface),
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
     };
 
-    // `when:` — the expression form is a single boolean-shaped island ·
-    // the YAML boolean literal (`when: true` · the always-pattern ·
-    // spec 03 §when shape rules) has nothing to scan.
+    // `when:` — the expression form is a single boolean-shaped island
+    // over local namespaces (POST-gate · spec 03 §when) · the YAML
+    // boolean literal has nothing to scan.
     if let Some(when) = &task.when
         && let WhenGate::Expr(expr) = &when.value
     {
         let spanned = Spanned::new(expr.clone(), when.span);
         check_single_island(&spanned, "when", id, true, errors);
-        scan_string(&spanned, &body_ctx, index, errors);
+        scan_string(&spanned, &body_ctx("when:"), index, errors);
     }
-    // `for_each:` — expression form is a single island (no boolean
-    // requirement) · literal-list form scans element strings.
+    // `for_each:` — a PRE-fan-out body surface (the collection crosses
+    // the boundary through with: · spec 03 §for_each).
     if let Some(for_each) = &task.for_each {
         match &for_each.value {
             ForEachValue::Expression(expr) => {
                 let spanned = Spanned::new(expr.clone(), for_each.span);
                 check_single_island(&spanned, "for_each", id, false, errors);
-                scan_string(&spanned, &body_ctx, index, errors);
+                scan_string(&spanned, &body_ctx("for_each:"), index, errors);
             }
             ForEachValue::List(list) => {
                 let spanned = Spanned::new(list.clone(), for_each.span);
-                scan_json(&spanned, &body_ctx, index, errors);
+                scan_json(&spanned, &body_ctx("for_each:"), index, errors);
             }
         }
     }
-    // `with:` values.
+    // `with:` values — the boundary itself.
     for (_, value) in &task.with {
-        scan_json(value, &body_ctx, index, errors);
+        scan_json(value, &boundary_ctx, index, errors);
     }
-    // Verb fields.
-    scan_action(&task.action, &body_ctx, index, errors);
+    // Verb fields — body surfaces.
+    scan_action(&task.action, &body_ctx("a verb field"), index, errors);
 
     // `output:` bindings — reserved names + pure-jq (no `${{`).
     check_output_bindings(task, errors);
 
-    // `on_error.recover:` — resolution only · NO edge rule (spec
-    // example 22 · fallback ref without depends_on).
+    // `on_error.recover:` — a resolution surface · NO edge semantics
+    // (a fallback source is a settled record · spec 05 §recover).
     let no_edge_ctx = ScanCtx {
         location: format!("task `{id}` on_error"),
         task_id: id,
-        edge_set: None,
+        task_rule: TaskRefRule::Resolution,
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
     };
@@ -205,12 +237,13 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         scan_json(value, &no_edge_ctx, index, errors);
     }
 
-    // `on_finally:` — references the owning task's result (example 16)
-    // · resolution only · NO edge rule.
+    // `on_finally:` — the PARENT is the only readable task (W2 · a
+    // sibling may still be RUNNING when this cleanup fires — the read
+    // would race · spec 03 §on_finally).
     let finally_ctx = ScanCtx {
         location: format!("task `{id}` on_finally"),
         task_id: id,
-        edge_set: None,
+        task_rule: TaskRefRule::FinallyParentOnly,
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
     };
@@ -427,8 +460,8 @@ fn template_error(e: &ExprError, span: Span) -> SchemaError {
 }
 
 /// Validate one classified root reference (spec `04-variables.md`
-/// §Resolution order · `NIKA-VAR-001` class) + the `NIKA-DAG-003` edge
-/// rule for `tasks.<id>` refs.
+/// §Resolution order · `NIKA-VAR-001` class) + the `NIKA-VAR-021`
+/// boundary rule for `tasks.<id>` refs.
 fn check_ref(
     r: &NamespaceRef,
     span: Span,
@@ -495,9 +528,9 @@ fn check_ref(
     }
 }
 
-/// `tasks.<id>[.<field>]` — existence (`NIKA-VAR`) · result-record
-/// field validity (04 §result record) · the `depends_on` edge
-/// (`NIKA-DAG-003`) when the context requires it.
+/// `tasks.<id>[.<field>]` — judged by the surface's boundary rule
+/// (spec `04-variables.md` §the reference boundary) · then existence ·
+/// then the record-shape checks (bare envelope · unknown field).
 fn check_task_ref(
     id: &str,
     field: Option<&str>,
@@ -506,7 +539,36 @@ fn check_task_ref(
     index: &WorkflowIndex<'_>,
     errors: &mut Vec<SchemaError>,
 ) {
+    match ctx.task_rule {
+        TaskRefRule::Body(surface) => {
+            // NIKA-VAR-021 dominates: the fix (hoist into with:) removes
+            // the reference from this surface entirely — existence and
+            // shape are judged at the boundary after the hoist.
+            errors.push(SchemaError::RefOutsideBoundary {
+                task: ctx.task_id.to_owned(),
+                surface: surface.to_owned(),
+                reference: id.to_owned(),
+                span: Some(span),
+            });
+            return;
+        }
+        TaskRefRule::FinallyParentOnly => {
+            if id != ctx.task_id {
+                errors.push(SchemaError::RefOutsideBoundary {
+                    task: ctx.task_id.to_owned(),
+                    surface: "on_finally".to_owned(),
+                    reference: id.to_owned(),
+                    span: Some(span),
+                });
+                return;
+            }
+        }
+        TaskRefRule::Boundary | TaskRefRule::Resolution => {}
+    }
     if !index.task_ids.contains(id) {
+        if matches!(ctx.task_rule, TaskRefRule::Boundary) {
+            return; // an edge to nowhere · the DAG layer reports NIKA-DAG-002
+        }
         let hint = suggest_in("tasks", id, index.task_ids.iter().copied());
         errors.push(unresolved(&format!("tasks.{id}"), ctx, span, hint));
         return;
@@ -534,17 +596,6 @@ fn check_task_ref(
                 span: Some(span),
             });
         }
-    }
-    if let Some(edges) = ctx.edge_set
-        && !edges.contains(id)
-    {
-        errors.push(SchemaError::MissingDependsOnEdge {
-            // the bare id · the #[error] template wraps it (`task `{task}``)
-            // — the wrapped `location` here would double-backtick it.
-            task: ctx.task_id.to_owned(),
-            referenced: id.to_owned(),
-            span: Some(span),
-        });
     }
 }
 

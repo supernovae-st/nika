@@ -72,8 +72,9 @@ tasks:
   a:
     exec: { command: ["echo", "alpha"] }
   b:
-    depends_on: [a]
-    exec: { command: ["echo", "beta", "${{ tasks.a.output }}"] }
+    with:
+      alpha: ${{ tasks.a.output }}
+    exec: { command: ["echo", "beta", "${{ with.alpha }}"] }
 outputs:
   built: ${{ tasks.b.output }}
 "#;
@@ -263,13 +264,15 @@ tasks:
   prep:
     exec: { command: ["echo", "staged"] }
   approve:
-    depends_on: [prep]
+    after:
+      prep: succeeded
     invoke:
       tool: "nika:prompt"
       args: { mode: "input", message: "ship it?" }
   ship:
-    depends_on: [approve]
-    exec: { command: ["echo", "shipping", "${{ tasks.approve.output }}"] }
+    with:
+      answer: ${{ tasks.approve.output }}
+    exec: { command: ["echo", "shipping", "${{ with.answer }}"] }
 "#;
 
 #[test]

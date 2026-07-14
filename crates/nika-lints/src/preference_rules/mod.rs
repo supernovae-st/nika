@@ -20,9 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 
-use nika_schema::expression::{
-    Expr, Literal, NamespaceRef, RelOp, TemplateIsland, expr_refs, scan_templates,
-};
+use nika_schema::expression::{Expr, NamespaceRef, TemplateIsland, expr_refs, scan_templates};
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use nika_schema::source::Span;
 use nika_schema::types::OnErrorAction;
@@ -80,10 +78,13 @@ pub fn one_obvious_way(wf: &RawWorkflow) -> Vec<Lint> {
         .collect();
 
     let mut lints = Vec::new();
-    rule_001_redundant_success_when(&tasks, &index, &mut lints);
+    // one-obvious-way/001 RETIRED in W2 — its discouraged form (a
+    // tasks.* status test inside when:) is now ILLEGAL (NIKA-VAR-021);
+    // rule ids are stable, the hole is deliberate.
     rule_002_skip_for_dependents(&tasks, &mut lints);
     rule_003_004_failure_guarded_tasks(&tasks, &index, &mut lints);
     rule_005_cleanup_via_terminal_task(&tasks, &mut lints);
+    rule_010_non_tightening_after(&tasks, &mut lints);
     rule_006_per_element_timing(&tasks, &mut lints);
     rule_007_manual_sharding(&tasks, &index, &mut lints);
     rule_008_interpolated_string_command(&tasks, &mut lints);
@@ -130,6 +131,47 @@ fn rule_008_interpolated_string_command(tasks: &[&RawTask], lints: &mut Vec<Lint
              is one literal argv token, so the value cannot break out (spec §exec)"
                 .to_string(),
         ));
+    }
+}
+
+/// `one-obvious-way/010` — an `after: {a: terminal}` beside a VALUE
+/// edge to the same producer is a non-tightening restatement: edges
+/// compose by intersection, and {success, skipped} ∩ terminal is the
+/// value edge alone (spec 03 §one obvious way). Tighten to `succeeded`
+/// or drop the entry.
+fn rule_010_non_tightening_after(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
+    use nika_schema::analyzer::edges::{EdgeKind, role_of_field, task_refs_in_value};
+    for task in tasks {
+        for (target, pred) in &task.after {
+            if !matches!(pred.value, nika_schema::types::AfterPredicate::Terminal) {
+                continue;
+            }
+            let has_value_edge = task.with.iter().any(|(_k, v)| {
+                let mut refs: Vec<(String, Option<String>)> = Vec::new();
+                task_refs_in_value(&v.value, &mut refs);
+                refs.iter().any(|(rid, field)| {
+                    rid == &target.value
+                        && matches!(role_of_field(field.as_deref()), EdgeKind::Value)
+                })
+            });
+            if has_value_edge {
+                lints.push(Lint::new(
+                    "one-obvious-way/010",
+                    task.id.value.clone(),
+                    task.id.span,
+                    format!(
+                        "`after: {{{t}: terminal}}` beside a value edge to `{t}` is a \
+                         non-tightening restatement — the composed gate is the value \
+                         edge's {{success, skipped}} either way",
+                        t = target.value
+                    ),
+                    format!(
+                        "drop the entry or tighten to `after: {{{t}: succeeded}}`",
+                        t = target.value
+                    ),
+                ));
+            }
+        }
     }
 }
 
@@ -199,9 +241,8 @@ fn literal_parts_use_shell(command: &str, islands: &[TemplateIsland]) -> bool {
 
 // ───────────────────────── shared expression helpers ─────────────────────────
 
-/// The task's `when:` as ONE parsed island (the only spec-valid shape ·
-/// `03-dag.md` §when). Multi-island / unparseable strings yield `None`
-/// (the analyzer owns those errors · lints stay silent).
+/// The single `when:` island as a parsed expression (`None` for
+/// literals · multi-island · unparseable — the analyzer owns those).
 fn when_expr(task: &RawTask) -> Option<Expr> {
     let w = task.when.as_ref()?;
     let src = w.value.as_expr()?; // boolean literals carry no expression
@@ -212,147 +253,6 @@ fn when_expr(task: &RawTask) -> Option<Expr> {
         return None;
     }
     Some(island.expr)
-}
-
-/// `tasks.<id>.status` (member or `tasks['id'].status` index form) →
-/// the referenced task id.
-fn task_status_ref(e: &Expr) -> Option<&str> {
-    let Expr::Member { base, field } = e else {
-        return None;
-    };
-    if field != "status" {
-        return None;
-    }
-    match base.as_ref() {
-        Expr::Member {
-            base: root,
-            field: id,
-        } if matches!(root.as_ref(), Expr::Ident(r) if r == "tasks") => Some(id),
-        Expr::Index { base: root, index } if matches!(root.as_ref(), Expr::Ident(r) if r == "tasks") => {
-            if let Expr::Lit(Literal::Str(id)) = index.as_ref() {
-                Some(id)
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-/// A string literal's value.
-fn str_lit(e: &Expr) -> Option<&str> {
-    if let Expr::Lit(Literal::Str(s)) = e {
-        Some(s)
-    } else {
-        None
-    }
-}
-
-/// The WHOLE expression restates the default success gate for ONE task
-/// (`tasks.X.status == 'success'` · either operand order · or
-/// `tasks.X.status in ['success']`).
-fn success_restatement(expr: &Expr) -> Option<&str> {
-    match expr {
-        Expr::Relation {
-            op: RelOp::Eq,
-            lhs,
-            rhs,
-        } => {
-            if let (Some(id), Some("success")) = (task_status_ref(lhs), str_lit(rhs)) {
-                return Some(id);
-            }
-            if let (Some(id), Some("success")) = (task_status_ref(rhs), str_lit(lhs)) {
-                return Some(id);
-            }
-            None
-        }
-        Expr::Relation {
-            op: RelOp::In,
-            lhs,
-            rhs,
-        } => {
-            let id = task_status_ref(lhs)?;
-            if let Expr::List(items) = rhs.as_ref()
-                && items.len() == 1
-                && str_lit(&items[0]) == Some("success")
-            {
-                return Some(id);
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
-/// Collect task ids whose status is compared against `'failure'`
-/// anywhere in the expression (`== 'failure'` · either operand order ·
-/// or `in [… 'failure' …]`).
-fn collect_failure_checks(e: &Expr, out: &mut Vec<String>) {
-    match e {
-        Expr::Relation {
-            op: RelOp::Eq,
-            lhs,
-            rhs,
-        } => {
-            if let (Some(id), Some("failure")) = (task_status_ref(lhs), str_lit(rhs)) {
-                out.push(id.to_string());
-            }
-            if let (Some(id), Some("failure")) = (task_status_ref(rhs), str_lit(lhs)) {
-                out.push(id.to_string());
-            }
-        }
-        Expr::Relation {
-            op: RelOp::In,
-            lhs,
-            rhs,
-        } => {
-            if let Some(id) = task_status_ref(lhs)
-                && let Expr::List(items) = rhs.as_ref()
-                && items.iter().any(|i| str_lit(i) == Some("failure"))
-            {
-                out.push(id.to_string());
-            }
-        }
-        Expr::Or(a, b) | Expr::And(a, b) => {
-            collect_failure_checks(a, out);
-            collect_failure_checks(b, out);
-        }
-        Expr::Not(a) => collect_failure_checks(a, out),
-        _ => {}
-    }
-}
-
-/// A « permissive » status check — one that deliberately lets non-success
-/// states pass (`in [s1, s2, …]` with ≥ 2 statuses · or `!=` against a
-/// status string).
-fn has_permissive_status_check(e: &Expr) -> bool {
-    match e {
-        Expr::Relation {
-            op: RelOp::In,
-            lhs,
-            rhs,
-        } => {
-            task_status_ref(lhs).is_some()
-                && matches!(
-                    rhs.as_ref(),
-                    Expr::List(items)
-                        if items.iter().filter(|i| str_lit(i).is_some()).count() >= 2
-                )
-        }
-        Expr::Relation {
-            op: RelOp::Ne,
-            lhs,
-            rhs,
-        } => {
-            (task_status_ref(lhs).is_some() && str_lit(rhs).is_some())
-                || (task_status_ref(rhs).is_some() && str_lit(lhs).is_some())
-        }
-        Expr::Or(a, b) | Expr::And(a, b) => {
-            has_permissive_status_check(a) || has_permissive_status_check(b)
-        }
-        Expr::Not(a) => has_permissive_status_check(a),
-        _ => false,
-    }
 }
 
 /// Semantic fingerprint of an action (spans stripped) — structural
@@ -405,53 +305,12 @@ fn action_fingerprint(a: &RawAction) -> Value {
 
 // ───────────────────────── the 7 rules ─────────────────────────
 
-/// 001 — `when: ${{ tasks.X.status == 'success' }}` with `X ∈
-/// depends_on` restates the default edge gate (success-gating IS the
-/// default). Exception · when X declares `on_error: skip`, the check is
-/// real work (skipped ≠ success) — silent.
-fn rule_001_redundant_success_when(
-    tasks: &[&RawTask],
-    index: &BTreeMap<&str, usize>,
-    lints: &mut Vec<Lint>,
-) {
-    for task in tasks {
-        let Some(expr) = when_expr(task) else {
-            continue;
-        };
-        let Some(dep) = success_restatement(&expr) else {
-            continue;
-        };
-        if !task.depends_on.iter().any(|d| d.value == dep) {
-            continue;
-        }
-        // Skip-able dependency → the status check is NOT redundant.
-        let dep_skippable = index.get(dep).is_some_and(|&i| {
-            matches!(
-                tasks[i].on_error.as_ref().map(|o| &o.value.action),
-                Some(OnErrorAction::Skip)
-            )
-        });
-        if dep_skippable {
-            continue;
-        }
-        lints.push(Lint::new(
-            "one-obvious-way/001",
-            task.id.value.clone(),
-            task.id.span,
-            format!(
-                "`when: ${{{{ tasks.{dep}.status == 'success' }}}}` restates the default \
-                 edge gate — `depends_on: [{dep}]` alone already success-gates this task"
-            ),
-            format!("drop the `when:` — `depends_on: [{dep}]` is the one way"),
-        ));
-    }
-}
-
 /// 002 — `on_error: {{ skip: true }}` on a task whose dependents never
 /// read its status smuggles « run B even if A failed » into A's
 /// contract. The canonical route is an explicit `when:` on the
 /// dependent.
 fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
+    use nika_schema::analyzer::edges::{EdgeKind, incoming_of};
     for task in tasks {
         if !matches!(
             task.on_error.as_ref().map(|o| &o.value.action),
@@ -460,28 +319,47 @@ fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
             continue;
         }
         let id = task.id.value.as_str();
-        let dependents: Vec<&&RawTask> = tasks
-            .iter()
-            .filter(|t| t.depends_on.iter().any(|d| d.value == id))
-            .collect();
-        if dependents.is_empty() {
-            continue;
-        }
-        let unguarded: Vec<&str> = dependents
-            .iter()
-            .filter(|t| {
-                when_expr(t).is_none_or(|expr| {
-                    !expr_refs(&expr).iter().any(|r| {
-                        matches!(
-                            r,
-                            NamespaceRef::Tasks { id: rid, field: Some(f) }
-                                if rid == id && f == "status"
-                        )
+        // A dependent ACKNOWLEDGES the possible skip when it tightens
+        // the gate (`after: {id: succeeded}` — skip cancels it) or its
+        // `when:` reads a binding bound to this producer (the null test
+        // being the canonical form · spec 03 §gate algebra).
+        let mut unguarded: Vec<&str> = Vec::new();
+        for t in tasks {
+            let value_bindings: Vec<&str> = t
+                .with
+                .iter()
+                .filter(|(_k, v)| {
+                    let mut refs = Vec::new();
+                    nika_schema::analyzer::edges::task_refs_in_value(&v.value, &mut refs);
+                    refs.iter().any(|(rid, field)| {
+                        rid == id
+                            && matches!(
+                                nika_schema::analyzer::edges::role_of_field(field.as_deref()),
+                                EdgeKind::Value
+                            )
                     })
                 })
-            })
-            .map(|t| t.id.value.as_str())
-            .collect();
+                .map(|(k, _v)| k.value.as_str())
+                .collect();
+            if value_bindings.is_empty() {
+                continue;
+            }
+            let tightened = incoming_of(t).iter().any(|(p, kind)| {
+                p == id
+                    && matches!(
+                        kind,
+                        EdgeKind::Control(nika_schema::types::AfterPredicate::Succeeded)
+                    )
+            });
+            let when_reads_binding = when_expr(t).is_some_and(|expr| {
+                expr_refs(&expr).iter().any(|r| {
+                    matches!(r, NamespaceRef::With(name) if value_bindings.contains(&name.as_str()))
+                })
+            });
+            if !tightened && !when_reads_binding {
+                unguarded.push(t.id.value.as_str());
+            }
+        }
         if unguarded.is_empty() {
             continue;
         }
@@ -491,36 +369,39 @@ fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
             task.id.span,
             format!(
                 "`on_error: skip` changes `{id}`'s contract for its dependents' benefit — \
-                 dependent(s) {} never read `tasks.{id}.status`",
+                 dependent(s) {} read its value without acknowledging the skip (the \
+                 binding reads defined-null there)",
                 unguarded.join(", ")
             ),
             format!(
-                "put an explicit `when:` on the dependent(s) (it replaces the default gate) \
-                 — e.g. `when: ${{{{ tasks.{id}.status in ['success', 'failure'] }}}}`"
+                "tighten the dependent's gate (`after: {{{id}: succeeded}}`) or test the \
+                 binding in its `when:` (`${{{{ with.<name> != null }}}}`)"
             ),
         ));
     }
 }
 
-/// 003 + 004 — failure-guarded tasks.
+/// 003 + 004 — failure-path tasks (`after: {a: failed}` · W2).
 ///
-/// 003 · a `when: tasks.A.status == 'failure'` task whose body is
-/// STRUCTURALLY IDENTICAL to A re-implements `retry:`.
+/// 003 · an `after: {a: failed}` task whose body is STRUCTURALLY
+/// IDENTICAL to `a` re-implements `retry:`.
 ///
-/// 004 · the same guard around a pure value-producer (conservative
-/// subset · `nika:jq` with template-free args · or `exec: echo …`)
-/// re-implements `on_error: recover:`. Real failure-work stays silent.
+/// 004 · the same failure path around a pure value-producer
+/// (conservative subset · `nika:jq` with template-free args · or
+/// `exec: echo …`) re-implements `on_error: recover:`. Real
+/// failure-work stays silent.
 fn rule_003_004_failure_guarded_tasks(
     tasks: &[&RawTask],
     index: &BTreeMap<&str, usize>,
     lints: &mut Vec<Lint>,
 ) {
     for task in tasks {
-        let Some(expr) = when_expr(task) else {
-            continue;
-        };
-        let mut checked = Vec::new();
-        collect_failure_checks(&expr, &mut checked);
+        let checked: Vec<String> = task
+            .after
+            .iter()
+            .filter(|(_t, pred)| matches!(pred.value, nika_schema::types::AfterPredicate::Failed))
+            .map(|(t, _)| t.value.clone())
+            .collect();
         let mut fired_003 = false;
         for dep in &checked {
             let Some(&i) = index.get(dep.as_str()) else {
@@ -532,8 +413,8 @@ fn rule_003_004_failure_guarded_tasks(
                     task.id.value.clone(),
                     task.id.span,
                     format!(
-                        "failure-guarded duplicate of `{dep}` — a `when:`-guarded copy \
-                         re-implements retry"
+                        "failure-path duplicate of `{dep}` — an `after: {{{dep}: failed}}` \
+                         copy re-implements retry"
                     ),
                     format!("put `retry:` on `{dep}` — the ONE retry shape"),
                 ));
@@ -551,7 +432,7 @@ fn rule_003_004_failure_guarded_tasks(
                 task.id.value.clone(),
                 task.id.span,
                 format!(
-                    "failure-guarded task producing a mere value — the fallback route \
+                    "failure-path task producing a mere value — the fallback route \
                      belongs in `{dep}` itself"
                 ),
                 format!(
@@ -592,38 +473,38 @@ fn is_value_producer(a: &RawAction) -> bool {
     }
 }
 
-/// 005 — a task depending on EVERY other task with a permissive status
-/// `when:` is a hand-rolled cleanup — `on_finally:` is the one way.
+/// 005 — a task with `after: {…: terminal}` on EVERY other task is a
+/// cleanup smuggled into the graph — `on_finally:` (per task) or ONE
+/// terminal report task is the one way.
 fn rule_005_cleanup_via_terminal_task(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
     let n = tasks.len();
     if n < 3 {
         return;
     }
     for task in tasks {
-        if task.depends_on.len() != n - 1 {
+        let terminal_targets: BTreeSet<&str> = task
+            .after
+            .iter()
+            .filter(|(_t, pred)| matches!(pred.value, nika_schema::types::AfterPredicate::Terminal))
+            .map(|(t, _)| t.value.as_str())
+            .collect();
+        if terminal_targets.len() != n - 1 {
             continue;
         }
-        let deps: BTreeSet<&str> = task.depends_on.iter().map(|d| d.value.as_str()).collect();
         let others: BTreeSet<&str> = tasks
             .iter()
             .map(|t| t.id.value.as_str())
             .filter(|id| *id != task.id.value.as_str())
             .collect();
-        if deps != others {
-            continue;
-        }
-        let Some(expr) = when_expr(task) else {
-            continue;
-        };
-        if !has_permissive_status_check(&expr) {
+        if terminal_targets != others {
             continue;
         }
         lints.push(Lint::new(
             "one-obvious-way/005",
             task.id.value.clone(),
             task.id.span,
-            "terminal task depending on everything with a permissive `when:` — a \
-             hand-rolled cleanup"
+            "`after: {…: terminal}` on every other task — a cleanup smuggled into \
+             the graph"
                 .to_string(),
             "use `on_finally:` — cleanup that always runs".to_string(),
         ));
@@ -681,11 +562,12 @@ fn rule_007_manual_sharding(
     index: &BTreeMap<&str, usize>,
     lints: &mut Vec<Lint>,
 ) {
-    // successor map · only single-dep links count as chain edges.
+    // successor map · only single-producer links count as chain edges.
     let mut successors: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for (j, task) in tasks.iter().enumerate() {
-        if let [dep] = task.depends_on.as_slice()
-            && let Some(&i) = index.get(dep.value.as_str())
+        let producers = nika_schema::analyzer::edges::producer_ids(task);
+        if let [producer] = producers.as_slice()
+            && let Some(&i) = index.get(producer.as_str())
         {
             successors.entry(i).or_default().push(j);
         }

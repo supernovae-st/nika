@@ -10,7 +10,8 @@
 # Demonstrates ·
 #   - `nika:fetch` with `mode: jq` · pull ONE structured field from an API
 #   - `output:` · named jq bindings → `${{ tasks.check.price }}`
-#   - `when:` · CEL number comparison gates the alert task
+#   - `with:` + `when:` · the price crosses as a value edge, one CEL
+#     comparison gates the alert task
 #   - `secrets:` · the webhook URL is vault/env-backed, masked in logs
 #
 # Run · nika run examples/showcase/t1-price-watch.nika.yaml
@@ -53,14 +54,16 @@ tasks:
       recover: { price: 949, name: "MacBook Air (offline sample)" }
 
   alert:
-    depends_on: [check]
-    when: ${{ tasks.check.price < vars.alert_below }}
+    with:
+      price: ${{ tasks.check.price }}     # value edges · the named bindings cross the boundary here
+      name: ${{ tasks.check.name }}
+    when: ${{ with.price < vars.alert_below }}
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.alerts_webhook }}"
-        message: "Price drop · ${{ tasks.check.name }} is now ${{ tasks.check.price }} (target ${{ vars.alert_below }})"
+        message: "Price drop · ${{ with.name }} is now ${{ with.price }} (target ${{ vars.alert_below }})"
         severity: info
 
 outputs:

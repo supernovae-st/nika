@@ -37,9 +37,10 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   the envelope is `nika: v1` + `workflow: <kebab-id>` + `tasks:`).
 - **Check** · `nika check <file>` — the static audit BEFORE any run (schema ·
   DAG · CEL · effects · permits · cost). Exit `0` clean · `2` findings.
-  `--fix` applies the machine-applicable renames (typed did-you-mean only —
-  fields · tools · args · deps · refs) and re-audits; ambiguity is skipped
-  with a note, never guessed.
+  `--fix` applies the machine-applicable repairs (typed did-you-mean renames —
+  fields · tools · args · edge targets · refs — plus the provable
+  `depends_on` → `with:`/`after:` migration and `tasks.*` hoists) and
+  re-audits; ambiguity is skipped with a note, never guessed.
 - **Run** · `nika run <file>` — execute · live render. Exit `0` ok · `1` failed.
   Inputs ride `--var key=value` (repeatable · unknown keys refused); a run
   paused on a `nika:prompt` resumes with `--resume <trace> --answer
@@ -65,7 +66,10 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 
 ## Hard rules (the validator enforces these — they catch ~90% of LLM errors)
 - One verb per task · the verb IS the task key (never a `verb:` field).
-- Any `${{ tasks.X }}` reference needs `depends_on: [X]` (arrays always).
+- `tasks.X` crosses a task boundary only through `with:` (the binding IS the
+  data edge — the body reads `${{ with.<name> }}`, never `tasks.*` directly)
+  or `after: {X: succeeded}` (control · predicates `succeeded` · `failed` ·
+  `skipped` · `terminal`). `depends_on` is dead (`check --fix` migrates).
 - Quote any YAML scalar that STARTS with `${{` (an unquoted leading `${{`
   breaks the parse).
 - `invoke` arguments live under `args:` (not `input:` / `params:`).
@@ -133,7 +137,7 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
 - Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
-- `depends_on` is always an array: `depends_on: [task_id]`.
+- Edges are declared, never restated: a `with:` binding reading `${{ tasks.id.output }}` IS the data edge · `after: { task_id: succeeded }` is the control edge (predicates: `succeeded` · `failed` · `skipped` · `terminal`). `depends_on` is dead — `nika check --fix` migrates it.
 - Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
 - After every edit, run `nika check <file>` — `--fix` heals the mechanical
   renames, the diagnostics teach the rest.
@@ -161,7 +165,9 @@ only a clean file reaches a human.
 Rules the validator enforces:
 - Envelope `nika: v1` · one verb per task (`infer` · `exec` · `invoke` ·
   `agent`) · the verb IS the task key.
-- Any `${{ tasks.X }}` reference needs `depends_on: [X]`.
+- `tasks.X` is read at the boundary only: `with: { alias: ${{ tasks.X.output }} }`
+  is the data edge · `after: { X: succeeded }` orders without data · the
+  body reads `${{ with.alias }}`.
 - `invoke` arguments live under `args:` · secrets come from the
   environment (`${{ secrets.X }}`) — never inline.
 - Never invent syntax: `nika spec --schema` is the JSON Schema · `nika catalog`
@@ -418,11 +424,13 @@ mod tests {
         // §Writing-a-workflow) that catch ~90% of LLM authoring errors —
         // beyond the permits/secrets discipline already present.
         for needle in [
-            "args:",      // invoke args under args:, not input:/params:
-            "quote",      // quote any scalar that starts with ${{
-            "size()",     // the only CEL function in the v0.1 subset
-            "content:",   // nika:write needs content:
-            "depends_on", // required for any ${{ tasks.X }} reference
+            "args:",                // invoke args under args:, not input:/params:
+            "quote",                // quote any scalar that starts with ${{
+            "size()",               // the only CEL function in the v0.1 subset
+            "content:",             // nika:write needs content:
+            "`with:`",              // tasks.* crosses the boundary through with:
+            "`after:",              // …and after: is the control door (W2 · the flow)
+            "`depends_on` is dead", // the dead form is NAMED, with its codemod
         ] {
             assert!(
                 AGENTS_MD.contains(needle),

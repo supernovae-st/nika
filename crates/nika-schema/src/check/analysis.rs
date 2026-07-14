@@ -161,9 +161,10 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
     }
 }
 
-/// `depends_on` as downstream adjacency (dep → dependent), indices into
-/// `wf.tasks`. Unresolved deps are conformance errors and this pass only
-/// runs on conformant workflows — still skipped defensively, never wrong.
+/// `G_p` as downstream adjacency (producer → dependent), indices into
+/// `wf.tasks` — derived from the `with:`/`after:` boundary (the one edge
+/// computation). Unresolved targets are conformance errors and this
+/// pass only runs on conformant workflows — still skipped defensively.
 fn downstream_adjacency(tasks: &[Spanned<RawTask>]) -> Vec<Vec<usize>> {
     let ids: BTreeMap<&str, usize> = tasks
         .iter()
@@ -172,8 +173,8 @@ fn downstream_adjacency(tasks: &[Spanned<RawTask>]) -> Vec<Vec<usize>> {
         .collect();
     let mut down = vec![Vec::new(); tasks.len()];
     for (i, task) in tasks.iter().enumerate() {
-        for dep in &task.value.depends_on {
-            if let Some(&from) = ids.get(dep.value.as_str()) {
+        for producer in crate::analyzer::edges::producer_ids(&task.value) {
+            if let Some(&from) = ids.get(producer.as_str()) {
                 down[from].push(i);
             }
         }
@@ -458,7 +459,8 @@ mod tests {
         let dep_line = if deps.is_empty() {
             String::new()
         } else {
-            format!("    depends_on: [{}]\n", deps.join(", "))
+            let entries: Vec<String> = deps.iter().map(|d| format!("{d}: succeeded")).collect();
+            format!("    after: {{ {} }}\n", entries.join(", "))
         };
         format!("  {id}:\n{dep_line}    infer:\n      prompt: \"x\"\n")
     }
@@ -611,7 +613,7 @@ mod tests {
     #[test]
     fn ordered_writers_are_not_a_race() {
         let yaml = format!(
-            "{HEADER}  first:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  second:\n    depends_on: [first]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
+            "{HEADER}  first:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  second:\n    after: {{ first: succeeded }}\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
         );
         assert!(read(&yaml).conflicts.is_empty());
     }

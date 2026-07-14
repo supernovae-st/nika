@@ -61,33 +61,39 @@ tasks:
       args: { path: "${{ vars.kpi_csv }}" }
 
   kpis:
-    depends_on: [kpi_raw]
+    with:
+      csv: ${{ tasks.kpi_raw.output }}
     invoke:
       tool: "nika:convert"
       args:
-        input: "${{ tasks.kpi_raw.output }}"
+        input: "${{ with.csv }}"
         from: csv
         to: json
         has_header: true
 
   revenue:
-    depends_on: [kpis]
+    with:
+      kpis: ${{ tasks.kpis.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.kpis.output }}"
+        input: "${{ with.kpis }}"
         expression: "map(.weekly_revenue | tonumber) | add"
 
   # ── synthesis · with a thinking budget ──
   brief:
-    depends_on: [news, pulse, kpis, revenue]
+    with:                              # the three branches join here · four value edges
+      news: ${{ tasks.news.output }}
+      pulse: ${{ tasks.pulse.output }}
+      kpis: ${{ tasks.kpis.output }}
+      revenue: ${{ tasks.revenue.output }}
     infer:
       model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
       prompt: |
-        Market signal · ${{ tasks.news.output }}
-        Engineering pulse · ${{ tasks.pulse.output }}
-        KPIs · ${{ tasks.kpis.output }}
-        Revenue (summed) · ${{ tasks.revenue.output }}
+        Market signal · ${{ with.news }}
+        Engineering pulse · ${{ with.pulse }}
+        KPIs · ${{ with.kpis }}
+        Revenue (summed) · ${{ with.revenue }}
 
         Write my Monday brief · 5 sections · market · product ·
         numbers · risks · the ONE decision this week needs.
@@ -103,29 +109,34 @@ tasks:
       day: ".[:10]"                  # nika:date returns the ISO string itself · slice YYYY-MM-DD
 
   save:
-    depends_on: [brief, stamp]
+    with:
+      day: ${{ tasks.stamp.day }}
+      brief: ${{ tasks.brief.output }}
     invoke:
       tool: "nika:write"
       args:
-        path: "./briefs/${{ tasks.stamp.day }}-monday.md"
-        content: "${{ tasks.brief.output }}"
+        path: "./briefs/${{ with.day }}-monday.md"
+        content: "${{ with.brief }}"
         create_dirs: true
 
   # ── the run reports its own bill ──
   bill:
-    depends_on: [save]
+    after:
+      save: succeeded                # state, no data · read the meter once the brief landed
     invoke:
       tool: "nika:inspect"
       args: { view: cost }
 
   ping:
-    depends_on: [bill, stamp]
+    with:
+      day: ${{ tasks.stamp.day }}    # hoisted once · the body AND the cleanup below read this binding
+      cost: ${{ tasks.bill.output.total_usd }}
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.founders_webhook }}"
-        message: "Monday brief ready · briefs/${{ tasks.stamp.day }}-monday.md · run cost $${{ tasks.bill.output.total_usd }}"
+        message: "Monday brief ready · briefs/${{ with.day }}-monday.md · run cost $${{ with.cost }}"
         severity: info
     on_finally:
       - invoke:
@@ -133,7 +144,7 @@ tasks:
           args:
             event_type: "brief.monday.run"
             payload:
-              day: "${{ tasks.stamp.day }}"
+              day: "${{ with.day }}"   # the parent's own binding · cleanup never reads a sibling task
 
 outputs:
   brief: ${{ tasks.brief.output }}

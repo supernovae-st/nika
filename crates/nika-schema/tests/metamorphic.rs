@@ -88,27 +88,40 @@ fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
     for (i, t) in tasks.iter().enumerate() {
         let id = format!("{prefix}{i}");
         let _ = writeln!(y, "  {id}:");
-        if !t.deps.is_empty() {
-            let deps: Vec<String> = t.deps.iter().map(|d| format!("{prefix}{d}")).collect();
-            let _ = writeln!(y, "    depends_on: [{}]", deps.join(", "));
+        // W2 « the flow » — the first dep becomes a with: VALUE binding
+        // when a gate/fan variant consumes it (the binding IS the edge);
+        // the remaining deps become after: control entries.
+        let bound_dep = t.deps.first().filter(|_| t.gate == 2 || t.fan == 2);
+        if let Some(d) = bound_dep {
+            let _ = writeln!(y, "    with:");
+            let _ = writeln!(y, "      upstream: \"${{{{ tasks.{prefix}{d}.output }}}}\"");
+        }
+        let control: Vec<usize> = t
+            .deps
+            .iter()
+            .copied()
+            .filter(|d| Some(d) != bound_dep)
+            .collect();
+        if !control.is_empty() {
+            let _ = writeln!(y, "    after:");
+            for d in control {
+                let _ = writeln!(y, "      {prefix}{d}: succeeded");
+            }
         }
         if t.attempts > 1 {
             let _ = writeln!(y, "    retry: {{ max_attempts: {} }}", t.attempts);
         }
-        match (t.gate, t.deps.first()) {
+        match (t.gate, bound_dep) {
             (1, _) => y.push_str("    when: true\n"),
-            (2, Some(d)) => {
-                let _ = writeln!(
-                    y,
-                    "    when: ${{{{ tasks.{prefix}{d}.status == 'success' }}}}"
-                );
+            (2, Some(_)) => {
+                y.push_str("    when: ${{ with.upstream != null }}\n");
             }
             _ => {}
         }
-        match (t.fan, t.deps.first()) {
+        match (t.fan, bound_dep) {
             (1, _) => y.push_str("    for_each: [\"a\", \"b\"]\n"),
-            (2, Some(d)) => {
-                let _ = writeln!(y, "    for_each: ${{{{ tasks.{prefix}{d}.output.items }}}}");
+            (2, Some(_)) => {
+                y.push_str("    for_each: ${{ with.upstream }}\n");
             }
             _ => {}
         }

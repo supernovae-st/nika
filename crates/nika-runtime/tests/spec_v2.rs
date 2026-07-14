@@ -135,10 +135,13 @@ tasks:
   c:
     exec: { command: ["step", "c"] }
   join:
-    depends_on: [a, b, c]
-    exec: { command: ["join", "${{ tasks.a.output }}", "${{ tasks.b.output }}", "${{ tasks.c.output }}"] }
+    with:
+      a: "${{ tasks.a.output }}"
+      b: "${{ tasks.b.output }}"
+      c: "${{ tasks.c.output }}"
+    exec: { command: ["join", "${{ with.a }}", "${{ with.b }}", "${{ with.c }}"] }
   gated:
-    depends_on: [join]
+    after: { join: succeeded }
     when: ${{ vars.publish == 'yes' }}
     exec: { command: ["echo", "never"] }
 "#;
@@ -293,11 +296,10 @@ tasks:
   build:
     exec: { command: ["make"] }
   deploy:
-    depends_on: [build]
+    after: { build: succeeded }
     exec: { command: ["deploy"] }
   notify:
-    depends_on: [build]
-    when: true
+    after: { build: terminal }
     exec: { command: ["notify", "team"] }
 "#;
     let shell = MockShell::new()
@@ -580,7 +582,7 @@ tasks:
   cached:
     exec: { command: ["cat", "cache.json"] }
   live:
-    depends_on: [cached]
+    after: { cached: succeeded }
     on_error: { recover: "${{ tasks.cached.output }}" }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/a" } }
   optional:
@@ -590,8 +592,8 @@ tasks:
     on_error: { on_codes: [NIKA-GHOST-999], skip: true }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/c" } }
   downstream:
-    depends_on: [live]
-    exec: { command: ["use", "${{ tasks.live.output }}"] }
+    with: { fetched: "${{ tasks.live.output }}" }
+    exec: { command: ["use", "${{ with.fetched }}"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("stale data\n")
@@ -774,8 +776,8 @@ tasks:
     with: { page: "${{ item }}" }
     exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
   join:
-    depends_on: [scrape]
-    exec: { command: ["got", "${{ tasks.scrape.output }}"] }
+    with: { pages: "${{ tasks.scrape.output }}" }
+    exec: { command: ["got", "${{ with.pages }}"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("r-alpha\n")
@@ -1082,7 +1084,7 @@ tasks:
         exec: { command: ["alert", "on-call"] }
       - exec: { command: ["rm", "-f", "scratch-b"] }
   never_ran:
-    depends_on: [breaks]
+    after: { breaks: succeeded }
     exec: { command: ["downstream"] }
     on_finally:
       - exec: { command: ["must", "not", "run"] }
@@ -1164,8 +1166,8 @@ tasks:
     when: ${{ vars.mode == 'slow' }}
     exec: { command: ["slow", "work"] }
   report:
-    depends_on: [slow_path]
-    when: ${{ tasks.slow_path.status != 'success' }}
+    with: { s: "${{ tasks.slow_path.status }}" }
+    when: ${{ with.s != 'success' }}
     exec: { command: ["report", "skipped", "lane"] }
 "#;
     let shell = MockShell::new().enqueue_ok("reported\n");
@@ -1339,8 +1341,8 @@ tasks:
       tool: "nika:glob"
       args: { pattern: "./docs/**/*.md" }
   texts:
-    depends_on: [files]
-    for_each: ${{ tasks.files.output }}
+    with: { files: "${{ tasks.files.output }}" }
+    for_each: ${{ with.files }}
     max_parallel: 1
     invoke:
       tool: "nika:read"
@@ -1396,9 +1398,9 @@ tasks:
       tool: "nika:jq"
       args: { input: { count: 2 }, expression: "." }
   use:
-    depends_on: [api]
-    when: ${{ tasks.api.output.count > 1 }}
-    exec: { command: ["echo", "${{ tasks.api.output.count }}"] }
+    with: { count: "${{ tasks.api.output.count }}" }
+    when: ${{ with.count > 1 }}
+    exec: { command: ["echo", "${{ with.count }}"] }
 "#;
     let tools = MockToolExecutor::new().enqueue_ok(
         ToolResult::success("c-jq", r#"{"count":2}"#)

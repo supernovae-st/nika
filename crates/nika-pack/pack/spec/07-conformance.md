@@ -42,9 +42,11 @@ An engine claims « Core v0.1-compliant » if it ·
    - Rejects unknown top-level fields with a clear error OR ignores with warning (engine's choice · documented behavior)
 
 2. **Computes DAG topology** correctly
-   - Detects cycles · rejects with `NIKA-DAG-001`
-   - Detects unresolved `depends_on` references · rejects with `NIKA-DAG-002`
-   - Detects a `when:`/`with:` reference to an undeclared dependency · rejects with `NIKA-DAG-003`
+   - Derives E_d from `with:` bindings (role per referenced field) and E_c from `after:` entries · G_p = E_d ∪ E_c ([03 §four graphs](./03-dag.md#the-four-graphs-normative))
+   - Detects cycles in G_p · rejects with `NIKA-DAG-001`
+   - Detects a `with:`/`after:` reference to an undeclared task · rejects with `NIKA-DAG-002`
+   - Rejects an `after:` predicate outside the closed set · `NIKA-DAG-005`
+   - Rejects `depends_on:` (dead form) · `NIKA-PARSE-024` · and a `tasks.*` reference outside the boundary · `NIKA-VAR-021`
    - Detects an `on_error.recover` reference to a task downstream of the declaring task · rejects with `NIKA-DAG-004` (the await would deadlock · [05](./05-errors.md#recover-reference-resolution-normative))
    - Computes topological waves for parallel execution
 
@@ -130,8 +132,8 @@ An engine claims « Runtime v0.1-compliant » if it satisfies Core conformance P
    - `agent:` runs the multi-turn loop · honors max_turns + tools whitelist
 
 2. **Honors task fields** correctly
-   - `depends_on` blocks until deps resolve
-   - `when` skips when false
+   - GATE-v2 admission · every incoming edge's producer settles inside that edge's pass-set, else `cancelled` (dead-path · [03 §gate algebra](./03-dag.md#the-gate-algebra-v2-normative))
+   - `when` skips when false (POST-gate · local namespaces)
    - `timeout` (Go-duration string · `"30s"` · `"5m"` etc.) hard-kills on timeout
    - `retry` strategy honored on transient errors
    - `on_error` recovery honored on terminal errors

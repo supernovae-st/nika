@@ -171,6 +171,8 @@ impl SchemaError {
             Self::W1TopLevelDescription { .. } => parse(21, ValidationError),
             Self::W1TasksSequence { .. } => parse(22, ValidationError),
             Self::W1TaskIdField { .. } => parse(23, ValidationError),
+            // W2 « the flow » migration teaching (dead form · 0.104)
+            Self::W2DependsOnField { .. } => parse(24, ValidationError),
 
             // Spec 05 registry · NIKA-VAR-005 = « static expression
             // violation — outside cel-subset/0.1 · chained relation ·
@@ -186,11 +188,12 @@ impl SchemaError {
             | Self::JqBindingContainsTemplate { .. }
             | Self::ExpressionViolation { .. } => var(5, ValidationError),
 
-            // ── NIKA-DAG · topology ─────────────────────────────────
+            // ── NIKA-DAG · topology ── (DAG-003 retired · never reuse ·
+            // the with: binding IS the edge — the class is inexpressible)
             Self::Cycle { .. } => dag(1),
             Self::UnknownDependency { .. } => dag(2),
-            Self::MissingDependsOnEdge { .. } => dag(3),
             Self::RecoverAwaitDeadlock { .. } => dag(4),
+            Self::UnknownAfterPredicate { .. } => dag(5),
 
             // ── NIKA-BUILTIN · arg-shape contracts ── nika:done carries
             // its REGISTERED exact code (deep fixture 010 matches on it) ·
@@ -228,6 +231,9 @@ impl SchemaError {
             // (04 §namespaces · 0.103 · #75 D2 · spec fixture
             // variables/020 matches on namespace + validation_error).
             Self::BareTaskEnvelope { .. } => var(20, ValidationError),
+            // NIKA-VAR-021 · a tasks.* reference outside the boundary
+            // (04 §the reference boundary · the hoist is machine-applicable).
+            Self::RefOutsideBoundary { .. } => var(21, ValidationError),
         }
     }
 }
@@ -396,11 +402,11 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 31 variants · 3 share VAR-001 · 2 share VAR-005 → 28
-        // distinct codes (DAG-004 + BadBuiltinArgs generic + the
-        // registry remaps of 2026-06-11 · VAR-020 bare-envelope joins
-        // 0.103 · the nika:done arm adds BUILTIN-DONE-001 only when the
-        // tool matches — the enumerator carries the generic arm).
-        assert_eq!(seen.len(), 28, "{seen:?}");
+        // 33 variants · 3 share VAR-001 · 2 share VAR-005 → 30
+        // distinct codes (DAG-003 retired with its variant in W2 ·
+        // PARSE-024 + DAG-005 + VAR-021 join · VAR-020 bare-envelope
+        // joined 0.103 · the nika:done arm adds BUILTIN-DONE-001 only
+        // when the tool matches — the enumerator carries the generic arm).
+        assert_eq!(seen.len(), 30, "{seen:?}");
     }
 }

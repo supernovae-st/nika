@@ -269,13 +269,15 @@ tasks:
 
     #[test]
     fn a_conformance_violation_feeds_back_code_and_message() {
-        // A dependency on a task that does not exist — a classic DAG error.
+        // An `after:` edge on a task that does not exist — a classic DAG
+        // error (NIKA-DAG-002).
         let draft = r#"nika: v1
 workflow:
   id: broken
 tasks:
   a:
-    depends_on: [ghost]
+    after:
+      ghost: succeeded
     exec:
       command: ["echo", "x"]
 "#;

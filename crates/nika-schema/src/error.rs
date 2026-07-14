@@ -152,6 +152,56 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// W2 « the flow » · a task carries `depends_on:` — dead form.
+    /// Data crosses through `with:` (the binding IS the edge) · pure
+    /// control through `after:` predicates (spec `03-dag.md`
+    /// §`depends_on` · `check --fix` migrates the provable cases).
+    #[error(
+        "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: succeeded}}` (`nika check --fix` migrates the provable cases)"
+    )]
+    W2DependsOnField {
+        /// The task (named by its map key).
+        task: String,
+        /// The first dep name (for the teaching's `after:` example).
+        task_hint: String,
+        /// Span of the dead `depends_on:` node.
+        span: Option<Span>,
+    },
+
+    /// W2 · an `after:` predicate outside the closed set (spec
+    /// `03-dag.md` §after · `NIKA-DAG-005`).
+    #[error(
+        "task `{task}` after.{target}: `{predicate}` is not a predicate — the set is closed: succeeded · failed · skipped · terminal"
+    )]
+    UnknownAfterPredicate {
+        /// The declaring task.
+        task: String,
+        /// The producer entry carrying the bad predicate.
+        target: String,
+        /// The out-of-set spelling.
+        predicate: String,
+        /// Span of the predicate value.
+        span: Option<Span>,
+    },
+
+    /// W2 · a `tasks.*` reference outside the boundary (spec
+    /// `04-variables.md` §the reference boundary · `NIKA-VAR-021`) —
+    /// body fields read LOCAL names; the fix is machine-applicable.
+    #[error(
+        "task `{task}` {surface} references `tasks.{reference}` — outside the boundary; hoist it into `with:` and read `${{{{ with.<name> }}}}` (`nika check --fix` applies it)"
+    )]
+    RefOutsideBoundary {
+        /// The declaring task.
+        task: String,
+        /// The offending surface (`when:` · `for_each:` · a verb field
+        /// · `on_finally` non-parent).
+        surface: String,
+        /// The referenced task id.
+        reference: String,
+        /// Span of the offending expression.
+        span: Option<Span>,
+    },
+
     /// A task binds zero verbs.
     ///
     /// Spec `02-verbs.md` · « A task **must** specify exactly one of
@@ -404,23 +454,6 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// A `tasks.<id>` reference without the matching `depends_on` edge
-    /// (`NIKA-DAG-003`).
-    ///
-    /// Spec `03-dag.md` · « The engine **rejects the workflow at parse
-    /// time** otherwise … it does **not** silently infer the edge. »
-    #[error(
-        "task `{task}` references `tasks.{referenced}` without declaring `{referenced}` in depends_on"
-    )]
-    MissingDependsOnEdge {
-        /// The referencing task.
-        task: String,
-        /// The referenced task id.
-        referenced: String,
-        /// Source span of the reference.
-        span: Option<Span>,
-    },
-
     // ── Variable resolution · NIKA-VAR ──────────────────────────────
     /// A `${{ … }}` reference does not resolve to a declared name
     /// (`NIKA-VAR-001` · spec `04-variables.md` §resolution order).
@@ -571,7 +604,9 @@ impl SchemaError {
             | Self::RecoverAwaitDeadlock { span, .. }
             | Self::WhenNotBoolean { span, .. }
             | Self::UnknownDependency { span, .. }
-            | Self::MissingDependsOnEdge { span, .. }
+            | Self::W2DependsOnField { span, .. }
+            | Self::UnknownAfterPredicate { span, .. }
+            | Self::RefOutsideBoundary { span, .. }
             | Self::UnresolvedNamespaceRef { span, .. }
             | Self::LoopLocalOutsideForEach { span, .. }
             | Self::UnknownTaskField { span, .. }
@@ -636,7 +671,9 @@ schema_code!(SCHEMA_299, 299, "validation");
 schema_code!(SCHEMA_300, 300, "when-not-boolean");
 schema_code!(SCHEMA_301, 301, "cycle");
 schema_code!(SCHEMA_302, 302, "unknown-dependency");
-schema_code!(SCHEMA_303, 303, "missing-depends-on-edge");
+// SCHEMA_303 « missing-depends-on-edge » RETIRED (never reuse) — the W2
+// boundary made the class inexpressible (the with: binding IS the edge ·
+// a reference outside the boundary is SCHEMA_318 / NIKA-VAR-021).
 schema_code!(SCHEMA_304, 304, "unresolved-namespace-ref");
 schema_code!(SCHEMA_305, 305, "loop-local-outside-for-each");
 schema_code!(SCHEMA_306, 306, "unknown-task-field");
@@ -649,6 +686,9 @@ schema_code!(SCHEMA_312, 312, "w1-workflow-scalar");
 schema_code!(SCHEMA_313, 313, "w1-top-level-description");
 schema_code!(SCHEMA_314, 314, "w1-tasks-sequence");
 schema_code!(SCHEMA_315, 315, "w1-task-id-field");
+schema_code!(SCHEMA_316, 316, "w2-depends-on-field");
+schema_code!(SCHEMA_317, 317, "unknown-after-predicate");
+schema_code!(SCHEMA_318, 318, "ref-outside-boundary");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -664,6 +704,9 @@ impl NikaErrorCode for SchemaError {
             Self::W1TopLevelDescription { .. } => SCHEMA_313,
             Self::W1TasksSequence { .. } => SCHEMA_314,
             Self::W1TaskIdField { .. } => SCHEMA_315,
+            Self::W2DependsOnField { .. } => SCHEMA_316,
+            Self::UnknownAfterPredicate { .. } => SCHEMA_317,
+            Self::RefOutsideBoundary { .. } => SCHEMA_318,
             Self::MissingVerb { .. } => SCHEMA_287,
             Self::MultipleVerbs { .. } => SCHEMA_288,
             Self::BadTimeout { .. } => SCHEMA_289,
@@ -683,7 +726,6 @@ impl NikaErrorCode for SchemaError {
             Self::BadBuiltinArgs { .. } => SCHEMA_309,
             Self::Cycle { .. } => SCHEMA_301,
             Self::UnknownDependency { .. } => SCHEMA_302,
-            Self::MissingDependsOnEdge { .. } => SCHEMA_303,
             Self::UnresolvedNamespaceRef { .. } => SCHEMA_304,
             Self::LoopLocalOutsideForEach { .. } => SCHEMA_305,
             Self::UnknownTaskField { .. } => SCHEMA_306,
@@ -815,9 +857,21 @@ fn analysis_level_variants() -> Vec<SchemaError> {
             suggestion: None,
             span: None,
         },
-        SchemaError::MissingDependsOnEdge {
+        SchemaError::W2DependsOnField {
             task: String::new(),
-            referenced: String::new(),
+            task_hint: String::new(),
+            span: None,
+        },
+        SchemaError::UnknownAfterPredicate {
+            task: String::new(),
+            target: String::new(),
+            predicate: String::new(),
+            span: None,
+        },
+        SchemaError::RefOutsideBoundary {
+            task: String::new(),
+            surface: String::new(),
+            reference: String::new(),
             span: None,
         },
         SchemaError::RecoverAwaitDeadlock {

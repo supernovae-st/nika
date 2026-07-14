@@ -7,7 +7,8 @@
 #   - the `exec:` verb · shell command with `cwd`, `capture: structured`
 #   - `timeout:` · Go-duration string (quoted · "5m") · hard kill incl. retries
 #   - `capture: structured` · .output is { stdout, stderr, exit_code }
-#   - `when:` · CEL conditional gate (only deploy if tests passed)
+#   - `with:` + `when:` · the exit code crosses the boundary as a value
+#     edge, the CEL gate reads the binding (only deploy if tests passed)
 #   - `on_finally:` · cleanup on every outcome of a STARTED task (success /
 #     fail / timeout / cancel) — never for a task that never started
 #
@@ -40,8 +41,9 @@ tasks:
               status: "${{ tasks.test.status }}"
 
   deploy:
-    depends_on: [test]
-    when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
+    with:
+      exit_code: ${{ tasks.test.output.exit_code }}   # value edge · a test task that FAILED (timeout) cancels the deploy
+    when: ${{ with.exit_code == 0 }}                  # red suite → skipped · green suite → ship
     exec:
       command: ["./deploy.sh"]                 # your ship step · unreached until tests are green
       cwd: "."

@@ -23,7 +23,7 @@ permits:
       - "./docker-health.md"        # SLOT: where the report lands (must match `keep`)
 
 tasks:
-  # The reads run IN PARALLEL (no depends_on between them) — the
+  # The reads run IN PARALLEL (no edges between them) — the
   # scheduler proves it from the DAG, nobody orders it.
   ps:
     exec:
@@ -35,15 +35,17 @@ tasks:
       command: ["docker", "system", "df"]   # SLOT: the second read (drop the task if one suffices)
 
   diagnose:
-    depends_on: [ps, df]
+    with:
+      ps: ${{ tasks.ps.output }}
+      df: ${{ tasks.df.output }}
     infer:
       # SLOT: what should the model DO with the readings?
       prompt: |
         You are reading a Docker host's state. Containers (name·status·image):
-        ${{ tasks.ps.output }}
+        ${{ with.ps }}
 
         Disk usage:
-        ${{ tasks.df.output }}
+        ${{ with.df }}
 
         Write a short health report: what is running, what exited, what
         looks unhealthy (restart loops · old exits), and whether disk
@@ -51,12 +53,13 @@ tasks:
       max_tokens: 600               # SLOT: the spend ceiling for this call
 
   keep:
-    depends_on: [diagnose]
+    with:
+      diagnose: ${{ tasks.diagnose.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./docker-health.md"  # SLOT: same path as permits.fs.write
-        content: "${{ tasks.diagnose.output }}"
+        content: "${{ with.diagnose }}"
 
 outputs:
   report: ${{ tasks.keep.output }}

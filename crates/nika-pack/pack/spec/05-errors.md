@@ -92,14 +92,17 @@ these from this file alone.
 | `NIKA-PARSE-017` | duplicate mapping key — no silent last-wins | `validation_error` | false |
 | `NIKA-PARSE-018` | missing required field in a verb body (`infer.prompt` · `exec.command` · `invoke.tool`) | `validation_error` | false |
 | `NIKA-PARSE-019` | generic structural validation — wrong YAML shape for a field | `validation_error` | false |
-| `NIKA-PARSE-020` | validation_error | no | `workflow:` is a scalar — the envelope became an object (`workflow:` then `id:`) |
-| `NIKA-PARSE-021` | validation_error | no | top-level `description:` — it moved into `workflow.description` |
-| `NIKA-PARSE-022` | validation_error | no | `tasks:` is a sequence — it became a map keyed by task id |
-| `NIKA-PARSE-023` | validation_error | no | a task carries an `id:` field — the map key IS the identity |
-| `NIKA-DAG-001` | cycle in `depends_on` (incl. self-dependency) | `validation_error` | false |
-| `NIKA-DAG-002` | `depends_on` references an undeclared task | `validation_error` | false |
-| `NIKA-DAG-003` | a `${{ tasks.X }}` reference with no declared edge | `validation_error` | false |
+| `NIKA-PARSE-020` | `workflow:` is a scalar — the envelope became an object (`workflow:` then `id:`) | `validation_error` | false |
+| `NIKA-PARSE-021` | top-level `description:` — it moved into `workflow.description` | `validation_error` | false |
+| `NIKA-PARSE-022` | `tasks:` is a sequence — it became a map keyed by task id | `validation_error` | false |
+| `NIKA-PARSE-023` | a task carries an `id:` field — the map key IS the identity | `validation_error` | false |
+| `NIKA-PARSE-024` | a task carries `depends_on:` — dead since W2 (data → `with:` bindings · control → `after:` predicates · `check --fix` migrates) | `validation_error` | false |
+| `NIKA-DAG-001` | cycle in the precedence graph G_p = E_d ∪ E_c (incl. self-dependency · via `with:`/`after:`) | `validation_error` | false |
+| `NIKA-DAG-002` | `with:`/`after:` references an undeclared task | `validation_error` | false |
 | `NIKA-DAG-004` | `on_error.recover` references a task downstream of the declaring task (await would deadlock) | `validation_error` | false |
+| `NIKA-DAG-005` | `after:` predicate outside the closed set (`succeeded` · `failed` · `skipped` · `terminal`) | `validation_error` | false |
+| `NIKA-DAG-006` | statically dead task — an incoming edge’s pass-set excludes every reachable producer state, or the `when:` gate is false under every reachable upstream combination ([03 §gate algebra](./03-dag.md#the-gate-algebra-v2-normative)) | `validation_error` | false |
+| `NIKA-DAG-007` | status compared against a literal outside the vocabulary (`success` · `failure` · `skipped` · `cancelled`) — `==` never matches, `!=` always holds | `validation_error` | false |
 | `NIKA-VAR-001` | unresolved reference (unknown namespace entry · undeclared `env`/`vars` key) | `variable_error` | false |
 | `NIKA-VAR-002` | binding cardinality — a jq binding emitted zero or multiple values (evaluation-time · data-dependent) | `variable_error` | false |
 | `NIKA-VAR-003` | provably-invalid path into a declared `schema:` (static walk · [04](./04-variables.md)) | `validation_error` | false |
@@ -109,6 +112,7 @@ these from this file alone.
 | `NIKA-VAR-007` | bytes value substituted into a string position | `variable_error` | false |
 | `NIKA-VAR-008` | unclosed `${{` opener | `validation_error` | false |
 | `NIKA-VAR-020` | bare `tasks.X` is the envelope, not a value — pick `.output` (closed projection set · 04 §namespaces) | `validation_error` | false |
+| `NIKA-VAR-021` | a `tasks.*` reference outside the boundary (`with:` · `after:` · `on_error.recover` · `on_finally` parent-only · workflow `outputs:`) — hoist it into `with:` (`check --fix` applies it) | `validation_error` | false |
 | `NIKA-VAR-009` | typed `outputs` value did not match its declared `type:` at run end (the output half of the callable contract · [01 §engine MUST](./01-envelope.md)) | `validation_error` | false |
 | `NIKA-INFER-001` | provider call failed (HTTP error · provider refusal) | `provider_error` | engine-assessed |
 | `NIKA-INFER-002` | structured output failed `schema:` validation (after any engine-internal retries) | `validation_error` | false |
@@ -136,6 +140,11 @@ these from this file alone.
 `NIKA-PARSE-016` is **retired** (never reuse): the jq-binding-contains-template
 class folded into `NIKA-VAR-005` at the deep-conformance registry remap: the
 allocation hole is deliberate, per the additive-never-repurposed rule above.
+
+`NIKA-DAG-003` is **retired** (never reuse): « a `tasks.X` reference with no
+declared edge » became INEXPRESSIBLE in W2 « the flow » — the `with:` binding
+IS the edge (derived, never restated), and a reference outside the boundary
+is `NIKA-VAR-021`. The allocation hole is deliberate.
 
 ### Taxonomy ownership · the spec table is normative · engines derive
 
@@ -284,8 +293,9 @@ slow_fetch:
 ### `recover:` reference resolution (normative)
 
 A `recover: ${{ tasks.X.output }}` reference is **NOT an execution-order
-edge** (the canonical example references a fallback source with no
-`depends_on` · [03 §referencing carve-out](./03-dag.md#referencing-a-task-requires-an-explicit-depends_on)).
+edge** — it is the *recovery* surface of the reference boundary
+([04 §boundary](./04-variables.md#the-reference-boundary--where-tasks-may-appear) ·
+projected as a `recovery` edge in `graph_format: 2`, which never schedules).
 Resolution happens at **recovery time** ·
 
 1. The failing task exhausts `retry:` · `on_error.recover` fires.
@@ -309,10 +319,10 @@ A binding that fails over the recovered shape errors as usual
 
 **Parse-time acyclicity rule (`NIKA-DAG-004` · `validation_error`)** · a
 `recover:` reference to a task that **transitively depends on the declaring
-task** is rejected at parse time. At recovery time such a task could never
-reach a terminal state (it is waiting on the failing task): the step-3 await
-would deadlock. The [03 carve-out](./03-dag.md#referencing-a-task-requires-an-explicit-depends_on)
-exempts `recover:` from *edge creation*, not from *acyclicity*.
+task** (through G_p = E_d ∪ E_c) is rejected at parse time. At recovery time
+such a task could never reach a terminal state (it is waiting on the failing
+task): the step-3 await would deadlock. The recovery surface is exempt from
+*scheduling-edge creation*, not from *acyclicity*.
 
 Authors SHOULD keep recovery sources cheap and independent (the
 fetch-chain pattern · a local `nika:read` beside a live fetch).
@@ -340,8 +350,7 @@ optional_step:
       skip: true
 
 next:
-    depends_on: [optional_step]
-    when: ${{ tasks.optional_step.status == 'success' }}   # only run if not skipped
+    after: { optional_step: succeeded }     # strict gate · a skipped producer cancels this path
     exec: { command: ["..."] }
 ```
 
@@ -387,13 +396,15 @@ blanket kill** ·
 - **In-flight tasks drain** · an engine MUST NOT abort an unrelated running
   task because a sibling failed (industry default · GitHub Actions
   independent jobs · Argo running nodes).
-- A not-yet-started task whose gate is the **default** (no `when:`) and
-  whose deps can no longer all end `success`/`skipped` is `cancelled`.
-- A not-yet-started task with an **explicit `when:`** still gets its
-  evaluation once its deps are terminal (`failure` and `cancelled` ARE
-  terminal) · `true` → it RUNS (this is the **always-pattern**: a final
-  notify/cleanup task with `when: true` runs even in a failing workflow) ·
-  `false` → `skipped`.
+- A not-yet-started task is admitted per **GATE-v2**
+  ([03 §gate algebra](./03-dag.md#the-gate-algebra-v2-normative)): each of
+  its edges checks the producer's settled state against that edge's
+  pass-set. A value edge from the failed task does not admit → the consumer
+  is `cancelled`, and the dead path propagates transitively.
+- A task whose edges DO admit on failure still runs · `after: {x: failed}`
+  (the failure path) · `after: {x: terminal}` (the **always-pattern**: a
+  final notify/report task runs even in a failing workflow) · a
+  `.status`/`.error` observation binding.
 - The workflow's final state stays `failure` even when always-pattern tasks
   ran afterward (any unrecovered task failure decides it).
 - **User cancellation** (Ctrl+C · API) IS a blanket kill · in-flight tasks

@@ -350,18 +350,28 @@
         }
       ],
       "properties": {
-        "depends_on": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_]*$"
+        "after": {
+          "type": "object",
+          "description": "The CONTROL boundary · {producer-task: predicate}. Each entry is one control edge (spec/03-dag.md §after). State, never data — observe outcomes through with:.",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "type": "string",
+              "enum": [
+                "succeeded",
+                "failed",
+                "skipped",
+                "terminal"
+              ],
+              "description": "The producer states that admit this task · terminal = any settled state INCLUDING cancelled (spec/03-dag.md §gate algebra v2)."
+            }
           }
         },
         "when": {
           "oneOf": [
             {
               "type": "boolean",
-              "description": "YAML boolean literal · the always/never pattern (when: true runs regardless of upstream outcome · spec/03-dag.md §Task states)."
+              "description": "YAML boolean literal · when: false is the never-run switch (when: true restates the default · lint)."
             },
             {
               "type": "string",
@@ -369,7 +379,7 @@
               "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
             }
           ],
-          "description": "Conditional execution gate · a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md §Task states)."
+          "description": "LOCAL business condition · evaluated POST-gate over {vars · env · with · item · index} — tasks.* is illegal here (NIKA-VAR-021 · hoist into with:). false → skipped (spec/03-dag.md §when)."
         },
         "for_each": {
           "description": "Map this task over a collection · `${{ ... }}` reference OR a literal array.",
@@ -759,7 +769,7 @@
           "oneOf": [
             {
               "type": "boolean",
-              "description": "YAML boolean literal · the always/never pattern (when: true runs regardless of upstream outcome · spec/03-dag.md §Task states)."
+              "description": "YAML boolean literal."
             },
             {
               "type": "string",
@@ -767,7 +777,7 @@
               "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
             }
           ],
-          "description": "Conditional execution gate · a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md §Task states)."
+          "description": "Cleanup condition · may read the PARENT task's record (tasks.<parent>.status / .error — the only legal tasks.* target inside on_finally · spec/03-dag.md §on_finally)."
         },
         "timeout": {
           "type": "string"

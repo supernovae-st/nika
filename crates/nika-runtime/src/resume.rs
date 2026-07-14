@@ -217,7 +217,8 @@ impl PriorSuccess {
 /// [`crate::Runtime::with_resume_plan`].
 pub type ResumePlan = BTreeMap<String, PriorSuccess>;
 
-/// The task ids a task's definition can observe — `depends_on` plus every
+/// The task ids a task's definition can observe — its incoming edges
+/// (`with:` refs + `after:` targets · the boundary) plus every
 /// `tasks.<id>` token in its raw template text. The `--from <task_id>`
 /// override walks this REVERSED to force the transitive downstream to
 /// re-run even on a hash match (ADR-099 §3). Over-collection is the safe
@@ -225,7 +226,9 @@ pub type ResumePlan = BTreeMap<String, PriorSuccess>;
 #[must_use]
 pub fn referenced_upstreams(task: &RawTask) -> std::collections::BTreeSet<String> {
     let mut out: std::collections::BTreeSet<String> =
-        task.depends_on.iter().map(|d| d.value.clone()).collect();
+        nika_schema::analyzer::edges::producer_ids(task)
+            .into_iter()
+            .collect();
     if let Some(def) = definition_value(task) {
         scan_task_refs(&def.to_string(), &mut out);
     }
@@ -422,10 +425,14 @@ fn skill_paths(task: &RawTask) -> Vec<&str> {
 /// The behavior-bearing fields as WRITTEN (ADR-099 §1: the verb body ·
 /// `with:` · `output:` · `retry:`/`on_error:`/`on_finally:` · `when:` ·
 /// `for_each:` — plus the scheduling knobs that change behavior). `None`
-/// on any `#[non_exhaustive]` form this recipe does not know.
+/// on any `#[non_exhaustive]` form this recipe does not know. (W2
+/// re-keyed the definition — `after:` replaced `depends_on` · prior
+/// resume caches re-run one-shot, the assumed pre-1.0 cost.)
 fn definition_value(task: &RawTask) -> Option<Value> {
     Some(json!({
-        "depends_on": task.depends_on.iter().map(|d| d.value.clone()).collect::<Vec<_>>(),
+        "after": task.after.iter()
+            .map(|(target, pred)| json!([target.value, pred.value.as_str()]))
+            .collect::<Vec<_>>(),
         "when": when_value(task.when.as_ref())?,
         "for_each": for_each_raw(task.for_each.as_ref())?,
         "max_parallel": task.max_parallel.as_ref().map(|m| m.value),
@@ -1200,7 +1207,7 @@ mod trace_carry_tests {
         assert_eq!(stamp.input_hash, input);
     }
 
-    const TWO_TASKS: &str = "nika: v1\nworkflow:\n  id: resume\ntasks:\n  a:\n    exec: { command: [\"echo\", \"one\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"two\", \"${{ tasks.a.output }}\"] }\n";
+    const TWO_TASKS: &str = "nika: v1\nworkflow:\n  id: resume\ntasks:\n  a:\n    exec: { command: [\"echo\", \"one\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"two\", \"${{ with.prev }}\"] }\n";
 
     /// Run [`TWO_TASKS`] over mock seams with an optional resume plan —
     /// returns the outcome + the emitted stream.
@@ -1321,9 +1328,9 @@ mod trace_carry_tests {
         );
     }
 
-    /// `referenced_upstreams` sees BOTH edge kinds — explicit
-    /// `depends_on` and `${{ tasks.<id> }}` template references (the
-    /// `--from` transitive-downstream walk rides it).
+    /// `referenced_upstreams` sees BOTH edge kinds — the boundary
+    /// (`with:` refs · `after:` targets) and raw `${{ tasks.<id> }}`
+    /// template text (the `--from` transitive-downstream walk rides it).
     #[test]
     fn referenced_upstreams_collects_explicit_and_template_edges() {
         let wf = nika_schema::parse(
@@ -1333,7 +1340,7 @@ mod trace_carry_tests {
         )
         .expect("fixture parses");
         let ups = super::referenced_upstreams(&wf.tasks[1].value);
-        assert!(ups.contains("a"), "depends_on + template ref both seen");
+        assert!(ups.contains("a"), "boundary edge + template ref both seen");
         assert!(super::referenced_upstreams(&wf.tasks[0].value).is_empty());
     }
 }

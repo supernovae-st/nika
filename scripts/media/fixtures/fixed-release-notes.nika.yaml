@@ -25,12 +25,13 @@ tasks:
       command: ["git", "shortlog", "-sn", "HEAD"]
 
   digest:
-    depends_on: [history]
+    with:
+      history: ${{ tasks.history.output }}
     infer:
       max_tokens: 400
       prompt: |
         Group these commits into a headline and highlights:
-        ${{ tasks.history.output }}
+        ${{ with.history }}
       schema:
         type: object
         required: [headline, highlights]
@@ -40,17 +41,20 @@ tasks:
         additionalProperties: false
 
   notes:
-    depends_on: [digest, stats]
+    with:
+      digest_headline: ${{ tasks.digest.output.headline }}
+      digest_highlights: ${{ tasks.digest.output.highlights }}
+      stats: ${{ tasks.stats.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "RELEASE_NOTES.md"
         content: |
-          # ${{ tasks.digest.output.headline }}
+          # ${{ with.digest_headline }}
 
-          ${{ tasks.digest.output.highlights }}
+          ${{ with.digest_highlights }}
 
-          contributors · ${{ tasks.stats.output }}
+          contributors · ${{ with.stats }}
 
 outputs:
   headline: ${{ tasks.digest.output.headline }}

@@ -67,20 +67,26 @@ tasks:
       max_tokens: 600
 
   tabulate:
-    depends_on: [ask_incumbent, ask_challenger, ask_tiny]
+    with:
+      ask_incumbent_duration_ms: ${{ tasks.ask_incumbent.duration_ms }}
+      ask_incumbent: ${{ tasks.ask_incumbent.output }}
+      ask_challenger_duration_ms: ${{ tasks.ask_challenger.duration_ms }}
+      ask_challenger: ${{ tasks.ask_challenger.output }}
+      ask_tiny_duration_ms: ${{ tasks.ask_tiny.duration_ms }}
+      ask_tiny: ${{ tasks.ask_tiny.output }}
     invoke:
       tool: "nika:jq"
       args:
         input:
           - model: "ollama/qwen2.5:14b"
-            ms: "${{ tasks.ask_incumbent.duration_ms }}"
-            answer: "${{ tasks.ask_incumbent.output }}"
+            ms: "${{ with.ask_incumbent_duration_ms }}"
+            answer: "${{ with.ask_incumbent }}"
           - model: "ollama/llama3.2:3b"
-            ms: "${{ tasks.ask_challenger.duration_ms }}"
-            answer: "${{ tasks.ask_challenger.output }}"
+            ms: "${{ with.ask_challenger_duration_ms }}"
+            answer: "${{ with.ask_challenger }}"
           - model: "ollama/qwen2.5:0.5b"
-            ms: "${{ tasks.ask_tiny.duration_ms }}"
-            answer: "${{ tasks.ask_tiny.output }}"
+            ms: "${{ with.ask_tiny_duration_ms }}"
+            answer: "${{ with.ask_tiny }}"
         expression: >-
           "| model | latency | chars | answer (first 160) |\n|---|---|---|---|\n"
           + (map("| " + .model + " | "
@@ -90,7 +96,8 @@ tasks:
              | join("\n"))
 
   persist:
-    depends_on: [tabulate]
+    with:
+      tabulate: ${{ tasks.tabulate.output }}
     invoke:
       tool: "nika:write"
       args:
@@ -99,7 +106,7 @@ tasks:
         content: |
           # Model bench — same question, measured
 
-          ${{ tasks.tabulate.output }}
+          ${{ with.tabulate }}
 
           Facts only: latency from the run's clock, length in characters.
           The answers are side by side — the quality call is yours.

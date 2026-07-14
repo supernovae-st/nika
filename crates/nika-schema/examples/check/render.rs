@@ -177,9 +177,9 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             if gated {
                 notes.push(t.dim("when:"));
             }
-            if !task.depends_on.is_empty() {
-                let deps: Vec<&str> = task.depends_on.iter().map(|d| d.value.as_str()).collect();
-                notes.push(t.dim(&format!("{} {}", t.glyph(Glyph::Dep), deps.join(", "))));
+            let producers = nika_schema::analyzer::edges::producer_ids(task);
+            if !producers.is_empty() {
+                notes.push(t.dim(&format!("{} {}", t.glyph(Glyph::Dep), producers.join(", "))));
             }
             let notes = if notes.is_empty() {
                 String::new()
@@ -595,7 +595,7 @@ mod tests {
 
     /// A chrome-only workflow (no findings · no hints): every rendered
     /// byte is OURS, so the snapshots pin the frame, not library text.
-    const CHROME_ONLY: &str = "nika: v1\nworkflow:\n  id: pipeline\npermits: { exec: [\"true\"] }\ntasks:\n  first:\n    exec: { command: [\"true\"] }\n  second:\n    depends_on: [first]\n    exec: { command: [\"true\"] }\n";
+    const CHROME_ONLY: &str = "nika: v1\nworkflow:\n  id: pipeline\npermits: { exec: [\"true\"] }\ntasks:\n  first:\n    exec: { command: [\"true\"] }\n  second:\n    after: { first: succeeded }\n    exec: { command: [\"true\"] }\n";
 
     fn rendered(t: Theme) -> String {
         let wf = parse(CHROME_ONLY, FileId::new(0), ParseMode::Strict).expect("parse");
@@ -657,7 +657,7 @@ mod tests {
         // p→a1→x2 · p→x1 · isolated x0: Kahn waves peak at 2, the exact
         // antichain width is 3 — BOTH renderers must say so (this is
         // the example renderer's half; verbs/check.rs has the CLI's).
-        let yaml = "nika: v1\nworkflow:\n  id: wide\npermits: { exec: [\"true\"] }\ntasks:\n  p:\n    exec: { command: [\"true\"] }\n  x0:\n    exec: { command: [\"true\"] }\n  a1:\n    depends_on: [p]\n    exec: { command: [\"true\"] }\n  x1:\n    depends_on: [p]\n    exec: { command: [\"true\"] }\n  x2:\n    depends_on: [a1]\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: wide\npermits: { exec: [\"true\"] }\ntasks:\n  p:\n    exec: { command: [\"true\"] }\n  x0:\n    exec: { command: [\"true\"] }\n  a1:\n    after: { p: succeeded }\n    exec: { command: [\"true\"] }\n  x1:\n    after: { p: succeeded }\n    exec: { command: [\"true\"] }\n  x2:\n    after: { a1: succeeded }\n    exec: { command: [\"true\"] }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = check(&wf);
         let analysis = report.analysis.as_ref().expect("conformant -> analysis");

@@ -36,20 +36,25 @@ tasks:
       command: ["wc", "-l", "./news.json"]
 
   fan:
-    depends_on: [gather]
+    after:
+      gather: succeeded
     for_each: ["a", "b", "c"]
     infer:
       prompt: "Classify · ${{ item }}"
       max_tokens: 100
 
   think:
-    depends_on: [gather, probe]
+    with:
+      gathered: ${{ tasks.gather.output }}
+    after:
+      probe: succeeded
     infer:
-      prompt: "Summarize · ${{ tasks.gather.output }}"
+      prompt: "Summarize · ${{ with.gathered }}"
       max_tokens: 800
 
   notify:
-    depends_on: [think]
+    after:
+      think: succeeded
     when: ${{ vars.source != '' }}
     exec:
       command: ["echo", "done"]
@@ -73,7 +78,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     assert_eq!(out.code, exit::OK);
 
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
-    assert_eq!(doc["graph_format"], 1, "versioned envelope");
+    assert_eq!(doc["graph_format"], 2, "versioned envelope");
     assert_eq!(doc["workflow"], "static-suite");
 
     // Topological order: wave 0 (gather/probe) before fan/think before notify.
@@ -115,13 +120,23 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     // mock/echo has no catalog price — the honest interval is null.
     assert_eq!(node("think")["cost_interval"], serde_json::Value::Null);
 
-    // Edges: closed kind, sorted (from, to).
+    // Edges: typed (graph_format 2 · kind closed enum), sorted (from, to).
     let edges: Vec<(String, String)> = doc["edges"]
         .as_array()
         .expect("edges")
         .iter()
         .map(|e| {
-            assert_eq!(e["kind"], "depends_on", "closed enum");
+            match e["kind"].as_str().expect("kind") {
+                "value" => assert!(
+                    e["binding"].is_string(),
+                    "a value edge carries the with: key that created it: {e}"
+                ),
+                "control" => assert!(
+                    e["predicate"].is_string(),
+                    "a control edge carries its after: predicate: {e}"
+                ),
+                other => panic!("unexpected edge kind `{other}` in this fixture: {e}"),
+            }
             (
                 e["from"].as_str().expect("from").to_owned(),
                 e["to"].as_str().expect("to").to_owned(),
@@ -132,6 +147,16 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     sorted.sort();
     assert_eq!(edges, sorted, "stable edge order");
     assert!(edges.contains(&("gather".to_owned(), "fan".to_owned())));
+    // The binding IS the edge: think's `with.gathered` projects as the
+    // ONE value edge gather → think, named after its binding.
+    let value_edge = doc["edges"]
+        .as_array()
+        .expect("edges")
+        .iter()
+        .find(|e| e["from"] == "gather" && e["to"] == "think")
+        .expect("the with: binding projects an edge");
+    assert_eq!(value_edge["kind"], "value");
+    assert_eq!(value_edge["binding"], "gathered");
 
     // Byte-stable: the projection is a pure function of the file.
     let again = graph::run(&path, GraphFormat::Json, PLAIN);
@@ -162,7 +187,7 @@ fn graph_mermaid_and_dot_derive_from_the_projection() {
 #[test]
 fn graph_refuses_a_dag_broken_file_with_exit_2() {
     // think depends on a task that doesn't exist → conformance fails.
-    let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
+    let broken = WORKFLOW.replace("probe: succeeded", "ghost: succeeded");
     let path = fixture_path("graph-broken.nika.yaml", &broken);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::FILE);
@@ -278,7 +303,7 @@ fn check_json_conformance_carries_severity_and_docs_url() {
     // The agent-loop wire: every conformance finding stamps its own
     // severity + per-code docs page (the rustc --explain move, machine
     // form). Consumers link the code without re-deriving anything.
-    let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
+    let broken = WORKFLOW.replace("probe: succeeded", "ghost: succeeded");
     let path = fixture_path("check-severity.nika.yaml", &broken);
     let out = check::run(&path, true, false, None, PLAIN);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -494,9 +519,10 @@ tasks:
       max_tokens: 100
 
   large:
-    depends_on: [small]
+    with:
+      draft: ${{ tasks.small.output }}
     infer:
-      prompt: "b · ${{ tasks.small.output }}"
+      prompt: "b · ${{ with.draft }}"
       max_tokens: 800
 
 outputs:
@@ -548,20 +574,26 @@ fn graph_nodes_always_carry_the_permits_field() {
 }
 
 #[test]
-fn graph_dedups_duplicate_depends_on_edges() {
-    // `depends_on: [gather, gather]` must not lie about cardinality.
-    let dup = WORKFLOW.replace("depends_on: [gather]", "depends_on: [gather, gather]");
+fn graph_dedups_duplicate_reference_edges() {
+    // ONE binding whose expression reads the same producer twice must
+    // not lie about cardinality: N refs to the SAME task collapse to
+    // one typed edge (the `after:` map cannot even express a duplicate —
+    // a repeated key is refused by the YAML layer).
+    let dup = WORKFLOW.replace(
+        "gathered: ${{ tasks.gather.output }}",
+        "gathered: \"${{ tasks.gather.output }} + ${{ tasks.gather.output }}\"",
+    );
     let path = fixture_path("dup-edges.nika.yaml", &dup);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
-    let gather_fan = doc["edges"]
+    let gather_think = doc["edges"]
         .as_array()
         .expect("edges")
         .iter()
-        .filter(|e| e["from"] == "gather" && e["to"] == "fan")
+        .filter(|e| e["from"] == "gather" && e["to"] == "think")
         .count();
-    assert_eq!(gather_fan, 1, "duplicate depends_on collapses to one edge");
+    assert_eq!(gather_think, 1, "duplicate reference collapses to one edge");
 }
 
 /// The SKILLS rung (#473) — three postures through the REAL check verb
@@ -661,7 +693,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
 /// src loc-cap: the 1500-line law bit check.rs at the merge.)
 #[test]
 fn accents_check_verdict_carries_the_dag_map() {
-    let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  one:\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  two:\n    depends_on: [one]\n    infer: { prompt: \"${{ tasks.one.output }}\", max_tokens: 5, model: \"mock/echo\" }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  one:\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  two:\n    with:\n      prev: ${{ tasks.one.output }}\n    infer: { prompt: \"${{ with.prev }}\", max_tokens: 5, model: \"mock/echo\" }\n";
     let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&dir);
     let file = dir.join("map.nika.yaml");

@@ -49,9 +49,9 @@ fn wf(consumer: &str) -> String {
 fn misspelled_key_on_closed_level_is_rejected() {
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output.entitties }}" }
     exec:
-      command: ["report", "${{ tasks.extract.output.entitties }}"]
+      command: ["report", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -61,9 +61,9 @@ fn member_step_into_scalar_typed_property_is_rejected() {
     // `count` is an integer — `.value` beneath it is provably invalid.
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output.count.value }}" }
     exec:
-      command: ["report", "${{ tasks.extract.output.count.value }}"]
+      command: ["report", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -73,9 +73,9 @@ fn index_step_on_non_array_level_is_rejected() {
     // the root output is type: object — indexing it is provably invalid.
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output[0] }}" }
     exec:
-      command: ["report", "${{ tasks.extract.output[0] }}"]
+      command: ["report", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -85,9 +85,9 @@ fn member_step_into_array_items_scalar_is_rejected() {
     // entities[0] is a string — `.name` beneath it is provably invalid.
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output.entities[0].name }}" }
     exec:
-      command: ["report", "${{ tasks.extract.output.entities[0].name }}"]
+      command: ["report", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }
@@ -96,7 +96,6 @@ fn member_step_into_array_items_scalar_is_rejected() {
 fn with_block_and_invoke_args_are_scanned_too() {
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
     with:
       payload: "${{ tasks.extract.output.entitties }}"
     invoke:
@@ -112,9 +111,11 @@ fn with_block_and_invoke_args_are_scanned_too() {
 fn declared_property_path_is_accepted() {
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with:
+      entities: "${{ tasks.extract.output.entities }}"
+      count: "${{ tasks.extract.output.count }}"
     exec:
-      shell: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
+      shell: "report ${{ with.entities }} (${{ with.count }})"
 "#);
     assert_eq!(codes(&yaml), Vec::<String>::new());
 }
@@ -123,9 +124,9 @@ fn declared_property_path_is_accepted() {
 fn valid_index_and_member_chain_is_accepted() {
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output.entities[0] }}" }
     exec:
-      command: ["first:", "${{ tasks.extract.output.entities[0] }}"]
+      command: ["first:", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), Vec::<String>::new());
 }
@@ -146,9 +147,11 @@ tasks:
         properties:
           meta: { type: object }
   report:
-    depends_on: [extract]
+    with:
+      a: "${{ tasks.extract.output.surprise }}"
+      b: "${{ tasks.extract.output.meta.anything.deep }}"
     exec:
-      command: ["r", "${{ tasks.extract.output.surprise }}", "${{ tasks.extract.output.meta.anything.deep }}"]
+      command: ["r", "${{ with.a }}", "${{ with.b }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
@@ -173,9 +176,9 @@ tasks:
               - { type: string }
               - { type: object }
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output.result.maybe.deep }}" }
     exec:
-      command: ["r", "${{ tasks.extract.output.result.maybe.deep }}"]
+      command: ["r", "${{ with.p }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
@@ -190,9 +193,9 @@ tasks:
   dump:
     exec: { command: ["./dump.sh"] }
   report:
-    depends_on: [dump]
+    with: { p: "${{ tasks.dump.output.whatever.deep[3] }}" }
     exec:
-      command: ["r", "${{ tasks.dump.output.whatever.deep[3] }}"]
+      command: ["r", "${{ with.p }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
@@ -203,11 +206,11 @@ fn dynamic_index_step_ends_the_static_walk() {
     // nothing is rejected (the prefix `entities` itself is valid).
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
     with:
       i: "0"
+      p: "${{ tasks.extract.output.entities[with.i] }}"
     exec:
-      command: ["r", "${{ tasks.extract.output.entities[with.i] }}"]
+      command: ["r", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), Vec::<String>::new());
 }
@@ -217,9 +220,9 @@ fn string_index_form_counts_as_member_step() {
     // tasks.extract.output['entitties'] — same misspelling via index-form.
     let yaml = wf(r#"
   report:
-    depends_on: [extract]
+    with: { p: "${{ tasks.extract.output['entitties'] }}" }
     exec:
-      command: ["r", "${{ tasks.extract.output['entitties'] }}"]
+      command: ["r", "${{ with.p }}"]
 "#);
     assert_eq!(codes(&yaml), vec!["NIKA-VAR-003".to_string()]);
 }

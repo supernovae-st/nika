@@ -80,6 +80,18 @@ pub enum GateFindingKind {
     BadStatusLiteral,
 }
 
+impl GateFindingKind {
+    /// The spec error code this finding refuses under (05-errors ·
+    /// one-voice: every check refusal names its code).
+    #[must_use]
+    pub fn wire_code(self) -> &'static str {
+        match self {
+            Self::DeadTask => "NIKA-DAG-006",
+            Self::BadStatusLiteral => "NIKA-DAG-007",
+        }
+    }
+}
+
 /// One reachability finding (ADR-092 #6).
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[non_exhaustive]
@@ -152,33 +164,52 @@ fn status_bit(lit: &str) -> Option<u8> {
     }
 }
 
-/// `tasks.<id>.status` (member or index form) → the task id.
-/// `pub(super)` — the hints module reuses the atom matcher (DRY).
-pub(super) fn status_ref(e: &Expr) -> Option<&str> {
-    let Expr::Member { base, field } = e else {
-        return None;
-    };
-    if field != "status" {
-        return None;
-    }
-    match base.as_ref() {
+/// The with-binding names that resolve to a producer's STATUS — a
+/// binding whose value is exactly one `${{ tasks.<id>.status }}` island
+/// (W2 · the when: surface reads `with.<name>`, the binding carries the
+/// observation · spec 03 §after pairing).
+type StatusBindings = BTreeMap<String, String>;
+
+/// A status observation → the observed task id · either directly
+/// (`tasks.<id>.status` — legal on `on_finally` surfaces) or through a
+/// status-carrying `with:` binding (`with.<name>` · the W2 idiom).
+fn status_ref<'e>(e: &'e Expr, bindings: &'e StatusBindings) -> Option<&'e str> {
+    match e {
+        Expr::Member { base, field } if field == "status" => match base.as_ref() {
+            Expr::Member { base, field } => match base.as_ref() {
+                Expr::Ident(root) if root == "tasks" => Some(field),
+                _ => None,
+            },
+            Expr::Index { base, index } => match (base.as_ref(), index.as_ref()) {
+                (Expr::Ident(root), Expr::Lit(Literal::Str(id))) if root == "tasks" => Some(id),
+                _ => None,
+            },
+            _ => None,
+        },
+        // `with.<name>` — resolves through the status-binding map.
         Expr::Member { base, field } => match base.as_ref() {
-            Expr::Ident(root) if root == "tasks" => Some(field),
+            Expr::Ident(root) if root == "with" => bindings.get(field).map(String::as_str),
             _ => None,
         },
         Expr::Index { base, index } => match (base.as_ref(), index.as_ref()) {
-            (Expr::Ident(root), Expr::Lit(Literal::Str(id))) if root == "tasks" => Some(id),
+            (Expr::Ident(root), Expr::Lit(Literal::Str(name))) if root == "with" => {
+                bindings.get(name).map(String::as_str)
+            }
             _ => None,
         },
         _ => None,
     }
 }
 
-/// The either-order status atom: `tasks.<id>.status <op> <other>` OR
-/// `<other> <op> tasks.<id>.status` — ONE destructure shared by the
-/// evaluator, the literal collector, and the hints matcher.
-pub(super) fn status_atom<'e>(lhs: &'e Expr, rhs: &'e Expr) -> Option<(&'e str, &'e Expr)> {
-    match (status_ref(lhs), status_ref(rhs)) {
+/// The either-order status atom: `<status-obs> <op> <other>` OR
+/// `<other> <op> <status-obs>` — ONE destructure shared by the
+/// evaluator and the literal collector.
+fn status_atom<'e>(
+    lhs: &'e Expr,
+    rhs: &'e Expr,
+    bindings: &'e StatusBindings,
+) -> Option<(&'e str, &'e Expr)> {
+    match (status_ref(lhs, bindings), status_ref(rhs, bindings)) {
         (Some(id), None) => Some((id, rhs)),
         (None, Some(id)) => Some((id, lhs)),
         _ => None,
@@ -187,19 +218,19 @@ pub(super) fn status_atom<'e>(lhs: &'e Expr, rhs: &'e Expr) -> Option<(&'e str, 
 
 /// Evaluate a gate under one status assignment — Kleene-3, total.
 /// `sigma` maps task ids to their assigned status bit.
-fn eval_k3(e: &Expr, sigma: &BTreeMap<&str, u8>) -> K3 {
+fn eval_k3<'e>(e: &'e Expr, sigma: &BTreeMap<&str, u8>, b: &'e StatusBindings) -> K3 {
     match e {
-        Expr::Lit(Literal::Bool(b)) => {
-            if *b {
+        Expr::Lit(Literal::Bool(v)) => {
+            if *v {
                 K3::True
             } else {
                 K3::False
             }
         }
-        Expr::Not(inner) => eval_k3(inner, sigma).negate(),
-        Expr::And(a, b) => eval_k3(a, sigma).and(eval_k3(b, sigma)),
-        Expr::Or(a, b) => eval_k3(a, sigma).or(eval_k3(b, sigma)),
-        Expr::Relation { op, lhs, rhs } => eval_relation(*op, lhs, rhs, sigma),
+        Expr::Not(inner) => eval_k3(inner, sigma, b).negate(),
+        Expr::And(x, y) => eval_k3(x, sigma, b).and(eval_k3(y, sigma, b)),
+        Expr::Or(x, y) => eval_k3(x, sigma, b).or(eval_k3(y, sigma, b)),
+        Expr::Relation { op, lhs, rhs } => eval_relation(*op, lhs, rhs, sigma, b),
         // ternary/has/size/strings/members/… — beyond the status
         // fragment: Unknown (sound — never contributes to a dead-claim)
         _ => K3::Unknown,
@@ -207,8 +238,14 @@ fn eval_k3(e: &Expr, sigma: &BTreeMap<&str, u8>) -> K3 {
 }
 
 /// A relation — exact over status atoms, Unknown beyond them.
-fn eval_relation(op: RelOp, lhs: &Expr, rhs: &Expr, sigma: &BTreeMap<&str, u8>) -> K3 {
-    let Some((id, other)) = status_atom(lhs, rhs) else {
+fn eval_relation<'e>(
+    op: RelOp,
+    lhs: &'e Expr,
+    rhs: &'e Expr,
+    sigma: &BTreeMap<&str, u8>,
+    b: &'e StatusBindings,
+) -> K3 {
+    let Some((id, other)) = status_atom(lhs, rhs, b) else {
         return K3::Unknown;
     };
     let Some(&assigned) = sigma.get(id) else {
@@ -271,14 +308,14 @@ fn walk<'e>(e: &'e Expr, visit: &mut dyn FnMut(&'e Expr)) {
 }
 
 /// Collect the distinct tasks referenced by status atoms.
-fn collect_status_refs(e: &Expr) -> Vec<&str> {
+fn collect_status_refs<'e>(e: &'e Expr, b: &'e StatusBindings) -> Vec<&'e str> {
     let mut out = Vec::new();
     // Set-based dedup keeps this O(n log n): the `when:` gate is
     // attacker-authored and a linear `Vec::contains` scan per atom is
     // quadratic on a hostile expression (see `collect_bad_literals`).
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     walk(e, &mut |node| {
-        if let Some(id) = status_ref(node)
+        if let Some(id) = status_ref(node, b)
             && seen.insert(id)
         {
             out.push(id);
@@ -300,7 +337,7 @@ fn max_list_len(e: &Expr) -> usize {
 }
 
 /// Collect out-of-vocabulary status literals (the `'failed'` class).
-fn collect_bad_literals(e: &Expr) -> Vec<(String, String)> {
+fn collect_bad_literals(e: &Expr, b: &StatusBindings) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     // The `when:` gate is attacker-authored and an `in [...]` list literal
     // is uncapped (each element is depth-1, so MAX_DEPTH never fires). A
@@ -313,7 +350,7 @@ fn collect_bad_literals(e: &Expr) -> Vec<(String, String)> {
         let Expr::Relation { op, lhs, rhs } = node else {
             return;
         };
-        let Some((id, other)) = status_atom(lhs, rhs) else {
+        let Some((id, other)) = status_atom(lhs, rhs, b) else {
             return;
         };
         let mut push = |lit: &str| {
@@ -350,7 +387,11 @@ struct GateVerdict {
 }
 
 /// Enumerate every assignment of the referenced tasks' possible sets.
-fn judge_gate(expr: &Expr, possible: &BTreeMap<&str, u8>) -> GateVerdict {
+fn judge_gate<'e>(
+    expr: &'e Expr,
+    possible: &BTreeMap<&str, u8>,
+    b: &'e StatusBindings,
+) -> GateVerdict {
     // A pathologically large `in [...]` list is not enumerated: each leaf
     // would re-scan it (O(4096 × len)). Widen to satisfiable∧falsifiable —
     // the sound back-off (no dead/redundant claim on an un-enumerated gate).
@@ -360,7 +401,7 @@ fn judge_gate(expr: &Expr, possible: &BTreeMap<&str, u8>) -> GateVerdict {
             falsifiable: true,
         };
     }
-    let refs = collect_status_refs(expr);
+    let refs = collect_status_refs(expr, b);
     // unknown refs (not yet computed / not a dep) widen to the full set
     let domains: Vec<(&str, u8)> = refs
         .iter()
@@ -377,7 +418,7 @@ fn judge_gate(expr: &Expr, possible: &BTreeMap<&str, u8>) -> GateVerdict {
         falsifiable: false,
     };
     let mut sigma: BTreeMap<&str, u8> = BTreeMap::new();
-    enumerate(expr, &domains, 0, &mut sigma, &mut verdict);
+    enumerate(expr, &domains, 0, &mut sigma, &mut verdict, b);
     verdict
 }
 
@@ -388,12 +429,13 @@ fn enumerate<'d>(
     depth: usize,
     sigma: &mut BTreeMap<&'d str, u8>,
     verdict: &mut GateVerdict,
+    b: &'d StatusBindings,
 ) {
     if verdict.satisfiable && verdict.falsifiable {
         return;
     }
     let Some((id, set)) = domains.get(depth) else {
-        match eval_k3(expr, sigma) {
+        match eval_k3(expr, sigma, b) {
             K3::True => verdict.satisfiable = true,
             K3::False => verdict.falsifiable = true,
             // Unknown: could go either way at runtime — both
@@ -407,7 +449,7 @@ fn enumerate<'d>(
     for bit in [S_SUCCESS, S_FAILURE, S_SKIPPED, S_CANCELLED] {
         if set & bit != 0 {
             sigma.insert(id, bit);
-            enumerate(expr, domains, depth + 1, sigma, verdict);
+            enumerate(expr, domains, depth + 1, sigma, verdict, b);
         }
     }
     sigma.remove(id);
@@ -416,28 +458,120 @@ fn enumerate<'d>(
 /// Run the reachability analysis. `waves` is the valid topological
 /// order (the caller — `check()` — only invokes this when conformance
 /// holds, the same gating as the IFC secret analysis).
-pub(crate) fn scan_gates(wf: &RawWorkflow, waves: &[Vec<usize>]) -> Vec<GateFinding> {
+pub(crate) fn scan_gates(
+    wf: &RawWorkflow,
+    waves: &[Vec<usize>],
+    edges: &[crate::analyzer::edges::Edge],
+) -> Vec<GateFinding> {
     let mut findings = Vec::new();
     // possible terminal-status set per task, keyed by id
     let mut possible: BTreeMap<&str, u8> = BTreeMap::new();
+
+    // The Graph IR — the abstract gate judges the SAME edges the
+    // runtime will (one-truth: the analyzer derived them ONCE, this
+    // pass consumes them — a re-derivation here cost check ~2× on the
+    // bench and split the truth in two).
+    let mut incoming: Vec<Vec<(usize, crate::analyzer::edges::EdgeKind)>> =
+        vec![Vec::new(); wf.tasks.len()];
+    for e in edges {
+        incoming[e.to].push((e.from, e.kind));
+    }
 
     for wave in waves {
         for &idx in wave {
             let task = &wf.tasks[idx].value;
             let id = task.id.value.as_str();
-            let set = fold_task(task, id, &possible, &mut findings);
+            let bindings = status_bindings(task);
+            let set = fold_task(
+                task,
+                id,
+                &possible,
+                &incoming[idx],
+                wf,
+                &bindings,
+                &mut findings,
+            );
             possible.insert(id, set);
         }
     }
     findings
 }
 
+/// The with-bindings of a task that carry EXACTLY one bare
+/// `${{ tasks.<id>.status }}` island — the W2 observation idiom the
+/// gate analysis resolves through (`with.<name> == 'success'`).
+fn status_bindings(task: &crate::raw::RawTask) -> StatusBindings {
+    let mut out = StatusBindings::new();
+    for (key, value) in &task.with {
+        let serde_json::Value::String(s) = &value.value else {
+            continue;
+        };
+        let t = s.trim();
+        if !(t.starts_with("${{") && t.ends_with("}}")) {
+            continue;
+        }
+        let Ok(islands) = scan_templates(t) else {
+            continue;
+        };
+        let [island] = islands.as_slice() else {
+            continue;
+        };
+        // the DIRECT form only — the binding IS the observation
+        let Expr::Member { base, field } = &island.expr else {
+            continue;
+        };
+        if field != "status" {
+            continue;
+        }
+        let target = match base.as_ref() {
+            Expr::Member { base, field } => match base.as_ref() {
+                Expr::Ident(root) if root == "tasks" => Some(field.clone()),
+                _ => None,
+            },
+            Expr::Index { base, index } => match (base.as_ref(), index.as_ref()) {
+                (Expr::Ident(root), Expr::Lit(Literal::Str(id))) if root == "tasks" => {
+                    Some(id.clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(target) = target {
+            out.insert(key.value.clone(), target);
+        }
+    }
+    out
+}
+
+/// The bit-mask of settled states an edge admits (GATE-v2 pass-sets ·
+/// `analyzer::edges::EdgeKind::admits` projected onto the bitset).
+fn edge_mask(kind: crate::analyzer::edges::EdgeKind) -> u8 {
+    use crate::analyzer::edges::SettledState;
+    let mut mask = 0;
+    for (state, bit) in [
+        (SettledState::Success, S_SUCCESS),
+        (SettledState::Failure, S_FAILURE),
+        (SettledState::Skipped, S_SKIPPED),
+        (SettledState::Cancelled, S_CANCELLED),
+    ] {
+        if kind.admits(state) {
+            mask |= bit;
+        }
+    }
+    mask
+}
+
 /// One task's possible terminal-status set — pushing findings along
-/// the way.
+/// the way (GATE-v2 · the gate is judged over the DERIVED edges, then
+/// `when:` refines POST-gate · spec 03 §gate algebra).
+#[allow(clippy::too_many_arguments)]
 fn fold_task(
     task: &crate::raw::RawTask,
     id: &str,
     possible: &BTreeMap<&str, u8>,
+    incoming: &[(usize, crate::analyzer::edges::EdgeKind)],
+    wf: &RawWorkflow,
+    bindings: &StatusBindings,
     findings: &mut Vec<GateFinding>,
 ) -> u8 {
     let span = task
@@ -452,61 +586,63 @@ fn fold_task(
         .is_some_and(|oe| matches!(oe.value.action, OnErrorAction::Skip));
 
     let mut set = S_CANCELLED; // always possible (operator · timeout · budget)
-    match task.when.as_ref().map(|w| &w.value) {
-        Some(WhenGate::Literal(false)) => {
-            // the documented never-pattern (feature-flag) — not a
-            // finding; the task is skipped by explicit intent
-            set |= S_SKIPPED;
-        }
-        Some(WhenGate::Literal(true)) => {
-            set |= S_SUCCESS | S_FAILURE;
-        }
-        Some(WhenGate::Expr(src)) => match parse_gate(src) {
-            Some(expr) => {
-                for (ref_task, lit) in collect_bad_literals(&expr) {
-                    let fix = closest_status(&lit).map(|s| format!("did you mean '{s}'?"));
-                    findings.push(GateFinding {
-                        task: id.to_owned(),
-                        kind: GateFindingKind::BadStatusLiteral,
-                        detail: format!(
-                            "`tasks.{ref_task}.status` is compared against '{lit}' — not a \
-                             status (the vocabulary is success · failure · skipped · \
-                             cancelled), so `==` never matches and `!=` always holds"
-                        ),
-                        fix,
-                        span,
-                    });
-                }
-                let verdict = judge_gate(&expr, possible);
-                if verdict.satisfiable {
-                    set |= S_SUCCESS | S_FAILURE;
-                } else {
-                    findings.push(GateFinding {
-                        task: id.to_owned(),
-                        kind: GateFindingKind::DeadTask,
-                        detail: dead_detail(&expr, possible),
-                        fix: None,
-                        span,
-                    });
-                }
-                if verdict.falsifiable {
-                    set |= S_SKIPPED;
-                }
+
+    let gate_live = gate_can_admit(incoming, possible, wf, id, span, findings);
+
+    if gate_live {
+        match task.when.as_ref().map(|w| &w.value) {
+            Some(WhenGate::Literal(false)) => {
+                // the documented never-pattern (feature-flag) — not a
+                // finding; the task is skipped by explicit intent
+                // (POST-gate · skipped, never cancelled)
+                set |= S_SKIPPED;
             }
-            // unparseable gate: the analyzer owns that error — stay
-            // silent and assume anything
-            None => set |= S_SUCCESS | S_FAILURE | S_SKIPPED,
-        },
-        None => {
-            // the default gate: runs iff every dep lands in
-            // {success, skipped}; otherwise this task is CANCELLED
-            let runnable = task.depends_on.iter().all(|d| {
-                possible.get(d.value.as_str()).copied().unwrap_or(S_ALL) & (S_SUCCESS | S_SKIPPED)
-                    != 0
-            });
-            if runnable {
+            Some(WhenGate::Literal(true)) | None => {
                 set |= S_SUCCESS | S_FAILURE;
             }
+            Some(WhenGate::Expr(src)) => match parse_gate(src) {
+                Some(expr) => {
+                    for (ref_task, lit) in collect_bad_literals(&expr, bindings) {
+                        let fix = closest_status(&lit).map(|s| format!("did you mean '{s}'?"));
+                        findings.push(GateFinding {
+                            task: id.to_owned(),
+                            kind: GateFindingKind::BadStatusLiteral,
+                            detail: format!(
+                                "the status of `{ref_task}` is compared against '{lit}' — \
+                                 not a status (the vocabulary is success · failure · \
+                                 skipped · cancelled), so `==` never matches and `!=` \
+                                 always holds"
+                            ),
+                            fix,
+                            span,
+                        });
+                    }
+                    let verdict = judge_gate(&expr, possible, bindings);
+                    if verdict.satisfiable {
+                        set |= S_SUCCESS | S_FAILURE;
+                    } else {
+                        findings.push(GateFinding {
+                            task: id.to_owned(),
+                            kind: GateFindingKind::DeadTask,
+                            detail: dead_detail(&expr, possible, bindings),
+                            fix: None,
+                            span,
+                        });
+                    }
+                    if verdict.falsifiable {
+                        set |= S_SKIPPED;
+                    }
+                }
+                // unparseable when: the analyzer owns that error — stay
+                // silent and assume anything
+                None => set |= S_SUCCESS | S_FAILURE | S_SKIPPED,
+            },
+        }
+        // an empty for_each collection settles `skipped` (spec 03
+        // §for_each semantics) — the state is reachable whenever the
+        // task can run at all.
+        if task.for_each.is_some() {
+            set |= S_SKIPPED;
         }
     }
     if skip_route {
@@ -515,11 +651,46 @@ fn fold_task(
     set
 }
 
+/// GATE-v2 admission liveness — every incoming edge must be ABLE to
+/// admit: a producer whose whole possible-set lies outside an edge's
+/// pass-set makes the consumer permanently dead (cancelled on every
+/// run · a `DeadTask` finding per such edge).
+fn gate_can_admit(
+    incoming: &[(usize, crate::analyzer::edges::EdgeKind)],
+    possible: &BTreeMap<&str, u8>,
+    wf: &RawWorkflow,
+    id: &str,
+    span: Option<ByteSpan>,
+    findings: &mut Vec<GateFinding>,
+) -> bool {
+    let mut gate_live = true;
+    for &(from, kind) in incoming {
+        let producer = wf.tasks[from].value.id.value.as_str();
+        let producer_possible = possible.get(producer).copied().unwrap_or(S_ALL);
+        if producer_possible & edge_mask(kind) == 0 {
+            gate_live = false;
+            findings.push(GateFinding {
+                task: id.to_owned(),
+                kind: GateFindingKind::DeadTask,
+                detail: format!(
+                    "the {} edge from `{producer}` can never admit — `{producer}` \
+                     can only settle a state outside the edge's pass-set (spec 03 \
+                     \u{a7}gate algebra v2); this task is cancelled on every run",
+                    kind.wire_kind()
+                ),
+                fix: None,
+                span,
+            });
+        }
+    }
+    gate_live
+}
+
 /// The diagnostic for a dead gate — names the upstream sets so the
 /// author sees WHY (the « with diagnostics » discipline).
-fn dead_detail(expr: &Expr, possible: &BTreeMap<&str, u8>) -> String {
+fn dead_detail<'e>(expr: &'e Expr, possible: &BTreeMap<&str, u8>, b: &'e StatusBindings) -> String {
     let mut parts: Vec<String> = Vec::new();
-    for id in collect_status_refs(expr) {
+    for id in collect_status_refs(expr, b) {
         let set = possible.get(id).copied().unwrap_or(S_ALL);
         let names: Vec<&str> = [
             (S_SUCCESS, "success"),
@@ -559,7 +730,7 @@ mod tests {
     fn gates(yaml: &str) -> Vec<GateFinding> {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let analyzed = crate::analyze(&wf).expect("analyze");
-        scan_gates(&wf, &analyzed.topo_waves)
+        scan_gates(&wf, &analyzed.topo_waves, &analyzed.edges)
     }
 
     fn wf(tasks: &str) -> String {
@@ -569,7 +740,7 @@ mod tests {
     #[test]
     fn contradiction_on_one_task_is_dead() {
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'success' && with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::DeadTask);
@@ -592,7 +763,7 @@ mod tests {
             write!(list, ", 'success'").expect("write to String is infallible");
         }
         let f = gates(&wf(&format!(
-            "  a:\n    exec: {{ command: [\"true\"] }}\n  b:\n    depends_on: [a]\n    when: ${{{{ tasks.a.status in [{list}] }}}}\n    exec: {{ command: [\"true\"] }}\n"
+            "  a:\n    exec: {{ command: [\"true\"] }}\n  b:\n    with: {{ a_status: \"${{{{ tasks.a.status }}}}\" }}\n    when: ${{{{ with.a_status in [{list}] }}}}\n    exec: {{ command: [\"true\"] }}\n"
         )));
         assert!(
             !f.iter().any(|g| g.task == "b"),
@@ -604,7 +775,7 @@ mod tests {
     fn bad_status_literal_failed_is_caught_with_the_fix() {
         // the wild-caught class: 'failed' is not a status — 'failure' is
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failed' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'failed' }}\n    exec: { command: [\"true\"] }\n",
         ));
         // == 'failed' never matches → ALSO dead
         assert_eq!(f.len(), 2, "{f:?}");
@@ -617,7 +788,7 @@ mod tests {
     fn ne_bad_literal_flags_vocabulary_but_lives() {
         // != 'failed' always holds — a bug, but the task CAN run
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status != 'failed' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::BadStatusLiteral);
@@ -628,7 +799,7 @@ mod tests {
         // `a` has no when: and no on_error:skip — it can never be
         // `skipped`, so gating b on it is dead (the spec's own note)
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::DeadTask);
@@ -638,7 +809,7 @@ mod tests {
     #[test]
     fn skip_route_makes_skipped_reachable() {
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n    on_error: { skip: true }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n    on_error: { skip: true }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -646,9 +817,10 @@ mod tests {
     #[test]
     fn failure_gate_is_alive_and_cancelled_gate_is_alive() {
         // == 'failure' is the documented escalation pattern; cancelled
-        // is always possible (operator stop) — neither is dead
+        // is always possible (operator stop) — neither is dead (the
+        // status binding is a terminal-observation edge · admits all)
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'cancelled' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n  c:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'cancelled' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -658,7 +830,7 @@ mod tests {
         // b is dead (contradiction) → b can only be skipped/cancelled →
         // c gated on b == 'success' is dead TOO, with the diagnostic
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'success' && with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 2, "{f:?}");
         assert!(f.iter().all(|g| g.kind == GateFindingKind::DeadTask));
@@ -674,7 +846,7 @@ mod tests {
     fn unknown_atoms_are_sound_not_dead() {
         // vars/env/output atoms → Unknown → never a dead-claim
         let f = gates(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"staging\" }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ vars.env == 'production' && tasks.a.status == 'success' }}\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    when: \"${{ has(tasks.a.output.x) ? tasks.a.status == 'success' : false }}\"\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"staging\" }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ vars.env == 'production' && with.a_status == 'success' }}\n    exec: { command: [\"true\"] }\n  c:\n    with:\n      a_out_x: \"${{ tasks.a.output.x }}\"\n      a_status: \"${{ tasks.a.status }}\"\n    when: \"${{ has(with.a_out_x) ? with.a_status == 'success' : false }}\"\n    exec: { command: [\"true\"] }\n",
         );
         assert!(f.is_empty(), "{f:?}");
     }
@@ -682,7 +854,7 @@ mod tests {
     #[test]
     fn in_list_with_vocab_lives_and_bad_member_is_flagged() {
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status in ['success', 'skipped'] }}\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    when: ${{ tasks.a.status in ['failed'] }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status in ['success', 'skipped'] }}\n    exec: { command: [\"true\"] }\n  c:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status in ['failed'] }}\n    exec: { command: [\"true\"] }\n",
         ));
         // b: alive (in-list over vocab — skipped unreachable for a, but
         // success IS reachable → satisfiable). c: bad literal AND dead.
@@ -700,7 +872,7 @@ mod tests {
     #[test]
     fn when_false_literal_is_the_documented_never_pattern_not_a_finding() {
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: false\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    when: false\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -757,10 +929,11 @@ mod tests {
 
     #[test]
     fn index_form_status_ref_is_the_same_atom() {
-        // tasks['a'].status — the index form must hit the same analysis:
+        // the index forms must hit the same analysis — `tasks['a'].status`
+        // on the binding side, `with['a_status']` on the gate side:
         // alive on 'failure', dead on impossible 'skipped'
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks['a'].status == 'failure' }}\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    when: ${{ tasks['a'].status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks['a'].status }}\" }\n    when: ${{ with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n  c:\n    with: { a_status: \"${{ tasks['a'].status }}\" }\n    when: ${{ with['a_status'] == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].task, "c");
@@ -769,9 +942,9 @@ mod tests {
 
     #[test]
     fn reversed_operand_order_is_the_same_atom() {
-        // 'skipped' == tasks.a.status — literal first, same verdict
+        // 'skipped' == with.a_status — literal first, same verdict
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ 'skipped' == tasks.a.status }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ 'skipped' == with.a_status }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, GateFindingKind::DeadTask);
@@ -783,7 +956,7 @@ mod tests {
         // c gated on b == 'skipped' is ALIVE: the never-pattern makes
         // skipped a real status downstream
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: false\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    when: false\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -791,6 +964,7 @@ mod tests {
     #[test]
     fn status_ref_requires_the_tasks_root_exactly() {
         // direct AST: vars.a.status / item.a.status are NOT status atoms
+        let none = StatusBindings::new();
         let mk = |root: &str| Expr::Member {
             base: Box::new(Expr::Member {
                 base: Box::new(Expr::Ident(root.to_owned())),
@@ -798,9 +972,9 @@ mod tests {
             }),
             field: "status".to_owned(),
         };
-        assert_eq!(status_ref(&mk("tasks")), Some("a"));
-        assert_eq!(status_ref(&mk("vars")), None);
-        assert_eq!(status_ref(&mk("item")), None);
+        assert_eq!(status_ref(&mk("tasks"), &none), Some("a"));
+        assert_eq!(status_ref(&mk("vars"), &none), None);
+        assert_eq!(status_ref(&mk("item"), &none), None);
         // index form: tasks['a'].status vs vars['a'].status
         let mk_idx = |root: &str| Expr::Member {
             base: Box::new(Expr::Index {
@@ -809,35 +983,69 @@ mod tests {
             }),
             field: "status".to_owned(),
         };
-        assert_eq!(status_ref(&mk_idx("tasks")), Some("a"));
-        assert_eq!(status_ref(&mk_idx("vars")), None);
+        assert_eq!(status_ref(&mk_idx("tasks"), &none), Some("a"));
+        assert_eq!(status_ref(&mk_idx("vars"), &none), None);
+    }
+
+    #[test]
+    fn status_ref_resolves_with_bindings() {
+        // W2: `with.st` IS a status atom when the binding `st` carries
+        // exactly one bare `${{ tasks.a.status }}` island — member and
+        // index forms resolve through the same map; an unknown binding
+        // (or an empty map) resolves nothing.
+        let mut b = StatusBindings::new();
+        b.insert("st".to_owned(), "a".to_owned());
+        let member = Expr::Member {
+            base: Box::new(Expr::Ident("with".to_owned())),
+            field: "st".to_owned(),
+        };
+        assert_eq!(status_ref(&member, &b), Some("a"));
+        let index = Expr::Index {
+            base: Box::new(Expr::Ident("with".to_owned())),
+            index: Box::new(Expr::Lit(Literal::Str("st".to_owned()))),
+        };
+        assert_eq!(status_ref(&index, &b), Some("a"));
+        let unknown = Expr::Member {
+            base: Box::new(Expr::Ident("with".to_owned())),
+            field: "other".to_owned(),
+        };
+        assert_eq!(status_ref(&unknown, &b), None);
+        assert_eq!(status_ref(&member, &StatusBindings::new()), None);
     }
 
     #[test]
     fn eval_k3_handles_the_boolean_arms_exactly() {
         let sigma: BTreeMap<&str, u8> = BTreeMap::new();
+        let none = StatusBindings::new();
         let t = Expr::Lit(Literal::Bool(true));
         let f = Expr::Lit(Literal::Bool(false));
         // Lit(Bool) is exact — not Unknown
-        assert_eq!(eval_k3(&t, &sigma), K3::True);
-        assert_eq!(eval_k3(&f, &sigma), K3::False);
+        assert_eq!(eval_k3(&t, &sigma, &none), K3::True);
+        assert_eq!(eval_k3(&f, &sigma, &none), K3::False);
         // Not / Or are exact over exact operands
-        assert_eq!(eval_k3(&Expr::Not(Box::new(f.clone())), &sigma), K3::True);
         assert_eq!(
-            eval_k3(&Expr::Or(Box::new(f.clone()), Box::new(t.clone())), &sigma),
+            eval_k3(&Expr::Not(Box::new(f.clone())), &sigma, &none),
             K3::True
         );
         assert_eq!(
-            eval_k3(&Expr::And(Box::new(t), Box::new(f)), &sigma),
+            eval_k3(
+                &Expr::Or(Box::new(f.clone()), Box::new(t.clone())),
+                &sigma,
+                &none
+            ),
+            K3::True
+        );
+        assert_eq!(
+            eval_k3(&Expr::And(Box::new(t), Box::new(f)), &sigma, &none),
             K3::False
         );
     }
 
     #[test]
     fn reversed_operand_bad_literal_is_flagged_too() {
-        // 'failed' == tasks.a.status — literal first, vocabulary still checked
+        // 'failed' == with.a_status — literal first, vocabulary still checked
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ 'failed' == tasks.a.status }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ 'failed' == with.a_status }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(
             f.iter()
@@ -848,16 +1056,22 @@ mod tests {
 
     #[test]
     fn the_ref_cap_boundary_still_enumerates_at_exactly_six() {
-        // 6 distinct refs = the cap boundary — MUST still enumerate
-        // (a contradiction among them is provably dead); 7+ refs back
-        // off to satisfiable. The mutant `> 6` → `>= 6`/`== 6` dies here.
+        // 6 distinct resolved refs = the cap boundary — MUST still
+        // enumerate (a contradiction among them is provably dead); 7+
+        // refs back off to satisfiable. The mutant `> 6` → `>= 6`/`== 6`
+        // dies here. u1 is referenced twice through its ONE binding —
+        // dedup is by resolved task, exactly as pre-W2.
+        use std::fmt::Write as _;
         let mut tasks = String::new();
         for i in 1..=6 {
-            use std::fmt::Write as _;
             let _ = write!(tasks, "  u{i}:\n    exec: {{ command: [\"true\"] }}\n");
         }
+        tasks.push_str("  z:\n    with:\n");
+        for i in 1..=6 {
+            let _ = writeln!(tasks, "      u{i}_status: \"${{{{ tasks.u{i}.status }}}}\"");
+        }
         tasks.push_str(
-            "  z:\n    depends_on: [u1, u2, u3, u4, u5, u6]\n    when: ${{ tasks.u1.status == 'success' && tasks.u1.status == 'failure' && tasks.u2.status == 'success' && tasks.u3.status == 'success' && tasks.u4.status == 'success' && tasks.u5.status == 'success' && tasks.u6.status == 'success' }}\n    exec: { command: [\"true\"] }\n",
+            "    when: ${{ with.u1_status == 'success' && with.u1_status == 'failure' && with.u2_status == 'success' && with.u3_status == 'success' && with.u4_status == 'success' && with.u5_status == 'success' && with.u6_status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         );
         let f = gates(&wf(&tasks));
         assert_eq!(f.len(), 1, "{f:?}");
@@ -870,7 +1084,7 @@ mod tests {
         // the |= S_SUCCESS paths must really add SUCCESS (a &= mutant
         // kills the chain and the downstream gates go dead)
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: true\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    exec: { command: [\"true\"] }\n  d:\n    depends_on: [c]\n    when: ${{ tasks.c.status == 'success' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    when: true\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'success' }}\n    exec: { command: [\"true\"] }\n  d:\n    with: { c_status: \"${{ tasks.c.status }}\" }\n    when: ${{ with.c_status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -888,7 +1102,7 @@ mod tests {
         // dedup is by (ref_task, literal), not by position.
         let expr =
             parse_gate("${{ tasks.a.status in ['nope', 'nope', 'nope'] }}").expect("gate parses");
-        assert_eq!(collect_bad_literals(&expr).len(), 1);
+        assert_eq!(collect_bad_literals(&expr, &StatusBindings::new()).len(), 1);
     }
 
     #[test]
@@ -907,24 +1121,22 @@ mod tests {
             .join(", ");
         let src = format!("${{{{ tasks.a.status in [{list}] }}}}");
         let expr = parse_gate(&src).expect("gate parses");
-        assert_eq!(collect_bad_literals(&expr).len(), n);
+        assert_eq!(collect_bad_literals(&expr, &StatusBindings::new()).len(), n);
     }
 
     #[test]
     fn default_gate_with_deps_keeps_downstream_success_reachable() {
-        // The default gate (no `when:`) runs iff every dep can be
-        // success/skipped. A root is vacuously runnable; a default-gate
-        // task WITH deps must ALSO compute runnable from its deps' possible
-        // sets so its own success stays reachable. `b` here has no gate and
-        // depends on `a`; `c` gates on `b` being success. If the runnable
-        // mask is forced empty (`& (S_SUCCESS | S_SKIPPED)` → `&` of the two
-        // bits = 0) or the test inverted (`!= 0` → `== 0`), `b` is wrongly
-        // marked unrunnable → set stays {cancelled} → `c`'s success gate
-        // goes DEAD. Asserting `c` is alive pins the default-gate runnable
-        // path through a downstream status reference.
+        // A task with incoming edges and no `when:` must keep SUCCESS
+        // reachable when its gate is live. `b` here has a control edge
+        // from `a` and no gate; `c` observes `b` and gates on success.
+        // If the gate-live fold wrongly empties b's set (a `|=` →
+        // `&=` mutant on the S_SUCCESS path, or an inverted edge-mask
+        // test), `b` stays {cancelled} → `c`'s success gate goes DEAD.
+        // Asserting `c` is alive pins the default-gate path through a
+        // downstream status observation.
         let f = gates(&wf("  a:\n    exec: { command: [\"true\"] }\n  b:\n    \
-             depends_on: [a]\n    exec: { command: [\"true\"] }\n  c:\n    \
-             depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    \
+             after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    \
+             with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'success' }}\n    \
              exec: { command: [\"true\"] }\n"));
         assert!(f.is_empty(), "{f:?}");
     }

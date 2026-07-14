@@ -100,9 +100,7 @@
     <div id="body">
       <!-- BROKEN buffer · squiggles at the real span positions -->
       <div class="buf" id="code-broken">
-        <div class="gutter">15
-16
-17
+        <div class="gutter">17
 18
 19
 20
@@ -114,9 +112,12 @@
 26
 27
 28
-29</div>
+29
+30
+31
+32</div>
         <div class="codecol">
-<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">assess</span></span>
+<span class="cl">  <span class="k">assess</span><span class="d">:</span></span>
 <span class="cl">    <span class="k">infer</span><span class="d">:</span></span>
 <span class="cl">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
 <span class="cl">        <span class="d">Risk-assess this diff. Be terse.</span></span>
@@ -127,17 +128,17 @@
 <span class="cl">        <span class="k">properties</span><span class="d">:</span></span>
 <span class="cl">          <span class="k">risk</span><span class="d">:</span> <span class="s">{ type: string, enum: [low, medium, high] }</span></span>
 <span class="cl"> </span>
-<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">comment</span></span>
-<span class="cl">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ <span class="sq">tasks.asses</span>.output.risk == 'high' }}"</span></span>
-<span class="cl">    <span class="k">invoke</span><span class="d">:</span></span>
-<span class="cl">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
+<span class="cl">  <span class="k">comment</span><span class="d">:</span></span>
+<span class="cl">    <span class="k">with</span><span class="d">:</span></span>
+<span class="cl">      <span class="k">risk</span><span class="d">:</span> <span class="s">${{ <span class="sq">tasks.asses</span>.output.risk }}</span></span>
+<span class="cl">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ with.risk == 'high' }}"</span></span>
+<span class="cl">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">, … }</span></span>
         </div>
       </div>
 
       <!-- FIXED buffer · the three changed lines tinted -->
       <div class="buf" id="code-fixed">
-        <div class="gutter">15
-16
+        <div class="gutter">16
 17
 18
 19
@@ -150,36 +151,37 @@
 26
 27
 28
-29</div>
+29
+30</div>
         <div class="codecol">
-<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">assess</span></span>
-<span class="cl"><span class="new">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[diff]</span></span></span>
+<span class="cl">  <span class="k">assess</span><span class="d">:</span></span>
+<span class="cl"><span class="new">    <span class="k">with</span><span class="d">:</span></span></span>
+<span class="cl"><span class="new">      <span class="k">diff</span><span class="d">:</span> <span class="s">${{ tasks.diff.output.stdout }}</span></span></span>
 <span class="cl">    <span class="k">infer</span><span class="d">:</span></span>
 <span class="cl">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
 <span class="cl">        <span class="d">Risk-assess this diff. Be terse.</span></span>
-<span class="cl">        <span class="d">${{ tasks.diff.output.stdout }}</span></span>
+<span class="cl"><span class="new">        <span class="d">${{ with.diff }}</span></span></span>
 <span class="cl">      <span class="k">schema</span><span class="d">:</span> <span class="d">{ … }</span></span>
 <span class="cl"> </span>
-<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">comment</span></span>
-<span class="cl"><span class="new">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[assess]</span></span></span>
-<span class="cl"><span class="new">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ tasks.assess.output.risk == 'high' }}"</span></span></span>
-<span class="cl">    <span class="k">invoke</span><span class="d">:</span></span>
-<span class="cl">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
+<span class="cl">  <span class="k">comment</span><span class="d">:</span></span>
+<span class="cl">    <span class="k">with</span><span class="d">:</span></span>
+<span class="cl"><span class="new">      <span class="k">risk</span><span class="d">:</span> <span class="s">${{ tasks.assess.output.risk }}</span></span></span>
+<span class="cl">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ with.risk == 'high' }}"</span></span>
+<span class="cl">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">, … }</span></span>
         </div>
       </div>
 
       <div id="hovercard">
-        <span class="fail">✖</span> <span class="code-chip">NIKA-VAR-001</span>
-        unresolved reference <span class="accent">`tasks.asses`</span> in task <span class="accent">`comment`</span>
-        — did you mean <span class="accent">`tasks.assess`</span>?
+        <span class="fail">✖</span> <span class="code-chip">NIKA-DAG-002</span>
+        unknown dependency: task <span class="accent">`comment`</span> depends on <span class="accent">`asses`</span>,
+        which does not exist — did you mean <span class="accent">`assess`</span>?
         <div class="fixline">source · <b>nika check --json</b> · painted as you type</div>
       </div>
 
       <div id="problems">
-        <div class="ph">problems · <span class="cnt">3</span></div>
-        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-DAG-003</span> <span class="dim">task `assess` references `tasks.diff` without declaring `diff` in depends_on</span></div>
-        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-VAR-001</span> <span class="dim">unresolved reference `tasks.asses` — did you mean `tasks.assess`?</span></div>
-        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-DAG-003</span> <span class="dim">task `comment` references `tasks.assess` without declaring `assess` in depends_on</span></div>
+        <div class="ph">problems · <span class="cnt">2</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-VAR-021</span> <span class="dim">task `assess` a verb field references `tasks.diff` — outside the boundary; hoist it into `with:`</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-DAG-002</span> <span class="dim">unknown dependency: task `comment` depends on `asses` — did you mean `assess`?</span></div>
       </div>
 
       <div id="cleanbar">

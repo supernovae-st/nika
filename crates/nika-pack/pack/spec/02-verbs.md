@@ -476,10 +476,11 @@ Every candidate operation decomposes along **two orthogonal axes** ·
   result (`invoke`) · model-driven loop over tools (`agent`). Anything with a
   request/response shape (however exotic the backend) is by construction
   the `invoke` model.
-- **WHEN it runs**: ordering. Edges (`depends_on`) · conditions (`when`) ·
-  iteration (`for_each`) · time-bounds (`timeout`) · recovery (`retry` ·
-  `on_error` · `on_finally`). Ordering never executes anything: it is
-  DAG-side, or host-side when it concerns *starting* a run at all.
+- **WHEN it runs**: ordering. Edges (`with:` data · `after:` control) ·
+  conditions (`when`) · iteration (`for_each`) · time-bounds (`timeout`) ·
+  recovery (`retry` · `on_error` · `on_finally`). Ordering never executes
+  anything: it is DAG-side, or host-side when it concerns *starting* a run
+  at all.
 
 The recurring « doesn't X need a verb? » cases, stress-tested ·
 

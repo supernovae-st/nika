@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The `for_each:` fan-out machinery (spec 03 · closed at v1) — the
+//! PURE side of the lane: collection resolution over the item-free
+//! boundary bindings · INPUT-order accumulation of the buffered
+//! iteration stream · the terminal fold. The dispatching methods
+//! (`run_fan_out` · `run_iteration`) stay on the runtime in the parent
+//! module — this module never touches the seams.
+
+use std::collections::BTreeMap;
+
+use futures_util::StreamExt;
+use nika_schema::raw::ForEachValue;
+use serde_json::Value;
+
+use super::{RanTask, RetryStamp, RunResult, SettleAs, VAR_TYPE_CODE, runtime_error_record};
+use crate::errors::RuntimeError;
+use crate::expr::{self, Scope};
+use crate::record::TaskErrorRecord;
+
+/// The pre-fan-out surface (spec 03 §`for_each`): the collection reads
+/// local names — the item-free boundary bindings, never the global tasks
+/// namespace (empty records = defense-in-depth; the checker already
+/// refused any tasks.* here). An empty collection settles `skipped`.
+pub(super) fn resolve_fan_out_items(
+    collection: &ForEachValue,
+    boundary_with: &BTreeMap<String, Value>,
+    vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
+    secrets: &BTreeMap<String, Value>,
+) -> Result<Vec<Value>, Box<SettleAs>> {
+    let empty_records = BTreeMap::new();
+    let scope = Scope {
+        records: &empty_records,
+        vars,
+        env,
+        secrets,
+        with_ns: Some(boundary_with),
+        item: None,
+        index: None,
+        permits: None,
+    };
+    let items = resolve_collection(collection, &scope)?;
+    // Empty collection → the task is `skipped` (spec 03).
+    if items.is_empty() {
+        return Err(Box::new(SettleAs::SkippedGate {
+            note: "for_each · empty collection",
+            expr: None,
+        }));
+    }
+    Ok(items)
+}
+
+/// The settled accumulation of a `for_each` fan-out — the per-iteration
+/// results reduced in INPUT order (positions stay aligned · spec 03
+/// §null-at-index).
+pub(super) struct FanOutAccum {
+    /// One value per iteration (null at a skipped/failed index).
+    pub(super) outputs: Vec<Value>,
+    /// Every retry scheduled across all iterations (`TaskRetrying`).
+    pub(super) retries: Vec<RetryStamp>,
+    /// The agent decisions across all iterations, in order.
+    pub(super) agent_events: Vec<crate::agent_events::StampedAgentEvent>,
+    /// The FIRST iteration error (the one the task reports on failure).
+    pub(super) first_error: Option<TaskErrorRecord>,
+    /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
+    /// must never report zero to the cost meter) · None until any reports.
+    pub(super) tokens_sum: Option<i64>,
+    /// Per-iteration USD spend SUMMED the same way (same-model iterations ·
+    /// per-turn pricing sums exactly) · None until any priced call reports.
+    pub(super) cost_sum: Option<f64>,
+    /// The FIRST unpriced reason across iterations (they share one model,
+    /// so the first is the class) — rides the parent's terminal frame.
+    pub(super) unpriced: Option<nika_types::cost::UnpricedReason>,
+}
+
+/// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
+/// INPUT order. On `fail_fast`, the FIRST failure stops the drain: dropping
+/// the stream cancels in-flight iterations at their await points and unspawned
+/// ones never start (spec 03 · `fail_fast: true` default).
+pub(super) async fn collect_fan_out<S>(stream: &mut S, total: usize, fail_fast: bool) -> FanOutAccum
+where
+    S: futures_util::Stream<Item = RanTask> + Unpin,
+{
+    let mut acc = FanOutAccum {
+        outputs: Vec::with_capacity(total),
+        retries: Vec::new(),
+        agent_events: Vec::new(),
+        first_error: None,
+        tokens_sum: None,
+        cost_sum: None,
+        unpriced: None,
+    };
+
+    while let Some(iter_ran) = stream.next().await {
+        acc.retries.extend(iter_ran.retries);
+        acc.agent_events.extend(iter_ran.agent_events);
+        match iter_ran.result {
+            // OBS-E `warning` is per-call · a fan-out element's diagnostic
+            // is not aggregated up (only `value` + `tokens` fold).
+            RunResult::Success {
+                value,
+                tokens,
+                cost_usd,
+                cost_unpriced,
+                ..
+            } => {
+                acc.outputs.push(value);
+                if let Some(n) = tokens {
+                    acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
+                }
+                if let Some(c) = cost_usd {
+                    acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
+                }
+                if acc.unpriced.is_none() {
+                    acc.unpriced = cost_unpriced;
+                }
+            }
+            // Per-iteration `on_error: skip` contributes null at its
+            // index — positional alignment survives (spec 03).
+            RunResult::SkippedWithError { .. } => acc.outputs.push(Value::Null),
+            RunResult::Failed { error, .. } => {
+                acc.outputs.push(Value::Null);
+                if acc.first_error.is_none() {
+                    acc.first_error = Some(error);
+                }
+                if fail_fast {
+                    break;
+                }
+            }
+            // An ITERATION never parks — the fan-out settles as ONE task,
+            // so a pending recovery downgrades to its immediate render
+            // failure (the recover-await boundary · pinned by tests).
+            RunResult::PendingRecovery(pending) => {
+                acc.outputs.push(Value::Null);
+                if acc.first_error.is_none() {
+                    acc.first_error = Some(pending.render_error);
+                }
+                if fail_fast {
+                    break;
+                }
+            }
+        }
+    }
+    acc
+}
+
+/// Resolve the `for_each:` collection (the ONLY once-evaluated body
+/// expression · spec 03) — an array of items, or the settle verdict
+/// for the failure lanes (boxed: the error lane stays pointer-thin).
+fn resolve_collection(
+    collection: &ForEachValue,
+    scope: &Scope<'_>,
+) -> Result<Vec<Value>, Box<SettleAs>> {
+    let resolved = match collection {
+        ForEachValue::List(value) => expr::render_json(value, scope),
+        ForEachValue::Expression(text) => expr::render_json(&Value::String(text.clone()), scope),
+        // #[non_exhaustive] · a future collection form fails loudly.
+        other => Err(RuntimeError::WhenUnsupported {
+            expr: format!("for_each form not wired in the runtime yet: {other:?}"),
+        }),
+    };
+    match resolved {
+        Ok(Value::Array(items)) => Ok(items),
+        // Non-array collection = evaluation error (spec 03 · the
+        // NIKA-VAR-006 class).
+        Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
+            stage: "for_each",
+            error: TaskErrorRecord {
+                code: VAR_TYPE_CODE.to_owned(),
+                message: format!(
+                    "for_each collection must be an array · got {}",
+                    json_kind(&other)
+                ),
+                transient: false,
+            },
+        })),
+        Err(err) => Err(Box::new(SettleAs::FailedBeforeStart {
+            stage: "for_each",
+            error: runtime_error_record(&err),
+        })),
+    }
+}
+
+/// Reduce a drained fan-out to its terminal [`RunResult`]. The leaf
+/// iterations already debited the ledger — the aggregate spend here is
+/// presentation-only (never re-debited). OBS-E warnings stay per-call
+/// (no single aggregate warning channel).
+pub(super) fn fan_out_result(
+    outputs: Vec<Value>,
+    tokens_sum: Option<i64>,
+    first_error: Option<TaskErrorRecord>,
+    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+) -> RunResult {
+    let (cost_usd, cost_unpriced) = spend;
+    match first_error {
+        None => RunResult::Success {
+            value: Value::Array(outputs),
+            tokens: tokens_sum,
+            recovered_from: None,
+            warning: None,
+            cost_usd,
+            cost_unpriced,
+        },
+        Some(error) => RunResult::Failed {
+            error,
+            cost_usd,
+            cost_unpriced,
+        },
+    }
+}
+
+/// The fan-out budget-starvation error — iterations the ledger refused
+/// to admit (NIKA-1704 · the workflow-level abort follows at the wave
+/// boundary).
+pub(super) fn budget_stop_record(denied: usize) -> TaskErrorRecord {
+    TaskErrorRecord {
+        code: nika_error::codes::NIKA_1704.to_string(),
+        message: format!(
+            "run budget (--max-cost-usd) reached — {denied} iteration(s) were not started \
+             (in-flight work completed and was counted)"
+        ),
+        transient: false, // spending more will not help
+    }
+}
+
+/// JSON value kind word (error messages).
+fn json_kind(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}

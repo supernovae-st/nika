@@ -331,7 +331,8 @@ workflow:
   id: broken
 tasks:
   a:
-    depends_on: [ghost]
+    after:
+      ghost: succeeded
     exec:
       command: ["echo", "x"]
 "#;

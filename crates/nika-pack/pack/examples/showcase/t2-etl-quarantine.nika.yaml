@@ -38,11 +38,12 @@ tasks:
       args: { path: "${{ vars.batch_csv }}" }
 
   rows:
-    depends_on: [raw]
+    with:
+      csv: ${{ tasks.raw.output }}
     invoke:
       tool: "nika:convert"
       args:
-        input: "${{ tasks.raw.output }}"
+        input: "${{ with.csv }}"
         from: csv
         to: json
         has_header: true
@@ -50,11 +51,12 @@ tasks:
       recover: ${{ tasks.empty_batch.output }}    # malformed CSV → empty batch · pipeline lives
 
   check:
-    depends_on: [rows]
+    with:
+      rows: ${{ tasks.rows.output }}
     invoke:
       tool: "nika:validate"
       args:
-        data: "${{ tasks.rows.output }}"
+        data: "${{ with.rows }}"
         format: json
         schema:
           type: array
@@ -67,32 +69,37 @@ tasks:
               currency: { type: string, enum: [EUR, USD, GBP] }
 
   good:
-    depends_on: [rows, check]
-    when: ${{ tasks.check.output.valid == true }}
+    with:
+      rows: ${{ tasks.rows.output }}
+      valid: ${{ tasks.check.output.valid }}
+    when: ${{ with.valid == true }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.rows.output }}"
+        input: "${{ with.rows }}"
         expression: 'group_by(.currency) | map({currency: .[0].currency, orders: length, total: (map(.amount | tonumber) | add)})'
 
   quarantine:
-    depends_on: [rows, check]
-    when: ${{ tasks.check.output.valid == false }}
+    with:
+      valid: ${{ tasks.check.output.valid }}
+      errors: ${{ tasks.check.output.errors }}
+    when: ${{ with.valid == false }}
     invoke:
       tool: "nika:write"
       args:
         path: "./data/quarantine/orders-rejected.json"
-        content: "${{ tasks.check.output.errors }}"
+        content: "${{ with.errors }}"
         create_dirs: true
 
   report:
-    depends_on: [good]
-    when: ${{ tasks.good.output != null && size(tasks.good.output) > 0 }}   # good is SKIPPED (null) on the quarantine path · guard before size()
+    with:
+      totals: ${{ tasks.good.output }}
+    when: ${{ with.totals != null && size(with.totals) > 0 }}   # good is SKIPPED (null) on the quarantine path · guard before size()
     invoke:
       tool: "nika:write"
       args:
         path: "./data/reports/daily-totals.json"
-        content: "${{ tasks.good.output }}"
+        content: "${{ with.totals }}"
         create_dirs: true
 
 outputs:

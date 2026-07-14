@@ -9,7 +9,7 @@
 //!
 //! ```text
 //!     ┌─ demo.nika.yaml:9:19
-//!     │   depends_on: [extarct]
+//!     │   after: { extarct: succeeded }
 //!     │                ^^^^^^^
 //! ```
 //!
@@ -102,7 +102,8 @@ pub(crate) fn render_snippet(
 mod tests {
     use super::*;
 
-    const SRC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n";
+    const SRC: &str =
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n";
 
     fn snip(span: ByteSpan, unicode: bool) -> String {
         let mut out = String::new();
@@ -122,9 +123,9 @@ mod tests {
         let ghost = SRC.find("ghost").expect("ghost");
         let s = snip(ByteSpan::new(ghost as u32, (ghost + 5) as u32), true);
         let expected = concat!(
-            "          ┌─ w.nika.yaml:6:18\n",
-            "          │       depends_on: [ghost]\n",
-            "          │                    ^^^^^\n",
+            "          ┌─ w.nika.yaml:6:14\n",
+            "          │       after: { ghost: succeeded }\n",
+            "          │                ^^^^^\n",
         );
         assert_eq!(s, expected);
     }
@@ -134,7 +135,7 @@ mod tests {
         let ghost = SRC.find("ghost").expect("ghost");
         let s = snip(ByteSpan::new(ghost as u32, (ghost + 5) as u32), false);
         assert!(s.is_ascii(), "{s:?}");
-        assert!(s.contains(",- w.nika.yaml:6:18"));
+        assert!(s.contains(",- w.nika.yaml:6:14"));
         assert!(s.contains("^^^^^"));
     }
 

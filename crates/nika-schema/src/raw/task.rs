@@ -4,15 +4,15 @@
 //! `RawTask` — a single task in the raw workflow AST.
 //!
 //! Canonical v1 task shape per spec `03-dag.md` §forward-compat ·
-//! « v1 ships with these task fields · `id` · `depends_on` · `when` ·
+//! « v1 ships with these task fields · `with` · `after` · `when` ·
 //! `for_each` · `max_parallel` · `fail_fast` · `retry` · `on_error` ·
-//! `timeout` · `on_finally` · `with` · `output` · plus the verb
-//! selector. » The set is CLOSED — strict mode rejects anything else.
+//! `timeout` · `on_finally` · `output` · plus the verb selector. »
+//! The set is CLOSED — strict mode rejects anything else.
 
 use std::time::Duration;
 
 use crate::source::Spanned;
-use crate::types::{OnError, RetryConfig, WhenGate};
+use crate::types::{AfterPredicate, OnError, RetryConfig, WhenGate};
 
 use super::action::RawAction;
 
@@ -25,11 +25,12 @@ use super::action::RawAction;
 pub struct RawTask {
     /// `id:` — `snake_case` · unique within the workflow (CEL-safe).
     pub id: Spanned<String>,
-    /// `depends_on:` — task ids this task waits on (default `[]`).
-    pub depends_on: Vec<Spanned<String>>,
-    /// `when:` — conditional execution · a single boolean CEL island OR
-    /// the YAML boolean literal (`when: true` = the always-pattern ·
-    /// spec 03 §when shape rules).
+    /// `after:` — the CONTROL boundary · `{producer: predicate}` ·
+    /// each entry is one control edge (spec 03 §after · W2).
+    pub after: Vec<(Spanned<String>, Spanned<AfterPredicate>)>,
+    /// `when:` — the LOCAL business condition · evaluated POST-gate ·
+    /// a single boolean CEL island over `{vars · env · with · item ·
+    /// index}` OR the YAML boolean literal (spec 03 §when).
     pub when: Option<Spanned<WhenGate>>,
     /// `for_each:` — map this task over a collection (spec `03-dag.md`
     /// · « The collection is either a literal list or a reference to
@@ -61,7 +62,7 @@ impl RawTask {
     pub fn new(id: Spanned<String>, action: RawAction) -> Self {
         Self {
             id,
-            depends_on: Vec::new(),
+            after: Vec::new(),
             when: None,
             for_each: None,
             max_parallel: None,
@@ -130,7 +131,7 @@ mod tests {
         let action = RawAction::Exec(super::super::action::RawExecAction::new(span_str("echo")));
         let task = RawTask::new(span_str("my_task"), action);
         assert_eq!(task.id.value, "my_task");
-        assert!(task.depends_on.is_empty());
+        assert!(task.after.is_empty());
         assert!(task.when.is_none());
         assert!(task.for_each.is_none());
         assert!(task.max_parallel.is_none());
