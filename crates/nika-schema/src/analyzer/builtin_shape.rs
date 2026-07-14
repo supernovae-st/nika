@@ -176,6 +176,35 @@ mod tests {
     }
 
     #[test]
+    fn decide_shape_rules_table() {
+        // nika:decide — bundle: path string OR inline object;
+        // evidence: the EvidenceSnapshot object (spec 11 §nika:decide).
+        assert_shape_cases(&[
+            (
+                r#"{ bundle: "./triage.bundle.json", evidence: { t: "2026-01-01T00:00:00Z" } }"#,
+                "nika:decide",
+                false, // the path form
+            ),
+            (
+                r"{ bundle: { manifest: {} }, evidence: {} }",
+                "nika:decide",
+                false, // the inline form
+            ),
+            (r"{ bundle: 42, evidence: {} }", "nika:decide", true), // neither form
+            (
+                r#"{ bundle: "./b.json", evidence: "raw text" }"#,
+                "nika:decide",
+                true, // a literal non-object snapshot can never satisfy it
+            ),
+            (
+                r#"{ bundle: "./b.json", evidence: "${{ tasks.collect.output }}" }"#,
+                "nika:decide",
+                false, // templated snapshot — runtime business
+            ),
+        ]);
+    }
+
+    #[test]
     fn fetch_payload_shape_rules_table() {
         // nika:fetch vNext — payload families (stdlib §fetch):
         // body ⊥ form ⊥ multipart · body-bearing method · closed part shape.

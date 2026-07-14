@@ -63,9 +63,41 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
         "nika:chart" => check_chart_shape(args, &mut out),
         "nika:image_fx" => check_image_fx_shape(args, &mut out),
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
+        "nika:decide" => check_decide_shape(args, &mut out),
         _ => {}
     }
     out
+}
+
+/// `nika:decide` static contracts (spec 11 §nika:decide): `bundle:` is a
+/// path STRING or the inline bundle OBJECT; `evidence:` is the
+/// `EvidenceSnapshot` OBJECT. A whole-string `${{ … }}` template can
+/// resolve to any shape at runtime, so templated values stay silent.
+fn check_decide_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
+    let Some(serde_json::Value::Object(map)) = args else {
+        return;
+    };
+    if let Some(bundle) = map.get("bundle")
+        && !bundle.is_string()
+        && !bundle.is_object()
+    {
+        out.push(
+            "`bundle:` takes a ./path string or the inline Decision Bundle \
+             object (11-decision.md §nika:decide)"
+                .to_owned(),
+        );
+    }
+    if let Some(evidence) = map.get("evidence")
+        && !evidence.is_object()
+        && !evidence.as_str().is_some_and(|s| s.contains("${{"))
+    {
+        out.push(
+            "`evidence:` is the EvidenceSnapshot object `{ t, evidence: [...] }` \
+             — a literal non-object can never satisfy it (11-decision.md \
+             §evidence IR)"
+                .to_owned(),
+        );
+    }
 }
 
 /// `nika:image_fx` static contracts (stdlib §Media): the op list is a

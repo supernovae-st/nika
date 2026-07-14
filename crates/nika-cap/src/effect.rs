@@ -110,6 +110,17 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             writes: true,
             recursive: false,
         }),
+        // decide is pure compute (spec 11 §nika:decide); its ONE
+        // statically-visible effect is a literal string `bundle:` — a path
+        // read declared like any fs.read. An inline object bundle needs no
+        // filesystem at all; a templated path is runtime business
+        // (NIKA-SEC-004 gates it there).
+        "nika:decide" => literal_str(args, "bundle").map(|_| BuiltinEffect::Fs {
+            path_arg: "bundle",
+            reads: true,
+            writes: false,
+            recursive: false,
+        }),
         _ => None,
     }
 }
@@ -162,6 +173,29 @@ mod tests {
         // a templated channel is unclassifiable → None
         let dynamic = json!({ "channel": "${{ vars.c }}" });
         assert_eq!(builtin_effect("nika:notify", Some(&dynamic)), None);
+    }
+
+    #[test]
+    fn decide_is_a_read_only_on_the_literal_path_form() {
+        // Literal string bundle → a declared fs.read on `bundle:`.
+        let path_form = json!({ "bundle": "./triage.bundle.json", "evidence": {} });
+        assert_eq!(
+            builtin_effect("nika:decide", Some(&path_form)),
+            Some(BuiltinEffect::Fs {
+                path_arg: "bundle",
+                reads: true,
+                writes: false,
+                recursive: false,
+            })
+        );
+        // Inline object bundle → pure compute, no filesystem at all.
+        let inline = json!({ "bundle": { "manifest": {} }, "evidence": {} });
+        assert_eq!(builtin_effect("nika:decide", Some(&inline)), None);
+        // A templated path is unclassifiable statically → runtime concern.
+        let dynamic = json!({ "bundle": "${{ vars.bundle }}", "evidence": {} });
+        assert_eq!(builtin_effect("nika:decide", Some(&dynamic)), None);
+        // No args at all (the coarse probes) → nothing to claim.
+        assert_eq!(builtin_effect("nika:decide", None), None);
     }
 
     #[test]

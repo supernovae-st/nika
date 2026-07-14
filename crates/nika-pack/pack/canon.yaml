@@ -47,13 +47,13 @@ schema_version: 1
 counts:
   verbs: 4
   namespaces: 5
-  builtins: 27
+  builtins: 28
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 16
+  error_namespaces: 17
   error_categories: 12
-  error_codes: 72
+  error_codes: 74
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -100,7 +100,7 @@ namespaces:
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 27
+  count: 28
   reference: stdlib/builtins-v0.1.md
   items:
     - assert
@@ -108,6 +108,7 @@ builtins:
     - compose
     - convert
     - date
+    - decide
     - done
     - edit
     - emit
@@ -205,7 +206,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 16
+  count: 17
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -217,6 +218,7 @@ error_namespaces:
     - NIKA-INFER
     - NIKA-INVOKE
     - NIKA-MCP
+    - NIKA-DECIDE
     - NIKA-PARSE
     - NIKA-POLICY
     - NIKA-PROVIDER
@@ -251,7 +253,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 72
+  count: 74
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -321,6 +323,8 @@ error_codes:
     - { code: NIKA-AGENT-004, category: validation_error, transient: "false", failure: "a skills: file is not a valid Agent Skill (frontmatter shape · missing/empty name/description)" }
     - { code: NIKA-MCP-001, category: tool_error, transient: "engine-assessed", failure: "MCP server not configured / not reachable at call time" }
     - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
+    - { code: NIKA-DECIDE-001, category: validation_error, transient: "false", failure: "the decision bundle is malformed or violates its own laws (float weight · undeclared evidence key in rules · identity key feeding a technical dimension · missing contradictory fixture · monotonicity violated by the bundle's own fixtures) (spec 11)" }
+    - { code: NIKA-DECIDE-002, category: validation_error, transient: "false", failure: "the evidence snapshot does not satisfy the bundle's evidence schema (type misfit · unauthorized source · integrity below the declared floor · undeclared key) (spec 11)" }
     - { code: NIKA-POLICY-001, category: security_error, transient: "false", failure: "a hard policy: rule is violated (require.human_gate_before · forbid.exec_after · allow.providers · limits.max_tasks) — the diagnostic names rule + task + witness (order rules: the path) · check-time, before any token (spec 10)" }
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }
     - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }

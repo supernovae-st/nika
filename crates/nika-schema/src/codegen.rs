@@ -4,7 +4,7 @@
 //! JSON-Schema codegen primitives for the Nika workflow schema.
 //!
 //! **Today** · pure-Rust helpers that emit JSON-Schema fragments derived
-//! from `nika-catalog` (single source of truth · the canonical 27 builtins
+//! from `nika-catalog` (single source of truth · the canonical 28 builtins
 //! per `nika/spec/stdlib/builtins-v0.1.md` post ADR-084 catalog
 //! reconciliation, ADR-086 convert, ADR-087 wait, ADR-088 inspect,
 //! ADR-096 compose, and `image_generate` — the first stdlib §Media
@@ -77,10 +77,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_has_27_entries() {
+    fn enum_has_28_entries() {
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum must be array");
-        assert_eq!(arr.len(), 27, "expected 27 spec-canonical builtins");
+        assert_eq!(arr.len(), 28, "expected 28 spec-canonical builtins");
     }
 
     #[test]
