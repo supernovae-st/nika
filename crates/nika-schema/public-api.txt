@@ -1,10 +1,312 @@
 pub mod nika_schema
 pub use nika_schema::expression
 pub mod nika_schema::analyzer
+pub mod nika_schema::analyzer::edges
+#[non_exhaustive] pub enum nika_schema::analyzer::edges::EdgeKind
+pub nika_schema::analyzer::edges::EdgeKind::Control(nika_schema::types::after::AfterPredicate)
+pub nika_schema::analyzer::edges::EdgeKind::FailureObservation
+pub nika_schema::analyzer::edges::EdgeKind::TerminalObservation
+pub nika_schema::analyzer::edges::EdgeKind::Value
+impl nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::admits(self, s: nika_schema::analyzer::edges::SettledState) -> bool
+pub fn nika_schema::analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
+impl core::clone::Clone for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::clone(&self) -> nika_schema::analyzer::edges::EdgeKind
+impl core::cmp::Eq for nika_schema::analyzer::edges::EdgeKind
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::eq(&self, other: &nika_schema::analyzer::edges::EdgeKind) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::analyzer::edges::EdgeKind
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::EdgeKind
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::EdgeKind
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::EdgeKind where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::EdgeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::EdgeKind where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::EdgeKind::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::EdgeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::EdgeKind where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::EdgeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::EdgeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::EdgeKind::Owned = T
+pub fn nika_schema::analyzer::edges::EdgeKind::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::EdgeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::EdgeKind where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::EdgeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::EdgeKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::EdgeKind where T: 'static
+pub fn nika_schema::analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::analyzer::edges::EdgeKind where T: core::marker::Copy
+pub fn nika_schema::analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_schema::analyzer::edges::SettledState
+pub nika_schema::analyzer::edges::SettledState::Cancelled
+pub nika_schema::analyzer::edges::SettledState::Failure
+pub nika_schema::analyzer::edges::SettledState::Skipped
+pub nika_schema::analyzer::edges::SettledState::Success
+impl core::clone::Clone for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::clone(&self) -> nika_schema::analyzer::edges::SettledState
+impl core::cmp::Eq for nika_schema::analyzer::edges::SettledState
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::eq(&self, other: &nika_schema::analyzer::edges::SettledState) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::analyzer::edges::SettledState
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::SettledState
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::SettledState
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::SettledState where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::SettledState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::SettledState where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::SettledState::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::SettledState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::SettledState where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::SettledState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::SettledState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::SettledState where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::SettledState::Owned = T
+pub fn nika_schema::analyzer::edges::SettledState::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::SettledState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::SettledState where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::SettledState where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::SettledState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::SettledState where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::SettledState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::SettledState where T: 'static
+pub fn nika_schema::analyzer::edges::SettledState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::analyzer::edges::SettledState where T: core::marker::Copy
+pub fn nika_schema::analyzer::edges::SettledState::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_schema::analyzer::edges::Edge
+pub nika_schema::analyzer::edges::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_schema::analyzer::edges::Edge::from: usize
+pub nika_schema::analyzer::edges::Edge::kind: nika_schema::analyzer::edges::EdgeKind
+pub nika_schema::analyzer::edges::Edge::span: nika_schema::Span
+pub nika_schema::analyzer::edges::Edge::to: usize
+impl core::clone::Clone for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::clone(&self) -> nika_schema::analyzer::edges::Edge
+impl core::cmp::Eq for nika_schema::analyzer::edges::Edge
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::eq(&self, other: &nika_schema::analyzer::edges::Edge) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::Edge
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::Edge
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::Edge where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::Edge where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::Edge::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::Edge where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::Edge where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::Edge::Owned = T
+pub fn nika_schema::analyzer::edges::Edge::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::Edge where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::Edge where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::Edge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::Edge where T: 'static
+pub fn nika_schema::analyzer::edges::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::analyzer::edges::RecoveryRead
+pub nika_schema::analyzer::edges::RecoveryRead::from: usize
+pub nika_schema::analyzer::edges::RecoveryRead::to: usize
+impl core::clone::Clone for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::clone(&self) -> nika_schema::analyzer::edges::RecoveryRead
+impl core::cmp::Eq for nika_schema::analyzer::edges::RecoveryRead
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::eq(&self, other: &nika_schema::analyzer::edges::RecoveryRead) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::RecoveryRead
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::RecoveryRead
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::RecoveryRead where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::RecoveryRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::RecoveryRead where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::RecoveryRead::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::RecoveryRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::RecoveryRead where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::RecoveryRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::RecoveryRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::RecoveryRead::Owned = T
+pub fn nika_schema::analyzer::edges::RecoveryRead::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::RecoveryRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::RecoveryRead where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::RecoveryRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::RecoveryRead where T: 'static
+pub fn nika_schema::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_schema::analyzer::edges::derive_edges(tasks: &[nika_schema::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_schema::analyzer::edges::Edge>
+pub fn nika_schema::analyzer::edges::derive_recovery_reads(tasks: &[nika_schema::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>
+pub fn nika_schema::analyzer::edges::incoming_of(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<(alloc::string::String, nika_schema::analyzer::edges::EdgeKind)>
+pub fn nika_schema::analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_schema::analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
+#[non_exhaustive] pub enum nika_schema::analyzer::EdgeKind
+pub nika_schema::analyzer::EdgeKind::Control(nika_schema::types::after::AfterPredicate)
+pub nika_schema::analyzer::EdgeKind::FailureObservation
+pub nika_schema::analyzer::EdgeKind::TerminalObservation
+pub nika_schema::analyzer::EdgeKind::Value
+impl nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::admits(self, s: nika_schema::analyzer::edges::SettledState) -> bool
+pub fn nika_schema::analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
+impl core::clone::Clone for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::clone(&self) -> nika_schema::analyzer::edges::EdgeKind
+impl core::cmp::Eq for nika_schema::analyzer::edges::EdgeKind
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::eq(&self, other: &nika_schema::analyzer::edges::EdgeKind) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::analyzer::edges::EdgeKind
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::EdgeKind
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::EdgeKind
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::EdgeKind where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::EdgeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::EdgeKind where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::EdgeKind::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::EdgeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::EdgeKind where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::EdgeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::EdgeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::EdgeKind::Owned = T
+pub fn nika_schema::analyzer::edges::EdgeKind::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::EdgeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::EdgeKind where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::EdgeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::EdgeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::EdgeKind
+pub fn nika_schema::analyzer::edges::EdgeKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::EdgeKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::EdgeKind where T: 'static
+pub fn nika_schema::analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::analyzer::edges::EdgeKind where T: core::marker::Copy
+pub fn nika_schema::analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_schema::analyzer::SettledState
+pub nika_schema::analyzer::SettledState::Cancelled
+pub nika_schema::analyzer::SettledState::Failure
+pub nika_schema::analyzer::SettledState::Skipped
+pub nika_schema::analyzer::SettledState::Success
+impl core::clone::Clone for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::clone(&self) -> nika_schema::analyzer::edges::SettledState
+impl core::cmp::Eq for nika_schema::analyzer::edges::SettledState
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::eq(&self, other: &nika_schema::analyzer::edges::SettledState) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::analyzer::edges::SettledState
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::SettledState
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::SettledState
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::SettledState where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::SettledState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::SettledState where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::SettledState::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::SettledState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::SettledState where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::SettledState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::SettledState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::SettledState where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::SettledState::Owned = T
+pub fn nika_schema::analyzer::edges::SettledState::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::SettledState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::SettledState where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::SettledState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::SettledState where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::SettledState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::SettledState
+pub fn nika_schema::analyzer::edges::SettledState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::SettledState where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::SettledState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::SettledState where T: 'static
+pub fn nika_schema::analyzer::edges::SettledState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::analyzer::edges::SettledState where T: core::marker::Copy
+pub fn nika_schema::analyzer::edges::SettledState::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub struct nika_schema::analyzer::AnalyzedWorkflow
+pub nika_schema::analyzer::AnalyzedWorkflow::edges: alloc::vec::Vec<nika_schema::analyzer::edges::Edge>
+pub nika_schema::analyzer::AnalyzedWorkflow::recovery_reads: alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>
 pub nika_schema::analyzer::AnalyzedWorkflow::topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
 impl nika_schema::analyzer::AnalyzedWorkflow
-pub fn nika_schema::analyzer::AnalyzedWorkflow::new(topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
+pub fn nika_schema::analyzer::AnalyzedWorkflow::new(edges: alloc::vec::Vec<nika_schema::analyzer::edges::Edge>, recovery_reads: alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>, topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
 impl core::clone::Clone for nika_schema::analyzer::AnalyzedWorkflow
 pub fn nika_schema::analyzer::AnalyzedWorkflow::clone(&self) -> nika_schema::analyzer::AnalyzedWorkflow
 impl core::cmp::Eq for nika_schema::analyzer::AnalyzedWorkflow
@@ -46,7 +348,99 @@ impl<T> dyn_clone::DynClone for nika_schema::analyzer::AnalyzedWorkflow where T:
 pub fn nika_schema::analyzer::AnalyzedWorkflow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::analyzer::AnalyzedWorkflow where T: 'static
 pub fn nika_schema::analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::analyzer::Edge
+pub nika_schema::analyzer::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_schema::analyzer::Edge::from: usize
+pub nika_schema::analyzer::Edge::kind: nika_schema::analyzer::edges::EdgeKind
+pub nika_schema::analyzer::Edge::span: nika_schema::Span
+pub nika_schema::analyzer::Edge::to: usize
+impl core::clone::Clone for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::clone(&self) -> nika_schema::analyzer::edges::Edge
+impl core::cmp::Eq for nika_schema::analyzer::edges::Edge
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::eq(&self, other: &nika_schema::analyzer::edges::Edge) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::Edge
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::Edge
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::Edge where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::Edge where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::Edge::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::Edge where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::Edge where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::Edge::Owned = T
+pub fn nika_schema::analyzer::edges::Edge::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::Edge where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::Edge
+pub fn nika_schema::analyzer::edges::Edge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::Edge where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::Edge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::Edge where T: 'static
+pub fn nika_schema::analyzer::edges::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::analyzer::RecoveryRead
+pub nika_schema::analyzer::RecoveryRead::from: usize
+pub nika_schema::analyzer::RecoveryRead::to: usize
+impl core::clone::Clone for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::clone(&self) -> nika_schema::analyzer::edges::RecoveryRead
+impl core::cmp::Eq for nika_schema::analyzer::edges::RecoveryRead
+impl core::cmp::PartialEq for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::eq(&self, other: &nika_schema::analyzer::edges::RecoveryRead) -> bool
+impl core::fmt::Debug for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::analyzer::edges::RecoveryRead
+impl<D> owo_colors::OwoColorize for nika_schema::analyzer::edges::RecoveryRead
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::analyzer::edges::RecoveryRead where U: core::convert::From<T>
+pub fn nika_schema::analyzer::edges::RecoveryRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::analyzer::edges::RecoveryRead where U: core::convert::Into<T>
+pub type nika_schema::analyzer::edges::RecoveryRead::Error = core::convert::Infallible
+pub fn nika_schema::analyzer::edges::RecoveryRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::analyzer::edges::RecoveryRead where U: core::convert::TryFrom<T>
+pub type nika_schema::analyzer::edges::RecoveryRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::analyzer::edges::RecoveryRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub type nika_schema::analyzer::edges::RecoveryRead::Owned = T
+pub fn nika_schema::analyzer::edges::RecoveryRead::clone_into(&self, target: &mut T)
+pub fn nika_schema::analyzer::edges::RecoveryRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::analyzer::edges::RecoveryRead where T: 'static + ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_schema::analyzer::edges::RecoveryRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub unsafe fn nika_schema::analyzer::edges::RecoveryRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::analyzer::edges::RecoveryRead
+pub fn nika_schema::analyzer::edges::RecoveryRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub fn nika_schema::analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::analyzer::edges::RecoveryRead where T: 'static
+pub fn nika_schema::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_schema::analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_schema::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
+pub fn nika_schema::analyzer::role_of_field(field: core::option::Option<&str>) -> nika_schema::analyzer::edges::EdgeKind
 pub mod nika_schema::check
 pub mod nika_schema::check::native_first
 pub fn nika_schema::check::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
@@ -103,6 +497,8 @@ pub fn nika_schema::check::FindingSeverity::as_out(&mut self) -> outref::Out<'_,
 #[non_exhaustive] pub enum nika_schema::check::GateFindingKind
 pub nika_schema::check::GateFindingKind::BadStatusLiteral
 pub nika_schema::check::GateFindingKind::DeadTask
+impl nika_schema::GateFindingKind
+pub fn nika_schema::GateFindingKind::wire_code(self) -> &'static str
 impl core::clone::Clone for nika_schema::GateFindingKind
 pub fn nika_schema::GateFindingKind::clone(&self) -> nika_schema::GateFindingKind
 impl core::cmp::Eq for nika_schema::GateFindingKind
@@ -1720,10 +2116,6 @@ pub nika_schema::error::SchemaError::LoopLocalOutsideForEach
 pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::local: alloc::string::String
 pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::span: core::option::Option<nika_schema::Span>
 pub nika_schema::error::SchemaError::LoopLocalOutsideForEach::task: alloc::string::String
-pub nika_schema::error::SchemaError::MissingDependsOnEdge
-pub nika_schema::error::SchemaError::MissingDependsOnEdge::referenced: alloc::string::String
-pub nika_schema::error::SchemaError::MissingDependsOnEdge::span: core::option::Option<nika_schema::Span>
-pub nika_schema::error::SchemaError::MissingDependsOnEdge::task: alloc::string::String
 pub nika_schema::error::SchemaError::MissingEnvelopeField
 pub nika_schema::error::SchemaError::MissingEnvelopeField::field: alloc::string::String
 pub nika_schema::error::SchemaError::MissingEnvelopeField::span: core::option::Option<nika_schema::Span>
@@ -1746,6 +2138,11 @@ pub nika_schema::error::SchemaError::RecoverAwaitDeadlock
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_schema::Span>
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::target: alloc::string::String
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::task: alloc::string::String
+pub nika_schema::error::SchemaError::RefOutsideBoundary
+pub nika_schema::error::SchemaError::RefOutsideBoundary::reference: alloc::string::String
+pub nika_schema::error::SchemaError::RefOutsideBoundary::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::RefOutsideBoundary::surface: alloc::string::String
+pub nika_schema::error::SchemaError::RefOutsideBoundary::task: alloc::string::String
 pub nika_schema::error::SchemaError::ReservedBindingName
 pub nika_schema::error::SchemaError::ReservedBindingName::name: alloc::string::String
 pub nika_schema::error::SchemaError::ReservedBindingName::span: core::option::Option<nika_schema::Span>
@@ -1753,6 +2150,11 @@ pub nika_schema::error::SchemaError::ReservedBindingName::task: alloc::string::S
 pub nika_schema::error::SchemaError::TemplateSyntax
 pub nika_schema::error::SchemaError::TemplateSyntax::reason: alloc::string::String
 pub nika_schema::error::SchemaError::TemplateSyntax::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnknownAfterPredicate
+pub nika_schema::error::SchemaError::UnknownAfterPredicate::predicate: alloc::string::String
+pub nika_schema::error::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::UnknownAfterPredicate::target: alloc::string::String
+pub nika_schema::error::SchemaError::UnknownAfterPredicate::task: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownDependency
 pub nika_schema::error::SchemaError::UnknownDependency::from: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownDependency::span: core::option::Option<nika_schema::Span>
@@ -1785,6 +2187,10 @@ pub nika_schema::error::SchemaError::W1TopLevelDescription::span: core::option::
 pub nika_schema::error::SchemaError::W1WorkflowScalar
 pub nika_schema::error::SchemaError::W1WorkflowScalar::id: alloc::string::String
 pub nika_schema::error::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W2DependsOnField
+pub nika_schema::error::SchemaError::W2DependsOnField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::W2DependsOnField::task: alloc::string::String
+pub nika_schema::error::SchemaError::W2DependsOnField::task_hint: alloc::string::String
 pub nika_schema::error::SchemaError::WhenNotBoolean
 pub nika_schema::error::SchemaError::WhenNotBoolean::field: alloc::string::String
 pub nika_schema::error::SchemaError::WhenNotBoolean::reason: alloc::string::String
@@ -2403,7 +2809,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawFinallyTask whe
 pub fn nika_schema::raw::task::RawFinallyTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::task::RawTask
 pub nika_schema::raw::task::RawTask::action: nika_schema::raw::action::RawAction
-pub nika_schema::raw::task::RawTask::depends_on: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::task::RawTask::after: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::after::AfterPredicate>)>
 pub nika_schema::raw::task::RawTask::fail_fast: core::option::Option<nika_schema::Spanned<bool>>
 pub nika_schema::raw::task::RawTask::for_each: core::option::Option<nika_schema::Spanned<nika_schema::raw::task::ForEachValue>>
 pub nika_schema::raw::task::RawTask::id: nika_schema::Spanned<alloc::string::String>
@@ -2854,7 +3260,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawInvokeAction 
 pub fn nika_schema::raw::action::RawInvokeAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawTask
 pub nika_schema::raw::RawTask::action: nika_schema::raw::action::RawAction
-pub nika_schema::raw::RawTask::depends_on: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawTask::after: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::after::AfterPredicate>)>
 pub nika_schema::raw::RawTask::fail_fast: core::option::Option<nika_schema::Spanned<bool>>
 pub nika_schema::raw::RawTask::for_each: core::option::Option<nika_schema::Spanned<nika_schema::raw::task::ForEachValue>>
 pub nika_schema::raw::RawTask::id: nika_schema::Spanned<alloc::string::String>
@@ -3612,6 +4018,64 @@ pub use nika_schema::types::ExecPermit
 pub use nika_schema::types::FsPermits
 pub use nika_schema::types::NetPermits
 pub use nika_schema::types::Permits
+pub mod nika_schema::types::after
+#[non_exhaustive] pub enum nika_schema::types::after::AfterPredicate
+pub nika_schema::types::after::AfterPredicate::Failed
+pub nika_schema::types::after::AfterPredicate::Skipped
+pub nika_schema::types::after::AfterPredicate::Succeeded
+pub nika_schema::types::after::AfterPredicate::Terminal
+impl nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::all() -> &'static [&'static str]
+pub fn nika_schema::types::after::AfterPredicate::as_str(self) -> &'static str
+pub fn nika_schema::types::after::AfterPredicate::parse(s: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::clone(&self) -> nika_schema::types::after::AfterPredicate
+impl core::cmp::Eq for nika_schema::types::after::AfterPredicate
+impl core::cmp::PartialEq for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::eq(&self, other: &nika_schema::types::after::AfterPredicate) -> bool
+impl core::fmt::Debug for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::types::after::AfterPredicate
+impl core::marker::StructuralPartialEq for nika_schema::types::after::AfterPredicate
+impl<D> owo_colors::OwoColorize for nika_schema::types::after::AfterPredicate
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::types::after::AfterPredicate::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::types::after::AfterPredicate where U: core::convert::From<T>
+pub fn nika_schema::types::after::AfterPredicate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::types::after::AfterPredicate where U: core::convert::Into<T>
+pub type nika_schema::types::after::AfterPredicate::Error = core::convert::Infallible
+pub fn nika_schema::types::after::AfterPredicate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::types::after::AfterPredicate where U: core::convert::TryFrom<T>
+pub type nika_schema::types::after::AfterPredicate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::types::after::AfterPredicate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::types::after::AfterPredicate where T: core::clone::Clone
+pub type nika_schema::types::after::AfterPredicate::Owned = T
+pub fn nika_schema::types::after::AfterPredicate::clone_into(&self, target: &mut T)
+pub fn nika_schema::types::after::AfterPredicate::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::types::after::AfterPredicate where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::types::after::AfterPredicate where T: 'static + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::types::after::AfterPredicate where T: ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::types::after::AfterPredicate where T: ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::types::after::AfterPredicate where T: core::clone::Clone
+pub unsafe fn nika_schema::types::after::AfterPredicate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::types::after::AfterPredicate where T: core::clone::Clone
+pub fn nika_schema::types::after::AfterPredicate::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::types::after::AfterPredicate where T: 'static
+pub fn nika_schema::types::after::AfterPredicate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::types::after::AfterPredicate where T: core::marker::Copy
+pub fn nika_schema::types::after::AfterPredicate::as_out(&mut self) -> outref::Out<'_, T>
 pub mod nika_schema::types::capture
 #[non_exhaustive] pub enum nika_schema::types::capture::CaptureMode
 pub nika_schema::types::capture::CaptureMode::Combined
@@ -4492,6 +4956,63 @@ impl<T> dyn_clone::DynClone for nika_schema::types::when_gate::WhenGate where T:
 pub fn nika_schema::types::when_gate::WhenGate::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::types::when_gate::WhenGate where T: 'static
 pub fn nika_schema::types::when_gate::WhenGate::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::types::AfterPredicate
+pub nika_schema::types::AfterPredicate::Failed
+pub nika_schema::types::AfterPredicate::Skipped
+pub nika_schema::types::AfterPredicate::Succeeded
+pub nika_schema::types::AfterPredicate::Terminal
+impl nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::all() -> &'static [&'static str]
+pub fn nika_schema::types::after::AfterPredicate::as_str(self) -> &'static str
+pub fn nika_schema::types::after::AfterPredicate::parse(s: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::clone(&self) -> nika_schema::types::after::AfterPredicate
+impl core::cmp::Eq for nika_schema::types::after::AfterPredicate
+impl core::cmp::PartialEq for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::eq(&self, other: &nika_schema::types::after::AfterPredicate) -> bool
+impl core::fmt::Debug for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::types::after::AfterPredicate
+impl core::marker::StructuralPartialEq for nika_schema::types::after::AfterPredicate
+impl<D> owo_colors::OwoColorize for nika_schema::types::after::AfterPredicate
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::types::after::AfterPredicate::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::types::after::AfterPredicate where U: core::convert::From<T>
+pub fn nika_schema::types::after::AfterPredicate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::types::after::AfterPredicate where U: core::convert::Into<T>
+pub type nika_schema::types::after::AfterPredicate::Error = core::convert::Infallible
+pub fn nika_schema::types::after::AfterPredicate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::types::after::AfterPredicate where U: core::convert::TryFrom<T>
+pub type nika_schema::types::after::AfterPredicate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::types::after::AfterPredicate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::types::after::AfterPredicate where T: core::clone::Clone
+pub type nika_schema::types::after::AfterPredicate::Owned = T
+pub fn nika_schema::types::after::AfterPredicate::clone_into(&self, target: &mut T)
+pub fn nika_schema::types::after::AfterPredicate::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::types::after::AfterPredicate where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::types::after::AfterPredicate where T: 'static + ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::types::after::AfterPredicate where T: ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::types::after::AfterPredicate where T: ?core::marker::Sized
+pub fn nika_schema::types::after::AfterPredicate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::types::after::AfterPredicate where T: core::clone::Clone
+pub unsafe fn nika_schema::types::after::AfterPredicate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::types::after::AfterPredicate
+pub fn nika_schema::types::after::AfterPredicate::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::types::after::AfterPredicate where T: core::clone::Clone
+pub fn nika_schema::types::after::AfterPredicate::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::types::after::AfterPredicate where T: 'static
+pub fn nika_schema::types::after::AfterPredicate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::types::after::AfterPredicate where T: core::marker::Copy
+pub fn nika_schema::types::after::AfterPredicate::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_schema::types::BackoffStrategy
 pub nika_schema::types::BackoffStrategy::Exponential
 pub nika_schema::types::BackoffStrategy::Fixed
@@ -5600,6 +6121,8 @@ pub fn nika_schema::check::FindingSeverity::as_out(&mut self) -> outref::Out<'_,
 #[non_exhaustive] pub enum nika_schema::GateFindingKind
 pub nika_schema::GateFindingKind::BadStatusLiteral
 pub nika_schema::GateFindingKind::DeadTask
+impl nika_schema::GateFindingKind
+pub fn nika_schema::GateFindingKind::wire_code(self) -> &'static str
 impl core::clone::Clone for nika_schema::GateFindingKind
 pub fn nika_schema::GateFindingKind::clone(&self) -> nika_schema::GateFindingKind
 impl core::cmp::Eq for nika_schema::GateFindingKind
@@ -5907,10 +6430,6 @@ pub nika_schema::SchemaError::LoopLocalOutsideForEach
 pub nika_schema::SchemaError::LoopLocalOutsideForEach::local: alloc::string::String
 pub nika_schema::SchemaError::LoopLocalOutsideForEach::span: core::option::Option<nika_schema::Span>
 pub nika_schema::SchemaError::LoopLocalOutsideForEach::task: alloc::string::String
-pub nika_schema::SchemaError::MissingDependsOnEdge
-pub nika_schema::SchemaError::MissingDependsOnEdge::referenced: alloc::string::String
-pub nika_schema::SchemaError::MissingDependsOnEdge::span: core::option::Option<nika_schema::Span>
-pub nika_schema::SchemaError::MissingDependsOnEdge::task: alloc::string::String
 pub nika_schema::SchemaError::MissingEnvelopeField
 pub nika_schema::SchemaError::MissingEnvelopeField::field: alloc::string::String
 pub nika_schema::SchemaError::MissingEnvelopeField::span: core::option::Option<nika_schema::Span>
@@ -5933,6 +6452,11 @@ pub nika_schema::SchemaError::RecoverAwaitDeadlock
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_schema::Span>
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::target: alloc::string::String
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::task: alloc::string::String
+pub nika_schema::SchemaError::RefOutsideBoundary
+pub nika_schema::SchemaError::RefOutsideBoundary::reference: alloc::string::String
+pub nika_schema::SchemaError::RefOutsideBoundary::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::RefOutsideBoundary::surface: alloc::string::String
+pub nika_schema::SchemaError::RefOutsideBoundary::task: alloc::string::String
 pub nika_schema::SchemaError::ReservedBindingName
 pub nika_schema::SchemaError::ReservedBindingName::name: alloc::string::String
 pub nika_schema::SchemaError::ReservedBindingName::span: core::option::Option<nika_schema::Span>
@@ -5940,6 +6464,11 @@ pub nika_schema::SchemaError::ReservedBindingName::task: alloc::string::String
 pub nika_schema::SchemaError::TemplateSyntax
 pub nika_schema::SchemaError::TemplateSyntax::reason: alloc::string::String
 pub nika_schema::SchemaError::TemplateSyntax::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnknownAfterPredicate
+pub nika_schema::SchemaError::UnknownAfterPredicate::predicate: alloc::string::String
+pub nika_schema::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::UnknownAfterPredicate::target: alloc::string::String
+pub nika_schema::SchemaError::UnknownAfterPredicate::task: alloc::string::String
 pub nika_schema::SchemaError::UnknownDependency
 pub nika_schema::SchemaError::UnknownDependency::from: alloc::string::String
 pub nika_schema::SchemaError::UnknownDependency::span: core::option::Option<nika_schema::Span>
@@ -5972,6 +6501,10 @@ pub nika_schema::SchemaError::W1TopLevelDescription::span: core::option::Option<
 pub nika_schema::SchemaError::W1WorkflowScalar
 pub nika_schema::SchemaError::W1WorkflowScalar::id: alloc::string::String
 pub nika_schema::SchemaError::W1WorkflowScalar::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W2DependsOnField
+pub nika_schema::SchemaError::W2DependsOnField::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::W2DependsOnField::task: alloc::string::String
+pub nika_schema::SchemaError::W2DependsOnField::task_hint: alloc::string::String
 pub nika_schema::SchemaError::WhenNotBoolean
 pub nika_schema::SchemaError::WhenNotBoolean::field: alloc::string::String
 pub nika_schema::SchemaError::WhenNotBoolean::reason: alloc::string::String
@@ -6358,9 +6891,11 @@ impl<T> outref::AsOut<T> for nika_schema::types::var_decl::VarType where T: core
 pub fn nika_schema::types::var_decl::VarType::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::var_decl::VarType where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::AnalyzedWorkflow
+pub nika_schema::AnalyzedWorkflow::edges: alloc::vec::Vec<nika_schema::analyzer::edges::Edge>
+pub nika_schema::AnalyzedWorkflow::recovery_reads: alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>
 pub nika_schema::AnalyzedWorkflow::topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
 impl nika_schema::analyzer::AnalyzedWorkflow
-pub fn nika_schema::analyzer::AnalyzedWorkflow::new(topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
+pub fn nika_schema::analyzer::AnalyzedWorkflow::new(edges: alloc::vec::Vec<nika_schema::analyzer::edges::Edge>, recovery_reads: alloc::vec::Vec<nika_schema::analyzer::edges::RecoveryRead>, topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
 impl core::clone::Clone for nika_schema::analyzer::AnalyzedWorkflow
 pub fn nika_schema::analyzer::AnalyzedWorkflow::clone(&self) -> nika_schema::analyzer::AnalyzedWorkflow
 impl core::cmp::Eq for nika_schema::analyzer::AnalyzedWorkflow
