@@ -27,6 +27,7 @@ futures-util     = { workspace = true }   # buffered(k) intra-wave concurrency +
 jaq-core         = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
 jaq-std          = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
 jaq-json         = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
+serde            = { workspace = true }   # TerminalCause wire form (snake_case · spec 13) — FCI-003-pinned against as_str()
 serde_json       = { workspace = true }
 blake3           = { workspace = true }   # ADR-099 resume keys — hash of the JCS key payloads (content, never mtimes)
 serde_json_canonicalizer = { workspace = true }   # ADR-099 resume keys — RFC 8785 canonical bytes (trap 5 · map order + whitespace)

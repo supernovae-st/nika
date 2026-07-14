@@ -231,11 +231,12 @@ fn is_bare_projection(path: &str) -> bool {
     !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// The status-family projections (terminal-observation role).
+/// The status-family projections (terminal-observation role · spec 13
+/// adds `.cause`, the same pass-set as `.status`).
 fn is_status_family(path: &str) -> bool {
     matches!(
         path,
-        ".status" | ".duration_ms" | ".started_at" | ".ended_at"
+        ".status" | ".cause" | ".duration_ms" | ".started_at" | ".ended_at"
     )
 }
 

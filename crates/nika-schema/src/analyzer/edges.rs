@@ -50,8 +50,8 @@ pub enum EdgeKind {
     /// A `.output` / named-binding reference — pass `{success, skipped}`
     /// (the skipped value reads defined-`null`).
     Value,
-    /// A `.status`/`.duration_ms`/`.started_at`/`.ended_at` reference —
-    /// every settled state admits (you asked to OBSERVE the outcome).
+    /// A `.status`/`.cause`/`.duration_ms`/`.started_at`/`.ended_at`
+    /// reference — every settled state admits (OBSERVE the outcome).
     TerminalObservation,
     /// An `.error` reference — pass `{failure, skipped}` (a skip may
     /// carry a PRESERVED error · `on_error: skip` · spec 05 §Fields; a
@@ -129,8 +129,9 @@ pub struct RecoveryRead {
 /// `03-dag.md` §with · the role table).
 #[must_use]
 pub fn role_of_field(field: Option<&str>) -> EdgeKind {
+    const OBSERVE: [&str; 5] = ["status", "cause", "duration_ms", "started_at", "ended_at"];
     match field {
-        Some("status" | "duration_ms" | "started_at" | "ended_at") => EdgeKind::TerminalObservation,
+        Some(f) if OBSERVE.contains(&f) => EdgeKind::TerminalObservation,
         Some("error") => EdgeKind::FailureObservation,
         // `.output`, a named `output:` binding, or a bare envelope
         // (the scan layer rejects the bare form as NIKA-VAR-020).
@@ -311,7 +312,8 @@ mod tests {
     #[test]
     fn with_binding_is_the_edge_role_per_field() {
         // 03 §with · one binding expression with N refs = N edges ·
-        // role per referenced field.
+        // role per referenced field. `.cause` (spec 13 §one obvious
+        // way) is terminal-observation, the SAME pass-set as `.status`.
         let yaml = format!(
             "{HEADER}tasks:
   a:
@@ -321,15 +323,18 @@ mod tests {
       data: ${{{{ tasks.a.output }}}}
       took: ${{{{ tasks.a.duration_ms }}}}
       err: ${{{{ tasks.a.error }}}}
+      why: ${{{{ tasks.a.cause }}}}
     exec: {{ command: [\"true\"] }}
 "
         );
         let (edges, _) = edges_of(&yaml);
-        assert_eq!(edges.len(), 3);
+        assert_eq!(edges.len(), 4);
         assert_eq!(edges[0].kind, EdgeKind::Value);
         assert_eq!(edges[0].binding.as_deref(), Some("data"));
         assert_eq!(edges[1].kind, EdgeKind::TerminalObservation);
         assert_eq!(edges[2].kind, EdgeKind::FailureObservation);
+        assert_eq!(edges[3].kind, EdgeKind::TerminalObservation);
+        assert_eq!(edges[3].binding.as_deref(), Some("why"));
         assert!(edges.iter().all(|e| e.from == 0 && e.to == 1));
     }
 
@@ -362,6 +367,8 @@ mod tests {
         assert!(EdgeKind::Value.admits(Skipped));
         assert!(!EdgeKind::Value.admits(Cancelled));
         assert_eq!(admit(EdgeKind::TerminalObservation), 4);
+        // Spec 13 · `.cause` rides the SAME all-four pass-set as `.status`.
+        assert_eq!(role_of_field(Some("cause")), EdgeKind::TerminalObservation);
         assert_eq!(admit(EdgeKind::FailureObservation), 2);
         assert!(EdgeKind::FailureObservation.admits(Skipped));
         assert!(EdgeKind::Control(AfterPredicate::Terminal).admits(Cancelled));

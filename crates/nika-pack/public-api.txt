@@ -79,6 +79,41 @@ impl<T> core::borrow::BorrowMut<T> for nika_pack::meta::ExampleMeta where T: ?co
 pub fn nika_pack::meta::ExampleMeta::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_pack::meta::ExampleMeta
 pub fn nika_pack::meta::ExampleMeta::from(t: T) -> T
+#[non_exhaustive] pub struct nika_pack::OutcomeTransitions
+pub nika_pack::OutcomeTransitions::classes: alloc::vec::Vec<&'static str>
+pub nika_pack::OutcomeTransitions::legal: alloc::vec::Vec<(&'static str, alloc::vec::Vec<&'static str>)>
+pub nika_pack::OutcomeTransitions::payload: alloc::vec::Vec<(&'static str, alloc::vec::Vec<&'static str>)>
+pub nika_pack::OutcomeTransitions::trace_format: u32
+impl core::clone::Clone for nika_pack::OutcomeTransitions
+pub fn nika_pack::OutcomeTransitions::clone(&self) -> nika_pack::OutcomeTransitions
+impl core::cmp::Eq for nika_pack::OutcomeTransitions
+impl core::cmp::PartialEq for nika_pack::OutcomeTransitions
+pub fn nika_pack::OutcomeTransitions::eq(&self, other: &nika_pack::OutcomeTransitions) -> bool
+impl core::fmt::Debug for nika_pack::OutcomeTransitions
+pub fn nika_pack::OutcomeTransitions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pack::OutcomeTransitions
+impl<T, U> core::convert::Into<U> for nika_pack::OutcomeTransitions where U: core::convert::From<T>
+pub fn nika_pack::OutcomeTransitions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pack::OutcomeTransitions where U: core::convert::Into<T>
+pub type nika_pack::OutcomeTransitions::Error = core::convert::Infallible
+pub fn nika_pack::OutcomeTransitions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pack::OutcomeTransitions where U: core::convert::TryFrom<T>
+pub type nika_pack::OutcomeTransitions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pack::OutcomeTransitions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pack::OutcomeTransitions where T: core::clone::Clone
+pub type nika_pack::OutcomeTransitions::Owned = T
+pub fn nika_pack::OutcomeTransitions::clone_into(&self, target: &mut T)
+pub fn nika_pack::OutcomeTransitions::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pack::OutcomeTransitions where T: 'static + ?core::marker::Sized
+pub fn nika_pack::OutcomeTransitions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pack::OutcomeTransitions where T: ?core::marker::Sized
+pub fn nika_pack::OutcomeTransitions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pack::OutcomeTransitions where T: ?core::marker::Sized
+pub fn nika_pack::OutcomeTransitions::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pack::OutcomeTransitions where T: core::clone::Clone
+pub unsafe fn nika_pack::OutcomeTransitions::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pack::OutcomeTransitions
+pub fn nika_pack::OutcomeTransitions::from(t: T) -> T
 pub fn nika_pack::canon() -> &'static str
 pub fn nika_pack::design_motion() -> core::option::Option<&'static str>
 pub fn nika_pack::design_tokens() -> &'static str
@@ -90,6 +125,7 @@ pub fn nika_pack::example_slugs() -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_pack::lean(yaml_text: &str) -> &str
 pub fn nika_pack::manifest() -> &'static str
 pub fn nika_pack::meta(slug: &str, body: &str) -> nika_pack::meta::ExampleMeta
+pub fn nika_pack::outcome_transitions() -> core::option::Option<nika_pack::OutcomeTransitions>
 pub fn nika_pack::pack_version() -> &'static str
 pub fn nika_pack::quickstart() -> &'static str
 pub fn nika_pack::schema_json() -> &'static str

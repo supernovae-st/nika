@@ -44,8 +44,12 @@ pub struct TraceFormatVersion {
 }
 
 impl TraceFormatVersion {
-    /// Current trace format version.
-    pub const CURRENT: Self = Self { version: 1 };
+    /// Current trace format version — `trace_format: 2` (spec 13 §trace):
+    /// terminal task events carry `outcome: {class, cause}` + the payload
+    /// per class. Format 1 is the pre-W5 photograph; engines do not emit
+    /// it past that chapter. Parity-pinned against the vendored pack's
+    /// `outcome_transitions.trace_format` by the runtime's outcome tests.
+    pub const CURRENT: Self = Self { version: 2 };
 
     /// Create a trace format version.
     #[must_use]
@@ -81,7 +85,10 @@ mod tests {
 
     #[test]
     fn trace_format_current() {
-        assert_eq!(TraceFormatVersion::CURRENT.version, 1);
+        // Spec 13 (W5): the cause axis is a semantic change under
+        // readable JSON — the graph_format: 2 precedent — so the format
+        // bumped once, to 2.
+        assert_eq!(TraceFormatVersion::CURRENT.version, 2);
     }
 
     #[test]

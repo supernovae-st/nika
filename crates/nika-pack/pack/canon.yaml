@@ -51,9 +51,9 @@ counts:
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 17
+  error_namespaces: 18
   error_categories: 12
-  error_codes: 74
+  error_codes: 76
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -65,6 +65,24 @@ counts:
   # ---- extended 2026-07-06 · the MCP oracle surface
   mcp_tools: 9
   mcp_protocol_versions: 5
+
+# ------------------------------------------- outcome transitions (spec 13 · W5)
+# THE normative (class × cause) table — machine-readable so the reference
+# evaluator (outcome_core.py) and the engine (vendored pack) consume ONE
+# source. Any pair outside this table is an engine bug, never a state.
+outcome_transitions:
+  trace_format: 2
+  classes: [success, failure, skipped, cancelled]
+  legal:
+    success: [normal, recovered]
+    failure: [verb_error, timeout, retry_exhausted]
+    skipped: [gate, error_skip]
+    cancelled: [upstream, operator, budget]
+  payload:
+    success: [value, attempts, "recovered_from?"]
+    failure: [error, attempts]
+    skipped: ["error?"]
+    cancelled: [reason]
 
 # ---------------------------------------------------------------- verbs
 # D-2026-05-22-N18 · "the count is 4, absolute · immutable forever".
@@ -206,7 +224,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 17
+  count: 18
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -221,6 +239,7 @@ error_namespaces:
     - NIKA-DECIDE
     - NIKA-PARSE
     - NIKA-POLICY
+    - NIKA-PORT
     - NIKA-PROVIDER
     - NIKA-SEC
     - NIKA-TIMEOUT
@@ -253,7 +272,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 74
+  count: 76
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -326,6 +345,8 @@ error_codes:
     - { code: NIKA-DECIDE-001, category: validation_error, transient: "false", failure: "the decision bundle is malformed or violates its own laws (float weight · undeclared evidence key in rules · identity key feeding a technical dimension · missing contradictory fixture · monotonicity violated by the bundle's own fixtures) (spec 11)" }
     - { code: NIKA-DECIDE-002, category: validation_error, transient: "false", failure: "the evidence snapshot does not satisfy the bundle's evidence schema (type misfit · unauthorized source · integrity below the declared floor · undeclared key) (spec 11)" }
     - { code: NIKA-POLICY-001, category: security_error, transient: "false", failure: "a hard policy: rule is violated (require.human_gate_before · forbid.exec_after · allow.providers · limits.max_tasks) — the diagnostic names rule + task + witness (order rules: the path) · check-time, before any token (spec 10)" }
+    - { code: NIKA-PORT-001, category: validation_error, transient: "false", failure: "a gateway artifact (deployment bundle · capabilities report · lowering report · fidelity report · authority delta) is malformed or violates its laws (unknown promoted · permissive_unsafe without refusal · disclosure subset-chain violated · child authority exceeding parent) (spec 12)" }
+    - { code: NIKA-PORT-002, category: security_error, transient: "false", failure: "policy lowering is permissive_unsafe — the backend would allow what the policy forbids · refused with the divergence witness (spec 12)" }
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }
     - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }
     - { code: NIKA-SEC-003, category: security_error, transient: "false", failure: "run-recursion bound — nested-run depth exceeded OR self-launching workflow" }

@@ -758,7 +758,7 @@ mod tests {
     }
 
     fn success_record(output: Value) -> TaskRecord {
-        let mut rec = TaskRecord::unran(TaskStatus::Success);
+        let mut rec = TaskRecord::unran(TaskStatus::Success, crate::record::TerminalCause::Normal);
         rec.output = output;
         rec
     }

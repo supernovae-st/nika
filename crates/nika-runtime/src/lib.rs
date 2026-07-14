@@ -80,7 +80,7 @@ use serde_json::Value;
 
 pub use errors::RuntimeError;
 pub use pause::WorkflowPause;
-pub use record::{TaskErrorRecord, TaskRecord, TaskStatus};
+pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub use secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
 };
@@ -463,6 +463,15 @@ fn emit_prologue(
     if let Some(hex) = source_sha256_lf {
         opening.push(("workflow_sha256_lf", s(hex)));
     }
+    // The trace-format marker (spec 13 §trace · the graph_format: 2
+    // precedent): format-2 lines carry `outcome: {class, cause}` on
+    // every terminal task event, so the run's opening frame — the
+    // trace's header — names the format it speaks. ONE source:
+    // `TraceFormatVersion::CURRENT` (pack-parity-pinned).
+    opening.push((
+        "trace_format",
+        i(i64::from(nika_types::TraceFormatVersion::CURRENT.version)),
+    ));
     // Environment attestation (Q11): reproducing a failure needs to know
     // WHICH engine on WHICH platform wrote the journal. Compile-time
     // constants only — the workspace releases in lockstep, so the
@@ -885,33 +894,46 @@ pub(crate) fn settle(
     let resume = finish.resume;
     match finish.settle {
         SettleAs::Cancelled { note, blocked_by } => {
-            // The WHY rides along: which upstream kept the gate closed.
+            // The WHY rides along: which upstream kept the gate closed —
+            // the outcome names the cause (spec 13 · cancelled/upstream).
+            let record = with_named(
+                TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Upstream),
+                named,
+            );
             let mut fields = vec![("task", s(&id)), ("note", s(note))];
             if let Some(culprit) = &blocked_by {
                 fields.push(("blocked_by", s(culprit)));
             }
+            fields.push(("outcome", s(&record::outcome_json(&record))));
             emit(stamper, sink, EventKind::TaskCancelled, &fields);
-            records.insert(
-                id,
-                with_named(TaskRecord::unran(TaskStatus::Cancelled), named),
-            );
+            records.insert(id, record);
         }
         SettleAs::SkippedGate { note, expr } => {
             // The gate's own CEL text — « why did this not run » verbatim.
+            // Outcome: skipped/gate — a decision, `.error` defined-null.
+            let record = with_named(
+                TaskRecord::unran(TaskStatus::Skipped, TerminalCause::Gate),
+                named,
+            );
             let mut fields = vec![("task", s(&id)), ("note", s(note))];
             if let Some(cel) = &expr {
                 fields.push(("when", s(cel)));
             }
+            fields.push(("outcome", s(&record::outcome_json(&record))));
             emit(stamper, sink, EventKind::TaskSkipped, &fields);
-            records.insert(
-                id,
-                with_named(TaskRecord::unran(TaskStatus::Skipped), named),
-            );
+            records.insert(id, record);
         }
         SettleAs::FailedBeforeStart { stage, error } => {
             // A pre-dispatch failure (gate eval · with · for_each
             // collection) — the task never started: no TaskStarted ·
-            // no on_finally (spec 03) · the failure cascades.
+            // no on_finally (spec 03) · the failure cascades. The one
+            // boundary evaluation IS the settling attempt (spec 13 ·
+            // failure/verb_error · attempts = 1).
+            let mut record = TaskRecord::unran(TaskStatus::Failure, TerminalCause::VerbError);
+            record.attempts = Some(1);
+            let detail = format!("{} · {}", error.code, error.message);
+            record.error = Some(error);
+            let record = with_named(record, named);
             emit(
                 stamper,
                 sink,
@@ -919,31 +941,15 @@ pub(crate) fn settle(
                 &[
                     ("task", s(&id)),
                     ("note", s(stage)),
-                    ("detail", s(&format!("{} · {}", error.code, error.message))),
+                    ("detail", s(&detail)),
+                    ("outcome", s(&record::outcome_json(&record))),
                 ],
             );
-            let mut record = TaskRecord::unran(TaskStatus::Failure);
-            record.error = Some(error);
-            records.insert(id, with_named(record, named));
+            records.insert(id, record);
             *ok = false;
         }
         SettleAs::CacheHit { output } => {
-            // ADR-099 §2 — the skip is VISIBLE: one `task_cache_hit`
-            // frame carrying the matched identity + the rehydrated
-            // output (so a resumed run's own trace stays resumable).
-            // No `TaskStarted` · no duration — the task never ran here.
-            let mut fields = vec![("task", s(&id)), ("note", s("cache hit"))];
-            let output_text = serde_json::to_string(&output).unwrap_or_else(|_| "null".to_owned());
-            if let Some(stamp) = resume.as_ref() {
-                fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
-                fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
-                fields.push((resume::fields::OUTPUT, s(&output_text)));
-            }
-            let ended = emit(stamper, sink, EventKind::TaskCacheHit, &fields);
-            let mut record = TaskRecord::unran(TaskStatus::Success);
-            record.output = output;
-            record.ended_at = Some(ended);
-            record.named = named;
+            let record = settle_cache_hit(&id, output, named, resume.as_ref(), stamper, sink);
             records.insert(id.clone(), record);
             cache_hits.push(id);
         }
@@ -953,6 +959,37 @@ pub(crate) fn settle(
             records.insert(id, record);
         }
     }
+}
+
+/// ADR-099 §2 — the skip is VISIBLE: one `task_cache_hit` frame carrying
+/// the matched identity + the rehydrated output (so a resumed run's own
+/// trace stays resumable). No `TaskStarted` · no duration — the task
+/// never ran here. Downstream observes a plain success (spec
+/// vocabulary), so the outcome reads `success/normal`; the rehydration
+/// is the settling attempt (attempts = 1).
+fn settle_cache_hit(
+    id: &str,
+    output: Value,
+    named: BTreeMap<String, Value>,
+    resume: Option<&resume::ResumeStamp>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> TaskRecord {
+    let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
+    record.attempts = Some(1);
+    record.output = output;
+    record.named = named;
+    let mut fields = vec![("task", s(id)), ("note", s("cache hit"))];
+    let output_text = serde_json::to_string(&record.output).unwrap_or_else(|_| "null".to_owned());
+    if let Some(stamp) = resume {
+        fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
+        fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
+        fields.push((resume::fields::OUTPUT, s(&output_text)));
+    }
+    fields.push(("outcome", s(&record::outcome_json(&record))));
+    let ended = emit(stamper, sink, EventKind::TaskCacheHit, &fields);
+    record.ended_at = Some(ended);
+    record
 }
 
 /// Attach the `output:` named bindings to a record (spec 04 · the bindings
@@ -1011,7 +1048,9 @@ fn settle_ran(
     // from the `turn` field.
     agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
-    let mut record = TaskRecord::unran(TaskStatus::Success);
+    // Every attempt including the settling one (spec 13 §payload).
+    let attempts = run.attempts();
+    let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
     record.started_at = Some(started_at);
     record.duration_ms = Some(run.duration_ms);
     match run.result {
@@ -1022,26 +1061,18 @@ fn settle_ran(
             warning,
             cost_usd,
             cost_unpriced,
-        } => {
-            if let Some(code) = recovered_from.as_deref() {
-                emit_task::emit_recovered(id, code, stamper, sink);
-            }
-            let ended = emit_task::emit_completed(
-                id,
-                &run.note,
-                duration,
-                tokens,
-                cost_usd,
-                cost_unpriced,
-                warning.as_deref(),
-                resume,
-                &value,
-                stamper,
-                sink,
-            );
-            record.ended_at = Some(ended);
-            record.output = value;
-        }
+        } => settle_success_terminal(
+            id,
+            &run.note,
+            duration,
+            (value, tokens, recovered_from, warning),
+            (cost_usd, cost_unpriced),
+            attempts,
+            resume,
+            &mut record,
+            stamper,
+            sink,
+        ),
         task::RunResult::SkippedWithError {
             error,
             cost_usd,
@@ -1064,6 +1095,7 @@ fn settle_ran(
             duration,
             error,
             (cost_usd, cost_unpriced),
+            attempts,
             &mut record,
             ok,
             stamper,
@@ -1078,6 +1110,7 @@ fn settle_ran(
             duration,
             pending.render_error,
             (pending.failed.cost_usd, pending.failed.cost_unpriced),
+            attempts,
             &mut record,
             ok,
             stamper,
@@ -1092,6 +1125,57 @@ fn settle_ran(
 /// Billed-then-failed spend rides the frame — the dollars a dying task
 /// burned must never vanish with it (already ledger-debited per attempt;
 /// this is the frame's per-task truth).
+/// The success terminal — `task_recovered` (when the success was
+/// repaired · D-2026-07-08-N4 sequence) then `task_completed`, with the
+/// spec-13 outcome derived from the settled record: `success/normal` or
+/// `success/recovered` (+ the ORIGINAL error as `recovered_from`).
+// REASON: the terminal frame's field surface + the settle pens — the
+// same shape as `settle_ran` itself.
+#[allow(clippy::too_many_arguments)]
+fn settle_success_terminal(
+    id: &str,
+    note: &str,
+    duration: i64,
+    (value, tokens, recovered_from, warning): (
+        Value,
+        Option<i64>,
+        Option<TaskErrorRecord>,
+        Option<String>,
+    ),
+    (cost_usd, cost_unpriced): (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    attempts: u32,
+    resume: Option<&resume::ResumeStamp>,
+    record: &mut TaskRecord,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    if let Some(original) = &recovered_from {
+        emit_task::emit_recovered(id, &original.code, stamper, sink);
+    }
+    record.cause = if recovered_from.is_some() {
+        TerminalCause::Recovered
+    } else {
+        TerminalCause::Normal
+    };
+    record.attempts = Some(attempts);
+    record.recovered_from = recovered_from;
+    record.output = value;
+    let ended = emit_task::emit_completed(
+        id,
+        note,
+        duration,
+        tokens,
+        cost_usd,
+        cost_unpriced,
+        warning.as_deref(),
+        resume,
+        record,
+        stamper,
+        sink,
+    );
+    record.ended_at = Some(ended);
+}
+
 // REASON: the terminal frame's field surface + the settle pens — the
 // same shape as `settle_ran` itself.
 #[allow(clippy::too_many_arguments)]
@@ -1101,28 +1185,37 @@ fn settle_failed_terminal(
     duration: i64,
     error: TaskErrorRecord,
     spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    attempts: u32,
     record: &mut TaskRecord,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
+    // The failure-cause triage (spec 13): timeout budget · retries
+    // exhausted · plain verb error — assigned at the ONE failure site.
+    record.status = TaskStatus::Failure;
+    record.cause = record::failure_cause(&error, attempts);
+    record.attempts = Some(attempts);
+    let detail = format!("{} · {}", error.code, error.message);
+    record.error = Some(error);
     let mut fields = vec![
         ("task", s(id)),
         ("note", s(note)),
-        ("detail", s(&format!("{} · {}", error.code, error.message))),
+        ("detail", s(&detail)),
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    fields.push(("outcome", s(&record::outcome_json(record))));
     let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
-    record.status = TaskStatus::Failure;
     record.ended_at = Some(ended);
-    record.error = Some(error);
     *ok = false;
 }
 
 /// `on_error: skip` — the ONE state where status is skipped AND the
 /// error stays readable (spec 05). The billed spend of the skipped
-/// attempts rides the frame (skip ≠ refund).
+/// attempts rides the frame (skip ≠ refund). Outcome: `skipped/error_skip`
+/// with the PRESERVED error (spec 13 · the skipped payload law carries
+/// the error only — attempts stay off the record, per the closed table).
 fn settle_skip_with_error(
     id: &str,
     error: TaskErrorRecord,
@@ -1131,16 +1224,19 @@ fn settle_skip_with_error(
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
+    record.status = TaskStatus::Skipped;
+    record.cause = TerminalCause::ErrorSkip;
+    let detail = format!("{} · {}", error.code, error.message);
+    record.error = Some(error);
     let mut fields = vec![
         ("task", s(id)),
         ("note", s("on_error · skip")),
-        ("detail", s(&format!("{} · {}", error.code, error.message))),
+        ("detail", s(&detail)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    fields.push(("outcome", s(&record::outcome_json(record))));
     let ended = emit(stamper, sink, EventKind::TaskSkipped, &fields);
-    record.status = TaskStatus::Skipped;
     record.ended_at = Some(ended);
-    record.error = Some(error);
 }
 
 /// Push the spend pair onto a frame's fields — absent stays absent
@@ -1278,6 +1374,9 @@ fn abort_on_budget(
     for task in &wf.tasks {
         let id = &task.value.id.value;
         if !records.contains_key(id) {
+            // Spec 13 · cancelled/budget: this task was UNSTARTED when
+            // the cap hit (in-flight work completed and was counted).
+            let record = TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Budget);
             emit(
                 stamper,
                 sink,
@@ -1285,9 +1384,10 @@ fn abort_on_budget(
                 &[
                     ("task", s(id)),
                     ("note", s("budget · --max-cost-usd reached")),
+                    ("outcome", s(&record::outcome_json(&record))),
                 ],
             );
-            records.insert(id.clone(), TaskRecord::unran(TaskStatus::Cancelled));
+            records.insert(id.clone(), record);
         }
     }
     let detail = format!(

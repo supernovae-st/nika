@@ -5,8 +5,7 @@
 //! prefix frame) extracted from the settle path (lib.rs sat at the
 //! 1500-line file cap; this trio is the cohesive cut).
 
-use serde_json::Value;
-
+use crate::record::{TaskRecord, outcome_json};
 use crate::{EventKind, EventSink, FieldValue, Stamper, emit, i, resume, s};
 
 /// `task_recovered` — the ONE emission site (INV#24 · engine#301 · the
@@ -31,7 +30,9 @@ pub(crate) fn emit_recovered(
 /// `duration_ms`) + spend (`tokens`) + the OBS-E `warning` diagnostic
 /// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
 /// · `output` as ONE compact JSON text) when the task carries a resume
-/// stamp. Returns the terminal timestamp.
+/// stamp + the spec-13 `outcome` (class · cause · payload, derived from
+/// the settled RECORD — one truth for the trace and the `tasks.*`
+/// namespace). Returns the terminal timestamp.
 // The payload knobs mirror the frame's field surface — a builder
 // struct would just restate them.
 #[allow(clippy::too_many_arguments)]
@@ -44,7 +45,7 @@ pub(crate) fn emit_completed(
     cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     warning: Option<&str>,
     resume: Option<&resume::ResumeStamp>,
-    value: &Value,
+    record: &TaskRecord,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) -> nika_types::timestamp::Timestamp {
@@ -76,11 +77,15 @@ pub(crate) fn emit_completed(
     // ADR-099 · the checkpoint fields — only a stamped success carries
     // them (additive trace fields).
     let output_text =
-        resume.map(|_| serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()));
+        resume.map(|_| serde_json::to_string(&record.output).unwrap_or_else(|_| "null".to_owned()));
     if let (Some(stamp), Some(text)) = (resume, output_text.as_deref()) {
         fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
         fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
         fields.push((resume::fields::OUTPUT, s(text)));
     }
+    // Spec 13 · trace_format: 2 — every terminal task event carries the
+    // outcome (class · cause · payload per class).
+    let outcome = outcome_json(record);
+    fields.push(("outcome", s(&outcome)));
     emit(stamper, sink, EventKind::TaskCompleted, &fields)
 }
