@@ -67,26 +67,17 @@ pre-push:
   parallel: false
 
   commands:
-    rust-tests:
-      run: cargo test --workspace --lib --quiet
-      fail_text: 'cargo test --workspace --lib failed.'
-
-    rust-clippy:
-      run: cargo clippy --workspace --all-targets -- -D warnings
-      fail_text: 'cargo clippy failed. Zero-warning policy.'
-
-    # All 15 engine hygiene vectors (run-once here, not per-file).
-    # check-all.sh exits 1 on YELLOW (drift warning) and 2 on RED (hard fail).
-    # We only block the push on RED — YELLOWs surface in stdout but don't gate.
-    engine-hygiene:
-      run: bash -c 'bash scripts/hygiene/check-all.sh --quiet; rc=$?; [ $rc -ne 2 ]'
-      fail_text: 'engine hygiene RED — push blocked.'
-
-    # All 9 CI ratchets in parallel (mirrors diamond-ci.yml matrix).
-    ci-ratchets:
-      run: >
-        bash scripts/hooks/run-ci-ratchets.sh
-      fail_text: 'One or more CI ratchets failed. See output above.'
+    # The four heavy legs (workspace tests · clippy · 15 hygiene vectors ·
+    # 9 CI ratchets) live behind ONE stdin-aware door: a deletion-only push
+    # (`git push origin --delete X` · local sha = the zero sha) sends
+    # nothing new to the remote, so the gate skips instantly instead of
+    # running the full suite for a ref removal. Fail-safe: no stdin refs →
+    # the gate RUNS (a silent skip is impossible). Same contracts as the
+    # four old inline legs — hygiene YELLOW passes, only RED blocks.
+    gate:
+      use_stdin: true
+      run: bash scripts/hooks/pre-push-gate.sh
+      fail_text: 'pre-push gate failed (tests · clippy · hygiene · ratchets — see output).'
 
     cargo-deny:
       glob: 'Cargo.*'
