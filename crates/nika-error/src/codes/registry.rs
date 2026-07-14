@@ -765,6 +765,25 @@ pub const NIKA_1704: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "runtime-budget-exceeded",
 };
+/// NIKA-1705: An exec `decode:` pipeline failure (spec 09 §decode) —
+/// the captured bytes did not decode (strict-UTF-8 text violation ·
+/// unparseable JSON/JSONL). Task-stage (`on_error:` scope) · engine
+/// wire form until the spec registers a dedicated NIKA-EXEC row.
+pub const NIKA_1705: NikaCode = NikaCode {
+    num: 1705,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-decode-failure",
+};
+/// NIKA-1706: A run-time contract violation — the decoded value does
+/// not fit the task's `returns:` type (spec 09 · the wire form is the
+/// SPEC-PLANE `NIKA-TYPE-101`; this is its engine-internal identity).
+pub const NIKA_1706: NikaCode = NikaCode {
+    num: 1706,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-contract-violation",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -791,5 +810,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401,
     NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503,
     NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700,
-    NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704,
+    NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706,
 ];

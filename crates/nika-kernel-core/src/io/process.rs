@@ -117,6 +117,14 @@ pub struct ShellResult {
     pub stderr: String,
     /// Wall-clock duration of execution.
     pub duration: Duration,
+    /// The RAW captured stdout octets, pre any lossy text decode —
+    /// `Some` when the effect recorded them (the real runner does; a
+    /// text-configured mock need not). The `decode:` pipeline (spec 09
+    /// §decode · « raw bytes → decode → value, never bytes → lossy
+    /// string → decode ») reads these through [`Self::stdout_octets`].
+    pub stdout_raw: Option<Vec<u8>>,
+    /// The RAW captured stderr octets (see `stdout_raw`).
+    pub stderr_raw: Option<Vec<u8>>,
 }
 
 impl ShellResult {
@@ -133,7 +141,32 @@ impl ShellResult {
             stdout: stdout.into(),
             stderr: stderr.into(),
             duration,
+            stdout_raw: None,
+            stderr_raw: None,
         }
+    }
+
+    /// Attach the raw captured byte streams (the real runner's duty —
+    /// the text fields stay the lossy projections existing readers use).
+    #[must_use]
+    pub fn with_raw(mut self, stdout_raw: Vec<u8>, stderr_raw: Vec<u8>) -> Self {
+        self.stdout_raw = Some(stdout_raw);
+        self.stderr_raw = Some(stderr_raw);
+        self
+    }
+
+    /// The exact captured stdout octets — the recorded raw stream when
+    /// present, else the text field's bytes (exact for any effect that
+    /// was configured with text, e.g. mocks).
+    #[must_use]
+    pub fn stdout_octets(&self) -> &[u8] {
+        self.stdout_raw.as_deref().unwrap_or(self.stdout.as_bytes())
+    }
+
+    /// The exact captured stderr octets (see [`Self::stdout_octets`]).
+    #[must_use]
+    pub fn stderr_octets(&self) -> &[u8] {
+        self.stderr_raw.as_deref().unwrap_or(self.stderr.as_bytes())
     }
 
     /// Whether the process exited successfully (status 0).

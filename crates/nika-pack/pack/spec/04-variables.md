@@ -264,6 +264,14 @@ is never refused) while making the declared-schema path the
 better-tooling path (one more reason structured output is the default
 authoring style).
 
+**`returns:` sharpens the walk (normative · [09-types.md](./09-types.md)).**
+When the producer declares a `returns:` type instead of a raw `schema:`,
+the walk runs on the type with **full precision**: the v1 type grammar
+has no open construct, so every level is walkable — a member outside a
+closed object is `NIKA-VAR-003` (the same code · one voice), and only
+`additional: true` or an `Unknown` producer opens a level. The raw
+`schema:` hatch keeps the weaker subset walk above.
+
 ### `${{ env.X }}` · environment variable
 
 ```yaml

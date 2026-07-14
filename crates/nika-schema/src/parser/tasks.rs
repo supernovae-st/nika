@@ -43,6 +43,7 @@ const TASK_KEYS: &[&str] = &[
     "timeout",
     "with",
     "output",
+    "returns",
     "on_finally",
 ];
 
@@ -129,15 +130,15 @@ pub(super) fn parse_tasks(
         // the task's span runs KEY → end of body (a breakpoint or range
         // on the declaring key line belongs to the task)
         let body_span = cx.span_or_zero(value.span());
-        let span = crate::source::Span {
-            file: key_span.file,
-            start: key_span.start,
-            end: if body_span.end.0 >= key_span.start.0 {
+        let span = crate::source::Span::new(
+            key_span.file,
+            key_span.start,
+            if body_span.end.0 >= key_span.start.0 {
                 body_span.end
             } else {
                 key_span.end
             },
-        };
+        );
         tasks.push(Spanned::new(task, span));
     }
     Ok(tasks)
@@ -193,9 +194,27 @@ fn parse_task(
     task.timeout = parse_timeout(cx, mapping, "timeout")?;
     task.with = parse_with(cx, mapping)?;
     task.output = parse_output_bindings(cx, mapping)?;
+    task.returns = parse_returns(cx, mapping)?;
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
 
     Ok(task)
+}
+
+/// `returns:` — the task's output contract (spec 09) · a named type
+/// (scalar) or an inline type expression (mapping) · kept RAW; the
+/// grammar (`NIKA-TYPE-001/006`) is the analyzer's job via the type
+/// core (one truth · the parser is shape-only).
+fn parse_returns(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<Option<Spanned<serde_json::Value>>, SchemaError> {
+    let Some(node) = mapping.get_node("returns") else {
+        return Ok(None);
+    };
+    Ok(Some(Spanned::new(
+        json_value(cx, node)?,
+        cx.span_or_zero(node.span()),
+    )))
 }
 
 /// One parsed `after:` map — `(producer, predicate)` entries in source order.

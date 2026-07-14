@@ -54,7 +54,7 @@ pub mod trust;
 pub mod types;
 
 // Re-exports for convenience.
-pub use analyzer::{AnalyzedWorkflow, analyze};
+pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, named_types, returns_type};
 pub use check::{
     Bound, ByteSpan, CapabilityEscape, CertTerm, CheckReport, ConformanceViolation, CostCeiling,
     ERROR_DOCS_BASE, FindingSeverity, GateFinding, GateFindingKind, Hint, InferredPermits,
@@ -71,7 +71,7 @@ pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, 
 
 // Type re-exports (§3.16 of crate spec).
 pub use types::{
-    BackoffStrategy, CaptureMode, ExtractMode, GoDurationError, OnError, OutputDecl, ResponseMode,
-    RetryConfig, SchemaVersion, SecretRef, SecretSource, VarDecl, VarType, is_valid_error_code,
-    parse_go_duration,
+    BackoffStrategy, CaptureMode, DecodeMode, ExtractMode, GoDurationError, OnError, OutputDecl,
+    ResponseMode, RetryConfig, SchemaVersion, SecretRef, SecretSource, VarDecl, VarType,
+    is_valid_error_code, parse_go_duration,
 };

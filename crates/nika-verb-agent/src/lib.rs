@@ -650,9 +650,10 @@ where
         usage_acc: &mut TokenUsage,
         turn: u32,
     ) -> Result<AgentOutput, VerbAgentError> {
-        // `FinalText` is only produced under a `schema:` task; if it is
-        // somehow absent the answer simply stands as text (no panic, no
-        // phantom error · the no-schema completion shape).
+        // `FinalText` is only produced under a TYPED task (`schema:` or a
+        // `returns:` lowered onto the same lane · spec 09); if the schema
+        // is somehow absent the answer stands as text (no panic, no
+        // phantom error · the untyped completion shape).
         let Some(schema) = input.schema.as_ref() else {
             return Ok(AgentOutput::new(
                 AgentValue::Text(answer),

@@ -50,6 +50,9 @@ Given a crate `nika-<role>`, ask these questions in order:
 │ nika-catalog              [axes: none]      Cow<'static, str>, phf lookup │
 │ nika-catalog-codegen      [build-dep+lib]   TOML schema types + codegen  │
 │ nika-schema               [axes: none]      Workflow AST + parser + DAG  │
+│ nika-source               [axes: none]      Spans + file registry (the   │
+│                                             schema unit's 2nd member ·   │
+│                                             size-cap split D-07-09-N1)   │
 │ nika-event                [axes: none]      ~22 scoped sub-enums +        │
 │                                             event_categories! macro      │
 │ nika-binding              [axes: none]      Template resolution engine   │
@@ -144,7 +147,7 @@ flags. They obey the same 12-gate admission as any other crate.
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs (live counts: refresh-status block) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-graph`, `nika-event`, `nika-pack` · *planned* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
+| L0 | Pure types, lookup tables, sync-only APIs (live counts: refresh-status block) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-source`, `nika-graph`, `nika-event`, `nika-pack` · *planned* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
 | L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel` (facade hub), `nika-kernel-core`, `nika-kernel-ai`, `nika-kernel-runtime`, `nika-kernel-plugin`, `nika-kernel-mock` |
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +computer-use axes from M2) | L0, L0.5 | `nika-clock`, `nika-fs`, `nika-http`, `nika-blob`, `nika-exec-runner`, `nika-screen`, `nika-ocr`, `nika-a11y`, `nika-input`, `nika-browser` (ADR-081 guards), `nika-bm25` ✅ + the Connectome satellites (`nika-hnsw`, `nika-rrf`, `nika-rerank`, …), `nika-git`, `nika-keys-*`, `nika-pck-registry`, `nika-pck-store`, `nika-catalog-sync` |
 | L1.5 | Provider wire adapters — between effects and verbs | via L1 http seam | L0, L0.5, L1 | `nika-providers` (14/14 wire · in-crate mock), `nika-infer-local` (candle sidecar · ADR-091) |

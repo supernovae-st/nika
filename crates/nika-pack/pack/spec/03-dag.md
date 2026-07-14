@@ -63,6 +63,7 @@ my_task:                        # the map KEY is the identity · snake_case · u
   timeout: "60s"                # optional · task-level timeout (Go duration string)
   infer:                        # required · one of the 4 verbs
     prompt: "... ${{ with.data }} ..."
+  returns: Summary              # optional · the OUTPUT CONTRACT (a named type or inline · 09-types.md)
   output:                       # optional · named jq bindings
     result: ".choices[0].message.content"
     tokens: ".usage.total_tokens"
@@ -644,6 +645,33 @@ surface**: it may read `tasks.*` (a fallback source is a settled record) —
 the reference is a *recovery edge* in the graph projection, and the
 anti-deadlock law (`NIKA-DAG-004` · the source must not be downstream of
 the declaring task) is unchanged.
+
+### `returns` · *optional · the output contract*
+
+```yaml
+summarize:
+  with: { article: "${{ tasks.fetch.output }}" }
+  infer:
+    prompt: "Summarize · ${{ with.article }}"
+  returns: Summary              # a name declared in types: — or an inline type expression
+```
+
+Declares **what `tasks.X.output` is** — the typed door. Per-verb
+mechanics (structured-output compilation for `infer:`/`agent:` ·
+`decode:` + run-time fit for `exec:` · refinement for `invoke:`), the
+type grammar, the lattice and the JSON-Schema lowering all live in
+[09-types.md](./09-types.md). Two laws to know from here ·
+
+- `returns:` and a verb-level `schema:` on one task = `NIKA-TYPE-003`
+  (one contract, one spelling — `schema:` stays the out-of-core hatch).
+- No `returns:` = the output is `Unknown` — gradual and honest: the
+  static walk stops, nothing is invented ([04](./04-variables.md)).
+
+Downstream, the contract types every value edge: a consumer binding
+`${{ tasks.X.output }}` imports `optional<returns(X)>` (a skipped
+producer reads defined-`null` · [09 §typed value edges](./09-types.md#typed-value-edges-normative)).
+
+---
 
 ### `output` · *optional · output binding*
 

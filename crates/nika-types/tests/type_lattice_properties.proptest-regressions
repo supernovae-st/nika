@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 4cf3212c853fbd24fcee09c5c02bf532dfd310676e2783f7597cab72c0937530 # shrinks to a = Prim(Null), b = Unknown
+cc 062351f25d13f84c8b74e1fa54a1fb23b0cd37c8d18d1a08e06ea6579396ac3d # shrinks to t = Union([Prim(Null), Unknown])
+cc b04caaf94adfea209ce53b380d70a11bd7d66ea421abbbc05178fb9c5700faa4 # shrinks to a = Object { fields: {}, additional: true }, b = Object { fields: {"a": Field { ty: Prim(Null), optional: true }}, additional: false }
+cc f38d7d5538a8207398bd2d49bd2a662fa5c70007e459b72a66301dd7b5fa81aa # shrinks to a = Object { fields: {}, additional: true }, b = Object { fields: {"a": Field { ty: Enum(["b"]), optional: true }}, additional: false }

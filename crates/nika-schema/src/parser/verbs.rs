@@ -16,7 +16,7 @@ use crate::raw::{
     Thinking, VisionInput,
 };
 use crate::source::Spanned;
-use crate::types::CaptureMode;
+use crate::types::{CaptureMode, DecodeMode};
 
 use super::envelope::parse_string_map;
 use super::value::json_value;
@@ -38,8 +38,11 @@ pub(crate) const INFER_KEYS: &[&str] = &[
     "vision",
 ];
 
-/// `exec:` fields (spec `02-verbs.md` §exec field table).
-pub(crate) const EXEC_KEYS: &[&str] = &["command", "shell", "cwd", "env", "stdin", "capture"];
+/// `exec:` fields (spec `02-verbs.md` §exec field table + `decode:` ·
+/// spec 09 §decode).
+pub(crate) const EXEC_KEYS: &[&str] = &[
+    "command", "shell", "cwd", "env", "stdin", "capture", "decode",
+];
 
 /// `invoke:` fields (spec `02-verbs.md` §invoke field table).
 pub(crate) const INVOKE_KEYS: &[&str] = &["tool", "args"];
@@ -139,6 +142,7 @@ fn parse_exec_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawExecActio
     }
     action.stdin = cx.opt_scalar(body, "stdin")?;
     action.capture = parse_capture(cx, body)?;
+    action.decode = parse_decode(cx, body)?;
     Ok(action)
 }
 
@@ -483,6 +487,32 @@ fn parse_capture(
         CaptureMode::from_str_opt(scalar.as_str()).ok_or_else(|| SchemaError::Validation {
             message: format!(
                 "unknown capture mode `{}` (stdout·stderr·combined·structured)",
+                scalar.as_str()
+            ),
+            span: cx.span(scalar.span()),
+        })?;
+    Ok(Some(Spanned::new(mode, cx.span_or_zero(scalar.span()))))
+}
+
+/// `decode:` — closed enum `text` (default) · `json` · `jsonl` · `bytes`
+/// (spec 09 §decode · `artifact-ref` reserved for the artifact lanes).
+fn parse_decode(
+    cx: &Cx<'_>,
+    body: &MarkedMappingNode,
+) -> Result<Option<Spanned<DecodeMode>>, SchemaError> {
+    let Some(node) = body.get_node("decode") else {
+        return Ok(None);
+    };
+    let Some(scalar) = node.as_scalar() else {
+        return Err(SchemaError::Validation {
+            message: "`decode` must be a scalar".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let mode =
+        DecodeMode::from_str_opt(scalar.as_str()).ok_or_else(|| SchemaError::Validation {
+            message: format!(
+                "unknown decode mode `{}` (text·json·jsonl·bytes)",
                 scalar.as_str()
             ),
             span: cx.span(scalar.span()),

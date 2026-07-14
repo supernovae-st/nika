@@ -27,6 +27,7 @@ mod jq_lint;
 mod scan;
 mod schema_lint;
 mod schema_paths;
+pub mod types_contract;
 
 use std::collections::BTreeMap;
 
@@ -34,6 +35,7 @@ use crate::error::SchemaError;
 use crate::raw::RawWorkflow;
 
 pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
+pub use types_contract::{lowered_returns, named_types, returns_type};
 
 /// The analyzer's output — the Graph IR plus its waves · lowering is
 /// the runtime's job.
@@ -85,6 +87,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     scan::scan_workflow(wf, &mut errors);
     jq_lint::scan_jq(wf, &mut errors);
     schema_lint::scan_schemas(wf, &mut errors);
+    types_contract::check_types_contract(wf, &mut errors);
 
     if errors.is_empty() {
         let waves = dag::topo_waves(wf.tasks.len(), &derived);

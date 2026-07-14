@@ -306,6 +306,21 @@ pub fn code_help(code: NikaCode) -> &'static str {
         1600..=1699 => {
             "Audio inference failed. Check the model/voice is available, the clip format (PCM s16le), and an audio backend is installed."
         }
+        1700..=1799 => run_code_help(code.num),
+        700..=749 => {
+            "WASM plugin host reported an error. Check plugin manifest and capability grants."
+        }
+        750..=799 => "Sandbox denied or failed. Verify capability allowlist and platform support.",
+        800..=819 => "Observability sink rejected the event. Check exporter configuration.",
+        999 => "Internal error. Please report at github.com/supernovae-st/nika/issues",
+        _ => "Unknown error code. Check documentation for details.",
+    }
+}
+
+/// The RUN-namespace helps (`NIKA-RUN-*` · 1700-1799) — split out of
+/// [`code_help`] to keep both under the 100-line cap.
+fn run_code_help(num: u16) -> &'static str {
+    match num {
         1700 => "Run `nika check` first — the runtime refuses a workflow whose audit is dirty.",
         1701 => {
             "The wave schedule references a task index outside the workflow. Re-run `nika check`; if it persists, report the checker/runtime mismatch."
@@ -319,13 +334,13 @@ pub fn code_help(code: NikaCode) -> &'static str {
         1704 => {
             "The run crossed its `--max-cost-usd` budget: in-flight work completed and was counted, unstarted tasks were cancelled. Raise the budget, trim the workflow, or check the envelope with `nika check` (the budget bounds METERED spend — local/mock work never trips it)."
         }
-        700..=749 => {
-            "WASM plugin host reported an error. Check plugin manifest and capability grants."
+        1705 => {
+            "The exec `decode:` pipeline failed: the captured bytes did not decode (strict-UTF-8 text · unparseable JSON/JSONL). Match the decode to what the command emits — an author who wants raw octets says `decode: bytes`."
         }
-        750..=799 => "Sandbox denied or failed. Verify capability allowlist and platform support.",
-        800..=819 => "Observability sink rejected the event. Check exporter configuration.",
-        999 => "Internal error. Please report at github.com/supernovae-st/nika/issues",
-        _ => "Unknown error code. Check documentation for details.",
+        1706 => {
+            "The decoded value does not fit the task's `returns:` type (NIKA-TYPE-101). Align the contract with what the command really emits, or fix the command — the type is the truth the run enforces."
+        }
+        _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }
 }
 

@@ -2,11 +2,11 @@ pub mod nika_lints
 #[non_exhaustive] pub struct nika_lints::Lint
 pub nika_lints::Lint::message: alloc::string::String
 pub nika_lints::Lint::rule: &'static str
-pub nika_lints::Lint::span: nika_schema::source::span::Span
+pub nika_lints::Lint::span: nika_source::span::Span
 pub nika_lints::Lint::suggestion: alloc::string::String
 pub nika_lints::Lint::task_id: alloc::string::String
 impl nika_lints::Lint
-pub fn nika_lints::Lint::new(rule: &'static str, task_id: alloc::string::String, span: nika_schema::source::span::Span, message: alloc::string::String, suggestion: alloc::string::String) -> Self
+pub fn nika_lints::Lint::new(rule: &'static str, task_id: alloc::string::String, span: nika_source::span::Span, message: alloc::string::String, suggestion: alloc::string::String) -> Self
 impl core::clone::Clone for nika_lints::Lint
 pub fn nika_lints::Lint::clone(&self) -> nika_lints::Lint
 impl core::cmp::PartialEq for nika_lints::Lint

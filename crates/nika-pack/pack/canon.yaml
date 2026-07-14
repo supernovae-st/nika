@@ -51,9 +51,9 @@ counts:
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 14
+  error_namespaces: 15
   error_categories: 12
-  error_codes: 61
+  error_codes: 69
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -205,7 +205,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 14 · cascade complete 2026-05-27).
 error_namespaces:
-  count: 14
+  count: 15
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -221,6 +221,7 @@ error_namespaces:
     - NIKA-PROVIDER
     - NIKA-SEC
     - NIKA-TIMEOUT
+    - NIKA-TYPE
     - NIKA-VAR
 
 # ---------------------------------------------------- error categories (v1 closed enum)
@@ -249,7 +250,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 61
+  count: 69
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -278,6 +279,7 @@ error_codes:
     - { code: NIKA-PARSE-022, category: validation_error, transient: "false", failure: "tasks: is a sequence — it became a map keyed by task id (drop `- id:`, the key IS the identity)" }
     - { code: NIKA-PARSE-023, category: validation_error, transient: "false", failure: "a task carries an id: field — the map key is the identity, the field is gone" }
     - { code: NIKA-PARSE-024, category: validation_error, transient: "false", failure: "a task carries depends_on: — dead since W2 (data → with: bindings · control → after: predicates · check --fix migrates)" }
+    - { code: NIKA-PARSE-025, category: validation_error, transient: "false", failure: "decode: with capture: structured — that capture already IS an object · type it with returns:" }
     - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in the precedence graph G_p = E_d ∪ E_c (incl. self-dependency · via with:/after:)" }
     - { code: NIKA-DAG-002, category: validation_error, transient: "false", failure: "with:/after: references an undeclared task" }
     # NIKA-DAG-003 · RETIRED (never reuse) — « a tasks.X reference with no
@@ -288,6 +290,13 @@ error_codes:
     - { code: NIKA-DAG-005, category: validation_error, transient: "false", failure: "after: predicate outside the closed set (succeeded · failed · skipped · terminal)" }
     - { code: NIKA-DAG-006, category: validation_error, transient: "false", failure: "statically dead task — an incoming edge's pass-set excludes every reachable producer state, or the when: gate is false under every reachable upstream combination (gate algebra v2)" }
     - { code: NIKA-DAG-007, category: validation_error, transient: "false", failure: "status compared against a literal outside the vocabulary (success · failure · skipped · cancelled) — == never matches, != always holds" }
+    - { code: NIKA-TYPE-001, category: validation_error, transient: "false", failure: "unknown type name (in types: · returns: · an outputs: type) — did-you-mean when close" }
+    - { code: NIKA-TYPE-002, category: validation_error, transient: "false", failure: "recursive type reference — the types: graph must be acyclic" }
+    - { code: NIKA-TYPE-003, category: validation_error, transient: "false", failure: "returns: and schema: on the same task — one contract, one spelling" }
+    - { code: NIKA-TYPE-004, category: validation_error, transient: "false", failure: "returns: type unreachable from the declared decode: (an object contract over decode: text · …)" }
+    - { code: NIKA-TYPE-005, category: security_error, transient: "false", failure: "a secret-carrying type in a lowered position (reserved with secret<T> · W4)" }
+    - { code: NIKA-TYPE-006, category: validation_error, transient: "false", failure: "regex pattern outside the locked dialect (backreference · lookaround · named group · inline flags · lazy/possessive · word-boundary · unicode-class — spec 09 §the regex dialect)" }
+    - { code: NIKA-TYPE-101, category: validation_error, transient: "false", failure: "run-time contract violation — the decoded value does not fit returns: (exec:/invoke: lane)" }
     - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared env/vars key)" }
     - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
     - { code: NIKA-VAR-003, category: validation_error, transient: "false", failure: "provably-invalid path into a declared schema (static walk)" }

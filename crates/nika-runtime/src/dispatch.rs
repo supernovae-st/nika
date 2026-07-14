@@ -281,18 +281,28 @@ where
     /// to the infer path so the provider transport deadline cannot
     /// undercut it (F1 · a 30s HTTP default killed every `timeout: 7m`
     /// local-model task at 30s).
+    ///
+    /// `contract` — the task's parsed `returns:` (spec 09 · W3): the
+    /// exec path decodes + fits against it (`NIKA-TYPE-101`); the
+    /// infer/agent paths compile `lower(returns)` onto the EXISTING
+    /// structured-output lane (violations stay `NIKA-INFER-002`);
+    /// invoke stays `Unknown` in W3 (tool contracts land later).
     pub(crate) async fn dispatch(
         &self,
         action: &RawAction,
         scope: &Scope<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
         deadline: Option<std::time::Duration>,
+        contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => self.dispatch_invoke(inner, scope).await,
-            RawAction::Exec(inner) => self.dispatch_shell(inner, scope).await,
-            RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline).await,
-            RawAction::Agent(inner) => self.dispatch_agent(inner, scope, agent_buffer).await,
+            RawAction::Exec(inner) => self.dispatch_shell(inner, scope, contract).await,
+            RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline, contract).await,
+            RawAction::Agent(inner) => {
+                self.dispatch_agent(inner, scope, agent_buffer, contract)
+                    .await
+            }
             // #[non_exhaustive] · a future verb must land HERE loudly ·
             // the runtime refuses rather than silently no-ops.
             other => Dispatched::unwired(
@@ -358,39 +368,11 @@ where
         &self,
         action: &nika_schema::raw::RawExecAction,
         scope: &Scope<'_>,
+        contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
-        // Each command form maps to its OWN ExecInput variant — the argv
-        // form is rendered PER ELEMENT and passed as a vector (NO join, NO
-        // shell), so an interpolated value can never break out of its argv
-        // token. The shell form keeps `/bin/sh -c` for genuine pipelines.
-        let (mut input, program, is_argv) = match &action.command {
-            RawCommand::Shell(text) => match expr::render(&text.value, scope) {
-                Ok(line) => {
-                    let program = shell_leading_program(&line);
-                    (ExecInput::shell(line), program, false)
-                }
-                Err(err) => return Dispatched::template_err("exec · ?", &err),
-            },
-            RawCommand::Argv(parts) => {
-                let rendered: Result<Vec<_>, _> = parts
-                    .iter()
-                    .map(|p| expr::render(&p.value, scope))
-                    .collect();
-                match rendered {
-                    Ok(argv) => {
-                        let program = argv.first().cloned().unwrap_or_else(|| "?".to_owned());
-                        (ExecInput::argv(argv), program, true)
-                    }
-                    Err(err) => return Dispatched::template_err("exec · ?", &err),
-                }
-            }
-            // #[non_exhaustive] · refuse loudly · never guess a shape.
-            other => {
-                return Dispatched::unwired(
-                    "exec · ?",
-                    format!("command form not wired in the runtime yet: {other:?}"),
-                );
-            }
+        let (mut input, program, is_argv) = match build_exec_input(action, scope) {
+            Ok(built) => built,
+            Err(refusal) => return *refusal,
         };
         // The authored `capture:` mode flows to the verb (spec 02 §exec ·
         // default `stdout`). It selects which streams come back AND the
@@ -400,6 +382,16 @@ where
         // it MUST see the mode (omitting this ran every exec in stdout
         // mode · `tasks.X.output.exit_code` was unresolvable).
         input.capture = capture_mode(action.capture.as_ref().map(|c| c.value));
+        // The RAW-bytes pipeline (spec 09 §decode · W3) activates when a
+        // `decode:` is declared OR a `returns:` contract types the
+        // stream — never under `capture: structured` (already an
+        // object). Without either, the lossy-text path is UNTOUCHED.
+        let structured = input.capture == CaptureMode::Structured;
+        let decode = action
+            .decode
+            .as_ref()
+            .map_or(nika_schema::DecodeMode::Text, |d| d.value);
+        input.raw_capture = !structured && (action.decode.is_some() || contract.is_some());
         let note = format!("exec · {program}");
 
         // cwd · env · stdin flow to the subprocess (spec 02 §exec). All
@@ -426,6 +418,14 @@ where
                 // whole point of the mode · the verb keeps them raw).
                 let value = match out.output {
                     ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
+                    // The decode pipeline (spec 09 §decode) — the exact
+                    // captured octets become the value; a stream that
+                    // does not decode settles the task failure
+                    // (NIKA-1705 · inside `on_error:` scope).
+                    ExecValue::Raw(bytes) => match crate::contract::decode_bytes(decode, &bytes) {
+                        Ok(value) => value,
+                        Err(err) => return Dispatched::template_err(&note, &err),
+                    },
                     ExecValue::Structured {
                         stdout,
                         stderr,
@@ -444,6 +444,16 @@ where
                         );
                     }
                 };
+                // The run-time fit (spec 09 · `Type(decoded) ⊑ returns`):
+                // the DECODED value under the text modes · the
+                // `{stdout, stderr, exit_code}` object under structured
+                // (« a returns: on such a task types that object
+                // directly »). Violation = NIKA-TYPE-101.
+                if let Some(c) = contract
+                    && let Err(err) = c.check_fit(&note, &value)
+                {
+                    return Dispatched::template_err(&note, &err);
+                }
                 Dispatched::ok(note, value, None)
             }
             Err(err) => Dispatched::verb_err(note, &err),
@@ -455,6 +465,7 @@ where
         action: &nika_schema::raw::RawInferAction,
         scope: &Scope<'_>,
         deadline: Option<std::time::Duration>,
+        contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
@@ -474,7 +485,16 @@ where
             input.temperature = action.temperature.as_ref().map(|t| t.value as f32);
         }
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
-        input.schema = action.schema.as_ref().map(|v| v.value.clone());
+        // `returns:` compiles `lower(returns)` as the structured-output
+        // contract — EXACTLY the `schema:` lane (spec 09 §returns · one
+        // enforcement path · violations stay NIKA-INFER-002). The two
+        // never coexist (NIKA-TYPE-003); `schema:` wins the or_else
+        // only in the impossible-past-check overlap.
+        input.schema = action
+            .schema
+            .as_ref()
+            .map(|v| v.value.clone())
+            .or_else(|| contract.map(crate::contract::TaskContract::lowered));
         match self.infer.run(input).await {
             Ok(out) => {
                 let note = format!("infer · {}", out.model_resolved);
@@ -527,6 +547,7 @@ where
         action: &nika_schema::raw::RawAgentAction,
         scope: &Scope<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
+        contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
@@ -554,7 +575,14 @@ where
         {
             input.temperature = action.temperature.as_ref().map(|t| t.value as f32);
         }
-        input.schema = action.schema.as_ref().map(|v| v.value.clone());
+        // `returns:` — same as infer: `lower(returns)` rides the
+        // structured-output lane over the loop's FINAL message (spec 09
+        // §returns · violations stay NIKA-INFER-002 · one voice).
+        input.schema = action
+            .schema
+            .as_ref()
+            .map(|v| v.value.clone())
+            .or_else(|| contract.map(crate::contract::TaskContract::lowered));
         // The buffer is the CALLER's (per task-attempt-loop · still
         // per-dispatch-isolated since a wave's tasks each own one):
         // owning it here would put it inside the timeout-cancellable
@@ -769,6 +797,45 @@ pub(crate) fn system_with_skills(system: Option<String>, docs: &[nika_schema::Sk
         }
     }
     out
+}
+
+/// Build the [`ExecInput`] from the authored command form — each form
+/// maps to its OWN variant: the argv form is rendered PER ELEMENT and
+/// passed as a vector (NO join, NO shell), so an interpolated value can
+/// never break out of its argv token; the shell form keeps `/bin/sh -c`
+/// for genuine pipelines. Returns `(input, program, is_argv)` — a
+/// refusal comes back boxed (clippy: the error path stays thin).
+fn build_exec_input(
+    action: &nika_schema::raw::RawExecAction,
+    scope: &Scope<'_>,
+) -> Result<(ExecInput, String, bool), Box<Dispatched>> {
+    match &action.command {
+        RawCommand::Shell(text) => match expr::render(&text.value, scope) {
+            Ok(line) => {
+                let program = shell_leading_program(&line);
+                Ok((ExecInput::shell(line), program, false))
+            }
+            Err(err) => Err(Box::new(Dispatched::template_err("exec · ?", &err))),
+        },
+        RawCommand::Argv(parts) => {
+            let rendered: Result<Vec<_>, _> = parts
+                .iter()
+                .map(|p| expr::render(&p.value, scope))
+                .collect();
+            match rendered {
+                Ok(argv) => {
+                    let program = argv.first().cloned().unwrap_or_else(|| "?".to_owned());
+                    Ok((ExecInput::argv(argv), program, true))
+                }
+                Err(err) => Err(Box::new(Dispatched::template_err("exec · ?", &err))),
+            }
+        }
+        // #[non_exhaustive] · refuse loudly · never guess a shape.
+        other => Err(Box::new(Dispatched::unwired(
+            "exec · ?",
+            format!("command form not wired in the runtime yet: {other:?}"),
+        ))),
+    }
 }
 
 /// Render the exec subprocess I/O (`cwd` · `env` · `stdin`) onto `input`.

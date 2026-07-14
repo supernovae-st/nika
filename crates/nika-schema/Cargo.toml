@@ -20,6 +20,7 @@ publish                = false  # Foundation crate — never on crates.io. See f
 # reuse without pulling the parser; inlining them back to stay at 3 would defeat the
 # extractions + re-introduce the check⇄run scanner drift. High fan-in is intentional
 # for the schema assembler hub (ADR-027 · marker-based exemption).
+nika-source  = { path = "../nika-source", version = "0.103.0" } # spans + file registry (size-cap split of THIS unit · D-2026-07-09-N1 · re-exported at src/source)
 nika-error   = { path = "../nika-error", version = "0.103.0" }
 nika-catalog = { path = "../nika-catalog", version = "0.103.0" }
 nika-types   = { path = "../nika-types", version = "0.103.0" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)

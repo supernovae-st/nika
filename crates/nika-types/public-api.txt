@@ -4309,6 +4309,290 @@ pub unsafe fn nika_types::trust::TrustLevel::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::trust::TrustLevel where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::types
+#[non_exhaustive] pub enum nika_types::types::NikaType
+pub nika_types::types::NikaType::Array(alloc::boxed::Box<nika_types::types::NikaType>)
+pub nika_types::types::NikaType::BoundedInt(nika_types::types::NumBounds)
+pub nika_types::types::NikaType::BoundedNum(nika_types::types::NumBounds)
+pub nika_types::types::NikaType::Enum(alloc::vec::Vec<alloc::string::String>)
+pub nika_types::types::NikaType::Map(alloc::boxed::Box<nika_types::types::NikaType>)
+pub nika_types::types::NikaType::Never
+pub nika_types::types::NikaType::Object
+pub nika_types::types::NikaType::Object::additional: bool
+pub nika_types::types::NikaType::Object::fields: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::Field>
+pub nika_types::types::NikaType::Prim(nika_types::types::Primitive)
+pub nika_types::types::NikaType::Ref(alloc::string::String)
+pub nika_types::types::NikaType::RefinedStr(nika_types::types::StrBounds)
+pub nika_types::types::NikaType::Union(alloc::vec::Vec<nika_types::types::NikaType>)
+pub nika_types::types::NikaType::Unknown
+impl nika_types::types::NikaType
+pub fn nika_types::types::NikaType::admits_null(&self) -> bool
+pub fn nika_types::types::NikaType::canon_key(&self) -> alloc::string::String
+pub fn nika_types::types::NikaType::is_ref_free(&self) -> bool
+pub fn nika_types::types::NikaType::union_of(members: alloc::vec::Vec<nika_types::types::NikaType>) -> nika_types::types::NikaType
+impl core::clone::Clone for nika_types::types::NikaType
+pub fn nika_types::types::NikaType::clone(&self) -> nika_types::types::NikaType
+impl core::cmp::PartialEq for nika_types::types::NikaType
+pub fn nika_types::types::NikaType::eq(&self, other: &nika_types::types::NikaType) -> bool
+impl core::fmt::Debug for nika_types::types::NikaType
+pub fn nika_types::types::NikaType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::types::NikaType
+impl serde_core::ser::Serialize for nika_types::types::NikaType
+pub fn nika_types::types::NikaType::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::types::NikaType
+pub fn nika_types::types::NikaType::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::types::NikaType where U: core::convert::From<T>
+pub fn nika_types::types::NikaType::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::types::NikaType where U: core::convert::Into<T>
+pub type nika_types::types::NikaType::Error = core::convert::Infallible
+pub fn nika_types::types::NikaType::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::types::NikaType where U: core::convert::TryFrom<T>
+pub type nika_types::types::NikaType::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::types::NikaType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::types::NikaType where T: core::clone::Clone
+pub type nika_types::types::NikaType::Owned = T
+pub fn nika_types::types::NikaType::clone_into(&self, target: &mut T)
+pub fn nika_types::types::NikaType::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::types::NikaType where T: 'static + ?core::marker::Sized
+pub fn nika_types::types::NikaType::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::types::NikaType where T: ?core::marker::Sized
+pub fn nika_types::types::NikaType::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::types::NikaType where T: ?core::marker::Sized
+pub fn nika_types::types::NikaType::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::types::NikaType where T: core::clone::Clone
+pub unsafe fn nika_types::types::NikaType::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::types::NikaType
+pub fn nika_types::types::NikaType::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::types::NikaType where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::types::Primitive
+pub nika_types::types::Primitive::Bool
+pub nika_types::types::Primitive::Bytes
+pub nika_types::types::Primitive::Duration
+pub nika_types::types::Primitive::Integer
+pub nika_types::types::Primitive::Null
+pub nika_types::types::Primitive::Number
+pub nika_types::types::Primitive::Path
+pub nika_types::types::Primitive::String
+pub nika_types::types::Primitive::Timestamp
+pub nika_types::types::Primitive::Uri
+impl nika_types::types::Primitive
+pub fn nika_types::types::Primitive::as_str(self) -> &'static str
+pub fn nika_types::types::Primitive::from_name(name: &str) -> core::option::Option<Self>
+pub fn nika_types::types::Primitive::narrows_string(self) -> bool
+impl core::clone::Clone for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::clone(&self) -> nika_types::types::Primitive
+impl core::cmp::Eq for nika_types::types::Primitive
+impl core::cmp::Ord for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::cmp(&self, other: &nika_types::types::Primitive) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::eq(&self, other: &nika_types::types::Primitive) -> bool
+impl core::cmp::PartialOrd for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::partial_cmp(&self, other: &nika_types::types::Primitive) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::types::Primitive
+impl core::marker::StructuralPartialEq for nika_types::types::Primitive
+impl serde_core::ser::Serialize for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::types::Primitive where U: core::convert::From<T>
+pub fn nika_types::types::Primitive::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::types::Primitive where U: core::convert::Into<T>
+pub type nika_types::types::Primitive::Error = core::convert::Infallible
+pub fn nika_types::types::Primitive::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::types::Primitive where U: core::convert::TryFrom<T>
+pub type nika_types::types::Primitive::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::types::Primitive::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::types::Primitive where T: core::clone::Clone
+pub type nika_types::types::Primitive::Owned = T
+pub fn nika_types::types::Primitive::clone_into(&self, target: &mut T)
+pub fn nika_types::types::Primitive::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::types::Primitive where T: 'static + ?core::marker::Sized
+pub fn nika_types::types::Primitive::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::types::Primitive where T: ?core::marker::Sized
+pub fn nika_types::types::Primitive::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::types::Primitive where T: ?core::marker::Sized
+pub fn nika_types::types::Primitive::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::types::Primitive where T: core::clone::Clone
+pub unsafe fn nika_types::types::Primitive::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::types::Primitive
+pub fn nika_types::types::Primitive::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::types::Primitive where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::types::Field
+pub nika_types::types::Field::optional: bool
+pub nika_types::types::Field::ty: nika_types::types::NikaType
+impl nika_types::types::Field
+pub const fn nika_types::types::Field::new(ty: nika_types::types::NikaType, optional: bool) -> Self
+impl core::clone::Clone for nika_types::types::Field
+pub fn nika_types::types::Field::clone(&self) -> nika_types::types::Field
+impl core::cmp::PartialEq for nika_types::types::Field
+pub fn nika_types::types::Field::eq(&self, other: &nika_types::types::Field) -> bool
+impl core::fmt::Debug for nika_types::types::Field
+pub fn nika_types::types::Field::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::types::Field
+impl serde_core::ser::Serialize for nika_types::types::Field
+pub fn nika_types::types::Field::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::types::Field
+pub fn nika_types::types::Field::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::types::Field where U: core::convert::From<T>
+pub fn nika_types::types::Field::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::types::Field where U: core::convert::Into<T>
+pub type nika_types::types::Field::Error = core::convert::Infallible
+pub fn nika_types::types::Field::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::types::Field where U: core::convert::TryFrom<T>
+pub type nika_types::types::Field::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::types::Field::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::types::Field where T: core::clone::Clone
+pub type nika_types::types::Field::Owned = T
+pub fn nika_types::types::Field::clone_into(&self, target: &mut T)
+pub fn nika_types::types::Field::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::types::Field where T: 'static + ?core::marker::Sized
+pub fn nika_types::types::Field::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::types::Field where T: ?core::marker::Sized
+pub fn nika_types::types::Field::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::types::Field where T: ?core::marker::Sized
+pub fn nika_types::types::Field::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::types::Field where T: core::clone::Clone
+pub unsafe fn nika_types::types::Field::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::types::Field
+pub fn nika_types::types::Field::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::types::Field where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::types::NumBounds
+pub nika_types::types::NumBounds::max: core::option::Option<f64>
+pub nika_types::types::NumBounds::min: core::option::Option<f64>
+impl nika_types::types::NumBounds
+pub const fn nika_types::types::NumBounds::new(min: core::option::Option<f64>, max: core::option::Option<f64>) -> Self
+impl core::clone::Clone for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::clone(&self) -> nika_types::types::NumBounds
+impl core::cmp::PartialEq for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::eq(&self, other: &nika_types::types::NumBounds) -> bool
+impl core::cmp::PartialOrd for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::partial_cmp(&self, other: &nika_types::types::NumBounds) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::types::NumBounds
+impl core::marker::StructuralPartialEq for nika_types::types::NumBounds
+impl serde_core::ser::Serialize for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::types::NumBounds where U: core::convert::From<T>
+pub fn nika_types::types::NumBounds::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::types::NumBounds where U: core::convert::Into<T>
+pub type nika_types::types::NumBounds::Error = core::convert::Infallible
+pub fn nika_types::types::NumBounds::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::types::NumBounds where U: core::convert::TryFrom<T>
+pub type nika_types::types::NumBounds::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::types::NumBounds::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::types::NumBounds where T: core::clone::Clone
+pub type nika_types::types::NumBounds::Owned = T
+pub fn nika_types::types::NumBounds::clone_into(&self, target: &mut T)
+pub fn nika_types::types::NumBounds::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::types::NumBounds where T: 'static + ?core::marker::Sized
+pub fn nika_types::types::NumBounds::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::types::NumBounds where T: ?core::marker::Sized
+pub fn nika_types::types::NumBounds::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::types::NumBounds where T: ?core::marker::Sized
+pub fn nika_types::types::NumBounds::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::types::NumBounds where T: core::clone::Clone
+pub unsafe fn nika_types::types::NumBounds::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::types::NumBounds
+pub fn nika_types::types::NumBounds::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::types::NumBounds where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::types::ParseTypeError
+pub nika_types::types::ParseTypeError::code: &'static str
+pub nika_types::types::ParseTypeError::detail: alloc::string::String
+impl core::clone::Clone for nika_types::types::ParseTypeError
+pub fn nika_types::types::ParseTypeError::clone(&self) -> nika_types::types::ParseTypeError
+impl core::cmp::Eq for nika_types::types::ParseTypeError
+impl core::cmp::PartialEq for nika_types::types::ParseTypeError
+pub fn nika_types::types::ParseTypeError::eq(&self, other: &nika_types::types::ParseTypeError) -> bool
+impl core::fmt::Debug for nika_types::types::ParseTypeError
+pub fn nika_types::types::ParseTypeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::types::ParseTypeError
+impl<T, U> core::convert::Into<U> for nika_types::types::ParseTypeError where U: core::convert::From<T>
+pub fn nika_types::types::ParseTypeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::types::ParseTypeError where U: core::convert::Into<T>
+pub type nika_types::types::ParseTypeError::Error = core::convert::Infallible
+pub fn nika_types::types::ParseTypeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::types::ParseTypeError where U: core::convert::TryFrom<T>
+pub type nika_types::types::ParseTypeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::types::ParseTypeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::types::ParseTypeError where T: core::clone::Clone
+pub type nika_types::types::ParseTypeError::Owned = T
+pub fn nika_types::types::ParseTypeError::clone_into(&self, target: &mut T)
+pub fn nika_types::types::ParseTypeError::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::types::ParseTypeError where T: 'static + ?core::marker::Sized
+pub fn nika_types::types::ParseTypeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::types::ParseTypeError where T: ?core::marker::Sized
+pub fn nika_types::types::ParseTypeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::types::ParseTypeError where T: ?core::marker::Sized
+pub fn nika_types::types::ParseTypeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::types::ParseTypeError where T: core::clone::Clone
+pub unsafe fn nika_types::types::ParseTypeError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::types::ParseTypeError
+pub fn nika_types::types::ParseTypeError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_types::types::StrBounds
+pub nika_types::types::StrBounds::max_len: core::option::Option<u64>
+pub nika_types::types::StrBounds::min_len: core::option::Option<u64>
+pub nika_types::types::StrBounds::pattern: core::option::Option<alloc::string::String>
+impl nika_types::types::StrBounds
+pub const fn nika_types::types::StrBounds::new(pattern: core::option::Option<alloc::string::String>, min_len: core::option::Option<u64>, max_len: core::option::Option<u64>) -> Self
+impl core::clone::Clone for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::clone(&self) -> nika_types::types::StrBounds
+impl core::cmp::Eq for nika_types::types::StrBounds
+impl core::cmp::Ord for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::cmp(&self, other: &nika_types::types::StrBounds) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::eq(&self, other: &nika_types::types::StrBounds) -> bool
+impl core::cmp::PartialOrd for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::partial_cmp(&self, other: &nika_types::types::StrBounds) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::types::StrBounds
+impl serde_core::ser::Serialize for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::types::StrBounds where U: core::convert::From<T>
+pub fn nika_types::types::StrBounds::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::types::StrBounds where U: core::convert::Into<T>
+pub type nika_types::types::StrBounds::Error = core::convert::Infallible
+pub fn nika_types::types::StrBounds::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::types::StrBounds where U: core::convert::TryFrom<T>
+pub type nika_types::types::StrBounds::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::types::StrBounds::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::types::StrBounds where T: core::clone::Clone
+pub type nika_types::types::StrBounds::Owned = T
+pub fn nika_types::types::StrBounds::clone_into(&self, target: &mut T)
+pub fn nika_types::types::StrBounds::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::types::StrBounds where T: 'static + ?core::marker::Sized
+pub fn nika_types::types::StrBounds::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::types::StrBounds where T: ?core::marker::Sized
+pub fn nika_types::types::StrBounds::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::types::StrBounds where T: ?core::marker::Sized
+pub fn nika_types::types::StrBounds::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::types::StrBounds where T: core::clone::Clone
+pub unsafe fn nika_types::types::StrBounds::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::types::StrBounds
+pub fn nika_types::types::StrBounds::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::types::StrBounds where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn nika_types::types::assignable(a: &nika_types::types::NikaType, b: &nika_types::types::NikaType, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>) -> bool
+pub fn nika_types::types::consistent(a: &nika_types::types::NikaType, b: &nika_types::types::NikaType, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>) -> bool
+pub fn nika_types::types::fits(value: &serde_json::value::Value, t: &nika_types::types::NikaType, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>) -> bool
+pub fn nika_types::types::is_type_name(s: &str) -> bool
+pub fn nika_types::types::join(a: nika_types::types::NikaType, b: nika_types::types::NikaType) -> nika_types::types::NikaType
+pub fn nika_types::types::lower(t: &nika_types::types::NikaType, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>) -> serde_json::value::Value
+pub fn nika_types::types::meet(a: &nika_types::types::NikaType, b: &nika_types::types::NikaType, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>) -> core::option::Option<nika_types::types::NikaType>
+pub fn nika_types::types::parse_type(value: &serde_json::value::Value, names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, where_: &str) -> core::result::Result<nika_types::types::NikaType, nika_types::types::ParseTypeError>
+pub fn nika_types::types::regex_dialect_violation(pattern: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_types::types::subtype(a: &nika_types::types::NikaType, b: &nika_types::types::NikaType, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>) -> bool
+pub fn nika_types::types::type_name_refs(value: &serde_json::value::Value) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 #[non_exhaustive] pub enum nika_types::BudgetDirective
 pub nika_types::BudgetDirective::Cost
 pub nika_types::BudgetDirective::Cost::limit_nano_usd: i128

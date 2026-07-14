@@ -47,9 +47,10 @@ pub enum ParseMode {
     Lenient,
 }
 
-/// The canonical top-level envelope keys (spec `01-envelope.md`).
+/// The canonical top-level envelope keys (spec `01-envelope.md` +
+/// `09-types.md` `types:`).
 const TOP_LEVEL_KEYS: &[&str] = &[
-    "nika", "workflow", "model", "vars", "env", "secrets", "permits", "tasks", "outputs",
+    "nika", "workflow", "model", "vars", "env", "secrets", "permits", "types", "tasks", "outputs",
 ];
 
 /// Parse a YAML string into a [`RawWorkflow`].
@@ -155,6 +156,7 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     workflow.env = envelope::parse_env(&cx, mapping)?;
     workflow.secrets = envelope::parse_secrets(&cx, mapping)?;
     workflow.permits = envelope::parse_permits(&cx, mapping)?;
+    workflow.types = envelope::parse_types(&cx, mapping)?;
     workflow.outputs = envelope::parse_outputs(&cx, mapping)?;
     workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
 

@@ -84,6 +84,10 @@ pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTre
 pub nika_runtime::RuntimeError::CelEval
 pub nika_runtime::RuntimeError::CelEval::code: &'static str
 pub nika_runtime::RuntimeError::CelEval::message: alloc::string::String
+pub nika_runtime::RuntimeError::ContractViolation
+pub nika_runtime::RuntimeError::ContractViolation::message: alloc::string::String
+pub nika_runtime::RuntimeError::Decode
+pub nika_runtime::RuntimeError::Decode::message: alloc::string::String
 pub nika_runtime::RuntimeError::DirtyReport
 pub nika_runtime::RuntimeError::OutputBinding
 pub nika_runtime::RuntimeError::OutputBinding::code: &'static str

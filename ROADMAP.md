@@ -96,10 +96,10 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `feat/w1-engine`                                      |
 | HEAD             | `f6755b019` (`f6755b01914925b01a5776178939f73e5a68d5d9`)             |
 | workspace        | v0.103.0                                  |
-| crates (workspace)| 51                                              |
-| crates (admitted)| 49 / 42                                   |
+| crates (workspace)| 52                                              |
+| crates (admitted)| 50 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
-| L0               | 14                                              |
+| L0               | 15                                              |
 | L0.5             | 6                                              |
 | L1               | 13                                              |
 | L1.5             | 4                                              |
