@@ -51,9 +51,9 @@ counts:
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 15
+  error_namespaces: 16
   error_categories: 12
-  error_codes: 69
+  error_codes: 72
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -63,7 +63,7 @@ counts:
   steal_pattern_tiers: 4
   severity: 4
   # ---- extended 2026-07-06 · the MCP oracle surface
-  mcp_tools: 8
+  mcp_tools: 9
   mcp_protocol_versions: 5
 
 # ---------------------------------------------------------------- verbs
@@ -203,9 +203,9 @@ templates:
 # ---------------------------------------------------------------- error namespaces
 # Post NIKA-FETCH fold into NIKA-BUILTIN (commit b14bf091c · 2026-05-27 ·
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
-# spec/05-errors.md is the prose home (matches at 14 · cascade complete 2026-05-27).
+# spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 15
+  count: 16
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -218,6 +218,7 @@ error_namespaces:
     - NIKA-INVOKE
     - NIKA-MCP
     - NIKA-PARSE
+    - NIKA-POLICY
     - NIKA-PROVIDER
     - NIKA-SEC
     - NIKA-TIMEOUT
@@ -250,7 +251,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 69
+  count: 72
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -320,11 +321,14 @@ error_codes:
     - { code: NIKA-AGENT-004, category: validation_error, transient: "false", failure: "a skills: file is not a valid Agent Skill (frontmatter shape · missing/empty name/description)" }
     - { code: NIKA-MCP-001, category: tool_error, transient: "engine-assessed", failure: "MCP server not configured / not reachable at call time" }
     - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
+    - { code: NIKA-POLICY-001, category: security_error, transient: "false", failure: "a hard policy: rule is violated (require.human_gate_before · forbid.exec_after · allow.providers · limits.max_tasks) — the diagnostic names rule + task + witness (order rules: the path) · check-time, before any token (spec 10)" }
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }
     - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }
     - { code: NIKA-SEC-003, category: security_error, transient: "false", failure: "run-recursion bound — nested-run depth exceeded OR self-launching workflow" }
     - { code: NIKA-SEC-004, category: security_error, transient: "false", failure: "effect outside the declared permits: capability boundary (fs/net/exec/tool)" }
     - { code: NIKA-SEC-005, category: security_error, transient: "false", failure: "SSRF block — a nika:fetch/nika:notify URL resolves to a loopback/private/link-local/metadata target (always-on engine floor · independent of permits:)" }
+    - { code: NIKA-SEC-006, category: security_error, transient: "false", failure: "secret flow — a secrets.<name> value reaches an unsanctioned sink (exec argument · invoke payload · infer/agent prompt) · the diagnostic carries the taint path + the egress clause that would sanction it (spec 10 · flow rules in 01 §egress)" }
+    - { code: NIKA-SEC-007, category: security_error, transient: "false", failure: "secret egress — a tainted value reaches the workflow boundary (outputs:) · the diagnostic carries the taint path (spec 10 · the to: outputs sanction in 01 §egress)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-BUILTIN-001, category: validation_error, transient: "false", failure: "builtin invoke violates its statically-checkable arg contract (e.g. nika:fetch without url: · nika:jq arg shape)" }
@@ -343,7 +347,7 @@ pillars:
     - { order: 2, name: verbs,     semantic: "the 4 native execution models" }
     - { order: 3, name: dag,       semantic: "task composition + control flow (for_each · when)" }
     - { order: 4, name: variables, semantic: "scope-bound state threading + binding (CEL + jq)" }
-    - { order: 5, name: errors,    semantic: "the 14 error namespaces + handling contract" }
+    - { order: 5, name: errors,    semantic: "the 15 error namespaces + handling contract" }
 
 # ---------------------------------------------------------------- lifecycle enums
 # 4-state lifecycle taxonomies · studio-extended dimensions · public
@@ -401,7 +405,7 @@ severity:
 # surfaces while the engine served eight).
 mcp:
   tools:
-    count: 8
+    count: 9
     reference: crates/nika-mcp/src/tools.rs
     items:
       - nika_check
@@ -412,6 +416,7 @@ mcp:
       - nika_canon
       - nika_catalog
       - nika_tools
+      - nika_inspect
   protocol_versions:
     count: 5
     latest: "2026-07-28"

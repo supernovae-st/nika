@@ -18,7 +18,7 @@
 //! ```
 
 use crate::source::Spanned;
-use crate::types::{OutputDecl, Permits, SchemaVersion, SecretRef, VarDecl};
+use crate::types::{OutputDecl, Permits, Policy, SchemaVersion, SecretRef, VarDecl};
 
 use super::task::RawTask;
 
@@ -48,6 +48,9 @@ pub struct RawWorkflow {
     /// `permits:` — the declared capability boundary (spec 01 §permits ·
     /// `None` = absent = today's behavior · `Some` = default-deny).
     pub permits: Option<Spanned<Permits>>,
+    /// `policy:` — named workflow law (spec 10 · hard families judged
+    /// at check · soft recorded, never judged).
+    pub policy: Option<Spanned<Policy>>,
     /// `types:` — named type declarations (spec 09 · `PascalCase` name →
     /// RAW type expression · parsed/validated by the type core at
     /// check time, never here — the parser is shape-only).
@@ -71,6 +74,7 @@ impl RawWorkflow {
             env: Vec::new(),
             secrets: Vec::new(),
             permits: None,
+            policy: None,
             types: Vec::new(),
             tasks: Vec::new(),
             outputs: Vec::new(),
@@ -93,6 +97,7 @@ mod tests {
         let w = RawWorkflow::new();
         assert!(w.nika.is_none());
         assert!(w.workflow.is_none());
+        assert!(w.policy.is_none());
         assert!(w.tasks.is_empty());
         assert!(w.vars.is_empty());
         assert!(w.env.is_empty());

@@ -335,6 +335,22 @@ fn render(
         gate_rows(report),
     );
     permits(&mut out, report, wf, t);
+    // POLICY (spec 10 · W4) · silent when the file binds no law — the
+    // rows are the ladder's own findings, code first (one voice with
+    // `--json` findings[] and the LSP projection).
+    if wf.policy.is_some() {
+        section_list(
+            &mut out,
+            t,
+            "POLICY",
+            "every hard policy: rule holds (soft families recorded, not judged)",
+            report
+                .policy_findings
+                .iter()
+                .map(|p| format!("[NIKA-POLICY-001] {}", p.detail))
+                .collect(),
+        );
+    }
     hints_and_verdict(&mut out, report, wf, t);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged

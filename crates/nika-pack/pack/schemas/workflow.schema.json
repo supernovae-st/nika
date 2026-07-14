@@ -279,6 +279,94 @@
         }
       }
     },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Named workflow law · hard families (require/forbid/allow/limits) are judged at check (NIKA-POLICY-001) · soft families (prefer/optimize) are recorded, never judged in v1 (spec/10-authority.md).",
+      "properties": {
+        "require": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "human_gate_before": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "exec",
+                  "write",
+                  "net",
+                  "tools"
+                ]
+              },
+              "description": "Effect classes that must sit behind a human gate (an ancestor nika:prompt)."
+            }
+          }
+        },
+        "forbid": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "exec_after": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "exec",
+                  "write",
+                  "net",
+                  "tools"
+                ]
+              },
+              "description": "No exec: task downstream of a task carrying these effect classes (order law)."
+            }
+          }
+        },
+        "allow": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "providers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "infer:/agent: provider allowlist (the segment of model: before /) · fail-closed on statically unknown providers."
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_tasks": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The workflow declares at most this many tasks."
+            }
+          }
+        },
+        "prefer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "providers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "SOFT · ordered provider preference · recorded, never judged (v1)."
+            }
+          }
+        },
+        "optimize": {
+          "enum": [
+            "cost",
+            "latency",
+            "quality"
+          ],
+          "description": "SOFT · declared objective · recorded, never judged (v1)."
+        }
+      }
+    },
     "tasks": {
       "type": "object",
       "minProperties": 1,

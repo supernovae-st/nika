@@ -282,118 +282,23 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
     }
 }
 
-/// The statically-checkable effect signature of a builtin tool — the ONE
-/// classification table both the escape checker and capability inference
-/// read, so verification and inference cannot drift. Ground truth: spec
-/// `stdlib/builtins-v0.1.md` (File builtins · Network builtins).
-///
-/// `nika:glob` is deliberately ABSENT: its arg is itself a glob `pattern:`,
-/// and glob-pattern ⊆ permits-glob inclusion is not soundly decidable
-/// statically — the runtime `NIKA-SEC-004` owns it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum BuiltinEffect {
-    /// An HTTP egress whose host comes from a literal URL-shaped arg.
-    Net {
-        /// The arg key carrying the URL (`url` for fetch · `target` for
-        /// webhook notify).
-        url_arg: &'static str,
-    },
-    /// A filesystem effect on a literal path-carrying arg.
-    Fs {
-        /// The arg key carrying the path (`path` for the file builtins ·
-        /// `output_dir` for `nika:image_generate`).
-        path_arg: &'static str,
-        /// The effect reads the path (read · grep · edit's find phase).
-        reads: bool,
-        /// The effect writes the path (write · edit's replace phase).
-        writes: bool,
-        /// The effect descends under the path (`nika:grep` is a recursive
-        /// reader · `nika:image_generate` lands files INSIDE the dir) —
-        /// inference grants `<path>/**`, not just the path.
-        recursive: bool,
-    },
-}
+/// The fine-grained effect table lives in `nika-cap` beside the coarse
+/// policy projection (W4 · one home for both tables — the same 15k
+/// extraction pressure as shape.rs 2026-07-07); this seam re-exports it
+/// so every consumer (escape scan · inference · declass) keeps ONE
+/// import site.
+pub(super) use nika_cap::BuiltinEffect;
 
-/// Classify a builtin invoke's statically-checkable effect, `None` for
-/// pure-compute builtins (log · jq · hash · …) and for MCP tools (their
-/// effects are server-side — the `tools:` grant is the boundary).
+/// Classify a builtin invoke's statically-checkable effect — the
+/// `RawInvokeAction` adapter over [`nika_cap::builtin_effect`].
 pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
-    match a.tool.value.as_str() {
-        "nika:fetch" => Some(BuiltinEffect::Net { url_arg: "url" }),
-        // notify is a net egress ONLY on the webhook channel (a literal
-        // `target` URL); other channels ride engine-configured transports,
-        // not a workflow-declared host. A dynamic channel is unclassifiable
-        // statically (runtime concern).
-        "nika:notify" if literal_arg(a, "channel").as_deref() == Some("webhook") => {
-            Some(BuiltinEffect::Net { url_arg: "target" })
-        }
-        "nika:read" => Some(BuiltinEffect::Fs {
-            path_arg: "path",
-            reads: true,
-            writes: false,
-            recursive: false,
-        }),
-        "nika:grep" => Some(BuiltinEffect::Fs {
-            path_arg: "path",
-            reads: true,
-            writes: false,
-            recursive: true,
-        }),
-        "nika:write" => Some(BuiltinEffect::Fs {
-            path_arg: "path",
-            reads: false,
-            writes: true,
-            recursive: false,
-        }),
-        // in-place find/replace reads the bytes, then rewrites the path
-        "nika:edit" => Some(BuiltinEffect::Fs {
-            path_arg: "path",
-            reads: true,
-            writes: true,
-            recursive: false,
-        }),
-        // Media generators: assets (+ manifest) land INSIDE a literal
-        // `output_dir:` — a recursive write (stdlib §Media · provider
-        // egress rides the engine's media plane, not permits.net.http,
-        // exactly like `infer:`). tts follows the image_generate shape.
-        "nika:image_generate" | "nika:tts_generate" => Some(BuiltinEffect::Fs {
-            path_arg: "output_dir",
-            reads: false,
-            writes: true,
-            recursive: true,
-        }),
-        // Single-artifact writers: the WRITE side (`out:`) is the
-        // statically-checkable effect. image_fx's `input:` read is
-        // runtime-gated inside the builtin (the image edit-mode precedent
-        // · one path_arg per effect); chart was INVISIBLE here until
-        // 2026-07-11 — the inference wrote a boundary the run then
-        // refused (the self-refusing class); its `compile_to` vega
-        // sibling rides `chart_vl_sibling`.
-        "nika:image_fx" | "nika:chart" => Some(BuiltinEffect::Fs {
-            path_arg: "out",
-            reads: false,
-            writes: true,
-            recursive: false,
-        }),
-        _ => None,
-    }
+    nika_cap::builtin_effect(&a.tool.value, a.args.as_ref().map(|s| &s.value))
 }
 
-/// `nika:chart` with `compile_to: vega_lite` writes a SECOND gated file —
-/// the `.vl.json` sibling next to the svg. One derivation, shared by the
-/// escape scan and the boundary inference, matching the runtime byte for
-/// byte (`chart.rs`: `format!("{}.vl.json", out.trim_end_matches(".svg"))`).
-/// `None` when the tool isn't chart, either arg is dynamic/absent, or the
-/// compile target isn't the closed set's `vega_lite`.
+/// The `nika:chart` `compile_to: vega_lite` second gated file — the
+/// `RawInvokeAction` adapter over [`nika_cap::chart_vl_sibling`].
 pub(super) fn chart_vl_sibling(a: &RawInvokeAction) -> Option<String> {
-    if a.tool.value.as_str() != "nika:chart" {
-        return None;
-    }
-    if literal_arg(a, "compile_to").as_deref() != Some("vega_lite") {
-        return None;
-    }
-    let out = literal_arg(a, "out")?;
-    Some(format!("{}.vl.json", out.trim_end_matches(".svg")))
+    nika_cap::chart_vl_sibling(&a.tool.value, a.args.as_ref().map(|s| &s.value))
 }
 
 /// Check a builtin invoke's LITERAL fs/net effect against the boundary,

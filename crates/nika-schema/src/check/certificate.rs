@@ -48,6 +48,7 @@
 //! - `infer` = 1 LLM call per body run · `agent` ≤ `max_turns` (default
 //!   10) per body run · `exec`/`invoke` = 1 effect call per body run
 
+use nika_cap::CertEffects;
 use nika_types::net::MAX_TRAVERSE_PAGES;
 
 use crate::raw::{ForEachValue, RawAction, RawInvokeAction, RawWorkflow};
@@ -136,6 +137,10 @@ pub struct RunCertificate {
     /// whose derivation disagrees with the workflow) is rejected
     /// locally, no analysis re-run needed.
     pub derivation: Vec<TaskContribution>,
+    /// The AUTHORITY projection (spec 10 · W4 · see [`CertEffects`]) — a
+    /// projection, never a judge: `audit` re-derives it locally so a
+    /// doctored effects story is rejected.
+    pub effects: CertEffects,
 }
 
 impl RunCertificate {
@@ -168,6 +173,11 @@ impl RunCertificate {
             || refolded.span_attempts != self.span_attempts
         {
             return Err("the claimed bounds do not match the derivation".into());
+        }
+        // The authority projection re-derives from the workflow (spec 10 —
+        // an `escapes: 0` claim is re-proven, never trusted).
+        if self.effects != effects_of(wf) {
+            return Err("the effects projection does not match the workflow".into());
         }
         Ok(())
     }
@@ -362,7 +372,18 @@ pub(crate) fn certify(wf: &RawWorkflow) -> RunCertificate {
         .collect();
     let mut cert = fold_rows(&derivation);
     cert.derivation = derivation;
+    cert.effects = effects_of(wf);
     cert
+}
+
+/// ONE effects derivation, shared by `certify` (stamp) and `audit`
+/// (re-check) — the `--infer-permits` inference + the report's escape scan.
+fn effects_of(wf: &RawWorkflow) -> CertEffects {
+    CertEffects::new(
+        wf.permits.is_some(),
+        super::permits_infer::infer(wf).permits,
+        super::permits_fit::scan_escapes(wf).len(),
+    )
 }
 
 /// One task's witness row.
@@ -779,7 +800,68 @@ mod tests {
                     "main_llm": 1, "main_effect": 0, "main_spend_micros": 75,
                     "finally_llm": 0, "finally_effect": 0, "finally_spend_micros": 0,
                 }],
+                // the AUTHORITY projection (spec 10 · W4) — no permits:
+                // declared, no escapes; the inferred need of a pure-compute
+                // infer is the explicit zero-shell boundary (`exec: false` —
+                // exactly what --infer-permits prints)
+                "effects": {
+                    "boundary_declared": false,
+                    "needed": { "exec": false },
+                    "escapes": 0,
+                },
             })
+        );
+    }
+
+    // ── certificate.effects (spec 10 · W4) ─────────────────────────────
+
+    #[test]
+    fn effects_projection_names_the_declared_boundary() {
+        // A workflow WITH a permits: block whose body fits it — the
+        // report JSON carries boundary_declared:true + a non-empty
+        // needed + escapes:0 (the spec-10 example shape).
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  b:\n    exec: { command: [\"git\", \"status\"] }\n";
+        let parsed = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let report = crate::check(&parsed);
+        assert!(report.is_clean(), "the fixture fits its boundary");
+        let json = serde_json::to_value(&report).expect("serializes");
+        let effects = &json["certificate"]["effects"];
+        assert_eq!(effects["boundary_declared"], true);
+        assert_eq!(effects["escapes"], 0);
+        assert_eq!(
+            effects["needed"]["exec"],
+            serde_json::json!(["git"]),
+            "needed IS the --infer-permits object: {effects}"
+        );
+        assert!(
+            effects["needed"]["fs"]["read"]
+                .as_array()
+                .is_some_and(|a| !a.is_empty()),
+            "{effects}"
+        );
+    }
+
+    #[test]
+    fn effects_counts_escapes_and_audit_rejects_a_doctored_story() {
+        // exec outside a denying boundary → escapes counted, never 0.
+        let yaml = wf("  a:\n    exec: { command: [\"cargo\", \"publish\"] }\n")
+            .replace("tasks:", "permits:\n  exec: false\ntasks:");
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        assert!(honest.effects.boundary_declared);
+        assert_eq!(honest.effects.escapes, 1, "the escape is projected");
+        assert!(honest.audit(&parsed).is_ok(), "honest effects re-derive");
+
+        // tamper: claim a clean authority story on an escaping workflow —
+        // the audit re-derives and refuses (escapes==0 is PROVEN, never
+        // trusted).
+        let mut doctored = honest;
+        doctored.effects.escapes = 0;
+        assert!(
+            doctored
+                .audit(&parsed)
+                .is_err_and(|e| e.contains("effects projection")),
+            "a doctored effects story must be rejected"
         );
     }
 
