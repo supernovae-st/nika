@@ -10,7 +10,7 @@ affects_crates: ["nika-types", "nika-core", "nika-error", "nika-envelope", "nika
 affects_layers: ["L0", "L0.5", "L4"]
 supersedes: []
 superseded_by: []
-related: ["ADR-021", "ADR-023", "ADR-024", "ADR-025", "ADR-026", "ADR-027", "ADR-036"]
+related: ["ADR-006", "ADR-021", "ADR-023", "ADR-024", "ADR-025", "ADR-026", "ADR-027", "ADR-036"]
 requires: ["ADR-021"]
 enables: ["ADR-027"]
 amends: ["ADR-006"]
