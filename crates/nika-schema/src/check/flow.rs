@@ -577,7 +577,7 @@ mod tests {
             let p = k - 1;
             write!(
                 y,
-                "  t{k}:\n    depends_on: [t{p}]\n    exec: {{ shell: \"echo ${{{{ tasks.t{p}.output }}}}\" }}\n"
+                "  t{k}:\n    with: {{ prev: \"${{{{ tasks.t{p}.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.prev }}}}\" }}\n"
             )
             .expect("write to String is infallible");
         }
@@ -644,7 +644,7 @@ mod tests {
         // a leaks secret into its exec → a.output tainted → b consuming
         // a.output into ITS exec is also tainted (transitive, via the DAG).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    depends_on: [a]\n    exec: {{ shell: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
+            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let tb = f.effect_taint(idx(&wf, "b")).expect("transitive taint");
@@ -662,7 +662,7 @@ mod tests {
         // a third-party provider) — but the model's RESPONSE is NOT tainted
         // (not a verbatim echo · the OUTPUT carve-out is preserved · ADR-092).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  b:\n    depends_on: [a]\n    exec: {{ shell: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
+            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         // The prompt is now a sink (an unsanctioned provider egress · leak).
@@ -805,7 +805,7 @@ tasks:
         // for_each over a tainted upstream output → item is tainted → an
         // exec using ${{ item }} re-emits it.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    depends_on: [a]\n    for_each: ${{{{ tasks.a.output }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
+            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: ${{{{ with.items }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(

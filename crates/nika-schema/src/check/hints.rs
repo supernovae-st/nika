@@ -27,10 +27,10 @@
 //!   undeclared keys: close it and the output shape is deterministic.
 //! - **grammar-blind constraint** (`schema-portability`) — keywords no
 //!   provider grammar enforces — see [`push_portability_hint`].
-//! - **redundant success-gate** (`redundant-gate`) — `when: ${{
-//!   tasks.D.status == 'success' }}` where `D` is a dep that can never
-//!   be `skipped`: the spec names this the discouraged restatement of
-//!   the default gate (spec 03 §the gate).
+//! - **non-tightening after** (`redundant-gate`) — `after: {x:
+//!   terminal}` beside a value edge to `x` changes nothing (edges
+//!   compose by intersection · spec 03 §one obvious way /008): tighten
+//!   to `succeeded` or drop the entry.
 //! - **retry on uncontracted effects** (`retry-effects`) — see
 //!   [`push_retry_effects_hint`].
 //! - **concurrent same-path writers** (`parallel-writers`) — emitted by
@@ -58,9 +58,9 @@
 
 use std::collections::BTreeSet;
 
-use crate::expression::{Expr, Literal, RelOp, bare_task_refs, scan_templates, task_output_paths};
+use crate::expression::{bare_task_refs, scan_templates, task_output_paths};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
-use crate::types::{CaptureMode, OnErrorAction, VarDecl};
+use crate::types::{CaptureMode, VarDecl};
 
 /// One advisory improvement with its concrete unlock.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -103,28 +103,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
-        // 6. redundant success-gate — meaningful only if the dep may be
-        //    skipped (when:-gated or on_error: skip); otherwise the
-        //    default gate already requires success.
-        if let Some(when) = &t.when
-            && let Some(src) = when.value.as_expr()
-            && let Some(dep) = sole_success_gate(src)
-            && t.depends_on.iter().any(|d| d.value == dep)
-            && let Some(dep_task) = wf.tasks.iter().find(|x| x.value.id.value == dep)
-            && dep_task.value.when.is_none()
-            && !matches!(
-                dep_task.value.on_error.as_ref().map(|oe| &oe.value.action),
-                Some(OnErrorAction::Skip)
-            )
-        {
-            hints.push(Hint {
-                kind: "redundant-gate",
-                task: id.to_owned(),
-                advice: format!(
-                    "`when:` restates the default gate \u{2014} `depends_on: [{dep}]` already requires `{dep}` to succeed (spec 03 \u{a7}the gate); drop the `when:` (it becomes meaningful only if `{dep}` may be skipped)"
-                ),
-            });
-        }
+        push_redundant_gate_hints(&mut hints, t, id);
         match &t.action {
             RawAction::Infer(a) => {
                 if a.max_tokens.is_none() {
@@ -174,6 +153,39 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_unresolvable_secret_hints(&mut hints, wf);
     push_unwrapped_output_ref_hints(&mut hints, wf);
     hints
+}
+
+/// The `redundant-gate` hint (6. non-tightening after) — `after:
+/// {x: terminal}` beside a value edge changes nothing (edges compose by
+/// intersection: {success, skipped} ∩ terminal = the value edge alone ·
+/// one-obvious-way/008); tighten to `succeeded` or drop it.
+fn push_redundant_gate_hints(hints: &mut Vec<Hint>, t: &RawTask, id: &str) {
+    for (target, pred) in &t.after {
+        if !matches!(pred.value, crate::types::AfterPredicate::Terminal) {
+            continue;
+        }
+        let has_value_edge = t.with.iter().any(|(_k, v)| {
+            let mut refs = Vec::new();
+            crate::analyzer::edges::task_refs_in_value(&v.value, &mut refs);
+            refs.iter().any(|(rid, field)| {
+                rid == &target.value
+                    && matches!(
+                        crate::analyzer::edges::role_of_field(field.as_deref()),
+                        crate::analyzer::edges::EdgeKind::Value
+                    )
+            })
+        });
+        if has_value_edge {
+            hints.push(Hint {
+                kind: "redundant-gate",
+                task: id.to_owned(),
+                advice: format!(
+                    "`after: {{{t}: terminal}}` beside a value edge to `{t}` is a non-tightening restatement \u{2014} the composed gate is the value edge's {{success, skipped}} either way (spec 03 \u{a7}one obvious way /010); drop the entry or tighten to `succeeded`",
+                    t = target.value
+                ),
+            });
+        }
+    }
 }
 
 /// The `unwrapped-ref` hint (output gauntlet 2026-07-11): a workflow
@@ -693,24 +705,6 @@ fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
     }
 }
 
-/// The WHOLE gate is exactly `tasks.<dep>.status == 'success'` (either
-/// operand order) — a conjunct inside a larger expression is a real
-/// condition beyond the default gate and never flagged.
-fn sole_success_gate(src: &str) -> Option<String> {
-    let islands = scan_templates(src).ok()?;
-    let island = islands.into_iter().next()?;
-    let Expr::Relation {
-        op: RelOp::Eq,
-        lhs,
-        rhs,
-    } = &island.expr
-    else {
-        return None;
-    };
-    let (dep, lit) = super::reach::status_atom(lhs, rhs)?;
-    matches!(lit, Expr::Lit(Literal::Str(s)) if s == "success").then(|| dep.to_owned())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -722,61 +716,51 @@ mod tests {
     }
 
     #[test]
-    fn plain_success_gate_on_unskippable_dep_is_redundant() {
+    fn non_tightening_after_terminal_beside_value_edge_is_redundant() {
+        // one-obvious-way/008 — `after: {a: terminal}` beside a value
+        // edge to `a` composes to the value edge's own pass-set:
+        // {success, skipped} ∩ terminal changes nothing.
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { shell: \"true\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    after: { a: terminal }\n    with: { data: \"${{ tasks.a.output }}\" }\n    exec: { shell: \"true\" }\n",
         );
-        assert!(
-            h.iter()
-                .any(|x| x.kind == "redundant-gate" && x.task == "b"),
-            "{h:?}"
-        );
+        let hit = h
+            .iter()
+            .find(|x| x.kind == "redundant-gate" && x.task == "b")
+            .expect("the /008 hint fires");
+        assert!(hit.advice.contains("succeeded"), "{hit:?}");
     }
 
     #[test]
-    fn success_gate_on_skippable_dep_is_meaningful_not_redundant() {
-        // a may be skipped two ways — when:-gated · on_error: skip —
-        // the spec's own « meaningful only when X may be skipped »
-        let gated = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { go: \"y\" }\ntasks:\n  root:\n    exec: { shell: \"true\" }\n  a:\n    depends_on: [root]\n    when: ${{ vars.go == 'y' }}\n    exec: { shell: \"true\" }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { shell: \"true\" }\n",
+    fn tightening_after_succeeded_beside_value_edge_is_meaningful() {
+        // `succeeded` NARROWS the composed gate ({success, skipped} ∩
+        // {success} = {success} — the skipped-null case is excluded), so
+        // the restatement is meaningful; the spec's own tightened form
+        // (conformance dag-topology/009) must never be flagged.
+        let h = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    after: { a: succeeded }\n    with: { data: \"${{ tasks.a.output }}\" }\n    exec: { shell: \"true\" }\n",
         );
-        assert!(
-            !gated.iter().any(|x| x.kind == "redundant-gate"),
-            "{gated:?}"
-        );
-        let skip_route = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n    on_error: { skip: true }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { shell: \"true\" }\n",
-        );
-        assert!(
-            !skip_route.iter().any(|x| x.kind == "redundant-gate"),
-            "{skip_route:?}"
-        );
+        assert!(!h.iter().any(|x| x.kind == "redundant-gate"), "{h:?}");
     }
 
     #[test]
-    fn compound_or_reversed_or_other_status_is_not_flagged() {
-        // conjunct = a condition beyond the default gate; reversed
-        // operand IS the same plain gate; 'failure' is not the pattern
-        let compound = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"p\" }\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && vars.env == 'p' }}\n    exec: { shell: \"true\" }\n",
+    fn after_terminal_without_a_value_edge_is_not_flagged() {
+        // The two legitimate terminal shapes stay silent · the pure
+        // always-pattern (no binding at all) and the report pattern
+        // (terminal + a `.status` OBSERVATION — not a value edge, the
+        // pairing the spec itself teaches in 03 §after).
+        let always = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    after: { a: terminal }\n    exec: { shell: \"true\" }\n",
         );
         assert!(
-            !compound.iter().any(|x| x.kind == "redundant-gate"),
-            "{compound:?}"
+            !always.iter().any(|x| x.kind == "redundant-gate"),
+            "{always:?}"
         );
-        let reversed = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    depends_on: [a]\n    when: ${{ 'success' == tasks.a.status }}\n    exec: { shell: \"true\" }\n",
-        );
-        assert!(
-            reversed.iter().any(|x| x.kind == "redundant-gate"),
-            "{reversed:?}"
-        );
-        let failure = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { shell: \"true\" }\n",
+        let report = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    after: { a: terminal }\n    with: { outcome: \"${{ tasks.a.status }}\" }\n    exec: { shell: \"true\" }\n",
         );
         assert!(
-            !failure.iter().any(|x| x.kind == "redundant-gate"),
-            "{failure:?}"
+            !report.iter().any(|x| x.kind == "redundant-gate"),
+            "{report:?}"
         );
     }
 
@@ -825,7 +809,7 @@ mod tests {
         );
         // A bare envelope in a GATE is plumbing, not a trap — silent.
         let gate = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    depends_on: [a]\n    when: ${{ size(tasks.a.output) > 0 }}\n    exec: { shell: \"echo go\" }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    with: { a_out: \"${{ tasks.a.output }}\" }\n    when: ${{ size(with.a_out) > 0 }}\n    exec: { shell: \"echo go\" }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(
             !gate.iter().any(|x| x.kind == "envelope-output"),
@@ -836,7 +820,7 @@ mod tests {
     #[test]
     fn deeply_referenced_unschema_d_output_gets_a_typing_hint() {
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    depends_on: [a]\n    exec: { shell: \"echo ${{ tasks.a.output.field }}\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    with: { f: \"${{ tasks.a.output.field }}\" }\n    exec: { shell: \"echo ${{ with.f }}\" }\n",
         );
         assert!(
             h.iter().any(|x| x.kind == "typing" && x.task == "a"),
@@ -844,7 +828,7 @@ mod tests {
         );
         // shallow consumption only → no typing hint
         let h2 = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    depends_on: [a]\n    exec: { shell: \"echo ${{ tasks.a.output }}\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    with: { whole: \"${{ tasks.a.output }}\" }\n    exec: { shell: \"echo ${{ with.whole }}\" }\n",
         );
         assert!(!h2.iter().any(|x| x.kind == "typing"), "{h2:?}");
     }
@@ -906,16 +890,16 @@ mod tests {
     }
 
     #[test]
-    fn consumption_inside_invoke_args_json_counts() {
-        // the output is consumed INSIDE an invoke args JSON value — the
-        // visit_json walker path; with it blinded, a phantom dead-spend
-        // hint would fire here.
+    fn consumption_inside_nested_with_json_counts() {
+        // the output is consumed inside a NESTED `with:` JSON value —
+        // the visit_json walker path; with it blinded, a phantom
+        // dead-spend hint would fire here.
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    depends_on: [a]\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"${{ tasks.a.output }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n  b:\n    with: { payload: { content: \"${{ tasks.a.output }}\" } }\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"${{ with.payload }}\" } }\n",
         );
         assert!(
             !h.iter().any(|x| x.kind == "dead-spend"),
-            "consumed via args JSON: {h:?}"
+            "consumed via nested with JSON: {h:?}"
         );
     }
 
@@ -1023,7 +1007,7 @@ mod tests {
     #[test]
     fn schema_d_task_gets_no_typing_hint() {
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          field: { type: string }\n  b:\n    depends_on: [a]\n    exec: { shell: \"echo ${{ tasks.a.output.field }}\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          field: { type: string }\n  b:\n    with: { f: \"${{ tasks.a.output.field }}\" }\n    exec: { shell: \"echo ${{ with.f }}\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "typing"), "{h:?}");
     }
@@ -1053,7 +1037,7 @@ mod tests {
         // builtins carry documented idempotent semantics · max_attempts
         // 1 is no retry at all — none of these hint.
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  ask:\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  save:\n    retry: { max_attempts: 3 }\n    depends_on: [ask]\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ tasks.ask.output }}\" }\n  once:\n    retry: { max_attempts: 1 }\n    depends_on: [save]\n    exec: { shell: \"true\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  ask:\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  save:\n    retry: { max_attempts: 3 }\n    with: { content: \"${{ tasks.ask.output }}\" }\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ with.content }}\" }\n  once:\n    retry: { max_attempts: 1 }\n    after: { save: succeeded }\n    exec: { shell: \"true\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "retry-effects"), "{h:?}");
     }

@@ -15,17 +15,19 @@ tasks:
         expression: "."
 
   live:
-    depends_on: [cache]
+    with:
+      cache: ${{ tasks.cache.output }}
     exec:
       command: ["cat", "live-rates.json"]     # the live feed is gone → exit 1
     on_error:
-      recover: "${{ tasks.cache.output }}"    # degrade to the snapshot, loudly typed
+      recover: "${{ with.cache }}"    # degrade to the snapshot, loudly typed
 
   publish:
-    depends_on: [live]
+    with:
+      live: ${{ tasks.live.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./out/rates.json"
-        content: "${{ tasks.live.output }}"
+        content: "${{ with.live }}"
         create_dirs: true

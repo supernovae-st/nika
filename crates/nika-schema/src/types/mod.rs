@@ -8,6 +8,7 @@
 //! They are used by both the raw AST (parser output) and the analyzed AST
 //! (post-validation).
 
+pub mod after;
 pub mod capture;
 pub mod duration;
 pub mod extract;
@@ -21,6 +22,7 @@ pub mod var_decl;
 pub mod when_gate;
 
 // Re-exports for convenience.
+pub use after::AfterPredicate;
 pub use capture::CaptureMode;
 pub use duration::{GoDurationError, parse_go_duration};
 pub use extract::{ExtractMode, ResponseMode};

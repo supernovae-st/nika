@@ -59,8 +59,13 @@ fn workflow(topology: &str, n: usize) -> String {
         };
         s.push_str(&format!("  t{i}:\n"));
         if !deps.is_empty() {
-            let list: Vec<String> = deps.iter().map(|d| format!("t{d}")).collect();
-            s.push_str(&format!("    depends_on: [{}]\n", list.join(", ")));
+            let rest: Vec<String> = deps[1..]
+                .iter()
+                .map(|d| format!("t{d}: succeeded"))
+                .collect();
+            if !rest.is_empty() {
+                s.push_str(&format!("    after: {{ {} }}\n", rest.join(", ")));
+            }
             s.push_str(&format!(
                 "    with:\n      up: ${{{{ tasks.t{}.output }}}}\n",
                 deps[0]

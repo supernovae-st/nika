@@ -41,29 +41,33 @@ tasks:
       recover: []                   # offline rehearsal · an empty batch, the delta stays quiet
 
   delta:
-    depends_on: [previous, fresh]
+    with:                           # the bindings ARE the edges · previous + fresh → delta
+      previous: ${{ tasks.previous.output }}
+      fresh: ${{ tasks.fresh.output }}
     invoke:
       tool: "nika:json_diff"        # RFC 6902 · empty patch = nothing new
       args:
-        before: "${{ tasks.previous.output }}"
-        after: "${{ tasks.fresh.output }}"
+        before: "${{ with.previous }}"
+        after: "${{ with.fresh }}"
 
   process:
-    depends_on: [delta]
-    when: ${{ size(tasks.delta.output) > 0 }}
+    with:
+      delta: ${{ tasks.delta.output }}
+    when: ${{ size(with.delta) > 0 }}
     invoke:
       tool: "nika:jq"               # SLOT: the delta job (jq · infer · write…)
       args:
-        input: "${{ tasks.delta.output }}"
+        input: "${{ with.delta }}"
         expression: "length"
 
   save_state:
-    depends_on: [fresh]
+    with:
+      fresh: ${{ tasks.fresh.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "${{ vars.state_path }}"
-        content: "${{ tasks.fresh.output }}"
+        content: "${{ with.fresh }}"
         create_dirs: true
         overwrite: true
 

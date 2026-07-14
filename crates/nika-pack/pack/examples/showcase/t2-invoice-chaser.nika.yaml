@@ -34,35 +34,39 @@ tasks:
       args: { path: "${{ vars.ledger_csv }}" }
 
   rows:
-    depends_on: [ledger]
+    with:
+      csv: ${{ tasks.ledger.output }}
     invoke:
       tool: "nika:convert"
       args:
-        input: "${{ tasks.ledger.output }}"
+        input: "${{ with.csv }}"
         from: csv
         to: json
         has_header: true
 
   overdue:
-    depends_on: [rows]
+    with:
+      rows: ${{ tasks.rows.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.rows.output }}"
+        input: "${{ with.rows }}"
         expression: 'map(select(.status == "overdue"))'
 
   drafts:
-    depends_on: [overdue]
-    when: ${{ size(tasks.overdue.output) > 0 }}
+    with:
+      overdue: ${{ tasks.overdue.output }}
+    when: ${{ size(with.overdue) > 0 }}
     infer:
       prompt: |
         Draft one short, polite payment reminder per overdue invoice ·
-        ${{ tasks.overdue.output }}
+        ${{ with.overdue }}
         Markdown · one section per client · firm but warm.
 
   approve:
-    depends_on: [drafts]
-    when: ${{ tasks.drafts.output != null }}   # nothing drafted · nothing to approve
+    with:
+      drafts: ${{ tasks.drafts.output }}
+    when: ${{ with.drafts != null }}   # nothing drafted · nothing to approve
     invoke:
       tool: "nika:prompt"
       args:
@@ -70,13 +74,15 @@ tasks:
         default: false
 
   save:
-    depends_on: [approve, drafts]
-    when: ${{ tasks.drafts.output != null && tasks.approve.output == true }}   # zero overdue → drafts skipped (null) · don't write nothing
+    with:
+      drafts: ${{ tasks.drafts.output }}
+      approved: ${{ tasks.approve.output }}
+    when: ${{ with.drafts != null && with.approved == true }}   # zero overdue → drafts skipped (null) · don't write nothing
     invoke:
       tool: "nika:write"
       args:
         path: "./finance/reminders-to-send.md"
-        content: "${{ tasks.drafts.output }}"
+        content: "${{ with.drafts }}"
 
 outputs:
   overdue:

@@ -28,7 +28,7 @@ fn chain_yaml(n: usize) -> String {
     for i in 0..n {
         let _ = writeln!(s, "  t{i}:");
         if i > 0 {
-            let _ = writeln!(s, "    depends_on: [t{}]", i - 1);
+            let _ = writeln!(s, "    after: {{ t{}: succeeded }}", i - 1);
         }
         s.push_str("    infer:\n      prompt: \"step\"\n      max_tokens: 64\n");
     }

@@ -79,7 +79,8 @@ pub fn paint_span(source: &str, path: &str, span: ByteSpan, theme: Theme) -> Str
 mod tests {
     use super::*;
 
-    const YAML: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    depends_on: [ghost]\n";
+    const YAML: &str =
+        "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    after:\n      ghost: succeeded\n";
 
     fn span_of(needle: &str) -> ByteSpan {
         let start = YAML.find(needle).expect("needle present");
@@ -98,11 +99,11 @@ mod tests {
             Theme::new(false, true, false),
         );
         assert!(
-            out.contains("demo.nika.yaml:6:18"),
+            out.contains("demo.nika.yaml:7:7"),
             "origin carries path:line:col:\n{out}"
         );
         assert!(
-            out.contains("depends_on: [ghost]"),
+            out.contains("ghost: succeeded"),
             "offending line shown:\n{out}"
         );
         assert!(

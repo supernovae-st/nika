@@ -44,7 +44,7 @@
     <div class="card-header">
       <div class="dots"><i></i><i></i><i></i></div>
       <span class="title">pr-review.nika.yaml</span>
-      <span class="badge fail" id="badge-fail" style="position:absolute;right:20px;opacity:0">3 findings</span>
+      <span class="badge fail" id="badge-fail" style="position:absolute;right:20px;opacity:0">2 findings</span>
       <span class="badge ok" id="badge-ok" style="position:absolute;right:20px;opacity:0">clean</span>
     </div>
 
@@ -52,14 +52,16 @@
     <div class="act" id="act0">
       <div class="act-label" id="tease"><span class="warn">two bugs hide in this file</span> — can you see them?</div>
       <div class="yaml">
-<span class="ln out0">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">assess</span></span>
+<span class="ln out0">  <span class="k">assess</span><span class="d">:</span></span>
 <span class="ln out0">    <span class="k">infer</span><span class="d">:</span></span>
 <span class="ln out0">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
 <span class="ln out0">        <span class="d">Risk-assess this diff. Be terse.</span></span>
 <span class="ln out0">        <span class="d">${{ tasks.diff.output.stdout }}</span></span>
 <span class="ln out0"> </span>
-<span class="ln out0">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">comment</span></span>
-<span class="ln out0">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ tasks.asses.output.risk == 'high' }}"</span></span>
+<span class="ln out0">  <span class="k">comment</span><span class="d">:</span></span>
+<span class="ln out0">    <span class="k">with</span><span class="d">:</span></span>
+<span class="ln out0">      <span class="k">risk</span><span class="d">:</span> <span class="s">${{ tasks.asses.output.risk }}</span></span>
+<span class="ln out0">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ with.risk == 'high' }}"</span></span>
 <span class="ln out0">    <span class="k">invoke</span><span class="d">:</span></span>
 <span class="ln out0">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
       </div>
@@ -70,9 +72,8 @@
       <div class="term">
         <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check pr-review.nika.yaml</span><span class="caret" id="caret1"></span></span>
         <span class="ln out1 dim">nika check · pr-review.nika.yaml</span>
-        <span class="ln out1"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-DAG-003</span> task <span class="accent">`assess`</span> references <span class="accent">`tasks.diff`</span> without declaring <span class="accent">`diff`</span> in depends_on</span>
-        <span class="ln out1" id="didyoumean"><span class="hl"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-VAR-001</span> unresolved reference <span class="accent">`tasks.asses`</span> in task <span class="accent">`comment`</span> — did you mean <span class="accent">`tasks.assess`</span>?</span></span>
-        <span class="ln out1"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-DAG-003</span> task <span class="accent">`comment`</span> references <span class="accent">`tasks.assess`</span> without declaring <span class="accent">`assess`</span> in depends_on</span>
+        <span class="ln out1" id="didyoumean"><span class="hl"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-DAG-002</span> unknown dependency: task <span class="accent">`comment`</span> depends on <span class="accent">`asses`</span>, which does not exist — did you mean <span class="accent">`assess`</span>?</span></span>
+        <span class="ln out1"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-VAR-021</span> task <span class="accent">`assess`</span> a verb field references <span class="accent">`tasks.diff`</span> — outside the boundary; hoist it into <span class="accent">`with:`</span></span>
         <span class="ln out1 dim">   PLAN     (skipped — no valid DAG order while conformance fails)</span>
         <span class="ln out1"><span class="fail"> ✖ findings above</span><span class="dim"> · before any model was called, before any token was spent</span></span>
       </div>
@@ -80,17 +81,20 @@
 
     <!-- ACT 2 · the fix is three declared lines -->
     <div class="act" id="act2">
-      <div class="act-label" id="fixlabel">the fix — declare what each task needs</div>
+      <div class="act-label" id="fixlabel">the fix — import at the boundary · the body reads the binding</div>
       <div class="diffv">
-<span class="ln ctx"><span class="num">14</span>   - id: assess</span>
-<span class="ln add"><span class="num">15</span>+    depends_on: [diff]</span>
-<span class="ln ctx"><span class="num">16</span>     infer:</span>
-<span class="ln ctx"><span class="num">17</span>       prompt: |</span>
+<span class="ln ctx"><span class="num">16</span>   assess:</span>
+<span class="ln add"><span class="num">17</span>+    with:</span>
+<span class="ln add"><span class="num">18</span>+      diff: ${{ tasks.diff.output.stdout }}</span>
+<span class="ln ctx"><span class="num">19</span>     infer:</span>
+<span class="ln ctx"><span class="num">20</span>       prompt: |</span>
+<span class="ln del"><span class="num">·</span>-        ${{ tasks.diff.output.stdout }}</span>
+<span class="ln add"><span class="num">22</span>+        ${{ with.diff }}</span>
 <span class="ln gap"><span class="num">⋯</span></span>
-<span class="ln ctx"><span class="num">28</span>   - id: comment</span>
-<span class="ln add"><span class="num">29</span>+    depends_on: [assess]</span>
-<span class="ln del"><span class="num">·</span>-    when: "${{ tasks.asses.output.risk == 'high' }}"</span>
-<span class="ln add"><span class="num">30</span>+    when: "${{ tasks.assess.output.risk == 'high' }}"</span>
+<span class="ln ctx"><span class="num">31</span>   comment:</span>
+<span class="ln ctx"><span class="num">32</span>     with:</span>
+<span class="ln del"><span class="num">·</span>-      risk: ${{ tasks.asses.output.risk }}</span>
+<span class="ln add"><span class="num">33</span>+      risk: ${{ tasks.assess.output.risk }}</span>
       </div>
     </div>
 

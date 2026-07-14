@@ -33,22 +33,24 @@ tasks:
 
   # Three rewrites · no deps between them · they run concurrently.
   thread:
-    depends_on: [post]
+    with:
+      post: ${{ tasks.post.output }}
     infer:
-      prompt: "Turn this post into a 6-tweet thread · keep the voice · ${{ tasks.post.output }}"
+      prompt: "Turn this post into a 6-tweet thread · keep the voice · ${{ with.post }}"
 
   linkedin:
-    depends_on: [post]
+    with:
+      post: ${{ tasks.post.output }}
     infer:
-      prompt: "Rewrite this post for LinkedIn · hook first · ${{ tasks.post.output }}"
+      prompt: "Rewrite this post for LinkedIn · hook first · ${{ with.post }}"
 
   newsletter:
-    depends_on: [post]
+    with:
+      post: ${{ tasks.post.output }}
     infer:
-      prompt: "Write a 3-sentence newsletter blurb for this post · ${{ tasks.post.output }}"
+      prompt: "Write a 3-sentence newsletter blurb for this post · ${{ with.post }}"
 
   bundle:
-    depends_on: [thread, linkedin, newsletter]
     with:
       t: ${{ tasks.thread.output }}
       l: ${{ tasks.linkedin.output }}

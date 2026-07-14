@@ -37,15 +37,17 @@ tasks:
       capture: structured
 
   gates:
-    depends_on: [check_a, check_b]
+    with:
+      all_green: ${{ tasks.check_a.output.exit_code == 0 && tasks.check_b.output.exit_code == 0 }}   # two value edges · one boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ tasks.check_a.output.exit_code == 0 && tasks.check_b.output.exit_code == 0 }}"
+        condition: "${{ with.all_green }}"
         message: "A gate is RED: refusing to proceed"   # SLOT
 
   human:
-    depends_on: [gates]
+    after:
+      gates: succeeded              # state, no data · no question until the board is green
     invoke:
       # the prompt PAUSES the run (exit 4 · not a failure) — answer and resume:
       #   nika run --resume <trace> --answer human=yes
@@ -55,8 +57,9 @@ tasks:
         default: false
 
   act:
-    depends_on: [human]
-    when: ${{ tasks.human.output == true }}
+    with:
+      go: ${{ tasks.human.output }}   # the answer crosses as a value edge
+    when: ${{ with.go == true }}
     exec:
       command: ["echo", "shipped"]   # SLOT: the irreversible action (argv · program must be in permits.exec)
       # default capture · a failing ship fails LOUDLY (NIKA-EXEC-001):
@@ -64,14 +67,16 @@ tasks:
       # would become data and a red ship would read as success)
 
   record:
-    depends_on: [act]
-    when: true                      # the always-pattern · runs on success, failure, OR refusal
+    after:
+      act: terminal                 # the always-pattern · runs on success, failure, OR refusal
+    with:
+      acted: ${{ tasks.act.status }}   # observe the outcome · same pass-set as the after edge
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.webhook }}"
-        message: "Run finished · act=${{ tasks.act.status }}"   # SLOT · success | failure | skipped
+        message: "Run finished · act=${{ with.acted }}"   # SLOT · success | failure | skipped
         severity: info
 
 outputs:

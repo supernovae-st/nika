@@ -63,7 +63,7 @@ pub fn server_capabilities() -> ServerCapabilities {
         // `graphFormat` mirrors the IN-PAYLOAD version of the projection
         // (spec 03 §graph-projection) — additive, spec-first evolution.
         experimental: Some(serde_json::json!({
-            "nika": { "semanticDocument": { "graphFormat": 1 } }
+            "nika": { "semanticDocument": { "graphFormat": 2 } }
         })),
         ..ServerCapabilities::default()
     }
@@ -126,7 +126,7 @@ mod tests {
     fn experimental_advertises_the_semantic_document() {
         let caps = server_capabilities();
         let exp = caps.experimental.expect("experimental block");
-        assert_eq!(exp["nika"]["semanticDocument"]["graphFormat"], 1);
+        assert_eq!(exp["nika"]["semanticDocument"]["graphFormat"], 2);
     }
 
     #[test]

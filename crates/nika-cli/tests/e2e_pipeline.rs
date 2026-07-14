@@ -79,9 +79,10 @@ tasks:
       command: ["wc", "-l", "./news.json"]
 
   extract:
-    depends_on: [gather]
+    with:
+      gathered: ${{ tasks.gather.output }}
     infer:
-      prompt: "Extract the story fields · ${{ tasks.gather.output }}"
+      prompt: "Extract the story fields · ${{ with.gathered }}"
       schema:
         type: object
         properties:
@@ -90,21 +91,27 @@ tasks:
         required: [headline, score]
 
   think:
-    depends_on: [gather, probe]
+    with:
+      gathered: ${{ tasks.gather.output }}
+      lines: ${{ tasks.probe.output }}
     infer:
-      prompt: "Summarize · ${{ tasks.gather.output }} · lines ${{ tasks.probe.output }}"
+      prompt: "Summarize · ${{ with.gathered }} · lines ${{ with.lines }}"
       max_tokens: 800
 
   write_out:
-    depends_on: [think, extract]
+    with:
+      summary: ${{ tasks.think.output }}
+    after:
+      extract: succeeded
     invoke:
       tool: "nika:write"
       args:
         path: "./out/report.md"
-        content: "${{ tasks.think.output }}"
+        content: "${{ with.summary }}"
 
   notify:
-    depends_on: [write_out]
+    after:
+      write_out: terminal
     when: ${{ vars.publish == 'yes' }}
     exec:
       command: ["echo", "done"]
@@ -136,17 +143,18 @@ impl Seams {
     }
 }
 
-/// Textual `${{ }}` substitution — the rehearsal stand-in for CEL
-/// resolution (03-dag engine work). Replaces `${{ tasks.<id>.output }}`
-/// and `${{ vars.<key> }}` occurrences.
+/// Textual `${{ }}` substitution — the rehearsal stand-in for the W2
+/// boundary materialization (03-dag engine work). Replaces
+/// `${{ with.<binding> }}` (bindings keyed by their `with:` name) and
+/// `${{ vars.<key> }}` occurrences.
 fn interpolate(
     text: &str,
     bindings: &BTreeMap<String, String>,
     vars: &BTreeMap<String, String>,
 ) -> String {
     let mut out = text.to_owned();
-    for (id, value) in bindings {
-        out = out.replace(&format!("${{{{ tasks.{id}.output }}}}"), value);
+    for (name, value) in bindings {
+        out = out.replace(&format!("${{{{ with.{name} }}}}"), value);
     }
     for (key, value) in vars {
         out = out.replace(&format!("${{{{ vars.{key} }}}}"), value);
@@ -398,7 +406,7 @@ async fn e2e_structured_output_validates_real_dataflow() {
     };
 
     let mut bindings = BTreeMap::new();
-    bindings.insert("gather".to_owned(), GATHER_JSON.to_owned());
+    bindings.insert("gathered".to_owned(), GATHER_JSON.to_owned());
     let prompt = interpolate(&infer.prompt.value, &bindings, &BTreeMap::new());
     let mut input = InferInput::new(prompt);
     input.schema = infer.schema.as_ref().map(|v| v.value.clone());
@@ -498,11 +506,12 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
 
 #[tokio::test]
 async fn e2e_check_ladder_refuses_dirty_workflow() {
-    // Two injected defects: a typo'd builtin and a reference without its
-    // depends_on edge.
-    let dirty = WORKFLOW_OK
-        .replace("\"nika:read\"", "\"nika:reed\"")
-        .replace("    depends_on: [gather, probe]\n", "");
+    // Two injected defects: a typo'd builtin and a body reference whose
+    // edge-declaring `with:` block is gone (the binding IS the edge).
+    let dirty = WORKFLOW_OK.replace("\"nika:read\"", "\"nika:reed\"").replace(
+        "    with:\n      gathered: ${{ tasks.gather.output }}\n      lines: ${{ tasks.probe.output }}\n",
+        "",
+    );
     let wf = parse(&dirty, FileId::new(0), ParseMode::Strict).expect("dirty file still parses");
     let report = check(&wf);
 
@@ -516,11 +525,11 @@ async fn e2e_check_ladder_refuses_dirty_workflow() {
     assert_eq!(unknown.tool, "nika:reed");
     assert_eq!(unknown.suggestion.as_deref(), Some("nika:read"));
 
-    // The dangling `${{ tasks.gather.output }}` reference (its depends_on
-    // edge was removed) lands in the conformance lane with a spec code.
+    // The dangling `${{ with.gathered }}` read (its edge-declaring
+    // binding was removed) lands in the conformance lane with a spec code.
     assert!(
         !report.conformance.is_empty(),
-        "missing depends_on is a conformance finding: {report:?}"
+        "an unbound with.* read is a conformance finding: {report:?}"
     );
 
     // And the harness refuses to run it — that's the whole product story:

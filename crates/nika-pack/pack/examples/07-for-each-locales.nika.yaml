@@ -35,7 +35,8 @@ tasks:
       prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ vars.source }}"
 
   collect:
-    depends_on: [translate]
+    with:
+      translate: ${{ tasks.translate.output }}
     infer:
       # tasks.translate.output is an array of the 5 translations
-      prompt: "Combine these translations into a localization table · ${{ tasks.translate.output }}"
+      prompt: "Combine these translations into a localization table · ${{ with.translate }}"

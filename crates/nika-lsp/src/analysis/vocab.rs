@@ -108,17 +108,16 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
 /// selectors, which live in [`VERBS`].
 pub const TASK_FIELD_KEYS: &[Entry] = &[
     Entry {
-        name: "id",
-        doc: "The task id (snake_case, unique, CEL-safe). Required.",
-    },
-    Entry {
-        name: "depends_on",
-        doc: "Task ids this task waits on. Defines the DAG edges.",
+        name: "after",
+        doc: "The CONTROL boundary — `{producer: predicate}` map; each \
+              entry is one control edge (succeeded · failed · skipped · \
+              terminal).",
     },
     Entry {
         name: "when",
-        doc: "A boolean CEL gate (`${{ ... }}`) or `true` — runs the task \
-              only when satisfied.",
+        doc: "A LOCAL boolean CEL condition (`${{ ... }}`) or `true` — \
+              evaluated POST-gate over vars · env · with · item · index; \
+              false settles skipped.",
     },
     Entry {
         name: "for_each",
@@ -309,8 +308,12 @@ mod tests {
                 verb.name
             );
         }
-        assert!(TASK_FIELD_KEYS.iter().any(|f| f.name == "id"));
-        assert!(TASK_FIELD_KEYS.iter().any(|f| f.name == "depends_on"));
+        assert!(TASK_FIELD_KEYS.iter().any(|f| f.name == "after"));
+        assert!(TASK_FIELD_KEYS.iter().any(|f| f.name == "with"));
+        assert!(
+            !TASK_FIELD_KEYS.iter().any(|f| f.name == "depends_on"),
+            "the dead form never re-enters the vocabulary"
+        );
     }
 
     #[test]

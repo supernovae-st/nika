@@ -23,13 +23,16 @@ tasks:
       args: { url: "https://nika.sh/changelog" }
 
   brief:
-    depends_on: [release, changelog_page]
+    after:
+      release: succeeded
+      changelog_page: succeeded
     infer:
       prompt: "Write a 3-line release brief from this JSON and page."
       max_tokens: 400
 
   save:
-    depends_on: [brief]
+    with:
+      brief: ${{ tasks.brief.output }}
     invoke:
       tool: "nika:write"
-      args: { path: "./out/brief.md", content: "${{ tasks.brief.output }}", create_dirs: true }
+      args: { path: "./out/brief.md", content: "${{ with.brief }}", create_dirs: true }

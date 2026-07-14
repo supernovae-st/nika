@@ -47,11 +47,12 @@ tasks:
       args: { path: "${{ vars.queue_path }}" }
 
   triage:
-    depends_on: [queue]
+    with:
+      queue: ${{ tasks.queue.output }}
     infer:
       prompt: |
         Triage every ticket in this queue ·
-        ${{ tasks.queue.output }}
+        ${{ with.queue }}
         For each · classify category and urgency, draft a 2-sentence first reply.
       schema:
         type: object
@@ -69,31 +70,36 @@ tasks:
                 first_reply: { type: string }
 
   urgent:
-    depends_on: [triage]
+    with:
+      tickets: ${{ tasks.triage.output.tickets }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.triage.output.tickets }}"
+        input: "${{ with.tickets }}"
         expression: 'map(select(.urgency == "high" or .urgency == "critical"))'
 
   escalate:
-    depends_on: [urgent, batch]
-    when: ${{ size(tasks.urgent.output) > 0 }}
+    with:
+      urgent: ${{ tasks.urgent.output }}
+      batch: ${{ tasks.batch.output }}
+    when: ${{ size(with.urgent) > 0 }}
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.oncall_webhook }}"
-        message: "Urgent tickets in triage batch ${{ tasks.batch.output }} · ${{ tasks.urgent.output }}"
+        message: "Urgent tickets in triage batch ${{ with.batch }} · ${{ with.urgent }}"
         severity: warning
 
   board:
-    depends_on: [triage, batch]
+    with:
+      tickets: ${{ tasks.triage.output.tickets }}
+      batch: ${{ tasks.batch.output }}
     invoke:
       tool: "nika:write"
       args:
-        path: "./support/triage-${{ tasks.batch.output }}.json"
-        content: "${{ tasks.triage.output.tickets }}"
+        path: "./support/triage-${{ with.batch }}.json"
+        content: "${{ with.tickets }}"
 
 outputs:
   tickets:

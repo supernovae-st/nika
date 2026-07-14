@@ -152,7 +152,7 @@ pub(crate) fn apply_from(
             ids.join(" · ")
         ));
     }
-    // downstream edges: task → the tasks that observe it (depends_on ∪
+    // downstream edges: task → the tasks that observe it (`after:` ∪
     // `tasks.<id>` template references · over-collection is safe).
     let mut downstream: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for task in &wf.tasks {
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn from_removes_the_task_and_its_transitive_downstream() {
-        const WF: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  c:\n    exec: { command: [\"echo\", \"${{ tasks.b.output }}\"] }\n  solo:\n    exec: { command: [\"true\"] }\n";
+        const WF: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"true\"] }\n  c:\n    with:\n      prev: ${{ tasks.b.output }}\n    exec: { command: [\"echo\", \"${{ with.prev }}\"] }\n  solo:\n    exec: { command: [\"true\"] }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),
@@ -272,10 +272,10 @@ mod tests {
             );
         }
         apply_from(&mut plan, &wf, "a").expect("known id");
-        // a forced · b (depends_on a) · c (template ref on b) — solo stays.
+        // a forced · b (after a) · c (with: binding on b) — solo stays.
         assert!(!plan.contains_key("a"));
-        assert!(!plan.contains_key("b"), "explicit edge walked");
-        assert!(!plan.contains_key("c"), "template edge walked transitively");
+        assert!(!plan.contains_key("b"), "control edge walked");
+        assert!(!plan.contains_key("c"), "binding edge walked transitively");
         assert!(
             plan.contains_key("solo"),
             "an untouched sibling still skips"

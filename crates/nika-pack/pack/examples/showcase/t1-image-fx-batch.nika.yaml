@@ -46,8 +46,9 @@ tasks:
 
   # One deterministic darkroom pass per photo · the ops run IN ORDER.
   stylize:
-    depends_on: [shots]
-    for_each: ${{ tasks.shots.output }}
+    with:
+      shots: ${{ tasks.shots.output }}
+    for_each: ${{ with.shots }}
     max_parallel: 4
     invoke:
       tool: "nika:image_fx"

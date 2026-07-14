@@ -99,8 +99,8 @@ tasks:
     invoke: { tool: "nika:jq", args: { input: { count: 7 }, expression: "." } }
     output: { c: ".count" }
   gate:
-    depends_on: [src]
-    when: ${{ tasks.src.c == 7 }}
+    with: { c: "${{ tasks.src.c }}" }
+    when: ${{ with.c == 7 }}
     exec: { command: ["echo", "gated"] }
 "#;
     let tools = MockToolExecutor::new().enqueue_ok(
@@ -147,8 +147,8 @@ tasks:
       n: ".data.users | length"
       emails: "[.data.users[].email]"
   use:
-    depends_on: [api]
-    when: ${{ tasks.api.n == 2 }}
+    with: { n: "${{ tasks.api.n }}" }
+    when: ${{ with.n == 2 }}
     exec: { command: ["echo", "two"] }
 "#;
     let body =
@@ -247,8 +247,8 @@ tasks:
     invoke: { tool: "nika:jq", args: { input: { count: 5 }, expression: "." } }
     output: { c: ".count" }
   join:
-    depends_on: [maybe]
-    when: ${{ tasks.maybe.c == null }}
+    with: { c: "${{ tasks.maybe.c }}" }
+    when: ${{ with.c == null }}
     exec: { command: ["echo", "joined"] }
 "#;
     let (outcome, _events) = run_to_events(
@@ -289,8 +289,8 @@ tasks:
   probe:
     exec: { command: ["run-it"], capture: structured }
   gate:
-    depends_on: [probe]
-    when: ${{ tasks.probe.output.exit_code == 3 }}
+    with: { code: "${{ tasks.probe.output.exit_code }}" }
+    when: ${{ with.code == 3 }}
     exec: { command: ["echo", "branched"] }
 "#;
     // A non-zero exit with BOTH streams — structured carries it as data.
@@ -343,8 +343,8 @@ tasks:
   e:
     exec: { command: ["printf", "42"] }
   gate:
-    depends_on: [e]
-    when: ${{ tasks.e.output == '42' }}
+    with: { out: "${{ tasks.e.output }}" }
+    when: ${{ with.out == '42' }}
     exec: { command: ["echo", "ok"] }
 "#;
     let shell = MockShell::new().enqueue_ok("42\n").enqueue_ok("ok\n");
@@ -571,14 +571,14 @@ tasks:
   seed:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
   gated:
-    depends_on: [seed]
-    when: "${{ tasks.seed.status == 'failure' }}"
+    with: { s: "${{ tasks.seed.status }}" }
+    when: "${{ with.s == 'failure' }}"
     invoke: { tool: "nika:jq", args: { input: { x: 2 }, expression: ".x" } }
   doomed:
-    depends_on: [seed]
+    after: { seed: succeeded }
     exec: { command: ["false"] }
   downstream:
-    depends_on: [doomed]
+    after: { doomed: succeeded }
     invoke: { tool: "nika:jq", args: { input: { x: 3 }, expression: ".x" } }
 "#;
     let wf = nika_schema::parse(
@@ -622,8 +622,8 @@ tasks:
     assert_eq!(str_field(skipped, "task"), Some("gated"));
     assert_eq!(
         str_field(skipped, "when"),
-        Some("${{ tasks.seed.status == 'failure' }}"),
-        "the gate's own CEL text answers the why"
+        Some("${{ with.s == 'failure' }}"),
+        "the gate's own CEL text answers the why (it reads the LOCAL binding)"
     );
 
     let cancelled = events

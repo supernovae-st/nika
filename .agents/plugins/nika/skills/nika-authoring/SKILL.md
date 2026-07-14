@@ -25,7 +25,7 @@ oracle; the human runs it.
    then `nika check --native-strict <file>` — it fails on any
    `native-first` hint (an `exec:` a builtin covers).
 4. **Repair**: `nika check <file> --fix` applies the machine-applicable
-   renames first (typo'd fields · tools · args · `depends_on` targets ·
+   renames first (typo'd fields · tools · args · `after:` targets ·
    `${{ }}` references — typed did-you-mean only, ambiguity is skipped
    with a note, never guessed) and re-audits; repair what remains from
    the diagnostics — they name the exact task, reference and fix.
@@ -119,8 +119,10 @@ Every surviving `exec:` gets a row in the workflow's header comment:
   so `nika test` goldens drift red on every run. `nika check` teaches
   this as `[envelope-output]`; fix the binding, never re-baseline
   around it.
-- A task that reads another task's output MUST declare it in
-  `depends_on: [<id>]`.
+- A task that reads another task's output binds it in `with:` —
+  `with: { alias: ${{ tasks.<id>.output }} }` — and the body reads
+  `${{ with.alias }}` (the binding IS the edge; `tasks.*` anywhere
+  else is NIKA-VAR-021). Pure ordering is `after: { <id>: succeeded }`.
 - Models are `provider/name` (`ollama/llama3.2:3b` local-first ·
   `mock/echo` offline preview).
 - Timeouts are quoted Go-durations (`timeout: "7m"`) — give local

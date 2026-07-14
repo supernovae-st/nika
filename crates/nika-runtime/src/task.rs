@@ -32,6 +32,8 @@ use crate::expr::{self, Scope};
 use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
 use crate::retry::{delay_ms, rand_unit};
 
+mod fan_out;
+
 /// The spec wire code for a task-level timeout (spec 03 §timeout ·
 /// catchable by `on_error:` · never retryable).
 ///
@@ -231,8 +233,31 @@ where
         ledger: &crate::ledger::RunLedger,
     ) -> Finish {
         let id = task.id.value.clone();
-        // ── The gate (spec 03 §task states) — an early settle exits ──
-        if let Some(finish) = gate_finish(task, id.clone(), records, vars, env, secrets) {
+        // ── GATE-v2 (spec 03 §gate algebra) — structural per-edge
+        //    admission over the derived edges · cannot error ──────────
+        if let Some(finish) = gate_finish(task, id.clone(), records) {
+            return finish;
+        }
+
+        // ── The boundary (spec 03 §dispatch pipeline) — `with:`
+        //    materializes, then `when:` judges over LOCAL names.
+        //    Boundary errors settle failure OUTSIDE on_error scope
+        //    (the armor covers the verb, not the boundary). ───────────
+        let boundary_with = match render_boundary_with(task, records, vars, env, secrets) {
+            Ok(ns) => ns,
+            Err(err) => {
+                return Finish {
+                    id,
+                    settle: SettleAs::FailedBeforeStart {
+                        stage: "with",
+                        error: runtime_error_record(&err),
+                    },
+                    named: null_bindings(task),
+                    resume: None,
+                };
+            }
+        };
+        if let Some(finish) = when_finish(task, id.clone(), &boundary_with, vars, env, secrets) {
             return finish;
         }
 
@@ -264,15 +289,55 @@ where
         };
 
         // ── `for_each:` fan-out or the single lane ──────────────────
-        let mut settle = match task.for_each.as_ref() {
+        let mut settle = self
+            .run_lanes(
+                task,
+                boundary_with,
+                records,
+                vars,
+                env,
+                secrets,
+                permits,
+                ledger,
+            )
+            .await;
+        // `output:` named bindings (spec 04 §Output binding) — evaluated
+        // over the task's FINAL raw output, BEFORE settle emits the
+        // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
+        // success into a failure (the cascade) rather than landing after
+        // a `TaskCompleted`. The map carries one entry per declared
+        // binding (the value on success · `Null` on a non-success ·
+        // defined-null reads).
+        let named = bind_outputs(task, &mut settle);
+        let resume = filter_leaky_resume(resume, &settle, resume_ctx);
+        Finish {
+            id,
+            settle,
+            named,
+            resume,
+        }
+    }
+
+    /// The execution lane split: `for_each:` fan-out when declared ·
+    /// the single lane otherwise (spec 03 §dispatch pipeline).
+    // REASON: the same run-scoped seams as the pipeline — 8 params.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_lanes(
+        &self,
+        task: &RawTask,
+        boundary_with: BTreeMap<String, Value>,
+        records: &BTreeMap<String, TaskRecord>,
+        vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
+        secrets: &BTreeMap<String, Value>,
+        permits: Option<&Permits>,
+        ledger: &crate::ledger::RunLedger,
+    ) -> SettleAs {
+        match task.for_each.as_ref() {
             None => {
-                self.run_single(task, records, vars, env, secrets, permits, ledger)
-                    .await
-            }
-            Some(spanned) => {
-                self.run_fan_out(
+                self.run_single(
                     task,
-                    &spanned.value,
+                    boundary_with,
                     records,
                     vars,
                     env,
@@ -282,28 +347,20 @@ where
                 )
                 .await
             }
-        };
-        // `output:` named bindings (spec 04 §Output binding) — evaluated
-        // over the task's FINAL raw output, BEFORE settle emits the
-        // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
-        // success into a failure (the cascade) rather than landing after
-        // a `TaskCompleted`. The map carries one entry per declared
-        // binding (the value on success · `Null` on a non-success ·
-        // defined-null reads).
-        let named = bind_outputs(task, &mut settle);
-        // A success output that carries a resolved secret VALUE must not
-        // reach the trace (ADR-099 §1: no secret-derived material) — the
-        // task then records no key and re-runs live on resume.
-        let resume = resume.filter(|_| {
-            success_output(&settle)
-                .and_then(|v| serde_json::to_string(v).ok())
-                .is_none_or(|text| !resume_ctx.leaks_secret(&text))
-        });
-        Finish {
-            id,
-            settle,
-            named,
-            resume,
+            Some(spanned) => {
+                self.run_fan_out(
+                    task,
+                    &spanned.value,
+                    &boundary_with,
+                    records,
+                    vars,
+                    env,
+                    secrets,
+                    permits,
+                    ledger,
+                )
+                .await
+            }
         }
     }
 
@@ -372,9 +429,12 @@ where
     }
 
     /// The single-execution lane (no `for_each:`).
+    // REASON: the run-scoped seams plus the boundary render — 9 params.
+    #[allow(clippy::too_many_arguments)]
     async fn run_single(
         &self,
         task: &RawTask,
+        with_ns: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
         env: &BTreeMap<String, Value>,
@@ -382,16 +442,8 @@ where
         permits: Option<&Permits>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
-        // `with:` renders ONCE here (per-iteration in the fan-out lane).
-        let with_ns = match render_with(task, records, vars, env, secrets, None, None) {
-            Ok(ns) => ns,
-            Err(err) => {
-                return SettleAs::FailedBeforeStart {
-                    stage: "with",
-                    error: runtime_error_record(&err),
-                };
-            }
-        };
+        // `with:` materialized at the boundary (spec 03 §dispatch
+        // pipeline) — the single lane consumes it as rendered.
         let scope = Scope {
             records,
             vars,
@@ -418,6 +470,7 @@ where
         &self,
         task: &RawTask,
         collection: &ForEachValue,
+        boundary_with: &BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
         env: &BTreeMap<String, Value>,
@@ -425,19 +478,13 @@ where
         permits: Option<&Permits>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
-        let scope = Scope::workflow_with_env_and_secrets(records, vars, env, secrets);
-        let items = match resolve_collection(collection, &scope) {
-            Ok(items) => items,
-            Err(settle) => return *settle,
-        };
-
-        // Empty collection → the task is `skipped` (spec 03).
-        if items.is_empty() {
-            return SettleAs::SkippedGate {
-                note: "for_each · empty collection",
-                expr: None,
+        // The collection resolves on the PRE-fan-out surface (the
+        // item-free boundary bindings) · empty settles `skipped`.
+        let items =
+            match fan_out::resolve_fan_out_items(collection, boundary_with, vars, env, secrets) {
+                Ok(items) => items,
+                Err(settle) => return *settle,
             };
-        }
 
         let started = self.clock.now();
         let fail_fast = task.fail_fast.as_ref().is_none_or(|f| f.value);
@@ -465,17 +512,17 @@ where
         )
         .buffered(cap);
 
-        let mut acc = collect_fan_out(&mut stream, total, fail_fast).await;
+        let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
 
         // Budget starvation: iterations that were never admitted leave
         // the accumulation short — the task fails with the budget code
         // (same class as `fail_fast`'s early stop · partial array).
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
-            acc.first_error = Some(budget_stop_record(total - acc.outputs.len()));
+            acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
 
-        let result = fan_out_result(
+        let result = fan_out::fan_out_result(
             acc.outputs,
             acc.tokens_sum,
             acc.first_error,
@@ -802,100 +849,6 @@ where
     }
 }
 
-/// The settled accumulation of a `for_each` fan-out — the per-iteration
-/// results reduced in INPUT order (positions stay aligned · spec 03
-/// §null-at-index).
-struct FanOutAccum {
-    /// One value per iteration (null at a skipped/failed index).
-    outputs: Vec<Value>,
-    /// Every retry scheduled across all iterations (`TaskRetrying`).
-    retries: Vec<RetryStamp>,
-    /// The agent decisions across all iterations, in order.
-    agent_events: Vec<crate::agent_events::StampedAgentEvent>,
-    /// The FIRST iteration error (the one the task reports on failure).
-    first_error: Option<TaskErrorRecord>,
-    /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
-    /// must never report zero to the cost meter) · None until any reports.
-    tokens_sum: Option<i64>,
-    /// Per-iteration USD spend SUMMED the same way (same-model iterations ·
-    /// per-turn pricing sums exactly) · None until any priced call reports.
-    cost_sum: Option<f64>,
-    /// The FIRST unpriced reason across iterations (they share one model,
-    /// so the first is the class) — rides the parent's terminal frame.
-    unpriced: Option<nika_types::cost::UnpricedReason>,
-}
-
-/// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
-/// INPUT order. On `fail_fast`, the FIRST failure stops the drain: dropping
-/// the stream cancels in-flight iterations at their await points and unspawned
-/// ones never start (spec 03 · `fail_fast: true` default).
-async fn collect_fan_out<S>(stream: &mut S, total: usize, fail_fast: bool) -> FanOutAccum
-where
-    S: futures_util::Stream<Item = RanTask> + Unpin,
-{
-    let mut acc = FanOutAccum {
-        outputs: Vec::with_capacity(total),
-        retries: Vec::new(),
-        agent_events: Vec::new(),
-        first_error: None,
-        tokens_sum: None,
-        cost_sum: None,
-        unpriced: None,
-    };
-
-    while let Some(iter_ran) = stream.next().await {
-        acc.retries.extend(iter_ran.retries);
-        acc.agent_events.extend(iter_ran.agent_events);
-        match iter_ran.result {
-            // OBS-E `warning` is per-call · a fan-out element's diagnostic
-            // is not aggregated up (only `value` + `tokens` fold).
-            RunResult::Success {
-                value,
-                tokens,
-                cost_usd,
-                cost_unpriced,
-                ..
-            } => {
-                acc.outputs.push(value);
-                if let Some(n) = tokens {
-                    acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
-                }
-                if let Some(c) = cost_usd {
-                    acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
-                }
-                if acc.unpriced.is_none() {
-                    acc.unpriced = cost_unpriced;
-                }
-            }
-            // Per-iteration `on_error: skip` contributes null at its
-            // index — positional alignment survives (spec 03).
-            RunResult::SkippedWithError { .. } => acc.outputs.push(Value::Null),
-            RunResult::Failed { error, .. } => {
-                acc.outputs.push(Value::Null);
-                if acc.first_error.is_none() {
-                    acc.first_error = Some(error);
-                }
-                if fail_fast {
-                    break;
-                }
-            }
-            // An ITERATION never parks — the fan-out settles as ONE task,
-            // so a pending recovery downgrades to its immediate render
-            // failure (the recover-await boundary · pinned by tests).
-            RunResult::PendingRecovery(pending) => {
-                acc.outputs.push(Value::Null);
-                if acc.first_error.is_none() {
-                    acc.first_error = Some(pending.render_error);
-                }
-                if fail_fast {
-                    break;
-                }
-            }
-        }
-    }
-    acc
-}
-
 /// The jitter stream selector — fan-out iterations get DISTINCT
 /// streams (anti-thundering-herd applies WITHIN a fan-out too ·
 /// Brooker 2015: same-task iterations retrying the same upstream
@@ -908,43 +861,6 @@ fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
     match scope.index {
         Some(i) => format!("{}[{i}]", task.id.value),
         None => task.id.value.clone(),
-    }
-}
-
-/// Resolve the `for_each:` collection (the ONLY once-evaluated body
-/// expression · spec 03) — an array of items, or the settle verdict
-/// for the failure lanes (boxed: the error lane stays pointer-thin).
-fn resolve_collection(
-    collection: &ForEachValue,
-    scope: &Scope<'_>,
-) -> Result<Vec<Value>, Box<SettleAs>> {
-    let resolved = match collection {
-        ForEachValue::List(value) => expr::render_json(value, scope),
-        ForEachValue::Expression(text) => expr::render_json(&Value::String(text.clone()), scope),
-        // #[non_exhaustive] · a future collection form fails loudly.
-        other => Err(RuntimeError::WhenUnsupported {
-            expr: format!("for_each form not wired in the runtime yet: {other:?}"),
-        }),
-    };
-    match resolved {
-        Ok(Value::Array(items)) => Ok(items),
-        // Non-array collection = evaluation error (spec 03 · the
-        // NIKA-VAR-006 class).
-        Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
-            stage: "for_each",
-            error: TaskErrorRecord {
-                code: VAR_TYPE_CODE.to_owned(),
-                message: format!(
-                    "for_each collection must be an array · got {}",
-                    json_kind(&other)
-                ),
-                transient: false,
-            },
-        })),
-        Err(err) => Err(Box::new(SettleAs::FailedBeforeStart {
-            stage: "for_each",
-            error: runtime_error_record(&err),
-        })),
     }
 }
 
@@ -1018,6 +934,22 @@ pub(crate) fn success_output(settle: &SettleAs) -> Option<&Value> {
     }
 }
 
+/// Drop the resume stamp when the success output carries a resolved
+/// secret VALUE — it must not reach the trace (ADR-099 §1: no
+/// secret-derived material); the task then records no key and re-runs
+/// live on resume.
+fn filter_leaky_resume(
+    resume: Option<crate::resume::ResumeStamp>,
+    settle: &SettleAs,
+    resume_ctx: &crate::resume::ResumeContext,
+) -> Option<crate::resume::ResumeStamp> {
+    resume.filter(|_| {
+        success_output(settle)
+            .and_then(|v| serde_json::to_string(v).ok())
+            .is_none_or(|text| !resume_ctx.leaks_secret(&text))
+    })
+}
+
 /// Evaluate every `output:` binding over `output` (the raw success value)
 /// — returns the full map, or the FIRST binding error (spec 04 ordering:
 /// bindings are evaluated in declaration order · the first failure wins).
@@ -1083,51 +1015,83 @@ fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
     }
 }
 
-/// The gate stage (spec 03 §task states) — `Some(finish)` when the task
-/// settles WITHOUT running (default gate cancelled · `when:` closed ·
-/// gate eval error), `None` when the gate is open. Extracted from the
-/// pipeline so each stage stays within the fn-length budget.
+/// GATE-v2 (spec 03 §gate algebra) — `Some(finish)` when an incoming
+/// edge's producer settled OUTSIDE that edge's pass-set (the task
+/// settles `cancelled` · dead-path elimination · the cascade). The
+/// gate is STRUCTURAL: pass-sets are context-free, no user expression
+/// evaluates here — it cannot error. A gate-cancelled task never
+/// produced an output: every declared binding reads defined-null.
 fn gate_finish(
     task: &RawTask,
     id: String,
     records: &BTreeMap<String, TaskRecord>,
+) -> Option<Finish> {
+    use nika_schema::analyzer::edges::SettledState;
+    for (producer, kind) in nika_schema::analyzer::edges::incoming_of(task) {
+        // Missing record: the checker law makes it unreachable (every
+        // target resolves · waves order producers first) — defensively
+        // treated as not-admitting, loudly NOT silently-open.
+        let settled = records.get(&producer).map(|r| match r.status {
+            TaskStatus::Success => SettledState::Success,
+            TaskStatus::Failure => SettledState::Failure,
+            TaskStatus::Skipped => SettledState::Skipped,
+            TaskStatus::Cancelled => SettledState::Cancelled,
+        });
+        if !settled.is_some_and(|s| kind.admits(s)) {
+            return Some(Finish {
+                id,
+                settle: SettleAs::Cancelled {
+                    note: "gate: an edge did not admit",
+                    blocked_by: Some(producer),
+                },
+                named: null_bindings(task),
+                resume: None,
+            });
+        }
+    }
+    None
+}
+
+/// The `when:` stage (spec 03 §when · POST-gate) — a LOCAL business
+/// condition over `{vars · env · secrets · with}` (the boundary
+/// bindings) — never the global tasks namespace (empty records =
+/// defense-in-depth; the checker refused any `tasks.*` here). `false`
+/// settles `skipped` (a decision, never a dead path); an evaluation
+/// error settles failure OUTSIDE `on_error` scope.
+fn when_finish(
+    task: &RawTask,
+    id: String,
+    boundary_with: &BTreeMap<String, Value>,
     vars: &BTreeMap<String, Value>,
     env: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Option<Finish> {
-    let gate_scope = Scope::workflow_with_env_and_secrets(records, vars, env, secrets);
-    let settle = match task.when.as_ref() {
-        // Default gate · run iff ALL deps ∈ {success, skipped} · else
-        // `cancelled` (Dead-Path-Elimination · the cascade). A gate-
-        // cancelled task never produced an output — every declared
-        // binding reads defined-null (spec 04).
-        None => {
-            if default_gate_open(task, records) {
-                return None;
-            }
-            SettleAs::Cancelled {
-                note: "upstream failed",
-                blocked_by: first_unsatisfied_dep(task, records),
-            }
-        }
-        // Explicit `when:` REPLACES the default gate — evaluated once
-        // deps are terminal whatever their status (the always-pattern ·
-        // spec 05 §workflow-level).
-        Some(gate) => match eval_gate(&gate.value, &gate_scope) {
-            Ok(true) => return None,
-            Ok(false) => SettleAs::SkippedGate {
-                note: "when: gate closed",
-                expr: match &gate.value {
-                    nika_schema::types::WhenGate::Expr(cel) => Some(cel.clone()),
-                    // `when: false` — the literal IS the story; the
-                    // note already says the gate closed.
-                    _ => None,
-                },
+    let gate = task.when.as_ref()?;
+    let empty_records = BTreeMap::new();
+    let scope = Scope {
+        records: &empty_records,
+        vars,
+        env,
+        secrets,
+        with_ns: Some(boundary_with),
+        item: None,
+        index: None,
+        permits: None,
+    };
+    let settle = match eval_gate(&gate.value, &scope) {
+        Ok(true) => return None,
+        Ok(false) => SettleAs::SkippedGate {
+            note: "when: closed (post-gate)",
+            expr: match &gate.value {
+                nika_schema::types::WhenGate::Expr(cel) => Some(cel.clone()),
+                // `when: false` — the literal IS the story; the
+                // note already says the condition closed.
+                _ => None,
             },
-            Err(err) => SettleAs::FailedBeforeStart {
-                stage: "when",
-                error: runtime_error_record(&err),
-            },
+        },
+        Err(err) => SettleAs::FailedBeforeStart {
+            stage: "when",
+            error: runtime_error_record(&err),
         },
     };
     Some(Finish {
@@ -1138,32 +1102,53 @@ fn gate_finish(
     })
 }
 
-/// The default gate's verdict (spec 03 · `depends_on` IS the
-/// success-gate): open iff ALL deps ∈ {success, skipped}.
-/// The first dependency that keeps the default gate closed — the
-/// culprit `blocked_by` names in the journal (id order = declaration
-/// order, deterministic).
-fn first_unsatisfied_dep(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> Option<String> {
-    task.depends_on
+/// The boundary `with:` render (spec 03 §dispatch pipeline) — ALL
+/// bindings for a single-lane task · only the loop-local-free ones for
+/// a fan-out task (the item/index-bound ones re-render per iteration).
+fn render_boundary_with(
+    task: &RawTask,
+    records: &BTreeMap<String, TaskRecord>,
+    vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
+    secrets: &BTreeMap<String, Value>,
+) -> Result<BTreeMap<String, Value>, RuntimeError> {
+    let scope = Scope {
+        records,
+        vars,
+        env,
+        secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
+        with_ns: None,
+        item: None,
+        index: None,
+        permits: None, // `with:` rendering performs no effect (no exec sink)
+    };
+    let fan_out = task.for_each.is_some();
+    task.with
         .iter()
-        .find(|dep| {
-            !matches!(
-                records.get(&dep.value).map(|r| r.status),
-                Some(TaskStatus::Success | TaskStatus::Skipped)
-            )
-        })
-        .map(|dep| dep.value.clone())
+        .filter(|(_key, value)| !(fan_out && references_loop_locals(&value.value)))
+        .map(|(key, value)| Ok((key.value.clone(), expr::render_json(&value.value, &scope)?)))
+        .collect()
 }
 
-fn default_gate_open(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> bool {
-    task.depends_on.iter().all(|dep| {
-        matches!(
-            records.get(&dep.value).map(|r| r.status),
-            Some(TaskStatus::Success | TaskStatus::Skipped)
-        )
-        // Failure · Cancelled · or missing (checker law makes missing
-        // unreachable) → unsatisfiable, loudly NOT silently-open.
-    })
+/// Whether a JSON value's `${{ }}` islands reference the `for_each`
+/// loop-locals (`item` / `index`) — those bindings are per-iteration.
+fn references_loop_locals(value: &Value) -> bool {
+    use nika_schema::expression::{NamespaceRef, expr_refs, scan_templates};
+    match value {
+        Value::String(s) => {
+            let Ok(islands) = scan_templates(s) else {
+                return false;
+            };
+            islands.iter().any(|island| {
+                expr_refs(&island.expr)
+                    .into_iter()
+                    .any(|r| matches!(r, NamespaceRef::Item | NamespaceRef::Index))
+            })
+        }
+        Value::Array(items) => items.iter().any(references_loop_locals),
+        Value::Object(map) => map.values().any(references_loop_locals),
+        _ => false,
+    }
 }
 
 /// The parent's preview record for the cleanup scope (spec 03 · the
@@ -1228,48 +1213,6 @@ fn dispatch_result(
             cost_unpriced,
         },
         Err(failed) => apply_on_error(task, scope, failed),
-    }
-}
-
-/// Reduce a drained fan-out to its terminal [`RunResult`]. The leaf
-/// iterations already debited the ledger — the aggregate spend here is
-/// presentation-only (never re-debited). OBS-E warnings stay per-call
-/// (no single aggregate warning channel).
-fn fan_out_result(
-    outputs: Vec<Value>,
-    tokens_sum: Option<i64>,
-    first_error: Option<TaskErrorRecord>,
-    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
-) -> RunResult {
-    let (cost_usd, cost_unpriced) = spend;
-    match first_error {
-        None => RunResult::Success {
-            value: Value::Array(outputs),
-            tokens: tokens_sum,
-            recovered_from: None,
-            warning: None,
-            cost_usd,
-            cost_unpriced,
-        },
-        Some(error) => RunResult::Failed {
-            error,
-            cost_usd,
-            cost_unpriced,
-        },
-    }
-}
-
-/// The fan-out budget-starvation error — iterations the ledger refused
-/// to admit (NIKA-1704 · the workflow-level abort follows at the wave
-/// boundary).
-fn budget_stop_record(denied: usize) -> TaskErrorRecord {
-    TaskErrorRecord {
-        code: nika_error::codes::NIKA_1704.to_string(),
-        message: format!(
-            "run budget (--max-cost-usd) reached — {denied} iteration(s) were not started \
-             (in-flight work completed and was counted)"
-        ),
-        transient: false, // spending more will not help
     }
 }
 
@@ -1425,17 +1368,5 @@ fn verb_note_prefix(action: &RawAction) -> &'static str {
         RawAction::Infer(_) => "infer · ?",
         RawAction::Agent(_) => "agent · ?",
         _ => "verb · ?",
-    }
-}
-
-/// JSON value kind word (error messages).
-fn json_kind(v: &Value) -> &'static str {
-    match v {
-        Value::Null => "null",
-        Value::Bool(_) => "boolean",
-        Value::Number(_) => "number",
-        Value::String(_) => "string",
-        Value::Array(_) => "array",
-        Value::Object(_) => "object",
     }
 }

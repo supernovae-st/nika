@@ -13,7 +13,7 @@
 #   - `nika:date` `op: diff` · compute how long the gates took
 #   - `nika:prompt` · the conductor's GO is a human decision
 #   - parallel gate wave + `capture: structured` exit-code checks
-#   - the always-pattern (`when: true`) · the departure record always lands
+#   - the always-pattern (`after: terminal`) · the departure record always lands
 #
 # Needs · real release checks wired in (the RED assert IS the lesson:
 # a train with failing gates does not depart).
@@ -68,43 +68,50 @@ tasks:
       max_attempts: 2                  # advisory DB fetch can flake
 
   gates_green:
-    depends_on: [tests, lint, audit]
+    with:
+      all_green: ${{ tasks.tests.output.exit_code == 0 && tasks.lint.output.exit_code == 0 && tasks.audit.output.exit_code == 0 }}   # three value edges · one boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ tasks.tests.output.exit_code == 0 && tasks.lint.output.exit_code == 0 && tasks.audit.output.exit_code == 0 }}"
+        condition: "${{ with.all_green }}"
         message: "A release gate is RED: the train does not depart"
 
   gate_time:
-    depends_on: [t0, gates_green]
+    with:
+      t0: ${{ tasks.t0.output }}
+    after:
+      gates_green: succeeded           # state, no data · the timing is only worth taking on a green board
     invoke:
       tool: "nika:date"
       args:
         op: diff
-        start: "${{ tasks.t0.output }}"
+        start: "${{ with.t0 }}"
         end: "now"
         unit: minutes
 
   # ── the human signs the departure ──
   conductor:
-    depends_on: [gates_green, gate_time]
+    with:
+      gate_time: ${{ tasks.gate_time.output }}
     invoke:
       tool: "nika:prompt"
       args:
-        message: "Gates GREEN in ${{ tasks.gate_time.output }} min. Ship ${{ vars.version }} in the ${{ vars.window }} window?"
+        message: "Gates GREEN in ${{ with.gate_time }} min. Ship ${{ vars.version }} in the ${{ vars.window }} window?"
         default: false
 
   approved:
-    depends_on: [conductor]
+    with:
+      signed: ${{ tasks.conductor.output == true }}   # the signature check crosses as ONE boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ tasks.conductor.output == true }}"
+        condition: "${{ with.signed }}"
         message: "Departure not signed: train cancelled"
 
   # ── hold until the window · absolute time, not a sleep ──
   hold:
-    depends_on: [approved]
+    after:
+      approved: succeeded
     invoke:
       tool: "nika:wait"
       args:
@@ -112,14 +119,16 @@ tasks:
         timeout: "48h"
 
   ship:
-    depends_on: [hold]
+    after:
+      hold: succeeded
     exec:
       command: ["./scripts/release.sh", "${{ vars.version }}"]   # argv: the interpolation cannot break out
       capture: structured
     timeout: "30m"
 
   verify:
-    depends_on: [ship]
+    after:
+      ship: succeeded
     invoke:
       tool: "nika:fetch"
       args:
@@ -132,34 +141,37 @@ tasks:
       backoff_ms: 5000
 
   live:
-    depends_on: [verify]
+    with:
+      version_live: ${{ tasks.verify.output == vars.version }}   # the whole check crosses as ONE boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ tasks.verify.output == vars.version }}"
+        condition: "${{ with.version_live }}"
         message: "Prod does not report the shipped version: investigate before announcing"
 
-  # the always-pattern · `when: true` replaces the default success-gate ·
-  # this task runs whether `live` succeeded, failed, or never started
-  # (upstream abort) · a record that must land on EVERY outcome is a
-  # terminal task, not a cleanup hook (03 §Task states).
+  # the always-pattern · `after: {live: terminal}` admits every settled
+  # state · this task runs whether `live` succeeded, failed, or was
+  # cancelled by an upstream abort · a record that must land on EVERY
+  # outcome is a terminal task, not a cleanup hook (03 §on_finally).
   record:
-    depends_on: [live]
-    when: true
+    after:
+      live: terminal
+    with:
+      outcome: ${{ tasks.live.status }}   # observe the departure verdict · same pass-set as the after edge
     invoke:
       tool: "nika:emit"
       args:
         event_type: "release.train.departed"
         payload:
           version: "${{ vars.version }}"
-          status: "${{ tasks.live.status }}"
+          status: "${{ with.outcome }}"
     on_finally:
       - invoke:
           tool: "nika:notify"
           args:
             channel: webhook
             target: "${{ secrets.team_webhook }}"
-            message: "Release train ${{ vars.version }} · ${{ tasks.live.status }}"
+            message: "Release train ${{ vars.version }} · ${{ with.outcome }}"
             severity: info
 
 outputs:

@@ -135,7 +135,7 @@ async fn budget_blocks_the_next_wave_and_names_both_numbers() {
     // budget → in-flight completed and counted, the NEXT wave never
     // dispatches: b cancels, the run fails NIKA-1704 with
     // spent-vs-budget (the LiteLLM error shape).
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n  b:\n    depends_on: [a]\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ tasks.a.output }}\", expression: \".\" } }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.prev }}\", expression: \".\" } }\n";
     let tools = MockToolExecutor::new()
         .enqueue_ok(priced_result("c1", 0.06))
         .enqueue_ok(priced_result("c2", 0.06));
@@ -361,7 +361,7 @@ mod billed_then_failed {
     async fn budget_sees_billed_then_failed_spend() {
         // The refuter's exact scenario: without failure-spend threading,
         // a dying loop's dollars were invisible to `--max-cost-usd`.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  work:\n    agent:\n      prompt: \"burn then die\"\n      tools: [\"nika:jq\"]\n  after:\n    depends_on: [work]\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ tasks.work.output }}\", expression: \".\" } }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  work:\n    agent:\n      prompt: \"burn then die\"\n      tools: [\"nika:jq\"]\n  report:\n    with: { done: \"${{ tasks.work.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.done }}\", expression: \".\" } }\n";
         let (provider, tools) = dying_priced_agent();
         let (outcome, _sink) = run_agent_yaml(yaml, provider, tools, Some(0.05)).await;
         assert!(!outcome.ok);

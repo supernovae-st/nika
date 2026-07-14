@@ -35,7 +35,8 @@ tasks:
   greet:
     exec: { command: ["echo", "hello"] }
   after:
-    depends_on: [greet]
+    after:
+      greet: succeeded
     exec: { command: ["echo", "done"] }
 "#;
 
@@ -54,10 +55,12 @@ workflow:
   id: run-cycle
 tasks:
   a:
-    depends_on: [b]
+    after:
+      b: succeeded
     exec: { command: ["true"] }
   b:
-    depends_on: [a]
+    after:
+      a: succeeded
     exec: { command: ["true"] }
 "#;
 

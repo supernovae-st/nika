@@ -41,7 +41,8 @@ tasks:
         jq: ".url"                  # SLOT: where the response carries the asset URL
 
   create:
-    depends_on: [upload]
+    with:
+      upload: ${{ tasks.upload.output }}
     invoke:
       tool: "nika:fetch"
       args:
@@ -50,7 +51,7 @@ tasks:
         headers:
           x-api-key: "${{ secrets.API_KEY }}"
         body:                       # SLOT: the create payload (objects auto-JSON)
-          asset_url: "${{ tasks.upload.output }}"
+          asset_url: "${{ with.upload }}"
         mode: jq
         jq: "{ id: .id, url: .url }"   # SLOT: the fields downstream needs
 

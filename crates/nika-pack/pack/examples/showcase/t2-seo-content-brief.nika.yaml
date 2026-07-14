@@ -45,21 +45,24 @@ tasks:
       top: ".[:5] | map(.loc)"
 
   top_page:
-    depends_on: [map]
+    with:
+      map_top: ${{ tasks.map.top[0] }}
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ tasks.map.top[0] }}"
+        url: "${{ with.map_top }}"
         mode: article
 
   brief:
-    depends_on: [map, top_page]
+    with:
+      map_top: ${{ tasks.map.top }}
+      top_page: ${{ tasks.top_page.output }}
     infer:
       prompt: |
         Topic to rank for · ${{ vars.topic }}
-        Competitor's top URLs · ${{ tasks.map.top }}
+        Competitor's top URLs · ${{ with.map_top }}
         Their best page on it ·
-        ${{ tasks.top_page.output }}
+        ${{ with.top_page }}
 
         Write a content brief that BEATS this page · find the gaps they
         missed · angle for search intent.
@@ -73,12 +76,13 @@ tasks:
           keywords: { type: array, items: { type: string } }
 
   save:
-    depends_on: [brief]
+    with:
+      brief: ${{ tasks.brief.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./briefs/${{ vars.topic }}.json"
-        content: "${{ tasks.brief.output }}"
+        content: "${{ with.brief }}"
         create_dirs: true
 
 outputs:

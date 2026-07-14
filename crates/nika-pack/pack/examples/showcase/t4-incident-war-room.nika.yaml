@@ -12,7 +12,8 @@
 #   - 3-way parallel gather · exec + fetch (with retry) + read
 #   - `nika:wait` · the settle window before the confirmation re-poll
 #   - `nika:assert` · refuse to write « resolved » while prod still burns
-#   - the always-pattern (`when: true`) · the ping fires EVEN IF a step fails
+#   - the always-pattern (`after: terminal`) · the ping fires EVEN IF a
+#     step fails · paired with a `.status` observation binding
 #
 # Needs · your status endpoint (--var … — the placeholder resolves nowhere).
 #
@@ -64,13 +65,16 @@ tasks:
 
   # ── reconstruct · typed timeline ──
   timeline:
-    depends_on: [logs, status_history, runbook]
+    with:                               # three value edges · the gather wave feeds the synthesis
+      logs: ${{ tasks.logs.output.stdout }}
+      history: ${{ tasks.status_history.output }}
+      runbook: ${{ tasks.runbook.output }}
     infer:
       prompt: |
         Service logs ·
-        ${{ tasks.logs.output.stdout }}
-        Status history · ${{ tasks.status_history.output }}
-        Runbook · ${{ tasks.runbook.output }}
+        ${{ with.logs }}
+        Status history · ${{ with.history }}
+        Runbook · ${{ with.runbook }}
 
         Reconstruct the incident timeline as events.
       schema:
@@ -89,13 +93,15 @@ tasks:
 
   # ── settle, then confirm recovery before claiming it ──
   settle:
-    depends_on: [timeline]
+    after:
+      timeline: succeeded
     invoke:
       tool: "nika:wait"
       args: { duration: "60s" }
 
   recheck:
-    depends_on: [settle]
+    after:
+      settle: succeeded
     invoke:
       tool: "nika:fetch"
       args:
@@ -104,20 +110,24 @@ tasks:
         jq: ".current.state"
 
   confirmed:
-    depends_on: [recheck]
+    with:
+      recovered: ${{ tasks.recheck.output == 'operational' }}   # the whole check crosses as ONE boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ tasks.recheck.output == 'operational' }}"
+        condition: "${{ with.recovered }}"
         message: "Service is NOT back to operational: postmortem draft blocked"
 
   # ── the draft · only after recovery is proven ──
   postmortem:
-    depends_on: [timeline, confirmed]
+    with:
+      events: ${{ tasks.timeline.output.events }}
+    after:
+      confirmed: succeeded             # state, no data · recovery proven or no draft
     infer:
       model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
       prompt: |
-        Timeline · ${{ tasks.timeline.output.events }}
+        Timeline · ${{ with.events }}
         Write the postmortem draft · summary · impact · root-cause
         hypotheses · 3 follow-up actions with owners left blank.
       thinking:
@@ -125,35 +135,38 @@ tasks:
         budget_tokens: 6000
 
   save:
-    depends_on: [postmortem]
+    with:
+      postmortem: ${{ tasks.postmortem.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./incidents/${{ vars.service }}-postmortem.md"
-        content: "${{ tasks.postmortem.output }}"
+        content: "${{ with.postmortem }}"
         create_dirs: true
 
   # the always-pattern · the on-call ping fires on EVERY outcome:
   # including the designed failure path (recovery NOT confirmed → the
-  # assert fails → save never starts → this still runs · when: true
-  # replaces the default gate · 03 §Task states).
+  # assert fails → save is cancelled → this still runs · `after:
+  # terminal` admits all four settled states · 03 §gate algebra).
   ping:
-    depends_on: [save]
-    when: true
+    after:
+      save: terminal
+    with:
+      outcome: ${{ tasks.save.status }}   # observe WHAT happened · same pass-set as the after edge
     invoke:
       tool: "nika:emit"
       args:
         event_type: "incident.postmortem.drafted"
         payload:
           service: "${{ vars.service }}"
-          status: "${{ tasks.save.status }}"
+          status: "${{ with.outcome }}"
     on_finally:
       - invoke:
           tool: "nika:notify"
           args:
             channel: webhook
             target: "${{ secrets.oncall_webhook }}"
-            message: "Postmortem draft run finished for ${{ vars.service }} · ${{ tasks.save.status }}"
+            message: "Postmortem draft run finished for ${{ vars.service }} · ${{ with.outcome }}"
             severity: info
 
 outputs:

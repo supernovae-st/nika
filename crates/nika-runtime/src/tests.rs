@@ -531,8 +531,8 @@ tasks:
   source:
     exec: { command: ["echo", "99"] }
   sink:
-    depends_on: [risky]
-    exec: { command: ["use", "${{ tasks.risky.output }}"] }
+    with: { v: "${{ tasks.risky.output }}" }
+    exec: { command: ["use", "${{ with.v }}"] }
 "#;
         let mut streams: Vec<Vec<Event>> = Vec::new();
         for cap in [Some(1), Some(2), None] {
@@ -595,7 +595,7 @@ tasks:
   base:
     exec: { command: ["echo", "base"] }
   c:
-    depends_on: [base]
+    after: { base: succeeded }
     exec: { command: ["echo", "42"] }
 "#;
         let shell = MockShell::new()
@@ -637,7 +637,7 @@ tasks:
   base:
     exec: { command: ["echo", "base"] }
   source:
-    depends_on: [base]
+    after: { base: succeeded }
     when: false
     exec: { command: ["echo", "never"] }
 "#;
@@ -711,7 +711,7 @@ tasks:
   done:
     exec: { command: ["echo", "ok"] }
   risky:
-    depends_on: [done]
+    after: { done: succeeded }
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.done.output.missing }}

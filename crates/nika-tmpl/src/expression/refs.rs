@@ -6,7 +6,8 @@
 //! `expr_refs` walks an expression and classifies every ROOT identifier
 //! against the 5 namespaces + 2 loop-locals (spec `04-variables.md`
 //! §Resolution order) — the analyzer's input for `NIKA-VAR-001`
-//! (unresolved refs) and `NIKA-DAG-003` (task refs need `depends_on`).
+//! (unresolved refs) and `NIKA-VAR-021` (`tasks.*` confined to the
+//! boundary — `with:` bindings ARE the edges since W2 « the flow »).
 //!
 //! `is_boolean_shaped` is the static `when:` gate (spec `03-dag.md`
 //! §when · « an engine MAY additionally reject statically-non-boolean-

@@ -46,31 +46,34 @@ tasks:
       args: { path: "${{ vars.sales_csv }}" }
 
   rows:
-    depends_on: [raw]
+    with:
+      raw: ${{ tasks.raw.output }}
     invoke:
       tool: "nika:convert"
       args:
-        input: "${{ tasks.raw.output }}"
+        input: "${{ with.raw }}"
         from: csv
         to: json
         has_header: true
 
   # Sum revenue per region · a deterministic reduce, no model.
   by_region:
-    depends_on: [rows]
+    with:
+      rows: ${{ tasks.rows.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.rows.output }}"
+        input: "${{ with.rows }}"
         expression: 'group_by(.region) | map({ region: .[0].region, revenue: (map(.revenue | tonumber) | add) })'
 
   # The picture · one SVG, its sha lands in the trace.
   chart:
-    depends_on: [by_region]
+    with:
+      by_region: ${{ tasks.by_region.output }}
     invoke:
       tool: "nika:chart"
       args:
-        data: "${{ tasks.by_region.output }}"
+        data: "${{ with.by_region }}"
         semantics: { region: category, revenue: usd }
         chart: { type: bar, x: region, y: revenue, title: "Revenue by region" }
         out: out/revenue-by-region.svg
@@ -78,18 +81,22 @@ tasks:
   # The rows as MARKDOWN · a report renders lines, never a JSON blob
   # (region names are user data — the esc guards a `|` in them).
   rows_md:
-    depends_on: [by_region]
+    with:
+      by_region: ${{ tasks.by_region.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.by_region.output }}"
+        input: "${{ with.by_region }}"
         expression: >-
           def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
           map("| \(.region | esc) | \(.revenue) |") | join("\n")
 
   # The page · the report references the picture beside it.
   report:
-    depends_on: [chart, rows_md]
+    with:
+      rows_md: ${{ tasks.rows_md.output }}
+    after:
+      chart: succeeded
     invoke:
       tool: "nika:write"
       args:
@@ -101,7 +108,7 @@ tasks:
 
           | region | revenue |
           | --- | --- |
-          ${{ tasks.rows_md.output }}
+          ${{ with.rows_md }}
 
           *Generated offline by [nika](https://nika.sh) · the chart's sha is in the run trace (`nika trace verify`).*
 

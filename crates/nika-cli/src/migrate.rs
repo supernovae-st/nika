@@ -126,6 +126,777 @@ fn task_item_to_key(line: &str) -> Option<String> {
     ok.then(|| format!("  {token}:{comment}"))
 }
 
+// ─────────────────────────── W2 « the flow » ───────────────────────────
+
+//   The machine-applicable half of the `depends_on` migration
+//   (`NIKA-PARSE-024` · `NIKA-VAR-021`) — EQUIVALENCE-OR-STOP (spec 03
+//   §depends_on): a rewrite applies ONLY when the observable behavior
+//   {edges · waves · outputs · outcomes} is provably unchanged; every
+//   ambiguous case produces a diagnostic naming the candidate rewrites
+//   and their semantic deltas, and the file is left untouched. Never
+//   guess.
+//
+//   GO rules ·
+//   R1  a body/for_each whole-island `${{ tasks.X… }}` reference hoists
+//       into `with:` (the binding IS the edge) and X leaves the deps —
+//       bare projections never error at eval (defined-null); a DEEPER
+//       path moves its eval outside `on_error:` armor → GO only without
+//       armor.
+//   R2  a bare (unreferenced) dep whose producer provably CANNOT skip
+//       (no when: · no on_error.skip · no for_each) → `after: {d: succeeded}`.
+//   R3  a dep already read through `with:` (value-role) simply leaves.
+//
+//   STOP classes: S1 skippable producer on a bare dep · S2 `when:`
+//   references tasks.* · S3 status-family-only backing · S4 composite
+//   island / deep ref under armor · S5 on_finally non-parent read ·
+//   S6 flow-style with: needing a merge · S7 unparseable shape.
+
+/// The W2 migration verdict.
+pub(crate) enum W2Outcome {
+    /// Mechanically migrated (equivalence preserved by rule).
+    Changed(String),
+    /// Ambiguous — each diagnostic names the case and its candidates.
+    Stop(Vec<String>),
+}
+
+/// One whole-island `${{ tasks.<id><path> }}` reference.
+struct IslandRef {
+    task: String,
+    /// The path after the id (`.output` · `.status` · `.output.title` …).
+    path: String,
+}
+
+/// Scan the `${{ … }}` islands of one line. Returns (whole-island refs ·
+/// carries-a-tasks-island-that-is-NOT-a-whole-ref).
+fn scan_islands(line: &str) -> (Vec<IslandRef>, bool) {
+    let mut refs = Vec::new();
+    let mut composite = false;
+    let mut rest = line;
+    while let Some(open) = rest.find("${{") {
+        let after = &rest[open + 3..];
+        let Some(close) = after.find("}}") else {
+            break;
+        };
+        let inner = after[..close].trim();
+        if let Some(stripped) = inner.strip_prefix("tasks.") {
+            if let Some((task, path)) = split_task_path(stripped) {
+                refs.push(IslandRef { task, path });
+            } else if inner.contains("tasks.") {
+                composite = true;
+            }
+        } else if inner.contains("tasks.") {
+            composite = true;
+        }
+        rest = &after[close + 2..];
+    }
+    (refs, composite)
+}
+
+/// `<id><path>` where the WHOLE text is one reference — id then a chain
+/// of `.seg` / `[…]` steps and nothing else.
+fn split_task_path(s: &str) -> Option<(String, String)> {
+    let id_end = s
+        .find(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'))
+        .unwrap_or(s.len());
+    if id_end == 0 {
+        return None;
+    }
+    let (id, mut path) = s.split_at(id_end);
+    let full_path = path;
+    while !path.is_empty() {
+        if let Some(rest) = path.strip_prefix('.') {
+            let seg = rest
+                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .unwrap_or(rest.len());
+            if seg == 0 {
+                return None;
+            }
+            path = &rest[seg..];
+        } else if let Some(rest) = path.strip_prefix('[') {
+            let close = rest.find(']')?;
+            path = &rest[close + 1..];
+        } else {
+            return None;
+        }
+    }
+    Some((id.to_owned(), full_path.to_owned()))
+}
+
+/// Whether a whole-island path is a BARE projection (never errors at
+/// eval · defined-null law): one `.segment`, no deeper step, no index.
+fn is_bare_projection(path: &str) -> bool {
+    let Some(rest) = path.strip_prefix('.') else {
+        return false; // bare envelope — the scan layer rejects VAR-020
+    };
+    !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// The status-family projections (terminal-observation role).
+fn is_status_family(path: &str) -> bool {
+    matches!(
+        path,
+        ".status" | ".duration_ms" | ".started_at" | ".ended_at"
+    )
+}
+
+/// A synthesized binding name for a hoisted reference (deterministic ·
+/// collision-suffixed).
+fn binding_name(task: &str, path: &str, taken: &mut std::collections::BTreeSet<String>) -> String {
+    let mut segs: Vec<&str> = Vec::new();
+    for part in path.split(['.', '[']) {
+        let part = part.trim_end_matches(']').trim_matches(['\'', '"']);
+        if part.is_empty() || part.chars().all(|c| c.is_ascii_digit()) || part == "output" {
+            continue;
+        }
+        segs.push(part);
+    }
+    let mut name = if segs.is_empty() {
+        task.to_owned()
+    } else {
+        format!("{task}_{}", segs.join("_"))
+    };
+    name = name
+        .to_ascii_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let base = name.clone();
+    let mut n = 2;
+    while !taken.insert(name.clone()) {
+        name = format!("{base}_{n}");
+        n += 1;
+    }
+    name
+}
+
+/// The extracted `depends_on` of one task (dep names · the line span to
+/// drop · malformed flag).
+struct DepsBlock {
+    deps: Vec<String>,
+    lines: Vec<usize>,
+    malformed: bool,
+}
+
+/// Apply the W2 migration (equivalence-or-stop).
+pub(crate) fn w2(source: &str) -> W2Outcome {
+    let lines: Vec<&str> = source.split('\n').collect();
+    let task_starts = scan_task_starts(&lines);
+    let facts = collect_task_facts(&lines, &task_starts);
+
+    // pass 3 · decisions per task.
+    let mut stops: Vec<String> = Vec::new();
+    let mut plan = SurgeryPlan::default();
+    for (ix, (id, key_line)) in task_starts.iter().enumerate() {
+        let (start, end) = task_range(&lines, &task_starts, ix);
+        let block = &facts.deps_of[id];
+        if block.malformed {
+            stops.push(format!(
+                "[S7] task `{id}`: malformed depends_on entries — rewrite by hand"
+            ));
+            continue;
+        }
+        let with_head = facts.with_head.get(id).copied();
+        let cx = TaskCx {
+            id,
+            key_line: *key_line,
+            start,
+            end,
+            block,
+            armor: has_armor(&lines, start, end),
+            with_head,
+            with_block: with_block_range(&lines, with_head, end),
+        };
+        let with_refs = collect_with_refs(&lines, cx.with_block);
+        let body = scan_task_body(
+            &lines,
+            &cx,
+            facts.with_keys.get(id).map(Vec::as_slice),
+            &mut stops,
+        );
+        let after_entries = decide_deps(&cx, &with_refs, &body, &facts.can_skip, &mut stops);
+        if !stops.is_empty() {
+            continue; // decisions for THIS task are moot — but keep scanning others
+        }
+        plan_task_surgery(
+            &lines,
+            &cx,
+            &body.hoists,
+            after_entries,
+            &mut plan,
+            &mut stops,
+        );
+    }
+
+    if !stops.is_empty() {
+        return W2Outcome::Stop(stops);
+    }
+    if !plan.changed {
+        return W2Outcome::Stop(vec![
+            "[S7] no mechanical W2 repair found for this document".to_owned(),
+        ]);
+    }
+    W2Outcome::Changed(emit_migrated(&lines, &plan))
+}
+
+/// Pass 1 · the 2-space task key lines inside the `tasks:` section.
+fn scan_task_starts(lines: &[&str]) -> Vec<(String, usize)> {
+    let mut in_tasks = false;
+    let mut task_starts: Vec<(String, usize)> = Vec::new();
+    for (i, l) in lines.iter().enumerate() {
+        if !l.starts_with(' ') && !l.starts_with('#') && l.contains(':') {
+            in_tasks = l.starts_with("tasks:");
+            continue;
+        }
+        if in_tasks && let Some(key) = two_space_key(l) {
+            task_starts.push((key.to_owned(), i));
+        }
+    }
+    task_starts
+}
+
+/// The line range of task `ix` (key line → before the next 2-space key /
+/// top-level), trimmed to the `tasks:` section end.
+fn task_range(lines: &[&str], task_starts: &[(String, usize)], ix: usize) -> (usize, usize) {
+    let start = task_starts[ix].1;
+    let end = task_starts
+        .get(ix + 1)
+        .map_or(lines.len(), |(_, next)| *next);
+    // trim to the tasks: section end (first col-0 key after start)
+    let mut e = start + 1;
+    while e < end {
+        let l = lines[e];
+        if !l.is_empty() && !l.starts_with(' ') {
+            break;
+        }
+        e += 1;
+    }
+    (start, e)
+}
+
+/// Line-scanned facts for every task (pass 2 · the doc may not parse
+/// strict while `depends_on` is present, so everything stays line-based).
+struct TaskFacts {
+    /// task → its extracted `depends_on` block.
+    deps_of: std::collections::BTreeMap<String, DepsBlock>,
+    /// task → the producer may SKIP (`when:` · `for_each:` · `on_error` skip).
+    can_skip: std::collections::BTreeMap<String, bool>,
+    /// task → key line of `with:` · flow?
+    with_head: std::collections::BTreeMap<String, (usize, bool)>,
+    /// task → the 6-space keys under a block `with:`.
+    with_keys: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+/// One task's field scan (pass 2 unit).
+struct TaskFieldScan {
+    block: DepsBlock,
+    skippable: bool,
+    with_head: Option<(usize, bool)>,
+}
+
+/// Pass 2 · per-task facts (deps · `can_skip` · `with:` head + keys).
+fn collect_task_facts(lines: &[&str], task_starts: &[(String, usize)]) -> TaskFacts {
+    let mut facts = TaskFacts {
+        deps_of: std::collections::BTreeMap::new(),
+        can_skip: std::collections::BTreeMap::new(),
+        with_head: std::collections::BTreeMap::new(),
+        with_keys: std::collections::BTreeMap::new(),
+    };
+    for (ix, (id, _)) in task_starts.iter().enumerate() {
+        let (start, end) = task_range(lines, task_starts, ix);
+        let scan = scan_task_fields(lines, start, end);
+        if let Some(head) = scan.with_head {
+            facts.with_head.insert(id.clone(), head);
+        }
+        // with keys (6-space keys under a block with:)
+        if let Some(&(wl, flow)) = facts.with_head.get(id)
+            && !flow
+        {
+            facts
+                .with_keys
+                .insert(id.clone(), scan_with_keys(lines, wl, end));
+        }
+        facts.can_skip.insert(id.clone(), scan.skippable);
+        facts.deps_of.insert(id.clone(), scan.block);
+    }
+    facts
+}
+
+/// Scan one task's 4-indent fields: `depends_on` entries · skippability
+/// markers (`when:` · `for_each:` · `on_error` skip) · the `with:` head.
+fn scan_task_fields(lines: &[&str], start: usize, end: usize) -> TaskFieldScan {
+    let mut block = DepsBlock {
+        deps: Vec::new(),
+        lines: Vec::new(),
+        malformed: false,
+    };
+    let mut skippable = false;
+    let mut with_head: Option<(usize, bool)> = None;
+    for i in start + 1..end {
+        let l = lines[i];
+        let t = l.trim_start();
+        let indent = l.len() - t.len();
+        if indent != 4 {
+            continue; // only task-level fields drive the decision
+        }
+        if let Some(rest) = t.strip_prefix("depends_on:") {
+            scan_deps_entries(lines, i, end, rest, &mut block);
+        }
+        if t.starts_with("when:") || t.starts_with("for_each:") {
+            skippable = true;
+        }
+        if let Some(rest) = t.strip_prefix("with:") {
+            let flow = rest.trim_start().starts_with('{');
+            with_head = Some((i, flow));
+        }
+        if t.starts_with("on_error:") {
+            // block or flow · skip: true anywhere within marks skippable
+            if lines[i..end.min(i + 8)]
+                .iter()
+                .any(|l| l.contains("skip: true"))
+            {
+                skippable = true;
+            }
+        }
+    }
+    TaskFieldScan {
+        block,
+        skippable,
+        with_head,
+    }
+}
+
+/// Parse one `depends_on:` line (inline flow list · block list below) into
+/// the task's `DepsBlock`.
+fn scan_deps_entries(lines: &[&str], i: usize, end: usize, rest: &str, block: &mut DepsBlock) {
+    block.lines.push(i);
+    let rest = rest.trim();
+    if let Some(inner) = rest.strip_prefix('[') {
+        let Some(inner) = inner.strip_suffix(']') else {
+            block.malformed = true;
+            return;
+        };
+        for d in inner.split(',') {
+            let d = d.trim();
+            if d.is_empty() {
+                continue;
+            }
+            if d.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            {
+                block.deps.push(d.to_owned());
+            } else {
+                block.malformed = true;
+            }
+        }
+    } else if rest.is_empty() || rest.starts_with('#') {
+        // block list follows
+        let mut j = i + 1;
+        while j < end {
+            let jl = lines[j].trim_start();
+            let jind = lines[j].len() - jl.len();
+            if jind < 6 || !jl.starts_with('-') {
+                break;
+            }
+            let d = jl.trim_start_matches('-').trim();
+            let d = d.split('#').next().unwrap_or("").trim();
+            if !d.is_empty()
+                && d.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            {
+                block.deps.push(d.to_owned());
+            } else {
+                block.malformed = true;
+            }
+            block.lines.push(j);
+            j += 1;
+        }
+    } else {
+        block.malformed = true;
+    }
+}
+
+/// The 6-space keys under a block-style `with:` head.
+fn scan_with_keys(lines: &[&str], wl: usize, end: usize) -> Vec<String> {
+    let mut j = wl + 1;
+    let mut keys = Vec::new();
+    while j < end {
+        let l = lines[j];
+        let t = l.trim_start();
+        let ind = l.len() - t.len();
+        if t.is_empty() || t.starts_with('#') {
+            j += 1;
+            continue;
+        }
+        if ind < 6 {
+            break;
+        }
+        if ind == 6
+            && let Some((k, _)) = t.split_once(':')
+        {
+            keys.push(k.trim().to_owned());
+        }
+        j += 1;
+    }
+    keys
+}
+
+/// Everything pass 3 knows about one task while deciding its rewrite.
+struct TaskCx<'a> {
+    id: &'a str,
+    /// The task-key line (insert anchor).
+    key_line: usize,
+    start: usize,
+    end: usize,
+    block: &'a DepsBlock,
+    /// The task carries `on_error:` armor.
+    armor: bool,
+    /// Key line of `with:` · flow?
+    with_head: Option<(usize, bool)>,
+    /// Line range of the block-style `with:`.
+    with_block: Option<(usize, usize)>,
+}
+
+/// Whether any task-body line opens `on_error:` armor.
+fn has_armor(lines: &[&str], start: usize, end: usize) -> bool {
+    lines[start + 1..end]
+        .iter()
+        .any(|l| l.trim_start().starts_with("on_error:"))
+}
+
+/// The line range of a block-style `with:` (head line → first <6-indent key).
+fn with_block_range(
+    lines: &[&str],
+    with_head: Option<(usize, bool)>,
+    end: usize,
+) -> Option<(usize, usize)> {
+    let (wl, flow) = with_head?;
+    if flow {
+        return None;
+    }
+    let mut wend = wl + 1;
+    while wend < end {
+        let l = lines[wend];
+        let t = l.trim_start();
+        let ind = l.len() - t.len();
+        if !t.is_empty() && !t.starts_with('#') && ind < 6 {
+            break;
+        }
+        wend += 1;
+    }
+    Some((wl, wend))
+}
+
+/// Task references inside the `with:` block (value-role set · any-role map).
+struct WithRefs {
+    /// Tasks referenced in value role.
+    value: std::collections::BTreeSet<String>,
+    /// task → has-value-role.
+    any: std::collections::BTreeMap<String, bool>,
+}
+
+/// Referenced tasks (value-role · status-only) from the WITH block.
+fn collect_with_refs(lines: &[&str], with_block: Option<(usize, usize)>) -> WithRefs {
+    let mut with_refs = WithRefs {
+        value: std::collections::BTreeSet::new(),
+        any: std::collections::BTreeMap::new(),
+    };
+    if let Some((wl, wend)) = with_block {
+        for line in &lines[wl..wend] {
+            let (refs, _composite) = scan_islands(line);
+            for r in refs {
+                let value_role = !is_status_family(&r.path) && r.path != ".error";
+                let e = with_refs.any.entry(r.task.clone()).or_insert(false);
+                *e |= value_role;
+                if value_role {
+                    with_refs.value.insert(r.task);
+                }
+            }
+        }
+    }
+    with_refs
+}
+
+/// References + hoists gathered from one task body (everything EXCEPT the
+/// with block + the `depends_on` lines).
+struct BodyScan {
+    /// (src-island-inner, binding, path) per hoist.
+    hoists: Vec<(String, String, String)>,
+    /// Tasks read in value role from the body.
+    value_refs: std::collections::BTreeSet<String>,
+    /// Tasks read only through the status family.
+    status_only: std::collections::BTreeSet<String>,
+}
+
+/// Body scan: hoist candidates + per-role reference sets + stop classes
+/// S2 (`when:`) · S4 (composite / deep-under-armor) · S5 (`on_finally`).
+fn scan_task_body(
+    lines: &[&str],
+    cx: &TaskCx<'_>,
+    with_keys: Option<&[String]>,
+    stops: &mut Vec<String>,
+) -> BodyScan {
+    let id = cx.id;
+    let mut in_finally = false;
+    let mut hoists: Vec<(String, String, String)> = Vec::new();
+    let mut taken: std::collections::BTreeSet<String> = with_keys
+        .map(|ks| ks.iter().cloned().collect())
+        .unwrap_or_default();
+    let mut value_refs = std::collections::BTreeSet::new();
+    let mut status_only = std::collections::BTreeSet::new();
+    for (i, line) in lines.iter().enumerate().take(cx.end).skip(cx.start + 1) {
+        if cx.block.lines.contains(&i) {
+            continue;
+        }
+        if let Some((wl, wend)) = cx.with_block
+            && i >= wl
+            && i < wend
+        {
+            continue;
+        }
+        let t = line.trim_start();
+        let (refs, composite) = scan_islands(line);
+        let is_when = t.starts_with("when:");
+        let is_finally_head = t.starts_with("on_finally:");
+        if is_finally_head {
+            in_finally = true;
+        }
+        if refs.is_empty() && !composite {
+            continue;
+        }
+        if is_when {
+            stops.push(format!(
+                "[S2] task `{id}`: when: references tasks.* — pre-W2 it REPLACED \
+                 the gate; candidates: after: {{x: succeeded}} (strict) · \
+                 after: {{x: terminal}} + a .status binding (always/branch) · \
+                 hoist the value into with: — each changes skipped-vs-cancelled \
+                 observability differently; a human picks"
+            ));
+            continue;
+        }
+        if in_finally {
+            for r in &refs {
+                if r.task != *id {
+                    stops.push(format!(
+                        "[S5] task `{id}`: on_finally references tasks.{} — the \
+                         parent is the only readable task in a cleanup (the read \
+                         would race); hoist the value into the parent's with: or \
+                         drop the read",
+                        r.task
+                    ));
+                }
+            }
+            continue; // parent refs stay legal in place
+        }
+        if composite {
+            stops.push(format!(
+                "[S4] task `{id}`: a composite tasks.* island is not a plain \
+                 reference — hoist the whole expression into with: by hand \
+                 (its evaluation stage moves to the boundary)"
+            ));
+            continue;
+        }
+        for r in refs {
+            if cx.armor && !is_bare_projection(&r.path) {
+                stops.push(format!(
+                    "[S4] task `{id}`: deep reference tasks.{}{} sits under \
+                     on_error: — hoisting moves its evaluation outside the armor; \
+                     split the read or accept the new error path by hand",
+                    r.task, r.path
+                ));
+                continue;
+            }
+            if is_status_family(&r.path) {
+                status_only.insert(r.task.clone());
+            } else if r.path != ".error" {
+                value_refs.insert(r.task.clone());
+            }
+            let src = format!("tasks.{}{}", r.task, r.path);
+            if !hoists.iter().any(|(s, _, _)| *s == src) {
+                let name = binding_name(&r.task, &r.path, &mut taken);
+                hoists.push((src, name, r.path));
+            }
+        }
+    }
+    BodyScan {
+        hoists,
+        value_refs,
+        status_only,
+    }
+}
+
+/// Deps decisions: value-backed deps leave (R1/R3) · provably-strict bare
+/// deps become `after:` entries (R2) · S1/S3 stop classes otherwise.
+fn decide_deps(
+    cx: &TaskCx<'_>,
+    with_refs: &WithRefs,
+    body: &BodyScan,
+    can_skip: &std::collections::BTreeMap<String, bool>,
+    stops: &mut Vec<String>,
+) -> Vec<String> {
+    let id = cx.id;
+    let mut after_entries: Vec<String> = Vec::new();
+    for d in &cx.block.deps {
+        let value_backed = with_refs.value.contains(d) || body.value_refs.contains(d);
+        let status_only = !value_backed
+            && (body.status_only.contains(d)
+                || with_refs.any.get(d).is_some_and(|has_value| !has_value));
+        if value_backed {
+            continue; // R1/R3 · the value edge carries the old pass-set
+        }
+        if status_only {
+            stops.push(format!(
+                "[S3] task `{id}`: dep `{d}` is backed only by an observation \
+                 reference — the observation edge admits on MORE states than the \
+                 old gate; keep tightness via after: {{{d}: succeeded}} or accept \
+                 the wider admission by hand"
+            ));
+            continue;
+        }
+        if can_skip.get(d).copied().unwrap_or(false) {
+            stops.push(format!(
+                "[S1] task `{id}`: bare dep `{d}` on a producer that may SKIP — \
+                 the old gate ran on skipped; after: {{{d}: succeeded}} cancels \
+                 there · after: {{{d}: terminal}} also runs on failure · a value \
+                 binding keeps {{success, skipped}} but imports data (W2-Q1)"
+            ));
+            continue;
+        }
+        after_entries.push(format!("      {d}: succeeded"));
+    }
+    after_entries
+}
+
+/// The accumulated surgery plan across tasks (pass 3 output · pass 4 input).
+#[derive(Default)]
+struct SurgeryPlan {
+    /// `depends_on` lines to drop.
+    drop_lines: std::collections::BTreeSet<usize>,
+    /// task-key line → the inserted block lines.
+    inserts: std::collections::BTreeMap<usize, Vec<String>>,
+    /// (line, from, to) island rewrites.
+    rewrites: Vec<(usize, String, String)>,
+    changed: bool,
+}
+
+/// Surgery for one clean task: drop its deps lines · insert the hoist /
+/// `after:` blocks · rewrite its body islands (S6 stops a flow-style merge).
+fn plan_task_surgery(
+    lines: &[&str],
+    cx: &TaskCx<'_>,
+    hoists: &[(String, String, String)],
+    after_entries: Vec<String>,
+    plan: &mut SurgeryPlan,
+    stops: &mut Vec<String>,
+) {
+    let id = cx.id;
+    if cx.block.lines.is_empty() && hoists.is_empty() {
+        return;
+    }
+    // surgery plan for this task
+    for &l in &cx.block.lines {
+        plan.drop_lines.insert(l);
+        plan.changed = true;
+    }
+    let mut ins: Vec<String> = Vec::new();
+    if !hoists.is_empty() {
+        match cx.with_head {
+            Some((_, true)) => {
+                stops.push(format!(
+                    "[S6] task `{id}`: hoist needed but with: is flow-style — \
+                     merge by hand"
+                ));
+                return;
+            }
+            Some((wl, false)) => {
+                // merge right under the existing with: line
+                let merged = plan.inserts.entry(wl).or_default();
+                for (src, name, _) in hoists {
+                    merged.push(format!("      {name}: ${{{{ {src} }}}}"));
+                }
+                plan.changed = true;
+            }
+            None => {
+                ins.push("    with:".to_owned());
+                for (src, name, _) in hoists {
+                    ins.push(format!("      {name}: ${{{{ {src} }}}}"));
+                }
+                plan.changed = true;
+            }
+        }
+    }
+    if !after_entries.is_empty() {
+        ins.push("    after:".to_owned());
+        ins.extend(after_entries);
+        plan.changed = true;
+    }
+    if !ins.is_empty() {
+        plan.inserts.entry(cx.key_line).or_default().extend(ins);
+    }
+    // island rewrites in the body (outside the with block)
+    for (i, line) in lines.iter().enumerate().take(cx.end).skip(cx.start + 1) {
+        if let Some((wl, wend)) = cx.with_block
+            && i >= wl
+            && i < wend
+        {
+            continue;
+        }
+        for (src, name, _) in hoists {
+            let island_from = format!("${{{{ {src} }}}}");
+            // tolerate tight spacing `${{tasks.x.output}}`
+            let island_tight = format!("${{{{{src}}}}}");
+            if line.contains(&island_from) {
+                plan.rewrites
+                    .push((i, island_from, format!("${{{{ with.{name} }}}}")));
+            } else if line.contains(&island_tight) {
+                plan.rewrites
+                    .push((i, island_tight, format!("${{{{ with.{name} }}}}")));
+            }
+        }
+    }
+}
+
+/// Pass 4 · emit: drop the dead lines · apply rewrites · splice inserts.
+fn emit_migrated(lines: &[&str], plan: &SurgeryPlan) -> String {
+    let mut out: Vec<String> = Vec::with_capacity(lines.len() + 8);
+    for (i, l) in lines.iter().enumerate() {
+        if plan.drop_lines.contains(&i) {
+            continue;
+        }
+        let mut line = (*l).to_owned();
+        for (ri, from, to) in &plan.rewrites {
+            if *ri == i {
+                line = line.replace(from, to);
+            }
+        }
+        out.push(line);
+        if let Some(ins) = plan.inserts.get(&i) {
+            out.extend(ins.iter().cloned());
+        }
+    }
+    out.join("\n")
+}
+
+/// A 2-space task key (`  name:` · optional trailing comment).
+fn two_space_key(line: &str) -> Option<&str> {
+    let rest = line.strip_prefix("  ")?;
+    if rest.starts_with(' ') || rest.starts_with('#') || rest.starts_with('-') {
+        return None;
+    }
+    let (key, _) = rest.split_once(':')?;
+    let ok = !key.is_empty()
+        && key.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && key
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    ok.then_some(key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -278,7 +278,7 @@ mod tests {
         use nika_event::EventKind;
         use nika_kernel::tool_executor::{ToolErrorMeta, ToolResult};
 
-        const GATED: &str = "nika: v1\nworkflow:\n  id: gated\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    depends_on: [prep]\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  after:\n    depends_on: [ask]\n    exec: { command: [\"echo\", \"done\"] }\n";
+        const GATED: &str = "nika: v1\nworkflow:\n  id: gated\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    after: { prep: succeeded }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  finish:\n    after: { ask: succeeded }\n    exec: { command: [\"echo\", \"done\"] }\n";
 
         let blocked_prompt = || {
             let mut result = ToolResult::error("tc1", "non-interactive and no `default:`");
@@ -478,7 +478,7 @@ mod tests {
         // `${{ tasks.missing.output }}` cannot render (no record) — the
         // payload carries the AUTHORED text instead of blocking the pause.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  up:\n    exec: { command: [\"true\"] }\n  ask:\n    depends_on: [up]\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"about ${{ tasks.up.output }}\" }\n",
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  up:\n    exec: { command: [\"true\"] }\n  ask:\n    with: { upstream: \"${{ tasks.up.output }}\" }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"about ${{ with.upstream }}\" }\n",
         );
         let (records, vars, markers) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
         let pause = prompt_block(
@@ -493,7 +493,7 @@ mod tests {
         assert_eq!(pause.mode, "input");
         assert_eq!(
             pause.message.as_deref(),
-            Some("about ${{ tasks.up.output }}"),
+            Some("about ${{ with.upstream }}"),
             "raw authored text · never silence, never secret material"
         );
     }

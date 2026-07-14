@@ -53,7 +53,7 @@ counts:
   templates: 10
   error_namespaces: 14
   error_categories: 12
-  error_codes: 57
+  error_codes: 61
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -249,7 +249,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 57
+  count: 61
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -277,10 +277,17 @@ error_codes:
     - { code: NIKA-PARSE-021, category: validation_error, transient: "false", failure: "top-level description: — it moved into workflow.description" }
     - { code: NIKA-PARSE-022, category: validation_error, transient: "false", failure: "tasks: is a sequence — it became a map keyed by task id (drop `- id:`, the key IS the identity)" }
     - { code: NIKA-PARSE-023, category: validation_error, transient: "false", failure: "a task carries an id: field — the map key is the identity, the field is gone" }
-    - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in depends_on (incl. self-dependency)" }
-    - { code: NIKA-DAG-002, category: validation_error, transient: "false", failure: "depends_on references an undeclared task" }
-    - { code: NIKA-DAG-003, category: validation_error, transient: "false", failure: "a tasks.X reference with no declared edge" }
+    - { code: NIKA-PARSE-024, category: validation_error, transient: "false", failure: "a task carries depends_on: — dead since W2 (data → with: bindings · control → after: predicates · check --fix migrates)" }
+    - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in the precedence graph G_p = E_d ∪ E_c (incl. self-dependency · via with:/after:)" }
+    - { code: NIKA-DAG-002, category: validation_error, transient: "false", failure: "with:/after: references an undeclared task" }
+    # NIKA-DAG-003 · RETIRED (never reuse) — « a tasks.X reference with no
+    # declared edge » became INEXPRESSIBLE in W2: the with: binding IS the
+    # edge (derived, never restated) and a reference outside the boundary is
+    # NIKA-VAR-021. The allocation hole is deliberate.
     - { code: NIKA-DAG-004, category: validation_error, transient: "false", failure: "on_error.recover references a task downstream of the declaring task (await would deadlock)" }
+    - { code: NIKA-DAG-005, category: validation_error, transient: "false", failure: "after: predicate outside the closed set (succeeded · failed · skipped · terminal)" }
+    - { code: NIKA-DAG-006, category: validation_error, transient: "false", failure: "statically dead task — an incoming edge's pass-set excludes every reachable producer state, or the when: gate is false under every reachable upstream combination (gate algebra v2)" }
+    - { code: NIKA-DAG-007, category: validation_error, transient: "false", failure: "status compared against a literal outside the vocabulary (success · failure · skipped · cancelled) — == never matches, != always holds" }
     - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared env/vars key)" }
     - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
     - { code: NIKA-VAR-003, category: validation_error, transient: "false", failure: "provably-invalid path into a declared schema (static walk)" }
@@ -290,6 +297,7 @@ error_codes:
     - { code: NIKA-VAR-007, category: variable_error, transient: "false", failure: "bytes value substituted into a string position" }
     - { code: NIKA-VAR-008, category: validation_error, transient: "false", failure: "unclosed ${{ opener" }
     - { code: NIKA-VAR-020, category: validation_error, transient: "false", failure: "bare tasks.X is the envelope, not a value — the projection set (.output/.status/.error/.duration_ms) is closed and required (04 §namespaces · 0.103 · #75 D2)" }
+    - { code: NIKA-VAR-021, category: validation_error, transient: "false", failure: "a tasks.* reference outside the boundary (with: · after: · on_error.recover · on_finally parent-only · workflow outputs) — hoist it into with: (check --fix applies it)" }
     - { code: NIKA-VAR-009, category: validation_error, transient: "false", failure: "typed outputs value did not match its declared type: at run end (the output half of the callable contract)" }
     - { code: NIKA-INFER-001, category: provider_error, transient: "engine-assessed", failure: "provider call failed (HTTP error · provider refusal)" }
     - { code: NIKA-INFER-002, category: validation_error, transient: "false", failure: "structured output failed schema validation (after any engine-internal retries)" }
@@ -441,8 +449,11 @@ canonical_phrasing:
     match: "pins the contract version"
     home: spec/01-envelope.md
   edges_never_inferred:
-    # home text · "(a verb-body reference is an edge too · no invisible edges)"
-    phrase: "the engine rejects the workflow at parse time · it does not silently infer the edge · no invisible edges"
+    # home text · "the binding IS the edge · no invisible edges" (W2 · the
+    # law inverted its mechanism, not its meaning: pre-W2 the edge had to be
+    # restated in depends_on · since W2 the with:/after: declaration IS the
+    # edge — either way, no edge exists that the source does not show)
+    phrase: "the binding IS the edge — data and its dependency are one declaration · no invisible edges"
     match: "no invisible edges"
     home: spec/03-dag.md
   cel_not_a_dsl:

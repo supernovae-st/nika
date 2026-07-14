@@ -52,32 +52,37 @@ tasks:
       entries: "[.items[] | {title, url, published}]"
 
   fresh:
-    depends_on: [previous, feed]
+    with:
+      previous: ${{ tasks.previous.output }}
+      entries: ${{ tasks.feed.entries }}
     invoke:
       tool: "nika:json_diff"
       args:
-        before: "${{ tasks.previous.output }}"
-        after: "${{ tasks.feed.entries }}"
+        before: "${{ with.previous }}"
+        after: "${{ with.entries }}"
 
   digest:
-    depends_on: [fresh, feed]
-    when: ${{ size(tasks.fresh.output) > 0 }}
+    with:
+      fresh: ${{ tasks.fresh.output }}
+      entries: ${{ tasks.feed.entries }}
+    when: ${{ size(with.fresh) > 0 }}
     infer:
       prompt: |
         New releases appeared on our dependency radar (RFC 6902 patch
         against last run) ·
-        ${{ tasks.fresh.output }}
-        Full current feed · ${{ tasks.feed.entries }}
+        ${{ with.fresh }}
+        Full current feed · ${{ with.entries }}
         Write 3 bullets · what shipped · whether it looks breaking ·
         what to check in our code.
 
   save_state:
-    depends_on: [feed]
+    with:
+      entries: ${{ tasks.feed.entries }}
     invoke:
       tool: "nika:write"
       args:
         path: "${{ vars.state_path }}"
-        content: "${{ tasks.feed.entries }}"
+        content: "${{ with.entries }}"
         create_dirs: true
         overwrite: true
 

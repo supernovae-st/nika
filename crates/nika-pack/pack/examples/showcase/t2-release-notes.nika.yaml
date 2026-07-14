@@ -40,11 +40,12 @@ tasks:
       command: ["git", "log", "${{ vars.since_tag }}..HEAD", "--oneline", "--no-merges"]
 
   notes:
-    depends_on: [history]
+    with:
+      history: ${{ tasks.history.output }}
     infer:
       prompt: |
         Write release notes from these commits ·
-        ${{ tasks.history.output }}
+        ${{ with.history }}
         Tone · plain, direct, no marketing fluff.
       schema:
         type: object
@@ -55,7 +56,9 @@ tasks:
           body: { type: string }
 
   changelog:
-    depends_on: [notes]
+    with:
+      notes_headline: ${{ tasks.notes.output.headline }}
+      notes_body: ${{ tasks.notes.output.body }}
     invoke:
       tool: "nika:edit"
       args:
@@ -64,18 +67,21 @@ tasks:
         replace: |
           # Changelog
 
-          ## ${{ vars.since_tag }}..HEAD · ${{ tasks.notes.output.headline }}
+          ## ${{ vars.since_tag }}..HEAD · ${{ with.notes_headline }}
 
-          ${{ tasks.notes.output.body }}
+          ${{ with.notes_body }}
 
   announce:
-    depends_on: [notes, changelog]
+    with:
+      notes_headline: ${{ tasks.notes.output.headline }}
+    after:
+      changelog: succeeded
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.team_webhook }}"
-        message: "Release notes ready · ${{ tasks.notes.output.headline }}"
+        message: "Release notes ready · ${{ with.notes_headline }}"
         severity: info
 
 outputs:

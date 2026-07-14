@@ -17,8 +17,8 @@ prompt: "Summarize · ${{ vars.topic }}"
 with:
   data: ${{ tasks.research.output }}
 
-# Inside a condition
-when: ${{ tasks.test.status == 'success' }}
+# Inside a condition (local namespaces · [03 §when](./03-dag.md))
+when: ${{ with.coverage > 80 }}
 
 # Inside an array
 tools:
@@ -31,7 +31,7 @@ If you have used GitHub Actions, this is the same. If you have not, the rule is 
 **What's inside `${{ }}` is [CEL](https://cel.dev)** (Common Expression
 Language · the validated, non-Turing-complete standard used by Kubernetes,
 Envoy, and gRPC). A bare reference like `${{ vars.topic }}` is a CEL identifier
-path that evaluates to its value; a condition like `${{ tasks.test.coverage > 80 }}`
+path that evaluates to its value; a condition like `${{ with.coverage > 80 }}`
 is a CEL boolean. One expression language, everywhere: Nika does not invent a
 DSL. See [03-dag.md](./03-dag.md#expression-language--a-documented-subset-of-cel) for the v0.1 CEL subset.
 
@@ -41,13 +41,50 @@ DSL. See [03-dag.md](./03-dag.md#expression-language--a-documented-subset-of-cel
 
 ```
 ${{ vars.X }}             workflow inputs               (declared in envelope `vars:` · untyped or typed)
-${{ with.X }}             task-level scope               (declared per-task `with:` block)
-${{ tasks.X.output }}      task output reference          (or .status · .error · .duration_ms · the CLOSED projection set)
+${{ with.X }}             task-level scope               (declared per-task `with:` block · the bindings ARE the data edges)
+${{ tasks.X.output }}      task record reference          (or .status · .error · .duration_ms · the CLOSED projection set · BOUNDARY surfaces only — see below)
 ${{ env.X }}              environment variable           (non-sensitive runtime config)
 ${{ secrets.X }}          masked secret reference        (vault-backed · never in logs)
 ```
 
 Five namespaces. That's it.
+
+### The reference boundary · where `tasks.*` may appear
+
+Since W2 « the flow », the `tasks` namespace is **boundary-only**. A
+`${{ tasks.X.* }}` reference is legal in exactly five places ·
+
+| surface | why it is a boundary | graph effect |
+|---|---|---|
+| `with:` values | the binding imports the data — **the binding IS the edge** | one typed edge per reference ([03 §with](./03-dag.md)) |
+| `after:` keys | the entry names the producer | one control edge per entry |
+| `on_error.recover:` | a fallback reads a settled record | a recovery edge (parking · `NIKA-DAG-004`) |
+| `on_finally:` blocks | cleanup reads its **parent** — the ONLY legal target there (a sibling may still be running · the read would race) | none (cleanup is not a task) |
+| workflow `outputs:` | the run's exports read the settled world | none (everything is terminal at read time) |
+
+**Everywhere else — verb fields (`prompt:` · `command:` · `args:` · …),
+`when:`, `for_each:` — a `tasks.*` reference is refused at parse time**
+(`NIKA-VAR-021` · `validation_error`) with a machine-applicable fix:
+**hoist it into `with:`** and read the binding ·
+
+```yaml
+# ❌ NIKA-VAR-021 — the body reads the global namespace
+summarize:
+    infer:
+      prompt: "Summarize · ${{ tasks.fetch.output }}"
+
+# ✅ the fix `nika check --fix` applies
+summarize:
+    with:
+      article: ${{ tasks.fetch.output }}
+    infer:
+      prompt: "Summarize · ${{ with.article }}"
+```
+
+The task body is a **pure function of its declared inputs** (`with` · `vars`
+· `env` · `secrets` · the loop locals): every cross-task dependency is
+visible at the boundary, named, and typed by its edge role. Nothing else
+reads another task.
 
 > **Bare `tasks.X` is not a value (normative · D2 · #75).** The task
 > result is a record; its observable projections are the CLOSED set
@@ -105,34 +142,43 @@ for the launch contract.
 
 ### `${{ with.X }}` · task-level scope
 
-Declared per-task · resolves at task dispatch time · often references upstream task outputs ·
+Declared per-task · resolves at task dispatch time · the task's **import
+surface** ·
 
-> **`with:` is optional sugar.** You can always reference `${{ tasks.X.output }}`
-> directly inside any verb field. `with:` exists to (a) pre-bind + **alias**
-> upstream values to short local names for readable prompts/commands, and (b)
-> make a task's inputs explicit at a glance. Use it when it helps readability;
-> skip it when a direct `${{ tasks.X.output }}` is clearer.
+> **`with:` is the data boundary, not sugar.** A `${{ tasks.X.* }}`
+> reference lives ONLY in `with:` (and the other boundary surfaces above):
+> each such binding creates one typed edge, and the body consumes the
+> binding by its local name. `with:` is where a task's inputs are visible
+> at a glance — and where the graph gets its data edges
+> ([03 §with](./03-dag.md)).
 
 ```yaml
 summarize:
-    depends_on: [research]
     with:
-      content: ${{ tasks.research.output }}
-      style: "concise"
+      content: ${{ tasks.research.output }}    # value edge · research → summarize
+      style: "concise"                         # literal · no edge
     infer:
       prompt: "Summarize in ${{ with.style }} style · ${{ with.content }}"
 ```
 
-### `${{ tasks.X.output }}` · task output reference
+A binding whose evaluation errors settles the task `failure` — `on_error:`
+is NOT consulted (the boundary feeds the verb; the armor covers the verb ·
+[03 §gate algebra](./03-dag.md#the-gate-algebra-v2-normative)).
 
-Reference any upstream task's output (or status · error · duration_ms) ·
+### `${{ tasks.X.output }}` · task record reference
+
+Reference an upstream task's output (or status · error · duration_ms) —
+at the boundary ·
 
 ```yaml
 deploy:
-    depends_on: [build, test]
-    when: ${{ tasks.test.status == 'success' && tasks.test.output.coverage > 80 }}
+    after: { test: succeeded }                            # strict gate · no data from test
+    with:
+      coverage: ${{ tasks.test.output.coverage }}         # value edge · read the number
+      artifact: ${{ tasks.build.output.artifact_path }}   # value edge · build → deploy
+    when: ${{ with.coverage > 80 }}                       # local business condition
     exec:
-      command: ["./deploy.sh", "${{ tasks.build.output.artifact_path }}"]
+      command: ["./deploy.sh", "${{ with.artifact }}"]
 ```
 
 `tasks.X` is the task **result record**: a CEL object, NOT the bare output
@@ -160,18 +206,20 @@ tasks.X.error    when status != failure   → null   (EXCEPT on_error.skip · er
 tasks.X.<name>   bindings of a skipped/cancelled task → null
 ```
 
-`null` is a CEL literal (`tasks.X.output != null` is in the v0.1 subset) and
+`null` is a CEL literal (`with.x != null` is in the v0.1 subset) and
 a JSON value (jq's `select(. != null)` filters it). This makes the
 **diamond-join** canonical · two exclusive `when:` branches + a join that
 takes whichever ran ·
 
 ```yaml
 pick:
-    depends_on: [build_prod, build_dev]      # exactly one ran · the other is skipped (null)
+    with:                                     # value edges pass on skipped · the skipped one is null
+      prod: ${{ tasks.build_prod.output }}
+      dev: ${{ tasks.build_dev.output }}
     invoke:
       tool: nika:jq
       args:
-        input: [ "${{ tasks.build_prod.output }}", "${{ tasks.build_dev.output }}" ]
+        input: [ "${{ with.prod }}", "${{ with.dev }}" ]
         expression: "[ .[] | select(. != null) ] | first"
 ```
 
@@ -294,11 +342,13 @@ Downstream ·
 
 ```yaml
 notify:
-    depends_on: [api_call]
+    with:
+      user_count: ${{ tasks.api_call.user_count }}    # value edges · the bindings are the edges
+      emails: ${{ tasks.api_call.user_emails }}
     infer:
       prompt: |
-        We have ${{ tasks.api_call.user_count }} users.
-        Emails · ${{ tasks.api_call.user_emails }}
+        We have ${{ with.user_count }} users.
+        Emails · ${{ with.emails }}
 ```
 
 #### Raw output vs named bindings · dual-accessible
@@ -316,16 +366,17 @@ api_call:
       http_status: .status     # NOT `status:` — that name is reserved (the task's own .status)
 ```
 
-Downstream ·
+Downstream (each form imported through a consumer's `with:` · the
+reference boundary) ·
 
 ```yaml
 # Raw output (whole structure · pre-binding extraction)
 ${{ tasks.api_call.output }}             # full raw JSON · including all fields the verb returned
 
-# Named bindings (defined in output: block above)
+# Named bindings (defined in output: block above) · value-role fields
 ${{ tasks.api_call.body }}               # jq .body  · the response body
 ${{ tasks.api_call.http_status }}        # jq .status · the HTTP status field
-${{ tasks.api_call.status }}             # RESERVED · the task's own status (success|failure|…) · NOT a binding
+${{ tasks.api_call.status }}             # RESERVED · the task's own status (success|failure|…) · NOT a binding · terminal-observation role
 ```
 
 **Rules** ·
@@ -391,14 +442,17 @@ extraction-and-transform language (`output:` bindings + the `nika:jq` builtin).
 
 ## Resolution order
 
-When a task is about to run · the engine resolves `${{ ... }}` references in this order ·
+When a task is admitted · the engine resolves `${{ ... }}` references in this order ·
 
-1. **Parse** the expression inside `${{ }}` (one of · `vars.X` · `with.X` · `tasks.X.field` · `env.X` · or a `when:` condition expression)
-2. **Lookup** the value from the appropriate namespace
-3. **Substitute** the value into the position
-4. **Single-pass** · substitution result is NOT re-evaluated (no nested substitution)
+1. **Boundary first** · the `with:` bindings materialize (their `tasks.X.field` references read the settled records — this is where the data edges deliver)
+2. **`when:`** evaluates over the local namespaces (`vars` · `env` · `with` · loop locals)
+3. **Body** · verb-field expressions resolve (`vars.X` · `with.X` · `env.X` · `secrets.X` · loop locals — never `tasks.*`)
+4. **Single-pass** · a substitution result is NOT re-evaluated (no nested substitution)
 
-If a reference is unresolved · the engine raises a `NIKA-VAR-001` (undefined variable) error.
+If a reference is unresolved · the engine raises a `NIKA-VAR-001` (undefined
+variable) error — at the boundary (steps 1-2) it settles the task `failure`
+with `on_error:` NOT consulted; in the body (step 3) it is task-stage work,
+recoverable by `on_error:` ([03 §task states](./03-dag.md#task-states)).
 
 ### Value rendering · object → string
 
@@ -413,9 +467,9 @@ extract a string with jq in `output:` (`@json` for JSON text · `tostring` /
 implicit compact-JSON by default · explicit jq when you need a specific shape.
 
 A **bytes** output (tool-determined · e.g. MCP image content · a binary
-`nika:read`) is **opaque** · it flows tool→tool by reference
-(`${{ tasks.fetch_img.output }}` → another tool's `content:` arg · or a file
-path for `infer.vision`). Bytes **cannot** be jq-extracted (jq is JSON-only)
+`nika:read`) is **opaque** · it flows tool→tool by reference (a `with:`
+binding of `${{ tasks.fetch_img.output }}` → another tool's `content:` arg ·
+or a file path for `infer.vision`). Bytes **cannot** be jq-extracted (jq is JSON-only)
 nor substituted into a string position: that is an error (`NIKA-VAR-007`) ·
 the engine never silently UTF-8-coerces a blob (it would corrupt the data).
 For `nika:fetch` and `exec` (no binary value channel · the 9 fetch modes are

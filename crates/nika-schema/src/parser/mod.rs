@@ -11,7 +11,7 @@
 //! The parser is **shape-only** · it validates field forms (scalar vs
 //! mapping · closed enums · the Go-duration grammar · exactly-one-verb)
 //! and rejects unknown fields in [`ParseMode::Strict`]. Cross-reference
-//! semantics (cycles · `depends_on` resolution · `${{ }}` namespace
+//! semantics (cycles · edge-target resolution · `${{ }}` namespace
 //! resolution · the `when:` boolean-shape rule) are the analyzer's job.
 //!
 //! Presence of `nika:` / `workflow:` / non-empty `tasks:` is ALSO the

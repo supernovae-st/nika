@@ -7,7 +7,7 @@
 //! move every site that speaks it, atomically ·
 //!
 //! 1. the declaring key token (`old:` → `new:`),
-//! 2. every `depends_on:` entry naming it,
+//! 2. every `after:` entry naming it,
 //! 3. every `tasks.<old>` chain inside a `${{ … }}` island — the same
 //!    document-level byte-scan discipline (and the same comment
 //!    tolerance) as the [`definition`](super::definition) lane, so the
@@ -32,7 +32,7 @@ use super::definition::{ident_end, islands, token_range, token_span_contains};
 use super::position::LineIndex;
 
 /// The token range + current id under `offset`, when it is a renameable
-/// task-identity site (key · `depends_on` entry · `tasks.<id>` island
+/// task-identity site (key · `after:` target · `tasks.<id>` island
 /// ref). `None` anywhere else — the client greys the gesture out.
 #[must_use]
 pub fn prepare(text: &str, offset: usize) -> Option<(Range, String)> {
@@ -60,9 +60,8 @@ pub fn rename(
 ) -> Result<WorkspaceEdit, String> {
     let wf = parse(text, FileId::new(0), ParseMode::Lenient)
         .map_err(|e| format!("rename needs a parseable document: {e}"))?;
-    let site = site_at(&wf, text, offset).ok_or_else(|| {
-        "not a task identity (key · depends_on entry · tasks.<id> ref)".to_owned()
-    })?;
+    let site = site_at(&wf, text, offset)
+        .ok_or_else(|| "not a task identity (key · after: target · tasks.<id> ref)".to_owned())?;
     let old = site.id;
     if new_name == old {
         return Err(format!("`{old}` already is the name"));
@@ -92,11 +91,11 @@ pub fn rename(
                 new_text: new_name.to_owned(),
             });
         }
-        // 2 · every depends_on entry naming it
-        for dep in &task.value.depends_on {
-            if dep.value == old {
+        // 2 · every after: entry naming it (the control boundary)
+        for (target, _pred) in &task.value.after {
+            if target.value == old {
                 edits.push(TextEdit {
-                    range: token_range(&index, dep.span, old.len()),
+                    range: token_range(&index, target.span, old.len()),
                     new_text: new_name.to_owned(),
                 });
             }
@@ -147,7 +146,7 @@ fn site_lsp_range(index: &LineIndex, site: &Site) -> Range {
 }
 
 /// Resolve the renameable site under `offset` — key first (the
-/// declaration outranks a same-byte ref), then `depends_on` entries,
+/// declaration outranks a same-byte ref), then `after:` targets,
 /// then island refs.
 fn site_at(wf: &RawWorkflow, text: &str, offset: usize) -> Option<Site> {
     let off = u32::try_from(offset).unwrap_or(u32::MAX);
@@ -162,13 +161,13 @@ fn site_at(wf: &RawWorkflow, text: &str, offset: usize) -> Option<Site> {
                 _kind: SiteKind::Key,
             });
         }
-        for dep in &task.value.depends_on {
-            if token_span_contains(dep.span, dep.value.len(), off) {
-                let start = dep.span.start.0 as usize;
+        for (target, _pred) in &task.value.after {
+            if token_span_contains(target.span, target.value.len(), off) {
+                let start = target.span.start.0 as usize;
                 return Some(Site {
-                    id: dep.value.clone(),
+                    id: target.value.clone(),
                     start,
-                    end: start + dep.value.len(),
+                    end: start + target.value.len(),
                     _kind: SiteKind::Dep,
                 });
             }
@@ -251,7 +250,10 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    depends_on: [fetch]\n    infer: { prompt: \"sum ${{ tasks.fetch.output }}\", max_tokens: 10 }\n  save:\n    depends_on: [digest, fetch]\n    exec: { command: [\"tee\", \"${{ tasks.digest.output }}\", \"${{ tasks.fetch.output }}\"] }\n";
+    /// The W2 fixture — `fetch` is spoken at FIVE sites: its key, two
+    /// `after:` entries (digest's + save's) and two `${{ tasks.fetch }}`
+    /// islands (both inside `with:` binding values, the boundary form).
+    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    after: { fetch: succeeded }\n    with:\n      article: \"${{ tasks.fetch.output }}\"\n    infer: { prompt: \"sum ${{ with.article }}\", max_tokens: 10 }\n  save:\n    after: { digest: succeeded, fetch: terminal }\n    with:\n      doc: \"${{ tasks.digest.output }}\"\n      raw: \"${{ tasks.fetch.output }}\"\n    exec: { command: [\"tee\", \"${{ with.doc }}\", \"${{ with.raw }}\"] }\n";
 
     fn uri() -> Uri {
         Uri::from_str("file:///w.nika.yaml").expect("uri")
@@ -287,18 +289,21 @@ mod tests {
     #[test]
     fn rename_from_the_key_moves_every_site() {
         // rename `fetch` → `pull` from its declaring key: the key, TWO
-        // depends_on entries, TWO island refs — five edits, one truth.
+        // after: entries, TWO island refs — five edits, one truth.
         let at = DOC.find("\n  fetch:").expect("key") + 3;
         let we = rename(&uri(), DOC, at, "pull").expect("renames");
         let es = edits(&we);
-        assert_eq!(es.len(), 5, "key + 2 deps + 2 island refs: {es:?}");
+        assert_eq!(es.len(), 5, "key + 2 after entries + 2 island refs: {es:?}");
         let after = apply(DOC, es);
         assert!(!after.contains("fetch"), "no site left behind: {after}");
         assert!(after.contains("\n  pull:"), "the key moved");
-        assert!(after.contains("depends_on: [pull]"), "digest's dep moved");
         assert!(
-            after.contains("depends_on: [digest, pull]"),
-            "save's dep moved"
+            after.contains("after: { pull: succeeded }"),
+            "digest's control entry moved"
+        );
+        assert!(
+            after.contains("after: { digest: succeeded, pull: terminal }"),
+            "save's control entry moved (the predicate untouched)"
         );
         assert!(
             after.contains("${{ tasks.pull.output }}"),
@@ -312,20 +317,20 @@ mod tests {
     }
 
     #[test]
-    fn rename_from_a_dep_and_from_an_island_ref_agree_with_the_key() {
+    fn rename_from_an_after_entry_and_from_an_island_ref_agree_with_the_key() {
         let from_key = {
             let at = DOC.find("\n  fetch:").expect("key") + 3;
             apply(DOC, edits(&rename(&uri(), DOC, at, "pull").expect("ok")))
         };
-        let from_dep = {
-            let at = DOC.find("[fetch]").expect("dep") + 1;
+        let from_after = {
+            let at = DOC.find("{ fetch: succeeded }").expect("after entry") + 2;
             apply(DOC, edits(&rename(&uri(), DOC, at, "pull").expect("ok")))
         };
         let from_ref = {
             let at = DOC.find("tasks.fetch").expect("ref") + "tasks.".len();
             apply(DOC, edits(&rename(&uri(), DOC, at, "pull").expect("ok")))
         };
-        assert_eq!(from_key, from_dep, "dep site → same document");
+        assert_eq!(from_key, from_after, "after: site → same document");
         assert_eq!(from_key, from_ref, "island site → same document");
     }
 
@@ -344,8 +349,9 @@ mod tests {
                 .contains("already exists"),
             "collision refusal names the conflict"
         );
-        // a ghost dep site: rename refuses (rename the definition, not a ghost)
-        let ghost_doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        // a ghost after: site — rename refuses (rename the definition,
+        // not a ghost)
+        let ghost_doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
         let at = ghost_doc.find("ghost").expect("ghost") + 1;
         assert!(
             rename(&uri(), ghost_doc, at, "real")
@@ -367,9 +373,12 @@ mod tests {
             key_at,
             "range anchors the key token"
         );
-        // dep site
-        let dep_at = DOC.find("[digest, fetch]").expect("deps") + 1;
-        assert_eq!(prepare(DOC, dep_at).expect("dep prepares").1, "digest");
+        // after: entry site
+        let dep_at = DOC
+            .find("{ digest: succeeded, fetch: terminal }")
+            .expect("after")
+            + 2;
+        assert_eq!(prepare(DOC, dep_at).expect("after prepares").1, "digest");
         // island site
         let ref_at = DOC.find("tasks.digest").expect("ref") + "tasks.".len();
         assert_eq!(prepare(DOC, ref_at).expect("ref prepares").1, "digest");
@@ -385,12 +394,15 @@ mod tests {
     fn verb_named_task_renames_only_identity_sites() {
         // a task NAMED `invoke` (the census trap): the verb KEY of another
         // task must not be touched — only identity sites move.
-        let doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  invoke:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [invoke]\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ tasks.invoke.output }}\" }\n";
+        let doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  invoke:\n    exec: { command: [\"x\"] }\n  b:\n    after: { invoke: succeeded }\n    with:\n      path: \"${{ tasks.invoke.output }}\"\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ with.path }}\" }\n";
         let at = doc.find("\n  invoke:").expect("key") + 3;
         let we = rename(&uri(), doc, at, "caller").expect("renames");
         let after = apply(doc, edits(&we));
         assert!(after.contains("\n  caller:"), "identity key moved");
-        assert!(after.contains("depends_on: [caller]"), "dep moved");
+        assert!(
+            after.contains("after: { caller: succeeded }"),
+            "control entry moved"
+        );
         assert!(after.contains("tasks.caller.output"), "ref moved");
         assert!(
             after.contains("\n    invoke:\n      tool:"),

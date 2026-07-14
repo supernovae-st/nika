@@ -1016,7 +1016,7 @@ mod tests {
     /// ride verbatim, and `effects_executed` states the contract.
     #[test]
     fn dry_run_payload_projects_the_versioned_plan() {
-        let yaml = "nika: v1\nworkflow:\n  id: demo\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    depends_on: [a]\n    infer: { prompt: \"go ${{ tasks.a.output }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
+        let yaml = "nika: v1\nworkflow:\n  id: demo\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"go ${{ with.prev }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::source::FileId::new(0),
@@ -1203,7 +1203,7 @@ mod tests {
     /// · outputs clear (they may read unscoped tasks).
     #[test]
     fn scope_to_task_keeps_the_ancestor_cone() {
-        let yaml = "nika: v1\nworkflow:\n  id: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    depends_on: [discover]\n    infer: { prompt: \"count ${{ tasks.discover.output }}\" }\n  digest:\n    depends_on: [discover]\n    infer: { prompt: \"sum ${{ tasks.discover.output }}\" }\n  report:\n    depends_on: [stats, digest]\n    infer: { prompt: \"merge ${{ tasks.stats.output }} ${{ tasks.digest.output }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
+        let yaml = "nika: v1\nworkflow:\n  id: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"count ${{ with.found }}\" }\n  digest:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"sum ${{ with.found }}\" }\n  report:\n    with:\n      stats: ${{ tasks.stats.output }}\n      digest: ${{ tasks.digest.output }}\n    infer: { prompt: \"merge ${{ with.stats }} ${{ with.digest }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1238,7 +1238,7 @@ mod tests {
     /// run renders describe exactly the cone, not the original file.
     #[test]
     fn scoped_workflow_rechecks_clean() {
-        let yaml = "nika: v1\nworkflow:\n  id: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    depends_on: [a]\n    infer: { prompt: \"use ${{ tasks.a.output }}\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"use ${{ with.prev }}\" }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

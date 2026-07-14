@@ -94,6 +94,9 @@ pub fn nika_lsp::analysis::position::LineIndex::__clone_box(&self, _: dyn_clone:
 impl<T> nika_error::traits::AsAny for nika_lsp::analysis::position::LineIndex where T: 'static
 pub fn nika_lsp::analysis::position::LineIndex::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_lsp::analysis::refs
+pub mod nika_lsp::analysis::rename
+pub fn nika_lsp::analysis::rename::prepare(text: &str, offset: usize) -> core::option::Option<(lsp_types::Range, alloc::string::String)>
+pub fn nika_lsp::analysis::rename::rename(uri: &lsp_types::uri::Uri, text: &str, offset: usize, new_name: &str) -> core::result::Result<lsp_types::WorkspaceEdit, alloc::string::String>
 pub mod nika_lsp::analysis::scope
 pub mod nika_lsp::analysis::semantic_document
 pub struct nika_lsp::analysis::semantic_document::SemanticDocument

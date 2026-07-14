@@ -24,19 +24,21 @@ tasks:
       args: { path: "${{ vars.source }}" }
 
   think:
-    depends_on: [gather]
+    with:
+      gather: ${{ tasks.gather.output }}
     infer:
       prompt: |
-        # SLOT: the one model job · interpolate ${{ tasks.gather.output }}
-        Summarize · ${{ tasks.gather.output }}
+        # SLOT: the one model job · interpolate ${{ with.gather }}
+        Summarize · ${{ with.gather }}
 
   persist:
-    depends_on: [think]
+    with:
+      think: ${{ tasks.think.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./output.md"         # SLOT: destination
-        content: "${{ tasks.think.output }}"   # ALWAYS pass content · a write without it writes nothing
+        content: "${{ with.think }}"   # ALWAYS pass content · a write without it writes nothing
 
 outputs:
   result: ${{ tasks.think.output }}  # SLOT: the callable contract

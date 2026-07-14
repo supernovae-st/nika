@@ -4,7 +4,7 @@
 //! `nika/semanticDocument` — the analyzed workflow as ONE JSON payload.
 //!
 //! The graph half is `nika_graph::project` VERBATIM — the same
-//! `graph_format: 1` document `nika inspect --format json` prints (spec
+//! `graph_format: 2` document `nika inspect --format json` prints (spec
 //! 03 §graph-projection), so a canvas webview, an agent over MCP and an
 //! editor extension all read one truth. The LSP adds a PRESENTATION
 //! wrapper only: per-task declaration ranges, so a client can link
@@ -95,7 +95,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
 mod tests {
     use super::*;
 
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n";
+    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: succeeded, c: succeeded }\n    exec: { command: [\"true\"] }\n";
 
     fn as_value(doc: &SemanticDocument) -> serde_json::Value {
         serde_json::to_value(doc).expect("payload serializes")
@@ -111,7 +111,7 @@ mod tests {
         let report = nika_schema::check(&wf);
         let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
         assert_eq!(doc["graph"], expected);
-        assert_eq!(doc["graph"]["graph_format"], 1, "in-payload version");
+        assert_eq!(doc["graph"]["graph_format"], 2, "in-payload version (W2)");
         assert_eq!(
             doc["graph"]["nodes"].as_array().map(Vec::len),
             Some(4),
@@ -136,7 +136,7 @@ mod tests {
     /// spans it could read.
     #[test]
     fn findings_yield_a_null_graph_not_an_error() {
-        let cyclic = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        let cyclic = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n";
         let doc = as_value(&semantic_document(cyclic));
         assert_eq!(doc["graph"], serde_json::Value::Null);
         assert_eq!(doc["reason"], "findings", "why, in one word");

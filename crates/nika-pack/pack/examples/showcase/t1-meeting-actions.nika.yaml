@@ -34,11 +34,12 @@ tasks:
       args: { path: "${{ vars.transcript_path }}" }
 
   extract:
-    depends_on: [transcript]
+    with:
+      transcript: ${{ tasks.transcript.output }}
     infer:
       prompt: |
         Extract every action item from this meeting transcript ·
-        ${{ tasks.transcript.output }}
+        ${{ with.transcript }}
       schema:                          # the contract the model must satisfy
         type: object
         required: [actions]
@@ -54,15 +55,17 @@ tasks:
                 due: { type: string }
 
   save:
-    depends_on: [extract]
+    with:
+      extract_actions: ${{ tasks.extract.output.actions }}
     invoke:
       tool: "nika:write"
       args:
         path: "./action-items.json"
-        content: "${{ tasks.extract.output.actions }}"
+        content: "${{ with.extract_actions }}"
 
   trace:
-    depends_on: [extract]
+    after:
+      extract: succeeded
     invoke:
       tool: "nika:log"
       args:

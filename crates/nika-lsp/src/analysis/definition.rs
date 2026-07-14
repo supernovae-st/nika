@@ -6,7 +6,7 @@
 //! When the cursor sits on a task REFERENCE, jump to the task DEFINITION
 //! (its `id`). Two reference shapes are resolved in v0.1 ·
 //!
-//! 1. a `depends_on:` list item (`depends_on: [extract]` → the `extract`
+//! 1. an `after:` target (`after: { extract: succeeded }` → the `extract`
 //!    task's id), resolved from the parser's own item spans.
 //! 2. a `tasks.<id>` chain inside a `${{ … }}` island (`${{
 //!    tasks.extract.output.summary }}` → the `extract` task's id),
@@ -37,8 +37,7 @@ pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
         return Some(Location::new(uri.clone(), token_range(&index, span, len)));
     }
     let id_spans = id_span_table(&wf);
-    let target_id =
-        depends_on_target(&wf, offset).or_else(|| template_task_target(text, offset))?;
+    let target_id = after_target(&wf, offset).or_else(|| template_task_target(text, offset))?;
     let (span, id_len) = id_spans.get(target_id.as_str())?;
     Some(Location::new(
         uri.clone(),
@@ -104,13 +103,13 @@ pub(crate) fn template_member_at(text: &str, offset: usize) -> Option<(&'static 
     None
 }
 
-/// The task referenced under `offset` (a `depends_on:` item or a
+/// The task referenced under `offset` (an `after:` target or a
 /// `${{ tasks.X }}` ref) as `(id, verb)`. Shared with [`hover`](super::hover)
 /// so it can show the target task's verb. `None` when the cursor is not on a
 /// resolvable reference or the source does not parse.
 pub(crate) fn referenced_task_at(text: &str, offset: usize) -> Option<(String, &'static str)> {
     let wf = parse(text, FileId::new(0), ParseMode::Lenient).ok()?;
-    let id = depends_on_target(&wf, offset).or_else(|| template_task_target(text, offset))?;
+    let id = after_target(&wf, offset).or_else(|| template_task_target(text, offset))?;
     let verb = wf
         .tasks
         .iter()
@@ -133,18 +132,18 @@ fn id_span_table(wf: &RawWorkflow) -> BTreeMap<String, (Span, usize)> {
         .collect()
 }
 
-/// If `offset` falls inside a `depends_on:` item, return the id it names.
+/// If `offset` falls inside an `after:` target, return the id it names.
 ///
 /// The parser emits POINT spans for flow-list scalars (`start == end`,
 /// anchored at the token start · see `check/mod.rs`'s own note). The span
 /// is widened to the value's byte length so the cursor resolves anywhere
 /// on the token, not only on its first byte.
-fn depends_on_target(wf: &RawWorkflow, offset: usize) -> Option<String> {
+fn after_target(wf: &RawWorkflow, offset: usize) -> Option<String> {
     let off = u32::try_from(offset).unwrap_or(u32::MAX);
     for task in &wf.tasks {
-        for dep in &task.value.depends_on {
-            if token_span_contains(dep.span, dep.value.len(), off) {
-                return Some(dep.value.clone());
+        for (target, _pred) in &task.value.after {
+            if token_span_contains(target.span, target.value.len(), off) {
+                return Some(target.value.clone());
             }
         }
     }
@@ -470,10 +469,10 @@ mod tests {
     }
 
     #[test]
-    fn depends_on_item_resolves_to_the_exact_full_id_range() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    depends_on: [extract]\n    exec: { command: [\"y\"] }\n";
-        // cursor on the `extract` inside depends_on
-        let dep_offset = yaml.rfind("extract").expect("dep ref") + 1;
+    fn after_target_resolves_to_the_exact_full_id_range() {
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: succeeded }\n    exec: { command: [\"y\"] }\n";
+        // cursor on the `extract` target inside the after: map
+        let dep_offset = yaml.rfind("extract").expect("after target") + 1;
         let loc = definition(&uri(), yaml, dep_offset).expect("resolves");
         // target is the FIRST `extract` (the id), widened to the WHOLE token:
         // the id starts at line 3 char 8 and is 7 bytes long → char 15.
@@ -491,16 +490,17 @@ mod tests {
     }
 
     #[test]
-    fn depends_on_resolves_anywhere_on_the_token_but_not_one_byte_outside() {
-        // The dep token is widened from the parser's POINT span. The cursor
-        // resolves on the FIRST byte through the LAST byte of `extract`, but
-        // NOT on the `[` one byte before nor the `]` one byte after.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    depends_on: [extract]\n    exec: { command: [\"y\"] }\n";
-        let tok = yaml.rfind("extract").expect("dep ref");
-        // one byte BEFORE the token (`[`): no resolution.
+    fn after_target_resolves_anywhere_on_the_token_but_not_one_byte_outside() {
+        // The target token is widened from the parser's POINT span. The
+        // cursor resolves on the FIRST byte through the LAST byte of
+        // `extract`, but NOT on the space one byte before nor the `:` one
+        // byte after.
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: succeeded }\n    exec: { command: [\"y\"] }\n";
+        let tok = yaml.rfind("extract").expect("after target");
+        // one byte BEFORE the token (the space after `{`): no resolution.
         assert!(
             definition(&uri(), yaml, tok - 1).is_none(),
-            "the `[` is outside"
+            "the space before the target is outside"
         );
         // the FIRST byte of the token: resolves.
         assert!(
@@ -512,17 +512,17 @@ mod tests {
             definition(&uri(), yaml, tok + "extract".len() - 1).is_some(),
             "last byte resolves"
         );
-        // one byte PAST the token (`]`): no resolution.
+        // one byte PAST the token (the `:`): no resolution.
         assert!(
             definition(&uri(), yaml, tok + "extract".len()).is_none(),
-            "the `]` just past the token is outside"
+            "the `:` just past the token is outside"
         );
     }
 
     #[test]
     fn template_tasks_ref_resolves_to_the_exact_full_id_range() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    depends_on: [extract]\n    exec: { command: [\"echo\", \"${{ tasks.extract.output }}\"] }\n";
-        // cursor inside `tasks.extract` in the template
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    with:\n      article: \"${{ tasks.extract.output }}\"\n    exec: { command: [\"echo\", \"${{ with.article }}\"] }\n";
+        // cursor inside `tasks.extract` in the binding's template
         let ref_at = yaml.find("tasks.extract").expect("tpl ref") + "tasks.ex".len();
         let loc = definition(&uri(), yaml, ref_at).expect("resolves");
         let index = LineIndex::new(yaml);
@@ -542,7 +542,7 @@ mod tests {
         // Two `${{ … }}` islands · the cursor in the SECOND island's
         // `tasks.b` resolves to `b` (the islands loop must continue past the
         // first island, and `find_close` must close each correctly).
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    exec: { command: [\"x\"] }\n  c:\n    depends_on: [a, b]\n    exec: { command: [\"${{ tasks.a }}\", \"and\", \"${{ tasks.b }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    exec: { command: [\"x\"] }\n  c:\n    with:\n      first: \"${{ tasks.a.output }}\"\n      second: \"${{ tasks.b.output }}\"\n    exec: { command: [\"x\"] }\n";
         let second = yaml.rfind("tasks.b").expect("2nd island ref") + "tasks.".len();
         let loc = definition(&uri(), yaml, second).expect("resolves in island 2");
         let index = LineIndex::new(yaml);
@@ -641,8 +641,8 @@ mod tests {
 
     #[test]
     fn ref_to_undefined_task_returns_none() {
-        // depends_on a ghost — no id span to jump to
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        // an `after:` entry naming a ghost — no id span to jump to
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
         let ghost_at = yaml.find("ghost").expect("ref") + 1;
         assert!(definition(&uri(), yaml, ghost_at).is_none());
     }

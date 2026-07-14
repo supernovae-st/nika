@@ -97,7 +97,8 @@ fn lint_carries_message_and_suggestion() {
         return;
     }
     // Engine-specific shape — the WARNING text itself (not spec
-    // surface · the corpus pins rule/task only).
+    // surface · the corpus pins rule/task only). W2 scenario: /010 —
+    // a non-tightening `after: terminal` beside a value edge.
     let yaml = "\
 nika: v1
 workflow:
@@ -106,17 +107,17 @@ tasks:
   a:
     exec: { command: [\"./a.sh\"] }
   b:
-    depends_on: [a]
-    when: \"${{ tasks.a.status == 'success' }}\"
-    exec: { command: [\"./b.sh\"] }
+    with: { v: \"${{ tasks.a.output }}\" }
+    after: { a: terminal }
+    exec: { command: [\"./b.sh\", \"${{ with.v }}\"] }
 ";
     let lints = lint(yaml);
     assert_eq!(lints.len(), 1);
     let l = &lints[0];
-    assert_eq!(l.rule, "one-obvious-way/001");
+    assert_eq!(l.rule, "one-obvious-way/010");
     assert!(!l.message.is_empty());
     assert!(!l.suggestion.is_empty());
-    assert!(l.suggestion.contains("depends_on"), "{}", l.suggestion);
+    assert!(l.suggestion.contains("succeeded"), "{}", l.suggestion);
 }
 
 // ── rule 008 · interpolated string command → use the array form ──────────
@@ -138,8 +139,8 @@ tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
   consume:
-    depends_on: [produce]
-    exec: { shell: \"process ${{ tasks.produce.output }}\" }
+    with: { out: \"${{ tasks.produce.output }}\" }
+    exec: { shell: \"process ${{ with.out }}\" }
 ";
     let eight = lints_008(yaml);
     assert_eq!(eight.len(), 1, "exactly one /008");
@@ -162,8 +163,8 @@ tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
   consume:
-    depends_on: [produce]
-    exec: { shell: \"cat ${{ tasks.produce.output }} | wc -l\" }
+    with: { out: \"${{ tasks.produce.output }}\" }
+    exec: { shell: \"cat ${{ with.out }} | wc -l\" }
 ";
     assert!(lints_008(yaml).is_empty(), "a real pipeline is not flagged");
 }
@@ -178,9 +179,9 @@ tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
   consume:
-    depends_on: [produce]
+    with: { out: \"${{ tasks.produce.output }}\" }
     exec:
-      command: [\"process\", \"${{ tasks.produce.output }}\"]
+      command: [\"process\", \"${{ with.out }}\"]
 ";
     assert!(
         lints_008(yaml).is_empty(),

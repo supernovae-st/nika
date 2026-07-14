@@ -41,7 +41,8 @@ tasks:
       command: ["echo", "ready"]
 
   think:
-    depends_on: [probe]
+    after:
+      probe: succeeded
     infer:
       prompt: "summarize the probe"
       max_tokens: 32

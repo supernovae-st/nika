@@ -414,14 +414,14 @@ tasks:
   crawl_site:
     exec: { command: ["curl", "-s", "https://acme.test", "-o", "out/site.html"] }
   upload_background:
-    depends_on: [crawl_site]
+    after: { crawl_site: succeeded }
     exec:
       command: ["node", "workflows/site/bin/helper.mjs", "upload", "--file", "out/bg.png"]
   render_background:
-    depends_on: [crawl_site]
+    after: { crawl_site: succeeded }
     exec: { command: ["curl", "-X", "POST", "https://api.openai.com/v1/images/generations"] }
   write_manifest:
-    depends_on: [upload_background, render_background]
+    after: { upload_background: succeeded, render_background: succeeded }
     exec: { shell: "jq -n '{done: true}' > out/manifest.json" }
 "#;
         let hints = hints_of(yaml);

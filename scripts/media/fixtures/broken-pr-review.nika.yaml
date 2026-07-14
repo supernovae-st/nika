@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # media fixture · deliberately BROKEN — the static-check-fix demo "before".
-# Two real defects: a task reads another task's output without depending on
-# it, and a typo'd task reference in the `when:` gate.
+# Two real defects: a task reads another task's output straight from its
+# verb body (outside the `with:` boundary), and a typo'd task reference in
+# the `with:` binding that feeds the `when:` gate.
 nika: v1
 workflow:
   id: pr-risk-review
@@ -25,9 +26,12 @@ tasks:
           risk: { type: string, enum: [low, medium, high] }
 
   comment:
-    when: "${{ tasks.asses.output.risk == 'high' }}"
+    with:
+      risk: ${{ tasks.asses.output.risk }}
+      assessment: ${{ tasks.assess.output }}
+    when: "${{ with.risk == 'high' }}"
     invoke:
       tool: "nika:write"
       args:
         path: "review.md"
-        content: "${{ tasks.assess.output }}"
+        content: "${{ with.assessment }}"

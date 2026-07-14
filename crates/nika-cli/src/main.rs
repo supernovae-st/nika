@@ -344,7 +344,7 @@ enum McpTransportArg {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum GraphFormatArg {
-    /// Canonical JSON projection (`graph_format: 1`).
+    /// Canonical JSON projection (`graph_format: 2`).
     Json,
     /// Mermaid flowchart.
     Mermaid,

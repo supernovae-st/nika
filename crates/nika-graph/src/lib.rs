@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The canonical graph projection — `graph_format: 1` (spec 03
-//! §graph-projection). ONE projector, every consumer: the CLI's
-//! `inspect --format json|mermaid|dot`, the LSP's
-//! `nika/semanticDocument`, and any future surface read THIS document.
-//! The envelope is versioned INSIDE the payload; evolution is additive
+//! The canonical graph projection — `graph_format: 2` (spec 03
+//! §graph-projection · W2 « the flow » · typed edges). ONE projector,
+//! every consumer: the CLI's `inspect --format json|mermaid|dot`, the
+//! LSP's `nika/semanticDocument`, and any future surface read THIS
+//! document. The edges are DERIVED from the Graph IR
+//! (`nika_schema::analyzer::edges` — the one computation the checker
+//! and the runtime gate also consume). Format 1 is dead (no producer ·
+//! no consumer · no fallback); within format 2, evolution is additive
 //! and spec-first (a new field lands in 03-dag first, then here).
 //!
 //! The source enums are `#[non_exhaustive]` upstream, so every match
@@ -25,16 +28,19 @@ use nika_schema::check::CheckReport;
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::{OnErrorAction, WhenGate};
 
-/// The versioned projection envelope (spec 03 §graph-projection · `graph_format: 1`).
+/// The versioned projection envelope (spec 03 §graph-projection · `graph_format: 2`).
 #[derive(Debug, Serialize)]
 pub struct GraphDoc {
-    /// Envelope version — additive evolution only.
+    /// Envelope version — additive evolution only within 2.
     pub graph_format: u32,
     /// Workflow id (kebab-case).
     pub workflow: String,
     /// Topologically sorted nodes (wave order · stable).
     pub nodes: Vec<Node>,
-    /// `depends_on` edges (the closed kind enum grows with the spec).
+    /// Typed edges (spec 03 · the CLOSED six-kind enum: value ·
+    /// terminal-observation · failure-observation · control · recovery ·
+    /// finally [reserved · no emission until cleanup units gain runtime
+    /// identity]).
     pub edges: Vec<Edge>,
 }
 
@@ -51,7 +57,8 @@ pub struct Node {
     /// Resolved `<provider>/<model>` (task override → workflow default).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// The `when:` gate (`"true"`/`"false"` literal or the CEL island).
+    /// The `when:` business condition (`"true"`/`"false"` literal or
+    /// the CEL island) — POST-gate, never the gate itself (spec 03).
     pub when: Option<String>,
     /// `for_each` fan-out, when present.
     pub fan_out: Option<FanOut>,
@@ -93,15 +100,24 @@ pub struct FanOut {
     pub count: Option<u64>,
 }
 
-/// One dependency edge.
+/// One typed edge (spec 03 §graph-projection · `graph_format: 2`).
 #[derive(Debug, Serialize)]
 pub struct Edge {
-    /// Upstream task id.
+    /// Producer task id.
     pub from: String,
-    /// Downstream task id.
+    /// Consumer task id.
     pub to: String,
-    /// Closed enum — `depends_on` today (spec 03 §graph-projection).
+    /// The CLOSED kind enum — `value` · `terminal-observation` ·
+    /// `failure-observation` · `control` · `recovery` (· `finally`
+    /// reserved).
     pub kind: &'static str,
+    /// The `after:` predicate (`succeeded` · `failed` · `skipped` ·
+    /// `terminal`) — control edges only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predicate: Option<&'static str>,
+    /// The `with:` key that created a data/observation edge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding: Option<String>,
 }
 
 /// Project a checked workflow into the canonical graph document.
@@ -177,27 +193,70 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
         }
     }
 
-    let mut edges = Vec::new();
-    for task in &wf.tasks {
-        for dep in &task.value.depends_on {
-            edges.push(Edge {
-                from: dep.value.clone(),
-                to: task.value.id.value.clone(),
-                kind: "depends_on",
-            });
-        }
-    }
-    // Stable edge order: by (from, to) — independent of authoring order.
-    // Then dedup: `depends_on: [x, x]` must not lie about cardinality.
-    edges.sort_by(|a, b| (&a.from, &a.to).cmp(&(&b.from, &b.to)));
-    edges.dedup_by(|a, b| a.from == b.from && a.to == b.to);
-
     GraphDoc {
-        graph_format: 1,
+        graph_format: 2,
         workflow,
         nodes,
-        edges,
+        edges: typed_edges(wf),
     }
+}
+
+/// The typed edges — the SAME derivation the checker and the runtime
+/// gate consume (one-truth · spec 03 §the four graphs), plus the
+/// recovery reads (`E_r` · parking · never scheduling · spec 05).
+/// Stable order (from · to · kind · binding · predicate) · exact
+/// duplicates collapse (a twice-written identical reference adds
+/// nothing the gate reads).
+fn typed_edges(wf: &RawWorkflow) -> Vec<Edge> {
+    let ids: std::collections::BTreeMap<String, usize> = wf
+        .tasks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.value.id.value.clone(), i))
+        .collect();
+    let id_of = |ix: usize| wf.tasks[ix].value.id.value.clone();
+    let mut edges: Vec<Edge> = nika_schema::analyzer::edges::derive_edges(&wf.tasks, &ids)
+        .into_iter()
+        .map(|e| Edge {
+            from: id_of(e.from),
+            to: id_of(e.to),
+            kind: e.kind.wire_kind(),
+            predicate: match e.kind {
+                nika_schema::analyzer::EdgeKind::Control(p) => Some(p.as_str()),
+                _ => None,
+            },
+            binding: e.binding,
+        })
+        .collect();
+    edges.extend(
+        nika_schema::analyzer::edges::derive_recovery_reads(&wf.tasks, &ids)
+            .into_iter()
+            .map(|r| Edge {
+                from: id_of(r.from),
+                to: id_of(r.to),
+                kind: "recovery",
+                predicate: None,
+                binding: None,
+            }),
+    );
+    edges.sort_by(|a, b| {
+        (&a.from, &a.to, a.kind, &a.binding, a.predicate).cmp(&(
+            &b.from,
+            &b.to,
+            b.kind,
+            &b.binding,
+            b.predicate,
+        ))
+    });
+    edges.dedup_by(|a, b| {
+        a.from == b.from
+            && a.to == b.to
+            && a.kind == b.kind
+            && a.binding == b.binding
+            && a.predicate == b.predicate
+    });
+
+    edges
 }
 
 /// (verb, tool, resolved model) for one action.
@@ -237,6 +296,9 @@ fn action_facts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// One flattened edge row (from · to · kind · predicate · binding).
+    type Row<'a> = (&'a str, &'a str, &'a str, Option<&'a str>, Option<&'a str>);
     use nika_schema::{FileId, ParseMode, parse};
 
     fn doc(yaml: &str) -> GraphDoc {
@@ -252,21 +314,51 @@ mod tests {
     #[test]
     fn nodes_are_wave_ordered_regardless_of_authoring_order() {
         let g = doc(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  d:\n    with:\n      b: \"${{ tasks.b.output }}\"\n      c: \"${{ tasks.c.output }}\"\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
         );
-        assert_eq!(g.graph_format, 1);
+        assert_eq!(g.graph_format, 2);
         let ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
         assert_eq!(ids[0], "a", "wave 1 first: {ids:?}");
         assert_eq!(ids[3], "d", "the join lands last: {ids:?}");
     }
 
-    /// Edges are (from, to)-sorted and DEDUPED — `depends_on: [a, a]`
-    /// must not lie about cardinality, and the order is independent of
-    /// authoring order (stable diffs for every consumer).
+    /// Edges carry their ROLE: a value binding · a control predicate ·
+    /// a recovery read — sorted, exact duplicates collapsed.
+    #[test]
+    fn edges_carry_kind_predicate_and_binding() {
+        let g = doc(
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: terminal }\n    with:\n      st: \"${{ tasks.a.status }}\"\n    exec: { command: [\"true\"] }\n  c:\n    exec: { command: [\"true\"] }\n    on_error:\n      recover: \"${{ tasks.a.output }}\"\n",
+        );
+        let rows: Vec<Row<'_>> = g
+            .edges
+            .iter()
+            .map(|e| {
+                (
+                    e.from.as_str(),
+                    e.to.as_str(),
+                    e.kind,
+                    e.predicate,
+                    e.binding.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("a", "b", "control", Some("terminal"), None),
+                ("a", "b", "terminal-observation", None, Some("st")),
+                ("a", "c", "recovery", None, None),
+            ],
+            "typed · sorted · the roles compose: {rows:?}"
+        );
+    }
+
+    /// A twice-written identical reference collapses — the wire never
+    /// lies about cardinality (same law the W1 dedup had).
     #[test]
     fn edges_are_sorted_and_deduped() {
         let g = doc(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a, a]\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with:\n      x: \"${{ tasks.a.output }} and ${{ tasks.a.output }}\"\n    exec: { command: [\"true\"] }\n",
         );
         let pairs: Vec<(&str, &str)> = g
             .edges
@@ -274,7 +366,7 @@ mod tests {
             .map(|e| (e.from.as_str(), e.to.as_str()))
             .collect();
         assert_eq!(pairs, vec![("a", "b")], "deduped: {pairs:?}");
-        assert!(g.edges.iter().all(|e| e.kind == "depends_on"));
+        assert!(g.edges.iter().all(|e| e.kind == "value"));
     }
 
     /// The static facts ride the node: verb · resolved model (task

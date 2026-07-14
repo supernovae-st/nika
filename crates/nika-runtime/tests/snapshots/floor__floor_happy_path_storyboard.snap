@@ -1,6 +1,5 @@
 ---
 source: crates/nika-runtime/tests/floor.rs
-assertion_line: 243
 expression: lines
 ---
 - "WorkflowStarted ·  · "
@@ -20,5 +19,5 @@ expression: lines
 - TaskCompleted · think · infer · mock/echo
 - "TaskStarted · write_out · invoke · nika:write"
 - "TaskCompleted · write_out · invoke · nika:write"
-- "TaskSkipped · notify · when: gate closed"
+- "TaskSkipped · notify · when: closed (post-gate)"
 - "WorkflowCompleted ·  · "

@@ -26,7 +26,8 @@ tasks:
         traverse: { max_pages: 5 }  # SLOT: crawl bound · 1..=25 (robots honored)
 
   brief:
-    depends_on: [crawl_site]
+    with:
+      crawl_site: ${{ tasks.crawl_site.output }}
     infer:
       max_tokens: 1200
       prompt: |
@@ -34,7 +35,7 @@ tasks:
         From this site crawl, produce a creative brief: the domain of
         activity, the dominant visual theme, the audience, the usable
         colors and image assets.
-        Crawl digest · ${{ tasks.crawl_site.output }}
+        Crawl digest · ${{ with.crawl_site }}
       schema:                       # SLOT: the typed shape downstream tasks rely on
         type: object
         additionalProperties: false
@@ -47,13 +48,14 @@ tasks:
         required: [domain, theme, audience, colors, assets]
 
   persist:
-    depends_on: [brief]
+    with:
+      brief: ${{ tasks.brief.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "${{ vars.out_path }}"
         create_dirs: true
-        content: "${{ tasks.brief.output }}"   # ALWAYS pass content
+        content: "${{ with.brief }}"   # ALWAYS pass content
 
 outputs:
   brief: ${{ tasks.brief.output }}   # SLOT: the callable contract

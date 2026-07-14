@@ -43,7 +43,7 @@ Standards work · SQL · GraphQL · OpenAPI · Dockerfile · GitHub Actions YAML
 
 2.  THE 4 VERBS     infer:  exec:  invoke:  agent:
 
-3.  DAG SHAPE       tasks · depends_on · when · for_each · output binding
+3.  DAG SHAPE       tasks · with (data edges) · after (control) · when · for_each
 
 4.  VARIABLES       ${{ ... }} = CEL · ONE syntax · 5 namespaces
                     vars · with · tasks · env · secrets
@@ -126,14 +126,12 @@ tasks:
         mode: article          # readability extraction
 
   summarize:
-    depends_on: [fetch_page]
     with:
-      content: ${{ tasks.fetch_page.output }}
+      content: ${{ tasks.fetch_page.output }}    # the binding IS the edge
     infer:
       prompt: "Summarize in 3 bullets · ${{ with.content }}"
 
   write_file:
-    depends_on: [summarize]
     with:
       summary: ${{ tasks.summarize.output }}
     invoke:
@@ -146,7 +144,7 @@ outputs:                              # what the workflow returns · symmetric t
   summary: ${{ tasks.summarize.output }}
 ```
 
-3 tasks · DAG with deps · 2 verbs (`invoke:` ×2 incl `nika:fetch` · `infer:`) · variable substitution + task output reference · an `outputs:` return contract. Note each task that references `${{ tasks.X.output }}` also lists `X` in `depends_on:`. That pairing is **required** (`NIKA-DAG-003` · the engine never infers the edge). The 4th verb, `agent:` (an agentic loop · may declare a `schema:`), is shown in [examples/](../examples/).
+3 tasks · 2 verbs (`invoke:` ×2 incl `nika:fetch` · `infer:`) · variable substitution + an `outputs:` return contract. Note the graph is DERIVED: each `with:` binding that references `${{ tasks.X.* }}` IS a typed edge — data and its dependency are one declaration, no invisible edges ([03](./03-dag.md)). The 4th verb, `agent:` (an agentic loop · may declare a `schema:`), is shown in [examples/](../examples/).
 
 ---
 
@@ -156,7 +154,7 @@ outputs:                              # what the workflow returns · symmetric t
 |---|---|
 | [01 envelope](./01-envelope.md) | The header · `nika: v1` · `workflow:` · typed `vars` · `env` · `secrets` |
 | [02 verbs](./02-verbs.md) | The 4 verbs · signatures · semantics |
-| [03 DAG](./03-dag.md) | Tasks · `depends_on` · `when` · `for_each` · output binding |
+| [03 DAG](./03-dag.md) | Tasks · `with:` data edges · `after:` control · `when` · `for_each` · the four graphs |
 | [04 variables](./04-variables.md) | `${{ vars · with · tasks · env · secrets }}` · <!-- canon:namespaces -->5<!-- /canon --> namespaces |
 | [05 errors](./05-errors.md) | Error codes · retry · structured output schemas |
 | [06 stdlib contract](./06-stdlib-contract.md) | How the stdlib versions independently |

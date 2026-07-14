@@ -30,13 +30,14 @@ tasks:
           steps: { type: array, items: { type: string } }
 
   execute:
-    depends_on: [plan]
+    with:
+      steps: ${{ tasks.plan.output.steps }}
     agent:
       # The done-contract belongs IN the prompt: the final message must
       # carry the schema'd shape, so SAY so — a live model that is not
       # told finishes in prose and fails NIKA-INFER-002 (proven on GPT).
       system: "Work the plan step by step. When finished, reply with ONLY your final result as an object carrying a `findings` array (one short string each), then call nika:done."   # SLOT
-      prompt: "Plan · ${{ tasks.plan.output.steps }}"
+      prompt: "Plan · ${{ with.steps }}"
       tools:                        # SLOT: the MINIMUM grant for the job
         - "nika:read"
         - "nika:done"
@@ -49,11 +50,12 @@ tasks:
           findings: { type: array, items: { type: string } }
 
   confirm:
-    depends_on: [execute]
+    with:
+      has_findings: ${{ size(tasks.execute.output.findings) > 0 }}   # the check crosses as ONE boundary expression
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ size(tasks.execute.output.findings) > 0 }}"
+        condition: "${{ with.has_findings }}"
         message: "Agent returned no findings, do not trust an empty run"   # SLOT
 
 outputs:

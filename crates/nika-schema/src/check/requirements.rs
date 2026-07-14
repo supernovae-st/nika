@@ -233,11 +233,11 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://api.example.com/${{ env.GITHUB_ORG }}" }
   digest:
-    depends_on: [fetch]
+    after: { fetch: succeeded }
     infer:
       prompt: "Summarize for ${{ env.REGION }}"
   local_pass:
-    depends_on: [fetch]
+    after: { fetch: succeeded }
     for_each: "${{ env.SHARDS }}"
     on_finally:
       - exec: { command: ["echo", "${{ env.CLEANUP_FLAG }}"] }

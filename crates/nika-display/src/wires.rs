@@ -45,7 +45,8 @@ pub type LiveProbe<'a> = &'a dyn Fn(&str) -> bool;
 pub struct WireGraph {
     /// (task id · verb) per wave, wave-major (projection order).
     pub waves: Vec<Vec<(String, String)>>,
-    /// `depends_on` edges (from · to) by id.
+    /// Precedence edges (from · to) by id — `with:` bindings ∪ `after:`
+    /// entries, as the caller's projection derived them.
     pub edges: Vec<(String, String)>,
 }
 

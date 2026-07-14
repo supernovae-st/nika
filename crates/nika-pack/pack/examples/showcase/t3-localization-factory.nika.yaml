@@ -35,24 +35,28 @@ tasks:
         exclude: ["**/node_modules/**"]
 
   texts:
-    depends_on: [files]
-    for_each: ${{ tasks.files.output }}
+    with:
+      files: ${{ tasks.files.output }}
+    for_each: ${{ with.files }}
     max_parallel: 8
     invoke:
       tool: "nika:read"
       args: { path: "${{ item }}" }
 
   pairs:
-    depends_on: [files, texts]
+    with:
+      files: ${{ tasks.files.output }}
+      texts: ${{ tasks.texts.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: ["${{ tasks.files.output }}", "${{ tasks.texts.output }}"]
+        input: ["${{ with.files }}", "${{ with.texts }}"]
         expression: "transpose | map({path: .[0], text: .[1]})"
 
   translated:
-    depends_on: [pairs]
-    for_each: ${{ tasks.pairs.output }}
+    with:
+      pairs: ${{ tasks.pairs.output }}
+    for_each: ${{ with.pairs }}
     max_parallel: 3                    # rate-limit the provider
     fail_fast: false                   # finish the batch · a failed file yields null at its index
     on_error:
@@ -64,16 +68,19 @@ tasks:
         ${{ item.text }}
 
   bundle:
-    depends_on: [pairs, translated]
+    with:
+      pairs: ${{ tasks.pairs.output }}
+      translated: ${{ tasks.translated.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: ["${{ tasks.pairs.output }}", "${{ tasks.translated.output }}"]
+        input: ["${{ with.pairs }}", "${{ with.translated }}"]
         expression: "transpose | map(select(.[1] != null)) | map({path: .[0].path, text: .[1]})"
 
   mirror:
-    depends_on: [bundle]
-    for_each: ${{ tasks.bundle.output }}
+    with:
+      bundle: ${{ tasks.bundle.output }}
+    for_each: ${{ with.bundle }}
     max_parallel: 8
     invoke:
       tool: "nika:write"

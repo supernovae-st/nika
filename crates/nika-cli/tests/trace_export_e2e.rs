@@ -23,8 +23,9 @@ tasks:
     exec:
       command: ["sleep", "0.3"]
   gated:
-    depends_on: [seed]
-    when: "${{ tasks.seed.status == 'failure' }}"
+    with:
+      seed_status: ${{ tasks.seed.status }}
+    when: "${{ with.seed_status == 'failure' }}"
     exec:
       command: ["true"]
 "#,
@@ -123,7 +124,9 @@ fn export_projects_the_real_journal_with_true_durations() {
         when["value"]["stringValue"]
             .as_str()
             .unwrap()
-            .contains("tasks.seed.status")
+            .contains("with.seed_status"),
+        "the recorded when: carries the author's LOCAL read (the status \
+         itself crossed the boundary as a with: binding)"
     );
 }
 

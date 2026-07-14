@@ -18,7 +18,7 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
 - Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
-- `depends_on` is always an array: `depends_on: [task_id]`.
+- Edges are the two doors: a `with:` binding IS the data edge (never restate it) · `after: { task_id: succeeded|failed|skipped|terminal }` is pure control. `depends_on` is dead (NIKA-PARSE-024 · `nika check --fix` migrates).
 - Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
 - After every edit, run `nika check <file>` — `--fix` heals the mechanical
   renames, the diagnostics teach the rest.

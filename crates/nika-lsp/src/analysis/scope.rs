@@ -31,6 +31,61 @@ pub(super) fn current_task_id(text: &str, offset: usize) -> Option<String> {
 /// DAG-004 no-downstream law binds. Line-based like the rest of v0.1
 /// (a multi-line block-scalar recover value is out of this heuristic's
 /// reach — silence there, never a wrong set).
+/// Whether `offset` sits inside the ENCLOSING task-level block named
+/// `key` (`with:` · `after:` · `on_finally:`) — an upward line walk
+/// from the cursor: the nearest shallower-indented block head before
+/// the task boundary decides. Value positions (islands · flow scalars)
+/// resolve correctly where a bare-key detector cannot (the lane-router
+/// fix the 199-test migration pinned).
+pub(super) fn in_task_block(text: &str, offset: usize, key: &str) -> bool {
+    let upto = text.get(..offset).unwrap_or("");
+    let cursor_line_start = upto.rfind('\n').map_or(0, |i| i + 1);
+    let cursor_indent = {
+        let line = upto.get(cursor_line_start..).unwrap_or("");
+        let full = text.get(cursor_line_start..).unwrap_or("");
+        let l = full.split('\n').next().unwrap_or(line);
+        l.len() - l.trim_start().len()
+    };
+    // same-line head (`with: ${{ tasks. …` · flow forms)
+    let cursor_line = text
+        .get(cursor_line_start..)
+        .unwrap_or("")
+        .split('\n')
+        .next()
+        .unwrap_or("");
+    if cursor_line
+        .trim_start()
+        .strip_prefix(key)
+        .is_some_and(|rest| rest.starts_with(':'))
+    {
+        return true;
+    }
+    let mut min_indent = cursor_indent;
+    for line in upto[..cursor_line_start].split('\n').rev() {
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        if indent >= min_indent && min_indent > 0 {
+            continue; // deeper or sibling content — keep climbing
+        }
+        min_indent = indent;
+        if is_task_boundary(line) || indent == 0 {
+            return false; // reached the task key (or top level) first
+        }
+        let head = line.trim_start().split('#').next().unwrap_or("").trim_end();
+        if let Some(name) = head.strip_suffix(':')
+            && !name.is_empty()
+            && name == key
+        {
+            return true;
+        }
+        // else: an intermediate block head (an `on_finally:` mini-task key ·
+        // a nested map) or a key with an inline value — climb past it.
+    }
+    false
+}
+
 pub(super) fn in_recover_value(text: &str, offset: usize) -> bool {
     let upto = text.get(..offset).unwrap_or("");
     let line_start = upto.rfind('\n').map_or(0, |i| i + 1);

@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn diagnose_broken_workflow_yields_an_error() {
         let doc = Document::new(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n",
         );
         let diags = diagnose(&doc);
         assert!(
@@ -627,8 +627,8 @@ mod tests {
             &mut docs,
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n",
         );
-        // change to a BROKEN workflow (depends on a ghost) → an error diag.
-        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        // change to a BROKEN workflow (waits on a ghost) → an error diag.
+        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
         handle_notification(&server, change_note(broken), &mut docs).expect("handled");
         assert_eq!(
             docs.get(uri_key(&uri())).map(Document::text),
@@ -986,11 +986,12 @@ mod canary {
             .expect("initialized");
 
         // 1) A broken workflow → a NIKA-* error diagnostic published.
-        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
         did_open(&client, broken);
 
-        // 2) A clean workflow with a verb, a dependency and a template ref.
-        let hello = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    depends_on: [greet]\n    exec: { command: [\"echo\", \"${{ tasks.greet.output }}\"] }\n";
+        // 2) A clean workflow with a verb, an `after:` entry and a
+        //    template ref riding a `with:` binding (the W2 doors).
+        let hello = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    after: { greet: succeeded }\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
         let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);
@@ -1011,7 +1012,12 @@ mod canary {
         let (diags, responses) = run_server_and_drain(server, &client);
 
         // --- assertions ---
-        // a NIKA-* diagnostic was published for the broken workflow
+        assert_broken_diagnostics(&diags);
+        assert_query_replies(&responses);
+    }
+
+    /// A NIKA-* error diagnostic was published for the broken workflow.
+    fn assert_broken_diagnostics(diags: &[PublishDiagnosticsParams]) {
         let broken_diags = diags
             .iter()
             .find(|d| d.uri == uri())
@@ -1024,7 +1030,11 @@ mod canary {
             "a NIKA-* code was published: {:?}",
             broken_diags.diagnostics
         );
+    }
 
+    /// Assert every queued reply (10-16): hover · symbols · definition ·
+    /// completion · prepareRename · rename edit · rename refusal.
+    fn assert_query_replies(responses: &[Response]) {
         let response = |id: i32| {
             responses
                 .iter()
@@ -1037,7 +1047,7 @@ mod canary {
         // documentSymbol returns the workflow outline with the task
         let symbols = response(11).result.clone().expect("symbols result");
         assert!(symbols.to_string().contains("greet"), "symbols: {symbols}");
-        // definition resolves the depends_on ref to a Location
+        // definition resolves the island ref to a Location
         let def = response(12).result.clone().expect("definition result");
         assert!(def.to_string().contains("hello.nika.yaml"), "def: {def}");
         // completion offers providers at the model value
@@ -1056,7 +1066,7 @@ mod canary {
         assert_eq!(
             ws_str.matches("salute").count(),
             3,
-            "key + depends_on + island ref — three edits: {ws_str}"
+            "key + after entry + island ref — three edits: {ws_str}"
         );
         // an invalid new name is a request ERROR carrying the teaching
         let refusal = response(16);

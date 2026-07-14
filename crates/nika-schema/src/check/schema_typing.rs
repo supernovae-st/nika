@@ -429,10 +429,11 @@ mod tests {
         assert_eq!(bare_vars_reference("prefix ${{ vars.x }}"), None); // surrounding text
     }
 
-    /// An infer task with a 2-field object schema, consumed by `use_it`.
+    /// An infer task with a 2-field object schema, consumed by `use_it`
+    /// through its `with:` boundary (where deep refs live in W2).
     fn schema_wf(consumer_expr: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: {{ type: string }}\n          tags:\n            type: array\n            items:\n              type: object\n              properties:\n                name: {{ type: string }}\n        required: [summary]\n  use_it:\n    depends_on: [extract]\n    exec: {{ shell: \"echo {consumer_expr}\" }}\n"
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: {{ type: string }}\n          tags:\n            type: array\n            items:\n              type: object\n              properties:\n                name: {{ type: string }}\n        required: [summary]\n  use_it:\n    with: {{ src: \"{consumer_expr}\" }}\n    exec: {{ shell: \"echo ${{{{ with.src }}}}\" }}\n"
         )
     }
 
@@ -473,13 +474,13 @@ mod tests {
 
     #[test]
     fn unshaped_task_is_opaque() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"date\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output.whatever }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"date\"] }\n  b:\n    with: { w: \"${{ tasks.a.output.whatever }}\" }\n    exec: { command: [\"echo\", \"${{ with.w }}\"] }\n";
         assert!(findings_of(yaml).is_empty(), "no schema → no claim");
     }
 
     #[test]
     fn explicitly_open_schema_is_opaque() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: true\n        properties:\n          known: { type: string }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output.unknown_key }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: true\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
         assert!(findings_of(yaml).is_empty(), "explicit opt-out honored");
     }
 
@@ -491,7 +492,7 @@ mod tests {
         // unknown key must NOT be flagged. This pins the
         // `Some(Value::Object(_)) => true` arm of `is_open_object`, which
         // the Bool-form test above does not exercise.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: { type: string }\n        properties:\n          known: { type: string }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output.unknown_key }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: { type: string }\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
         assert!(
             findings_of(yaml).is_empty(),
             "a value-schema additionalProperties opens the object → no finding"
@@ -500,7 +501,7 @@ mod tests {
         // Control: with additionalProperties ABSENT, the same unknown key
         // IS flagged — proving the open-object arm is what suppresses it
         // (so deleting that arm becomes observable as a spurious finding).
-        let closed = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          known: { type: string }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output.unknown_key }}\"] }\n";
+        let closed = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
         let f = findings_of(closed);
         assert_eq!(f.len(), 1, "closed object flags the unknown key");
         assert!(f[0].detail.contains("known"), "lists the real key");
@@ -508,7 +509,7 @@ mod tests {
 
     #[test]
     fn output_bindings_rebind_the_address_space() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"cat\", \"data.json\"] }\n    output:\n      first: \". | .[0]\"\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output.first }}\", \"${{ tasks.a.output.frist }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"cat\", \"data.json\"] }\n    output:\n      first: \". | .[0]\"\n  b:\n    with:\n      ok: \"${{ tasks.a.output.first }}\"\n      typo: \"${{ tasks.a.output.frist }}\"\n    exec: { command: [\"echo\", \"${{ with.ok }}\", \"${{ with.typo }}\"] }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1, "first ok, frist flagged");
         assert!(f[0].detail.contains("first"), "lists bindings");
@@ -516,8 +517,9 @@ mod tests {
 
     #[test]
     fn prompt_interpolation_is_checked() {
-        // The wow case — a typo inside an infer PROMPT caught statically.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: { type: string }\n  report:\n    depends_on: [extract]\n    infer: { prompt: \"report on ${{ tasks.extract.output.sumary }}\", max_tokens: 50 }\n";
+        // The wow case — a typo'd deep ref feeding an infer PROMPT is
+        // caught statically at the boundary that imports it.
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: { type: string }\n  report:\n    with: { s: \"${{ tasks.extract.output.sumary }}\" }\n    infer: { prompt: \"report on ${{ with.s }}\", max_tokens: 50 }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].site, "report");
@@ -534,7 +536,7 @@ mod tests {
 
     #[test]
     fn any_of_admits_when_one_branch_matches() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        anyOf:\n          - type: object\n            properties:\n              left: { type: string }\n          - type: object\n            properties:\n              right: { type: string }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output.left }}\", \"${{ tasks.a.output.neither }}\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        anyOf:\n          - type: object\n            properties:\n              left: { type: string }\n          - type: object\n            properties:\n              right: { type: string }\n  b:\n    with:\n      l: \"${{ tasks.a.output.left }}\"\n      n: \"${{ tasks.a.output.neither }}\"\n    exec: { command: [\"echo\", \"${{ with.l }}\", \"${{ with.n }}\"] }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1, "left admits, neither fails all branches");
         assert!(f[0].reference.ends_with("neither"));

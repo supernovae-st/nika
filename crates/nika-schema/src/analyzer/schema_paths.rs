@@ -621,8 +621,9 @@ mod tests {
         // is reached through the real scan pipeline — replacing its body
         // with `()` makes the OutputPathProvablyInvalid finding vanish.
         // The producer declares a closed schema (`additionalProperties:
-        // false` · `properties` omits `nope`); the consumer references
-        // `tasks.prod.output.nope` (with the required depends_on edge).
+        // false` · `properties` omits `nope`); the consumer imports
+        // `tasks.prod.output.nope` through `with:` (the binding is the
+        // edge — and the boundary is where the path is judged).
         let yaml = "\
 nika: v1
 workflow:
@@ -637,9 +638,9 @@ tasks:
         properties:
           entities: { type: array }
   cons:
-    depends_on: [prod]
+    with: { x: \"${{ tasks.prod.output.nope }}\" }
     infer:
-      prompt: \"use ${{ tasks.prod.output.nope }}\"
+      prompt: \"use ${{ with.x }}\"
 ";
         let wf = crate::parser::parse(
             yaml,

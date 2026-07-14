@@ -153,14 +153,19 @@ fn error_codes_registry_parses_typed_and_complete() {
         .expect("canon declares error_codes.count");
     assert_eq!(rows.len(), declared, "parsed rows vs the canon's own count");
 
-    // Spot-pin one row fully (the beginner's #1 error).
-    let dag3 = rows
+    // Spot-pin one row fully (the beginner's #1 error in W2 — the dead
+    // depends_on teaching; DAG-003 is RETIRED and must NOT resurface).
+    let p24 = rows
         .iter()
-        .find(|r| r.code == "NIKA-DAG-003")
-        .expect("NIKA-DAG-003 row");
-    assert_eq!(dag3.category, "validation_error");
-    assert_eq!(dag3.transient, "false");
-    assert!(dag3.failure.len() > 10);
+        .find(|r| r.code == "NIKA-PARSE-024")
+        .expect("NIKA-PARSE-024 row");
+    assert_eq!(p24.category, "validation_error");
+    assert_eq!(p24.transient, "false");
+    assert!(p24.failure.len() > 10);
+    assert!(
+        !rows.iter().any(|r| r.code == "NIKA-DAG-003"),
+        "NIKA-DAG-003 is retired-never-reuse — a row means the canon regressed"
+    );
 
     // Every row is well-formed + the escape-free invariant the anchored
     // parse relies on (an escaped quote would silently truncate).

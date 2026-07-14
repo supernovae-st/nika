@@ -1,7 +1,9 @@
 pub mod nika_graph
 pub struct nika_graph::Edge
+pub nika_graph::Edge::binding: core::option::Option<alloc::string::String>
 pub nika_graph::Edge::from: alloc::string::String
 pub nika_graph::Edge::kind: &'static str
+pub nika_graph::Edge::predicate: core::option::Option<&'static str>
 pub nika_graph::Edge::to: alloc::string::String
 impl core::fmt::Debug for nika_graph::Edge
 pub fn nika_graph::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

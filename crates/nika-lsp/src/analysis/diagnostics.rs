@@ -308,8 +308,9 @@ mod tests {
 
     #[test]
     fn unknown_dep_yields_dag002_error_with_span() {
-        // depends_on a ghost task — NIKA-DAG-002, carries a span.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        // an `after:` entry naming a ghost task — NIKA-DAG-002, carries
+        // a span on the target token.
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
         let diags = diags_of(yaml);
         let dag = diags
             .iter()
@@ -370,7 +371,9 @@ mod tests {
         // finding renders with the EXACT gate code (not the generic
         // NIKA-DAG-GATE fallback, not an empty/garbage string), ERROR
         // severity, the `nika` source, and a span on the `when:` expression.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && tasks.a.status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
+        // W2 form: the status observation crosses the boundary through a
+        // `with:` binding; the gate reads the LOCAL alias.
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'success' && with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let dead = diags
             .iter()
@@ -395,10 +398,11 @@ mod tests {
 
     #[test]
     fn bad_status_literal_gate_uses_the_nika_dag_status_code() {
-        // `!= 'failed'` flags the wrong status literal — a BadStatusLiteral
+        // `== 'failed'` flags the wrong status literal — a BadStatusLiteral
         // gate finding with its OWN code (deleting the match arm would
-        // degrade it to the generic NIKA-DAG-GATE fallback).
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.status != 'failed' }}\n    exec: { command: [\"true\"] }\n";
+        // degrade it to the generic NIKA-DAG-GATE fallback). W2 form: the
+        // observation crosses through `with:`, the gate reads the alias.
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'failed' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let bad = diags
             .iter()

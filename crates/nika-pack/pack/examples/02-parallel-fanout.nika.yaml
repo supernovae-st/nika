@@ -5,7 +5,7 @@
 #
 # Demonstrates ·
 #   - implicit parallelism · three tasks with no deps between them run concurrently
-#   - `depends_on:` · the merge task waits for all three
+#   - `with:` value edges · the merge task waits for all three
 #   - `${{ tasks.X.output }}` · referencing upstream outputs
 #   - `with:` · aliasing upstream outputs to short local names for a readable prompt
 #
@@ -39,7 +39,6 @@ tasks:
 
   # Merge · runs only after all three complete.
   synthesize:
-    depends_on: [angle, cost, risk]
     with:
       a: ${{ tasks.angle.output }}
       c: ${{ tasks.cost.output }}

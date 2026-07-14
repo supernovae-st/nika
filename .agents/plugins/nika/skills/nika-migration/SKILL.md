@@ -37,7 +37,8 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | `if <condition>` | a `when:` gate |
 | `$1`, `$ENV_VAR` parameters | `vars:` + `--var key=value` · `${{ env.KEY }}` |
 | `API_KEY=…` literals | `${{ secrets.X }}` + `secrets:` block with its `egress:` sink |
-| step B reads step A's output | `${{ tasks.A.output }}` + `depends_on: [A]` |
+| step B reads step A's output | `with: { a: ${{ tasks.A.output }} }` on B — the binding IS the edge — then `${{ with.a }}` in the body |
+| step B only waits for step A (no data) | `after: { A: succeeded }` (`terminal` for cleanup/notify paths) |
 | the irreversible step (deploy, send, publish) | a confirm gate before it (`nika:prompt`) — human answers at run time |
 | what no builtin/MCP covers (git, build tools) | `exec:` + a row in the exec ledger |
 

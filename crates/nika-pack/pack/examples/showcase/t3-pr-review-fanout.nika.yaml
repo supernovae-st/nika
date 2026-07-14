@@ -35,11 +35,12 @@ tasks:
       command: ["git", "diff", "--name-only", "${{ vars.base_ref }}...HEAD"]
 
   files:
-    depends_on: [changed]
+    with:
+      changed: ${{ tasks.changed.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.changed.output }}"
+        input: "${{ with.changed }}"
         expression: 'split("\n") | map(select(length > 0))'
 
   todo_sweep:
@@ -50,8 +51,9 @@ tasks:
         path: "./src"
 
   reviews:
-    depends_on: [files]
-    for_each: ${{ tasks.files.output }}
+    with:
+      files: ${{ tasks.files.output }}
+    for_each: ${{ with.files }}
     max_parallel: 4
     fail_fast: false
     on_error:
@@ -80,32 +82,36 @@ tasks:
                 line: { type: integer }
 
   merged:
-    depends_on: [reviews]
+    with:
+      reviews: ${{ tasks.reviews.output }}
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ tasks.reviews.output }}"
+        input: "${{ with.reviews }}"
         # `. // []` · a clean diff SKIPS the swarm (empty for_each → null
         # upstream) and the fan-in must survive its own good news.
         expression: '(. // []) | map(select(. != null)) | map(.findings[] + {file: .file}) | sort_by(.severity)'
 
   summary:
-    depends_on: [merged, todo_sweep]
+    with:
+      merged: ${{ tasks.merged.output }}
+      todo_sweep: ${{ tasks.todo_sweep.output }}
     infer:
       prompt: |
         Merge these review findings into REVIEW.md · blockers first ·
-        ${{ tasks.merged.output }}
+        ${{ with.merged }}
         Open TODO debt found by grep ·
-        ${{ tasks.todo_sweep.output }}
+        ${{ with.todo_sweep }}
         End with a verdict · ship / fix-first / redesign.
 
   save:
-    depends_on: [summary]
+    with:
+      summary: ${{ tasks.summary.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./REVIEW.md"
-        content: "${{ tasks.summary.output }}"
+        content: "${{ with.summary }}"
 
 outputs:
   findings:

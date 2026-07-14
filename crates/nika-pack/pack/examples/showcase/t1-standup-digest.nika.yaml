@@ -34,23 +34,26 @@ tasks:
       command: ["git", "log", "--since=yesterday", "--oneline", "--no-merges"]
 
   digest:
-    depends_on: [today, history]
+    with:
+      today: ${{ tasks.today.output }}
+      history: ${{ tasks.history.output }}
     infer:
       prompt: |
-        Date · ${{ tasks.today.output }}
+        Date · ${{ with.today }}
         Commits since yesterday ·
-        ${{ tasks.history.output }}
+        ${{ with.history }}
 
         Write my standup note · 3 bullets · done / doing / blocked.
         Plain words · no fluff.
 
   save:
-    depends_on: [digest]
+    with:
+      digest: ${{ tasks.digest.output }}
     invoke:
       tool: "nika:write"
       args:
         path: "./standup-note.md"
-        content: "${{ tasks.digest.output }}"
+        content: "${{ with.digest }}"
 
 outputs:
   note: ${{ tasks.digest.output }}

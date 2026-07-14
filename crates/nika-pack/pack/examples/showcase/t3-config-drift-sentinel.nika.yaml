@@ -62,61 +62,71 @@ tasks:
       args: { path: "${{ vars.baseline_path }}" }
 
   expected:
-    depends_on: [baseline]
+    with:
+      baseline: ${{ tasks.baseline.output }}
     invoke:
       tool: "nika:json_merge_patch"
       args:
-        target: "${{ tasks.baseline.output }}"
+        target: "${{ with.baseline }}"
         patch: "${{ vars.approved_overrides }}"
 
   drift:
-    depends_on: [expected, live]
+    with:
+      expected: ${{ tasks.expected.output }}
+      live: ${{ tasks.live.output }}
     invoke:
       tool: "nika:json_diff"
       args:
-        before: "${{ tasks.expected.output }}"
-        after: "${{ tasks.live.output }}"
+        before: "${{ with.expected }}"
+        after: "${{ with.live }}"
 
   fingerprint:
-    depends_on: [live]
+    with:
+      live: ${{ tasks.live.output }}
     invoke:
       tool: "nika:hash"
       args:
         algo: blake3
-        content: "${{ tasks.live.output }}"
+        content: "${{ with.live }}"
         encoding: hex
 
   explain:
-    depends_on: [drift]
-    when: ${{ size(tasks.drift.output) > 0 }}
+    with:
+      patch: ${{ tasks.drift.output }}
+    when: ${{ size(with.patch) > 0 }}
     on_error:
       recover: "(explanation unavailable · model call failed · the raw patch is attached)"
     infer:
       prompt: |
         This RFC 6902 patch is UNSANCTIONED config drift in production ·
-        ${{ tasks.drift.output }}
+        ${{ with.patch }}
         Explain in 3 bullets · what changed · likely blast radius · first check.
 
   alert:
-    depends_on: [explain, drift, fingerprint]
-    when: ${{ size(tasks.drift.output) > 0 }}
+    with:
+      patch: ${{ tasks.drift.output }}
+      explanation: ${{ tasks.explain.output }}
+      live_hash: ${{ tasks.fingerprint.output }}
+    when: ${{ size(with.patch) > 0 }}
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.oncall_webhook }}"
-        message: "Config drift detected · ${{ tasks.explain.output }} · live config blake3 ${{ tasks.fingerprint.output }}"
+        message: "Config drift detected · ${{ with.explanation }} · live config blake3 ${{ with.live_hash }}"
         severity: critical
 
   record:
-    depends_on: [drift, fingerprint]
+    with:
+      patch: ${{ tasks.drift.output }}
+      live_hash: ${{ tasks.fingerprint.output }}
     invoke:
       tool: "nika:emit"
       args:
         event_type: "config.drift.scan"
         payload:
-          patch: "${{ tasks.drift.output }}"
-          live_hash: "${{ tasks.fingerprint.output }}"
+          patch: "${{ with.patch }}"
+          live_hash: "${{ with.live_hash }}"
 
 outputs:
   drift:

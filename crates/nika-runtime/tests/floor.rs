@@ -53,9 +53,9 @@ tasks:
       command: ["wc", "-l", "./news.json"]
 
   extract:
-    depends_on: [gather]
+    with: { facts: "${{ tasks.gather.output }}" }
     infer:
-      prompt: "Extract the story fields · ${{ tasks.gather.output }}"
+      prompt: "Extract the story fields · ${{ with.facts }}"
       schema:
         type: object
         properties:
@@ -64,21 +64,24 @@ tasks:
         required: [headline, score]
 
   think:
-    depends_on: [gather, probe]
+    with:
+      facts: "${{ tasks.gather.output }}"
+      lines: "${{ tasks.probe.output }}"
     infer:
-      prompt: "Summarize · ${{ tasks.gather.output }} · lines ${{ tasks.probe.output }}"
+      prompt: "Summarize · ${{ with.facts }} · lines ${{ with.lines }}"
       max_tokens: 800
 
   write_out:
-    depends_on: [think, extract]
+    with: { summary: "${{ tasks.think.output }}" }
+    after: { extract: succeeded }
     invoke:
       tool: "nika:write"
       args:
         path: "./out/report.md"
-        content: "${{ tasks.think.output }}"
+        content: "${{ with.summary }}"
 
   notify:
-    depends_on: [write_out]
+    after: { write_out: terminal }
     when: ${{ vars.publish == 'yes' }}
     exec:
       command: ["echo", "done"]
@@ -206,7 +209,7 @@ async fn floor_happy_path_same_yaml_same_stream() {
         .iter()
         .find(|(k, task, _)| *k == EventKind::TaskSkipped && task == "notify")
         .expect("notify gated");
-    assert_eq!(notify_skip.2, "when: gate closed");
+    assert_eq!(notify_skip.2, "when: closed (post-gate)");
 
     // Per-verb notes (the display contract).
     let note_of = |task: &str| -> String {
@@ -315,8 +318,8 @@ async fn floor_failure_cascades_and_terminal_is_failed() {
         .filter(|(k, _, _)| *k == EventKind::TaskCancelled)
         .map(|(_, t, note)| (t.as_str(), note.as_str()))
         .collect();
-    assert_eq!(cancelled["think"], "upstream failed");
-    assert_eq!(cancelled["write_out"], "upstream failed");
+    assert_eq!(cancelled["think"], "gate: an edge did not admit");
+    assert_eq!(cancelled["write_out"], "gate: an edge did not admit");
     assert!(
         !cancelled.contains_key("extract"),
         "the live lane completed"
@@ -327,7 +330,7 @@ async fn floor_failure_cascades_and_terminal_is_failed() {
         .iter()
         .find(|(k, t, _)| *k == EventKind::TaskSkipped && t == "notify")
         .expect("notify gate evaluated despite the dead upstream");
-    assert_eq!(notify_skip.2, "when: gate closed");
+    assert_eq!(notify_skip.2, "when: closed (post-gate)");
     // The cancelled records read defined-null (spec 04).
     assert_eq!(
         outcome.records["think"].status,
@@ -355,10 +358,10 @@ workflow:
   id: cycle
 tasks:
   a:
-    depends_on: [b]
+    after: { b: succeeded }
     exec: { command: ['true'] }
   b:
-    depends_on: [a]
+    after: { a: succeeded }
     exec: { command: ['true'] }
 ";
     let wf = parse(dirty, FileId::new(0), ParseMode::Strict).expect("parses");
@@ -470,7 +473,7 @@ tasks:
         .iter()
         .find(|(k, t, _)| *k == EventKind::TaskSkipped && t == "never")
         .expect("never skipped");
-    assert_eq!(never_skip.2, "when: gate closed");
+    assert_eq!(never_skip.2, "when: closed (post-gate)");
 }
 
 // ─── test 7 · mutant killers (each MISSED mutant was a real hole) ────────
@@ -541,10 +544,10 @@ tasks:
           headline: { type: string }
         required: [headline]
   think:
-    depends_on: [extract]
+    with: { headline: "${{ tasks.extract.output.headline }}" }
     infer:
-      prompt: "headline is ${{ tasks.extract.output.headline }}"
-      system: "${{ tasks.extract.output.headline }}"
+      prompt: "headline is ${{ with.headline }}"
+      system: "${{ with.headline }}"
 "#;
     let (wf, report) = parse_and_check(yaml);
     assert!(
@@ -605,9 +608,11 @@ tasks:
     when: false
     exec: { command: ['echo', 'never'] }
   think:
-    depends_on: [maybe]
+    with:
+      v: "${{ tasks.maybe.output }}"
+      s: "${{ tasks.maybe.status }}"
     infer:
-      prompt: "value is ${{ tasks.maybe.output }} · status ${{ tasks.maybe.status }}"
+      prompt: "value is ${{ with.v }} · status ${{ with.s }}"
 "#;
     let (wf, report) = parse_and_check(yaml);
     assert!(report.is_clean());
@@ -651,7 +656,7 @@ async fn stress_deep_chain_threads_bindings_in_order() {
     for n in 1..DEPTH {
         let _ = writeln!(
             yaml,
-            "  t{n}:\n    depends_on: [t{prev}]\n    exec: {{ shell: 'step {n} after ${{{{ tasks.t{prev}.output }}}}' }}",
+            "  t{n}:\n    with: {{ up: \"${{{{ tasks.t{prev}.output }}}}\" }}\n    exec: {{ shell: 'step {n} after ${{{{ with.up }}}}' }}",
             prev = n - 1
         );
     }
@@ -701,14 +706,16 @@ async fn stress_wide_fan_in_joins_every_source() {
     for n in 0..WIDTH {
         let _ = writeln!(yaml, "  src{n}:\n    exec: {{ command: ['src', '{n}'] }}");
     }
-    let deps: Vec<String> = (0..WIDTH).map(|n| format!("src{n}")).collect();
+    let bindings: Vec<String> = (0..WIDTH)
+        .map(|n| format!("      s{n}: \"${{{{ tasks.src{n}.output }}}}\""))
+        .collect();
     let parts: Vec<String> = (0..WIDTH)
-        .map(|n| format!("${{{{ tasks.src{n}.output }}}}"))
+        .map(|n| format!("${{{{ with.s{n} }}}}"))
         .collect();
     let _ = writeln!(
         yaml,
-        "  join:\n    depends_on: [{}]\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./out/joined.md\", content: \"{}\" }}",
-        deps.join(", "),
+        "  join:\n    with:\n{}\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./out/joined.md\", content: \"{}\" }}",
+        bindings.join("\n"),
         parts.join("+")
     );
     let (wf, report) = parse_and_check(&yaml);
