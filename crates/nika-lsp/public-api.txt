@@ -102,6 +102,7 @@ pub mod nika_lsp::analysis::semantic_document
 pub struct nika_lsp::analysis::semantic_document::SemanticDocument
 pub nika_lsp::analysis::semantic_document::SemanticDocument::graph: core::option::Option<nika_graph::GraphDoc>
 pub nika_lsp::analysis::semantic_document::SemanticDocument::reason: core::option::Option<&'static str>
+pub nika_lsp::analysis::semantic_document::SemanticDocument::semantic_document_format: u32
 pub nika_lsp::analysis::semantic_document::SemanticDocument::spans: alloc::collections::btree::map::BTreeMap<alloc::string::String, lsp_types::Range>
 impl core::fmt::Debug for nika_lsp::analysis::semantic_document::SemanticDocument
 pub fn nika_lsp::analysis::semantic_document::SemanticDocument::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -126,6 +127,7 @@ impl<T> core::convert::From<T> for nika_lsp::analysis::semantic_document::Semant
 pub fn nika_lsp::analysis::semantic_document::SemanticDocument::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_lsp::analysis::semantic_document::SemanticDocument where T: 'static
 pub fn nika_lsp::analysis::semantic_document::SemanticDocument::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_lsp::analysis::semantic_document::SEMANTIC_DOCUMENT_FORMAT: u32
 pub fn nika_lsp::analysis::semantic_document::semantic_document(text: &str) -> nika_lsp::analysis::semantic_document::SemanticDocument
 pub mod nika_lsp::analysis::symbols
 pub fn nika_lsp::analysis::symbols::document_symbols(text: &str) -> alloc::vec::Vec<lsp_types::document_symbols::DocumentSymbol>
