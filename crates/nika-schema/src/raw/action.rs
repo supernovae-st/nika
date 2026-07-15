@@ -216,17 +216,35 @@ impl RawExecAction {
     }
 }
 
-/// `invoke:` — builtin / MCP tool call (spec `02-verbs.md` §invoke).
-///
-/// Tool reference grammar · `<namespace>:<path>` — « the **colon** marks
-/// the namespace boundary (exactly once), the **slash** separates the
-/// path within it. »
+/// The `invoke:` target — a tagged union, exactly one of `tool:` |
+/// `workflow:` (spec `14-composition.md` §the form). « No fifth verb, no
+/// magic `nika:workflow` builtin, no path-shaped `target:` string — the
+/// field IS the semantics. » Zero-or-two targets is a parse error (the
+/// same shape as two verbs on one task).
+#[derive(Debug, Clone)]
+pub enum RawInvokeTarget {
+    /// `tool:` — `nika:<path>` OR `mcp:<server>/<tool>`.
+    ///
+    /// Tool reference grammar · `<namespace>:<path>` — « the **colon**
+    /// marks the namespace boundary (exactly once), the **slash**
+    /// separates the path within it. »
+    Tool(Spanned<String>),
+    /// `workflow:` — a STATIC child-workflow target: a filesystem path OR
+    /// a pinned `registry:owner/name@version`. A `${{ }}`-templated
+    /// target is refused at check (`NIKA-COMP-001` — a call graph you
+    /// cannot draw before the run is a call graph you cannot bound).
+    Workflow(Spanned<String>),
+}
+
+/// `invoke:` — builtin / MCP tool call OR child-workflow call
+/// (spec `02-verbs.md` §invoke · spec `14-composition.md`).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RawInvokeAction {
-    /// `tool:` — REQUIRED · `nika:<path>` OR `mcp:<server>/<tool>`.
-    pub tool: Spanned<String>,
-    /// `args:` — tool arguments (schema is tool-specific).
+    /// The call target — exactly one of `tool:` | `workflow:`.
+    pub target: RawInvokeTarget,
+    /// `args:` — call arguments (tool-specific schema for `tool:`;
+    /// the child's typed `vars:` inputs for `workflow:`).
     pub args: Option<Spanned<serde_json::Value>>,
 }
 
@@ -234,7 +252,37 @@ impl RawInvokeAction {
     /// Create an invoke action for the given tool reference.
     #[must_use]
     pub fn new(tool: Spanned<String>) -> Self {
-        Self { tool, args: None }
+        Self {
+            target: RawInvokeTarget::Tool(tool),
+            args: None,
+        }
+    }
+
+    /// Create an invoke action for the given child-workflow target.
+    #[must_use]
+    pub fn workflow_call(target: Spanned<String>) -> Self {
+        Self {
+            target: RawInvokeTarget::Workflow(target),
+            args: None,
+        }
+    }
+
+    /// The `tool:` reference, when this invoke targets a tool.
+    #[must_use]
+    pub fn tool(&self) -> Option<&Spanned<String>> {
+        match &self.target {
+            RawInvokeTarget::Tool(t) => Some(t),
+            RawInvokeTarget::Workflow(_) => None,
+        }
+    }
+
+    /// The `workflow:` target, when this invoke calls a child workflow.
+    #[must_use]
+    pub fn workflow(&self) -> Option<&Spanned<String>> {
+        match &self.target {
+            RawInvokeTarget::Tool(_) => None,
+            RawInvokeTarget::Workflow(w) => Some(w),
+        }
     }
 }
 
@@ -314,8 +362,15 @@ mod tests {
     #[test]
     fn invoke_action_new() {
         let a = RawInvokeAction::new(span_str("nika:fetch"));
-        assert_eq!(a.tool.value, "nika:fetch");
+        assert_eq!(a.tool().expect("tool target").value, "nika:fetch");
+        assert!(a.workflow().is_none(), "a tool invoke has no workflow");
         assert!(a.args.is_none());
+        let w = RawInvokeAction::workflow_call(span_str("./child.nika.yaml"));
+        assert_eq!(
+            w.workflow().expect("workflow target").value,
+            "./child.nika.yaml"
+        );
+        assert!(w.tool().is_none(), "a workflow call has no tool");
     }
 
     #[test]

@@ -305,7 +305,12 @@ fn scan_action(
             }
         }
         RawAction::Invoke(invoke) => {
-            strings.push(&invoke.tool);
+            // The `workflow:` target is NOT an expression surface — a
+            // templated target is refused whole (NIKA-COMP-001, spec 14),
+            // one voice, so the island scanner never second-guesses it.
+            if let Some(tool) = invoke.tool() {
+                strings.push(tool);
+            }
             jsons.extend(invoke.args.as_ref());
         }
         RawAction::Agent(agent) => {

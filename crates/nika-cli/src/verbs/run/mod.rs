@@ -21,6 +21,7 @@
 // the same sanctioned exemption `main.rs` carries for the terminal bin.
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
+mod child_runner;
 mod compose;
 mod inputs;
 pub(crate) use compose::config_from_env;
@@ -255,16 +256,15 @@ fn run_verdict(
     // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
         &wf,
-        &source,
+        (file, &source),
         model_override,
         overrides,
         setup.plan,
         setup.answers,
-        // ADR-099 pause rider: NON-INTERACTIVE machine surfaces only.
-        json || output_json,
+        json || output_json, // ADR-099 pause rider: NON-INTERACTIVE surfaces only
         max_cost_usd,
         skills,
-        output_json,
+        (no_trace_file, output_json),
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -524,7 +524,7 @@ fn dry_run_payload(
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     wf: &RawWorkflow,
-    source: &str,
+    (file, source): (&str, &str),
     model_override: Option<&str>,
     overrides: BTreeMap<String, Value>,
     resume_plan: Option<ResumePlan>,
@@ -532,7 +532,7 @@ fn composed_runtime(
     pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
     skills: BTreeMap<String, String>,
-    output_json: bool,
+    (no_trace_file, output_json): (bool, bool),
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
@@ -540,6 +540,11 @@ fn composed_runtime(
     match production_runtime(default_model, caps) {
         Ok(rt) => {
             let rt = rt
+                // The child seam (spec 14) — children resolve against THIS file.
+                .with_child_runner(std::sync::Arc::new(child_runner::ProdChildRunner::new(
+                    file,
+                    !no_trace_file,
+                )))
                 .with_var_overrides(overrides)
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)

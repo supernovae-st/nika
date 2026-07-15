@@ -192,7 +192,7 @@ fn render_stops(stop_notes: &StopNotes, theme: Theme) -> String {
 
 /// The W1 dead-form arm — the shared map migration. `true` = applied.
 fn apply_w1_map(source: &mut String, repairs: &mut Vec<Repair>) -> bool {
-    match crate::migrate::w1(source) {
+    match nika_migrate::w1(source) {
         Some(migrated) => {
             *source = migrated;
             repairs.push(Repair {
@@ -214,8 +214,8 @@ fn apply_w2_flow(
     repairs: &mut Vec<Repair>,
     stop_notes: &mut StopNotes,
 ) -> bool {
-    match crate::migrate::w2(source) {
-        crate::migrate::W2Outcome::Changed(migrated) => {
+    match nika_migrate::w2(source) {
+        nika_migrate::W2Outcome::Changed(migrated) => {
             *source = migrated;
             repairs.push(Repair {
                 old: "the pre-W2 flow (depends_on · body tasks.* reads)".to_owned(),
@@ -225,7 +225,7 @@ fn apply_w2_flow(
             });
             true
         }
-        crate::migrate::W2Outcome::Stop(notes) => {
+        nika_migrate::W2Outcome::Stop(notes) => {
             stop_notes.0 = notes;
             false
         }
@@ -244,8 +244,8 @@ fn try_w2_hoist(
     if !report.conformance.iter().any(|v| v.code == "NIKA-VAR-021") {
         return None;
     }
-    match crate::migrate::w2(source) {
-        crate::migrate::W2Outcome::Changed(migrated) => {
+    match nika_migrate::w2(source) {
+        nika_migrate::W2Outcome::Changed(migrated) => {
             *source = migrated;
             repairs.push(Repair {
                 old: "body tasks.* reads".to_owned(),
@@ -255,7 +255,7 @@ fn try_w2_hoist(
             });
             Some(true)
         }
-        crate::migrate::W2Outcome::Stop(notes) => {
+        nika_migrate::W2Outcome::Stop(notes) => {
             stop_notes.0 = notes;
             Some(false)
         }

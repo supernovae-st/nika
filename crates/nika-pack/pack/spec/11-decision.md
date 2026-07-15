@@ -12,7 +12,7 @@
 > · [`policy:`](./10-authority.md) is *law* (the shape of allowed
 > action) · a **decision** is *judgment* —
 > `D = Evaluate(Bundle, EvidenceSnapshot)` — deterministic, explained,
-> appealable. **The model never decides** ([00 pillars](./00-overview.md)):
+> appealable. **The model never decides** — the law is this chapter's:
 > `infer:`/`agent:` may produce closed, cited semantic *facts*; the
 > decision kernel applies the rubric.
 

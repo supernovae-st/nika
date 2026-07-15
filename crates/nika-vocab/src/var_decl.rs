@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 /// Spec `01-envelope.md` §vars · « type: string · number · integer ·
 /// boolean · array · object ».
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum VarType {
     /// A UTF-8 string.
@@ -113,7 +112,6 @@ impl fmt::Display for VarType {
 /// One `vars:` entry — untyped (the value IS the default) or typed
 /// (validation + callable-schema generation).
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum VarDecl {
     /// Untyped form · `output_dir: "./output"` — the value is the default.
     Untyped(serde_json::Value),

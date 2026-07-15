@@ -1,0 +1,17 @@
+[package]
+name          = "nika-migrate"
+description   = "Machine-applicable envelope migrations for .nika.yaml files: W1 (the map — workflow scalar + tasks list → workflow object + task map) and W2 (equivalence-or-stop flow migration). The repairs `nika check --fix` applies. Layer L0 — pure std, zero I/O, zero deps. Split out of nika-cli (size-cap discipline, D-2026-07-09-N1)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-017.
+
+[dependencies]
+# none — pure std string transforms (zero external + zero internal crates).
+
+[lints]
+workspace = true

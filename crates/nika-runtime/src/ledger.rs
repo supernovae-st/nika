@@ -132,6 +132,18 @@ impl RunLedger {
         }
     }
 
+    /// Budget minus spend at this instant, floored at 0 — what a child
+    /// call may still spend (spec 14 law 6 · `min(parent remaining,
+    /// child declared)`). `None` = this run carries no cost budget.
+    pub(crate) fn remaining_usd(&self) -> Option<f64> {
+        let budget = self.budget?;
+        let inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        Some((budget - inner.spent_usd).max(0.0))
+    }
+
     pub(crate) fn snapshot(&self) -> LedgerSnapshot {
         let inner = match self.inner.lock() {
             Ok(inner) => inner,

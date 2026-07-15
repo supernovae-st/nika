@@ -462,7 +462,7 @@ impl WorkflowSecretResolver for EnvFileSecretResolver {
             }
             // vault is not yet runtime-resolvable (the checker WARNs · the
             // reference then fails closed at NIKA-1702 · never a leak).
-            _ => Err(miss("`vault` secrets are not yet runtime-resolvable")),
+            SecretSource::Vault => Err(miss("`vault` secrets are not yet runtime-resolvable")),
         }
     }
 }
@@ -476,7 +476,15 @@ impl WorkflowSecretResolver for EnvFileSecretResolver {
 /// is default-deny unless listed »). An `fs:` block → its read/write globs.
 #[must_use]
 pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
-    let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
+    fs_boundary_of_permits(wf.permits.as_ref().map(|p| &p.value))
+}
+
+/// [`fs_boundary_of`] over a bare `Permits` value — the composition
+/// lane derives a CHILD's boundary from the INTERSECTED permits
+/// (`child ∩ parent` · spec 14 laws 3/4), not from a workflow node.
+#[must_use]
+pub(crate) fn fs_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> FsBoundary {
+    let Some(permits) = permits else {
         return FsBoundary::unbounded();
     };
     let (read, write) = permits
@@ -499,7 +507,16 @@ pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
 /// bounces) the static `nika check` cannot see. Mirrors [`fs_boundary_of`].
 #[must_use]
 pub fn net_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> NetBoundary {
-    let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
+    net_boundary_of_permits(wf.permits.as_ref().map(|p| &p.value))
+}
+
+/// [`net_boundary_of`] over a bare `Permits` value (the composition
+/// lane's intersected-boundary derivation · mirrors the fs twin).
+#[must_use]
+pub(crate) fn net_boundary_of_permits(
+    permits: Option<&nika_schema::types::Permits>,
+) -> NetBoundary {
+    let Some(permits) = permits else {
         return NetBoundary::Unbounded;
     };
     NetBoundary::Declared(

@@ -316,6 +316,7 @@ fn render(
         "every invoke arg key is declared + every required arg is present",
         arg_rows(report),
     );
+    composition_rung(&mut out, report, wf, t);
     section_list(
         &mut out,
         t,
@@ -533,6 +534,43 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
 }
 
 /// A finding section: one OK line when empty, one row per finding else.
+/// COMPOSITION (spec 14) · silent when the workflow calls no child
+/// (the SKILLS precedent) — split out of `render` at the 100-line cap.
+fn composition_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
+    if report.composition.is_empty() && !wf_calls_workflows(wf) {
+        return;
+    }
+    section_list(
+        out,
+        t,
+        "COMPOSITION",
+        "every child call is static, typed, contained and acyclic",
+        report
+            .composition
+            .iter()
+            .map(nika_schema::check::CompositionFinding::row)
+            .collect(),
+    );
+}
+
+/// Whether any task (main or `on_finally`) calls a child workflow —
+/// the COMPOSITION rung renders only then (silent-when-absent · the
+/// SKILLS precedent).
+fn wf_calls_workflows(wf: &RawWorkflow) -> bool {
+    wf.tasks.iter().any(|task| {
+        let is_call = |a: &RawAction| {
+            matches!(a, RawAction::Invoke(inv)
+                if matches!(inv.target, nika_schema::raw::RawInvokeTarget::Workflow(_)))
+        };
+        is_call(&task.value.action)
+            || task
+                .value
+                .on_finally
+                .iter()
+                .any(|m| is_call(&m.value.action))
+    })
+}
+
 fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
     // Pad BEFORE painting — ANSI escapes break `{:<8}` width arithmetic
     // (the format pads bytes, not display columns).
@@ -657,7 +695,12 @@ fn verb_of<'w>(action: &'w RawAction, wf: &'w RawWorkflow) -> (&'static str, Opt
                 _ => None,
             },
         ),
-        RawAction::Invoke(a) => ("invoke", Some(a.tool.value.clone())),
+        RawAction::Invoke(a) => match &a.target {
+            nika_schema::raw::RawInvokeTarget::Tool(t) => ("invoke", Some(t.value.clone())),
+            nika_schema::raw::RawInvokeTarget::Workflow(w) => {
+                ("invoke", Some(format!("workflow:{}", w.value)))
+            }
+        },
         // #[non_exhaustive] — a future verb must not break this build.
         _ => ("task", None),
     }

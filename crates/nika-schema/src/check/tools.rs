@@ -58,7 +58,12 @@ pub(super) fn scan_unknown_tools(wf: &RawWorkflow) -> Vec<UnknownTool> {
 /// Check one action's tool names.
 fn collect(site: &str, action: &RawAction, out: &mut Vec<UnknownTool>) {
     match action {
-        RawAction::Invoke(a) => check_tool(site, &a.tool.value, out),
+        RawAction::Invoke(a) => {
+            if let Some(tool) = a.tool() {
+                check_tool(site, &tool.value, out);
+            }
+            // a workflow: target is not a tool name — COMP-001 owns it
+        }
         RawAction::Agent(a) => {
             for tool in &a.tools {
                 // a glob entry is a grant pattern, not a concrete call —
@@ -144,8 +149,8 @@ fn collect_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
     let RawAction::Invoke(a) = action else {
         return; // exec/infer/agent have typed fields, not a free args map
     };
-    let Some(name) = a.tool.value.strip_prefix("nika:") else {
-        return; // mcp: args are server-defined (open namespace)
+    let Some(name) = a.tool().and_then(|t| t.value.strip_prefix("nika:")) else {
+        return; // mcp:/workflow: args are not builtin-table keyed
     };
     let Some(builtin) = find_builtin(name) else {
         return; // unknown builtin — scan_unknown_tools owns that finding
@@ -165,7 +170,7 @@ fn collect_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
             .map(str::to_owned);
         out.push(UnknownArg {
             task: site.to_owned(),
-            tool: a.tool.value.clone(),
+            tool: format!("nika:{name}"),
             arg: key.clone(),
             suggestion,
             declared: builtin.args.iter().map(|&s| s.to_owned()).collect(),
@@ -237,8 +242,8 @@ fn collect_missing(site: &str, action: &RawAction, out: &mut Vec<MissingArg>) {
     let RawAction::Invoke(a) = action else {
         return; // only invoke carries a builtin args map
     };
-    let Some(name) = a.tool.value.strip_prefix("nika:") else {
-        return; // mcp: args are server-defined (open namespace)
+    let Some(name) = a.tool().and_then(|t| t.value.strip_prefix("nika:")) else {
+        return; // mcp:/workflow: args are not builtin-table keyed
     };
     let Some(builtin) = find_builtin(name) else {
         return; // unknown builtin — scan_unknown_tools owns that finding
@@ -253,7 +258,7 @@ fn collect_missing(site: &str, action: &RawAction, out: &mut Vec<MissingArg>) {
         if !present {
             out.push(MissingArg {
                 task: site.to_owned(),
-                tool: a.tool.value.clone(),
+                tool: format!("nika:{name}"),
                 arg: req.to_owned(),
             });
         }

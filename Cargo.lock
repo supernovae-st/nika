@@ -3705,6 +3705,7 @@ dependencies = [
  "nika-kernel-mock",
  "nika-lsp",
  "nika-mcp",
+ "nika-migrate",
  "nika-models",
  "nika-onboard",
  "nika-pack",
@@ -3720,6 +3721,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "toml_edit",
@@ -4022,6 +4024,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-migrate"
+version = "0.103.0"
+
+[[package]]
 name = "nika-models"
 version = "0.103.0"
 dependencies = [
@@ -4171,6 +4177,7 @@ dependencies = [
  "nika-source",
  "nika-tmpl",
  "nika-types",
+ "nika-vocab",
  "proptest",
  "rstest",
  "serde",
@@ -4279,6 +4286,16 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+]
+
+[[package]]
+name = "nika-vocab"
+version = "0.103.0"
+dependencies = [
+ "nika-cap",
+ "nika-source",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -30,7 +30,13 @@ pub(super) fn scan_policy(wf: &RawWorkflow, edges: &[Edge]) -> Vec<PolicyViolati
         .map(|t| {
             let a = &t.value.action;
             let tool = match a {
-                RawAction::Invoke(inv) => Some(inv.tool.value.clone()),
+                RawAction::Invoke(inv) => match &inv.target {
+                    crate::raw::RawInvokeTarget::Tool(t) => Some(t.value.clone()),
+                    // a child call is a distinct subject — the policy
+                    // vocabulary sees the target as written (spec 14
+                    // keeps tools/workflows separate · G25)
+                    crate::raw::RawInvokeTarget::Workflow(w) => Some(w.value.clone()),
+                },
                 _ => None,
             };
             let pin = provider_pin(a, root_model);

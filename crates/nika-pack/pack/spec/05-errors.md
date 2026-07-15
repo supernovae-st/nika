@@ -99,6 +99,10 @@ these from this file alone.
 | `NIKA-PARSE-023` | a task carries an `id:` field — the map key IS the identity | `validation_error` | false |
 | `NIKA-PARSE-024` | a task carries `depends_on:` — dead since W2 (data → `with:` bindings · control → `after:` predicates · `check --fix` migrates) | `validation_error` | false |
 | `NIKA-PARSE-025` | `decode:` with `capture: structured` — that capture already IS an object (`{stdout, stderr, exit_code}`) · type the object with `returns:` instead | `validation_error` | false |
+| `NIKA-COMP-001` | an `invoke: workflow:` target is not statically resolvable (templated · malformed · unpinned registry ref · [14 §form](./14-composition.md#the-form-normative)) | `validation_error` | false |
+| `NIKA-COMP-002` | the child workflow's effect boundary exceeds `Authority(parent) ∩ declared` ([14 laws 3/4](./14-composition.md#the-ten-laws-normative--g22--constitution-103)) | `security_error` | false |
+| `NIKA-COMP-003` | the static call graph is not acyclic (self-launch · cycle · [14 law 7](./14-composition.md#the-ten-laws-normative--g22--constitution-103) · `NIKA-SEC-003` is the runtime backstop) | `validation_error` | false |
+| `NIKA-COMP-004` | the typed call does not compose (args ⋢ inputs, or outputs ⋢ returns · [14 law 2](./14-composition.md#the-ten-laws-normative--g22--constitution-103)) | `validation_error` | false |
 | `NIKA-DAG-001` | cycle in the precedence graph G_p = E_d ∪ E_c (incl. self-dependency · via `with:`/`after:`) | `validation_error` | false |
 | `NIKA-DAG-002` | `with:`/`after:` references an undeclared task | `validation_error` | false |
 | `NIKA-DAG-004` | `on_error.recover` references a task downstream of the declaring task (await would deadlock) | `validation_error` | false |

@@ -433,7 +433,7 @@ fn definition_value(task: &RawTask) -> Option<Value> {
         "after": task.after.iter()
             .map(|(target, pred)| json!([target.value, pred.value.as_str()]))
             .collect::<Vec<_>>(),
-        "when": when_value(task.when.as_ref())?,
+        "when": when_value(task.when.as_ref()),
         "for_each": for_each_raw(task.for_each.as_ref())?,
         "max_parallel": task.max_parallel.as_ref().map(|m| m.value),
         "fail_fast": task.fail_fast.as_ref().map(|f| f.value),
@@ -449,14 +449,13 @@ fn definition_value(task: &RawTask) -> Option<Value> {
     }))
 }
 
-fn when_value(when: Option<&Spanned<WhenGate>>) -> Option<Value> {
-    Some(match when.map(|w| &w.value) {
+fn when_value(when: Option<&Spanned<WhenGate>>) -> Value {
+    match when.map(|w| &w.value) {
         None => Value::Null,
+        // CLOSED vocabulary (nika-vocab) — both gate forms named.
         Some(WhenGate::Literal(b)) => json!({ "literal": b }),
         Some(WhenGate::Expr(e)) => json!({ "expr": e }),
-        // A future gate form is out of this recipe — not eligible.
-        Some(_) => return None,
-    })
+    }
 }
 
 fn for_each_raw(for_each: Option<&Spanned<ForEachValue>>) -> Option<Value> {
@@ -502,7 +501,7 @@ fn finally_values(cleanups: &[Spanned<RawFinallyTask>]) -> Option<Value> {
     let mut out = Vec::with_capacity(cleanups.len());
     for mini in cleanups {
         out.push(json!({
-            "when": when_value(mini.value.when.as_ref())?,
+            "when": when_value(mini.value.when.as_ref()),
             "timeout_ms": mini.value.timeout.as_ref().map(duration_ms),
             "action": action_value(&mini.value.action, None)?,
         }));
@@ -701,10 +700,19 @@ fn exec_value(a: &RawExecAction, scope: Option<&Scope<'_>>) -> Option<Value> {
 }
 
 fn invoke_value(a: &RawInvokeAction, scope: Option<&Scope<'_>>) -> Option<Value> {
-    Some(json!({
-        "tool": text(&a.tool, scope)?,
-        "args": json_field(a.args.as_ref(), scope)?,
-    }))
+    Some(match &a.target {
+        nika_schema::raw::RawInvokeTarget::Tool(t) => json!({
+            "tool": text(t, scope)?,
+            "args": json_field(a.args.as_ref(), scope)?,
+        }),
+        // The child call's identity is its STATIC target + rendered args
+        // (the child's own semantic identity lives on the child's chain —
+        // the trace forest, spec 14 law 8).
+        nika_schema::raw::RawInvokeTarget::Workflow(w) => json!({
+            "workflow": text(w, scope)?,
+            "args": json_field(a.args.as_ref(), scope)?,
+        }),
+    })
 }
 
 fn agent_value(a: &RawAgentAction, scope: Option<&Scope<'_>>) -> Option<Value> {

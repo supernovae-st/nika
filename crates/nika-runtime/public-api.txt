@@ -1,4 +1,169 @@
 pub mod nika_runtime
+pub mod nika_runtime::child
+pub struct nika_runtime::child::ChildCall
+pub nika_runtime::child::ChildCall::args: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_runtime::child::ChildCall::deadline: core::option::Option<core::time::Duration>
+pub nika_runtime::child::ChildCall::depth: u32
+pub nika_runtime::child::ChildCall::parent_permits: core::option::Option<nika_cap::permits::Permits>
+pub nika_runtime::child::ChildCall::remaining_budget_usd: core::option::Option<f64>
+pub nika_runtime::child::ChildCall::target: alloc::string::String
+impl core::clone::Clone for nika_runtime::child::ChildCall
+pub fn nika_runtime::child::ChildCall::clone(&self) -> nika_runtime::child::ChildCall
+impl core::fmt::Debug for nika_runtime::child::ChildCall
+pub fn nika_runtime::child::ChildCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::child::ChildCall
+impl<T, U> core::convert::Into<U> for nika_runtime::child::ChildCall where U: core::convert::From<T>
+pub fn nika_runtime::child::ChildCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::child::ChildCall where U: core::convert::Into<T>
+pub type nika_runtime::child::ChildCall::Error = core::convert::Infallible
+pub fn nika_runtime::child::ChildCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::child::ChildCall where U: core::convert::TryFrom<T>
+pub type nika_runtime::child::ChildCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::child::ChildCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::child::ChildCall where T: core::clone::Clone
+pub type nika_runtime::child::ChildCall::Owned = T
+pub fn nika_runtime::child::ChildCall::clone_into(&self, target: &mut T)
+pub fn nika_runtime::child::ChildCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::child::ChildCall where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::child::ChildCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::child::ChildCall where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::child::ChildCall where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::child::ChildCall where T: core::clone::Clone
+pub unsafe fn nika_runtime::child::ChildCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::child::ChildCall
+pub fn nika_runtime::child::ChildCall::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::child::ChildCall where T: core::clone::Clone
+pub fn nika_runtime::child::ChildCall::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildCall where T: 'static
+pub fn nika_runtime::child::ChildCall::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_runtime::child::ChildOutcome
+pub nika_runtime::child::ChildOutcome::cost_usd: core::option::Option<f64>
+pub nika_runtime::child::ChildOutcome::failure: core::option::Option<(alloc::string::String, alloc::string::String)>
+pub nika_runtime::child::ChildOutcome::ok: bool
+pub nika_runtime::child::ChildOutcome::outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_runtime::child::ChildOutcome::trace: core::option::Option<nika_runtime::child::ChildRunSummary>
+impl core::clone::Clone for nika_runtime::child::ChildOutcome
+pub fn nika_runtime::child::ChildOutcome::clone(&self) -> nika_runtime::child::ChildOutcome
+impl core::fmt::Debug for nika_runtime::child::ChildOutcome
+pub fn nika_runtime::child::ChildOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::child::ChildOutcome
+impl<T, U> core::convert::Into<U> for nika_runtime::child::ChildOutcome where U: core::convert::From<T>
+pub fn nika_runtime::child::ChildOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::child::ChildOutcome where U: core::convert::Into<T>
+pub type nika_runtime::child::ChildOutcome::Error = core::convert::Infallible
+pub fn nika_runtime::child::ChildOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::child::ChildOutcome where U: core::convert::TryFrom<T>
+pub type nika_runtime::child::ChildOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::child::ChildOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::child::ChildOutcome where T: core::clone::Clone
+pub type nika_runtime::child::ChildOutcome::Owned = T
+pub fn nika_runtime::child::ChildOutcome::clone_into(&self, target: &mut T)
+pub fn nika_runtime::child::ChildOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::child::ChildOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::child::ChildOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::child::ChildOutcome where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::child::ChildOutcome where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::child::ChildOutcome where T: core::clone::Clone
+pub unsafe fn nika_runtime::child::ChildOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::child::ChildOutcome
+pub fn nika_runtime::child::ChildOutcome::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::child::ChildOutcome where T: core::clone::Clone
+pub fn nika_runtime::child::ChildOutcome::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildOutcome where T: 'static
+pub fn nika_runtime::child::ChildOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_runtime::child::ChildRunRefusal
+pub nika_runtime::child::ChildRunRefusal::code: alloc::string::String
+pub nika_runtime::child::ChildRunRefusal::message: alloc::string::String
+impl core::clone::Clone for nika_runtime::child::ChildRunRefusal
+pub fn nika_runtime::child::ChildRunRefusal::clone(&self) -> nika_runtime::child::ChildRunRefusal
+impl core::fmt::Debug for nika_runtime::child::ChildRunRefusal
+pub fn nika_runtime::child::ChildRunRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::child::ChildRunRefusal
+impl<T, U> core::convert::Into<U> for nika_runtime::child::ChildRunRefusal where U: core::convert::From<T>
+pub fn nika_runtime::child::ChildRunRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::child::ChildRunRefusal where U: core::convert::Into<T>
+pub type nika_runtime::child::ChildRunRefusal::Error = core::convert::Infallible
+pub fn nika_runtime::child::ChildRunRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::child::ChildRunRefusal where U: core::convert::TryFrom<T>
+pub type nika_runtime::child::ChildRunRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::child::ChildRunRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::child::ChildRunRefusal where T: core::clone::Clone
+pub type nika_runtime::child::ChildRunRefusal::Owned = T
+pub fn nika_runtime::child::ChildRunRefusal::clone_into(&self, target: &mut T)
+pub fn nika_runtime::child::ChildRunRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::child::ChildRunRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::child::ChildRunRefusal where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::child::ChildRunRefusal where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::child::ChildRunRefusal where T: core::clone::Clone
+pub unsafe fn nika_runtime::child::ChildRunRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::child::ChildRunRefusal
+pub fn nika_runtime::child::ChildRunRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::child::ChildRunRefusal where T: core::clone::Clone
+pub fn nika_runtime::child::ChildRunRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildRunRefusal where T: 'static
+pub fn nika_runtime::child::ChildRunRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_runtime::child::ChildRunSummary
+pub nika_runtime::child::ChildRunSummary::chain_head: core::option::Option<alloc::string::String>
+pub nika_runtime::child::ChildRunSummary::def_hash: core::option::Option<alloc::string::String>
+pub nika_runtime::child::ChildRunSummary::outcome: alloc::string::String
+pub nika_runtime::child::ChildRunSummary::target: alloc::string::String
+pub nika_runtime::child::ChildRunSummary::trace_id: core::option::Option<alloc::string::String>
+impl nika_runtime::child::ChildRunSummary
+pub fn nika_runtime::child::ChildRunSummary::json(&self) -> serde_json::value::Value
+pub fn nika_runtime::child::ChildRunSummary::new(target: impl core::convert::Into<alloc::string::String>, ok: bool, (trace_id, chain_head, def_hash): (core::option::Option<alloc::string::String>, core::option::Option<alloc::string::String>, core::option::Option<alloc::string::String>)) -> Self
+impl core::clone::Clone for nika_runtime::child::ChildRunSummary
+pub fn nika_runtime::child::ChildRunSummary::clone(&self) -> nika_runtime::child::ChildRunSummary
+impl core::cmp::Eq for nika_runtime::child::ChildRunSummary
+impl core::cmp::PartialEq for nika_runtime::child::ChildRunSummary
+pub fn nika_runtime::child::ChildRunSummary::eq(&self, other: &nika_runtime::child::ChildRunSummary) -> bool
+impl core::fmt::Debug for nika_runtime::child::ChildRunSummary
+pub fn nika_runtime::child::ChildRunSummary::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_runtime::child::ChildRunSummary
+impl serde_core::ser::Serialize for nika_runtime::child::ChildRunSummary
+pub fn nika_runtime::child::ChildRunSummary::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_runtime::child::ChildRunSummary
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::child::ChildRunSummary where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunSummary::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::child::ChildRunSummary where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::child::ChildRunSummary where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunSummary::equivalent(&self, key: &K) -> bool
+pub fn nika_runtime::child::ChildRunSummary::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::child::ChildRunSummary where U: core::convert::From<T>
+pub fn nika_runtime::child::ChildRunSummary::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::child::ChildRunSummary where U: core::convert::Into<T>
+pub type nika_runtime::child::ChildRunSummary::Error = core::convert::Infallible
+pub fn nika_runtime::child::ChildRunSummary::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::child::ChildRunSummary where U: core::convert::TryFrom<T>
+pub type nika_runtime::child::ChildRunSummary::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::child::ChildRunSummary::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::child::ChildRunSummary where T: core::clone::Clone
+pub type nika_runtime::child::ChildRunSummary::Owned = T
+pub fn nika_runtime::child::ChildRunSummary::clone_into(&self, target: &mut T)
+pub fn nika_runtime::child::ChildRunSummary::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::child::ChildRunSummary where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunSummary::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::child::ChildRunSummary where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunSummary::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::child::ChildRunSummary where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunSummary::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::child::ChildRunSummary where T: core::clone::Clone
+pub unsafe fn nika_runtime::child::ChildRunSummary::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::child::ChildRunSummary
+pub fn nika_runtime::child::ChildRunSummary::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::child::ChildRunSummary where T: core::clone::Clone
+pub fn nika_runtime::child::ChildRunSummary::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildRunSummary where T: 'static
+pub fn nika_runtime::child::ChildRunSummary::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_runtime::child::MAX_RUN_DEPTH: u32
+pub trait nika_runtime::child::ChildRunner: core::marker::Send + core::marker::Sync
+pub fn nika_runtime::child::ChildRunner::run_child<'a>(&'a self, call: nika_runtime::child::ChildCall) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_runtime::child::ChildOutcome, nika_runtime::child::ChildRunRefusal>> + 'a)>>
 pub mod nika_runtime::resume
 pub mod nika_runtime::resume::fields
 pub const nika_runtime::resume::fields::DEF_HASH: &str
@@ -284,7 +449,7 @@ impl core::fmt::Debug for nika_runtime::NoSecrets
 pub fn nika_runtime::NoSecrets::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_runtime::NoSecrets
 impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_schema::types::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
+pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 impl<D> owo_colors::OwoColorize for nika_runtime::NoSecrets
 impl<T, U> core::convert::Into<U> for nika_runtime::NoSecrets where U: core::convert::From<T>
 pub fn nika_runtime::NoSecrets::into(self) -> U
@@ -362,6 +527,9 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc:
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256_lf(self, hex: alloc::string::String) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_runner(self, runner: alloc::sync::Arc<dyn nika_runtime::child::ChildRunner>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_run_depth(self, depth: u32) -> Self
 impl<D> owo_colors::OwoColorize for nika_runtime::Runtime<S, T, H, P, D, C>
 impl<T, U> core::convert::Into<U> for nika_runtime::Runtime<S, T, H, P, D, C> where U: core::convert::From<T>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::into(self) -> U
@@ -639,8 +807,8 @@ pub fn nika_runtime::Stamper::next(&mut self) -> (nika_types::id::EventId, nika_
 impl nika_runtime::Stamper for nika_runtime::DeterministicStamper
 pub fn nika_runtime::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
 pub trait nika_runtime::WorkflowSecretResolver: core::marker::Send + core::marker::Sync
-pub fn nika_runtime::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_schema::types::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
+pub fn nika_runtime::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_schema::types::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
+pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
-pub fn nika_runtime::source_is_runtime_resolvable(source: nika_schema::types::secret::SecretSource) -> bool
+pub fn nika_runtime::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool

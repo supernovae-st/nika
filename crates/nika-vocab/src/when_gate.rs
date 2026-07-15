@@ -19,7 +19,6 @@
 
 /// A task's `when:` value — boolean literal or expression source.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum WhenGate {
     /// `when: true` / `when: false` — the YAML boolean literal.
     /// `true` is the **always-pattern** (runs whatever happened

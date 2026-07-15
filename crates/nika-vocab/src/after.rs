@@ -13,7 +13,6 @@ use std::fmt;
 
 /// The closed `after:` predicate set (spec `03-dag.md` §after).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum AfterPredicate {
     /// Admits when the producer settles `success`.
     Succeeded,

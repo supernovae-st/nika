@@ -51,9 +51,9 @@ counts:
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 18
+  error_namespaces: 19
   error_categories: 12
-  error_codes: 76
+  error_codes: 80
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -224,12 +224,13 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 18
+  count: 19
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
     - NIKA-BUILTIN
     - NIKA-CANCEL
+    - NIKA-COMP
     - NIKA-DAG
     - NIKA-EXEC
     - NIKA-IMPL
@@ -272,7 +273,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 76
+  count: 80
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -302,6 +303,10 @@ error_codes:
     - { code: NIKA-PARSE-023, category: validation_error, transient: "false", failure: "a task carries an id: field — the map key is the identity, the field is gone" }
     - { code: NIKA-PARSE-024, category: validation_error, transient: "false", failure: "a task carries depends_on: — dead since W2 (data → with: bindings · control → after: predicates · check --fix migrates)" }
     - { code: NIKA-PARSE-025, category: validation_error, transient: "false", failure: "decode: with capture: structured — that capture already IS an object · type it with returns:" }
+    - { code: NIKA-COMP-001, category: validation_error, transient: "false", failure: "invoke.workflow: target is not statically resolvable (templated · malformed · unpinned registry ref) — a call graph you cannot draw before the run cannot be bounded (spec 14)" }
+    - { code: NIKA-COMP-002, category: security_error, transient: "false", failure: "the child workflow's effect boundary exceeds the parent capped by the call-site declaration (Authority(child) subset of Authority(parent) intersect declared · spec 14 laws 3/4)" }
+    - { code: NIKA-COMP-003, category: validation_error, transient: "false", failure: "the static call graph is not acyclic (self-launch · cycle · spec 14 law 7 · NIKA-SEC-003 is the runtime depth backstop)" }
+    - { code: NIKA-COMP-004, category: validation_error, transient: "false", failure: "the typed call does not compose — parent args do not fit child inputs, or child outputs do not fit parent returns (spec 14 law 2)" }
     - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in the precedence graph G_p = E_d ∪ E_c (incl. self-dependency · via with:/after:)" }
     - { code: NIKA-DAG-002, category: validation_error, transient: "false", failure: "with:/after: references an undeclared task" }
     # NIKA-DAG-003 · RETIRED (never reuse) — « a tasks.X reference with no

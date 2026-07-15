@@ -161,7 +161,11 @@ pub(crate) fn load_checked_with_source(
     };
     let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
-    let report = nika_schema::check(&wf);
+    // The composed lane (spec 14): child targets resolve against the
+    // file the operator named; the fs edge is the skills reader's twin.
+    let report = nika_schema::check_composed(&wf, path, &mut |p| {
+        std::fs::read_to_string(p).map_err(|e| e.to_string())
+    });
     Ok((yaml, wf, report))
 }
 

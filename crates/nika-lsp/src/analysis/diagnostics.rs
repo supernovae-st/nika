@@ -80,6 +80,19 @@ fn push_spanned_findings(diags: &mut Vec<Diagnostic>, index: &LineIndex, report:
         }
         diags.push(error_diag(range, Some(gate_code(g.kind)), msg));
     }
+    // Composition findings (spec 14 · NIKA-COMP) — anchored on the
+    // `workflow:` target. The LSP's plain `check()` carries the PURE
+    // half (templated/malformed/unpinned targets); the resolved half
+    // (cycles · containment · typed call) rides wherever the host wires
+    // `check_composed` — same class, same anchor, one voice.
+    for c in &report.composition {
+        let range = span_or_origin(index, Some(c.span));
+        diags.push(error_diag(
+            range,
+            Some(c.code.to_owned()),
+            format!("`{}` — {}", c.target, c.detail),
+        ));
+    }
 }
 
 /// Tool / arg / schema findings — task-keyed (anchored on the task `id`),
