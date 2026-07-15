@@ -33,6 +33,7 @@
 )]
 
 pub mod after;
+pub mod assert;
 pub mod capture;
 pub mod decode;
 pub mod duration;
@@ -48,6 +49,7 @@ pub mod when_gate;
 
 // Re-exports for convenience.
 pub use after::AfterPredicate;
+pub use assert::{AssertLevel, AssertProperty, AssertRefusal, NIKA_ASSERT_001};
 pub use capture::CaptureMode;
 pub use decode::DecodeMode;
 pub use duration::{GoDurationError, parse_go_duration};
