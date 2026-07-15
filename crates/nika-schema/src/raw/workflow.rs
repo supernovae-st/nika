@@ -18,7 +18,9 @@
 //! ```
 
 use crate::source::Spanned;
-use crate::types::{OutputDecl, Permits, Policy, SchemaVersion, SecretRef, VarDecl};
+use crate::types::{
+    AssertProperty, OutputDecl, Permits, Policy, SchemaVersion, SecretRef, VarDecl,
+};
 
 use super::task::RawTask;
 
@@ -59,6 +61,10 @@ pub struct RawWorkflow {
     pub tasks: Vec<Spanned<RawTask>>,
     /// `outputs:` — the workflow's return contract.
     pub outputs: Vec<(Spanned<String>, OutputDecl)>,
+    /// `assert:` — the author's obligations (spec 15 §assert · the closed
+    /// vocabulary the engine judges at an honest level · malformed refused
+    /// `NIKA-ASSERT-001`).
+    pub assert: Vec<Spanned<AssertProperty>>,
 }
 
 impl RawWorkflow {
@@ -78,6 +84,7 @@ impl RawWorkflow {
             types: Vec::new(),
             tasks: Vec::new(),
             outputs: Vec::new(),
+            assert: Vec::new(),
         }
     }
 }
