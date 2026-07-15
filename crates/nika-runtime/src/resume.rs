@@ -428,7 +428,13 @@ fn skill_paths(task: &RawTask) -> Vec<&str> {
 /// on any `#[non_exhaustive]` form this recipe does not know. (W2
 /// re-keyed the definition — `after:` replaced `depends_on` · prior
 /// resume caches re-run one-shot, the assumed pre-1.0 cost.)
-fn definition_value(task: &RawTask) -> Option<Value> {
+///
+/// `pub(crate)` because the W6 semantic hash ([`crate::proof::ir`]) reuses
+/// THIS span-free desugared projection as a task's semantic subtree — one
+/// canonicalization discipline for both the resume identity and the
+/// semantic hash it generalizes (spec 15 · "seed: the `ResumeKey`'s
+/// JCS+blake3 definition hash, generalized").
+pub(crate) fn definition_value(task: &RawTask) -> Option<Value> {
     Some(json!({
         "after": task.after.iter()
             .map(|(target, pred)| json!([target.value, pred.value.as_str()]))
@@ -1256,6 +1262,134 @@ mod trace_carry_tests {
             .await
             .expect("clean run");
         (outcome, sink)
+    }
+
+    /// Run an arbitrary workflow YAML over mock seams with an optional resume
+    /// plan — the generic twin of [`run_two_tasks`] (used by the semantic-
+    /// cache-hit proof, which needs two DIFFERENT spellings).
+    async fn run_yaml(
+        yaml: &str,
+        shell: MockShell,
+        plan: Option<super::ResumePlan>,
+    ) -> (crate::RunOutcome, VecSink) {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean());
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let mut runtime = Runtime::new(
+            ExecVerb::new(Arc::new(shell)),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        );
+        if let Some(plan) = plan {
+            runtime = runtime.with_resume_plan(plan);
+        }
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run");
+        (outcome, sink)
+    }
+
+    /// **The semantic-cache HIT** (spec 15 · unblocks 14 §law 10's `owed`):
+    /// a result computed for ONE spelling is REUSED for a DIFFERENT,
+    /// semantically-equal spelling — the reuse is keyed on the canonical
+    /// semantic identity (the `def_hash`/`input_hash` that JCS-canonicalizes
+    /// authored `with:` order away · the W6 semantic hash generalizes this),
+    /// NEVER on the source bytes. This is a genuine PROVEN reuse: the second
+    /// run's shell has NO response queued for `a`, so a cache MISS would
+    /// starve it — the green run is the demonstration that `a` never
+    /// dispatched, its prior result served on semantic identity alone.
+    #[tokio::test]
+    async fn a_result_is_reused_across_a_semantically_equal_respelling() {
+        // Two spellings that MEAN the same workflow: `with:` map order is not
+        // behavior (spec 15 · proven canonical in `with_declaration_order_is_
+        // canonicalized_away`). `b` is a live downstream so the run is not
+        // trivially all-cache-hit — `a`'s reuse is the claim under test.
+        const SPELL_A: &str = "nika: v1\nworkflow:\n  id: sem\ntasks:\n  a:\n    with: { x: \"1\", y: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
+        const SPELL_B: &str = "nika: v1\nworkflow:\n  id: sem\ntasks:\n  a:\n    with: { y: \"2\", x: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
+
+        // 1. Run spelling A — harvest a's journaled semantic identity + output.
+        let (first, sink) = run_yaml(
+            SPELL_A,
+            MockShell::new().enqueue_ok("12\n").enqueue_ok("done 12\n"),
+            None,
+        )
+        .await;
+        assert!(first.ok);
+        assert!(first.cache_hits.is_empty(), "a fresh run never cache-hits");
+        let completed_a = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskCompleted && str_field(e, "task") == Some("a"))
+            .expect("a completed");
+        let plan = super::ResumePlan::from([(
+            "a".to_owned(),
+            super::PriorSuccess::new(
+                str_field(completed_a, super::fields::DEF_HASH)
+                    .expect("def_hash")
+                    .to_owned(),
+                str_field(completed_a, super::fields::INPUT_HASH)
+                    .expect("input_hash")
+                    .to_owned(),
+                serde_json::from_str(
+                    str_field(completed_a, super::fields::OUTPUT).expect("output"),
+                )
+                .expect("output parses"),
+            ),
+        )]);
+
+        // 2. Resume the OTHER spelling with A's plan. Only b's response is
+        //    queued — a MUST cache-hit on semantic identity, never dispatch.
+        let (resumed, sink) = run_yaml(
+            SPELL_B,
+            MockShell::new().enqueue_ok("done 12\n"),
+            Some(plan),
+        )
+        .await;
+        assert!(resumed.ok);
+        assert_eq!(
+            resumed.cache_hits,
+            vec!["a".to_owned()],
+            "the respelled task reuses the prior result on semantic identity"
+        );
+        let kinds_for = |task: &str| {
+            sink.events()
+                .iter()
+                .filter(|e| str_field(e, "task") == Some(task))
+                .map(|e| e.kind)
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            kinds_for("a").contains(&EventKind::TaskCacheHit),
+            "the reuse is VISIBLE (task_cache_hit)"
+        );
+        assert!(
+            !kinds_for("a").contains(&EventKind::TaskStarted),
+            "a never re-executed — the different spelling did not defeat the cache"
+        );
+        assert!(
+            kinds_for("b").contains(&EventKind::TaskStarted),
+            "b ran live"
+        );
+        // Rehydration parity: the reused output equals the first run's.
+        assert_eq!(resumed.records["a"].output, first.records["a"].output);
     }
 
     /// The full ADR-099 fold: run → read the journaled identity → resume

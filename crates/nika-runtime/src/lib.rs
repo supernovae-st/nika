@@ -49,6 +49,7 @@ mod expr;
 mod jq;
 mod ledger;
 mod pause;
+pub mod proof;
 mod record;
 mod recover;
 pub mod resume;

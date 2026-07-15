@@ -166,6 +166,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [12 gateway](./12-gateway.md) | The gateway contracts · Deployment Bundle · ExecutionBackend (capabilities · lowering · readback) · AgentRuntimeAdapter (FidelityReport · AuthorityDelta) · the separation laws |
 | [13 outcomes](./13-outcomes.md) | The Outcome IR · TerminalClass × Cause × Payload · the normative transition table (one source: canon) · `trace_format: 2` |
 | [14 composition](./14-composition.md) | Workflow calling workflow · `invoke: workflow:` (tagged union) · the CallableContract · the ten composition laws · the trace forest |
+| [15 proof](./15-proof.md) | The proof layer · the semantic hash (H = H(domain ‖ version ‖ JCS(IR))) · `nika.lock` (pin by default) · `assert:` (StaticProof · TraceVerified · Unknown) · the one receipt |
 
 **Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->16<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->28<!-- /canon --> builtins** (6 core · 5 file · 8 data · 2 network · 2 introspection · 4 media).
 

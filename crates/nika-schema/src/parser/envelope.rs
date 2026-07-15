@@ -10,8 +10,8 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    EgressRule, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy, SecretRef,
-    SecretSource, VarDecl, VarType,
+    AssertProperty, EgressRule, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy,
+    SecretRef, SecretSource, VarDecl, VarType,
 };
 
 use super::{Cx, value::json_value};
@@ -272,6 +272,42 @@ fn parse_egress(
     Ok(rules)
 }
 
+/// Parse the workflow-level `assert:` block (spec 15 §assert) — a list of the
+/// author's obligations, each parsed into the closed [`AssertProperty`]
+/// vocabulary. An unknown property, a non-v1 shape, or a malformed body is a
+/// refusal at check (`NIKA-ASSERT-001`, carried by the vocab refusal). The
+/// engine JUDGES each obligation's honest level (nika-vocab `level`); wiring
+/// the check-time genuine decision (does `before`/`bounded` hold on the
+/// derived graph?) and `nika trace verify` reporting is the named owed — this
+/// parse makes the obligations authorable and typed, refusing the malformed.
+pub(super) fn parse_assert(
+    cx: &Cx<'_>,
+    workflow: &MarkedMappingNode,
+) -> Result<Vec<Spanned<AssertProperty>>, SchemaError> {
+    let Some(node) = workflow.get_node("assert") else {
+        return Ok(Vec::new());
+    };
+    let Some(seq) = node.as_sequence() else {
+        return Err(SchemaError::Validation {
+            message: "`assert:` must be a list of obligations (spec 15 §assert · \
+                      NIKA-ASSERT-001)"
+                .to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let mut out = Vec::with_capacity(seq.len());
+    for item in seq.iter() {
+        let value = json_value(cx, item)?;
+        let property =
+            AssertProperty::parse(&value).map_err(|refusal| SchemaError::Validation {
+                message: refusal.message,
+                span: cx.span(item.span()),
+            })?;
+        out.push(Spanned::new(property, cx.span_or_zero(item.span())));
+    }
+    Ok(out)
+}
+
 /// Parse one `egress[]` entry into an [`EgressRule`].
 fn parse_egress_rule(
     cx: &Cx<'_>,
@@ -527,6 +563,58 @@ mod tests {
 
     fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)
+    }
+
+    /// The `assert:` block (spec 15 §assert) lowers to the typed obligation
+    /// vocabulary; an unknown property is refused at parse with the
+    /// `NIKA-ASSERT-001` code the reference names.
+    #[test]
+    fn assert_block_parses_obligations_and_refuses_the_unknown() {
+        let ok = "\
+nika: v1
+workflow:
+  id: gated
+assert:
+  - no_secret_egress
+  - before: { first: gate, second: deploy }
+  - bounded: { task: crawl, max_iterations: 100 }
+tasks:
+  gate:
+    exec: { command: [\"true\"] }
+";
+        let wf = parse_strict(ok).expect("a valid assert: block parses");
+        assert_eq!(wf.assert.len(), 3, "three obligations parse");
+        assert_eq!(wf.assert[0].value.name(), "no_secret_egress");
+        assert_eq!(wf.assert[1].value.name(), "before");
+        assert_eq!(wf.assert[2].value.name(), "bounded");
+
+        let bad = "\
+nika: v1
+workflow:
+  id: gated
+assert:
+  - telepathy: {}
+tasks:
+  gate:
+    exec: { command: [\"true\"] }
+";
+        let err = parse_strict(bad).expect_err("an unknown assert property is refused");
+        assert!(
+            err.to_string().contains("NIKA-ASSERT-001"),
+            "the spec-15 refusal code rides: {err}"
+        );
+
+        // A non-list `assert:` is refused too (it is a list of obligations).
+        let not_a_list = "\
+nika: v1
+workflow:
+  id: gated
+assert: no_secret_egress
+tasks:
+  gate:
+    exec: { command: [\"true\"] }
+";
+        assert!(parse_strict(not_a_list).is_err(), "assert: must be a list");
     }
 
     /// T1 (use-case battery 2026-07-11) · an unknown secret field with no
