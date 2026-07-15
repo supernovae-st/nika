@@ -15,8 +15,10 @@
 //!   has findings (no valid DAG order → nothing to project; the
 //!   diagnostics lane already tells that story).
 //! - `spans` — task id → LSP `Range` of the declaring `id` token.
-//! - the payload names its OWN version via `graph.graph_format`
-//!   (in-payload versioning — additive, spec-first evolution).
+//! - the surface names its OWN version via `semantic_document_format`
+//!   (spec 16 · distinct from the nested `graph.graph_format`, which
+//!   versions the graph; a surface that grows additive fields needs a
+//!   version of its own — in-payload, additive, spec-first evolution).
 //!
 //! Security: structure only. No env values, no secret material — the
 //! projector never carried them.
@@ -30,11 +32,21 @@ use serde::Serialize;
 
 use super::position::LineIndex;
 
+/// The oracle surface's own version (spec 16 · `semantic_document_format`).
+/// Distinct from the nested `graph.graph_format` (which versions the
+/// graph): a surface that grows additive fields — holes · actions ·
+/// capabilities — is versioned here, so a consumer reasons about the
+/// surface without unwrapping the graph.
+pub const SEMANTIC_DOCUMENT_FORMAT: u32 = 1;
+
 /// The `nika/semanticDocument` result — a TYPED contract, not a JSON
 /// bag: renaming a field breaks compilation (and the law tests), never
 /// the wire silently.
 #[derive(Debug, Serialize)]
 pub struct SemanticDocument {
+    /// The surface's own version (spec 16 · [`SEMANTIC_DOCUMENT_FORMAT`]) —
+    /// serialized first, distinct from the nested `graph.graph_format`.
+    pub semantic_document_format: u32,
     /// The canonical projection, verbatim — absent while the document
     /// cannot be projected (see [`Self::reason`]).
     pub graph: Option<GraphDoc>,
@@ -58,6 +70,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
     let index = LineIndex::new(text);
     let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient) else {
         return SemanticDocument {
+            semantic_document_format: SEMANTIC_DOCUMENT_FORMAT,
             graph: None,
             reason: Some("parse"),
             spans: BTreeMap::new(),
@@ -78,12 +91,14 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
         .collect();
     if report.is_clean() {
         SemanticDocument {
+            semantic_document_format: SEMANTIC_DOCUMENT_FORMAT,
             graph: Some(nika_graph::project(&wf, &report)),
             reason: None,
             spans,
         }
     } else {
         SemanticDocument {
+            semantic_document_format: SEMANTIC_DOCUMENT_FORMAT,
             graph: None,
             reason: Some("findings"),
             spans,
@@ -117,6 +132,20 @@ mod tests {
             Some(4),
             "wave-ordered nodes"
         );
+    }
+
+    /// The surface names its OWN version (spec 16 · `semantic_document_format`),
+    /// present in every case and DISTINCT from the nested `graph.graph_format`.
+    #[test]
+    fn the_surface_names_its_own_version() {
+        // healthy: both versions present, and they are not the same key
+        let ok = as_value(&semantic_document(DIAMOND));
+        assert_eq!(ok["semantic_document_format"], 1, "the surface's own version");
+        assert_eq!(ok["graph"]["graph_format"], 2, "the nested graph's version");
+        // absent-graph cases still name the surface version (findings · parse)
+        let findings = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n";
+        assert_eq!(as_value(&semantic_document(findings))["semantic_document_format"], 1);
+        assert_eq!(as_value(&semantic_document("nika: v1\ntasks: ["))["semantic_document_format"], 1);
     }
 
     /// Spans map every task id to its declaring token's range.
