@@ -4,7 +4,7 @@
 //! `nika.lock` — the single lock (spec `15-proof.md` §nika.lock · F7).
 //!
 //! One lockfile pins EVERYTHING a run resolves, by **digest**. It unifies the
-//! prior manifest lock ([`crate::lockfile`]) and the pin-by-default rule into
+//! prior manifest lock (`crate::lockfile`) and the pin-by-default rule into
 //! one file — the LOCAL boundary of the same supply chain the gateway (12)
 //! and the distribution work extend.
 //!
@@ -21,8 +21,8 @@
 //!   dependency is a refusal ([`NIKA_LOCK_001`]). Nothing floats.
 //! - Generated (`nika lock`), never hand-authored — hand-editing a digest is
 //!   a lie the check catches (the lock's own hash covers it · the integrity
-//!   digest is computed where blake3 lives, the [`crate::proof`-style]
-//!   self-digest pattern; L0 here stays pure — no hasher — so [`validate`]
+//!   digest is computed where blake3 lives, the `crate::proof`-style
+//!   self-digest pattern; L0 here stays pure — no hasher — so [`NikaLock::validate`]
 //!   pins the DIGEST-REQUIRED + PIN-BY-DEFAULT laws, byte-parity with the
 //!   reference `proof_core.validate_lock`, and the source-integrity self-hash
 //!   is the higher-layer's owed).
@@ -32,7 +32,7 @@
 //! [`NikaLock::validate`] mirrors `proof_core.validate_lock` (spec 15 · the
 //! reference model · 22 laws): wrong `lock_format` → refuse · a digest-less
 //! entry → refuse · a resolved dependency the lock does not pin → refuse. The
-//! four lock laws of `proof_core_selftest.py` are pinned in [`tests`].
+//! four lock laws of `proof_core_selftest.py` are pinned in `tests`.
 
 use std::collections::{BTreeMap, BTreeSet};
 

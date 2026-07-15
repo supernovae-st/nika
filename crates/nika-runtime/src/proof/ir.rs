@@ -12,7 +12,7 @@
 //!
 //! ## What this projection IS today (honest scope · spec 15 · G13)
 //!
-//! The per-task leaf reuses the ADR-099 [`definition_value`] — the span-free,
+//! The per-task leaf reuses the ADR-099 `definition_value` — the span-free,
 //! behavior-bearing definition as WRITTEN (verb body · `with:` · `output:` ·
 //! `retry:`/`on_error:`/`on_finally:` · `when:` · `for_each:` · the
 //! scheduling knobs). That projection already canonicalizes authored map

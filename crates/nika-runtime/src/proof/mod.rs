@@ -6,8 +6,8 @@
 //!
 //! Everything before this module made a workflow *checkable*; this one makes
 //! a run *provable*: the hash of what a workflow MEANS (not how it is
-//! spelled), a single lock that pins by digest ([`nika_pck_manifest`]), the
-//! `assert:` obligations judged at an honest level ([`nika_vocab::assert`]),
+//! spelled), a single lock that pins by digest (`nika_pck_manifest`), the
+//! `assert:` obligations judged at an honest level (`nika_vocab::assert`),
 //! and the one [`receipt`] into which the certificate, the trace verdict, the
 //! assertions and the lock digest fold.
 //!
@@ -18,8 +18,8 @@
 //! conformance oracle. The parity that matters is on the **pre-image** — the
 //! exact bytes that get hashed — never on the digest across algorithms: the
 //! reference hashes those bytes with sha256, this engine with blake3, and
-//! [`tests`] pins the pre-image bytes BYTE-EQUAL against reference-produced
-//! goldens ([`tests::canonical_matches_the_reference`] and siblings). A
+//! `tests` pins the pre-image bytes BYTE-EQUAL against reference-produced
+//! goldens (`tests::canonical_matches_the_reference` and siblings). A
 //! differential on the canonical bytes needs no blake3 dependency on the
 //! Python side — the algorithm is a pinned choice both evaluators share.
 //!
@@ -137,12 +137,12 @@ impl std::fmt::Display for UnknownDomain {
 /// `json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`:
 /// `serde_json::to_string` emits a `Value`'s object keys in `BTreeMap` order
 /// (this workspace does not enable `preserve_order`, so map order IS sorted
-/// order · verified by [`tests::canonical_is_sorted_keys`]), compact, with
+/// order · verified by `tests::canonical_is_sorted_keys`), compact, with
 /// non-ASCII passed through raw. Serializing a `Value` cannot fail (string
 /// keys · no NaN inhabitants) — the `""` fallback is unreachable.
 ///
 /// **Idempotent**: `canonical(parse(canonical(x))) == canonical(x)` (spec 15
-/// · property-pinned in [`tests::canonical_is_idempotent`]).
+/// · property-pinned in `tests::canonical_is_idempotent`).
 #[must_use]
 pub fn canonical(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_default()

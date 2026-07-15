@@ -34,7 +34,7 @@
 //!
 //! [`AssertProperty::level`] and [`AssertProperty::check_claim`] mirror
 //! `proof_core.assert_level` + `proof_core.check_assert_claim` — the eight
-//! assert laws of `proof_core_selftest.py` are pinned in [`tests`].
+//! assert laws of `proof_core_selftest.py` are pinned in `tests`.
 //!
 //! ## Honest scope (spec 15 · what this is)
 //!

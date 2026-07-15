@@ -8,7 +8,7 @@
 //! chain integrity), each `assert:` judged with its level, and the
 //! `nika.lock` digest the run resolved under — and `proves` the run's
 //! semantic hash ([`crate::proof::semantic_hash`]). The Decision Receipt
-//! ([`nika_builtin::decide`] · `decision_receipt_format: 1`) and the registry
+//! (`nika_builtin::decide` · `decision_receipt_format: 1`) and the registry
 //! certificate become INSTANCES of this shape — one voice, three surfaces.
 //!
 //! The receipt is domain-separated ([`HashDomain::Receipt`]) and Merkle-linked
@@ -18,7 +18,7 @@
 //! ## Parity (spec 15 · the second evaluator)
 //!
 //! [`build_receipt`] mirrors `proof_core.build_receipt` — the FOLD structure
-//! is byte-equal on the pre-image ([`tests::receipt_fold_matches_the_reference`]
+//! is byte-equal on the pre-image (`tests::receipt_fold_matches_the_reference`
 //! feeds both evaluators a FIXED `proves` string to isolate the fold from the
 //! hash algorithm, since `proves` carries the algo-dependent digest). The
 //! `digest` itself differs (the reference's sha256 vs this engine's blake3) —
