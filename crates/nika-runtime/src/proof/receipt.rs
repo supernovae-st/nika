@@ -24,9 +24,11 @@
 //! `digest` itself differs (the reference's sha256 vs this engine's blake3) —
 //! the parity is on the bytes, never across algorithms.
 
+use nika_schema::RunCertificate;
+use nika_schema::types::{AssertLevel, AssertProperty};
 use serde_json::{Map, Value};
 
-use crate::proof::{HashDomain, hash_in_domain};
+use crate::proof::{HashDomain, SemanticHash, hash_in_domain};
 
 /// The v1 receipt format — the `receipt_format` field value AND the pre-image
 /// format version (the reference's `RECEIPT_FORMAT`).
@@ -102,6 +104,49 @@ pub fn verify(receipt: &Value, expected_semantic: &str) -> bool {
     recomputed == stored
 }
 
+/// Fold a run's receipt from the engine's OWN typed pieces (spec 15 · the one
+/// receipt · the parent shape's FIRST real instance): the check certificate
+/// (nika-schema [`RunCertificate`] · attempts · effects · cost bound), the
+/// semantic hash it proves ([`SemanticHash`]), each `assert:` obligation
+/// judged at its honest level (nika-vocab [`AssertProperty`]/[`AssertLevel`]),
+/// the trace verdict, and the `nika.lock` digest the run resolved under.
+///
+/// This is the honest realization the spec calls for: the parent shape plus
+/// ONE real instance folding the engine's actual certificate. Fully
+/// unifying the Decision Receipt (`decide.rs` `decision_receipt_format: 1`)
+/// and the registry certificate INTO instances of this shape is the named
+/// owed — the shape is here; the two other surfaces adopt it next.
+#[must_use]
+pub fn build_run_receipt(
+    proves: &SemanticHash,
+    certificate: &RunCertificate,
+    judged: &[(AssertProperty, AssertLevel)],
+    trace_verdict: Value,
+    lock_digest: &str,
+) -> Value {
+    // The certificate is Serialize (nika-schema) — fold it as-is.
+    let cert = serde_json::to_value(certificate).unwrap_or(Value::Null);
+    let assertions = judged
+        .iter()
+        .map(|(property, level)| {
+            let mut entry = Map::new();
+            entry.insert(
+                "assert".to_owned(),
+                Value::String(property.name().to_owned()),
+            );
+            entry.insert("level".to_owned(), Value::String(level.as_str().to_owned()));
+            Value::Object(entry)
+        })
+        .collect();
+    build_receipt(
+        proves.as_hex(),
+        cert,
+        trace_verdict,
+        assertions,
+        lock_digest,
+    )
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -174,5 +219,56 @@ mod tests {
             format!("receipt\u{0}1\u{0}{canon}"),
             "receipt\u{0}1\u{0}{\"assertions\":[{\"assert\":\"no_secret_egress\",\"level\":\"StaticProof\"}],\"certificate\":{\"attempts\":1},\"lock_digest\":\"blake3:lock\",\"proves\":\"blake3:fixedsem\",\"receipt_format\":1,\"trace_verdict\":{\"outcome\":\"success\"}}"
         );
+    }
+
+    /// The ONE real instance: a receipt folded from the engine's OWN typed
+    /// pieces — a real `RunCertificate` (nika-schema · from an actually-checked
+    /// workflow), the workflow's real semantic hash (the Merkle root), and an
+    /// `assert:` obligation judged at its honest level (nika-vocab). The
+    /// receipt proves THIS workflow's identity and verifies.
+    #[test]
+    fn a_run_receipt_folds_the_engine_certificate_and_verifies() {
+        use crate::proof::ir::semantic_ir_hash;
+
+        let wf = nika_schema::parse(
+            "nika: v1\nworkflow:\n  id: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        let proves = semantic_ir_hash(&wf).expect("projectable");
+
+        // Judge one obligation at its honest level (no_secret_egress is static).
+        let property = AssertProperty::NoSecretEgress;
+        let judged = vec![(property.clone(), property.level(false))];
+
+        let receipt = build_run_receipt(
+            &proves,
+            &report.certificate,
+            &judged,
+            json!({ "outcome": "success" }),
+            "blake3:lockdigest",
+        );
+
+        // The receipt proves THIS workflow's semantic hash and verifies.
+        assert!(
+            verify(&receipt, proves.as_hex()),
+            "the run receipt verifies"
+        );
+        // The engine's real certificate is folded in (attempts · effects · bound).
+        assert!(
+            receipt["certificate"].is_object(),
+            "the RunCertificate is folded, not a placeholder"
+        );
+        // The judged assertion rides with its honest level.
+        assert_eq!(
+            receipt["assertions"][0]["assert"],
+            json!("no_secret_egress")
+        );
+        assert_eq!(receipt["assertions"][0]["level"], json!("StaticProof"));
+        assert_eq!(receipt["lock_digest"], json!("blake3:lockdigest"));
+        // It does NOT verify against a different workflow's identity.
+        assert!(!verify(&receipt, "blake3:someotherworkflow"));
     }
 }
