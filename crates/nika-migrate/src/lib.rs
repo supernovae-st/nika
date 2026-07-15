@@ -20,11 +20,23 @@
 //! A task whose `id:` is NOT the item's first line is deliberately not
 //! handled — the parser's teaching names the file and a human decides
 //! (never guess; the conformance suite pins the refusal).
+//!
+//! The crate carries both waves — `w1` (the map) and `w2` (equivalence-or-stop
+//! flow migration). Split out of `nika-cli` per the size-cap discipline
+//! (D-2026-07-09-N1 · one architectural unit, N workspace members · the
+//! `nika-source` / `nika-vocab` precedent): the CLI's `fix` verb calls
+//! `nika_migrate::w1` / `w2` unchanged. Pure `std` · zero I/O · zero deps.
+
+#![forbid(unsafe_code)]
+#![cfg_attr(
+    test,
+    allow(clippy::unwrap_used, clippy::expect_used, clippy::unreachable)
+)]
 
 /// Apply the W1 migration. `Some(new)` when the document changed,
 /// `None` when it is already in the new form (idempotence by contract).
 #[must_use]
-pub(crate) fn w1(source: &str) -> Option<String> {
+pub fn w1(source: &str) -> Option<String> {
     let lines: Vec<&str> = source.split('\n').collect();
 
     // pass 1 · locate the top-level `description:` (to hoist) and the
@@ -152,7 +164,7 @@ fn task_item_to_key(line: &str) -> Option<String> {
 //   S6 flow-style with: needing a merge · S7 unparseable shape.
 
 /// The W2 migration verdict.
-pub(crate) enum W2Outcome {
+pub enum W2Outcome {
     /// Mechanically migrated (equivalence preserved by rule).
     Changed(String),
     /// Ambiguous — each diagnostic names the case and its candidates.
@@ -285,7 +297,7 @@ struct DepsBlock {
 }
 
 /// Apply the W2 migration (equivalence-or-stop).
-pub(crate) fn w2(source: &str) -> W2Outcome {
+pub fn w2(source: &str) -> W2Outcome {
     let lines: Vec<&str> = source.split('\n').collect();
     let task_starts = scan_task_starts(&lines);
     let facts = collect_task_facts(&lines, &task_starts);

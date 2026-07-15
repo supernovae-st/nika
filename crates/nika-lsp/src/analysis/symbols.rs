@@ -43,9 +43,9 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
     let mut children: Vec<DocumentSymbol> = Vec::new();
     for (name, decl) in &wf.vars {
         let detail = match decl {
+            // CLOSED vocabulary (nika-vocab) — both forms named.
             nika_schema::VarDecl::Typed { r#type, .. } => format!("var · {type}"),
-            // Untyped + any future #[non_exhaustive] form
-            _ => "var".to_owned(),
+            nika_schema::VarDecl::Untyped(_) => "var".to_owned(),
         };
         children.push(decl_symbol(
             index,

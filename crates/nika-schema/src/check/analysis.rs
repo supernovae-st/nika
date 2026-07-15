@@ -372,7 +372,7 @@ fn literal_write_path(task: &RawTask) -> Option<&str> {
     let RawAction::Invoke(invoke) = &task.action else {
         return None;
     };
-    if invoke.tool.value != "nika:write" {
+    if invoke.tool().map(|t| t.value.as_str()) != Some("nika:write") {
         return None;
     }
     invoke

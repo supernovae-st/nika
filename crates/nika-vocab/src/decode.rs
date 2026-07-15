@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 
 /// How an `exec:` task's captured bytes become a value (spec 09 §decode).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum DecodeMode {
     /// Strict UTF-8 text (the default) — invalid UTF-8 settles the task

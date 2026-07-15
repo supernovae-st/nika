@@ -197,7 +197,7 @@ projection: the judge is the check ladder, never the JSON.
   `nika:prompt` pause; a dedicated approval surface (delegation ·
   quorum · `via:`) is future work with its own chapter.
 - **No policy inheritance.** A file's law is the file's — composition
-  across `nika:workflow` calls stays the callee's own policy (the
+  across `invoke: workflow:` calls stays the callee's own policy (the
   ceiling algebra is reserved, unwired).
 
 ## Related

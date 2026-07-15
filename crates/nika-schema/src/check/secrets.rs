@@ -48,7 +48,11 @@ pub struct SecretLeak {
 /// IS its own `to:` token.
 fn sink_id_of(action: &RawAction) -> String {
     match action {
-        RawAction::Invoke(inv) => inv.tool.value.clone(),
+        RawAction::Invoke(inv) => match &inv.target {
+            crate::raw::RawInvokeTarget::Tool(t) => t.value.clone(),
+            // a secret into a child's args egresses to THAT child
+            crate::raw::RawInvokeTarget::Workflow(w) => w.value.clone(),
+        },
         RawAction::Exec(_) => "exec".to_owned(),
         RawAction::Infer(_) => "infer".to_owned(),
         RawAction::Agent(_) => "agent".to_owned(),

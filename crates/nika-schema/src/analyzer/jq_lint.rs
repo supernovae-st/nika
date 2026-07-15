@@ -111,8 +111,11 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
     let RawAction::Invoke(invoke) = action else {
         return;
     };
-    let tool = invoke.tool.value.as_str();
-    let span = invoke.tool.span;
+    let Some(tool_ref) = invoke.tool() else {
+        return; // a workflow: call carries no jq program
+    };
+    let tool = tool_ref.value.as_str();
+    let span = tool_ref.span;
     let Some(args) = invoke.args.as_ref().map(|a| &a.value) else {
         return;
     };

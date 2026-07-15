@@ -29,6 +29,7 @@
 
 mod analysis;
 mod certificate;
+mod composition;
 mod cost;
 mod declass;
 mod effective;
@@ -52,6 +53,7 @@ use crate::raw::RawWorkflow;
 
 pub use analysis::{DagAnalysis, TaskBlast};
 pub use certificate::{Bound, CertTerm, RunCertificate};
+pub use composition::CompositionFinding;
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use effective::{EffectivePermits, PermitsSource};
 pub use findings::UnifiedFinding;
@@ -255,6 +257,12 @@ pub struct CheckReport {
     /// guarantee. NEVER fail the check ([`CheckReport::is_clean`]
     /// ignores them).
     pub hints: Vec<Hint>,
+    /// The composition lane (spec 14 · `NIKA-COMP-001..004`). A plain
+    /// [`check`] carries the PURE half (templated/malformed/unpinned
+    /// targets — no filesystem needed); [`check_composed`] adds the
+    /// resolved half (cycles · containment · the typed call) through an
+    /// injected reader. Additive: `report_version` stays 1.
+    pub composition: Vec<CompositionFinding>,
     /// Every finding, class-erased into ONE renderable list (#331) —
     /// the per-class keys above stay (the typed surface); a consumer
     /// loops this instead of hardcoding ten key names. Empty ⇔
@@ -289,6 +297,7 @@ impl CheckReport {
             && self.missing_args.is_empty()
             && self.schema_lints.is_empty()
             && self.gate_findings.is_empty()
+            && self.composition.is_empty()
     }
 
     /// The spec codes from the CHECK-ONLY finding surfaces — those NOT in
@@ -331,6 +340,14 @@ impl CheckReport {
             reach::GateFindingKind::BadStatusLiteral => {
                 SpecCode::new("DAG", 7, SpecCategory::ValidationError)
             }
+        }));
+        // Composition lane (spec 14): COMP-002 is the security law
+        // (child boundary ⊄ parent); 001/003/004 are validation.
+        codes.extend(self.composition.iter().map(|f| match f.code {
+            "NIKA-COMP-002" => SpecCode::new("COMP", 2, SpecCategory::SecurityError),
+            "NIKA-COMP-003" => SpecCode::new("COMP", 3, SpecCategory::ValidationError),
+            "NIKA-COMP-004" => SpecCode::new("COMP", 4, SpecCategory::ValidationError),
+            _ => SpecCode::new("COMP", 1, SpecCategory::ValidationError),
         }));
         codes
     }
@@ -418,6 +435,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)
         gate_findings: reach::scan_gates(wf, &topo_waves, &edges),
+        // the PURE composition half (spec 14 law 1's textual part);
+        // the resolved half needs a reader — `check_composed`
+        composition: composition::scan_static(wf),
         hints,
         waves: topo_waves,
         analysis: dag_read.analysis,
@@ -425,6 +445,29 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     // The class-erased list folds the FINISHED report (one truth, read
     // back) — every consumer (CLI --json · MCP nika_check) gets it free.
+    report.findings = findings::collect(&report);
+    report
+}
+
+/// [`check`] + the RESOLVED composition lane (spec 14): the call graph
+/// is walked through the injected reader (the [`crate::resolve_skills`]
+/// pattern — this crate stays zero-I/O), judging acyclicity
+/// (`NIKA-COMP-003`), effect containment (`NIKA-COMP-002`) and the
+/// typed call (`NIKA-COMP-004`) on top of the pure target checks
+/// (`NIKA-COMP-001`). `root` is the workflow's own id/path (relative
+/// child targets resolve against its directory).
+///
+/// The CLI's check/run gates call THIS; a reader-less surface calling
+/// plain [`check`] still gets the pure half — one voice, two depths.
+#[must_use]
+pub fn check_composed(
+    wf: &RawWorkflow,
+    root: &str,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> CheckReport {
+    let mut report = check(wf);
+    report.composition = composition::scan_resolved(wf, root, read);
+    // Re-fold the class-erased list over the finished lane (one truth).
     report.findings = findings::collect(&report);
     report
 }

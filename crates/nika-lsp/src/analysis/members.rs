@@ -141,10 +141,8 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
                         }
                         d
                     }
+                    // CLOSED vocabulary (nika-vocab) — both forms named.
                     nika_schema::VarDecl::Untyped(v) => format!("var · default {v}"),
-                    // #[non_exhaustive] upstream — an unknown future form
-                    // still names itself a var.
-                    _ => "var".to_owned(),
                 };
                 items.push(member_item(&name.value, detail));
             }

@@ -28,7 +28,6 @@ use serde::{Deserialize, Serialize};
 /// Closed enum at v0.1 (spec `01-envelope.md` §secrets) — `vault` is the
 /// sovereign default.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum SecretSource {
     /// Path in the local `nika-vault` (the sovereign default).
@@ -76,7 +75,6 @@ impl fmt::Display for SecretSource {
 /// destination host — a literal `host:` OR `host_from_self: true` when
 /// the secret value IS the URL.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
 pub struct EgressRule {
     /// The sink this rule sanctions — a tool id (`nika:fetch` ·
     /// `nika:notify` · `mcp:<server>/<tool>`), the literal `exec`, or the

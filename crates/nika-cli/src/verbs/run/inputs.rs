@@ -54,10 +54,9 @@ pub(super) fn parse_var_overrides(
             VarDecl::Typed { r#type, .. } => r#type
                 .coerce_cli(raw)
                 .map_err(|why| format!("--var {key}: {why}"))?,
-            // Untyped var (or a future non-exhaustive variant): the
-            // JSON-or-string guess — no declared type to honor, the
-            // historical behavior + the safe default for an unknown form.
-            _ => {
+            // Untyped var: the JSON-or-string guess — no declared type
+            // to honor (CLOSED vocabulary · nika-vocab).
+            VarDecl::Untyped(_) => {
                 serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()))
             }
         };

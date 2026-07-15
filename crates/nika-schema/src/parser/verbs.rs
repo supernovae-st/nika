@@ -44,8 +44,9 @@ pub(crate) const EXEC_KEYS: &[&str] = &[
     "command", "shell", "cwd", "env", "stdin", "capture", "decode",
 ];
 
-/// `invoke:` fields (spec `02-verbs.md` §invoke field table).
-pub(crate) const INVOKE_KEYS: &[&str] = &["tool", "args"];
+/// `invoke:` fields (spec `02-verbs.md` §invoke field table + spec
+/// `14-composition.md` §the form — `tool:` XOR `workflow:`).
+pub(crate) const INVOKE_KEYS: &[&str] = &["tool", "workflow", "args"];
 
 /// `agent:` fields (spec `02-verbs.md` §agent field table).
 pub(crate) const AGENT_KEYS: &[&str] = &[
@@ -207,15 +208,47 @@ fn parse_command(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawCommand, Sc
     Ok(RawCommand::Argv(parts))
 }
 
-/// Parse `invoke:` — builtin / MCP tool call.
+/// Parse `invoke:` — builtin / MCP tool call OR child-workflow call.
+///
+/// The target is a TAGGED UNION (spec `14-composition.md` §the form):
+/// exactly one of `tool:` | `workflow:`. Both present, or neither, is a
+/// validation error — the same shape as two verbs on one task.
 fn parse_invoke_body(
     cx: &Cx<'_>,
     body: &MarkedMappingNode,
 ) -> Result<RawInvokeAction, SchemaError> {
     cx.check_unknown_keys(body, INVOKE_KEYS, "`invoke:`")?;
-    let tool = cx.require_scalar(body, "tool", "invoke")?;
-    validate_tool_ref(&tool)?;
-    let mut action = RawInvokeAction::new(tool);
+    if body.get_node("tool").is_some() && body.get_node("workflow").is_some() {
+        return Err(SchemaError::Validation {
+            message: "`invoke:` takes exactly one of `tool:` | `workflow:` — two targets \
+                      is two meanings (14 §the form · the same law as two verbs on one \
+                      task)"
+                .to_owned(),
+            span: cx.span(body.span()),
+        });
+    }
+    let mut action = if body.get_node("workflow").is_some() {
+        let target = cx.require_scalar(body, "workflow", "invoke")?;
+        if target.value.trim().is_empty() {
+            return Err(SchemaError::Validation {
+                message: "`invoke.workflow` must not be empty — a filesystem path or a \
+                          pinned `registry:owner/name@version` (14 §the form)"
+                    .to_owned(),
+                span: Some(target.span),
+            });
+        }
+        RawInvokeAction::workflow_call(target)
+    } else {
+        let Some(_) = body.get_node("tool") else {
+            return Err(SchemaError::MissingField {
+                field: "invoke.tool | invoke.workflow".to_owned(),
+                span: cx.span(body.span()),
+            });
+        };
+        let tool = cx.require_scalar(body, "tool", "invoke")?;
+        validate_tool_ref(&tool)?;
+        RawInvokeAction::new(tool)
+    };
     if let Some(node) = body.get_node("args") {
         if node.as_mapping().is_none() {
             return Err(SchemaError::Validation {
@@ -953,7 +986,7 @@ tasks:
         let RawAction::Invoke(ref builtin) = wf.tasks[0].value.action else {
             panic!("expected Invoke");
         };
-        assert_eq!(builtin.tool.value, "nika:read");
+        assert_eq!(builtin.tool().expect("tool target").value, "nika:read");
         assert_eq!(
             builtin.args.as_ref().expect("args").value["path"],
             "./config.yaml"
@@ -961,7 +994,7 @@ tasks:
         let RawAction::Invoke(ref mcp) = wf.tasks[1].value.action else {
             panic!("expected Invoke");
         };
-        assert_eq!(mcp.tool.value, "mcp:postgres/query");
+        assert_eq!(mcp.tool().expect("tool target").value, "mcp:postgres/query");
     }
 
     #[test]
@@ -975,7 +1008,8 @@ tasks:
 ";
         let err = parse_strict(yaml).expect_err("no tool");
         assert!(
-            matches!(&err, SchemaError::MissingField { field, .. } if field == "invoke.tool"),
+            matches!(&err, SchemaError::MissingField { field, .. }
+                if field == "invoke.tool | invoke.workflow"),
             "{err:?}"
         );
     }

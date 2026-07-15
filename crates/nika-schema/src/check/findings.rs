@@ -66,6 +66,24 @@ impl UnifiedFinding {
     }
 }
 
+/// The composition fold (spec 14) — split out of [`collect`] at the
+/// 100-line cap (the `fold_tools` precedent).
+fn fold_composition(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for c in &report.composition {
+        // spec 14 — the row already names task · target · law · repair.
+        let mut f = UnifiedFinding::new(
+            "composition",
+            "COMPOSITION",
+            format!("{} → `{}` — {}", c.task, c.target, c.detail),
+        );
+        f.code = Some(c.code.to_owned());
+        f.docs_url = Some(format!("{}/{}", super::ERROR_DOCS_BASE, c.code));
+        f.task = Some(c.task.clone());
+        f.span = Some(c.span);
+        out.push(f);
+    }
+}
+
 /// Fold every class into the one list — conformance first (the ladder's
 /// own order), then the analysis classes in render order.
 pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
@@ -163,6 +181,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.span = g.span;
         out.push(f);
     }
+    fold_composition(report, &mut out);
     fold_tools(report, &mut out);
     for l in &report.schema_lints {
         let mut f = UnifiedFinding::new(
@@ -288,6 +307,13 @@ mod tests {
                 "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:write\", args: { path: \"./x\" } }\n",
                 "missing_arg",
                 "ARGS",
+            ),
+            (
+                // composition: a templated child target (the PURE half of
+                // the spec-14 lane — fires in every check(), reader-less)
+                "nika: v1\nworkflow:\n  id: w\nvars:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ vars.v }}.nika.yaml\" }\n",
+                "composition",
+                "COMPOSITION",
             ),
         ];
         for (yaml, kind, gate) in cases {

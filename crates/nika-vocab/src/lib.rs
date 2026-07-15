@@ -7,6 +7,30 @@
 //! definitions (per the canonical `nika-spec` v1 language · `spec/01..05`).
 //! They are used by both the raw AST (parser output) and the analyzed AST
 //! (post-validation).
+//!
+//! Split out of `nika-schema` per the size-cap discipline
+//! (D-2026-07-09-N1 · one architectural unit, N workspace members · the
+//! `nika-source` precedent): `nika_schema::types` re-exports this crate
+//! wholesale, so every consumer path (`nika_schema::types::Permits` ·
+//! `VarDecl` · `RetryConfig` · …) is unchanged — the schema crate remains
+//! the unit's front door.
+
+#![forbid(unsafe_code)]
+#![warn(
+    clippy::pedantic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    missing_docs
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+    )
+)]
 
 pub mod after;
 pub mod capture;

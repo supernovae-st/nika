@@ -139,14 +139,20 @@ fn check_action(
     match action {
         RawAction::Exec(a) => check_exec(id, &a.command, permits, out),
         RawAction::Invoke(a) => {
-            if permits.allows_tool(&a.tool.value) {
+            let Some(tool) = a.tool() else {
+                // A `workflow:` call is not a tool grant — its authority
+                // law is containment (child ⊆ parent ∩ declared), owned
+                // by the composition lane (NIKA-COMP-002 · spec 14 law 3/4).
+                return;
+            };
+            if permits.allows_tool(&tool.value) {
                 // Tool is granted — but it may still reach a host/path
                 // outside the fs/net boundary. Check the literal effect.
                 // (A tool OUTSIDE permits.tools is already flagged below;
                 // re-flagging its effect would double-count.)
                 check_builtin_effect(id, a, permits, out);
             } else {
-                escapes_tool(id, "invoke", &a.tool.value, out);
+                escapes_tool(id, "invoke", &tool.value, out);
             }
         }
         RawAction::Agent(a) => {
@@ -182,11 +188,14 @@ fn check_net_floor(
     let Some(BuiltinEffect::Net { url_arg }) = builtin_effect(a) else {
         return;
     };
+    let Some(tool_ref) = a.tool() else {
+        return; // builtin_effect is None for workflow: — unreachable belt
+    };
     if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
         && nika_types::net::host_is_blocked(&host)
         && !nika_types::net::loopback_declassified(net_http(permits), &host)
     {
-        let tool = a.tool.value.as_str();
+        let tool = tool_ref.value.as_str();
         out.push(CapabilityEscape {
             task: id.to_owned(),
             category: "net",
@@ -292,13 +301,15 @@ pub(super) use nika_cap::BuiltinEffect;
 /// Classify a builtin invoke's statically-checkable effect — the
 /// `RawInvokeAction` adapter over [`nika_cap::builtin_effect`].
 pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
-    nika_cap::builtin_effect(&a.tool.value, a.args.as_ref().map(|s| &s.value))
+    let tool = a.tool()?;
+    nika_cap::builtin_effect(&tool.value, a.args.as_ref().map(|s| &s.value))
 }
 
 /// The `nika:chart` `compile_to: vega_lite` second gated file — the
 /// `RawInvokeAction` adapter over [`nika_cap::chart_vl_sibling`].
 pub(super) fn chart_vl_sibling(a: &RawInvokeAction) -> Option<String> {
-    nika_cap::chart_vl_sibling(&a.tool.value, a.args.as_ref().map(|s| &s.value))
+    let tool = a.tool()?;
+    nika_cap::chart_vl_sibling(&tool.value, a.args.as_ref().map(|s| &s.value))
 }
 
 /// Check a builtin invoke's LITERAL fs/net effect against the boundary,
@@ -310,7 +321,10 @@ fn check_builtin_effect(
     permits: &Permits,
     out: &mut Vec<CapabilityEscape>,
 ) {
-    let tool = a.tool.value.as_str();
+    let Some(tool_ref) = a.tool() else {
+        return; // a workflow: call is the composition lane's (COMP-002)
+    };
+    let tool = tool_ref.value.as_str();
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             // A floor-blocked host never gets a boundary escape: either it

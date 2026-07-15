@@ -444,6 +444,7 @@ fn resolve_parked(
                     // the WHOLE original error rides (spec 13 §payload)
                     recovered_from: Some(record),
                     warning: None,
+                    child: None, // recovered value ≠ a child run's outputs
                     cost_usd,
                     cost_unpriced,
                 },

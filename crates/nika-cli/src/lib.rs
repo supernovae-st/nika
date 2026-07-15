@@ -26,7 +26,6 @@
 // every `crate::display::…` / `crate::demo` call site stays untouched.
 pub use nika_display as display;
 pub use nika_display::demo;
-pub(crate) mod migrate;
 pub mod registry;
 pub(crate) mod text;
 pub mod verbs;

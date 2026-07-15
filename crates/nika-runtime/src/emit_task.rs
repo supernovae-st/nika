@@ -44,6 +44,7 @@ pub(crate) fn emit_completed(
     cost_usd: Option<f64>,
     cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     warning: Option<&str>,
+    child: Option<&crate::child::ChildRunSummary>,
     resume: Option<&resume::ResumeStamp>,
     record: &TaskRecord,
     stamper: &mut dyn Stamper,
@@ -73,6 +74,14 @@ pub(crate) fn emit_completed(
     // task still completes.
     if let Some(msg) = warning {
         fields.push(("warning", s(msg)));
+    }
+    // spec 14 law 8 (trace forest) — the child-run row `{target,
+    // trace_id, chain_head, def_hash, outcome}` rides the terminal
+    // frame; law 9 (receipts) — this frame is itself hash-chained, so
+    // the parent's chain COMMITS to the child's head (Merkle).
+    let child_json = child.map(crate::child::ChildRunSummary::json);
+    if let Some(row) = &child_json {
+        fields.push(("child", s(&row.to_string())));
     }
     // ADR-099 · the checkpoint fields — only a stamped success carries
     // them (additive trace fields).

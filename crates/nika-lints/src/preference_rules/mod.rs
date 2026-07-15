@@ -279,7 +279,8 @@ fn action_fingerprint(a: &RawAction) -> Value {
         }),
         RawAction::Invoke(i) => json!({
             "verb": "invoke",
-            "tool": i.tool.value,
+            "tool": i.tool().map(|t| t.value.clone()),
+            "workflow": i.workflow().map(|w| w.value.clone()),
             "args": i.args.as_ref().map(|v| v.value.clone()),
         }),
         RawAction::Infer(f) => json!({
@@ -449,7 +450,7 @@ fn rule_003_004_failure_guarded_tasks(
 /// else counts as real work.
 fn is_value_producer(a: &RawAction) -> bool {
     match a {
-        RawAction::Invoke(inv) if inv.tool.value == "nika:jq" => {
+        RawAction::Invoke(inv) if inv.tool().map(|t| t.value.as_str()) == Some("nika:jq") => {
             inv.args.as_ref().is_none_or(|args| {
                 !serde_json::to_string(&args.value)
                     .unwrap_or_default()
@@ -664,7 +665,18 @@ fn is_shard_chain(tasks: &[&RawTask], chain: &[usize]) -> bool {
                 let RawAction::Invoke(inv) = a else {
                     return false;
                 };
-                if inv.tool.value != first.tool.value {
+                let same_target = match (&inv.target, &first.target) {
+                    (
+                        nika_schema::raw::RawInvokeTarget::Tool(a),
+                        nika_schema::raw::RawInvokeTarget::Tool(b),
+                    )
+                    | (
+                        nika_schema::raw::RawInvokeTarget::Workflow(a),
+                        nika_schema::raw::RawInvokeTarget::Workflow(b),
+                    ) => a.value == b.value,
+                    _ => false,
+                };
+                if !same_target {
                     return false;
                 }
                 prints.push(inv.args.as_ref().map_or(Value::Null, |v| v.value.clone()));

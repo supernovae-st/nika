@@ -132,9 +132,18 @@ pub(crate) fn matches_code(spec: SpecCode, expected: &ExpectedError) -> bool {
 /// invalidating findings are returned (NOT advisory surfaces — hints ·
 /// gate/schema findings — which fire on valid workflows and must not flip a
 /// VALID fixture to invalid).
-pub(crate) fn check_extra(yaml: &str, mode: ParseMode) -> Vec<SpecCode> {
+pub(crate) fn check_extra(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCode> {
     match parse(yaml, FileId::new(0), mode) {
-        Ok(wf) => check(&wf).extra_conformance_codes(),
+        Ok(wf) => {
+            // The COMPOSED lane (spec 14): a fixture's `workflow:` targets
+            // resolve against the fixture directory (sibling files) — the
+            // same reader shape the CLI injects.
+            let root = dir.join("input.yaml").to_string_lossy().into_owned();
+            nika_schema::check_composed(&wf, &root, &mut |p| {
+                std::fs::read_to_string(p).map_err(|e| e.to_string())
+            })
+            .extra_conformance_codes()
+        }
         // A parse error surfaces through `run_engine` (analyze) as a SchemaError.
         Err(_) => Vec::new(),
     }
@@ -182,7 +191,7 @@ pub(crate) fn fixture_verdict(dir: &Path, deep: bool) -> Option<String> {
     // capability escapes · policy included via `extra_conformance_codes`).
     let emitted = run_engine(&yaml, mode);
     let extra = if deep {
-        check_extra(&yaml, mode)
+        check_extra(&yaml, mode, dir)
     } else {
         check_policy_codes(&yaml, mode)
     };

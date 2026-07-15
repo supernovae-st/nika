@@ -418,11 +418,10 @@ fn flow_edges(wf: &nika_schema::raw::RawWorkflow, view: &RunView) -> Vec<FlowEdg
         }
     }
     for (key, decl) in &wf.outputs {
+        // CLOSED vocabulary (nika-vocab) — both forms named.
         let template = match decl {
             nika_schema::types::OutputDecl::Untyped(v) => &v.value,
             nika_schema::types::OutputDecl::Typed { value, .. } => &value.value,
-            // #[non_exhaustive] future forms carry no v0 template.
-            _ => continue,
         };
         let mut refs = std::collections::BTreeSet::new();
         scan_task_refs(template, &mut refs);

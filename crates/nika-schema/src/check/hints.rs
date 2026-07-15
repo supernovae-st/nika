@@ -431,10 +431,10 @@ fn push_retry_effects_hint(hints: &mut Vec<Hint>, t: &crate::raw::RawTask) {
                 "`{id}` retries a subprocess — a transient failure mid-effect replays side effects already applied (at-least-once); make the command idempotent or guard it with a pre-check"
             )));
         }
-        RawAction::Invoke(a) if a.tool.value.starts_with("mcp:") => {
+        RawAction::Invoke(a) if a.tool().is_some_and(|t| t.value.starts_with("mcp:")) => {
+            let tool = a.tool().map_or("", |t| t.value.as_str());
             hints.push(hint("retry-effects", id, format!(
-                "`{id}` retries `{}` — external MCP tools carry no idempotency contract; a transient failure replays the call's side effects (at-least-once)",
-                a.tool.value
+                "`{id}` retries `{tool}` — external MCP tools carry no idempotency contract; a transient failure replays the call's side effects (at-least-once)"
             )));
         }
         _ => {}
@@ -696,7 +696,7 @@ pub fn static_read_paths(wf: &RawWorkflow) -> Vec<(String, String)> {
         let RawAction::Invoke(invoke) = &task.value.action else {
             continue;
         };
-        if invoke.tool.value != "nika:read" {
+        if invoke.tool().map(|t| t.value.as_str()) != Some("nika:read") {
             continue;
         }
         let Some(args) = &invoke.args else { continue };

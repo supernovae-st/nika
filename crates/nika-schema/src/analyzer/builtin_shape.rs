@@ -33,8 +33,13 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
     let RawAction::Invoke(invoke) = action else {
         return;
     };
-    let tool = invoke.tool.value.as_str();
-    let span = invoke.tool.span;
+    // A `workflow:` call is not a builtin — its contract is the
+    // composition lane's (spec 14), not the arg-shape table's.
+    let Some(tool_ref) = invoke.tool() else {
+        return;
+    };
+    let tool = tool_ref.value.as_str();
+    let span = tool_ref.span;
     let args = invoke.args.as_ref().map(|a| &a.value);
     for reason in nika_cap::builtin_shape_findings(tool, args) {
         errors.push(SchemaError::BadBuiltinArgs {

@@ -688,9 +688,6 @@
     },
     "invoke": {
       "type": "object",
-      "required": [
-        "tool"
-      ],
       "additionalProperties": false,
       "properties": {
         "tool": {
@@ -739,8 +736,34 @@
         },
         "args": {
           "type": "object"
+        },
+        "workflow": {
+          "type": "string",
+          "description": "Compose another workflow (spec 14) · a STATIC target: a filesystem path OR registry:owner/name@version (pinned). A templated target is refused at check (NIKA-COMP-001). Exactly one of tool: | workflow: (the invoke tagged union · G21)."
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "tool"
+          ],
+          "not": {
+            "required": [
+              "workflow"
+            ]
+          }
+        },
+        {
+          "required": [
+            "workflow"
+          ],
+          "not": {
+            "required": [
+              "tool"
+            ]
+          }
+        }
+      ]
     },
     "agent": {
       "type": "object",

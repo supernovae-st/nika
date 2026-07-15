@@ -64,7 +64,8 @@ pub(crate) fn parse_answers(
         };
         let is_prompt = matches!(
             &task.value.action,
-            nika_schema::raw::RawAction::Invoke(invoke) if invoke.tool.value == "nika:prompt"
+            nika_schema::raw::RawAction::Invoke(invoke)
+                if invoke.tool().map(|t| t.value.as_str()) == Some("nika:prompt")
         );
         if !is_prompt {
             return Err(format!(

@@ -17,7 +17,7 @@
 //! `on_codes` combines with any one action; alone it is a parse error
 //! (a filter with nothing to filter).
 
-use crate::source::Spanned;
+use nika_source::Spanned;
 
 /// The `on_error:` action — exactly one of the three modes.
 #[derive(Debug, Clone, PartialEq)]
@@ -45,7 +45,7 @@ pub struct OnError {
     pub action: OnErrorAction,
     /// `on_codes:` — when non-empty, the action applies ONLY to the
     /// listed canonical codes (`NIKA-<NS>[-<SUB>]-<NNN>` · validated
-    /// against [`is_valid_error_code`](crate::types::is_valid_error_code))
+    /// against [`is_valid_error_code`](crate::is_valid_error_code))
     /// · an unlisted code falls through to the default fail.
     pub on_codes: Vec<Spanned<String>>,
 }
@@ -65,7 +65,7 @@ impl OnError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::Span;
+    use nika_source::Span;
 
     #[test]
     fn recover_carries_value() {

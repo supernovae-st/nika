@@ -101,7 +101,12 @@ pub(super) fn is_sanctioned(
 fn sink_id(action: &RawAction) -> &str {
     match action {
         RawAction::Exec(_) => "exec",
-        RawAction::Invoke(a) => a.tool.value.as_str(),
+        RawAction::Invoke(a) => match &a.target {
+            crate::raw::RawInvokeTarget::Tool(t) => t.value.as_str(),
+            // A secret flowing into a child workflow's args is an egress
+            // to THAT child — the rule names the target as written.
+            crate::raw::RawInvokeTarget::Workflow(w) => w.value.as_str(),
+        },
         RawAction::Infer(_) => "infer",
         RawAction::Agent(_) => "agent",
     }

@@ -187,6 +187,10 @@ pub(crate) enum RunResult {
         /// (spec 13 §payload · success(recovered)).
         recovered_from: Option<TaskErrorRecord>,
         warning: Option<String>,
+        /// The child-run summary when the task was an `invoke: workflow:`
+        /// call (spec 14 law 8 · rides the terminal frame as `child`).
+        /// Boxed — the row is cold (see `DispatchOk::child`).
+        child: Option<Box<crate::child::ChildRunSummary>>,
         /// Real spend (catalog × usage split + tool-reported) · None =
         /// unpriced · honest. (The by-source attribution key lives on
         /// `DispatchOk` — the ledger debits at that leaf, before the
@@ -422,7 +426,7 @@ where
         let RawAction::Invoke(invoke) = &task.action else {
             return None;
         };
-        if invoke.tool.value != "nika:prompt" {
+        if invoke.tool().map(|t| t.value.as_str()) != Some("nika:prompt") {
             return None;
         }
         let mut bound = task.clone();
@@ -664,11 +668,9 @@ where
         let agent_buffer = crate::agent_events::BufferingObserver::new();
         let mut attempt_marks: Vec<usize> = Vec::new();
         let outcome = {
-            // Accumulators borrowed by the loop future. `budget` = the
-            // task's ONE `timeout:` — enforced below AND at dispatch (F1).
+            // `budget` = the task's ONE `timeout:` — enforced below AND at dispatch (F1).
             let budget = task.timeout.as_ref().map(|t| t.value);
-            // The `returns:` contract, resolved ONCE against the run's
-            // named types (spec 09 · W3) — `None` = gradual/Unknown.
+            // The `returns:` contract, resolved ONCE (spec 09 · W3) — `None` = gradual.
             let contract = crate::contract::TaskContract::of(task, types);
             let attempts = async {
                 let mut attempt = 1_u32;
@@ -683,6 +685,7 @@ where
                             &agent_buffer,
                             budget,
                             contract.as_ref(),
+                            ledger.remaining_usd(), // law 6 · remaining AT CALL TIME
                         )
                         .await;
                     note.clone_from(&dispatched.note);
@@ -856,8 +859,17 @@ where
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
         // Mini-tasks carry no `returns:` (closed shape) — no contract.
-        let attempt =
-            std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer, Some(limit), None));
+        let attempt = std::pin::pin!(self.dispatch(
+            &mini.action,
+            scope,
+            &cleanup_buffer,
+            Some(limit),
+            None,
+            // best-effort lane: no ledger here — a finally child inherits
+            // no cost bound (the lane has no budget admission by design);
+            // the select timer below still bounds it in TIME.
+            None,
+        ));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         // Either way the outcome is dropped — cleanup observability is
         // the cleanup's own effects (e.g. `nika:emit` · spec 03).
@@ -1114,7 +1126,7 @@ fn when_finish(
                 nika_schema::types::WhenGate::Expr(cel) => Some(cel.clone()),
                 // `when: false` — the literal IS the story; the
                 // note already says the condition closed.
-                _ => None,
+                nika_schema::types::WhenGate::Literal(_) => None,
             },
         },
         Err(err) => SettleAs::FailedBeforeStart {
@@ -1232,13 +1244,10 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
 /// Evaluate a `when:` gate value (shared by tasks + cleanup mini-tasks).
 fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
     match gate {
+        // CLOSED vocabulary (nika-vocab) — a future gate form is a spec
+        // change that must land HERE explicitly, never silently closed.
         WhenGate::Literal(b) => Ok(*b),
         WhenGate::Expr(body) => expr::eval_when(body, scope),
-        // #[non_exhaustive] · a future gate form is out of the v0
-        // subset by definition · loud, never silently closed.
-        other => Err(RuntimeError::WhenUnsupported {
-            expr: format!("{other:?}"),
-        }),
     }
 }
 
@@ -1255,6 +1264,7 @@ fn dispatch_result(
             value,
             tokens,
             warning,
+            child,
             cost_usd,
             cost_source: _,
             cost_unpriced,
@@ -1263,6 +1273,7 @@ fn dispatch_result(
             tokens,
             recovered_from: None,
             warning,
+            child,
             cost_usd,
             cost_unpriced,
         },
@@ -1304,6 +1315,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                 // — but the FAILED attempts' spend already happened and
                 // stays on the frame (recovery does not refund it).
                 warning: None,
+                child: None, // recovered value ≠ a child run's outputs
                 cost_usd,
                 cost_unpriced,
             },

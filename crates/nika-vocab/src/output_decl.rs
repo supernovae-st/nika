@@ -10,13 +10,12 @@
 //!
 //! `outputs:` (envelope · plural) ≠ `output:` (task · singular jq bindings).
 
-use crate::source::Spanned;
+use nika_source::Spanned;
 
 use super::var_decl::VarType;
 
 /// One envelope `outputs:` entry.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum OutputDecl {
     /// Untyped form · `summary: ${{ tasks.synthesize.output }}` — a bare
     /// `${{ }}` reference.
@@ -46,7 +45,7 @@ impl OutputDecl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::Span;
+    use nika_source::Span;
 
     fn spanned(s: &str) -> Spanned<String> {
         Spanned::new(s.to_owned(), Span::default())

@@ -98,6 +98,11 @@ pub(crate) struct DispatchOk {
     pub value: Value,
     pub tokens: Option<i64>,
     pub warning: Option<String>,
+    /// The child-run summary when this dispatch was an `invoke:
+    /// workflow:` call (spec 14 law 8 · the trace-forest row the parent
+    /// records) — `None` for every other verb. Boxed: the row is cold
+    /// and must not widen every dispatch result.
+    pub child: Option<Box<crate::child::ChildRunSummary>>,
     /// Real spend in USD (catalog pricing × the provider's reported
     /// usage split · plus tool-reported spend) · None for unpriced
     /// models (mock · local · unknown): absent is honest — never a
@@ -135,6 +140,7 @@ impl Dispatched {
                 value,
                 tokens,
                 warning: None,
+                child: None,
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
@@ -159,6 +165,7 @@ impl Dispatched {
                 value,
                 tokens,
                 warning,
+                child: None,
                 cost_usd,
                 cost_source,
                 cost_unpriced,
@@ -206,7 +213,7 @@ impl Dispatched {
         }
     }
 
-    fn template_err(note: &str, err: &RuntimeError) -> Self {
+    pub(crate) fn template_err(note: &str, err: &RuntimeError) -> Self {
         Self {
             note: note.to_owned(),
             result: Err(FailedDispatch::unspent(TaskErrorRecord {
@@ -242,6 +249,24 @@ impl Dispatched {
             result: Err(FailedDispatch::unspent(TaskErrorRecord {
                 code: "NIKA-SEC-004".to_owned(),
                 message: reason.into(),
+                transient: false,
+            })),
+        }
+    }
+
+    /// A composition refusal (spec 14 · the `NIKA-COMP` namespace + the
+    /// `NIKA-SEC-003` depth backstop) — the run-side voice of the
+    /// check-time findings (the skills dual-surface precedent): `nika
+    /// check` refuses these BEFORE any run; this path fires for an
+    /// embedder that skipped the contract, or for the depth/containment
+    /// backstops a static checker cannot draw. Never transient — a
+    /// composition defect is structural; retry never helps.
+    pub(crate) fn comp_refusal(note: &str, code: &str, reason: String) -> Self {
+        Self {
+            note: note.to_owned(),
+            result: Err(FailedDispatch::unspent(TaskErrorRecord {
+                code: code.to_owned(),
+                message: reason,
                 transient: false,
             })),
         }
@@ -287,6 +312,9 @@ where
     /// infer/agent paths compile `lower(returns)` onto the EXISTING
     /// structured-output lane (violations stay `NIKA-INFER-002`);
     /// invoke stays `Unknown` in W3 (tool contracts land later).
+    /// `child_budget` — the run ledger's remaining USD at call time
+    /// (spec 14 law 6): an `invoke: workflow:` child runs under
+    /// `min(this, its declared budget)`. `None` = no budget to inherit.
     pub(crate) async fn dispatch(
         &self,
         action: &RawAction,
@@ -294,9 +322,13 @@ where
         agent_buffer: &crate::agent_events::BufferingObserver,
         deadline: Option<std::time::Duration>,
         contract: Option<&crate::contract::TaskContract<'_>>,
+        child_budget: Option<f64>,
     ) -> Dispatched {
         match action {
-            RawAction::Invoke(inner) => self.dispatch_invoke(inner, scope).await,
+            RawAction::Invoke(inner) => {
+                self.dispatch_invoke(inner, scope, (deadline, child_budget), contract)
+                    .await
+            }
             RawAction::Exec(inner) => self.dispatch_shell(inner, scope, contract).await,
             RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline, contract).await,
             RawAction::Agent(inner) => {
@@ -316,8 +348,23 @@ where
         &self,
         action: &nika_schema::raw::RawInvokeAction,
         scope: &Scope<'_>,
+        (deadline, child_budget): (Option<std::time::Duration>, Option<f64>),
+        contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
-        let tool = action.tool.value.clone();
+        let tool = match &action.target {
+            nika_schema::raw::RawInvokeTarget::Tool(t) => t.value.clone(),
+            nika_schema::raw::RawInvokeTarget::Workflow(w) => {
+                return self
+                    .dispatch_workflow_call(
+                        w,
+                        action.args.as_ref(),
+                        scope,
+                        (deadline, child_budget),
+                        contract,
+                    )
+                    .await;
+            }
+        };
         let note = format!("invoke · {tool}");
         let args = match &action.args {
             None => Value::Object(serde_json::Map::new()),

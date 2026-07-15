@@ -102,7 +102,7 @@ pub(crate) fn prompt_block(
     let RawAction::Invoke(invoke) = &task.action else {
         return None; // the rider binds the direct builtin invocation only
     };
-    if invoke.tool.value != "nika:prompt" {
+    if invoke.tool().map(|t| t.value.as_str()) != Some("nika:prompt") {
         return None;
     }
     // Secret values NEVER reach the journal payload — markers only.

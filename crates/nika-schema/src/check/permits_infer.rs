@@ -165,10 +165,20 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                 }
             }
         }
-        RawAction::Invoke(a) => {
-            c.tools.insert(a.tool.value.clone());
-            collect_builtin_effect(c, id, a);
-        }
+        RawAction::Invoke(a) => match &a.target {
+            crate::raw::RawInvokeTarget::Tool(t) => {
+                c.tools.insert(t.value.clone());
+                collect_builtin_effect(c, id, a);
+            }
+            crate::raw::RawInvokeTarget::Workflow(w) => {
+                c.notes.push(format!(
+                    "task `{id}` calls workflow `{}` — the child's effect \
+                     boundary is resolved by the composition lane \
+                     (NIKA-COMP-002 · spec 14 law 3/4), never inferred here",
+                    w.value
+                ));
+            }
+        },
         RawAction::Agent(a) => {
             for tool in &a.tools {
                 c.tools.insert(tool.value.clone());

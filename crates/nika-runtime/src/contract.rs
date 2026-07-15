@@ -121,12 +121,9 @@ pub(crate) fn decode_bytes(
             }
             Ok(serde_json::Value::Array(values))
         }
+        // CLOSED vocabulary (nika-vocab) — a future decode mode is a
+        // spec change that must land HERE explicitly, never guessed.
         D::Bytes => Ok(serde_json::Value::String(base64_encode(raw))),
-        // #[non_exhaustive] · a future decode mode (`artifact-ref` ·
-        // W5) fails loudly rather than guessing a byte semantics.
-        other => Err(RuntimeError::Decode {
-            message: format!("decode mode not wired in the runtime yet: {other}"),
-        }),
     }
 }
 

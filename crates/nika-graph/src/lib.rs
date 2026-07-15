@@ -149,10 +149,10 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                 tool,
                 model,
                 when: task.when.as_ref().map(|w| match &w.value {
+                    // CLOSED vocabulary (nika-vocab) — a new gate form is
+                    // a spec change that must land HERE explicitly.
                     WhenGate::Literal(b) => b.to_string(),
                     WhenGate::Expr(e) => e.clone(),
-                    // #[non_exhaustive] future gate forms name themselves.
-                    other => format!("{other:?}"),
                 }),
                 permits: nika_schema::check::task_permits(task),
                 fan_out: task.for_each.as_ref().map(|f| match &f.value {
@@ -275,7 +275,12 @@ fn action_facts(
                 .or_else(|| default_model.map(str::to_owned)),
         ),
         RawAction::Exec(_) => ("exec", None, None),
-        RawAction::Invoke(invoke) => ("invoke", Some(invoke.tool.value.clone()), None),
+        RawAction::Invoke(invoke) => match &invoke.target {
+            nika_schema::raw::RawInvokeTarget::Tool(t) => ("invoke", Some(t.value.clone()), None),
+            nika_schema::raw::RawInvokeTarget::Workflow(w) => {
+                ("invoke", Some(format!("workflow:{}", w.value)), None)
+            }
+        },
         RawAction::Agent(agent) => (
             "agent",
             None,

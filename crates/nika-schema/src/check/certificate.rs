@@ -301,7 +301,10 @@ fn action_calls(action: &RawAction) -> (u64, u64) {
 /// definition with the runtime via `nika-types`). The certificate may
 /// over-state a crawl that converges early; it must never under-count.
 fn invoke_effect_calls(action: &RawInvokeAction) -> u64 {
-    if action.tool.value != "nika:fetch" {
+    // A `workflow:` call is 1 effect call at the parent-own grain (the
+    // dispatch itself); the COMPOSED bound — parent ⊇ own + child (spec 14
+    // law 5) — is the composition lane's, where the child is resolvable.
+    if action.tool().map(|t| t.value.as_str()) != Some("nika:fetch") {
         return 1;
     }
     let Some(traverse) = action

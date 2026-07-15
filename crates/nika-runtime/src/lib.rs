@@ -40,6 +40,7 @@
 #![forbid(unsafe_code)]
 
 mod agent_events;
+pub mod child;
 mod contract;
 mod dispatch;
 mod emit_task;
@@ -55,6 +56,7 @@ mod retry;
 mod secret;
 mod stamp;
 mod task;
+mod workflow_call;
 
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
@@ -251,6 +253,18 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// same law as an edited prompt · ADR-099). Empty by default: a
     /// workflow without `skills:` never looks here.
     skills: BTreeMap<String, String>,
+    /// The child-workflow execution seam (spec 14 · composition). `None`
+    /// (the default) = no nested-run surface: an `invoke: workflow:`
+    /// task fails loudly (`NIKA-COMP-001` · the run-side voice) instead
+    /// of silently no-oping. The CLI composer injects its recursive
+    /// production runner via [`Self::with_child_runner`].
+    child_runner: Option<Arc<dyn child::ChildRunner>>,
+    /// THIS run's nesting depth (root = 0). The composer sets `parent
+    /// depth + 1` on every child runtime; the dispatch gate refuses a
+    /// call that would exceed [`child::MAX_RUN_DEPTH`] fail-closed
+    /// (`NIKA-SEC-003` · spec 14 §errors — the runtime backstop behind
+    /// the static acyclicity proof).
+    run_depth: u32,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -295,6 +309,8 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             source_sha256: None,
             source_sha256_lf: None,
             skills: BTreeMap::new(),
+            child_runner: None,
+            run_depth: 0,
         }
     }
 
@@ -502,11 +518,10 @@ fn envelope_values(
         .vars
         .iter()
         .filter_map(|(key, decl)| {
+            // CLOSED vocabulary (nika-vocab) — both forms named.
             let value = match decl {
                 VarDecl::Untyped(v) => v.clone(),
                 VarDecl::Typed { default, .. } => default.clone()?,
-                // #[non_exhaustive] future forms carry no v0 value.
-                _ => return None,
             };
             Some((key.value.clone(), value))
         })
@@ -1059,6 +1074,7 @@ fn settle_ran(
             tokens,
             recovered_from,
             warning,
+            child,
             cost_usd,
             cost_unpriced,
         } => settle_success_terminal(
@@ -1066,6 +1082,7 @@ fn settle_ran(
             &run.note,
             duration,
             (value, tokens, recovered_from, warning),
+            child.as_deref(),
             (cost_usd, cost_unpriced),
             attempts,
             resume,
@@ -1142,6 +1159,7 @@ fn settle_success_terminal(
         Option<TaskErrorRecord>,
         Option<String>,
     ),
+    child: Option<&child::ChildRunSummary>,
     (cost_usd, cost_unpriced): (Option<f64>, Option<nika_types::cost::UnpricedReason>),
     attempts: u32,
     resume: Option<&resume::ResumeStamp>,
@@ -1168,6 +1186,7 @@ fn settle_success_terminal(
         cost_usd,
         cost_unpriced,
         warning.as_deref(),
+        child,
         resume,
         record,
         stamper,
@@ -1268,11 +1287,10 @@ fn resolve_outputs(
     wf.outputs
         .iter()
         .filter_map(|(key, decl)| {
+            // CLOSED vocabulary (nika-vocab) — both forms named.
             let template = match decl {
                 OutputDecl::Untyped(v) => &v.value,
                 OutputDecl::Typed { value, .. } => &value.value,
-                // #[non_exhaustive] future forms carry no v0 value.
-                _ => return None,
             };
             let rendered = expr::render_json(&Value::String(template.clone()), &scope).ok()?;
             Some((key.value.clone(), rendered))
@@ -1456,11 +1474,9 @@ fn value_matches_vartype(value: &Value, ty: VarType) -> bool {
         }
         VarType::Boolean => value.is_boolean(),
         VarType::Array => value.is_array(),
+        // CLOSED vocabulary (nika-vocab) — a new type is a spec change
+        // that must land HERE explicitly (never leniently waved through).
         VarType::Object => value.is_object(),
-        // `VarType` is `#[non_exhaustive]`: a future type this engine version
-        // does not yet model is treated leniently (no NIKA-VAR-009) rather
-        // than failing a run on a contract it cannot evaluate.
-        _ => true,
     }
 }
 

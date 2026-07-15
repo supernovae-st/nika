@@ -64,10 +64,10 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                     }
                     b
                 }
+                // CLOSED vocabulary (nika-vocab) — both forms named.
                 nika_schema::VarDecl::Untyped(v) => {
                     format!("**`vars.{name}`** — _var_\n\ndefault `{v}`")
                 }
-                _ => format!("**`vars.{name}`** — _var_"),
             }
         }
         "secrets" => {

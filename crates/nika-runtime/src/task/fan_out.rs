@@ -200,6 +200,8 @@ pub(super) fn fan_out_result(
             tokens: tokens_sum,
             recovered_from: None,
             warning: None,
+            // per-iteration child rows stay per-call — no aggregate row
+            child: None,
             cost_usd,
             cost_unpriced,
         },

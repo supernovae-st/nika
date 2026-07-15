@@ -130,7 +130,14 @@ pub(super) fn task_labels(wf: &RawWorkflow, default_model: &str) -> BTreeMap<Str
                     a.model.as_ref().map(|m| m.value.as_str()),
                     default_model,
                 ),
-                RawAction::Invoke(a) => format!("invoke · {}", a.tool.value),
+                RawAction::Invoke(a) => match &a.target {
+                    nika_schema::raw::RawInvokeTarget::Tool(t) => {
+                        format!("invoke · {}", t.value)
+                    }
+                    nika_schema::raw::RawInvokeTarget::Workflow(w) => {
+                        format!("invoke · workflow:{}", w.value)
+                    }
+                },
                 RawAction::Exec(_) => "exec".to_owned(),
                 // `#[non_exhaustive]` — a FUTURE verb speaks its verb
                 // name (honest, never invented detail).
