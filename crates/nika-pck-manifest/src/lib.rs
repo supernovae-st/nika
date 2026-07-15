@@ -31,6 +31,7 @@ mod hash;
 mod kind;
 mod lockfile;
 mod manifest;
+pub mod nika_lock;
 mod refs;
 
 pub use cert::{Cert, CertVerdict};
@@ -38,6 +39,7 @@ pub use hash::{Blake3Hash, Sha256Hash};
 pub use kind::{ArtifactKind, CustomKind};
 pub use lockfile::{LockEntry, Lockfile};
 pub use manifest::{FileEntry, Manifest};
+pub use nika_lock::{LOCK_FORMAT, LockPin, LockRefusal, NIKA_LOCK_001, NikaLock};
 pub use refs::PackageRef;
 
 /// The one schema marker every pck document carries (FCI-003 · a
