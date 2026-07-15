@@ -1,0 +1,22 @@
+pub mod nika_migrate
+pub enum nika_migrate::W2Outcome
+pub nika_migrate::W2Outcome::Changed(alloc::string::String)
+pub nika_migrate::W2Outcome::Stop(alloc::vec::Vec<alloc::string::String>)
+impl<T, U> core::convert::Into<U> for nika_migrate::W2Outcome where U: core::convert::From<T>
+pub fn nika_migrate::W2Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_migrate::W2Outcome where U: core::convert::Into<T>
+pub type nika_migrate::W2Outcome::Error = core::convert::Infallible
+pub fn nika_migrate::W2Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_migrate::W2Outcome where U: core::convert::TryFrom<T>
+pub type nika_migrate::W2Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_migrate::W2Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_migrate::W2Outcome where T: 'static + ?core::marker::Sized
+pub fn nika_migrate::W2Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_migrate::W2Outcome where T: ?core::marker::Sized
+pub fn nika_migrate::W2Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_migrate::W2Outcome where T: ?core::marker::Sized
+pub fn nika_migrate::W2Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_migrate::W2Outcome
+pub fn nika_migrate::W2Outcome::from(t: T) -> T
+pub fn nika_migrate::w1(source: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_migrate::w2(source: &str) -> nika_migrate::W2Outcome

@@ -98,3 +98,7 @@ nika-onboard
 nika-models
 # --- 2026-07-13: the graph-projection descent (semantic-oracle T2 · the 15k wall — nika-models precedent) ---
 nika-graph
+# --- 2026-07-15: the refonte splits join the floor (W3 nika-source · W-COMP nika-vocab/nika-migrate · 53/53 ratchet closed) ---
+nika-migrate
+nika-source
+nika-vocab
