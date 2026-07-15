@@ -1,0 +1,291 @@
+pub mod nika_source
+#[non_exhaustive] pub struct nika_source::ByteOffset(pub u32)
+impl nika_source::ByteOffset
+pub fn nika_source::ByteOffset::as_usize(self) -> usize
+pub fn nika_source::ByteOffset::new(offset: u32) -> Self
+impl core::clone::Clone for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::clone(&self) -> nika_source::ByteOffset
+impl core::cmp::Eq for nika_source::ByteOffset
+impl core::cmp::Ord for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::cmp(&self, other: &nika_source::ByteOffset) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::eq(&self, other: &nika_source::ByteOffset) -> bool
+impl core::cmp::PartialOrd for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::partial_cmp(&self, other: &nika_source::ByteOffset) -> core::option::Option<core::cmp::Ordering>
+impl core::default::Default for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::default() -> nika_source::ByteOffset
+impl core::fmt::Debug for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_source::ByteOffset
+impl core::marker::StructuralPartialEq for nika_source::ByteOffset
+impl serde_core::ser::Serialize for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_source::ByteOffset where U: core::convert::From<T>
+pub fn nika_source::ByteOffset::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::ByteOffset where U: core::convert::Into<T>
+pub type nika_source::ByteOffset::Error = core::convert::Infallible
+pub fn nika_source::ByteOffset::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::ByteOffset where U: core::convert::TryFrom<T>
+pub type nika_source::ByteOffset::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::ByteOffset::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::ByteOffset where T: core::clone::Clone
+pub type nika_source::ByteOffset::Owned = T
+pub fn nika_source::ByteOffset::clone_into(&self, target: &mut T)
+pub fn nika_source::ByteOffset::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_source::ByteOffset where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_source::ByteOffset::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_source::ByteOffset where T: 'static + ?core::marker::Sized
+pub fn nika_source::ByteOffset::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::ByteOffset where T: ?core::marker::Sized
+pub fn nika_source::ByteOffset::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::ByteOffset where T: ?core::marker::Sized
+pub fn nika_source::ByteOffset::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::ByteOffset where T: core::clone::Clone
+pub unsafe fn nika_source::ByteOffset::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::ByteOffset
+pub fn nika_source::ByteOffset::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_source::ByteOffset where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_source::FileId(pub u32)
+impl nika_source::FileId
+pub fn nika_source::FileId::new(id: u32) -> Self
+impl core::clone::Clone for nika_source::FileId
+pub fn nika_source::FileId::clone(&self) -> nika_source::FileId
+impl core::cmp::Eq for nika_source::FileId
+impl core::cmp::PartialEq for nika_source::FileId
+pub fn nika_source::FileId::eq(&self, other: &nika_source::FileId) -> bool
+impl core::default::Default for nika_source::FileId
+pub fn nika_source::FileId::default() -> nika_source::FileId
+impl core::fmt::Debug for nika_source::FileId
+pub fn nika_source::FileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_source::FileId
+pub fn nika_source::FileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_source::FileId
+pub fn nika_source::FileId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_source::FileId
+impl core::marker::StructuralPartialEq for nika_source::FileId
+impl serde_core::ser::Serialize for nika_source::FileId
+pub fn nika_source::FileId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_source::FileId
+pub fn nika_source::FileId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_source::FileId where U: core::convert::From<T>
+pub fn nika_source::FileId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::FileId where U: core::convert::Into<T>
+pub type nika_source::FileId::Error = core::convert::Infallible
+pub fn nika_source::FileId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::FileId where U: core::convert::TryFrom<T>
+pub type nika_source::FileId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::FileId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::FileId where T: core::clone::Clone
+pub type nika_source::FileId::Owned = T
+pub fn nika_source::FileId::clone_into(&self, target: &mut T)
+pub fn nika_source::FileId::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_source::FileId where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_source::FileId::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_source::FileId where T: 'static + ?core::marker::Sized
+pub fn nika_source::FileId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::FileId where T: ?core::marker::Sized
+pub fn nika_source::FileId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::FileId where T: ?core::marker::Sized
+pub fn nika_source::FileId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::FileId where T: core::clone::Clone
+pub unsafe fn nika_source::FileId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::FileId
+pub fn nika_source::FileId::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_source::FileId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_source::LineCol
+pub nika_source::LineCol::col: u32
+pub nika_source::LineCol::line: u32
+impl nika_source::LineCol
+pub fn nika_source::LineCol::new(line: u32, col: u32) -> Self
+impl core::clone::Clone for nika_source::LineCol
+pub fn nika_source::LineCol::clone(&self) -> nika_source::LineCol
+impl core::cmp::Eq for nika_source::LineCol
+impl core::cmp::PartialEq for nika_source::LineCol
+pub fn nika_source::LineCol::eq(&self, other: &nika_source::LineCol) -> bool
+impl core::fmt::Debug for nika_source::LineCol
+pub fn nika_source::LineCol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_source::LineCol
+pub fn nika_source::LineCol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_source::LineCol
+impl core::marker::StructuralPartialEq for nika_source::LineCol
+impl serde_core::ser::Serialize for nika_source::LineCol
+pub fn nika_source::LineCol::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_source::LineCol
+pub fn nika_source::LineCol::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_source::LineCol where U: core::convert::From<T>
+pub fn nika_source::LineCol::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::LineCol where U: core::convert::Into<T>
+pub type nika_source::LineCol::Error = core::convert::Infallible
+pub fn nika_source::LineCol::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::LineCol where U: core::convert::TryFrom<T>
+pub type nika_source::LineCol::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::LineCol::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::LineCol where T: core::clone::Clone
+pub type nika_source::LineCol::Owned = T
+pub fn nika_source::LineCol::clone_into(&self, target: &mut T)
+pub fn nika_source::LineCol::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_source::LineCol where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_source::LineCol::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_source::LineCol where T: 'static + ?core::marker::Sized
+pub fn nika_source::LineCol::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::LineCol where T: ?core::marker::Sized
+pub fn nika_source::LineCol::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::LineCol where T: ?core::marker::Sized
+pub fn nika_source::LineCol::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::LineCol where T: core::clone::Clone
+pub unsafe fn nika_source::LineCol::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::LineCol
+pub fn nika_source::LineCol::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_source::LineCol where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_source::SourceFile
+pub nika_source::SourceFile::content: alloc::sync::Arc<alloc::string::String>
+pub nika_source::SourceFile::id: nika_source::FileId
+pub nika_source::SourceFile::path: std::path::PathBuf
+impl core::clone::Clone for nika_source::SourceFile
+pub fn nika_source::SourceFile::clone(&self) -> nika_source::SourceFile
+impl core::fmt::Debug for nika_source::SourceFile
+pub fn nika_source::SourceFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_source::SourceFile where U: core::convert::From<T>
+pub fn nika_source::SourceFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::SourceFile where U: core::convert::Into<T>
+pub type nika_source::SourceFile::Error = core::convert::Infallible
+pub fn nika_source::SourceFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::SourceFile where U: core::convert::TryFrom<T>
+pub type nika_source::SourceFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::SourceFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::SourceFile where T: core::clone::Clone
+pub type nika_source::SourceFile::Owned = T
+pub fn nika_source::SourceFile::clone_into(&self, target: &mut T)
+pub fn nika_source::SourceFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_source::SourceFile where T: 'static + ?core::marker::Sized
+pub fn nika_source::SourceFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::SourceFile where T: ?core::marker::Sized
+pub fn nika_source::SourceFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::SourceFile where T: ?core::marker::Sized
+pub fn nika_source::SourceFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::SourceFile where T: core::clone::Clone
+pub unsafe fn nika_source::SourceFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::SourceFile
+pub fn nika_source::SourceFile::from(t: T) -> T
+#[non_exhaustive] pub struct nika_source::SourceRegistry
+impl nika_source::SourceRegistry
+pub fn nika_source::SourceRegistry::add(&mut self, path: impl core::convert::Into<std::path::PathBuf>, content: alloc::string::String) -> nika_source::FileId
+pub fn nika_source::SourceRegistry::get(&self, id: nika_source::FileId) -> core::option::Option<&nika_source::SourceFile>
+pub fn nika_source::SourceRegistry::is_empty(&self) -> bool
+pub fn nika_source::SourceRegistry::len(&self) -> usize
+pub fn nika_source::SourceRegistry::line_col(&self, file: nika_source::FileId, offset: nika_source::ByteOffset) -> core::option::Option<nika_source::LineCol>
+pub fn nika_source::SourceRegistry::new() -> Self
+impl core::default::Default for nika_source::SourceRegistry
+pub fn nika_source::SourceRegistry::default() -> nika_source::SourceRegistry
+impl core::fmt::Debug for nika_source::SourceRegistry
+pub fn nika_source::SourceRegistry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_source::SourceRegistry where U: core::convert::From<T>
+pub fn nika_source::SourceRegistry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::SourceRegistry where U: core::convert::Into<T>
+pub type nika_source::SourceRegistry::Error = core::convert::Infallible
+pub fn nika_source::SourceRegistry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::SourceRegistry where U: core::convert::TryFrom<T>
+pub type nika_source::SourceRegistry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::SourceRegistry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_source::SourceRegistry where T: 'static + ?core::marker::Sized
+pub fn nika_source::SourceRegistry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::SourceRegistry where T: ?core::marker::Sized
+pub fn nika_source::SourceRegistry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::SourceRegistry where T: ?core::marker::Sized
+pub fn nika_source::SourceRegistry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_source::SourceRegistry
+pub fn nika_source::SourceRegistry::from(t: T) -> T
+#[non_exhaustive] pub struct nika_source::Span
+pub nika_source::Span::end: nika_source::ByteOffset
+pub nika_source::Span::file: nika_source::FileId
+pub nika_source::Span::start: nika_source::ByteOffset
+impl nika_source::Span
+pub fn nika_source::Span::contains(&self, offset: nika_source::ByteOffset) -> bool
+pub fn nika_source::Span::is_empty(&self) -> bool
+pub fn nika_source::Span::len(&self) -> u32
+pub fn nika_source::Span::merge(self, other: Self) -> Self
+pub fn nika_source::Span::new(file: nika_source::FileId, start: nika_source::ByteOffset, end: nika_source::ByteOffset) -> Self
+pub fn nika_source::Span::point(file: nika_source::FileId, offset: nika_source::ByteOffset) -> Self
+impl core::clone::Clone for nika_source::Span
+pub fn nika_source::Span::clone(&self) -> nika_source::Span
+impl core::cmp::Eq for nika_source::Span
+impl core::cmp::PartialEq for nika_source::Span
+pub fn nika_source::Span::eq(&self, other: &nika_source::Span) -> bool
+impl core::default::Default for nika_source::Span
+pub fn nika_source::Span::default() -> nika_source::Span
+impl core::fmt::Debug for nika_source::Span
+pub fn nika_source::Span::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_source::Span
+pub fn nika_source::Span::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_source::Span
+impl core::marker::StructuralPartialEq for nika_source::Span
+impl serde_core::ser::Serialize for nika_source::Span
+pub fn nika_source::Span::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_source::Span
+pub fn nika_source::Span::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_source::Span where U: core::convert::From<T>
+pub fn nika_source::Span::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::Span where U: core::convert::Into<T>
+pub type nika_source::Span::Error = core::convert::Infallible
+pub fn nika_source::Span::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::Span where U: core::convert::TryFrom<T>
+pub type nika_source::Span::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::Span::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::Span where T: core::clone::Clone
+pub type nika_source::Span::Owned = T
+pub fn nika_source::Span::clone_into(&self, target: &mut T)
+pub fn nika_source::Span::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_source::Span where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_source::Span::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_source::Span where T: 'static + ?core::marker::Sized
+pub fn nika_source::Span::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::Span where T: ?core::marker::Sized
+pub fn nika_source::Span::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::Span where T: ?core::marker::Sized
+pub fn nika_source::Span::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::Span where T: core::clone::Clone
+pub unsafe fn nika_source::Span::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::Span
+pub fn nika_source::Span::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_source::Span where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_source::Spanned<T>
+pub nika_source::Spanned::span: nika_source::Span
+pub nika_source::Spanned::value: T
+impl<T> nika_source::Spanned<T>
+pub fn nika_source::Spanned<T>::map<U>(self, f: impl core::ops::function::FnOnce(T) -> U) -> nika_source::Spanned<U>
+pub fn nika_source::Spanned<T>::new(value: T, span: nika_source::Span) -> Self
+impl<T: core::clone::Clone> core::clone::Clone for nika_source::Spanned<T>
+pub fn nika_source::Spanned<T>::clone(&self) -> nika_source::Spanned<T>
+impl<T: core::cmp::Eq> core::cmp::Eq for nika_source::Spanned<T>
+impl<T: core::cmp::PartialEq> core::cmp::PartialEq for nika_source::Spanned<T>
+pub fn nika_source::Spanned<T>::eq(&self, other: &Self) -> bool
+impl<T: core::fmt::Debug> core::fmt::Debug for nika_source::Spanned<T>
+pub fn nika_source::Spanned<T>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_source::Spanned<T> where U: core::convert::From<T>
+pub fn nika_source::Spanned<T>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::Spanned<T> where U: core::convert::Into<T>
+pub type nika_source::Spanned<T>::Error = core::convert::Infallible
+pub fn nika_source::Spanned<T>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_source::Spanned<T> where U: core::convert::TryFrom<T>
+pub type nika_source::Spanned<T>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::Spanned<T>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::Spanned<T> where T: core::clone::Clone
+pub type nika_source::Spanned<T>::Owned = T
+pub fn nika_source::Spanned<T>::clone_into(&self, target: &mut T)
+pub fn nika_source::Spanned<T>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_source::Spanned<T> where T: 'static + ?core::marker::Sized
+pub fn nika_source::Spanned<T>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::Spanned<T> where T: ?core::marker::Sized
+pub fn nika_source::Spanned<T>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::Spanned<T> where T: ?core::marker::Sized
+pub fn nika_source::Spanned<T>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::Spanned<T> where T: core::clone::Clone
+pub unsafe fn nika_source::Spanned<T>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::Spanned<T>
+pub fn nika_source::Spanned<T>::from(t: T) -> T
