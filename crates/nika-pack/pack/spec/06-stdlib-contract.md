@@ -81,15 +81,15 @@ Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compati
 
 See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 
-### Builtins (27)
+### Builtins (28)
 
 6 core (log · emit · assert · prompt · done · wait)
 + 5 file (read · write · edit · glob · grep)
-+ 8 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash)
++ 9 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash · decide · the decision kernel · spec 11 · 2026-07-15)
 + 2 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads · compose · agent-loop self-check)
 + 2 network (fetch · notify)
 + 4 media (image_generate · graduate #1 · 2026-07-05 · tts_generate · §Audio · sovereign-first · 2026-07-05 · image_fx · graduate #3 · deterministic artistic effects · 2026-07-09 · chart · graduate #4 · attested deterministic charts · 2026-07-09)
-= **27 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
+= **<!-- canon:builtins -->28<!-- /canon --> canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss · `decide` joined per spec 11 W-DEC · 2026-07-15)
 (+ the remaining media class · **deferred** to stdlib v0.x · NOT in the v0.1 count)
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).
