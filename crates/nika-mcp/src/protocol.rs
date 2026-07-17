@@ -218,7 +218,8 @@ mod tests {
 
     #[test]
     fn tools_call_runs_the_tool() {
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let wf =
+            "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let resp = handle(&json!({
             "jsonrpc": "2.0", "id": 3, "method": "tools/call",
             "params": { "name": "nika_check", "arguments": { "workflow": wf } }

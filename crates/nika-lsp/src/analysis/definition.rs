@@ -373,8 +373,7 @@ mod tests {
             "an empty id resolves to None, not Some(\"\")"
         );
         // also through the public surface for good measure.
-        let yaml =
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"${{ tasks. }}\"] }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"${{ tasks. }}\"] }\n";
         assert!(definition(&uri(), yaml, yaml.find("tasks.").unwrap()).is_none());
     }
 
