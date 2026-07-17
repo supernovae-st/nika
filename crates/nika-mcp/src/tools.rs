@@ -464,7 +464,8 @@ mod tests {
 
     #[test]
     fn check_a_clean_workflow_is_ok() {
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let wf =
+            "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
         assert!(out.contains("clean"), "{out}");
     }

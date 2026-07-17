@@ -692,7 +692,10 @@ async fn stress_wide_fan_in_joins_every_source() {
     use std::fmt::Write as _;
     let mut yaml = String::from("nika: v1\nworkflow: wide-fan\ntasks:\n");
     for n in 0..WIDTH {
-        let _ = writeln!(yaml, "  - id: src{n}\n    exec: {{ command: ['src', '{n}'] }}");
+        let _ = writeln!(
+            yaml,
+            "  - id: src{n}\n    exec: {{ command: ['src', '{n}'] }}"
+        );
     }
     let deps: Vec<String> = (0..WIDTH).map(|n| format!("src{n}")).collect();
     let parts: Vec<String> = (0..WIDTH)

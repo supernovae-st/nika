@@ -232,8 +232,9 @@ mod tests {
             .is_none()
         );
         // A non-prompt task failing with the same code text never pauses.
-        let exec_wf =
-            parse("nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    exec: { command: [\"true\"] }\n");
+        let exec_wf = parse(
+            "nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    exec: { command: [\"true\"] }\n",
+        );
         assert!(
             prompt_block(
                 &failed_finish("ask", PROMPT_BLOCKED_CODE),

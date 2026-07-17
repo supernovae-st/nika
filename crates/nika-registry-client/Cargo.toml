@@ -11,14 +11,14 @@ homepage.workspace     = true
 publish                = false  # Internal L2 service crate (size-cap descent from nika-cli · D-2026-07-09-N1).
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.103.0" }   # HttpGetDyn seam — the ONE injected effect
+nika-kernel = { path = "../nika-kernel", version = "0.104.0" }   # HttpGetDyn seam — the ONE injected effect
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 sha2        = { workspace = true }   # the digest verify (index-pinned sha256 · hard refuse on mismatch)
 toml_edit   = { workspace = true }   # the local pin records (pins.toml — bare refs never float · ADR-106)
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.103.0" }  # MockHttp — the injected seam under test
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.104.0" }  # MockHttp — the injected seam under test
 tempfile         = { workspace = true }
 tokio            = { workspace = true }   # the tests park their own current-thread executor
 

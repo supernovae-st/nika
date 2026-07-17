@@ -163,9 +163,7 @@ fn parse_command(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawCommand, Sc
     }
     if let Some(_node) = shell {
         // The explicit shell door — one scalar line through `/bin/sh -c`.
-        return Ok(RawCommand::Shell(
-            cx.require_scalar(body, "shell", "exec")?,
-        ));
+        return Ok(RawCommand::Shell(cx.require_scalar(body, "shell", "exec")?));
     }
     let Some(node) = cmd else {
         return Err(SchemaError::MissingField {

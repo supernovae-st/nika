@@ -247,7 +247,9 @@ mod tests {
         } else {
             "shell"
         };
-        format!("nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: {{ {field}: {command_yaml} }}\n")
+        format!(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: {{ {field}: {command_yaml} }}\n"
+        )
     }
 
     fn sole_native_hint(yaml: &str) -> Hint {

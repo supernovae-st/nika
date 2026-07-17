@@ -10,6 +10,31 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.104.0](https://github.com/supernovae-st/nika/compare/v0.103.0..v0.104.0) - 2026-07-17
+
+### Added
+
+- **moonshot joins the canonical catalog (17 providers · 11 cloud + 5 local + 1 test)**
+  (ADR-105 · the ADR-104 promotion precedent applied) — `model: moonshot/kimi-k3`
+  runs Kimi K3 first-class: 1M context · thinking model (reasoning spends output
+  tokens · budget `max_tokens` accordingly) · `MOONSHOT_API_KEY` · endpoint
+  `api.moonshot.ai/v1/chat/completions` · weights announced open 2026-07-27.
+  Catalog row refreshed (default `kimi-k3` · cheap `kimi-k2.6` · real context/output
+  limits) · LSP completion + vocab carry the new id (spec-token order preserved:
+  token-absent providers trail the pinned set until the spec adds them).
+- **kimi pricing** — the models.dev snapshot refresh now maps `moonshot` (10 models
+  priced · `kimi-k3` $3 in / $15 out / $0.30 cache-read per M) so `--max-cost-usd`
+  is a hard ceiling on metered kimi spend, not an UNBOUNDED floor.
+
+### Fixed
+
+- **nika-lsp semantic_document fixtures spoke the pre-argv grammar**
+  (`command: "x"` string form · stale since the 0.103.0 exec tightening) — the
+  three tests shipped red at the v0.103.0 tag and CI never ran `nika-lsp --lib`
+  (banked as a CI-coverage finding). Fixtures now speak argv (`command: ["x"]`);
+  the crate is green end-to-end.
+
+
 ## [0.103.0](https://github.com/supernovae-st/nika/compare/v0.102.0..v0.103.0) - 2026-07-13
 
 ### Changed — BREAKING (the #75 window: the language tightens)
