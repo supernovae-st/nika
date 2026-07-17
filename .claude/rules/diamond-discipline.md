@@ -100,7 +100,7 @@ Mandatory per work type :
 - Rust refactor → spn-rust:rust-pro + spn-rust:rust-architect (parallel review)
 - Nika feature → spn-nika:code-reviewer before commit
 - Deletion session → 4-agent swarm per deletion-first.md
-- Any commit → skills check via `/spn-powers:yo`
+- Any commit → skills check via `/spn-powers:system:yo`
 
 ## Rule 10 — Budget restart = 0
 
