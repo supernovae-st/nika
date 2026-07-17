@@ -341,9 +341,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn profiles_view_exposes_the_canonical_fourteen() {
+    async fn profiles_view_exposes_the_canonical_set() {
+        // Role-pinned, never number-pinned: the name said fourteen, the
+        // body said sixteen, the truth was seventeen — the literal dies.
         let reg = ProviderRegistry::new(Arc::new(NoHttp), hermetic());
-        assert_eq!(reg.profiles().len(), 16);
+        assert_eq!(reg.profiles().len(), crate::profile::CANONICAL_IDS.len());
     }
 
     #[test]
