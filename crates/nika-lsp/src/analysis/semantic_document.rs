@@ -95,7 +95,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
 mod tests {
     use super::*;
 
-    const DIAMOND: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"x\" }\n";
+    const DIAMOND: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
 
     fn as_value(doc: &SemanticDocument) -> serde_json::Value {
         serde_json::to_value(doc).expect("payload serializes")
@@ -135,7 +135,7 @@ mod tests {
     /// spans it could read.
     #[test]
     fn findings_yield_a_null_graph_not_an_error() {
-        let cyclic = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n";
+        let cyclic = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n";
         let doc = as_value(&semantic_document(cyclic));
         assert_eq!(doc["graph"], serde_json::Value::Null);
         assert_eq!(doc["reason"], "findings", "why, in one word");

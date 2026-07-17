@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn nodes_are_wave_ordered_regardless_of_authoring_order() {
         let g = doc(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: a\n    exec: { command: \"x\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"x\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  - id: a\n    exec: { command: [\"x\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n",
         );
         assert_eq!(g.graph_format, 1);
         let ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn edges_are_sorted_and_deduped() {
         let g = doc(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a, a]\n    exec: { command: \"x\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a, a]\n    exec: { command: [\"x\"] }\n",
         );
         let pairs: Vec<(&str, &str)> = g
             .edges
