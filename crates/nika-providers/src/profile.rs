@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Provider profiles — the canonical 16, as data.
+//! Provider profiles — the canonical 17, as data.
 //!
 //! A profile binds a provider id to a wire format, a default endpoint and a
 //! key-loading recipe. Every canonical id joins its `nika-catalog` row
@@ -21,7 +21,7 @@ pub enum WireFormat {
     Anthropic,
     /// `OpenAI` Chat Completions — also every OpenAI-compatible server
     /// (cloud: `openai` · `deepseek` · `mistral` · `xai` · `groq` ·
-    /// `openrouter` · `huggingface` · `nvidia` · local: `ollama` · `lmstudio` · `llamacpp` ·
+    /// `openrouter` · `huggingface` · `nvidia` · `moonshot` · local: `ollama` · `lmstudio` · `llamacpp` ·
     /// `localai` · `vllm`).
     OpenAiCompat,
     /// Google Gemini `generateContent` (wired s8.6). The profile
@@ -151,8 +151,8 @@ impl Profile {
     }
 }
 
-/// The canonical provider ids, in canon order (10 cloud · 5 local · 1 test).
-pub const CANONICAL_IDS: [&str; 16] = [
+/// The canonical provider ids, in canon order (11 cloud · 5 local · 1 test).
+pub const CANONICAL_IDS: [&str; 17] = [
     "anthropic",
     "openai",
     "gemini",
@@ -163,6 +163,7 @@ pub const CANONICAL_IDS: [&str; 16] = [
     "openrouter",
     "huggingface",
     "nvidia",
+    "moonshot",
     "ollama",
     "lmstudio",
     "llamacpp",
@@ -205,12 +206,12 @@ pub fn resolve_refusal(model: &str) -> Option<String> {
     }
 }
 
-/// The 10 cloud rows (catalog-backed) + the in-process mock.
+/// The 11 cloud rows (catalog-backed) + the in-process mock.
 ///
 /// gemini's `base_url` is a STEM (`…/v1beta`) — the s8.6 adapter appends
 /// `/models/{model}:generateContent` per request (unlike the other wires,
 /// whose `base_url` is the complete endpoint).
-const CATALOG_WIRED: [(&str, WireFormat, &str); 11] = [
+const CATALOG_WIRED: [(&str, WireFormat, &str); 12] = [
     (
         "anthropic",
         WireFormat::Anthropic,
@@ -269,6 +270,15 @@ const CATALOG_WIRED: [(&str, WireFormat, &str); 11] = [
         WireFormat::OpenAiCompat,
         "https://integrate.api.nvidia.com/v1/chat/completions",
     ),
+    // moonshot · api.moonshot.ai (international endpoint) · Kimi K3
+    // (1M context · thinking model — reasoning spends output tokens,
+    // budget max_tokens accordingly) + the K2.x line · weights announced
+    // open 2026-07-27 · promoted per the ADR-104 precedent (ADR-105).
+    (
+        "moonshot",
+        WireFormat::OpenAiCompat,
+        "https://api.moonshot.ai/v1/chat/completions",
+    ),
     ("mock", WireFormat::Mock, ""),
 ];
 
@@ -287,10 +297,10 @@ const LOCAL: [(&str, &str); 5] = [
     ("vllm", "http://127.0.0.1:8000/v1/chat/completions"),
 ];
 
-/// Build the canonical 16 profiles (catalog-joined where rows exist).
+/// Build the canonical 17 profiles (catalog-joined where rows exist).
 #[must_use]
 pub fn seed() -> Vec<Profile> {
-    let mut out = Vec::with_capacity(16);
+    let mut out = Vec::with_capacity(17);
     for (id, wire, base_url) in CATALOG_WIRED {
         let catalog = nika_catalog::find_provider(id);
         out.push(Profile {
@@ -322,7 +332,7 @@ mod tests {
     fn resolve_refusal_names_the_two_classes_and_clears_the_runnable() {
         // bare id — teaches the contract
         let bare = resolve_refusal("gpt-5-turbo").expect("bare id refused");
-        assert!(bare.contains("bare model id") && bare.contains("16 runnable"));
+        assert!(bare.contains("bare model id") && bare.contains("17 runnable"));
         // cataloged-but-unresolvable provider — the azure class
         let azure = resolve_refusal("azure/gpt-4o").expect("azure refused");
         assert!(azure.contains("`azure`") && azure.contains("not a runnable one"));
@@ -349,7 +359,7 @@ mod tests {
     #[test]
     fn seed_yields_the_canonical_fourteen() {
         let profiles = seed();
-        assert_eq!(profiles.len(), 16);
+        assert_eq!(profiles.len(), 17);
         let mut ids: Vec<&str> = profiles.iter().map(|p| p.id).collect();
         ids.sort_unstable();
         let mut canon = CANONICAL_IDS.to_vec();

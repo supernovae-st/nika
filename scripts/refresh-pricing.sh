@@ -57,6 +57,7 @@ PROVIDERS = {
     "openrouter": "openrouter",
     "huggingface": "huggingface",
     "nvidia": "nvidia",
+    "moonshot": "moonshotai",
 }
 
 def toml_float(v: float) -> str:

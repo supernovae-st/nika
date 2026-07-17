@@ -153,10 +153,11 @@ pub(crate) fn gen_ai_system(provider_id: &str) -> GenAiSystem {
         "deepseek" => GenAiSystem::DeepSeek,
         "xai" => GenAiSystem::Xai,
         // groq · openrouter · huggingface (Inference Providers router) ·
-        // nvidia (integrate.api.nvidia.com / NIM) · the 5 local servers all
-        // speak the OpenAI-compatible dialect; mock is Unknown by design.
-        "groq" | "openrouter" | "huggingface" | "nvidia" | "ollama" | "lmstudio" | "llamacpp"
-        | "localai" | "vllm" => GenAiSystem::OpenAiCompatible,
+        // nvidia (integrate.api.nvidia.com / NIM) · moonshot (Kimi) · the
+        // 5 local servers all speak the OpenAI-compatible dialect; mock is
+        // Unknown by design.
+        "groq" | "openrouter" | "huggingface" | "nvidia" | "moonshot" | "ollama" | "lmstudio"
+        | "llamacpp" | "localai" | "vllm" => GenAiSystem::OpenAiCompatible,
         _ => GenAiSystem::Unknown,
     }
 }

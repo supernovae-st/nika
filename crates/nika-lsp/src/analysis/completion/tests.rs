@@ -169,9 +169,10 @@ fn model_value_offers_exactly_the_provider_set() {
             "openai/",
             "google/",
             "xai/",
+            "moonshot/",
             "mock/",
         ],
-        "the 16-provider catalog, local-first, each suffixed with `/`"
+        "the 17-provider catalog, local-first, each suffixed with `/`"
     );
     // every provider item is a VALUE with a non-empty detail (the kind +
     // detail fields, not just the label).

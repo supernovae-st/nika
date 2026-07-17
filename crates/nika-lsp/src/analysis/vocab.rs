@@ -13,7 +13,7 @@
 //! The verb set + the envelope/task keys mirror the strict parser's own
 //! tables (`nika_schema::parser` `TOP_LEVEL_KEYS` + the closed task shape
 //! of spec `03-dag.md`). The provider list is mirrored-from-canon (the
-//! canonical 16-provider LLM catalog · spec `stdlib/providers-v0.1.md` +
+//! canonical 17-provider LLM catalog · spec `stdlib/providers-v0.1.md` +
 //! `spec/canon.yaml` SSOT); it is presented local/open-weight-first per
 //! the studio's vendor-agnostic ordering. A drift between this mirror and
 //! the catalog is caught the day `nika-lsp` grows a `nika-catalog` dep
@@ -258,6 +258,10 @@ pub const PROVIDERS: &[Entry] = &[
         doc: "xAI Grok models (cloud).",
     },
     Entry {
+        name: "moonshot",
+        doc: "Moonshot AI Kimi (K3 · 1M context · thinking · weights announced open).",
+    },
+    Entry {
         name: "mock",
         doc: "The in-engine deterministic mock provider (tests, offline).",
     },
@@ -316,7 +320,7 @@ mod tests {
     #[test]
     fn providers_are_local_first_and_complete() {
         let names: Vec<&str> = PROVIDERS.iter().map(|e| e.name).collect();
-        assert_eq!(names.len(), 16, "the canonical 16-provider catalog");
+        assert_eq!(names.len(), 17, "the canonical 17-provider catalog");
         // local/open-weight first (vendor-agnostic teaching order)
         assert_eq!(names[0], "ollama");
         assert!(names.contains(&"anthropic"));
@@ -374,8 +378,9 @@ mod tests {
         // engine, not a teaching row the spec orders).
         assert_eq!(
             &ours[pinned.len()..],
-            ["mock"],
-            "an engine-only provider must trail the spec-ordered set"
+            ["moonshot", "mock"],
+            "token-absent providers trail the spec-ordered set (moonshot \
+             joins the token at the spec's own wave · ADR-105)"
         );
     }
 }

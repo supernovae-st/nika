@@ -512,24 +512,30 @@ name = "Moonshot (Kimi)"
 aliases = ["kimi"]
 env_var = "MOONSHOT_API_KEY"
 key_prefixes = ["sk-"]
-default_model = "kimi-k2"
-cheap_model = "kimi-k2"
+default_model = "kimi-k3"
+cheap_model = "kimi-k2.6"
 requires_key = true
-description = "Moonshot AI — Kimi K2, K2.5 (international endpoint api.moonshot.ai/v1). rig-core native provider."
+description = "Moonshot AI — Kimi K3 (1M context, thinking) + K2.x line (international endpoint api.moonshot.ai/v1). Weights announced open 2026-07-27."
 api_dialect = "openai-chat"
 tags = ["frontier", "function-calling", "long-context", "streaming", "structured-output"]
 
 [[providers.models]]
-id = "k2"
-model = "kimi-k2"
-context_window_tokens = 128000
-max_output_tokens = 8192
+id = "k3"
+model = "kimi-k3"
+context_window_tokens = 1048576
+max_output_tokens = 131072
 
 [[providers.models]]
-id = "k2-5"
-model = "kimi-k2.5"
-context_window_tokens = 256000
-max_output_tokens = 8192
+id = "k2-7-code"
+model = "kimi-k2.7-code"
+context_window_tokens = 262144
+max_output_tokens = 262144
+
+[[providers.models]]
+id = "k2-6"
+model = "kimi-k2.6"
+context_window_tokens = 262144
+max_output_tokens = 262144
 
 [[providers]]
 id = "qwen"
