@@ -10,8 +10,13 @@
 //!
 //! - **① private-data** — `permits.fs.read` is non-empty.
 //! - **② untrusted ingress** — a `nika:fetch` builtin is invoked, OR
-//!   `permits.tools` is non-empty (v1 treats ANY tool grant as ingress;
-//!   per-tool trust marks are the documented v2 refinement).
+//!   `permits.tools` grants an ingress-capable tool: `nika:fetch` (a glob
+//!   like `nika:*` covers it) or any `mcp:*` server (server-provided
+//!   content is untrusted by construction). First-party LOCAL builtins
+//!   (`nika:read` · `nika:write` · …) are NOT ingress — a private read is
+//!   ①'s domain, a write ③'s (v1.1: the coarse any-grant reading flagged
+//!   the spec's own permits-fit fixture deep/014; per-tool trust marks
+//!   remain the documented v2 refinement).
 //! - **③ external egress** — `permits.net.http` is non-empty, OR a declared
 //!   `fs.write` glob escapes the workspace (absolute · `~` · a preserved
 //!   leading `..` after lexical normalization — the [`crate::fit`] semantics),
@@ -99,10 +104,28 @@ fn write_glob_escapes(glob: &str) -> bool {
     lexically_normalize(glob).starts_with("..")
 }
 
+/// A declared `tools:` grant admits untrusted-ingress content (leg ②'s
+/// grant form): `nika:fetch` — a glob like `nika:*` covers it — or any
+/// `mcp:*` server (server-provided content is untrusted by construction).
+/// A negated entry (`!…`) ADMITS nothing and never counts; first-party
+/// local builtins (`nika:read` · `nika:write` · …) are not ingress.
+fn grants_untrusted_ingress(tools: &[String]) -> bool {
+    tools.iter().any(|g| {
+        if g.starts_with('!') {
+            return false;
+        }
+        g.starts_with("mcp:") || crate::permits::glob_matches(g, "nika:fetch")
+    })
+}
+
 /// The three legs off the DECLARED boundary (NEP-0002 §Specification).
 fn legs(permits: &Permits, uses_fetch: bool) -> (bool, bool, bool) {
     let private_read = permits.fs.as_ref().is_some_and(|fs| !fs.read.is_empty());
-    let untrusted_ingress = uses_fetch || permits.tools.as_ref().is_some_and(|t| !t.is_empty());
+    let untrusted_ingress = uses_fetch
+        || permits
+            .tools
+            .as_ref()
+            .is_some_and(|t| grants_untrusted_ingress(t));
     let external_egress = permits.net.as_ref().is_some_and(|n| !n.http.is_empty())
         || permits
             .fs
@@ -245,6 +268,66 @@ mod tests {
         // …and ANY of the three variants re-arms it.
         p.exec = Some(ExecPermit::Any);
         assert!(legs(&p, false).2, "exec enabled is egress");
+    }
+
+    #[test]
+    fn first_party_local_tools_are_not_ingress() {
+        // The spec's own permits-fit fixture (conformance deep/014) —
+        // private read + workspace write + an exec allowlist + LOCAL
+        // builtins only: two legs, never three (the v1.1 refinement).
+        let p = Permits {
+            fs: Some(FsPermits::new(
+                vec!["./data/**".to_owned()],
+                vec!["./out/**".to_owned()],
+            )),
+            net: None,
+            exec: Some(ExecPermit::Programs(vec!["git".to_owned()])),
+            tools: Some(vec!["nika:read".to_owned(), "nika:write".to_owned()]),
+        };
+        let (one, two, three) = legs(&p, false);
+        assert!(
+            one && !two && three,
+            "local builtins drop ② — the fixture stays VALID: {one} {two} {three}"
+        );
+        assert!(
+            trifecta_violations(
+                &p,
+                false,
+                &[TrifectaSubject::new("log_head".to_owned(), true, false)],
+                &[0]
+            )
+            .is_empty(),
+            "② dropped → no finding even with an ungated egress task"
+        );
+    }
+
+    #[test]
+    fn ingress_grants_are_fetch_globs_and_mcp() {
+        // `nika:*` covers fetch → ② holds.
+        let p = boundary(&["./private/**"], &["./out/**"], &[], &["nika:*"]);
+        assert!(legs(&p, false).1, "a nika:* grant covers nika:fetch");
+        // Any mcp:* server is untrusted content by construction.
+        let p = boundary(&["./private/**"], &["./out/**"], &[], &["mcp:browser/*"]);
+        assert!(legs(&p, false).1, "an mcp grant is ingress");
+        // A negation-only list ADMITS nothing → ② falls.
+        let p = boundary(
+            &["./private/**"],
+            &["./out/**"],
+            &[],
+            &["!mcp:x", "!nika:fetch"],
+        );
+        assert!(!legs(&p, false).1, "negations admit nothing");
+        // A first-party grant outside fetch/mcp is not ingress.
+        let p = boundary(
+            &["./private/**"],
+            &["./out/**"],
+            &[],
+            &["nika:connectome/*"],
+        );
+        assert!(
+            !legs(&p, false).1,
+            "connectome is first-party memory, not ingress"
+        );
     }
 
     #[test]
