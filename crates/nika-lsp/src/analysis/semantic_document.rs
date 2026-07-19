@@ -140,12 +140,21 @@ mod tests {
     fn the_surface_names_its_own_version() {
         // healthy: both versions present, and they are not the same key
         let ok = as_value(&semantic_document(DIAMOND));
-        assert_eq!(ok["semantic_document_format"], 1, "the surface's own version");
+        assert_eq!(
+            ok["semantic_document_format"], 1,
+            "the surface's own version"
+        );
         assert_eq!(ok["graph"]["graph_format"], 2, "the nested graph's version");
         // absent-graph cases still name the surface version (findings · parse)
         let findings = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n";
-        assert_eq!(as_value(&semantic_document(findings))["semantic_document_format"], 1);
-        assert_eq!(as_value(&semantic_document("nika: v1\ntasks: ["))["semantic_document_format"], 1);
+        assert_eq!(
+            as_value(&semantic_document(findings))["semantic_document_format"],
+            1
+        );
+        assert_eq!(
+            as_value(&semantic_document("nika: v1\ntasks: ["))["semantic_document_format"],
+            1
+        );
     }
 
     /// Spans map every task id to its declaring token's range.
