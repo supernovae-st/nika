@@ -47,6 +47,7 @@ tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval o
 nika-catalog  = { path = "../nika-catalog", version = "0.103.0", default-features = false, features = ["builtins-transforms"] }
 
 [dev-dependencies]
+nika-cap = { path = "../nika-cap", version = "0.103.0" }  # test-only: the static side of the fs boundary differential
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.103.0" }
 # test-only: the REAL filesystem (TokioFs) — the permits.fs boundary tests
 # need a true `canonicalize` (resolves `..` + symlinks) against a /tmp scratch

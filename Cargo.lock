@@ -3591,6 +3591,7 @@ dependencies = [
  "jiff-tzdb",
  "json-patch",
  "jsonschema",
+ "nika-cap",
  "nika-catalog",
  "nika-chart",
  "nika-extract",

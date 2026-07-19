@@ -652,3 +652,81 @@ mod fs_security_tests {
         );
     }
 }
+
+/// The fs boundary DIFFERENTIAL — the static checker and the runtime enforcer
+/// decide the `permits.fs` boundary the same way on the CANONICAL glob forms.
+///
+/// Two independent implementations gate fs access · `nika_cap::Permits::allows_path`
+/// (lexical · what `nika check`/`permits_fit` consults) and this crate's
+/// `FsBoundary::enforce` (what refuses at effect time). They share no code, so a
+/// common bug would have to be born twice. On a symlink-free `MockFs`
+/// (canonicalize is a no-op) `enforce` folds purely lexically, so the two must
+/// agree on the canonical permit forms authors write · a `<dir>/**` recursive
+/// glob or a literal path. (Mid-pattern globs like `a/*/b` are a KNOWN,
+/// documented non-decidability · `crate::effect` states "glob-pattern ⊆
+/// permits-glob inclusion is not soundly decidable" · the runtime uses
+/// prefix-containment there · so this differential is scoped to the forms that
+/// DO decide, which is what the boundary contract rests on.)
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod fs_boundary_differential {
+    use nika_cap::{FsPermits, Permits};
+    use nika_kernel_mock::MockFs;
+    use proptest::prelude::*;
+
+    use super::{FsAccess, FsBoundary};
+
+    fn seg() -> impl Strategy<Value = String> {
+        prop_oneof!["a", "b", "sub", "x"].prop_map(String::from)
+    }
+
+    /// A CANONICAL fs permit glob · `<segs>/**` (recursive) or a literal
+    /// `<segs>` · never a mid-pattern `*` (the known non-decidable form).
+    fn canon_glob() -> impl Strategy<Value = String> {
+        (prop::collection::vec(seg(), 1..3), any::<bool>()).prop_map(|(segs, recursive)| {
+            let base = segs.join("/");
+            if recursive {
+                format!("{base}/**")
+            } else {
+                base
+            }
+        })
+    }
+
+    fn glob_list() -> impl Strategy<Value = Vec<String>> {
+        prop::collection::vec(canon_glob(), 0..3)
+    }
+
+    fn path() -> impl Strategy<Value = String> {
+        prop::collection::vec(seg(), 1..4).prop_map(|s| s.join("/"))
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 96, ..ProptestConfig::default() })]
+
+        #[test]
+        fn static_and_runtime_agree_on_canonical_fs_globs(
+            read in glob_list(),
+            write in glob_list(),
+            p in path(),
+            is_write in any::<bool>(),
+        ) {
+            // static side · nika-cap · the predicate `nika check` consults
+            let mut permits = Permits::new();
+            permits.fs = Some(FsPermits::new(read.clone(), write.clone()));
+            let static_allows = permits.allows_path(&p, is_write);
+
+            // runtime side · this crate · what refuses at effect time. MockFs
+            // canonicalize is a no-op, so enforce folds lexically (symlink-free).
+            let boundary = FsBoundary::declared(read, write);
+            let access = if is_write { FsAccess::Write } else { FsAccess::Read };
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let runtime_allows = rt.block_on(boundary.enforce(&MockFs::new(), &p, access)).is_ok();
+
+            prop_assert_eq!(static_allows, runtime_allows);
+        }
+    }
+}
