@@ -35,7 +35,7 @@ jobs:
     env:
       CHECK: ${{ matrix.check }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Run ratchet
         run: ./scripts/ci/check-"$CHECK".sh
 
@@ -49,7 +49,7 @@ jobs:
     env:
       JOB: ${{ matrix.job }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # No system libs installed here ON PURPOSE: the default workspace build is
       # pure-Rust. The only crate that links C system deps is `nika-screen`
       # (xcap → Wayland/X11/PipeWire/DRM/EGL), and that backend now lives behind
@@ -95,7 +95,7 @@ jobs:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # The floating EmbarkStudios/cargo-deny-action@v2 broke 2026-07-13:
       # its musl container trips over our rust-toolchain.toml pin
       # (`override toolchain '1.91-…-musl' is not installed`) and its
@@ -114,7 +114,7 @@ jobs:
     name: cargo-hack (feature matrix)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install Linux desktop deps
         run: |
           sudo apt-get update
@@ -156,7 +156,7 @@ jobs:
     # Non-blocking (continue-on-error) until workspace-wide miri stabilises.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # nightly
         with:
           toolchain: nightly
@@ -185,7 +185,7 @@ jobs:
     name: cargo-machete (unused deps)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # cargo-machete
         with:
           tool: cargo-machete
@@ -200,7 +200,7 @@ jobs:
     # Non-blocking on push to main (only rejects PRs).
     continue-on-error: ${{ github.event_name == 'push' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
@@ -218,5 +218,5 @@ jobs:
     name: typos (spell check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: crate-ci/typos@3bc303c295c081add5df4a4d52a1e117f2fb2dce # master
