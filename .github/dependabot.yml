@@ -18,3 +18,11 @@ updates:
       interval: weekly
       day: saturday
     open-pull-requests-limit: 5
+    # One grouped PR per wave · never per-action: the codeql-action
+    # init/analyze pair MUST move together (a split bump leaves the pair
+    # at different versions inside one workflow run and CodeQL fails ·
+    # proven on nika-spec 2026-07-19, first ungrouped wave).
+    groups:
+      github-actions:
+        patterns:
+          - "*"
