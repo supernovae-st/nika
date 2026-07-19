@@ -31,7 +31,7 @@ or pure code edits.
   `nika-migration`) — inventory, native-first mapping, parity pin.
 - **Harden for production**: the `nika-operating` skill — spend caps,
   permits, secrets, CI goldens, OTLP export.
-- **Quick oracle, no shell**: the read-only MCP tools — `nika_check` ·
+- **Quick oracle, no shell**: the read-only MCP tools — `nika_check` · `nika_inspect` ·
   `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` ·
   `nika_canon` · `nika_catalog` · `nika_tools`.
 
