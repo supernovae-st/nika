@@ -16,6 +16,7 @@
 [![Spec](https://img.shields.io/badge/spec-Apache--2.0-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
 [![Rust](https://img.shields.io/badge/built_in-Rust-orange.svg)](Cargo.toml)
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/supernovae-st/nika/badge)](https://scorecard.dev/viewer/?uri=github.com/supernovae-st/nika)
 [![Release](https://img.shields.io/github/v/release/supernovae-st/nika?label=release)](https://github.com/supernovae-st/nika/releases/latest)
 [![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/supernovae-st/nika/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/supernovae-st/nika)
 
