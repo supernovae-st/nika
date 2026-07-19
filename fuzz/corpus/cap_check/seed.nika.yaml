@@ -1,0 +1,8 @@
+nika: v1
+workflow:
+  id: seed
+permits: {}
+tasks:
+  t:
+    exec:
+      command: ["true"]

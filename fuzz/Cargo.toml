@@ -29,4 +29,18 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "cap_check"
+path = "fuzz_targets/cap_check.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "infer_permits"
+path = "fuzz_targets/infer_permits.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
