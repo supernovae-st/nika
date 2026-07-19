@@ -1,23 +1,34 @@
-# GitHub reads this file for « Cite this repository »; Zenodo reads it at
-# archive time. The research Nika itself builds on is credited in CITATIONS.md.
-# Version/date are stamped by releases (see CHANGELOG.md), not hand-written here.
 cff-version: 1.2.0
-message: "If you use Nika in your work, please cite this repository."
+message: >-
+  If you reference Nika (the engine or the language) in academic or
+  technical work, please cite it.
+title: "Nika: the workflow language for AI — reference engine"
 type: software
-title: "Nika"
-abstract: "Intent-as-code workflow engine for AI: reviewable YAML DAGs, statically checked (schema, permits, cost floor) before execution, tamper-evident traces after. Single Rust binary."
 authors:
   - name: "SuperNovae Studio"
-    city: "Paris"
-    country: "FR"
-    website: "https://nika.sh"
+    website: "https://supernovae.studio"
+  - family-names: "Melen"
+    given-names: "Thibaut"
 repository-code: "https://github.com/supernovae-st/nika"
 url: "https://nika.sh"
 license: AGPL-3.0-or-later
 keywords:
-  - workflow-engine
-  - ai-agents
-  - llm-orchestration
-  - static-analysis
-  - mcp
-  - rust
+  - AI workflows
+  - workflow engine
+  - static analysis
+  - capability security
+  - Rust
+abstract: >-
+  The reference implementation of the Nika workflow language: a single
+  Rust binary that statically audits a declarative YAML workflow before
+  any token is spent (plan, cost ceiling, secret flows, capability
+  boundary), then executes it locally across multiple LLM providers with
+  a hash-chained trace. The language specification is a separate
+  Apache-2.0 repository (supernovae-st/nika-spec).
+references:
+  - type: software
+    title: "Nika language specification"
+    repository-code: "https://github.com/supernovae-st/nika-spec"
+    license: Apache-2.0
+    authors:
+      - name: "SuperNovae Studio"
