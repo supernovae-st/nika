@@ -28,10 +28,17 @@ env:
   RUST_BACKTRACE: short
   NIKA_VERIFY_CONCURRENCY: '16'
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: probe registries
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # drift report issue on scheduled failure
+      pull-requests: write # drift comment on PR runs
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
