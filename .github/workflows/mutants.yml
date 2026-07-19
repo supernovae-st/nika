@@ -1,0 +1,51 @@
+name: Mutants Nightly
+
+# Nightly mutation testing (ADR-003 Gate 5) over the crates whose test suites
+# carry the security thesis · nika-cap is the capability CHECKER (the component
+# whose soundness the whole capability-boundary argument rests on). The run
+# invokes the house floor/budget gate (scripts/ci/check-mutation-floor.sh),
+# which enforces kill-ratio >= floor (or the documented GATE5-EXEMPT budget)
+# and honours .cargo/mutants.toml exclusions. Slow by nature (minutes/crate) ·
+# nightly + dispatch only, never a PR gate.
+#
+# Security note: schedule/dispatch triggers only · no user-controlled strings ·
+# the matrix value reaches the shell via env-var indirection.
+
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutants:
+    name: mutants · ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [nika-cap]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: mutants-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: Mutation floor · ${{ matrix.crate }}
+        env:
+          CRATE: ${{ matrix.crate }}
+        run: bash scripts/ci/check-mutation-floor.sh "$CRATE"
