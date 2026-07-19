@@ -36,8 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: stable
       - name: install nightly rustdoc (required by cargo-public-api)
         # cargo-public-api shells out to `cargo +nightly rustdoc` for JSON
         # output — with only stable installed every run died in ~1m40s on
@@ -45,7 +47,7 @@ jobs:
         # leaving the API-freeze gate silently blind (observed on every run
         # through 2026-07-01). Same pattern as fuzz-nightly.yml.
         run: rustup toolchain install nightly --profile minimal
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: install cargo-public-api
         # Pinned to the version the committed public-api.txt baselines were
         # generated with (scripts/hygiene/check-public-api-coverage.sh uses
@@ -91,7 +93,7 @@ jobs:
           exit $fail
       - name: upload canonical renderings (drift repair source)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: public-api-actual
           path: /tmp/public-api-actual/
