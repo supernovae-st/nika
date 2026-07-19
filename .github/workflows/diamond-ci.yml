@@ -35,7 +35,7 @@ jobs:
     env:
       CHECK: ${{ matrix.check }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Run ratchet
         run: ./scripts/ci/check-"$CHECK".sh
 
@@ -49,7 +49,7 @@ jobs:
     env:
       JOB: ${{ matrix.job }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       # No system libs installed here ON PURPOSE: the default workspace build is
       # pure-Rust. The only crate that links C system deps is `nika-screen`
       # (xcap → Wayland/X11/PipeWire/DRM/EGL), and that backend now lives behind
@@ -57,16 +57,16 @@ jobs:
       # IS the headless-build proof (a missing system lib here = a regression).
       # The `--features xcap` path is exercised by the cargo-hack job, which
       # installs the desktop libs.
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           shared-key: diamond
       - name: Install cargo-nextest (tests leg)
         if: matrix.job == 'tests'
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # v2
         with:
           tool: cargo-nextest
       # The conformance suites (nika-schema tests/) read the PUBLIC spec
@@ -95,22 +95,26 @@ jobs:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       # The floating EmbarkStudios/cargo-deny-action@v2 broke 2026-07-13:
       # its musl container trips over our rust-toolchain.toml pin
       # (`override toolchain '1.91-…-musl' is not installed`) and its
       # arg plumbing regressed (`unrecognized subcommand 'warn'`).
       # Install the binary and run it directly — the SAME invocation the
       # local pre-push hook has proven for months (one lane, no wrapper).
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-deny
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # cargo-deny
+        with:
+          tool: cargo-deny
       - run: cargo deny --all-features check
 
   hack:
     name: cargo-hack (feature matrix)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install Linux desktop deps
         run: |
           sudo apt-get update
@@ -118,13 +122,15 @@ jobs:
             libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
             libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev \
             libegl1-mesa-dev libgl1-mesa-dev libgbm-dev pkg-config
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # cargo-hack
+        with:
+          tool: cargo-hack
       - name: check feature powerset (no dev deps)
         # `metal` (nika-infer-local) pulls candle-core/metal → the Apple-GPU
         # `metal` crate, which only builds on macOS/iOS. Exclude it from the
@@ -150,11 +156,12 @@ jobs:
     # Non-blocking (continue-on-error) until workspace-wide miri stabilises.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # nightly
         with:
+          toolchain: nightly
           components: miri
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           shared-key: diamond-miri
       - name: miri test — nika-error
@@ -178,8 +185,10 @@ jobs:
     name: cargo-machete (unused deps)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@cargo-machete
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # cargo-machete
+        with:
+          tool: cargo-machete
       - name: check for unused dependencies
         run: cargo machete
 
@@ -191,16 +200,16 @@ jobs:
     # Non-blocking on push to main (only rejects PRs).
     continue-on-error: ${{ github.event_name == 'push' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           shared-key: diamond-semver
-      - uses: obi1kenobi/cargo-semver-checks-action@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
         with:
           package: nika-error,nika-catalog,nika-kernel
           baseline-rev: origin/main
@@ -209,5 +218,5 @@ jobs:
     name: typos (spell check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: crate-ci/typos@master
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: crate-ci/typos@3bc303c295c081add5df4a4d52a1e117f2fb2dce # master

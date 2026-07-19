@@ -49,7 +49,7 @@ jobs:
           - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: linux-x64 }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, name: linux-arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Verify tag matches Cargo workspace version
         env:
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
@@ -64,7 +64,7 @@ jobs:
       - name: Add the Rust target
         run: rustup target add ${{ matrix.target }}
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
@@ -189,7 +189,7 @@ jobs:
           # tamper/drop exit 2 · OTLP export). A release whose flight
           # recorder lies never uploads. scripts/test/trust-battery.sh.
           bash scripts/test/trust-battery.sh "$smoke/nika"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nika-${{ matrix.name }}
           path: |
@@ -204,7 +204,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
@@ -257,14 +257,14 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
             echo "::notice::TAP_DEPLOY_KEY unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         if: steps.guard.outputs.ok == 'true'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         if: steps.guard.outputs.ok == 'true'
         with:
           path: artifacts
           merge-multiple: true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         if: steps.guard.outputs.ok == 'true'
         with:
           # The tap repo is homebrew-tap — the canonical brew mapping for
@@ -312,8 +312,8 @@ jobs:
       contents: read # checkout the Dockerfile
       packages: write # push to ghcr.io — scoped to THIS job only
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
@@ -328,15 +328,15 @@ jobs:
           mkdir -p dist/linux/amd64 dist/linux/arm64
           tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C dist/linux/amd64 nika
           tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C dist/linux/arm64 nika
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - name: Build + push (linux/amd64 · linux/arm64)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
