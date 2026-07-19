@@ -69,6 +69,19 @@ jobs:
         uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # v2
         with:
           tool: cargo-nextest
+      - name: Install bubblewrap (tests leg · forces the landlock jail proof to RUN not skip)
+        if: matrix.job == 'tests'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          # ubuntu-24.04's AppArmor bwrap profile grants userns creation but
+          # denies CAP_NET_ADMIN inside it, so bwrap dies bringing up loopback
+          # in the unshared netns ("loopback: Failed RTM_NEWADDR: Operation
+          # not permitted") and the jail proof never runs the child. Detach
+          # the profile and keep unprivileged userns open so bwrap behaves as
+          # on a developer machine.
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The conformance suites (nika-schema tests/) read the PUBLIC spec
       # repo's fixtures — locally a sibling ../spec checkout, here an
       # explicit NIKA_SPEC_DIR. Tests-leg only: the full battery (the

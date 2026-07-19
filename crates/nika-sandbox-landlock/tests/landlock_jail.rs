@@ -49,11 +49,23 @@ fn confined_cannot_read_a_sensitive_home_file() {
     let _ = std::fs::remove_file(&secret);
 
     let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    // Anti-vacuity: if bwrap ITSELF fails (e.g. an AppArmor profile denying
+    // CAP_NET_ADMIN in the userns), the child never runs and "no secret +
+    // non-zero exit" would pass without proving anything. A launcher-level
+    // error makes the proof void, so it fails loudly instead.
+    assert!(
+        !stderr.contains("bwrap:"),
+        "the launcher itself failed — the proof is vacuous · stderr {stderr:?}"
+    );
     assert!(
         !stdout.contains("TOPSECRET"),
         "the jail must NOT expose a sensitive home file · stdout was {stdout:?}"
     );
-    assert!(!out.status.success(), "reading an unbound file must fail");
+    assert!(
+        !out.status.success(),
+        "reading an unbound file must fail · stderr {stderr:?}"
+    );
 }
 
 /// A confined command can read a DECLARED path (the jail admits the granted reach).
@@ -74,6 +86,8 @@ fn confined_can_read_a_declared_path() {
 
     assert!(
         String::from_utf8_lossy(&out.stdout).contains("DECLARED-READABLE"),
-        "a declared read path must be inside the jail"
+        "a declared read path must be inside the jail · status {:?} · stderr {:?}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
     );
 }
