@@ -21,3 +21,10 @@ keywords:
   - static-analysis
   - mcp
   - rust
+references:
+  - type: software
+    title: "Nika language specification (nika-spec)"
+    repository-code: "https://github.com/supernovae-st/nika-spec"
+    license: Apache-2.0
+    authors:
+      - name: "SuperNovae Studio"
