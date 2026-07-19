@@ -8,6 +8,21 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [0.104.0](https://github.com/supernovae-st/nika/compare/v0.103.0..v0.104.0) - 2026-07-17
+
+### ✨ Features
+- **providers** — Moonshot joins the canonical catalog (17) — kimi priced ([16c9ae9bd](https://github.com/supernovae-st/nika/commit/16c9ae9bd0da58718fabfc5efc451af552d8c5cc))
+
+### 🐛 Bug Fixes
+- **lsp,graph** — Fixtures speak argv — five tests shipped red at the tag ([faac6a5b8](https://github.com/supernovae-st/nika/commit/faac6a5b8bb6c3ccd762ea18ae9bf33d2eeb3867))
+- **mcp** — Inspect fixtures speak argv — the third red crate at the tag ([8638dd1e5](https://github.com/supernovae-st/nika/commit/8638dd1e5927064e766bccd8a434c5d985a68c14))
+- **mcp** — The second string-form fixture · green verified before commit ([31f4a522a](https://github.com/supernovae-st/nika/commit/31f4a522a357eebbe201d3196998dad66edc123a))
+- **providers** — The profiles pin follows the role, not the number ([3b420dbd6](https://github.com/supernovae-st/nika/commit/3b420dbd6957804093d80dc6eafadd801d286a2d))
+
+### 🧹 Chore
+- **workspace** — The tag was not fmt-clean under the current rustfmt ([793f11431](https://github.com/supernovae-st/nika/commit/793f11431eec5508e25af8c3cbc300f47dce556b))
+
+
 ## [Unreleased]
 
 ## [0.103.0](https://github.com/supernovae-st/nika/compare/v0.102.0..v0.103.0) - 2026-07-13
