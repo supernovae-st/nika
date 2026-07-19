@@ -336,22 +336,8 @@ fn render(
         gate_rows(report),
     );
     permits(&mut out, report, wf, t);
-    // POLICY (spec 10 · W4) · silent when the file binds no law — the
-    // rows are the ladder's own findings, code first (one voice with
-    // `--json` findings[] and the LSP projection).
-    if wf.policy.is_some() {
-        section_list(
-            &mut out,
-            t,
-            "POLICY",
-            "every hard policy: rule holds (soft families recorded, not judged)",
-            report
-                .policy_findings
-                .iter()
-                .map(|p| format!("[NIKA-POLICY-001] {}", p.detail))
-                .collect(),
-        );
-    }
+    policy_rung(&mut out, report, wf, t);
+    trifecta_rung(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
@@ -362,6 +348,44 @@ fn render(
         let _ = write!(out, "\n{}", super::graph::ascii_art(wf, report, t));
     }
     out
+}
+
+/// POLICY rung (spec 10 · W4) · silent when the file binds no law — the
+/// rows are the ladder's own findings, code first (one voice with
+/// `--json` findings[] and the LSP projection).
+fn policy_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
+    if wf.policy.is_some() {
+        section_list(
+            out,
+            t,
+            "POLICY",
+            "every hard policy: rule holds (soft families recorded, not judged)",
+            report
+                .policy_findings
+                .iter()
+                .map(|p| format!("[NIKA-POLICY-001] {}", p.detail))
+                .collect(),
+        );
+    }
+}
+
+/// TRIFECTA rung (NEP-0002) · only when a boundary is declared — without
+/// `permits:` the legs are not decidable as declared and the lane is
+/// inert (the default-deny/floor lanes own that world).
+fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
+    if wf.permits.is_some() {
+        section_list(
+            out,
+            t,
+            "TRIFECTA",
+            "no lethal trifecta without a dominating human gate",
+            report
+                .trifecta_findings
+                .iter()
+                .map(|f| format!("[NIKA-SEC-009] {}", f.detail))
+                .collect(),
+        );
+    }
 }
 
 /// Declared `vars:` that the operator MUST pass at run time — `required: true`

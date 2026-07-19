@@ -696,6 +696,81 @@ pub unsafe fn nika_cap::Require::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::Require
 pub fn nika_cap::Require::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::Require where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::TrifectaSubject
+pub nika_cap::TrifectaSubject::egress_capable: bool
+pub nika_cap::TrifectaSubject::human_gate: bool
+pub nika_cap::TrifectaSubject::id: alloc::string::String
+pub nika_cap::TrifectaSubject::parents: alloc::vec::Vec<usize>
+impl nika_cap::TrifectaSubject
+pub fn nika_cap::TrifectaSubject::new(id: alloc::string::String, egress_capable: bool, human_gate: bool) -> Self
+impl core::clone::Clone for nika_cap::TrifectaSubject
+pub fn nika_cap::TrifectaSubject::clone(&self) -> nika_cap::TrifectaSubject
+impl core::cmp::Eq for nika_cap::TrifectaSubject
+impl core::cmp::PartialEq for nika_cap::TrifectaSubject
+pub fn nika_cap::TrifectaSubject::eq(&self, other: &nika_cap::TrifectaSubject) -> bool
+impl core::fmt::Debug for nika_cap::TrifectaSubject
+pub fn nika_cap::TrifectaSubject::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::TrifectaSubject
+impl<T, U> core::convert::Into<U> for nika_cap::TrifectaSubject where U: core::convert::From<T>
+pub fn nika_cap::TrifectaSubject::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::TrifectaSubject where U: core::convert::Into<T>
+pub type nika_cap::TrifectaSubject::Error = core::convert::Infallible
+pub fn nika_cap::TrifectaSubject::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::TrifectaSubject where U: core::convert::TryFrom<T>
+pub type nika_cap::TrifectaSubject::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::TrifectaSubject::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::TrifectaSubject where T: core::clone::Clone
+pub type nika_cap::TrifectaSubject::Owned = T
+pub fn nika_cap::TrifectaSubject::clone_into(&self, target: &mut T)
+pub fn nika_cap::TrifectaSubject::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::TrifectaSubject where T: 'static + ?core::marker::Sized
+pub fn nika_cap::TrifectaSubject::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::TrifectaSubject where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaSubject::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::TrifectaSubject where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaSubject::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::TrifectaSubject where T: core::clone::Clone
+pub unsafe fn nika_cap::TrifectaSubject::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::TrifectaSubject
+pub fn nika_cap::TrifectaSubject::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cap::TrifectaViolation
+pub nika_cap::TrifectaViolation::detail: alloc::string::String
+pub nika_cap::TrifectaViolation::task: alloc::string::String
+impl core::clone::Clone for nika_cap::TrifectaViolation
+pub fn nika_cap::TrifectaViolation::clone(&self) -> nika_cap::TrifectaViolation
+impl core::cmp::Eq for nika_cap::TrifectaViolation
+impl core::cmp::PartialEq for nika_cap::TrifectaViolation
+pub fn nika_cap::TrifectaViolation::eq(&self, other: &nika_cap::TrifectaViolation) -> bool
+impl core::fmt::Debug for nika_cap::TrifectaViolation
+pub fn nika_cap::TrifectaViolation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::TrifectaViolation
+impl serde_core::ser::Serialize for nika_cap::TrifectaViolation
+pub fn nika_cap::TrifectaViolation::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_cap::TrifectaViolation
+pub fn nika_cap::TrifectaViolation::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_cap::TrifectaViolation where U: core::convert::From<T>
+pub fn nika_cap::TrifectaViolation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::TrifectaViolation where U: core::convert::Into<T>
+pub type nika_cap::TrifectaViolation::Error = core::convert::Infallible
+pub fn nika_cap::TrifectaViolation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::TrifectaViolation where U: core::convert::TryFrom<T>
+pub type nika_cap::TrifectaViolation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::TrifectaViolation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::TrifectaViolation where T: core::clone::Clone
+pub type nika_cap::TrifectaViolation::Owned = T
+pub fn nika_cap::TrifectaViolation::clone_into(&self, target: &mut T)
+pub fn nika_cap::TrifectaViolation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::TrifectaViolation where T: 'static + ?core::marker::Sized
+pub fn nika_cap::TrifectaViolation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::TrifectaViolation where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaViolation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::TrifectaViolation where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaViolation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::TrifectaViolation where T: core::clone::Clone
+pub unsafe fn nika_cap::TrifectaViolation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::TrifectaViolation
+pub fn nika_cap::TrifectaViolation::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_cap::TrifectaViolation where T: for<'de> serde_core::de::Deserialize<'de>
 pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::POLICY_KEYS: &[&str]
 pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_cap::BuiltinEffect>
@@ -703,3 +778,4 @@ pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::policy_child_keys(family: &str) -> core::option::Option<&'static [&'static str]>
 pub fn nika_cap::policy_violations(policy: &nika_cap::Policy, tasks: &[nika_cap::PolicySubject]) -> alloc::vec::Vec<nika_cap::PolicyViolation>
+pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, uses_fetch: bool, subjects: &[nika_cap::TrifectaSubject], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>

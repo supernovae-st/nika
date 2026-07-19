@@ -26,6 +26,7 @@ mod fit;
 mod permits;
 mod policy;
 mod shape;
+mod trifecta;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·
 // union · intersect · new). The glob/normalize helpers stay crate-internal:
@@ -45,3 +46,7 @@ pub use policy::{
     policy_violations,
 };
 pub use shape::builtin_shape_findings;
+// NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
+// leg-conjunction + path-dominance logic; the projection lives in
+// `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).
+pub use trifecta::{TrifectaSubject, TrifectaViolation, trifecta_violations};

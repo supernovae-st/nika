@@ -46,6 +46,7 @@ mod schema_lint;
 mod schema_typing;
 mod secrets;
 mod tools;
+mod trifecta;
 
 use crate::analyzer::{self, AnalyzedWorkflow};
 use crate::error::{SpecCategory, SpecCode};
@@ -218,6 +219,13 @@ pub struct CheckReport {
     /// judged on the derived graph, so empty when `conformance` has
     /// entries). Additive: `report_version` stays 1.
     pub policy_findings: Vec<nika_cap::PolicyViolation>,
+    /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
+    /// three legs declared AND an egress-capable task no blocking
+    /// `nika:prompt` gate dominates. Judged on the derived graph and the
+    /// declared boundary — empty when `conformance` has entries OR no
+    /// `permits:` block is declared (no claim, never wrong). Additive:
+    /// `report_version` stays 1.
+    pub trifecta_findings: Vec<nika_cap::TrifectaViolation>,
     /// Every deep `tasks.X.output.<path>` reference the declared shape
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
@@ -291,6 +299,7 @@ impl CheckReport {
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
             && self.policy_findings.is_empty()
+            && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
             && self.unknown_args.is_empty()
@@ -328,6 +337,9 @@ impl CheckReport {
         // Hard policy: violations (spec 10) → NIKA-POLICY-001.
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
         codes.extend(self.policy_findings.iter().map(|_| policy_code));
+        // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
+        let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
+        codes.extend(self.trifecta_findings.iter().map(|_| trifecta_code));
         codes.extend(self.unknown_tools.iter().map(|_| builtin));
         codes.extend(self.unknown_args.iter().map(|_| builtin));
         codes.extend(self.missing_args.iter().map(|_| builtin));
@@ -416,6 +428,15 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     } else {
         Vec::new()
     };
+    // The trifecta lane shares the gating (NEP-0002 · valid DAG + declared
+    // boundary or no claim); the flat topological order drives the
+    // judge's dominance pass.
+    let topo_flat: Vec<usize> = topo_waves.iter().flatten().copied().collect();
+    let trifecta_findings = if conformance.is_empty() {
+        trifecta::scan_trifecta(wf, &edges, &topo_flat)
+    } else {
+        Vec::new()
+    };
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -427,6 +448,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
         policy_findings,
+        trifecta_findings,
         schema_findings: schema_typing::scan_types(wf),
         unknown_tools: tools::scan_unknown_tools(wf),
         unknown_args: tools::scan_unknown_args(wf),
