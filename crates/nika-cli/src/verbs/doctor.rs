@@ -108,7 +108,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     out.push(Finding {
         level: Level::Ok,
         label: "mcp".to_owned(),
-        detail: "available via `nika mcp` (8 read-only tools · nika_check through nika_tools)"
+        detail: "available via `nika mcp` (9 read-only tools · nika_check through nika_tools)"
             .to_owned(),
         fix: None,
     });

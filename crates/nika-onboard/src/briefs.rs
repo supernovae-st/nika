@@ -145,7 +145,7 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 "#;
 
 /// `.cursor/mcp.json` — the project-scoped MCP wiring for Cursor: the
-/// read-only oracle (8 tools) reaches the agent without any manual setup.
+/// read-only oracle (9 tools) reaches the agent without any manual setup.
 /// Project-scoped (not global) so the config travels with the repo and
 /// never touches the user's other projects.
 const CURSOR_MCP: &str =

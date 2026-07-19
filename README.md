@@ -426,8 +426,8 @@ drops the schema wiring, `AGENTS.md`, the Cursor rule and a repo-level
 Codex and friends author valid workflows on the first try. `nika wire
 <cursor|vscode|windsurf|claude|codex|all>` points each client's MCP config at
 the engine: idempotent, and it preserves your other servers. `nika mcp`
-exposes a read-only oracle any MCP client can call: 8 tools, `nika_check` and
-`nika_explain` through `nika_catalog` and `nika_tools`. `nika lsp` speaks LSP to every editor.
+exposes a read-only oracle any MCP client can call: 9 tools, `nika_check` and
+`nika_inspect` through `nika_catalog` and `nika_tools`. `nika lsp` speaks LSP to every editor.
 
 The full map of every door (install paths, IDEs, agents, skills, MCP, CI,
 SDKs) is one page: [docs.nika.sh/integrations/everywhere](https://docs.nika.sh/integrations/everywhere).
