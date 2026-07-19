@@ -328,7 +328,7 @@ jobs:
           mkdir -p dist/linux/amd64 dist/linux/arm64
           tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C dist/linux/amd64 nika
           tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C dist/linux/arm64 nika
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
