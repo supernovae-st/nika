@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [parse_workflow, cel_expression]
+        target: [parse_workflow, cel_expression, cap_check, infer_permits]
     steps:
       - uses: actions/checkout@v4
 
