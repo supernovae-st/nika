@@ -889,6 +889,7 @@ pub nika_schema::check::CheckReport::schema_findings: alloc::vec::Vec<nika_schem
 pub nika_schema::check::CheckReport::schema_lints: alloc::vec::Vec<nika_schema::SchemaLintFinding>
 pub nika_schema::check::CheckReport::secret_egresses: alloc::vec::Vec<nika_schema::check::SecretEgress>
 pub nika_schema::check::CheckReport::secret_leaks: alloc::vec::Vec<nika_schema::SecretLeak>
+pub nika_schema::check::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
 pub nika_schema::check::CheckReport::unknown_args: alloc::vec::Vec<nika_schema::check::UnknownArg>
 pub nika_schema::check::CheckReport::unknown_tools: alloc::vec::Vec<nika_schema::UnknownTool>
 pub nika_schema::check::CheckReport::waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
@@ -4560,6 +4561,7 @@ pub nika_schema::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::Sche
 pub nika_schema::CheckReport::schema_lints: alloc::vec::Vec<nika_schema::SchemaLintFinding>
 pub nika_schema::CheckReport::secret_egresses: alloc::vec::Vec<nika_schema::check::SecretEgress>
 pub nika_schema::CheckReport::secret_leaks: alloc::vec::Vec<nika_schema::SecretLeak>
+pub nika_schema::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
 pub nika_schema::CheckReport::unknown_args: alloc::vec::Vec<nika_schema::check::UnknownArg>
 pub nika_schema::CheckReport::unknown_tools: alloc::vec::Vec<nika_schema::UnknownTool>
 pub nika_schema::CheckReport::waves: alloc::vec::Vec<alloc::vec::Vec<usize>>

@@ -220,6 +220,16 @@ fn push_security_findings(
             p.detail.clone(),
         ));
     }
+    // Lethal trifecta (NEP-0002) — same one-voice projection: the
+    // canonical code rides, the diagnostic anchors on the ungated egress
+    // task it names (the witness). The LSP never re-judges the law.
+    for t in &report.trifecta_findings {
+        diags.push(error_diag(
+            task_range(index, task_spans, &t.task),
+            Some("NIKA-SEC-009".to_owned()),
+            t.detail.clone(),
+        ));
+    }
     // Advisory hints — never a failure (anchored on the task).
     for hint in &report.hints {
         let msg = format!("[{}] {}: {}", hint.kind, hint.task, hint.advice);
@@ -384,6 +394,32 @@ mod tests {
         let expected = index_of(yaml).position(id_byte);
         assert_eq!(pol.range.start, expected, "anchored on the task id");
         assert!(pol.range.start.line > 0, "a real span, never 0:0");
+    }
+
+    #[test]
+    fn a_trifecta_finding_projects_with_its_code_and_span() {
+        // NEP-0002 one-voice proof: a lethal-trifecta finding born in the
+        // check ladder (`NIKA-SEC-009`) rides the SAME from_report
+        // projection — anchored on the ungated egress task's id.
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n";
+        let diags = diags_of(yaml);
+        let tri = diags
+            .iter()
+            .find(|d| matches!(&d.code, Some(NumberOrString::String(c)) if c == "NIKA-SEC-009"))
+            .expect("NIKA-SEC-009 diagnostic present");
+        assert_eq!(tri.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(tri.source.as_deref(), Some("nika"));
+        assert!(
+            tri.message
+                .contains("lethal trifecta complete · human gate required"),
+            "the NEP-0002 message survives the projection: {}",
+            tri.message
+        );
+        // anchored on the task id `fetch_page`, not the origin
+        let id_byte = yaml.find("\n  fetch_page:").map(|p| p + 3).expect("id");
+        let expected = index_of(yaml).position(id_byte);
+        assert_eq!(tri.range.start, expected, "anchored on the task id");
+        assert!(tri.range.start.line > 0, "a real span, never 0:0");
     }
 
     #[test]

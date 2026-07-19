@@ -822,14 +822,17 @@ mod tests {
     fn effects_projection_names_the_declared_boundary() {
         // A workflow WITH a permits: block whose body fits it — the
         // report JSON carries boundary_declared:true + a non-empty
-        // needed + escapes:0 (the spec-10 example shape).
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  b:\n    exec: { command: [\"git\", \"status\"] }\n";
+        // needed + escapes:0 (the spec-10 example shape). NEP-0002: the
+        // boundary declares all three trifecta legs (fs.read · tools ·
+        // exec), so the exec sits behind a blocking `nika:prompt` gate —
+        // otherwise NIKA-SEC-009 flags it and the fixture is not clean.
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    after: { ask: succeeded }\n    exec: { command: [\"git\", \"status\"] }\n";
         let parsed = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = crate::check(&parsed);
         assert!(report.is_clean(), "the fixture fits its boundary");
         let json = serde_json::to_value(&report).expect("serializes");
         let effects = &json["certificate"]["effects"];
-        assert_eq!(effects["boundary_declared"], true);
+        assert_eq!(effects["boundary_declared"], serde_json::json!(true));
         assert_eq!(effects["escapes"], 0);
         assert_eq!(
             effects["needed"]["exec"],

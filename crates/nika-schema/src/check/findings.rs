@@ -156,6 +156,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.task.clone_from(&p.task);
         out.push(f);
     }
+    fold_trifecta(report, &mut out);
     for s in &report.schema_findings {
         out.push(UnifiedFinding::new(
             "schema_type",
@@ -193,6 +194,19 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     out
+}
+
+/// The lethal-trifecta class (NEP-0002 · NIKA-SEC-009) — the detail opens
+/// with the NEP's verbatim message and names the ungated egress task (the
+/// witness).
+fn fold_trifecta(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for t in &report.trifecta_findings {
+        let mut f = UnifiedFinding::new("trifecta", "TRIFECTA", t.detail.clone());
+        f.code = Some("NIKA-SEC-009".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-SEC-009", super::ERROR_DOCS_BASE));
+        f.task = Some(t.task.clone());
+        out.push(f);
+    }
 }
 
 /// The three tool-contract classes (all BUILTIN-coded, TOOLS/ARGS gates).
@@ -315,6 +329,12 @@ mod tests {
                 "composition",
                 "COMPOSITION",
             ),
+            (
+                // trifecta: all three legs declared + ungated egress (NEP-0002)
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+                "trifecta",
+                "TRIFECTA",
+            ),
         ];
         for (yaml, kind, gate) in cases {
             let r = report(yaml);
@@ -392,6 +412,23 @@ mod tests {
             .expect("policy row");
         assert_eq!(policy.code.as_deref(), Some("NIKA-POLICY-001"));
         assert_eq!(policy.gate, "POLICY");
+
+        // trifecta → NIKA-SEC-009 (NEP-0002) — the code rides with the
+        // witness task, one voice with the conformance-code surface.
+        let r = report(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+        );
+        let tri = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "trifecta")
+            .expect("trifecta row");
+        assert_eq!(tri.code.as_deref(), Some("NIKA-SEC-009"));
+        assert_eq!(
+            tri.docs_url.as_deref(),
+            Some("https://nika.sh/errors/NIKA-SEC-009")
+        );
+        assert_eq!(tri.task.as_deref(), Some("a"));
     }
 
     /// The wire shape: absent optionals are ABSENT (never null) — the
