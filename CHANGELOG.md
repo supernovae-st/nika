@@ -25,6 +25,8 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+## [0.105.0](https://github.com/supernovae-st/nika/compare/v0.104.0..v0.105.0) - 2026-07-20
+
 ## [0.103.0](https://github.com/supernovae-st/nika/compare/v0.102.0..v0.103.0) - 2026-07-13
 
 ### Changed — BREAKING (the #75 window: the language tightens)

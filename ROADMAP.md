@@ -95,7 +95,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | branch           | `feat/w1-engine`                                      |
 | HEAD             | `f6755b019` (`f6755b01914925b01a5776178939f73e5a68d5d9`)             |
-| workspace        | v0.103.0                                  |
+| workspace        | v0.105.0                                  |
 | crates (workspace)| 55                                              |
 | crates (admitted)| 53 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
@@ -111,9 +111,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.103.0`                                      |
+| branch           | `chore/release-0.105.0`                                      |
 | HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
-| workspace        | v0.103.0                                  |
+| workspace        | v0.105.0                                  |
 | crates (workspace)| 42                                              |
 | crates (admitted)| 42 / 42                                   |
 | crates (WIP)     | 0 —                                   |
@@ -129,9 +129,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.103.0`                                      |
+| branch           | `chore/release-0.105.0`                                      |
 | HEAD             | `05cdaab1e` (`05cdaab1ec68217f3a7fb03841dbe5f7720767d4`)             |
-| workspace        | v0.103.0                                  |
+| workspace        | v0.105.0                                  |
 | crates (workspace)| 40                                              |
 | crates (admitted)| 40 / 42                                   |
 | crates (WIP)     | 0 —                                   |

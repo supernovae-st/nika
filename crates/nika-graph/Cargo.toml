@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name        = "nika-graph"
-version     = "0.103.0"
+version     = "0.105.0"
 edition     = "2024"
 rust-version = "1.88"
 license     = "AGPL-3.0-or-later"
@@ -9,7 +9,7 @@ description = "nika's canonical graph projection — graph_format: 2, typed edge
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.103.0" } # RawWorkflow · CheckReport · the analyzed truth this projects
+nika-schema = { path = "../nika-schema", version = "0.105.0" } # RawWorkflow · CheckReport · the analyzed truth this projects
 serde       = { workspace = true }                             # the wire shape (GraphDoc → JSON)
 
 
