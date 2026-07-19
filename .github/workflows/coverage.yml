@@ -1,0 +1,60 @@
+name: Coverage
+
+# Code coverage on the crates whose tests carry the security thesis · nika-cap
+# is the capability CHECKER, nika-lints its sibling static-analysis home. Scoped
+# to `--lib` (the diamond convention) so the run needs no spec sibling and no
+# conformance setup · fast, deterministic, and the number the /trust page + the
+# checker-coverage claim cite. The lcov report uploads as an artifact always;
+# the Codecov step is best-effort (tokenless on a public repo) so a missing
+# token never reds the job.
+#
+# Security note: PR + push(main) + dispatch · no user-controlled strings.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: llvm-cov · checker crates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: Measure (nika-cap + nika-lints · lib)
+        run: |
+          cargo llvm-cov --lib -p nika-cap -p nika-lints \
+            --lcov --output-path lcov.info
+          echo '### Checker coverage' >> "$GITHUB_STEP_SUMMARY"
+          cargo llvm-cov --lib -p nika-cap -p nika-lints --summary-only \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload lcov artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: lcov.info
+          retention-days: 7
+
+      - name: Upload to Codecov (best-effort · tokenless)
+        continue-on-error: true
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
