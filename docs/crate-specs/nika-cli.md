@@ -31,7 +31,7 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 | `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
 | `nika new --from <template\|intent>` | instantiate one of the 6 skeletons (plain words BM25-route to the closest) · `--from '?'` = first-class discovery listing (exit 0 · the `embedded set:` line is the editor wire contract) · bare `nika new` on a terminal = the guided flow, at most three questions (template → file → model · the model question only fires for skeletons carrying a top-level `model:` · the default file name walks past collisions · Enter-only path lands on the offline mock) · bare in a pipe fails fast naming `--from` | 0 · 2 unknown/bare-in-pipe · 3 env |
-| `nika spec` / `nika examples list\|show\|run` / `nika schema` | the embedded self-contained surface | 0 |
+| `nika spec` (`--schema` folds the old `nika schema`) / `nika examples list\|show\|run` | the embedded self-contained surface | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |
 
@@ -149,8 +149,10 @@ colour alone (a11y).
 ```
 0    success (run completed · check clean · verb done)
 1    workflow failed        — a task reached failed; engine itself healthy
-2    validation findings    — check/inspect/graph found errors in the FILE
+2    validation findings    — check/inspect found errors in the FILE
 3    environment error      — config · missing provider key · doctor findings
+4    run paused             — durable nika:prompt gate (ADR-099); resume with
+                             --resume <trace> --answer <task>=<value>
 101  engine panic           — never deliberate; the trace is the crash report
 ```
 
@@ -168,8 +170,9 @@ the trace path (the flight recorder IS the crash report, owned by the user)
 
 ## 6. The graph projector (one projector · N renderers)
 
-`nika graph --json` is the canonical projection; mermaid/dot/ASCII/webview
-all derive from it. Versioned envelope (`graph_format: 2` · typed edges):
+`nika inspect <file> --format json` is the canonical projection (`nika graph`
+folded into `inspect --format`); mermaid/dot/ASCII/webview all derive from
+it. Versioned envelope (`graph_format: 2` · typed edges):
 
 ```json
 {
@@ -252,7 +255,7 @@ surface auto-escalates permits, ever.
 |---|---|
 | 1 SPEC | ✅ this file (2026-06-11 · ahead of build) |
 | 2 TDD | ✅ RED→GREEN · render frames + verbs + the e2e pipeline |
-| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · graph · explain · spec · schema · examples · new · doctor · pack · completions · lsp · mcp) |
+| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · explain · spec · examples · new · doctor · pack · completions · lsp · mcp) |
 | 4 CLIPPY | ✅ 0 warnings (`--all-targets -D warnings`) |
 | 5 MUTATION | ✅ 91.0% killed (264/290 viable) · residual are equivalent (the sparkline `.min()` clamp + unreachable `unwrap_or`) or low-value (infallible-writer `into_error`, best-effort stderr, a few composition-root paths) |
 | 6 PROPERTY | ✅ `tests/fold_property.rs` — the fold's monoid invariants (cost conservation · one-row-per-task · permutation-invariance · sequential≡interleaved-wave) |
