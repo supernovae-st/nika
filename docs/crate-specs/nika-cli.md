@@ -255,7 +255,7 @@ surface auto-escalates permits, ever.
 |---|---|
 | 1 SPEC | ✅ this file (2026-06-11 · ahead of build) |
 | 2 TDD | ✅ RED→GREEN · render frames + verbs + the e2e pipeline |
-| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · explain · spec · examples · new · doctor · pack · completions · lsp · mcp) |
+| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · explain · spec · examples · new · doctor · completions · lsp · mcp) |
 | 4 CLIPPY | ✅ 0 warnings (`--all-targets -D warnings`) |
 | 5 MUTATION | ✅ 91.0% killed (264/290 viable) · residual are equivalent (the sparkline `.min()` clamp + unreachable `unwrap_or`) or low-value (infallible-writer `into_error`, best-effort stderr, a few composition-root paths) |
 | 6 PROPERTY | ✅ `tests/fold_property.rs` — the fold's monoid invariants (cost conservation · one-row-per-task · permutation-invariance · sequential≡interleaved-wave) |
