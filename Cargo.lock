@@ -4152,6 +4152,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-sandbox-landlock"
+version = "0.103.0"
+dependencies = [
+ "nika-kernel",
+]
+
+[[package]]
 name = "nika-sandbox-seatbelt"
 version = "0.103.0"
 dependencies = [
