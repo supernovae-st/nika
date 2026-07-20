@@ -31,8 +31,10 @@ the confined child inherits them.
 
 ## 3. The SBPL profile (the security heart · deny-default)
 
-- **Network** denied unless `spec.allow_network` (Seatbelt host filtering is
-  TLS-blind · host-granular needs a proxy · follow-on).
+- **Network** — the `spec.net` tri-state: `deny` keeps network out of the
+  profile; `allow` emits `(allow network*)`; `allowlist` confines as `allow`
+  until the loopback egress proxy lands (Seatbelt host filtering is TLS-blind,
+  so host-granular egress is the proxy's job, never the profile's).
 - **Writes** allowed ONLY under declared `fs_write` prefixes + scratch.
 - **Reads** allow the system paths every binary + the dynamic linker need;
   declared `fs_read` prefixes added; sensitive home paths (`~/.ssh`) denied.

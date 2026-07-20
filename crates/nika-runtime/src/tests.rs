@@ -74,9 +74,10 @@ impl EventSink for NotifyOnFastSettle {
 /// the sink has seen fast's `task_completed` — join-granularity frames
 /// ADR-095 Layer 6 — a declared boundary attaches the OS-confinement
 /// spec to every exec child (grants absolutized at the config root ·
-/// network denied unless `net.http` lifts it).
+/// network denied unless `net.http` names an allowlist).
 #[tokio::test]
 async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
+    use nika_kernel::process::NetPolicy;
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -121,7 +122,7 @@ async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
         .expect("a declared boundary attaches the spec");
     assert_eq!(spec.fs_read, vec!["/repo/data/**".to_owned()]);
     assert_eq!(spec.fs_write, vec!["/repo/out/**".to_owned()]);
-    assert!(!spec.allow_network, "no net.http = the deny holds");
+    assert_eq!(spec.net, NetPolicy::Deny, "no net.http = the deny holds");
 }
 
 /// No `permits:` block = today's unconfined floor (the blocklist only —

@@ -16,8 +16,15 @@
 //!
 //! ## What the jail enforces (deny-default)
 //!
-//! - **Network** — denied entirely (`--unshare-net`) unless `spec.allow_network`
-//!   (host-granular filtering needs a proxy · follow-on, matching the sibling).
+//! - **Network** — the [`NetPolicy`] tri-state: `Deny` keeps the network
+//!   namespace unshared (`--unshare-all`); `Allow` re-shares it
+//!   (`--share-net`). `Allowlist` — host-granular egress — confines EXACTLY
+//!   as `Allow` until the per-run loopback egress proxy lands (the
+//!   pre-tri-state behavior, zero regression · matching the macOS sibling).
+//!   The proxy then serves the declared host set over the shared namespace +
+//!   the env contract; scoping the namespace itself to loopback needs the
+//!   socat/unix-socket bridge of the sandbox-runtime model (named follow-on,
+//!   honestly — bwrap cannot express a loopback-only fence alone).
 //! - **Writes** — allowed ONLY under the declared `fs_write` prefixes plus
 //!   scratch (`--bind`). Everything else is read-only or absent.
 //! - **Reads** — the system paths every binary + the dynamic linker need are
@@ -39,7 +46,7 @@
 use std::path::Path;
 
 use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
-use nika_kernel::process::{SandboxSpec, ShellCommand};
+use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
 
 /// The bubblewrap launcher. A fixed absolute path (not `$PATH`) so a hijacked
 /// `PATH` cannot point the sandbox at an impostor launcher.
@@ -160,9 +167,16 @@ fn build_jail_args(spec: &SandboxSpec) -> Result<Vec<String>, CommandSandboxErro
         a.push(prefix);
     }
 
-    // Network: `--unshare-all` already dropped the net namespace. To ALLOW it,
-    // re-share the network namespace and bind the resolver config read-only.
-    if spec.allow_network {
+    // Network: `--unshare-all` already dropped the net namespace. The ALLOW
+    // arms re-share it and bind the resolver config read-only — Allow (the
+    // explicit escape hatch) and Allowlist, which rides the same shared
+    // namespace until the egress proxy lands (the pre-tri-state behavior ·
+    // module doc); the proxy then serves the declared hosts over it and a
+    // loopback-only namespace fence needs the socat/unix-socket bridge
+    // (named follow-on). Every other arm — Deny and, by the
+    // #[non_exhaustive] law, any future variant — fails CLOSED: the
+    // namespace stays unshared, no network physically.
+    if matches!(spec.net, NetPolicy::Allow | NetPolicy::Allowlist(_)) {
         a.push("--share-net".to_owned());
         if Path::new("/etc/resolv.conf").exists() {
             a.push("--ro-bind".to_owned());
@@ -170,7 +184,6 @@ fn build_jail_args(spec: &SandboxSpec) -> Result<Vec<String>, CommandSandboxErro
             a.push("/etc/resolv.conf".to_owned());
         }
     }
-    // else: the net namespace stays unshared — no network, physically.
 
     Ok(a)
 }
@@ -369,11 +382,27 @@ mod tests {
         );
 
         let mut net = SandboxSpec::new();
-        net.allow_network = true;
+        net.net = NetPolicy::Allow;
         let with_net = build_jail_args(&net).unwrap();
         assert!(
             with_net.iter().any(|a| a == "--share-net"),
             "network re-shared on request"
+        );
+    }
+
+    /// The allowlist arm rides the shared namespace until the egress proxy
+    /// lands (the pre-tri-state behavior · module doc) — then the proxy
+    /// serves the declared hosts over it.
+    #[test]
+    fn allowlist_rides_the_shared_namespace_pre_proxy() {
+        let mut spec = SandboxSpec::new();
+        spec.net = NetPolicy::Allowlist(nika_kernel::process::EgressAllowlist::new(vec![
+            "api.example.com".to_owned(),
+        ]));
+        let args = build_jail_args(&spec).unwrap();
+        assert!(
+            args.iter().any(|a| a == "--share-net"),
+            "allowlist confines as allow pre-proxy"
         );
     }
 

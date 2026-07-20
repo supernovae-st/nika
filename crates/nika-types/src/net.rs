@@ -22,9 +22,13 @@
 use alloc::format;
 use alloc::string::String;
 
-/// Host glob match — exact, or a LEADING `*.` subdomain wildcard
-/// (`*.github.com` matches `api.github.com` AND the bare `github.com`).
-/// Distinct from the tool-id trailing-`*` glob (`nika:*`).
+/// Host glob match — exact, a LEADING `*.` subdomain wildcard
+/// (`*.github.com` matches `api.github.com` AND the bare `github.com`), or
+/// the BARE `*` — the explicit allow-all escape hatch. Distinct from the
+/// tool-id trailing-`*` glob (`nika:*`): an embedded `*` (`foo*.com`) still
+/// matches nothing; only the whole-entry `*` opens the boundary, and only
+/// because the author typed it in-file (never a default — the sandbox
+/// network arm maps it to `allow`, the explicit egress escape hatch).
 ///
 /// CASE-INSENSITIVE (RFC 4343 · DNS hostnames are case-insensitive). The
 /// connect host arrives WHATWG-lowercased, so an author-written permit entry
@@ -35,6 +39,9 @@ use alloc::string::String;
 pub fn host_glob_matches(glob: &str, host: &str) -> bool {
     let glob = glob.to_ascii_lowercase();
     let host = host.to_ascii_lowercase();
+    if glob == "*" {
+        return true;
+    }
     if let Some(suffix) = glob.strip_prefix("*.") {
         return host == suffix || host.ends_with(&format!(".{suffix}"));
     }
@@ -305,6 +312,21 @@ mod tests {
         // case-folding does not loosen the boundary — a different host stays out
         assert!(!host_glob_matches("EXAMPLE.COM", "evil.com"));
         assert!(!host_glob_matches("*.GITHUB.COM", "github.com.evil.com"));
+    }
+
+    #[test]
+    fn bare_star_is_the_explicit_allow_all_hatch() {
+        // The escape hatch: `net: { http: ["*"] }` opens the boundary to every
+        // host — the author's explicit in-file act (maps the sandbox network
+        // arm to `allow`), never a default.
+        assert!(host_glob_matches("*", "example.com"));
+        assert!(host_glob_matches("*", "anything.at.all"));
+        assert!(host_glob_matches("*", ""));
+        // ONLY the bare entry: an embedded `*` is not a wildcard here (the
+        // host language has exact + leading-`*.` forms only), so a typo like
+        // `foo*.com` keeps matching nothing (fail-closed).
+        assert!(!host_glob_matches("foo*.com", "foo1.com"));
+        assert!(!host_glob_matches("*.com", "example.com."));
     }
 
     #[test]

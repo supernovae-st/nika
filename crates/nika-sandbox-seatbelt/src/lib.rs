@@ -13,8 +13,14 @@
 //!
 //! ## What the profile enforces (deny-default)
 //!
-//! - **Network** — denied entirely unless `spec.allow_network` (Seatbelt host
-//!   filtering is TLS-blind · host-granular needs a proxy · follow-on).
+//! - **Network** — the [`NetPolicy`] tri-state: `Deny` keeps network out of
+//!   the profile entirely (`(deny default)` holds); `Allow` emits
+//!   `(allow network*)`. `Allowlist` — host-granular egress — confines
+//!   EXACTLY as `Allow` until the per-run loopback egress proxy lands (the
+//!   pre-tri-state `allow_network = true` behavior, zero regression): the
+//!   proxy then fences this arm to loopback-only + injects its env contract
+//!   (the Anthropic sandbox-runtime model · a Seatbelt host rule is
+//!   TLS-blind, so the allowlist is the proxy's job, not the profile's).
 //! - **Writes** — allowed ONLY under the declared `fs_write` prefixes plus
 //!   scratch. Everything else (home, the repo, `/etc`) is read-only-or-denied.
 //! - **Reads** — the system paths every binary + the dynamic linker need are
@@ -36,7 +42,7 @@
 use std::path::Path;
 
 use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
-use nika_kernel::process::{SandboxSpec, ShellCommand};
+use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
 
 /// The OS-shipped Seatbelt launcher. A fixed absolute path (not `$PATH`) so a
 /// hijacked `PATH` cannot point the sandbox at an impostor launcher.
@@ -114,10 +120,18 @@ fn build_profile(spec: &SandboxSpec) -> Result<String, CommandSandboxError> {
         );
     }
 
-    if spec.allow_network {
+    // The open arms: Allow (the explicit escape hatch) and Allowlist — the
+    // allowlist confines EXACTLY as Allow until the loopback egress proxy
+    // lands (see the module doc — the pre-tri-state `allow_network = true`
+    // behavior, never a silent partial). The proxy then fences this arm to
+    // loopback-only and serves the declared host set; a Seatbelt host rule
+    // is TLS-blind, so the allowlist itself is the proxy's job, never the
+    // profile's. Every other arm — Deny and, by the #[non_exhaustive] law,
+    // any future variant — fails CLOSED: network stays denied by
+    // `(deny default)`, the load-bearing line.
+    if matches!(spec.net, NetPolicy::Allow | NetPolicy::Allowlist(_)) {
         p.push_str("(allow network*)\n");
     }
-    // else: network stays denied by `(deny default)` — the load-bearing line.
 
     Ok(p)
 }
@@ -383,8 +397,24 @@ mod tests {
         );
 
         let mut allow = SandboxSpec::new();
-        allow.allow_network = true;
+        allow.net = NetPolicy::Allow;
         assert!(build_profile(&allow).unwrap().contains("(allow network*)"));
+    }
+
+    #[test]
+    fn allowlist_confines_as_allow_until_the_egress_proxy_lands() {
+        // The transitional mapping (module doc): host-granular egress needs
+        // the loopback proxy — until it lands, the allowlist arm keeps the
+        // pre-tri-state `allow_network = true` behavior, zero regression.
+        let mut spec = SandboxSpec::new();
+        spec.net = NetPolicy::Allowlist(nika_kernel::process::EgressAllowlist::new(vec![
+            "api.example.com".to_owned(),
+        ]));
+        let p = build_profile(&spec).unwrap();
+        assert!(
+            p.contains("(allow network*)"),
+            "allowlist confines as allow pre-proxy"
+        );
     }
 
     #[test]
