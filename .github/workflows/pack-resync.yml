@@ -14,12 +14,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read # least privilege at the top — the job elevates (Scorecard Token-Permissions)
 
 jobs:
   heal:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the heal branch
+      pull-requests: write # open the heal PR
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

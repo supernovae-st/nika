@@ -6,14 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read # least privilege at the top — the job elevates (Scorecard Token-Permissions)
 
 jobs:
   changelog:
     # Only diamond-era tags (v0.80+) — excludes legacy v0.79.x
     if: startsWith(github.ref, 'refs/tags/v0.8') || startsWith(github.ref, 'refs/tags/v0.9') || startsWith(github.ref, 'refs/tags/v0.10') || startsWith(github.ref, 'refs/tags/v0.11')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the changelog commit
+      pull-requests: write # open the changelog PR
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:

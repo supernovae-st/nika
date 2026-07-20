@@ -20,7 +20,7 @@ on:
         required: true
 
 permissions:
-  contents: write # create the release + upload assets
+  contents: read # least privilege at the top — release job elevates (Scorecard Token-Permissions)
 
 env:
   CARGO_TERM_COLOR: always
