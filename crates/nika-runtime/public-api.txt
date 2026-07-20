@@ -526,6 +526,8 @@ pub nika_runtime::RuntimeError::DirtyReport
 pub nika_runtime::RuntimeError::OutputBinding
 pub nika_runtime::RuntimeError::OutputBinding::code: &'static str
 pub nika_runtime::RuntimeError::OutputBinding::message: alloc::string::String
+pub nika_runtime::RuntimeError::ReportMismatch
+pub nika_runtime::RuntimeError::ReportMismatch::detail: alloc::string::String
 pub nika_runtime::RuntimeError::UnresolvedTemplate
 pub nika_runtime::RuntimeError::UnresolvedTemplate::reference: alloc::string::String
 pub nika_runtime::RuntimeError::WaveOutOfBounds

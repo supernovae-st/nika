@@ -1246,13 +1246,23 @@ mod skill_compose_tests {
     }
 }
 
-/// `permits.tools` RUNTIME enforcement (spec 01 §permits · NIKA-SEC-004) —
-/// the last check-only axis closes. The static `permits_fit` scan refuses
-/// an out-of-boundary tool at `nika check`; these fixtures prove the RUN
-/// refuses it too when the report can no longer vouch for the body — an
-/// embedder that skipped `check`, or a clean report forged for a different
-/// (permit-free) workflow. The honest path (check THEN run the same file)
-/// is covered by the granted fixtures, which ride their REAL clean report.
+/// `permits.tools` enforcement, TWO layers (spec 01 §permits · NIKA-SEC-004
+/// at the task level · NIKA-1707 at the run level).
+///
+/// - **The trust gate** (run start · this module's forged fixtures) — a
+///   clean report forged for a different (permit-free) workflow never
+///   reaches dispatch: the runtime re-derives the boundary lanes from the
+///   workflow BYTES and refuses the mismatch (NIKA-1707) before any event
+///   is emitted. The tool name is always literal, so the tools axis is
+///   statically decidable — the trust gate owns it.
+/// - **The dispatch gate** (in-run · fail-closed backstop) — an effect
+///   the STATIC scan cannot see (a `${{ }}`-built value) is judged at
+///   dispatch against the workflow's OWN declared boundary, never the
+///   report. The dynamic half is pinned in `tests/exec_permits.rs` and
+///   `tests/boundary_differential.rs`.
+///
+/// The honest path (check THEN run the same file) is covered by the
+/// granted fixtures, which ride their REAL clean report.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tools_permits_tests {
@@ -1312,10 +1322,11 @@ mod tools_permits_tests {
     /// The embedder-bypass shape: `check` refuses the REAL workflow (its
     /// body escapes the declared boundary), so the run is fed the CLEAN
     /// report of its permit-free twin — same tasks, same waves. A skipped
-    /// check and a forged report are indistinguishable to the runtime; it
-    /// must enforce the boundary the WORKFLOW declares, never the one a
-    /// report vouches for. Every fixture writes `permits:` as ONE line so
-    /// the twin is a line-strip away.
+    /// check and a forged report are indistinguishable to the runtime:
+    /// the trust gate re-derives the boundary from the WORKFLOW bytes and
+    /// unmasks the twin's report at run start (NIKA-1707), before dispatch.
+    /// Every fixture writes `permits:` as ONE line so the twin is a
+    /// line-strip away.
     fn forged_clean_report(
         yaml: &str,
     ) -> (nika_schema::raw::RawWorkflow, nika_schema::CheckReport) {
@@ -1350,31 +1361,49 @@ mod tools_permits_tests {
             .expect("run settles")
     }
 
-    /// A tool OUTSIDE `permits.tools` is refused at the dispatch with the
-    /// SAME code the static checker emits — even under a forged clean
-    /// report — and the executor is NEVER reached.
+    /// A forged-report run ABORTS at the trust gate — the error, for
+    /// inspection. The refusal precedes the prologue (fail-closed): the
+    /// sink MUST stay empty, pinned here once for every caller.
+    async fn run_refused(
+        runtime: &MockRuntime,
+        wf: &nika_schema::raw::RawWorkflow,
+        report: &nika_schema::CheckReport,
+    ) -> crate::RuntimeError {
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let err = runtime
+            .run(wf, report, &mut stamper, &mut sink)
+            .await
+            .expect_err("a forged report never reaches dispatch");
+        assert!(
+            sink.events().is_empty(),
+            "refused BEFORE any event — not even the prologue: {:?}",
+            sink.events()
+        );
+        err
+    }
+
+    /// A tool OUTSIDE `permits.tools` under a forged clean report is
+    /// unmasked at the TRUST GATE — the run aborts NIKA-1707 before any
+    /// event, and the executor is NEVER reached. (The static checker
+    /// speaks NIKA-SEC-004 for the same body; a forged report is the
+    /// audit-before-run class, same family as a dirty one.)
     #[tokio::test]
-    async fn invoke_outside_tools_boundary_is_refused_under_a_forged_report() {
+    async fn invoke_outside_tools_boundary_is_unmasked_at_the_trust_gate() {
         let (wf, report) = forged_clean_report(
             "nika: v1\nworkflow:\n  id: tools-deny\npermits: { tools: [\"nika:read\"] }\ntasks:\n  danger:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n",
         );
         let executor = MockToolExecutor::new(); // EMPTY — any call is a bug
         let probe = executor.clone();
         let runtime = runtime_with(executor, MockProvider::new("mock"));
-        let outcome = run(&runtime, &wf, &report).await;
-        assert!(!outcome.ok, "a refused tool fails the run");
-        let rec = &outcome.records["danger"];
-        assert_eq!(rec.status, TaskStatus::Failure);
-        let err = rec.error.as_ref().expect("the refusal is recorded");
-        assert_eq!(
-            err.code, "NIKA-SEC-004",
-            "one voice with the static checker"
-        );
-        assert!(!err.transient, "a security boundary never retries");
+        let err = run_refused(&runtime, &wf, &report).await;
+        let crate::RuntimeError::ReportMismatch { detail } = &err else {
+            panic!("expected ReportMismatch, got {err:?}");
+        };
+        assert_eq!(err.spec_code(), "NIKA-1707");
         assert!(
-            err.message.contains("nika:write"),
-            "the refusal names the tool: {}",
-            err.message
+            detail.contains("capability escape · task `danger`"),
+            "the re-derived escape is named: {detail}"
         );
         assert!(
             probe.captured_calls().is_empty(),
@@ -1384,7 +1413,8 @@ mod tools_permits_tests {
 
     /// A declared block that omits `tools:` grants NO tool (default-deny —
     /// the exact `Permits::allows_tool` verdict the static scan pins: an
-    /// omitted category is not an allow-all).
+    /// omitted category is not an allow-all) — the twin's clean report is
+    /// unmasked at the trust gate.
     #[tokio::test]
     async fn declared_block_with_omitted_tools_denies_every_tool() {
         let (wf, report) = forged_clean_report(
@@ -1393,10 +1423,14 @@ mod tools_permits_tests {
         let executor = MockToolExecutor::new();
         let probe = executor.clone();
         let runtime = runtime_with(executor, MockProvider::new("mock"));
-        let outcome = run(&runtime, &wf, &report).await;
-        assert!(!outcome.ok, "an omitted category is default-deny");
-        let err = outcome.records["t"].error.as_ref().expect("recorded");
-        assert_eq!(err.code, "NIKA-SEC-004");
+        let err = run_refused(&runtime, &wf, &report).await;
+        let crate::RuntimeError::ReportMismatch { detail } = &err else {
+            panic!("expected ReportMismatch, got {err:?}");
+        };
+        assert!(
+            detail.contains("capability escape · task `t`"),
+            "the omitted-category escape is named: {detail}"
+        );
         assert!(probe.captured_calls().is_empty());
     }
 
@@ -1419,8 +1453,9 @@ mod tools_permits_tests {
     }
 
     /// The agent verb's declared `tools:` universe is gated the same way —
-    /// refused BEFORE any provider call (the in-loop whitelist governs the
-    /// model's picks only within a boundary-fitting universe).
+    /// unmasked at the trust gate BEFORE any provider call (the in-loop
+    /// whitelist governs the model's picks only within a boundary-fitting
+    /// universe).
     #[tokio::test]
     async fn agent_universe_outside_tools_boundary_is_refused() {
         let (wf, report) = forged_clean_report(
@@ -1429,12 +1464,14 @@ mod tools_permits_tests {
         let provider = MockProvider::new("mock").enqueue_text("never reached");
         let probe = provider.clone();
         let runtime = runtime_with(MockToolExecutor::new(), provider);
-        let outcome = run(&runtime, &wf, &report).await;
-        assert!(!outcome.ok);
-        let rec = &outcome.records["go"];
-        assert_eq!(rec.status, TaskStatus::Failure);
-        let err = rec.error.as_ref().expect("the refusal is recorded");
-        assert_eq!(err.code, "NIKA-SEC-004");
+        let err = run_refused(&runtime, &wf, &report).await;
+        let crate::RuntimeError::ReportMismatch { detail } = &err else {
+            panic!("expected ReportMismatch, got {err:?}");
+        };
+        assert!(
+            detail.contains("capability escape · task `go`"),
+            "the out-of-boundary universe is named: {detail}"
+        );
         assert!(
             probe.captured_requests().is_empty(),
             "no token is spent on an out-of-boundary universe"

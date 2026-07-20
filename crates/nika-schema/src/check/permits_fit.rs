@@ -63,7 +63,7 @@ pub struct CapabilityEscape {
 /// the same boundary (and ALWAYS runs, so a blind spot there breaks
 /// every run, not just the failure path).
 #[must_use]
-pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
+pub fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
     let permits = wf.permits.as_ref().map(|p| &p.value);
     let mut escapes = Vec::new();
     for task in &wf.tasks {

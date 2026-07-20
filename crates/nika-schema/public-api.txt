@@ -474,6 +474,59 @@ pub fn nika_schema::analyzer::role_of_field(field: core::option::Option<&str>) -
 pub mod nika_schema::check
 pub mod nika_schema::check::native_first
 pub fn nika_schema::check::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
+pub mod nika_schema::check::permits_fit
+#[non_exhaustive] pub struct nika_schema::check::permits_fit::CapabilityEscape
+pub nika_schema::check::permits_fit::CapabilityEscape::category: &'static str
+pub nika_schema::check::permits_fit::CapabilityEscape::detail: alloc::string::String
+pub nika_schema::check::permits_fit::CapabilityEscape::fix: core::option::Option<alloc::string::String>
+pub nika_schema::check::permits_fit::CapabilityEscape::floor: bool
+pub nika_schema::check::permits_fit::CapabilityEscape::task: alloc::string::String
+impl core::clone::Clone for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::clone(&self) -> nika_schema::check::permits_fit::CapabilityEscape
+impl core::cmp::Eq for nika_schema::check::permits_fit::CapabilityEscape
+impl core::cmp::PartialEq for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::eq(&self, other: &nika_schema::check::permits_fit::CapabilityEscape) -> bool
+impl core::fmt::Debug for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::check::permits_fit::CapabilityEscape
+impl serde_core::ser::Serialize for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::permits_fit::CapabilityEscape
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::From<T>
+pub fn nika_schema::check::permits_fit::CapabilityEscape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::Into<T>
+pub type nika_schema::check::permits_fit::CapabilityEscape::Error = core::convert::Infallible
+pub fn nika_schema::check::permits_fit::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::TryFrom<T>
+pub type nika_schema::check::permits_fit::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::permits_fit::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub type nika_schema::check::permits_fit::CapabilityEscape::Owned = T
+pub fn nika_schema::check::permits_fit::CapabilityEscape::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::permits_fit::CapabilityEscape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::permits_fit::CapabilityEscape where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub unsafe fn nika_schema::check::permits_fit::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub fn nika_schema::check::permits_fit::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::permits_fit::CapabilityEscape where T: 'static
+pub fn nika_schema::check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_schema::check::permits_fit::scan_escapes(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::check::permits_fit::CapabilityEscape>
+pub mod nika_schema::check::trifecta
+pub fn nika_schema::check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_schema::analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
 #[non_exhaustive] pub enum nika_schema::check::FindingSeverity
 pub nika_schema::check::FindingSeverity::Error
 pub nika_schema::check::FindingSeverity::Info
@@ -781,49 +834,49 @@ pub nika_schema::check::CapabilityEscape::detail: alloc::string::String
 pub nika_schema::check::CapabilityEscape::fix: core::option::Option<alloc::string::String>
 pub nika_schema::check::CapabilityEscape::floor: bool
 pub nika_schema::check::CapabilityEscape::task: alloc::string::String
-impl core::clone::Clone for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::clone(&self) -> nika_schema::CapabilityEscape
-impl core::cmp::Eq for nika_schema::CapabilityEscape
-impl core::cmp::PartialEq for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::eq(&self, other: &nika_schema::CapabilityEscape) -> bool
-impl core::fmt::Debug for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::CapabilityEscape
-impl serde_core::ser::Serialize for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_schema::CapabilityEscape
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::CapabilityEscape::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::CapabilityEscape where U: core::convert::From<T>
-pub fn nika_schema::CapabilityEscape::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::CapabilityEscape where U: core::convert::Into<T>
-pub type nika_schema::CapabilityEscape::Error = core::convert::Infallible
-pub fn nika_schema::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::CapabilityEscape where U: core::convert::TryFrom<T>
-pub type nika_schema::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::CapabilityEscape where T: core::clone::Clone
-pub type nika_schema::CapabilityEscape::Owned = T
-pub fn nika_schema::CapabilityEscape::clone_into(&self, target: &mut T)
-pub fn nika_schema::CapabilityEscape::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::CapabilityEscape where T: 'static + ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::CapabilityEscape where T: ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::CapabilityEscape where T: ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::CapabilityEscape where T: core::clone::Clone
-pub unsafe fn nika_schema::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::CapabilityEscape where T: core::clone::Clone
-pub fn nika_schema::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::CapabilityEscape where T: 'static
-pub fn nika_schema::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl core::clone::Clone for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::clone(&self) -> nika_schema::check::permits_fit::CapabilityEscape
+impl core::cmp::Eq for nika_schema::check::permits_fit::CapabilityEscape
+impl core::cmp::PartialEq for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::eq(&self, other: &nika_schema::check::permits_fit::CapabilityEscape) -> bool
+impl core::fmt::Debug for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::check::permits_fit::CapabilityEscape
+impl serde_core::ser::Serialize for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::permits_fit::CapabilityEscape
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::From<T>
+pub fn nika_schema::check::permits_fit::CapabilityEscape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::Into<T>
+pub type nika_schema::check::permits_fit::CapabilityEscape::Error = core::convert::Infallible
+pub fn nika_schema::check::permits_fit::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::TryFrom<T>
+pub type nika_schema::check::permits_fit::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::permits_fit::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub type nika_schema::check::permits_fit::CapabilityEscape::Owned = T
+pub fn nika_schema::check::permits_fit::CapabilityEscape::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::permits_fit::CapabilityEscape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::permits_fit::CapabilityEscape where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub unsafe fn nika_schema::check::permits_fit::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub fn nika_schema::check::permits_fit::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::permits_fit::CapabilityEscape where T: 'static
+pub fn nika_schema::check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::CertTerm
 pub nika_schema::check::CertTerm::coeff: u64
 pub nika_schema::check::CertTerm::task: alloc::string::String
@@ -872,7 +925,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::CertTerm where T: 'static
 pub fn nika_schema::CertTerm::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::CheckReport
 pub nika_schema::check::CheckReport::analysis: core::option::Option<nika_schema::check::DagAnalysis>
-pub nika_schema::check::CheckReport::capability_escapes: alloc::vec::Vec<nika_schema::CapabilityEscape>
+pub nika_schema::check::CheckReport::capability_escapes: alloc::vec::Vec<nika_schema::check::permits_fit::CapabilityEscape>
 pub nika_schema::check::CheckReport::certificate: nika_schema::RunCertificate
 pub nika_schema::check::CheckReport::composition: alloc::vec::Vec<nika_schema::CompositionFinding>
 pub nika_schema::check::CheckReport::conformance: alloc::vec::Vec<nika_schema::check::ConformanceViolation>
@@ -4453,49 +4506,49 @@ pub nika_schema::CapabilityEscape::detail: alloc::string::String
 pub nika_schema::CapabilityEscape::fix: core::option::Option<alloc::string::String>
 pub nika_schema::CapabilityEscape::floor: bool
 pub nika_schema::CapabilityEscape::task: alloc::string::String
-impl core::clone::Clone for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::clone(&self) -> nika_schema::CapabilityEscape
-impl core::cmp::Eq for nika_schema::CapabilityEscape
-impl core::cmp::PartialEq for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::eq(&self, other: &nika_schema::CapabilityEscape) -> bool
-impl core::fmt::Debug for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::CapabilityEscape
-impl serde_core::ser::Serialize for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_schema::CapabilityEscape
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::CapabilityEscape::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::CapabilityEscape where U: core::convert::From<T>
-pub fn nika_schema::CapabilityEscape::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::CapabilityEscape where U: core::convert::Into<T>
-pub type nika_schema::CapabilityEscape::Error = core::convert::Infallible
-pub fn nika_schema::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::CapabilityEscape where U: core::convert::TryFrom<T>
-pub type nika_schema::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::CapabilityEscape where T: core::clone::Clone
-pub type nika_schema::CapabilityEscape::Owned = T
-pub fn nika_schema::CapabilityEscape::clone_into(&self, target: &mut T)
-pub fn nika_schema::CapabilityEscape::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::CapabilityEscape where T: 'static + ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::CapabilityEscape where T: ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::CapabilityEscape where T: ?core::marker::Sized
-pub fn nika_schema::CapabilityEscape::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::CapabilityEscape where T: core::clone::Clone
-pub unsafe fn nika_schema::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::CapabilityEscape
-pub fn nika_schema::CapabilityEscape::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::CapabilityEscape where T: core::clone::Clone
-pub fn nika_schema::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::CapabilityEscape where T: 'static
-pub fn nika_schema::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl core::clone::Clone for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::clone(&self) -> nika_schema::check::permits_fit::CapabilityEscape
+impl core::cmp::Eq for nika_schema::check::permits_fit::CapabilityEscape
+impl core::cmp::PartialEq for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::eq(&self, other: &nika_schema::check::permits_fit::CapabilityEscape) -> bool
+impl core::fmt::Debug for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::check::permits_fit::CapabilityEscape
+impl serde_core::ser::Serialize for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::permits_fit::CapabilityEscape
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::From<T>
+pub fn nika_schema::check::permits_fit::CapabilityEscape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::Into<T>
+pub type nika_schema::check::permits_fit::CapabilityEscape::Error = core::convert::Infallible
+pub fn nika_schema::check::permits_fit::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::permits_fit::CapabilityEscape where U: core::convert::TryFrom<T>
+pub type nika_schema::check::permits_fit::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::permits_fit::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub type nika_schema::check::permits_fit::CapabilityEscape::Owned = T
+pub fn nika_schema::check::permits_fit::CapabilityEscape::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::permits_fit::CapabilityEscape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::permits_fit::CapabilityEscape where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_schema::check::permits_fit::CapabilityEscape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub unsafe fn nika_schema::check::permits_fit::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::permits_fit::CapabilityEscape
+pub fn nika_schema::check::permits_fit::CapabilityEscape::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub fn nika_schema::check::permits_fit::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::permits_fit::CapabilityEscape where T: 'static
+pub fn nika_schema::check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::CertTerm
 pub nika_schema::CertTerm::coeff: u64
 pub nika_schema::CertTerm::task: alloc::string::String
@@ -4544,7 +4597,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::CertTerm where T: 'static
 pub fn nika_schema::CertTerm::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::CheckReport
 pub nika_schema::CheckReport::analysis: core::option::Option<nika_schema::check::DagAnalysis>
-pub nika_schema::CheckReport::capability_escapes: alloc::vec::Vec<nika_schema::CapabilityEscape>
+pub nika_schema::CheckReport::capability_escapes: alloc::vec::Vec<nika_schema::check::permits_fit::CapabilityEscape>
 pub nika_schema::CheckReport::certificate: nika_schema::RunCertificate
 pub nika_schema::CheckReport::composition: alloc::vec::Vec<nika_schema::CompositionFinding>
 pub nika_schema::CheckReport::conformance: alloc::vec::Vec<nika_schema::check::ConformanceViolation>

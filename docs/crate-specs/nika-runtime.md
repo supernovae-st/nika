@@ -263,10 +263,12 @@ unresolvable output is omitted · the verdict unchanged).
 | NIKA-1701 | wave index out of bounds (checker/runtime contract breach) |
 | NIKA-1702 | unresolved `${{ }}` reference (silent-literal guard) |
 | NIKA-1703 | expression outside the v0 subset (when/render forms) |
+| NIKA-1707 | report's boundary lanes ≠ workflow bytes (run-start re-derivation of the pure permits-fit + trifecta subset · the fail-closed backstop for library embedders — a clean report over different bytes is not clean) |
 
-NIKA-1700/1701 abort the RUN. NIKA-1702/1703 inside a task pipeline
+NIKA-1700/1701/1707 abort the RUN. NIKA-1702/1703 inside a task pipeline
 fail THE TASK (cascade · the detail carries the code) — only a
-**system** surface (a corrupt schedule) aborts the run. Verb failures
+**system** surface (a corrupt schedule · a report that does not match
+the bytes) aborts the run. Verb failures
 are `TaskFailed` events carrying the verb's own `nika_code()` wire
 form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
 
