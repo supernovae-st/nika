@@ -1,0 +1,30 @@
+# F3 — schema/parse smuggling, STATIC verdict: the egress URL is not written
+# by the author — it is EXTRACTED from the untrusted page through a jq hop,
+# so the literal-host permit scan has nothing to check (sound-by-honesty:
+# dynamic effects defer to the runtime). The realized-flow judge sees through
+# the structured hop anyway: fetch_page's content reaches the second fetch's
+# url, a realized sink. The parse hop does not launder the taint.
+nika: v1
+workflow:
+  id: f3-01-jq-hop-steers-the-egress-url
+permits:
+  fs: { read: ["./inbox/**"] }
+  net: { http: ["api.example.com"] }
+  tools: ["nika:fetch", "nika:jq"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://api.example.com/index.json" }
+  extract:
+    after: { fetch_page: succeeded }
+    with: { page: "${{ tasks.fetch_page.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { expression: "fromjson | .next", input: "${{ with.page }}" }
+  follow:
+    after: { extract: succeeded }
+    with: { next: "${{ tasks.extract.output }}" }
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "${{ with.next }}" }

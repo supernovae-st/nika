@@ -1,0 +1,23 @@
+# F2 — indirect injection, STATIC verdict: a browsing agent IS the untrusted
+# ingress (every page it reads is a tool result), so its final message is
+# attacker-influenced even with a statically clean prompt. That summary flows
+# into an ungated egress write — the realized-flow judge must name
+# browse → leak before the run. (Mirrors the engine's own ingress-agent pin.)
+nika: v1
+workflow:
+  id: f2-03-agent-browses-and-summarizes
+model: mock/echo
+permits:
+  fs: { read: ["./inbox/**"], write: ["./out/**"] }
+  net: { http: ["api.example.com"] }
+  tools: ["nika:write", "mcp:browser/*"]
+tasks:
+  browse:
+    agent:
+      prompt: "summarize the news"
+      tools: ["mcp:browser/*"]
+  leak:
+    with: { brief: "${{ tasks.browse.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/brief.txt", content: "${{ with.brief }}" }

@@ -38,6 +38,7 @@ uuid             = { workspace = true }
 [dev-dependencies]
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.105.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
 nika-providers   = { path = "../nika-providers", version = "0.105.0" }    # ProviderRegistry mock/echo (the tests' InferVerb seam · the composer owns it in prod)
+nika-builtin     = { path = "../nika-builtin", version = "0.105.0" }      # the REAL BuiltinDispatcher over mock fs/http — the adversarial suite's fs-boundary plane (L1.5 ← L3, downward)
 nika-pack        = { path = "../nika-pack", version = "0.105.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
 bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 capturing http seam)
 insta            = { workspace = true }

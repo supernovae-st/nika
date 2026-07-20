@@ -1,0 +1,18 @@
+# F2 — indirect injection via tool output: the instruction rides a tool
+# RESULT inside the agent loop (the fetch response), not the prompt. Turn 1
+# the model makes a legitimate whitelisted fetch; the returned payload tells
+# it to exfiltrate; turn 2 the hijacked model obeys — and the whitelist
+# refuses the undeclared tool before any dispatch.
+nika: v1
+workflow:
+  id: f2-01-tool-result-undeclared-tool
+model: mock/echo
+permits:
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch"]
+tasks:
+  researcher:
+    agent:
+      prompt: "Fetch the feed and report the top story."
+      tools: ["nika:fetch"]
+      max_turns: 4

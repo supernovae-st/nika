@@ -1,0 +1,28 @@
+# F5 — multi-hop laundering, STATIC verdict: the payload crosses TWO tasks
+# before egress — fetch (untrusted ingress) then infer (a model summary;
+# integrity inversion: the summary CARRIES the taint) then notify (egress).
+# Laundering through a model rewrite does not wash the taint out — the
+# realized-flow judge must name fetch_page → tell across the infer hop.
+# (Mirrors the engine's own flow-through-infer pin.)
+nika: v1
+workflow:
+  id: f5-01-fetch-infer-notify
+permits:
+  fs: { read: ["./inbox/**"] }
+  net: { http: ["api.example.com"] }
+  tools: ["nika:fetch", "nika:notify"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://api.example.com/data" }
+  summarize:
+    after: { fetch_page: succeeded }
+    with: { page: "${{ tasks.fetch_page.output }}" }
+    infer: { prompt: "tldr: ${{ with.page }}", max_tokens: 99 }
+  tell:
+    after: { summarize: succeeded }
+    with: { summary: "${{ tasks.summarize.output }}" }
+    invoke:
+      tool: "nika:notify"
+      args: { channel: "webhook", target: "https://api.example.com/hook", message: "${{ with.summary }}" }

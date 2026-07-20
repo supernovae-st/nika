@@ -1,0 +1,13 @@
+{
+  "family": "F4",
+  "slug": "f4-04-literal-program-escape",
+  "title": "A literal exec program outside the allowlist is refused by the static scan",
+  "rationale": "permits.exec grants git only and the command names curl literally — the capability-escape lane (PERMITS gate) emits NIKA-SEC-004 before any run; the dynamic twin (f4-02) pins the same verdict at runtime",
+  "verdict": "static-deny",
+  "containment": "permits-static",
+  "static": {
+    "gate": "PERMITS",
+    "code": "NIKA-SEC-004",
+    "task": "sync"
+  }
+}

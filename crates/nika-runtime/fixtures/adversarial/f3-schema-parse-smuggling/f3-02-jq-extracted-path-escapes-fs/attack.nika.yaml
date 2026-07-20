@@ -1,0 +1,30 @@
+# F3 — schema/parse smuggling, RUNTIME verdict: the write path is a
+# STRUCTURED FIELD of the fetched JSON, extracted by a real jq hop at run
+# time. Statically the path is dynamic (sound-by-honesty: clean); at effect
+# time the real builtin's fs confinement resolves the smuggled absolute path
+# and refuses before any write (NIKA-SEC-004). Only two trifecta legs are
+# declared (no fs.read) so the static lane stays out of the way.
+nika: v1
+workflow:
+  id: f3-02-jq-extracted-path-escapes-fs
+permits:
+  fs: { write: ["./out/**"] }
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch", "nika:jq", "nika:write"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.example/config.json", mode: "raw" }
+  extract:
+    after: { fetch_page: succeeded }
+    with: { page: "${{ tasks.fetch_page.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { expression: "fromjson | .save_to", input: "${{ with.page }}" }
+  save:
+    after: { extract: succeeded }
+    with: { dest: "${{ tasks.extract.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "${{ with.dest }}", content: "the fetched config" }

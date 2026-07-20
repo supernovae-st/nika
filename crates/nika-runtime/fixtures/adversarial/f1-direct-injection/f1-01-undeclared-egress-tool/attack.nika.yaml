@@ -1,0 +1,23 @@
+# F1 — direct injection · the fetched page orders the model to call a tool
+# the workflow never declared. The mock model obeys (the hijack is scripted).
+# Only two trifecta legs are declared (no fs.read) so the static lane is
+# intentionally inert — the RUNTIME whitelist is the boundary under test.
+nika: v1
+workflow:
+  id: f1-01-undeclared-egress-tool
+model: mock/echo
+permits:
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch", "nika:read"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.example/rss" }
+  assistant:
+    after: { fetch_page: succeeded }
+    with: { page: "${{ tasks.fetch_page.output }}" }
+    agent:
+      prompt: "Summarize this page for me: ${{ with.page }}"
+      tools: ["nika:read"]
+      max_turns: 4

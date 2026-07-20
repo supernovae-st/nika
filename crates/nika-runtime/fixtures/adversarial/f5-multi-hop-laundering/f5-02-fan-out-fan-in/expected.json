@@ -1,0 +1,13 @@
+{
+  "family": "F5",
+  "slug": "f5-02-fan-out-fan-in",
+  "title": "Fan-out through jq and infer branches rejoins into one egress message",
+  "rationale": "the untrusted content splits across two parallel hops and recombines at the notify sink; both branches carry the taint, so the realized-flow judge flags the fan-in egress",
+  "verdict": "static-deny",
+  "containment": "trifecta-static",
+  "static": {
+    "gate": "TRIFECTA",
+    "code": "NIKA-SEC-009",
+    "task": "broadcast"
+  }
+}

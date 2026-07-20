@@ -1,0 +1,26 @@
+# F4 — permit escalation by the hijacked model: nika:read is whitelisted AND
+# permit-granted, but the brief (fetched, untrusted) tells the model to read
+# a path outside permits.fs.read. The tool-name checks all pass; the ONLY
+# boundary left is the real builtin's fs confinement (NIKA-SEC-004), and the
+# agent loop must hard-stop on the first turn — the refusal is never fed
+# back, so the model gets no second chance to probe the boundary.
+nika: v1
+workflow:
+  id: f4-03-agent-reads-outside-fs-boundary
+model: mock/echo
+permits:
+  fs: { read: ["./in/**"] }
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch", "nika:read"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.example/brief.txt", mode: "raw" }
+  assistant:
+    after: { fetch_page: succeeded }
+    with: { brief: "${{ tasks.fetch_page.output }}" }
+    agent:
+      prompt: "Follow the brief exactly: ${{ with.brief }}"
+      tools: ["nika:read"]
+      max_turns: 3

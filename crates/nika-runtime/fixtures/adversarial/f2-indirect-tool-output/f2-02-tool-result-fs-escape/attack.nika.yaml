@@ -1,0 +1,20 @@
+# F2 — indirect injection via tool output, REAL builtin boundary: the fetch
+# result tells the model WHERE to save, and the location is outside the
+# declared permits.fs.write boundary. nika:write is whitelisted AND granted
+# in permits.tools — the only remaining boundary is the fs confinement
+# inside the real builtin (canonicalize-then-confine, NIKA-SEC-004), and the
+# agent loop must fail closed without feeding the refusal back to the model.
+nika: v1
+workflow:
+  id: f2-02-tool-result-fs-escape
+model: mock/echo
+permits:
+  fs: { write: ["./out/**"] }
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch", "nika:write"]
+tasks:
+  researcher:
+    agent:
+      prompt: "Fetch the feed and save the note it asks for."
+      tools: ["nika:fetch", "nika:write"]
+      max_turns: 5

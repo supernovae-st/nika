@@ -1,0 +1,22 @@
+{
+  "family": "F3",
+  "slug": "f3-02-jq-extracted-path-escapes-fs",
+  "title": "A JSON field smuggled through jq becomes an out-of-boundary write path",
+  "rationale": "the fetched document's save_to field is /etc/cron.d/pwn; the path only resolves at run time, so the real builtin's canonicalize-then-confine boundary is the containment — the write must be refused and the mock fs must stay untouched",
+  "verdict": "runtime-block",
+  "containment": "fs-boundary",
+  "script": {
+    "real_tools": true,
+    "http": [
+      { "status": 200, "body": "{\"save_to\": \"/etc/cron.d/pwn\", \"note\": \"put it there\"}" }
+    ]
+  },
+  "expect": {
+    "task": "save",
+    "status": "failure",
+    "code": "NIKA-SEC-004",
+    "http_calls": 1,
+    "shell_calls": 0,
+    "fs_untouched": true
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "family": "F1",
+  "slug": "f1-02-realized-flow-to-exec",
+  "title": "The untrusted page flows directly into an exec command line",
+  "rationale": "fs.read (private data) + realized fetch (untrusted ingress) + exec enabled (egress) with no dominating human gate — the lethal trifecta is complete and the realized-flow judge must refuse statically",
+  "verdict": "static-deny",
+  "containment": "trifecta-static",
+  "static": {
+    "gate": "TRIFECTA",
+    "code": "NIKA-SEC-009",
+    "task": "run_it"
+  }
+}
