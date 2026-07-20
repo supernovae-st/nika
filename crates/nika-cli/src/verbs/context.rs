@@ -323,13 +323,17 @@ mod tests {
     /// A scratch workspace with two workflows (one clean, one with a
     /// finding) and one recorded journal.
     fn scratch() -> PathBuf {
+        // Uniqueness: pid + an atomic discriminator — NOT the wall
+        // clock. `subsec_nanos` has ~1µs real granularity on macOS, so
+        // two parallel tests could land in the same tick and SHARE the
+        // dir: one test's cleanup then wiped the other's fixtures
+        // mid-audit (the gate caught it 2026-07-21 — the audit's load
+        // failed and the fact read `findings: 1, tasks: 0`).
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let dir = std::env::temp_dir().join(format!(
             "nika-context-{}-{}",
             std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.subsec_nanos())
-                .unwrap_or(0),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         ));
         std::fs::create_dir_all(dir.join("flows")).expect("mkdir");
         std::fs::create_dir_all(dir.join("node_modules")).expect("mkdir");
