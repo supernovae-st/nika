@@ -296,6 +296,15 @@ The closest analogues aren't products. They're **standards**. SQL. The
 Dockerfile. A portable specification with a reference engine. The language is
 the contribution, not a product to sell.
 
+The language has been finding this shape for a while: an *exploration*
+era of private prototypes through summer 2025 · first git commit on
+January 1, 2026 on the branch named `brouillon` · **79 versions in a
+103-day draft era** (public [crates.io trail](https://crates.io/crates/nika/versions)
+from March) · then **rewritten from scratch on April 13, 2026** — the
+Diamond era, an orphan branch, zero code inherited, the version line
+continuing because the language is the continuity. Every dated claim is machine-verified in the spec
+repo's [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml).
+
 As AI agents start acting on the real world, the interface where they act
 can't be free text (too vague) or raw code (too risky). It has to be a
 **verifiable action language**: one an AI writes, a human reviews and approves,

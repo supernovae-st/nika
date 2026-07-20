@@ -3809,3 +3809,27 @@ The organism's skeleton is in place. Now it grows. 🦋
 [0.80.0-alpha.2]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.1...v0.80.0-alpha.2
 [0.80.0-alpha.1]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.0...v0.80.0-alpha.1
 [0.80.0-alpha.0]: https://github.com/supernovae-st/nika/commits/v0.80.0-alpha.0
+
+---
+
+## The brouillon era (0.1 → 0.79 · 2026-01-01 → 2026-04-13)
+
+The language was conceived earlier still — through private prototypes
+and vibe-code experiments from **summer 2025** (the *exploration* era,
+before git). It entered git on **New Year's Day 2026** (21:29 CET) on a
+branch literally named `brouillon` (draft), and found its shape by
+shipping: **79 minor versions in 103 days**, from « initial nika v0.1
+with strict templating system » to a 138K-line monolith at v0.79.3. DAG validation landed hours after the first
+commit; providers, tools, and the check-before-run discipline followed
+version by version.
+
+The era has a public spine: seven releases shipped to
+[crates.io](https://crates.io/crates/nika/versions) in March 2026
+(0.20.0 on March 4 → 0.47.1 on March 26 — later yanked in favor of the
+rewrite, but the dated trail is permanent). The full branch and its
+192 tags live in a private archive; the dated milestones are recorded
+and machine-verified in the spec repo's
+[timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml).
+
+The version line is continuous — 0.80 picks up where 0.79 stopped —
+because the LANGUAGE is the continuity. The engine is the rewrite.
