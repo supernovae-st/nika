@@ -483,6 +483,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::SystemStamper
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::SystemStamper
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::SystemStamper
 pub type nika_cli::verbs::run::SystemStamper::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::run::SystemStamper where T: core::default::Default
+pub type nika_cli::verbs::run::SystemStamper::NoneType = T
+pub fn nika_cli::verbs::run::SystemStamper::null_value() -> T
 pub fn nika_cli::verbs::run::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_cli::verbs::run::RuntimeCapabilities
 pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
