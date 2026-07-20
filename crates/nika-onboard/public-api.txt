@@ -63,10 +63,10 @@ pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core
 pub mod nika_onboard::guided
 pub fn nika_onboard::guided::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
 pub fn nika_onboard::guided::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_onboard::Outcome
-pub fn nika_onboard::guided::wizard_io(base: &str, dest_hint: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, input: &mut dyn std::io::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
+pub fn nika_onboard::guided::wizard_io(base: &str, dest_hint: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
 pub mod nika_onboard::recipes
 pub mod nika_onboard::wizard
-pub fn nika_onboard::wizard::wizard_io(dir: &str, force: bool, theme: nika_display::theme::Theme, input: &mut dyn std::io::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
+pub fn nika_onboard::wizard::wizard_io(dir: &str, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
 pub struct nika_onboard::Outcome
 pub nika_onboard::Outcome::code: u8
 pub nika_onboard::Outcome::text: alloc::string::String
