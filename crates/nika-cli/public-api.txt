@@ -232,6 +232,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::key::KeyAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::key::KeyAction
 pub type nika_cli::verbs::key::KeyAction::Output = T
 pub fn nika_cli::verbs::key::run(action: nika_cli::verbs::key::KeyAction) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::mcp_pins
+pub fn nika_cli::verbs::mcp_pins::approve(server: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::model
 pub mod nika_cli::verbs::model::pull
 pub fn nika_cli::verbs::model::pull::run(arg: &str, yes: bool) -> nika_cli::verbs::VerbOutput

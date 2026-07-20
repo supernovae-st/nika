@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **ADMITTED 2026-06-10** (`7ba7b51d8`) · was **L1 admission target** (Phase-B slice step 7 · announce floor `exec` · per D-2026-06-10-N6) |
-| Layer | L1 — effect crate · the only production site spawning subprocesses (`tokio::process`) |
+| Layer | L1 — effect crate · the only production site spawning PLAIN subprocesses (`tokio::process`) — one deliberate second site: `nika-mcp`’s stdio MCP client (a persistent pipe session the one-shot shell seam cannot express) |
 | Design | `TokioShell` impl of the L0.5 `nika_kernel::process` traits (`ShellRun` + `ShellCancel`) via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (command blocklist + injection defense) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |
 | LOC (live) | ~1412 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
@@ -26,7 +26,7 @@ crate itself**: workflows run attacker-influenced commands, so the mechanism
 must be safe-by-default even before `nika-policy` (L1.5 · step 8) adds richer
 capability gating.
 
-The only production site spawning subprocesses — tests inject a mock.
+The only production site spawning PLAIN subprocesses (the second, deliberate site is `nika-mcp`’s stdio MCP client) — tests inject a mock.
 Effect-crate discipline (Invariant #27).
 
 ## 2. Public API

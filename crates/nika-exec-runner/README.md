@@ -2,7 +2,9 @@
 
 **Production `TokioShell` — L1 implementation of the `nika-kernel` shell-exec traits.**
 
-The only production site spawning subprocesses (`tokio::process`). Gated
+The only production site spawning PLAIN subprocesses (`tokio::process`) —
+one deliberate second site exists: `nika-mcp`'s stdio MCP client (a
+persistent pipe session the one-shot shell seam cannot express). Gated
 safe-by-default by a command blocklist; tests inject a mock. Announce-floor
 `exec` (slice s7).
 

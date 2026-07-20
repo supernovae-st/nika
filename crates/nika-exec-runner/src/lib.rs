@@ -5,9 +5,12 @@
 //!
 //! This crate sits at **L1**: it implements the L0.5 `nika_kernel::process`
 //! traits (`ShellRun` + `ShellCancel` — and the blanket `ShellExecutor`) via
-//! `tokio::process`. The only production site spawning subprocesses; crates
-//! that run commands inject the kernel traits and receive [`TokioShell`] in
-//! production, a mock in tests (Invariant #27).
+//! `tokio::process`. The only production site spawning PLAIN subprocesses —
+//! one deliberate second site exists: `nika-mcp`'s stdio MCP client (a
+//! persistent bidirectional JSON-RPC pipe session, a shape the one-shot
+//! `ShellRunDyn` cannot express, in a crate tokio cannot reach by deny.toml
+//! law). Crates that run commands inject the kernel traits and receive
+//! [`TokioShell`] in production, a mock in tests (Invariant #27).
 //!
 //! [`TokioShell`] implements the `*Dyn` trait-variant companions (`Send`
 //! futures · base traits via the blanket impl), same pattern as
