@@ -13,14 +13,16 @@
 //!
 //! ## What the profile enforces (deny-default)
 //!
-//! - **Network** — the [`NetPolicy`] tri-state: `Deny` keeps network out of
-//!   the profile entirely (`(deny default)` holds); `Allow` emits
-//!   `(allow network*)`. `Allowlist` — host-granular egress — confines
-//!   EXACTLY as `Allow` until the per-run loopback egress proxy lands (the
-//!   pre-tri-state `allow_network = true` behavior, zero regression): the
-//!   proxy then fences this arm to loopback-only + injects its env contract
-//!   (the Anthropic sandbox-runtime model · a Seatbelt host rule is
-//!   TLS-blind, so the allowlist is the proxy's job, not the profile's).
+//! - **Network** — the [`NetPolicy`] tri-state (the Anthropic sandbox-runtime
+//!   seatbelt model, verified live against `sandbox-exec`): `Deny` admits
+//!   loopback outbound ONLY (`(allow network-outbound (remote ip
+//!   "localhost:*"))` — no syscall goes beyond loopback); `Allow` emits
+//!   `(allow network*)` (the explicit escape hatch); `Allowlist` admits
+//!   outbound loopback scoped to the per-run egress proxy's PORT
+//!   (`(remote ip "localhost:PORT")`) — the proxy (in `nika-exec-runner`)
+//!   serves exactly the declared `permits.net.http` set and the child gets
+//!   its env contract, because a Seatbelt host rule is TLS-blind: the
+//!   profile fences the CHANNEL, the proxy fences the HOSTS.
 //! - **Writes** — allowed ONLY under the declared `fs_write` prefixes plus
 //!   scratch. Everything else (home, the repo, `/etc`) is read-only-or-denied.
 //! - **Reads** — the system paths every binary + the dynamic linker need are
@@ -120,17 +122,32 @@ fn build_profile(spec: &SandboxSpec) -> Result<String, CommandSandboxError> {
         );
     }
 
-    // The open arms: Allow (the explicit escape hatch) and Allowlist — the
-    // allowlist confines EXACTLY as Allow until the loopback egress proxy
-    // lands (see the module doc — the pre-tri-state `allow_network = true`
-    // behavior, never a silent partial). The proxy then fences this arm to
-    // loopback-only and serves the declared host set; a Seatbelt host rule
-    // is TLS-blind, so the allowlist itself is the proxy's job, never the
-    // profile's. Every other arm — Deny and, by the #[non_exhaustive] law,
-    // any future variant — fails CLOSED: network stays denied by
-    // `(deny default)`, the load-bearing line.
-    if matches!(spec.net, NetPolicy::Allow | NetPolicy::Allowlist(_)) {
-        p.push_str("(allow network*)\n");
+    // The network arms (the Anthropic sandbox-runtime seatbelt model —
+    // verified live against sandbox-exec on macOS):
+    //
+    // - Allow (the explicit escape hatch): unrestricted — `(allow network*)`.
+    // - Allowlist: outbound loopback ONLY, scoped to the egress proxy's port
+    //   when the runner has started it (`proxy_port` — always filled by the
+    //   runner; `None` only for a spec that never passed one). The allowlist
+    //   itself is the proxy's job: a Seatbelt host rule is TLS-blind, so the
+    //   profile fences the CHANNEL and the proxy fences the HOSTS.
+    // - Deny (and, by the #[non_exhaustive] law, any future arm): loopback
+    //   outbound only — no network syscall goes BEYOND loopback (the
+    //   sandbox-runtime posture: local services stay reachable, egress is
+    //   refused). Fail-closed, one rule, no exceptions.
+    match &spec.net {
+        NetPolicy::Allow => p.push_str("(allow network*)\n"),
+        NetPolicy::Allowlist(allowlist) => {
+            let scope = match allowlist.proxy_port {
+                Some(port) => port.to_string(),
+                None => "*".to_owned(),
+            };
+            let _ = writeln!(
+                p,
+                "(allow network-outbound (remote ip \"localhost:{scope}\"))"
+            );
+        }
+        _ => p.push_str("(allow network-outbound (remote ip \"localhost:*\"))\n"),
     }
 
     Ok(p)
@@ -393,7 +410,11 @@ mod tests {
         assert!(denied.contains("(deny default)"));
         assert!(
             !denied.contains("(allow network*)"),
-            "network denied by default"
+            "no unrestricted network by default"
+        );
+        assert!(
+            denied.contains("(allow network-outbound (remote ip \"localhost:*\"))"),
+            "the deny arm admits loopback outbound only (the srt posture)"
         );
 
         let mut allow = SandboxSpec::new();
@@ -402,19 +423,30 @@ mod tests {
     }
 
     #[test]
-    fn allowlist_confines_as_allow_until_the_egress_proxy_lands() {
-        // The transitional mapping (module doc): host-granular egress needs
-        // the loopback proxy — until it lands, the allowlist arm keeps the
-        // pre-tri-state `allow_network = true` behavior, zero regression.
+    fn allowlist_fences_outbound_loopback_to_the_proxy_port() {
+        // The srt seatbelt line: the channel is fenced to the proxy's port;
+        // the proxy (not the profile) fences the hosts — a Seatbelt host
+        // rule is TLS-blind.
+        let mut spec = SandboxSpec::new();
+        let mut allowlist =
+            nika_kernel::process::EgressAllowlist::new(vec!["api.example.com".to_owned()]);
+        allowlist.proxy_port = Some(60080);
+        spec.net = NetPolicy::Allowlist(allowlist);
+        let p = build_profile(&spec).unwrap();
+        assert!(
+            p.contains("(allow network-outbound (remote ip \"localhost:60080\"))"),
+            "port-scoped fence: {p}"
+        );
+        assert!(!p.contains("(allow network*)"), "never unrestricted");
+
+        // A spec that never passed the runner (no proxy yet) degrades to
+        // loopback-any — fail-closed, the allowlist simply cannot be served.
         let mut spec = SandboxSpec::new();
         spec.net = NetPolicy::Allowlist(nika_kernel::process::EgressAllowlist::new(vec![
             "api.example.com".to_owned(),
         ]));
         let p = build_profile(&spec).unwrap();
-        assert!(
-            p.contains("(allow network*)"),
-            "allowlist confines as allow pre-proxy"
-        );
+        assert!(p.contains("(allow network-outbound (remote ip \"localhost:*\"))"));
     }
 
     #[test]

@@ -6,7 +6,7 @@
 | Layer | L1 — effect crate · the only production site spawning PLAIN subprocesses (`tokio::process`) — one deliberate second site: `nika-mcp`’s stdio MCP client (a persistent pipe session the one-shot shell seam cannot express) |
 | Design | `TokioShell` impl of the L0.5 `nika_kernel::process` traits (`ShellRun` + `ShellCancel`) via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (command blocklist + injection defense) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |
-| LOC (live) | ~1412 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
+| LOC (live) | ~2598 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -29,6 +29,15 @@ capability gating.
 The only production site spawning PLAIN subprocesses (the second, deliberate site is `nika-mcp`’s stdio MCP client) — tests inject a mock.
 Effect-crate discipline (Invariant #27).
 
+It also hosts the **loopback egress proxy** (`src/egress.rs`) — the
+`sandbox.net = allowlist` arm's enforcement half (ADR-095 Layer 6 · the
+Anthropic sandbox-runtime model): a per-run `127.0.0.1:0` mux serving HTTP
+CONNECT + SOCKS5 (protocol-sniffed), evaluating every target against the
+ONE host matcher (`nika_types::net::host_in_allowlist`), injecting the
+srt-mirrored env contract into the confined child, and journalising every
+allow/refuse decision (the `EgressObserver` seam — default: the namespaced
+stderr line).
+
 ## 2. Public API
 
 ```rust
@@ -36,7 +45,10 @@ pub struct TokioShell { /* Arc<Mutex<registry>> for cancel-by-pid */ }
 
 impl TokioShell {
     pub fn new() -> Self;   // Clone (Arc-shared registry) · Default
+    pub fn with_egress_observer(self, o: EgressObserver) -> Self;  // the journal seam
 }
+pub struct EgressDecision { pub host, pub port, pub allowed }  // one proxy verdict
+pub type EgressObserver = Arc<dyn Fn(&EgressDecision) + Send + Sync>;
 impl ShellRunDyn    for TokioShell { run }
 impl ShellCancelDyn for TokioShell { cancel }
 ```

@@ -1,13 +1,51 @@
 pub mod nika_exec_runner
+#[non_exhaustive] pub struct nika_exec_runner::EgressDecision
+pub nika_exec_runner::EgressDecision::allowed: bool
+pub nika_exec_runner::EgressDecision::host: alloc::string::String
+pub nika_exec_runner::EgressDecision::port: u16
+impl core::clone::Clone for nika_exec_runner::EgressDecision
+pub fn nika_exec_runner::EgressDecision::clone(&self) -> nika_exec_runner::EgressDecision
+impl core::cmp::Eq for nika_exec_runner::EgressDecision
+impl core::cmp::PartialEq for nika_exec_runner::EgressDecision
+pub fn nika_exec_runner::EgressDecision::eq(&self, other: &nika_exec_runner::EgressDecision) -> bool
+impl core::fmt::Debug for nika_exec_runner::EgressDecision
+pub fn nika_exec_runner::EgressDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_exec_runner::EgressDecision
+impl<D> owo_colors::OwoColorize for nika_exec_runner::EgressDecision
+impl<T, U> core::convert::Into<U> for nika_exec_runner::EgressDecision where U: core::convert::From<T>
+pub fn nika_exec_runner::EgressDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::EgressDecision where U: core::convert::Into<T>
+pub type nika_exec_runner::EgressDecision::Error = core::convert::Infallible
+pub fn nika_exec_runner::EgressDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::EgressDecision where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::EgressDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::EgressDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_exec_runner::EgressDecision where T: core::clone::Clone
+pub type nika_exec_runner::EgressDecision::Owned = T
+pub fn nika_exec_runner::EgressDecision::clone_into(&self, target: &mut T)
+pub fn nika_exec_runner::EgressDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_exec_runner::EgressDecision where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::EgressDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::EgressDecision where T: ?core::marker::Sized
+pub fn nika_exec_runner::EgressDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::EgressDecision where T: ?core::marker::Sized
+pub fn nika_exec_runner::EgressDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_exec_runner::EgressDecision where T: core::clone::Clone
+pub unsafe fn nika_exec_runner::EgressDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_exec_runner::EgressDecision
+pub fn nika_exec_runner::EgressDecision::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::EgressDecision where T: 'static
+pub fn nika_exec_runner::EgressDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_exec_runner::TokioShell
 impl nika_exec_runner::TokioShell
 pub fn nika_exec_runner::TokioShell::new() -> Self
 pub fn nika_exec_runner::TokioShell::with_ambient_secret_env(self, names: impl core::convert::Into<alloc::sync::Arc<[alloc::string::String]>>) -> Self
+pub fn nika_exec_runner::TokioShell::with_egress_observer(self, observer: nika_exec_runner::EgressObserver) -> Self
 pub fn nika_exec_runner::TokioShell::with_sandbox(sandbox: alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>) -> Self
 impl core::clone::Clone for nika_exec_runner::TokioShell
 pub fn nika_exec_runner::TokioShell::clone(&self) -> nika_exec_runner::TokioShell
 impl core::default::Default for nika_exec_runner::TokioShell
-pub fn nika_exec_runner::TokioShell::default() -> nika_exec_runner::TokioShell
+pub fn nika_exec_runner::TokioShell::default() -> Self
 impl core::fmt::Debug for nika_exec_runner::TokioShell
 pub fn nika_exec_runner::TokioShell::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_kernel_core::io::process::ShellCancelDyn for nika_exec_runner::TokioShell
@@ -44,3 +82,4 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellCancel for nik
 pub async fn nika_exec_runner::TokioShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
 impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_exec_runner::TokioShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
 pub async fn nika_exec_runner::TokioShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+pub type nika_exec_runner::EgressObserver = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_exec_runner::EgressDecision) + core::marker::Send + core::marker::Sync)>

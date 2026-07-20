@@ -32,10 +32,15 @@ ride the outer launcher so the confined child inherits them.
 ## 3. What the jail enforces (deny-default)
 
 - **Network** — the `spec.net` tri-state: `--unshare-all` drops the net
-  namespace (`deny`); `--share-net` re-adds it (`allow`, and `allowlist` until
-  the loopback egress proxy lands — the proxy then serves the declared hosts
-  over the shared namespace; a loopback-only fence needs the socat/unix-socket
-  bridge, the named follow-on).
+  namespace (`deny` — loopback included, the stricter reading: bwrap cannot
+  bring `lo` up alone); `--share-net` re-adds it (`allow`, and `allowlist`).
+  Under `allowlist` the child gets the loopback egress proxy's env contract
+  (the sandbox-runtime model — the proxy serves exactly the declared
+  `permits.net.http` set). HONEST LIMIT: bwrap cannot fence loopback-only,
+  so on Linux the allowlist arm's OS floor IS the env contract (an
+  env-stripping client is not fenced — unlike macOS's Seatbelt port fence);
+  srt's `--unshare-net` + socat-bridge-over-unix-socket is the named
+  follow-on that closes it.
 - **Writes** — read-write `--bind` only under the validated `fs_write` literal
   prefixes; everything else is read-only or absent.
 - **Reads** — the system trees (linker, libs, shell) are `--ro-bind`; declared

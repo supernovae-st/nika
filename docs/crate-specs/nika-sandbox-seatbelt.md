@@ -31,10 +31,15 @@ the confined child inherits them.
 
 ## 3. The SBPL profile (the security heart · deny-default)
 
-- **Network** — the `spec.net` tri-state: `deny` keeps network out of the
-  profile; `allow` emits `(allow network*)`; `allowlist` confines as `allow`
-  until the loopback egress proxy lands (Seatbelt host filtering is TLS-blind,
-  so host-granular egress is the proxy's job, never the profile's).
+- **Network** — the `spec.net` tri-state (the Anthropic sandbox-runtime
+  seatbelt model, verified live against `sandbox-exec`): `deny` admits
+  loopback outbound only (`(remote ip "localhost:*")`); `allow` emits
+  `(allow network*)` (the explicit escape hatch); `allowlist` admits
+  loopback scoped to the per-run egress proxy's port
+  (`(remote ip "localhost:PORT")`) — the proxy (`nika-exec-runner`'s
+  CONNECT+SOCKS5 mux) serves exactly the declared `permits.net.http` set and
+  the child gets its env contract, because a Seatbelt host rule is
+  TLS-blind: the profile fences the CHANNEL, the proxy fences the HOSTS.
 - **Writes** allowed ONLY under declared `fs_write` prefixes + scratch.
 - **Reads** allow the system paths every binary + the dynamic linker need;
   declared `fs_read` prefixes added; sensitive home paths (`~/.ssh`) denied.
