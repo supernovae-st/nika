@@ -400,8 +400,9 @@ mod tests {
     fn a_trifecta_finding_projects_with_its_code_and_span() {
         // NEP-0002 one-voice proof: a lethal-trifecta finding born in the
         // check ladder (`NIKA-SEC-009`) rides the SAME from_report
-        // projection — anchored on the ungated egress task's id.
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n";
+        // projection — anchored on the ungated tainted egress task's id
+        // (the SINK · v2.0).
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  leak:\n    with: { d: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n";
         let diags = diags_of(yaml);
         let tri = diags
             .iter()
@@ -415,8 +416,8 @@ mod tests {
             "the NEP-0002 message survives the projection: {}",
             tri.message
         );
-        // anchored on the task id `fetch_page`, not the origin
-        let id_byte = yaml.find("\n  fetch_page:").map(|p| p + 3).expect("id");
+        // anchored on the task id `leak` (the sink), not the origin
+        let id_byte = yaml.find("\n  leak:").map(|p| p + 3).expect("id");
         let expected = index_of(yaml).position(id_byte);
         assert_eq!(tri.range.start, expected, "anchored on the task id");
         assert!(tri.range.start.line > 0, "a real span, never 0:0");

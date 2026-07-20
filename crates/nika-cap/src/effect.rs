@@ -125,6 +125,24 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
     }
 }
 
+/// Can this builtin realize an EXTERNAL effect — net or fs-write (NEP-0002
+/// v2.0's egress classification, beside the ONE effect table so the two
+/// cannot drift)? `nika:notify` counts without a literal channel arg: an
+/// agent picks the webhook channel at runtime, which no static reading of
+/// a WHITELIST can see (conservative — the arg-reading call sites use
+/// [`builtin_effect`] directly).
+#[must_use]
+pub fn builtin_egresses(tool: &str) -> bool {
+    if tool == "nika:notify" {
+        return true;
+    }
+    match builtin_effect(tool, None) {
+        Some(BuiltinEffect::Net { .. }) => true,
+        Some(BuiltinEffect::Fs { writes, .. }) => writes,
+        None => false,
+    }
+}
+
 /// `nika:chart` with `compile_to: vega_lite` writes a SECOND gated file —
 /// the `.vl.json` sibling next to the svg. One derivation, shared by the
 /// escape scan and the boundary inference, matching the runtime byte for
@@ -238,6 +256,15 @@ mod tests {
                 ),
                 "{tool}"
             );
+        }
+        // builtin_egresses: net + fs-write + the notify-conservative arm,
+        // never a read-only or pure-compute builtin (NEP-0002 v2.0's
+        // agent-whitelist classification, from the ONE table).
+        for tool in ["nika:fetch", "nika:write", "nika:edit", "nika:notify"] {
+            assert!(crate::effect::builtin_egresses(tool), "{tool}");
+        }
+        for tool in ["nika:read", "nika:grep", "nika:jq", "nika:glob", "nika:log"] {
+            assert!(!crate::effect::builtin_egresses(tool), "{tool}");
         }
         // read-only file builtins carry NO coarse class beyond tools
         // (reads are not gateable in v1 — spec 10).

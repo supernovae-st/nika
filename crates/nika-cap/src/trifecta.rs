@@ -6,35 +6,38 @@
 //! The lethal trifecta (Willison) + the Agents Rule of Two (Meta) are the
 //! two dominant agent-safety heuristics; NEP-0002 makes them DECIDABLE from
 //! the declared capability boundary. Three legs, read off `permits:` and the
-//! task graph (NEP-0002 §Specification — v1 deliberately coarse):
+//! task graph (NEP-0002 §Specification · v2.0):
 //!
 //! - **① private-data** — `permits.fs.read` is non-empty.
-//! - **② untrusted ingress** — a `nika:fetch` builtin is invoked, OR
-//!   `permits.tools` grants an ingress-capable tool: `nika:fetch` (a glob
-//!   like `nika:*` covers it) or any `mcp:*` server (server-provided
-//!   content is untrusted by construction). First-party LOCAL builtins
-//!   (`nika:read` · `nika:write` · …) are NOT ingress — a private read is
-//!   ①'s domain, a write ③'s (v1.1: the coarse any-grant reading flagged
-//!   the spec's own permits-fit fixture deep/014; per-tool trust marks
-//!   remain the documented v2 refinement).
+//! - **② untrusted ingress** — the boundary grants an ingress-capable tool
+//!   (`nika:fetch` covered by a glob · any `mcp:*` server) AND the task
+//!   graph REALIZES one: a fetch invoked · an `mcp:*` invoked · an
+//!   `agent:` whose whitelist admits ingress. Untrusted content propagates
+//!   through `with:` bindings, `for_each` items, `tasks.*.output` reads and
+//!   `on_error.recover` reads — and `infer:`/`agent:` outputs carry it when
+//!   their prompt sees it (the integrity direction; the ADR-092 verbatim-
+//!   echo carve-out is confidentiality-only and does not apply). First-party
+//!   LOCAL builtins are NOT ingress (①/③'s domains).
 //! - **③ external egress** — `permits.net.http` is non-empty, OR a declared
 //!   `fs.write` glob escapes the workspace (absolute · `~` · a preserved
 //!   leading `..` after lexical normalization — the [`crate::fit`] semantics),
 //!   OR `permits.exec` is enabled.
 //!
-//! When ①∧②∧③ hold, every egress-capable task MUST be dominated by a
-//! blocking human gate — an `invoke:` of [`crate::HUMAN_GATE_TOOL`] carrying
-//! NO `default:` arg (a default lets the run proceed unattended; the Rule of
-//! Two escape is the HUMAN decision, not a scripted fallback). **Dominance**,
-//! not mere ancestry: a gate a sibling branch bypasses mitigates nothing
-//! (« dominates every egress-capable task on that path »). One violation per
-//! ungated egress task, message opening with the NEP's verbatim
+//! When ①∧②∧③ hold, every egress-capable task **the untrusted content
+//! actually reaches** (a realized flow — v2.0, witness-named `source →
+//! sink`) MUST be dominated by a blocking human gate — an `invoke:` of
+//! [`crate::HUMAN_GATE_TOOL`] carrying NO `default:` arg (a default lets
+//! the run proceed unattended; the Rule of Two escape is the HUMAN
+//! decision, not a scripted fallback). **Dominance**, not mere ancestry: a
+//! gate a sibling branch bypasses mitigates nothing. One violation per
+//! ungated tainted egress task, message opening with the NEP's verbatim
 //! « lethal trifecta complete · human gate required ».
 //!
 //! The judge is pure L0 (the [`crate::policy_violations`] precedent): it
-//! reads projected [`TrifectaSubject`] rows + the declared boundary, never
-//! an AST. `nika_schema::check` owns the projection and the DAG-validity
-//! gating (an unanalyzable graph yields NO claim — skipped, never wrong).
+//! reads projected [`TrifectaSubject`] rows, [`TaintWitness`] flow facts
+//! and the declared boundary, never an AST. `nika_schema::check` owns the
+//! projection, the content-taint pass, and the DAG-validity gating (an
+//! unanalyzable graph yields NO claim — skipped, never wrong).
 
 use std::collections::BTreeSet;
 
@@ -53,14 +56,21 @@ pub struct TrifectaSubject {
     /// Whether the task can realize a boundary-permitted external effect:
     /// an `exec:` task · an `invoke:` with a net or fs-write builtin effect
     /// · an `mcp:` tool call (effects are server-side — the `tools:` grant
-    /// is the boundary, fail-closed) · an `agent:` loop with a non-empty
-    /// tools whitelist. `infer:` is NOT egress — provider egress rides the
-    /// engine's media plane, not `permits.net.http` (the effect.rs table's
-    /// own doctrine).
+    /// is the boundary, fail-closed) · an `agent:` loop whose whitelist
+    /// admits an egress-effecting tool. `infer:` is NOT egress — provider
+    /// egress rides the engine's media plane, not `permits.net.http` (the
+    /// effect.rs table's own doctrine).
     pub egress_capable: bool,
     /// Whether the task is a BLOCKING human gate (an `invoke:` of
     /// [`crate::HUMAN_GATE_TOOL`] with no `default:` arg).
     pub human_gate: bool,
+    /// Whether the task is a REALIZED untrusted-content source (v2.0): an
+    /// invoked `nika:fetch` · an invoked `mcp:*` whose catalog mark is not
+    /// `trusted` (absent/unknown = untrusted, fail-closed) · an `agent:`
+    /// whose whitelist admits an ingress-capable tool (a browsing agent's
+    /// final message is attacker-influenced even with a clean prompt).
+    /// v1's granted-but-never-invoked arming is gone: ② needs one of these.
+    pub ingress_source: bool,
     /// Direct predecessors (indices into the same subject slice).
     pub parents: Vec<usize>,
 }
@@ -75,8 +85,44 @@ impl TrifectaSubject {
             id,
             egress_capable,
             human_gate,
+            ingress_source: false,
             parents: Vec::new(),
         }
+    }
+
+    /// Mark the subject an untrusted-content source (v2.0 builder — the
+    /// projection sets it, the judge's ② reads it).
+    #[must_use]
+    pub fn with_ingress_source(mut self, ingress_source: bool) -> Self {
+        self.ingress_source = ingress_source;
+        self
+    }
+}
+
+/// The realized-flow fact for one subject (v2.0): whether untrusted
+/// content from an ingress source REACHES it (the projection computes it
+/// over the data graph; the judge stays pure L0).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TaintWitness {
+    /// Untrusted content reaches this subject's effect surface.
+    pub tainted: bool,
+    /// The ingress task the content originates from (the flow witness a
+    /// violation names), when tainted.
+    pub source: Option<String>,
+}
+
+impl TaintWitness {
+    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
+    #[must_use]
+    pub fn new(tainted: bool, source: Option<String>) -> Self {
+        Self { tainted, source }
+    }
+
+    /// A clean subject (no realized flow).
+    #[must_use]
+    pub fn clean() -> Self {
+        Self::new(false, None)
     }
 }
 
@@ -87,6 +133,10 @@ impl TrifectaSubject {
 pub struct TrifectaViolation {
     /// The egress-capable task no blocking human gate dominates.
     pub task: String,
+    /// The ingress task whose untrusted content reaches `task` (the
+    /// realized-flow witness · `None` only for a v1-shaped caller).
+    #[serde(default)]
+    pub source: Option<String>,
     /// Human detail — opens with « lethal trifecta complete · human gate
     /// required » (NEP-0002 verbatim), then names the fix.
     pub detail: String,
@@ -118,11 +168,13 @@ fn grants_untrusted_ingress(tools: &[String]) -> bool {
     })
 }
 
-/// The three legs off the DECLARED boundary (NEP-0002 §Specification).
-fn legs(permits: &Permits, uses_fetch: bool) -> (bool, bool, bool) {
+/// The three legs off the DECLARED boundary (NEP-0002 §Specification ·
+/// v2.0: ② needs the grant AND one realized source — a granted-but-never
+/// invoked ingress no longer arms the trifecta).
+fn legs(permits: &Permits, subjects: &[TrifectaSubject]) -> (bool, bool, bool) {
     let private_read = permits.fs.as_ref().is_some_and(|fs| !fs.read.is_empty());
-    let untrusted_ingress = uses_fetch
-        || permits
+    let untrusted_ingress = subjects.iter().any(|s| s.ingress_source)
+        && permits
             .tools
             .as_ref()
             .is_some_and(|t| grants_untrusted_ingress(t));
@@ -138,19 +190,21 @@ fn legs(permits: &Permits, uses_fetch: bool) -> (bool, bool, bool) {
 /// The virtual-root marker in dominator sets (never a subject index).
 const ROOT: usize = usize::MAX;
 
-/// Judge the trifecta. `topo_order` is any topological order of the SAME
-/// derived graph the subjects' `parents` index into, covering every subject
-/// exactly once (the caller owns DAG validity — an unanalyzable graph yields
-/// no order and NO claim, the IFC/policy gating precedent). Deterministic:
-/// violations follow task declaration order.
+/// Judge the trifecta (v2.0). `witnesses[i]` is the realized-flow fact for
+/// `subjects[i]` (the projection computes it — the judge stays pure L0);
+/// `topo_order` is any topological order of the SAME derived graph the
+/// subjects' `parents` index into, covering every subject exactly once (the
+/// caller owns DAG validity — an unanalyzable graph yields no order and NO
+/// claim, the IFC/policy gating precedent). Deterministic: violations
+/// follow task declaration order.
 #[must_use]
 pub fn trifecta_violations(
     permits: &Permits,
-    uses_fetch: bool,
     subjects: &[TrifectaSubject],
+    witnesses: &[TaintWitness],
     topo_order: &[usize],
 ) -> Vec<TrifectaViolation> {
-    let (one, two, three) = legs(permits, uses_fetch);
+    let (one, two, three) = legs(permits, subjects);
     if !(one && two && three) {
         return Vec::new();
     }
@@ -184,21 +238,31 @@ pub fn trifecta_violations(
         if !s.egress_capable {
             continue;
         }
+        // v2.0 — the REALIZED trifecta: untrusted content must actually
+        // reach this egress task (a flow witness), not merely be granted
+        // somewhere in the workflow.
+        let witness = witnesses.get(i);
+        if !witness.is_some_and(|w| w.tainted) {
+            continue;
+        }
         let gated = dom[i]
             .iter()
             .any(|&g| subjects.get(g).is_some_and(|t| t.human_gate));
         if !gated {
+            let source = witness.and_then(|w| w.source.clone());
             out.push(TrifectaViolation {
                 task: s.id.clone(),
                 detail: format!(
-                    "lethal trifecta complete · human gate required — task `{}` reaches \
-                     egress while private read + untrusted ingress + external egress are all \
-                     permitted, and no blocking `invoke: {}` dominates every path to it · fix: \
-                     gate the egress path behind a human prompt task (NEP-0002 · the Rule of \
-                     Two as a check)",
+                    "lethal trifecta complete · human gate required — untrusted content from \
+                     `{}` reaches egress task `{}` while private read + untrusted ingress + \
+                     external egress are all permitted, and no blocking `invoke: {}` dominates \
+                     every path to it · fix: gate the egress path behind a human prompt task \
+                     (NEP-0002 · the Rule of Two as a check)",
+                    source.as_deref().unwrap_or("<ingress>"),
                     s.id,
                     crate::HUMAN_GATE_TOOL
                 ),
+                source,
             });
         }
     }
@@ -248,56 +312,86 @@ mod tests {
         order
     }
 
+    fn ingress_subjects() -> Vec<TrifectaSubject> {
+        vec![TrifectaSubject::new("fetch".to_owned(), true, false).with_ingress_source(true)]
+    }
+
+    /// A fetch → leak pair: both egress-capable, fetch the realized
+    /// ingress source, leak tainted by it — the canonical v2.0 trifecta.
+    fn realized_pair() -> (Vec<TrifectaSubject>, Vec<TaintWitness>) {
+        let fetch =
+            TrifectaSubject::new("fetch_page".to_owned(), true, false).with_ingress_source(true);
+        let mut leak = TrifectaSubject::new("leak".to_owned(), true, false);
+        leak.parents.push(0);
+        let subjects = vec![fetch, leak];
+        let witnesses = vec![
+            TaintWitness::clean(),
+            TaintWitness::new(true, Some("fetch_page".to_owned())),
+        ];
+        (subjects, witnesses)
+    }
+
     #[test]
     fn legs_read_off_the_declared_boundary() {
-        let (a, b, c) = legs(&full_boundary(), false);
+        let (a, b, c) = legs(&full_boundary(), &ingress_subjects());
         assert!((a, b, c) == (true, true, true), "all three legs declared");
         // ① falls with an empty read set.
         let mut p = full_boundary();
         p.fs = Some(FsPermits::new(Vec::new(), vec!["./out/**".to_owned()]));
-        assert!(!legs(&p, false).0, "① falls with an empty read set");
-        // ② falls with no fetch and no tools.
+        assert!(
+            !legs(&p, &ingress_subjects()).0,
+            "① falls with an empty read set"
+        );
+        // ② falls with no ingress-capable grant…
         p = full_boundary();
         p.tools = Some(Vec::new());
-        assert!(!legs(&p, false).1, "② falls with no fetch and no tools");
-        // …but a fetch task alone re-arms it (the NEP's first ② form).
-        assert!(legs(&p, true).1, "a fetch task re-arms ②");
+        assert!(
+            !legs(&p, &ingress_subjects()).1,
+            "② falls with no tools grant"
+        );
+        // …and with no REALIZED source either (v2.0's conjunction).
+        assert!(
+            !legs(
+                &full_boundary(),
+                &[TrifectaSubject::new("x".to_owned(), true, false)]
+            )
+            .1,
+            "② falls with no realized source"
+        );
         // ③ falls with no net, no escaping write, no exec.
-        p = boundary(&["./private/**"], &["./out/**"], &[], &["nika:fetch"]);
-        assert!(!legs(&p, false).2, "③ falls with no egress channel");
+        let mut p = boundary(&["./private/**"], &["./out/**"], &[], &["nika:fetch"]);
+        assert!(
+            !legs(&p, &ingress_subjects()).2,
+            "③ falls with no egress channel"
+        );
         // …and ANY of the three variants re-arms it.
         p.exec = Some(ExecPermit::Any);
-        assert!(legs(&p, false).2, "exec enabled is egress");
+        assert!(legs(&p, &ingress_subjects()).2, "exec enabled is egress");
     }
 
     #[test]
     fn first_party_local_tools_are_not_ingress() {
         // The spec's own permits-fit fixture (conformance deep/014) —
         // private read + workspace write + an exec allowlist + LOCAL
-        // builtins only: two legs, never three (the v1.1 refinement).
-        let p = Permits {
-            fs: Some(FsPermits::new(
-                vec!["./data/**".to_owned()],
-                vec!["./out/**".to_owned()],
-            )),
-            net: None,
-            exec: Some(ExecPermit::Programs(vec!["git".to_owned()])),
-            tools: Some(vec!["nika:read".to_owned(), "nika:write".to_owned()]),
-        };
-        let (one, two, three) = legs(&p, false);
+        // builtins only: two legs, never three (the v1.1 grant refinement,
+        // kept verbatim in v2.0).
+        let mut p = Permits::new();
+        p.fs = Some(FsPermits::new(
+            vec!["./data/**".to_owned()],
+            vec!["./out/**".to_owned()],
+        ));
+        p.exec = Some(ExecPermit::Programs(vec!["git".to_owned()]));
+        p.tools = Some(vec!["nika:read".to_owned(), "nika:write".to_owned()]);
+        let subjects = vec![TrifectaSubject::new("log_head".to_owned(), true, false)];
+        let (one, two, three) = legs(&p, &subjects);
         assert!(
             one && !two && three,
             "local builtins drop ② — the fixture stays VALID: {one} {two} {three}"
         );
+        let witnesses = vec![TaintWitness::new(true, Some("x".to_owned()))];
         assert!(
-            trifecta_violations(
-                &p,
-                false,
-                &[TrifectaSubject::new("log_head".to_owned(), true, false)],
-                &[0]
-            )
-            .is_empty(),
-            "② dropped → no finding even with an ungated egress task"
+            trifecta_violations(&p, &subjects, &witnesses, &[0]).is_empty(),
+            "② dropped → no finding even with a tainted ungated egress task"
         );
     }
 
@@ -305,10 +399,13 @@ mod tests {
     fn ingress_grants_are_fetch_globs_and_mcp() {
         // `nika:*` covers fetch → ② holds.
         let p = boundary(&["./private/**"], &["./out/**"], &[], &["nika:*"]);
-        assert!(legs(&p, false).1, "a nika:* grant covers nika:fetch");
+        assert!(
+            legs(&p, &ingress_subjects()).1,
+            "a nika:* grant covers nika:fetch"
+        );
         // Any mcp:* server is untrusted content by construction.
         let p = boundary(&["./private/**"], &["./out/**"], &[], &["mcp:browser/*"]);
-        assert!(legs(&p, false).1, "an mcp grant is ingress");
+        assert!(legs(&p, &ingress_subjects()).1, "an mcp grant is ingress");
         // A negation-only list ADMITS nothing → ② falls.
         let p = boundary(
             &["./private/**"],
@@ -316,7 +413,7 @@ mod tests {
             &[],
             &["!mcp:x", "!nika:fetch"],
         );
-        assert!(!legs(&p, false).1, "negations admit nothing");
+        assert!(!legs(&p, &ingress_subjects()).1, "negations admit nothing");
         // A first-party grant outside fetch/mcp is not ingress.
         let p = boundary(
             &["./private/**"],
@@ -325,7 +422,7 @@ mod tests {
             &["nika:connectome/*"],
         );
         assert!(
-            !legs(&p, false).1,
+            !legs(&p, &ingress_subjects()).1,
             "connectome is first-party memory, not ingress"
         );
     }
@@ -341,39 +438,59 @@ mod tests {
     }
 
     #[test]
-    fn trifecta_complete_refuses_every_ungated_egress() {
-        let subjects = vec![
-            TrifectaSubject::new("fetch_page".to_owned(), true, false),
-            TrifectaSubject::new("leak".to_owned(), true, false),
-        ];
-        let v = trifecta_violations(&full_boundary(), true, &subjects, &topo(&subjects));
-        assert_eq!(v.len(), 2, "one finding per ungated egress task: {v:?}");
+    fn trifecta_complete_refuses_every_tainted_ungated_egress() {
+        let (subjects, witnesses) = realized_pair();
+        let v = trifecta_violations(&full_boundary(), &subjects, &witnesses, &topo(&subjects));
+        assert_eq!(v.len(), 1, "one finding per tainted ungated egress: {v:?}");
+        assert_eq!(v[0].task, "leak");
+        assert_eq!(v[0].source.as_deref(), Some("fetch_page"));
         assert!(
             v[0].detail
                 .starts_with("lethal trifecta complete · human gate required"),
             "NEP-0002 message verbatim first: {}",
             v[0].detail
         );
+        assert!(
+            v[0].detail
+                .contains("`fetch_page` reaches egress task `leak`"),
+            "the flow witness is named: {}",
+            v[0].detail
+        );
+    }
+
+    #[test]
+    fn an_untainted_egress_is_clean_even_ungated() {
+        // v2.0 precision: egress capability WITHOUT a realized flow is not
+        // a trifecta (the deploy-exec on a parallel branch, far from the
+        // fetch — clean; v1.1 fired here).
+        let (subjects, _) = realized_pair();
+        let witnesses = vec![TaintWitness::clean(), TaintWitness::clean()];
+        assert!(
+            trifecta_violations(&full_boundary(), &subjects, &witnesses, &topo(&subjects))
+                .is_empty(),
+            "no realized flow → no finding"
+        );
     }
 
     #[test]
     fn two_of_three_legs_is_clean() {
-        let subjects = vec![TrifectaSubject::new("act".to_owned(), true, false)];
+        let (subjects, witnesses) = realized_pair();
         // Drop ①.
         let p = boundary(&[], &["./out/**"], &["api.example.com"], &["nika:fetch"]);
-        assert!(trifecta_violations(&p, true, &subjects, &[0]).is_empty());
-        // Drop ② (no fetch, no tools).
+        assert!(trifecta_violations(&p, &subjects, &witnesses, &topo(&subjects)).is_empty());
+        // Drop ② (no fetch grant).
         let p = boundary(&["./private/**"], &["./out/**"], &["api.example.com"], &[]);
-        assert!(trifecta_violations(&p, false, &subjects, &[0]).is_empty());
+        assert!(trifecta_violations(&p, &subjects, &witnesses, &topo(&subjects)).is_empty());
         // Drop ③ (no net · workspace-confined writes · no exec).
         let p = boundary(&["./private/**"], &["./out/**"], &[], &["nika:fetch"]);
-        assert!(trifecta_violations(&p, true, &subjects, &[0]).is_empty());
+        assert!(trifecta_violations(&p, &subjects, &witnesses, &topo(&subjects)).is_empty());
     }
 
     #[test]
     fn a_dominating_gate_disarms_the_trifecta() {
         // ask (gate) → fetch_page → leak : every path to egress crosses ask.
-        let mut fetch = TrifectaSubject::new("fetch_page".to_owned(), true, false);
+        let mut fetch =
+            TrifectaSubject::new("fetch_page".to_owned(), true, false).with_ingress_source(true);
         fetch.parents.push(0);
         let mut leak = TrifectaSubject::new("leak".to_owned(), true, false);
         leak.parents.push(1);
@@ -382,7 +499,12 @@ mod tests {
             fetch,
             leak,
         ];
-        let v = trifecta_violations(&full_boundary(), true, &subjects, &topo(&subjects));
+        let witnesses = vec![
+            TaintWitness::clean(),
+            TaintWitness::clean(),
+            TaintWitness::new(true, Some("fetch_page".to_owned())),
+        ];
+        let v = trifecta_violations(&full_boundary(), &subjects, &witnesses, &topo(&subjects));
         assert!(v.is_empty(), "the gate dominates every egress path: {v:?}");
     }
 
@@ -395,9 +517,14 @@ mod tests {
         let subjects = vec![
             TrifectaSubject::new("ask".to_owned(), false, true),
             left,
-            TrifectaSubject::new("leak".to_owned(), true, false),
+            TrifectaSubject::new("leak".to_owned(), true, false).with_ingress_source(true),
         ];
-        let v = trifecta_violations(&full_boundary(), true, &subjects, &topo(&subjects));
+        let witnesses = vec![
+            TaintWitness::clean(),
+            TaintWitness::clean(),
+            TaintWitness::new(true, Some("fetch_page".to_owned())),
+        ];
+        let v = trifecta_violations(&full_boundary(), &subjects, &witnesses, &topo(&subjects));
         assert_eq!(v.len(), 1, "{v:?}");
         assert_eq!(v[0].task, "leak");
         assert!(
@@ -409,10 +536,11 @@ mod tests {
     #[test]
     fn no_egress_task_means_no_surface() {
         // Wide-open boundary, but every task is pure compute: the trifecta
-        // has no egress task to fire on (vacuously gated).
+        // has no egress task to fire on (vacuously gated — even tainted).
         let subjects = vec![TrifectaSubject::new("think".to_owned(), false, false)];
+        let witnesses = vec![TaintWitness::new(true, Some("x".to_owned()))];
         assert!(
-            trifecta_violations(&full_boundary(), true, &subjects, &[0]).is_empty(),
+            trifecta_violations(&full_boundary(), &subjects, &witnesses, &[0]).is_empty(),
             "no egress-capable task · no finding"
         );
     }
