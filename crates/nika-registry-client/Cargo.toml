@@ -15,6 +15,7 @@ nika-kernel = { path = "../nika-kernel", version = "0.105.0" }   # HttpGetDyn se
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 sha2        = { workspace = true }   # the digest verify (index-pinned sha256 · hard refuse on mismatch)
+minisign    = { version = "0.7", default-features = false }   # the v0.2 signature verification (detached, over the artifact bytes)
 toml_edit   = { workspace = true }   # the local pin records (pins.toml — bare refs never float · ADR-106)
 
 [dev-dependencies]

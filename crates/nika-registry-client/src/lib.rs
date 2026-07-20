@@ -102,6 +102,8 @@ impl RegistryRef {
     }
 }
 
+mod sign;
+
 // ---------------------------------------------------------------------
 // Errors — one opaque type, teaching Display, greppable NIKA-REG codes.
 // ---------------------------------------------------------------------
@@ -141,6 +143,13 @@ enum ErrKind {
     /// The registry answered in a shape this engine cannot vet
     /// (NIKA-REG-005 · unknown schema / unknown field / index-entry drift).
     IndexShape { why: String },
+    /// The artifact's minisign does not verify (NIKA-REG-006 · the bytes
+    /// are not who they claim to be).
+    SignatureInvalid { coordinate: String, why: String },
+    /// The publisher's key differs from this machine's TOFU record
+    /// (NIKA-REG-007 · a rewritten index cannot re-key a publisher we
+    /// already trust).
+    KeyChanged { publisher: String },
     /// The ref names an artifact that is not a workflow.
     NotAWorkflow { coordinate: String, kind: String },
     /// Cache miss and the network did not answer — the honest offline story.
@@ -184,6 +193,8 @@ impl RegistryError {
             ErrKind::HashMismatch { .. } => Some("NIKA-REG-003"),
             ErrKind::CacheTampered { .. } => Some("NIKA-REG-004"),
             ErrKind::IndexShape { .. } => Some("NIKA-REG-005"),
+            ErrKind::SignatureInvalid { .. } => Some("NIKA-REG-006"),
+            ErrKind::KeyChanged { .. } => Some("NIKA-REG-007"),
             _ => None,
         }
     }
@@ -233,6 +244,14 @@ impl std::fmt::Display for RegistryError {
                 f,
                 "[NIKA-REG-005] the registry answered in a shape this engine cannot vet: {why}\n  a schema or field the client does not understand is refused, never skipped"
             ),
+            ErrKind::SignatureInvalid { coordinate, why } => write!(
+                f,
+                "[NIKA-REG-006] {coordinate}: the artifact's signature does not verify ({why})\n  nothing was written — the bytes are not who they claim to be. Report it to the registry."
+            ),
+            ErrKind::KeyChanged { publisher } => write!(
+                f,
+                "[NIKA-REG-007] the publisher key for {publisher} differs from this machine's TOFU record (~/.nika/registry/keys/{publisher}.pub)\n  a key rotation is an OPERATOR decision — if it was deliberate, delete that record and re-run to re-anchor; otherwise the registry may be compromised"
+            ),
             ErrKind::NotAWorkflow { coordinate, kind } => write!(
                 f,
                 "{coordinate} is a {kind}, not a workflow — check and run consume workflows"
@@ -273,6 +292,10 @@ pub struct Resolved {
     /// `true` when a bare ref was answered by the local pin record
     /// (no network involved in choosing the version).
     pub pinned: bool,
+    /// `true` when the artifact's minisign verified (registry-v0.2) —
+    /// recorded at fetch, so a cache-hit receipt tells the same truth.
+    /// `false` on an unsigned entry (the v0.1 digest floor).
+    pub signed: bool,
 }
 
 impl Resolved {
@@ -282,14 +305,24 @@ impl Resolved {
     pub fn describe(&self) -> String {
         let short = self.sha256.get(..16).unwrap_or(&self.sha256);
         if self.fetched {
+            let proof = if self.signed {
+                "digest verified + signed (minisign)"
+            } else {
+                "digest verified · unsigned entry (v0.1 floor)"
+            };
             format!(
-                "→ registry {} · fetched + digest verified (sha256 {short}…)\n  cached: {} — later runs use this copy, offline included",
+                "→ registry {} · fetched + {proof} (sha256 {short}…)\n  cached: {} — later runs use this copy, offline included",
                 self.coordinate,
                 self.path.display()
             )
         } else {
+            let proof = if self.signed {
+                " · signed (minisign, recorded at fetch)"
+            } else {
+                ""
+            };
             format!(
-                "→ registry {} · cache · digest re-verified (sha256 {short}…) · offline",
+                "→ registry {} · cache · digest re-verified (sha256 {short}…) · offline{proof}",
                 self.coordinate
             )
         }
@@ -338,6 +371,10 @@ struct Meta {
     sha256: String,
     coordinate: String,
     source: SourcePin,
+    /// Whether the artifact's minisign verified at fetch (v0.2 records —
+    /// absent on older records = unsigned floor, `false`).
+    #[serde(default)]
+    signed: bool,
 }
 
 // ---------------------------------------------------------------------
@@ -376,15 +413,21 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         }
         let index = self.fetch_index().await?;
         let art = select_artifact(&index, &r, version.as_deref())?;
-        let digest = self.entry_digest(&art).await?;
-        let bytes = self.fetch_artifact(&art, &digest).await?;
-        self.store(&r, &art, &digest, &bytes)
+        let parsed = self.entry_digest(&art).await?;
+        let bytes = self.fetch_artifact(&art, &parsed).await?;
+        self.store(&r, &art, &parsed.digest, &bytes, parsed.signature.is_some())
     }
 
     // -- cache lane ----------------------------------------------------
 
     fn dir_of(&self, r: &RegistryRef) -> PathBuf {
         self.cache_root.join(&r.owner).join(&r.name)
+    }
+
+    /// The TOFU key store root (`~/.nika/registry/keys/`) — first key
+    /// seen anchors; a later different key is a hard refusal.
+    fn keys_dir(&self) -> PathBuf {
+        self.cache_root.join("keys")
     }
 
     /// The pin record a bare ref wrote at its first resolve — `None`
@@ -449,6 +492,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             sha256: actual,
             fetched: false,
             pinned,
+            signed: meta.signed,
         }))
     }
 
@@ -483,7 +527,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
     /// (contract §4). The entry is fetched at its CONSTRUCTED path and
     /// cross-checked field-by-field against the index's claims — drift
     /// between a projection and its source is treated as tampered.
-    async fn entry_digest(&self, art: &IndexArtifact) -> Result<String, RegistryError> {
+    async fn entry_digest(&self, art: &IndexArtifact) -> Result<ParsedEntry, RegistryError> {
         let url = format!(
             "{INDEX_BASE}/registry/workflows/{}/{}/{}.toml",
             art.publisher, art.name, art.version
@@ -507,7 +551,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
     async fn fetch_artifact(
         &self,
         art: &IndexArtifact,
-        digest: &str,
+        parsed: &ParsedEntry,
     ) -> Result<Vec<u8>, RegistryError> {
         let coordinate = format!("{}/{}@{}", art.publisher, art.name, art.version);
         let url = format!(
@@ -523,12 +567,19 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             )
             .await?;
         let actual = sha256_hex(&bytes);
-        if actual != digest {
+        if actual != parsed.digest {
             return Err(RegistryError::new(ErrKind::HashMismatch {
                 coordinate,
-                expected: digest.to_owned(),
+                expected: parsed.digest.clone(),
                 actual,
             }));
+        }
+        // v0.2 — the authenticity half: a signed entry must VERIFY (the
+        // digest already proved consistency; the minisign proves origin),
+        // and only a key that verifies may anchor the TOFU record.
+        if let Some(block) = &parsed.signature {
+            sign::verify_detached(&coordinate, block, &bytes)?;
+            sign::tofu_check_and_record(&self.keys_dir(), &art.publisher, &block.pubkey)?;
         }
         Ok(bytes)
     }
@@ -581,6 +632,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         art: &IndexArtifact,
         digest: &str,
         bytes: &[u8],
+        signed: bool,
     ) -> Result<Resolved, RegistryError> {
         let dir = self.dir_of(r);
         let made = std::fs::create_dir_all(&dir); // seam-bypass-ok: local cache · #512 follow-up
@@ -595,6 +647,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             sha256: digest.to_owned(),
             coordinate: coordinate.clone(),
             source: art.source.clone(),
+            signed,
         };
         let meta_json = serde_json::to_string_pretty(&meta)
             .map_err(|e| RegistryError::env(format!("cannot encode the digest record: {e}")))?;
@@ -613,6 +666,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             sha256: digest.to_owned(),
             fetched: true,
             pinned: false,
+            signed,
         })
     }
 }
@@ -720,10 +774,20 @@ fn vet_pin(a: &IndexArtifact) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// A vetted entry (contract §1): the digest of record + the optional
+/// v0.2 signature block.
+#[derive(Debug)]
+struct ParsedEntry {
+    /// `integrity.sha256`, cross-checked against the index's claim.
+    digest: String,
+    /// The `[signature]` block when the entry is signed (v0.2).
+    signature: Option<sign::SignatureBlock>,
+}
+
 /// Parse + vet the entry TOML (contract §1): closed key set, then the
 /// fields cross-checked against the index's claims. Returns the digest
 /// of record.
-fn parse_entry(text: &str, art: &IndexArtifact) -> Result<String, RegistryError> {
+fn parse_entry(text: &str, art: &IndexArtifact) -> Result<ParsedEntry, RegistryError> {
     let shape = |why: String| RegistryError::new(ErrKind::IndexShape { why });
     let doc: toml_edit::DocumentMut = text
         .parse()
@@ -792,7 +856,11 @@ fn parse_entry(text: &str, art: &IndexArtifact) -> Result<String, RegistryError>
         }
     }
     // Cross-checked equal — the entry's digest IS art.sha256 now.
-    Ok(art.sha256.clone())
+    let signature = sign::parse_signature_block(doc.get("signature"))?;
+    Ok(ParsedEntry {
+        digest: art.sha256.clone(),
+        signature,
+    })
 }
 
 /// Atomic write: temp sibling + rename, so a torn write can never look
