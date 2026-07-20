@@ -17,8 +17,7 @@ nika-schema = { path = "../nika-schema", version = "0.105.0" } # parse + the ADR
 nika-graph = { path = "../nika-graph", version = "0.105.0" }   # the canonical projection (inspect --format json renders it)
 nika-error  = { path = "../nika-error", version = "0.105.0" }  # the code registry (`nika explain`)
 nika-pack   = { path = "../nika-pack", version = "0.105.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
-nika-cap    = { path = "../nika-cap", version = "0.105.0" }    # the permits matchers (the check drift family's ONE oracle)
-url         = { workspace = true }                             # WHATWG host extraction (drift's net-entry read — the checker's own normalization)
+# nika-cap + url moved out with the drift compute (nika-dap hosts both now).
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde       = { workspace = true }                             # graph projection envelope (§6)
@@ -42,8 +41,7 @@ nika-fs          = { path = "../nika-fs", version = "0.105.0" }            # Tok
 nika-clock       = { path = "../nika-clock", version = "0.105.0" }         # SystemClock — backoff + timeout + the date builtin
 nika-http        = { path = "../nika-http", version = "0.105.0" }          # ReqwestHttp — the registry + fetch effect
 nika-exec-runner = { path = "../nika-exec-runner", version = "0.105.0" }   # TokioShell — the exec verb's subprocess runner
-keyring        = { version = "4" }   # the run-key custody (S2 · OS keychain first: macOS keychain · Windows credman · secret-service)
-minisign       = { version = "0.7", default-features = false }   # the seal signature primitive (the registry v0.2 voice, shared)
+# keyring + minisign moved out with the trust plane (nika-dap::seal/sign host the custody + primitives now).
 sha2           = { workspace = true }   # the seal fingerprint (key_id) · shared with the registry chain
 nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.105.0" }  # the macOS exec jail (ADR-095 L6)
 nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.105.0" }  # the Linux exec jail (ADR-095 L6 · bwrap)

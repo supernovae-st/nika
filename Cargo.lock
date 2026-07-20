@@ -3809,10 +3809,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "expectrl",
- "keyring",
- "minisign",
  "nika-builtin",
- "nika-cap",
  "nika-catalog",
  "nika-clock",
  "nika-dap",
@@ -3849,7 +3846,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit",
- "url",
  "uuid",
 ]
 
@@ -3865,7 +3861,11 @@ dependencies = [
 name = "nika-dap"
 version = "0.105.0"
 dependencies = [
+ "keyring",
+ "minisign",
+ "nika-cap",
  "nika-event",
+ "nika-runtime",
  "nika-schema",
  "nika-types",
  "proptest",
@@ -3874,6 +3874,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "thiserror 2.0.18",
+ "url",
  "uuid",
 ]
 
