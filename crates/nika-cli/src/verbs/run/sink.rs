@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 
 use nika_event::Event;
 use nika_runtime::EventSink;
+use nika_types::id::EventId;
 use nika_types::timestamp::Timestamp;
 use uuid::Uuid;
 
@@ -714,7 +715,12 @@ mod tests {
         // (compare the two printed heads) must close with `==`, so the
         // anchor carries the WHOLE sha256 hex — never a truncated form.
         let head = "a".repeat(64);
-        let line = anchor_line(std::path::Path::new(".nika/traces/x.ndjson"), 7, &head);
+        let line = anchor_line(
+            std::path::Path::new(".nika/traces/x.ndjson"),
+            7,
+            &head,
+            false,
+        );
         assert_eq!(
             line,
             format!("trace: .nika/traces/x.ndjson · 7 events · chain {head}")
@@ -1243,7 +1249,30 @@ pub(super) fn surface_trace(
     mut trace: TraceFileSink,
     note: TraceNote,
     autopsy: Option<&str>,
+    workflow_hash: Option<&str>,
 ) -> Option<std::path::PathBuf> {
+    // The run seal (S2 · verifiable runs): when a run-key exists on this
+    // machine, the journal's LAST line is the signature that binds the
+    // whole chain (head · count · workflow hash) to it. Emitted BEFORE
+    // the durability point so the seal's own bytes are covered by the
+    // fsync; additive — an absent key leaves the journal as today.
+    let mut sealed = false;
+    if let Some(hash) = workflow_hash
+        && let Some((sk, pk_box)) = crate::seal::load_signing_key()
+        && let Some(ev) = crate::seal::seal_event(
+            EventId::generate(),
+            Timestamp::from_unix_ms(now_millis()),
+            trace.chain_head(),
+            trace.chain_len(),
+            hash,
+            env!("CARGO_PKG_VERSION"),
+            &sk,
+            &pk_box,
+        )
+    {
+        trace.emit(ev);
+        sealed = true;
+    }
     // Durability BEFORE advertisement: the anchor must describe bytes
     // that survive a power loss (flush reaches the page cache only).
     trace.finalize();
@@ -1265,7 +1294,7 @@ pub(super) fn surface_trace(
         return None;
     }
     let path = path?; // disabled · or a run that emitted zero events
-    let anchor = anchor_line(&path, count, &head);
+    let anchor = anchor_line(&path, count, &head, sealed);
     match note {
         TraceNote::Stdout => {
             println!("    {anchor}");
@@ -1295,6 +1324,19 @@ pub(super) fn surface_trace(
 /// head is the ONE thing a whole-file rewrite cannot touch (the writer-side
 /// review's M4 — 32 hex was already unforgeable; full width costs only
 /// line length and buys equality).
-fn anchor_line(path: &std::path::Path, count: usize, head: &str) -> String {
-    format!("trace: {} · {count} events · chain {head}", path.display())
+fn anchor_line(path: &std::path::Path, count: usize, head: &str, sealed: bool) -> String {
+    let proof = if sealed { " · sealed" } else { "" };
+    format!(
+        "trace: {} · {count} events · chain {head}{proof}",
+        path.display()
+    )
+}
+
+/// Wall-clock milliseconds for the seal's stamp (the L4 boundary — the
+/// journal's own clock; runtime crates ride `ClockDyn`).
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
 }

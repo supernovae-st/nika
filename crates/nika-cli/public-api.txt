@@ -14,6 +14,10 @@ pub use nika_cli::registry::RegistryError
 pub use nika_cli::registry::Resolved
 pub use nika_cli::registry::is_registry_ref
 pub fn nika_cli::registry::resolve_blocking(arg: &str) -> core::result::Result<nika_registry_client::Resolved, nika_registry_client::RegistryError>
+pub mod nika_cli::seal
+pub fn nika_cli::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn nika_cli::seal::key_rotate() -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn nika_cli::seal::key_trust() -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub mod nika_cli::verbs
 pub mod nika_cli::verbs::catalog
 pub fn nika_cli::verbs::catalog::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
@@ -173,6 +177,61 @@ pub type nika_cli::verbs::init::CanvasTheme::Output = T
 pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_cli::verbs::init::CanvasTheme>, wires: &[nika_cli::verbs::wire::WireTarget], theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::key
+pub enum nika_cli::verbs::key::KeyAction
+pub nika_cli::verbs::key::KeyAction::Init
+pub nika_cli::verbs::key::KeyAction::Init::force: bool
+pub nika_cli::verbs::key::KeyAction::Rotate
+pub nika_cli::verbs::key::KeyAction::Trust
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::key::KeyAction
+pub fn nika_cli::verbs::key::KeyAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::key::KeyAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::key::KeyAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::key::KeyAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_cli::verbs::key::KeyAction
+pub fn nika_cli::verbs::key::KeyAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::key::KeyAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::key::KeyAction::has_subcommand(__clap_name: &str) -> bool
+impl core::clone::Clone for nika_cli::verbs::key::KeyAction
+pub fn nika_cli::verbs::key::KeyAction::clone(&self) -> nika_cli::verbs::key::KeyAction
+impl core::marker::Copy for nika_cli::verbs::key::KeyAction
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::key::KeyAction
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::key::KeyAction where U: core::convert::From<T>
+pub fn nika_cli::verbs::key::KeyAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::key::KeyAction where U: core::convert::Into<T>
+pub type nika_cli::verbs::key::KeyAction::Error = core::convert::Infallible
+pub fn nika_cli::verbs::key::KeyAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::key::KeyAction where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::key::KeyAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::key::KeyAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::key::KeyAction where T: core::clone::Clone
+pub type nika_cli::verbs::key::KeyAction::Owned = T
+pub fn nika_cli::verbs::key::KeyAction::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::key::KeyAction::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::key::KeyAction where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::key::KeyAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::key::KeyAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::key::KeyAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::key::KeyAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::key::KeyAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::key::KeyAction where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::key::KeyAction::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::key::KeyAction
+pub fn nika_cli::verbs::key::KeyAction::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::key::KeyAction where T: core::clone::Clone
+pub fn nika_cli::verbs::key::KeyAction::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::key::KeyAction where T: 'static
+pub fn nika_cli::verbs::key::KeyAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::verbs::key::KeyAction where T: core::marker::Copy
+pub fn nika_cli::verbs::key::KeyAction::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::key::KeyAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::key::KeyAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::key::KeyAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::key::KeyAction
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::key::KeyAction
+impl<T> typenum::type_operators::Same for nika_cli::verbs::key::KeyAction
+pub type nika_cli::verbs::key::KeyAction::Output = T
+pub fn nika_cli::verbs::key::run(action: nika_cli::verbs::key::KeyAction) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::model
 pub mod nika_cli::verbs::model::pull
 pub fn nika_cli::verbs::model::pull::run(arg: &str, yes: bool) -> nika_cli::verbs::VerbOutput
@@ -424,6 +483,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::SystemStamper
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::SystemStamper
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::SystemStamper
 pub type nika_cli::verbs::run::SystemStamper::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::run::SystemStamper where T: core::default::Default
+pub type nika_cli::verbs::run::SystemStamper::NoneType = T
+pub fn nika_cli::verbs::run::SystemStamper::null_value() -> T
 pub fn nika_cli::verbs::run::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_cli::verbs::run::RuntimeCapabilities
 pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
