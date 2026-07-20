@@ -15,16 +15,16 @@ nika-event  = { path = "../nika-event", version = "0.105.0" }   # the journal ta
 nika-schema = { path = "../nika-schema", version = "0.105.0" }  # parse the workflow for breakpoint line-mapping
 nika-types  = { path = "../nika-types", version = "0.105.0" }   # field values on replayed frames
 nika-cap    = { path = "../nika-cap", version = "0.105.0" }     # BuiltinEffect — the drift scan's permit taxonomy
-nika-runtime = { path = "../nika-runtime", version = "0.105.0" }  # proof::preimage — the seal's ONE canonicalization voice
+nika-runtime = { path = "../nika-runtime", version = "0.105.0" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
 sha2        = { workspace = true }                              # the chain primitive + source identity (one voice)
+# The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
+# compute descends, render stays): seal custody · workflow signing.
+keyring     = { version = "4" }                                 # the run-key custody (OS keychain first)
+minisign    = { version = "0.7", default-features = false }     # the seal + workflow signature primitive (the registry v0.2 voice, shared)
 serde      = { workspace = true }                             # protocol frames (Request derive)
 serde_json = { workspace = true }                             # DAP wire bodies + replay journal parse
 thiserror  = { workspace = true }                             # RecoverError — typed, never a bare String (FCI-019)
 url      = { workspace = true }                              # the drift scan's literal-URL host parse (pinned with the SSRF stack)
-# The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
-# compute descends, render stays): seal custody · workflow signing.
-keyring        = { version = "4" }   # the run-key custody (OS keychain first)
-minisign       = { version = "0.7", default-features = false }   # the seal + workflow signature primitive
 
 [dev-dependencies]
 uuid     = { workspace = true }   # test EventIds (the replay fixtures)

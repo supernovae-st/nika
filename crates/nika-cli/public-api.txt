@@ -28,6 +28,8 @@ pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::doctor
 pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::evidence
+pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput

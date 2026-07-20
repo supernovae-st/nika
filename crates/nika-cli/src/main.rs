@@ -44,7 +44,7 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace                   # the living DAG · the flight recorder\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
+    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace · evidence        # the living DAG · the flight recorder · the pack\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -314,6 +314,23 @@ enum Command {
     Trace {
         #[command(subcommand)]
         action: TraceAction,
+    },
+    /// Export the evidence pack for one run: the journal's exact bytes +
+    /// the pack manifest + the receipt + VERIFY.md — the auditor's bundle.
+    #[command(display_order = 32)]
+    Evidence {
+        /// Trace NDJSON path or a name from `trace ls` (default: latest).
+        trace: Option<PathBuf>,
+        /// Output directory (default: `<trace-stem>.evidence/` · never clobbered).
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+        /// The workflow file that ran — hash-checked; unlocks the
+        /// boundary, the trifecta verdict and the receipt.
+        #[arg(long)]
+        workflow: Option<String>,
+        /// Print the pack manifest to stdout (no directory written).
+        #[arg(long)]
+        json: bool,
     },
     /// Debug Adapter Protocol server (stdio) — time-travel a recorded
     /// run under a debugger UI: breakpoints on task lines · step forward
@@ -830,6 +847,12 @@ fn main() -> std::process::ExitCode {
             0
         }
         Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
+        Command::Evidence {
+            trace,
+            out,
+            workflow,
+            json,
+        } => evidence_verb(trace, out.as_ref(), workflow.as_deref(), json),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -972,6 +995,24 @@ fn verify_verb(mut traces: Vec<PathBuf>) -> u8 {
     }
     match resolve_trace(traces.pop()) {
         Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
+        Err(code) => code,
+    }
+}
+
+/// `nika evidence <trace>` — `trace show` handle resolution, then export.
+fn evidence_verb(
+    trace: Option<PathBuf>,
+    out: Option<&PathBuf>,
+    workflow: Option<&str>,
+    json: bool,
+) -> u8 {
+    match resolve_trace(trace) {
+        Ok(path) => emit(&verbs::evidence::export(
+            &path.to_string_lossy(),
+            out.map(PathBuf::as_path),
+            workflow,
+            json,
+        )),
         Err(code) => code,
     }
 }

@@ -14,6 +14,7 @@ pub mod catalog;
 pub mod check;
 pub mod context;
 pub mod doctor;
+pub mod evidence;
 pub mod examples;
 pub mod explain;
 pub mod explain_file;
