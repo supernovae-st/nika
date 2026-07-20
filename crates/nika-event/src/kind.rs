@@ -127,6 +127,14 @@ pub enum EventKind {
     /// run state `paused`) — `--resume` re-arms the prompt; a paused
     /// trace can be resumed any number of times.
     WorkflowPaused,
+    // ── additive cohort 2026-07-20 · the verifiable-run seal (S2 · the
+    //    signed-journal wave). MINOR-bump additive per the header law. ──
+    /// The journal's terminal integrity seal (`seal_format` + `covers`
+    /// (head · events · semantic hash · engine · key identity) + `sig`
+    /// fields) — one ed25519 signature binding the whole chain to the
+    /// run-key that minted it, emitted as the LAST line of a signed run
+    /// (S2 · `seal_format: 1` · the evidence pack's integrity root).
+    RunSealed,
 }
 
 impl EventKind {
@@ -164,6 +172,7 @@ impl EventKind {
             Self::AgentBudgetCheckpoint => "agent_budget_checkpoint",
             Self::TaskCacheHit => "task_cache_hit",
             Self::WorkflowPaused => "workflow_paused",
+            Self::RunSealed => "run_sealed",
         }
     }
 
@@ -231,7 +240,7 @@ impl EventKind {
             | Self::TaskCancelled
             | Self::TaskCacheHit => EventClass::Task,
             Self::VerbInvoked | Self::ToolInvoked => EventClass::Dispatch,
-            Self::CheckpointWritten => EventClass::Durability,
+            Self::CheckpointWritten | Self::RunSealed => EventClass::Durability,
             Self::CostIncurred => EventClass::Cost,
             Self::InferChunk => EventClass::Stream,
             Self::PermitChecked => EventClass::Security,
@@ -313,6 +322,7 @@ mod tests {
         EventKind::AgentBudgetCheckpoint,
         EventKind::TaskCacheHit,
         EventKind::WorkflowPaused,
+        EventKind::RunSealed,
     ];
 
     #[test]
@@ -346,10 +356,11 @@ mod tests {
                 | EventKind::AgentComposeChecked
                 | EventKind::AgentBudgetCheckpoint
                 | EventKind::TaskCacheHit
-                | EventKind::WorkflowPaused => {}
+                | EventKind::WorkflowPaused
+                | EventKind::RunSealed => {}
             }
         }
-        assert_eq!(ALL.len(), 25, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 26, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -423,7 +434,7 @@ mod tests {
                 s if s.starts_with("workflow_") => Some(EventClass::Workflow),
                 s if s.starts_with("task_") => Some(EventClass::Task),
                 "verb_invoked" | "tool_invoked" => Some(EventClass::Dispatch),
-                "checkpoint_written" => Some(EventClass::Durability),
+                "checkpoint_written" | "run_sealed" => Some(EventClass::Durability),
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
                 "permit_checked" => Some(EventClass::Security),
