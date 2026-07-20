@@ -17,6 +17,7 @@ nika-http   = { path = "../nika-http", version = "0.105.0" }   # ReqwestHttp —
 tokio       = { workspace = true }                            # the blocking pull seam's current-thread runtime (the registry #452 idiom)
 serde       = { workspace = true }                            # the Hub tree rows
 serde_json  = { workspace = true }                            # tree-listing parse
+sha2        = { workspace = true }                            # the pull integrity gate — Hub-declared sha256, hard refuse on mismatch (the registry client's exact dep)
 
 # ── the sovereign local-inference launch surface (ADR-091/093) — OFF by default ─
 # `serve` boots the candle backend behind the tiny_http sidecar server.
