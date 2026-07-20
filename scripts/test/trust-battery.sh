@@ -44,8 +44,9 @@ tasks:
   fetch:
     exec: { command: ["echo", "data-v1"] }
   think:
-    depends_on: [fetch]
-    infer: { prompt: "sum ${{ tasks.fetch.output }}", max_tokens: 30 }
+    with:
+      fetch_out: ${{ tasks.fetch.output }}
+    infer: { prompt: "sum ${{ with.fetch_out }}", max_tokens: 30 }
 YAML
 
 say "── trust battery · $("$BIN" --version)"
