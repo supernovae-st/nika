@@ -8,6 +8,65 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [Unreleased]
+
+## [0.105.0](https://github.com/supernovae-st/nika/compare/v0.104.0..v0.105.0) - 2026-07-20
+
+### ✨ Features
+- **authority** — W4 the authority — policy law, coded secret flows, certified effects ([#593](https://github.com/supernovae-st/nika/issues/593)) ([de5c359f2](https://github.com/supernovae-st/nika/commit/de5c359f2899b0b03ebb25d190e0660da8c87ff3)) ([#593](https://github.com/supernovae-st/nika/pull/593))
+- **bench** — The w0 refonte baseline harness — slopes judged, three caught ([#578](https://github.com/supernovae-st/nika/issues/578)) ([21e72a80c](https://github.com/supernovae-st/nika/commit/21e72a80c8b69af130c86524d4e3c7086de1d75f)) ([#578](https://github.com/supernovae-st/nika/pull/578))
+- **composition** — W-comp the composition — invoke: workflow:, specified + partial ([#596](https://github.com/supernovae-st/nika/issues/596)) ([0b85d5ce7](https://github.com/supernovae-st/nika/commit/0b85d5ce70c33ee85895685fa28d925dccb9e2a2)) ([#596](https://github.com/supernovae-st/nika/pull/596))
+- **decision** — W-dec the decision — nika:decide, the deterministic kernel ([#594](https://github.com/supernovae-st/nika/issues/594)) ([c51a92698](https://github.com/supernovae-st/nika/commit/c51a926986bd62ba9bcce97f6826c50f5f5502af)) ([#594](https://github.com/supernovae-st/nika/pull/594))
+- **lsp** — Every block teaches its own keys — the parser's keysets door ([#569](https://github.com/supernovae-st/nika/issues/569)) ([0d4221ae1](https://github.com/supernovae-st/nika/commit/0d4221ae150066eb9fe90cdf07c3840237049ba7)) ([#569](https://github.com/supernovae-st/nika/pull/569))
+- **lsp** — Server-side rename — the map key renames everywhere at once ([#582](https://github.com/supernovae-st/nika/issues/582)) ([a3bbfc520](https://github.com/supernovae-st/nika/commit/a3bbfc52078231118c27288e76e493d553ef570f)) ([#582](https://github.com/supernovae-st/nika/pull/582))
+- **lsp** — Semantic_document_format:1 — the oracle surface names its own version (W7) ([#598](https://github.com/supernovae-st/nika/issues/598)) ([57e997646](https://github.com/supernovae-st/nika/commit/57e9976462cef73a2019206d5ac19876ed556054)) ([#598](https://github.com/supernovae-st/nika/pull/598))
+- **nika-cap** — The lethal trifecta judge — NIKA-SEC-009 (NEP-0002) ([#637](https://github.com/supernovae-st/nika/issues/637)) ([15dcc88f7](https://github.com/supernovae-st/nika/commit/15dcc88f7e6bfb5db416cc74070e5ece5d8f05e8)) ([#637](https://github.com/supernovae-st/nika/pull/637))
+- **nika-lsp** — Loop-scoped roots by the law — item gated, index joins ([#576](https://github.com/supernovae-st/nika/issues/576)) ([f5db09288](https://github.com/supernovae-st/nika/commit/f5db092880973f4f95d2bbd256021c509126c86f)) ([#576](https://github.com/supernovae-st/nika/pull/576))
+- **outcomes** — W5 the bounds — the Outcome IR, one table, cause on the record ([#595](https://github.com/supernovae-st/nika/issues/595)) ([aa8675e45](https://github.com/supernovae-st/nika/commit/aa8675e45e44060e21f3adb5f94703369eb1c0b2)) ([#595](https://github.com/supernovae-st/nika/pull/595))
+- **proof** — W6 « la preuve » — semantic hash · nika.lock · assert: v1 · receipt_format:1 (the LAST pre-1.0 wave) ([#597](https://github.com/supernovae-st/nika/issues/597)) ([f5bb3f819](https://github.com/supernovae-st/nika/commit/f5bb3f81960d4edbacbbe6bec9a1ee0177f45dfc)) ([#597](https://github.com/supernovae-st/nika/pull/597))
+- **schema** — W1 the map — workflow object + task map keyed by id ([#581](https://github.com/supernovae-st/nika/issues/581)) ([35f8604ac](https://github.com/supernovae-st/nika/commit/35f8604acf9d1e06ebcf7463d6d8c2fdb1ad21b3)) ([#581](https://github.com/supernovae-st/nika/pull/581))
+- **schema** — W2 the flow — two doors, one graph, the gate names its refusal ([#588](https://github.com/supernovae-st/nika/issues/588)) ([21e515684](https://github.com/supernovae-st/nika/commit/21e51568457fcbcdf07f6601fc8ffd05924c1104)) ([#588](https://github.com/supernovae-st/nika/pull/588))
+- **types** — W3 the contract — one type core, three relations, typed doors ([#592](https://github.com/supernovae-st/nika/issues/592)) ([249c996c8](https://github.com/supernovae-st/nika/commit/249c996c8d0f5c870270bc66940302b874e46ae1)) ([#592](https://github.com/supernovae-st/nika/pull/592))
+- Nika-sandbox-landlock, the Linux command-sandbox twin ([#630](https://github.com/supernovae-st/nika/issues/630)) ([413133719](https://github.com/supernovae-st/nika/commit/413133719159a9d6b5e07dfc6c59e75171e1965d)) ([#630](https://github.com/supernovae-st/nika/pull/630))
+
+### 🐛 Bug Fixes
+- **ci** — The trust battery fixture speaks the map surface ([66f1d39b0](https://github.com/supernovae-st/nika/commit/66f1d39b067178568306a802ef49b3a0d84a67a3))
+- **hooks** — Deletion-only pushes skip the pre-push gate ([#590](https://github.com/supernovae-st/nika/issues/590)) ([2906ffabc](https://github.com/supernovae-st/nika/commit/2906ffabcc65690af6e77a19ccd5b18e1ae5a7e5)) ([#590](https://github.com/supernovae-st/nika/pull/590))
+- **kit** — The new command frontmatter parses — invalid yaml dies at the source ([#583](https://github.com/supernovae-st/nika/issues/583)) ([ff0cba5b8](https://github.com/supernovae-st/nika/commit/ff0cba5b85b73d551ba1fec2dad4928f823f20de)) ([#583](https://github.com/supernovae-st/nika/pull/583))
+- **tests** — The oracle fixtures speak argv — the 565×570 merge race paid ([#573](https://github.com/supernovae-st/nika/issues/573)) ([d1458743e](https://github.com/supernovae-st/nika/commit/d1458743ee06301995d0e2dd59b86dde6f41f6ef)) ([#573](https://github.com/supernovae-st/nika/pull/573))
+
+### ⚡ Performance
+- **lsp** — The downstream walk goes one-pass — hover sheds its x20 slope ([#580](https://github.com/supernovae-st/nika/issues/580)) ([0b0be55a0](https://github.com/supernovae-st/nika/commit/0b0be55a01263a08c8f4e2b784e51280468c91be)) ([#580](https://github.com/supernovae-st/nika/pull/580))
+
+### 📚 Documentation
+- **adr** — Related reciprocity — the 4 one-way arrows answer back ([#587](https://github.com/supernovae-st/nika/issues/587)) ([da81e4f7e](https://github.com/supernovae-st/nika/commit/da81e4f7e649f9f7ee0df657a51091fa37dde4e7)) ([#587](https://github.com/supernovae-st/nika/pull/587))
+- **agents** — Mcp oracle is 9 tools · fold dead verbs · exit-4 paused ([#622](https://github.com/supernovae-st/nika/issues/622)) ([22f18ab09](https://github.com/supernovae-st/nika/commit/22f18ab090f53f3068b3b6fe5ad3e99b6cbae497)) ([#622](https://github.com/supernovae-st/nika/pull/622))
+- **changelog** — The union-rebase double Added folds to one ([d8feac8db](https://github.com/supernovae-st/nika/commit/d8feac8db0d3bd4010295fd7695b2afea2b06449))
+- **changelog** — Append v0.104.0 — auto-generated ([#604](https://github.com/supernovae-st/nika/issues/604)) ([5ed6c4a27](https://github.com/supernovae-st/nika/commit/5ed6c4a279ae14d2c738deb82ab0f91a4db8fa0b)) ([#604](https://github.com/supernovae-st/nika/pull/604))
+- **cite** — The citation cross-references the spec — additive only ([#636](https://github.com/supernovae-st/nika/issues/636)) ([7b22ee5ce](https://github.com/supernovae-st/nika/commit/7b22ee5ce4822125c8b9efdab4871010708b06c3)) ([#636](https://github.com/supernovae-st/nika/pull/636))
+- **crate-spec** — The gate-3 verb tree drops the phantom pack ([#629](https://github.com/supernovae-st/nika/issues/629)) ([58ce0d5f9](https://github.com/supernovae-st/nika/commit/58ce0d5f914beef245aa8956a78d549d1914d149)) ([#629](https://github.com/supernovae-st/nika/pull/629))
+- **crate-specs** — The teaching surfaces say graph_format 2 ([#589](https://github.com/supernovae-st/nika/issues/589)) ([86d1f2d20](https://github.com/supernovae-st/nika/commit/86d1f2d2080b4c2d9d98d99d608d6d6643ef89da)) ([#589](https://github.com/supernovae-st/nika/pull/589))
+- **crate-specs** — Nika-cli exit-4 paused · fold graph/schema residues ([#625](https://github.com/supernovae-st/nika/issues/625)) ([d62a5ec71](https://github.com/supernovae-st/nika/commit/d62a5ec713069b58a68661b99034dc0abd2867b5)) ([#625](https://github.com/supernovae-st/nika/pull/625))
+- **kit** — The plugin readme counts nine — nika_inspect joins at the source ([#584](https://github.com/supernovae-st/nika/issues/584)) ([ccc38b425](https://github.com/supernovae-st/nika/commit/ccc38b4254c494b7d73fdb83191f1d97a7e7371e)) ([#584](https://github.com/supernovae-st/nika/pull/584))
+- **rules** — Skills check invocation is /spn-powers:system:yo ([b6c9dff6d](https://github.com/supernovae-st/nika/commit/b6c9dff6dbcaf3ccab70fd680b03085359ff7d5d))
+
+### 🧪 Tests
+- **nika-schema** — E-diff static battery pins boundary and inference ([#635](https://github.com/supernovae-st/nika/issues/635)) ([d959ce2e5](https://github.com/supernovae-st/nika/commit/d959ce2e527b90150ac345af59c4dc72c3f93e87)) ([#635](https://github.com/supernovae-st/nika/pull/635))
+- **runtime** — Boundary differential — check and runtime agree on exec permits ([#620](https://github.com/supernovae-st/nika/issues/620)) ([783b346da](https://github.com/supernovae-st/nika/commit/783b346dae2353af547e0352050d40b11c61a6b7)) ([#620](https://github.com/supernovae-st/nika/pull/620))
+- **schema** — Fuzz the permit checker and the infer-permits surface ([#624](https://github.com/supernovae-st/nika/issues/624)) ([cf9d3f105](https://github.com/supernovae-st/nika/commit/cf9d3f1057651e67df16503f6f4b2492890dd8f5)) ([#624](https://github.com/supernovae-st/nika/pull/624))
+- Fs boundary differential — check and runtime agree on canonical globs ([#627](https://github.com/supernovae-st/nika/issues/627)) ([7bb0395cb](https://github.com/supernovae-st/nika/commit/7bb0395cb03bd195b4b34a4b4deefc0fcbc3140c)) ([#627](https://github.com/supernovae-st/nika/pull/627))
+
+### 📦 Build
+- Install bubblewrap so the landlock jail proof runs ([#632](https://github.com/supernovae-st/nika/issues/632)) ([5c95a59b6](https://github.com/supernovae-st/nika/commit/5c95a59b6ca8b05a31bdedf352a8e345451165b6)) ([#632](https://github.com/supernovae-st/nika/pull/632))
+- Msrv gate + CODEOWNERS + Scorecard badge ([#634](https://github.com/supernovae-st/nika/issues/634)) ([1be89dc9e](https://github.com/supernovae-st/nika/commit/1be89dc9effb1f7969b76a8a5e62a8fad6e8b90c)) ([#634](https://github.com/supernovae-st/nika/pull/634))
+
+### 🧹 Chore
+- **ci** — The spec pin becomes a file — one mechanism across the estate ([#577](https://github.com/supernovae-st/nika/issues/577)) ([c6d743353](https://github.com/supernovae-st/nika/commit/c6d74335398956d4dd4669c0b0ed925636019cd4)) ([#577](https://github.com/supernovae-st/nika/pull/577))
+- **ci** — Nika-lints joins the public-api floor — the 50th lock ([#591](https://github.com/supernovae-st/nika/issues/591)) ([1ab3e53f5](https://github.com/supernovae-st/nika/commit/1ab3e53f5e995b20179e309b4078f5d2b0984660)) ([#591](https://github.com/supernovae-st/nika/pull/591))
+- **ci** — The refonte splits join the public-api floor — 53/53 ratchet closed ([#600](https://github.com/supernovae-st/nika/issues/600)) ([c39b85f8c](https://github.com/supernovae-st/nika/commit/c39b85f8c55afd59b5d74eb6f47c09afce624174)) ([#600](https://github.com/supernovae-st/nika/pull/600))
+- **pack** — The pack follows the spec — 1eddca9 (pack-resync) ([#601](https://github.com/supernovae-st/nika/issues/601)) ([b9839ed33](https://github.com/supernovae-st/nika/commit/b9839ed33dcb4b8127e46c84a430511762b0b84b)) ([#601](https://github.com/supernovae-st/nika/pull/601))
+- **spec-pin** — The tests leg follows the spec — 1eddca9 ([#602](https://github.com/supernovae-st/nika/issues/602)) ([1bab0d554](https://github.com/supernovae-st/nika/commit/1bab0d55428a3ce7ccd796757a2dbd9be404976b)) ([#602](https://github.com/supernovae-st/nika/pull/602))
+
 ## [0.104.0](https://github.com/supernovae-st/nika/compare/v0.103.0..v0.104.0) - 2026-07-17
 
 ### ✨ Features
@@ -22,10 +81,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ### 🧹 Chore
 - **workspace** — The tag was not fmt-clean under the current rustfmt ([793f11431](https://github.com/supernovae-st/nika/commit/793f11431eec5508e25af8c3cbc300f47dce556b))
 
-
-## [Unreleased]
-
-## [0.105.0](https://github.com/supernovae-st/nika/compare/v0.104.0..v0.105.0) - 2026-07-20
 
 ## [0.103.0](https://github.com/supernovae-st/nika/compare/v0.102.0..v0.103.0) - 2026-07-13
 

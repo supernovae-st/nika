@@ -1,0 +1,70 @@
+# Releasing Nika
+
+The release train is one tag push; everything after is CI. This file is the
+ceremony — what a releaser does, what the machine does, and what a user can
+prove afterwards. The lineage law applies throughout: a published release is
+a historical record — **never rewrite a live release body retroactively**
+without an explicit operator decision.
+
+## The ceremony (human side)
+
+1. **Fill the changelog.** The `[Unreleased]` section becomes the version
+   section — generate it, don't hand-type it:
+
+   ```sh
+   git-cliff --config cliff.toml v<PREV>..HEAD --tag v<NEXT> --strip all
+   ```
+
+   Splice the output under `## [Unreleased]` as `## [<NEXT>]`, newest first.
+   Hand-curated narrative (a BREAKING window, an era note) may replace the
+   generated body — the section, not the release page, is where curation
+   lives. `CHANGELOG.md` is the single source the release body renders from.
+
+2. **Bump the workspace version** in `Cargo.toml` to `<NEXT>` — the release
+   workflow refuses a tag that disagrees with the manifest (first gate).
+
+3. **Tag and push.**
+
+   ```sh
+   git tag v<NEXT> && git push origin v<NEXT>
+   ```
+
+   Nothing else. `workflow_dispatch` can rebuild an existing tag; know that
+   re-dispatching an old tag re-points `latest` (docker + release ordering).
+
+## What the machine publishes (per tag)
+
+| Asset | Proof it carries |
+|---|---|
+| `nika-{macos,linux}-{arm64,x64}-<ver>.tar.gz` | the four platform binaries |
+| `SHA256SUMS` | checksum manifest (proof 1) |
+| GitHub native attestation | `gh attestation verify` (proof 2) |
+| `multiple.intoto.jsonl` | SLSA provenance asset, offline-verifiable (proof 3) |
+| `ghcr.io/supernovae-st/nika:{<ver>,latest}` | multi-arch image, bit-identical to the tarballs |
+| Homebrew formula bump | `supernovae-st/homebrew-tap` (deploy-key scoped) |
+
+The release body is rendered by `scripts/release/render-notes.sh` — the
+curated **What / Install / Verify / Provenance** front page from the
+changelog section — with GitHub's generated PR list appended below it.
+
+## What a user can prove
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing            # macOS: shasum -a 256 -c
+gh attestation verify nika-<platform>-<ver>.tar.gz --repo supernovae-st/nika
+slsa-verifier verify-artifact nika-<platform>-<ver>.tar.gz \
+  --provenance-path multiple.intoto.jsonl \
+  --source-uri github.com/supernovae-st/nika --source-tag v<ver>
+```
+
+Three independent chains: the checksum manifest, GitHub's signed
+attestation, and the SLSA generator's intoto statement. Any one of them
+failing is a stop-the-line event.
+
+## The record
+
+Every release is also a claim on the machine-verified timeline —
+[nika.sh/timeline](https://nika.sh/timeline) renders the spec's
+`timeline/timeline.yaml`, and CI re-proves the provable claims (GitHub ·
+crates.io) on every push and weekly. A release that isn't in the record
+isn't released; a record that can't be re-proven isn't a record.

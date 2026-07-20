@@ -72,6 +72,10 @@ OLY        = "OLY"       # OLY- prefix in a negative test (wrong-prefix rejectio
 YELLO      = "YELLO"     # part of YELLOW in a hygiene-color comment
 # Valid alternative spelling
 unparseable = "unparseable"
+# in-toto attestation format — the SLSA generator's release asset is literally
+# named `multiple.intoto.jsonl` (RELEASING.md + release notes teach the
+# slsa-verifier command against it).
+intoto     = "intoto"
 
 [files]
 extend-exclude = [
