@@ -340,6 +340,9 @@ fn run_code_help(num: u16) -> &'static str {
         1706 => {
             "The decoded value does not fit the task's `returns:` type (NIKA-TYPE-101). Align the contract with what the command really emits, or fix the command — the type is the truth the run enforces."
         }
+        1707 => {
+            "The CheckReport does not match the workflow bytes — the run-start boundary re-derivation (permits-fit · trifecta) found something a clean report was credited with not having. Re-run `nika check` on THIS file; a clean report over different bytes is not clean."
+        }
         _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }
 }
