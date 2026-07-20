@@ -1,0 +1,104 @@
+# OpenSSF Security Insights v2 — machine-readable security metadata.
+# Spec: https://github.com/ossf/security-insights-spec (v2.0.0)
+# Consumed by LFX Insights and planned for Scorecard v6 OSPS verdicts.
+header:
+  schema-version: 2.0.0
+  last-updated: '2026-07-20'
+  last-reviewed: '2026-07-20'
+  url: https://github.com/supernovae-st/nika/blob/main/security-insights.yml
+  comment: >-
+    Security posture of the Nika reference engine. The spec repo
+    (supernovae-st/nika-spec) carries the language standard surfaces
+    (conformance suite · governance · certifications matrix).
+
+project:
+  name: nika
+  homepage: https://nika.sh
+  roadmap: https://nika.sh/changelog
+  administrators:
+    - name: Thibaut Melen
+      affiliation: SuperNovae Studio
+      email: security@supernovae.studio
+      primary: true
+  repositories:
+    - name: nika
+      url: https://github.com/supernovae-st/nika
+      comment: Reference engine (Rust · AGPL-3.0-or-later).
+    - name: nika-spec
+      url: https://github.com/supernovae-st/nika-spec
+      comment: Language specification + public conformance suite (Apache-2.0).
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    contact:
+      name: Security team
+      email: security@supernovae.studio
+      primary: true
+    security-policy: https://github.com/supernovae-st/nika/blob/main/SECURITY.md
+    comment: >-
+      Private disclosure via email or GitHub private vulnerability
+      reporting. No public issues for vulnerabilities.
+
+repository:
+  url: https://github.com/supernovae-st/nika
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  no-third-party-packages: false
+  core-team:
+    - name: Thibaut Melen
+      affiliation: SuperNovae Studio
+      email: security@supernovae.studio
+      primary: true
+  license:
+    url: https://github.com/supernovae-st/nika/blob/main/LICENSE
+    expression: AGPL-3.0-or-later
+  security:
+    assessments:
+      self:
+        comment: >-
+          Continuous: OpenSSF Scorecard on every main push · CodeQL ·
+          cargo-deny (advisories + licenses) · cargo-fuzz (4 targets,
+          nightly) · cargo-mutants floor on the checker · miri UB
+          detection on L0 · boundary differentials (check vs runtime).
+    champions:
+      - name: Thibaut Melen
+        email: security@supernovae.studio
+        primary: true
+    tools:
+      - name: CodeQL
+        type: sca
+        rulesets:
+          - default
+        integration:
+          ad-hoc: false
+          ci: true
+          before-release: true
+      - name: cargo-deny
+        type: sca
+        rulesets:
+          - advisories
+          - licenses
+        integration:
+          ad-hoc: false
+          ci: true
+          before-release: true
+      - name: cargo-fuzz
+        type: fuzzer
+        rulesets:
+          - cap_check
+          - cel_expression
+          - infer_permits
+          - parse_workflow
+        integration:
+          ad-hoc: false
+          ci: true
+          before-release: false
+      - name: OpenSSF Scorecard
+        type: sca
+        rulesets:
+          - default
+        integration:
+          ad-hoc: false
+          ci: true
+          before-release: false

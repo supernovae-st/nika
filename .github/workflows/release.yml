@@ -207,6 +207,8 @@ jobs:
       attestations: write # publish the build-provenance attestation
     outputs:
       version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      hashes: ${{ steps.meta.outputs.hashes }}
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -219,7 +221,11 @@ jobs:
         run: |
           set -euo pipefail
           echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
           (cd artifacts && cat ./*.tar.gz.sha256 | sort > SHA256SUMS)
+          # Subjects for the SLSA generator job below — sha256 of every
+          # shipped tarball, base64 one-line, per the generator contract.
+          echo "hashes=$(cd artifacts && sha256sum nika-*.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
           {
             echo "## Checksums"
             echo '```'
@@ -243,6 +249,27 @@ jobs:
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: 'artifacts/nika-*.tar.gz'
+
+  provenance:
+    # The scorecard-visible provenance: this reusable workflow builds and
+    # UPLOADS `multiple.intoto.jsonl` as a release asset. The native
+    # attest-build-provenance step above stays (gh attestation verify) but
+    # scorecard's Signed-Releases probe only reads release ASSET NAMES
+    # (ossf/scorecard#4080) — the .intoto.jsonl asset is what scores.
+    # Tag pin is the generator's own hard requirement (its internal
+    # verifier refuses SHA refs) — the one documented exception to the
+    # SHA-pin law; scorecard's Pinned-Dependencies knows this exception.
+    name: slsa provenance (intoto asset)
+    needs: release
+    permissions:
+      actions: read # read the workflow run for provenance
+      id-token: write # sign the provenance (Sigstore OIDC)
+      contents: write # upload the .intoto.jsonl asset to the release
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.release.outputs.hashes }}
+      upload-assets: true
+      upload-tag-name: ${{ needs.release.outputs.tag }}
 
   bump-formula:
     name: bump homebrew tap
