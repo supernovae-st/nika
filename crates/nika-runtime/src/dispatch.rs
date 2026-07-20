@@ -30,6 +30,7 @@ use crate::Runtime;
 use crate::errors::RuntimeError;
 
 mod permits;
+mod sandbox;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 
@@ -418,6 +419,23 @@ where
         }
     }
 
+    /// ADR-095 Layer 6 — the OS-confinement spec from the declared
+    /// boundary (the `dispatch/sandbox.rs` derivation · `None` = the
+    /// unconfined floor: no `permits:` block).
+    fn exec_sandbox_spec(
+        &self,
+        permits: Option<&nika_schema::types::Permits>,
+    ) -> Option<nika_kernel::process::SandboxSpec> {
+        let permits = permits?;
+        let root = self
+            .config
+            .sandbox_root
+            .clone()
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_default();
+        Some(sandbox::spec_of(permits, &root))
+    }
+
     async fn dispatch_shell(
         &self,
         action: &nika_schema::raw::RawExecAction,
@@ -459,6 +477,10 @@ where
         if let Some(denial) = check_exec_permits(scope.permits, &note, &program, is_argv) {
             return denial;
         }
+
+        // ADR-095 Layer 6 · the OS jail rides the SAME declared boundary
+        // (no `permits:` block = today's unconfined floor).
+        input.sandbox = self.exec_sandbox_spec(scope.permits);
 
         match self.shell.run(input).await {
             Ok(out) => {

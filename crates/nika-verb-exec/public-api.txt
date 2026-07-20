@@ -164,6 +164,7 @@ pub nika_verb_exec::ExecInput::command: nika_verb_exec::ExecCommand
 pub nika_verb_exec::ExecInput::cwd: core::option::Option<std::path::PathBuf>
 pub nika_verb_exec::ExecInput::env: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_verb_exec::ExecInput::raw_capture: bool
+pub nika_verb_exec::ExecInput::sandbox: core::option::Option<nika_kernel_core::io::process::SandboxSpec>
 pub nika_verb_exec::ExecInput::stdin: core::option::Option<alloc::string::String>
 pub nika_verb_exec::ExecInput::timeout: core::option::Option<core::time::Duration>
 impl nika_verb_exec::ExecInput

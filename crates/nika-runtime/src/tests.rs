@@ -72,6 +72,103 @@ impl EventSink for NotifyOnFastSettle {
 /// frames reach the sink at ITS settle, not the wave join. Proof by
 /// construction: `gate` (same wave, declared after `fast`) BLOCKS until
 /// the sink has seen fast's `task_completed` — join-granularity frames
+/// ADR-095 Layer 6 — a declared boundary attaches the OS-confinement
+/// spec to every exec child (grants absolutized at the config root ·
+/// network denied unless `net.http` lifts it).
+#[tokio::test]
+async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    let yaml = "nika: v1\nworkflow:\n  id: jail\npermits:\n  fs: { read: [\"./data/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+    let shell = MockShell::new().enqueue_ok("ok");
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(shell.clone())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default().with_sandbox_root(std::path::PathBuf::from("/repo")),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    let sent = shell.executed_commands();
+    assert_eq!(sent.len(), 1);
+    let spec = sent[0]
+        .sandbox
+        .as_ref()
+        .expect("a declared boundary attaches the spec");
+    assert_eq!(spec.fs_read, vec!["/repo/data/**".to_owned()]);
+    assert_eq!(spec.fs_write, vec!["/repo/out/**".to_owned()]);
+    assert!(!spec.allow_network, "no net.http = the deny holds");
+}
+
+/// No `permits:` block = today's unconfined floor (the blocklist only —
+/// the sandbox spec stays unset, so the noop-backend world is unchanged).
+#[tokio::test]
+async fn no_declared_boundary_attaches_no_spec() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+    let shell = MockShell::new().enqueue_ok("ok");
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(shell.clone())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    let sent = shell.executed_commands();
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].sandbox.is_none(), "no boundary = no spec attached");
+}
+
 /// would starve it forever (they'd only exist after gate itself
 /// finished); the streamed spine settles fast first and unblocks the
 /// wave. A 5s timeout turns a regression into a loud failure, never a

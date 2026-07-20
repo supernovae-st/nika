@@ -164,6 +164,49 @@ pub fn nika_runtime::child::ChildRunSummary::as_any(&self) -> &(dyn core::any::A
 pub const nika_runtime::child::MAX_RUN_DEPTH: u32
 pub trait nika_runtime::child::ChildRunner: core::marker::Send + core::marker::Sync
 pub fn nika_runtime::child::ChildRunner::run_child<'a>(&'a self, call: nika_runtime::child::ChildCall) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_runtime::child::ChildOutcome, nika_runtime::child::ChildRunRefusal>> + 'a)>>
+pub mod nika_runtime::config
+#[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
+pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
+pub nika_runtime::config::RuntimeConfig::max_cost_usd: core::option::Option<f64>
+pub nika_runtime::config::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
+pub nika_runtime::config::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
+impl nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
+impl core::clone::Clone for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::clone(&self) -> nika_runtime::config::RuntimeConfig
+impl core::default::Default for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::default() -> Self
+impl core::fmt::Debug for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::config::RuntimeConfig
+impl<T, U> core::convert::Into<U> for nika_runtime::config::RuntimeConfig where U: core::convert::From<T>
+pub fn nika_runtime::config::RuntimeConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::config::RuntimeConfig where U: core::convert::Into<T>
+pub type nika_runtime::config::RuntimeConfig::Error = core::convert::Infallible
+pub fn nika_runtime::config::RuntimeConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::config::RuntimeConfig where U: core::convert::TryFrom<T>
+pub type nika_runtime::config::RuntimeConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::config::RuntimeConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::config::RuntimeConfig where T: core::clone::Clone
+pub type nika_runtime::config::RuntimeConfig::Owned = T
+pub fn nika_runtime::config::RuntimeConfig::clone_into(&self, target: &mut T)
+pub fn nika_runtime::config::RuntimeConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::config::RuntimeConfig where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::config::RuntimeConfig where T: ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::config::RuntimeConfig where T: ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::config::RuntimeConfig where T: core::clone::Clone
+pub unsafe fn nika_runtime::config::RuntimeConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::config::RuntimeConfig where T: core::clone::Clone
+pub fn nika_runtime::config::RuntimeConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::config::RuntimeConfig where T: 'static
+pub fn nika_runtime::config::RuntimeConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_runtime::proof
 pub mod nika_runtime::proof::ir
 #[non_exhaustive] pub struct nika_runtime::proof::ir::WorkflowProof
@@ -742,7 +785,7 @@ pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
-pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::RuntimeConfig) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
@@ -778,43 +821,45 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::as_any(&self) -> &(dyn core::any
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
+pub nika_runtime::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
 pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
-impl nika_runtime::RuntimeConfig
-pub fn nika_runtime::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
-pub fn nika_runtime::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
-impl core::clone::Clone for nika_runtime::RuntimeConfig
-pub fn nika_runtime::RuntimeConfig::clone(&self) -> nika_runtime::RuntimeConfig
-impl core::default::Default for nika_runtime::RuntimeConfig
-pub fn nika_runtime::RuntimeConfig::default() -> Self
-impl core::fmt::Debug for nika_runtime::RuntimeConfig
-pub fn nika_runtime::RuntimeConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_runtime::RuntimeConfig
-impl<T, U> core::convert::Into<U> for nika_runtime::RuntimeConfig where U: core::convert::From<T>
-pub fn nika_runtime::RuntimeConfig::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::RuntimeConfig where U: core::convert::Into<T>
-pub type nika_runtime::RuntimeConfig::Error = core::convert::Infallible
-pub fn nika_runtime::RuntimeConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::RuntimeConfig where U: core::convert::TryFrom<T>
-pub type nika_runtime::RuntimeConfig::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::RuntimeConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_runtime::RuntimeConfig where T: core::clone::Clone
-pub type nika_runtime::RuntimeConfig::Owned = T
-pub fn nika_runtime::RuntimeConfig::clone_into(&self, target: &mut T)
-pub fn nika_runtime::RuntimeConfig::to_owned(&self) -> T
-impl<T> core::any::Any for nika_runtime::RuntimeConfig where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::RuntimeConfig::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::RuntimeConfig where T: ?core::marker::Sized
-pub fn nika_runtime::RuntimeConfig::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::RuntimeConfig where T: ?core::marker::Sized
-pub fn nika_runtime::RuntimeConfig::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_runtime::RuntimeConfig where T: core::clone::Clone
-pub unsafe fn nika_runtime::RuntimeConfig::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_runtime::RuntimeConfig
-pub fn nika_runtime::RuntimeConfig::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_runtime::RuntimeConfig where T: core::clone::Clone
-pub fn nika_runtime::RuntimeConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_runtime::RuntimeConfig where T: 'static
-pub fn nika_runtime::RuntimeConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
+impl core::clone::Clone for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::clone(&self) -> nika_runtime::config::RuntimeConfig
+impl core::default::Default for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::default() -> Self
+impl core::fmt::Debug for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::config::RuntimeConfig
+impl<T, U> core::convert::Into<U> for nika_runtime::config::RuntimeConfig where U: core::convert::From<T>
+pub fn nika_runtime::config::RuntimeConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::config::RuntimeConfig where U: core::convert::Into<T>
+pub type nika_runtime::config::RuntimeConfig::Error = core::convert::Infallible
+pub fn nika_runtime::config::RuntimeConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::config::RuntimeConfig where U: core::convert::TryFrom<T>
+pub type nika_runtime::config::RuntimeConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::config::RuntimeConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::config::RuntimeConfig where T: core::clone::Clone
+pub type nika_runtime::config::RuntimeConfig::Owned = T
+pub fn nika_runtime::config::RuntimeConfig::clone_into(&self, target: &mut T)
+pub fn nika_runtime::config::RuntimeConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::config::RuntimeConfig where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::config::RuntimeConfig where T: ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::config::RuntimeConfig where T: ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::config::RuntimeConfig where T: core::clone::Clone
+pub unsafe fn nika_runtime::config::RuntimeConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::config::RuntimeConfig
+pub fn nika_runtime::config::RuntimeConfig::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::config::RuntimeConfig where T: core::clone::Clone
+pub fn nika_runtime::config::RuntimeConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::config::RuntimeConfig where T: 'static
+pub fn nika_runtime::config::RuntimeConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_runtime::SecretResolveError
 pub nika_runtime::SecretResolveError::name: alloc::string::String
 pub nika_runtime::SecretResolveError::reason: alloc::string::String

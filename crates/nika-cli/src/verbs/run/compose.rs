@@ -539,6 +539,9 @@ pub struct RuntimeCapabilities {
     pub fs: FsBoundary,
     /// `permits.net.http` → the fetch client's boundary (`NIKA-SEC-004` · per-hop).
     pub net: NetBoundary,
+    /// The workflow runs ≥1 `exec:` task — the noop-sandbox note reads it
+    /// (a boundary with no exec has nothing to jail, so nothing to note).
+    pub exec_tasks: bool,
 }
 
 /// Derive BOTH runtime capability boundaries from a parsed workflow — the
@@ -549,7 +552,28 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
     RuntimeCapabilities {
         fs: fs_boundary_of(wf),
         net: net_boundary_of(wf),
+        exec_tasks: wf
+            .tasks
+            .iter()
+            .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
     }
+}
+
+/// The OS command sandbox for this platform (ADR-095 Layer 6): macOS rides
+/// Seatbelt, Linux rides bubblewrap when the launcher is present, anything
+/// else is the deliberate [`nika_kernel::command_sandbox::NoopSandbox`] —
+/// selected HERE, logged at the call site, never the silent default (the
+/// kernel seam's own law).
+fn command_sandbox() -> Arc<dyn nika_kernel::command_sandbox::CommandSandbox> {
+    #[cfg(target_os = "macos")]
+    if nika_sandbox_seatbelt::SeatbeltSandbox::available() {
+        return Arc::new(nika_sandbox_seatbelt::SeatbeltSandbox::new());
+    }
+    #[cfg(target_os = "linux")]
+    if nika_sandbox_landlock::LandlockSandbox::available() {
+        return Arc::new(nika_sandbox_landlock::LandlockSandbox::new());
+    }
+    Arc::new(nika_kernel::command_sandbox::NoopSandbox)
 }
 
 /// The provider client's transport ceiling — `HttpConfig::timeout` on the
@@ -675,6 +699,17 @@ pub fn production_runtime(
     default_model: &str,
     caps: RuntimeCapabilities,
 ) -> Result<ProdRuntime, nika_kernel::HttpError> {
+    // The OS sandbox for exec children (ADR-095 Layer 6) — selected once:
+    // the note AND the shell read the same backend. A declared boundary
+    // with exec tasks but no backend on this platform = the exec child
+    // runs unconfined; the builtin/fetch seams still enforce, said loudly.
+    let sandbox = command_sandbox();
+    if caps.exec_tasks && caps.fs.is_declared() && sandbox.backend() == "noop" {
+        eprintln!(
+            "note: exec runs UNCONFINED (no OS sandbox backend on this platform) — the \
+             declared boundary still gates fs/net at the builtin and fetch seams"
+        );
+    }
     // The fetch/builtin client enforces SSRF (workflow URLs) AND the
     // declared permits.net.http boundary (NIKA-SEC-004 · per-hop).
     let http = Arc::new(fetch_http(caps.net)?);
@@ -726,7 +761,7 @@ pub fn production_runtime(
 
     Ok(Runtime::new(
         ExecVerb::new(Arc::new(
-            TokioShell::new().with_ambient_secret_env(provider_secret_env),
+            TokioShell::with_sandbox(sandbox).with_ambient_secret_env(provider_secret_env),
         )),
         Arc::clone(&invoke),
         InferVerb::new(registry, default_model),
@@ -737,7 +772,7 @@ pub fn production_runtime(
             default_model,
         ),
         SystemClock,
-        RuntimeConfig::default(),
+        RuntimeConfig::default().with_sandbox_root(std::env::current_dir().unwrap_or_default()),
     )
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
@@ -874,6 +909,7 @@ mod tests {
             RuntimeCapabilities {
                 fs: FsBoundary::unbounded(),
                 net: NetBoundary::Unbounded,
+                exec_tasks: false,
             },
         );
         assert!(
