@@ -19,6 +19,16 @@
 //! resolved values live in the [`Scope`](crate::expr::Scope)'s `secrets`
 //! map for the duration of the run and are dropped with it.
 //!
+//! The "never written" half is enforced DYNAMICALLY (S1 · journal
+//! hygiene): the IFC sees declared flows, not a value that surfaces
+//! through a side channel — an `exec` that cats a file-sourced secret,
+//! an mcp tool that echoes its input. Such a value lands in a task's
+//! OUTPUT and would ride the terminal frame's `outcome`/`output`
+//! payload into `.nika/traces/*.ndjson` in plaintext. [`RedactingSink`]
+//! wraps the run's ONE sink seam and rewrites every occurrence of a
+//! resolved value to [`REDACTED`] before any lane (journal · `--json` ·
+//! the live fold) sees the event.
+//!
 //! ## Fail-closed
 //!
 //! A reference that does not resolve (env var unset · file missing) is
@@ -30,10 +40,15 @@
 //! omission only bites a reference) — the same posture as today, where every
 //! `secrets.X` was unresolved.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use nika_event::Event;
 use nika_schema::types::{SecretRef, SecretSource};
+use nika_types::resource::Value as FieldValue;
 use serde_json::Value;
+
+use crate::EventSink;
 
 /// Resolve a workflow `secrets:` reference into its value.
 ///
@@ -128,6 +143,113 @@ pub fn source_is_runtime_resolvable(source: SecretSource) -> bool {
     matches!(source, SecretSource::Env | SecretSource::File)
 }
 
+// ─────────────────────── S1 · journal hygiene ───────────────────────
+
+/// The redaction marker — a resolved secret value that reaches an event
+/// payload is rewritten to these exact bytes. Fixed width: the marker
+/// must not encode anything about the value it hides, not even a length.
+pub(crate) const REDACTED: &str = "***";
+
+/// The scan floor — resolved values SHORTER than this never join the
+/// scrub set. A short needle over-redacts: a handful of characters rides
+/// inside hashes · ids · ordinary words, so scrubbing it would mangle the
+/// journal without buying safety (and a value that small was brute-force
+/// territory anyway). The static IFC + fail-closed resolution stay the
+/// real boundary — this scrub is the dynamic-flow backstop, not the wall.
+const REDACT_FLOOR: usize = 8;
+
+/// The dynamic-flow backstop (S1). The static IFC sanctions every
+/// DECLARED secret flow; it cannot see a value that reaches a task's
+/// output through a side channel (an `exec` catting a file-sourced
+/// secret · an mcp tool echoing its input), and the terminal frame's
+/// `outcome`/`output` payloads would carry that value into the journal
+/// in plaintext. The runtime knows the resolved map, so the run's ONE
+/// sink seam is wrapped and every event's string fields are scrubbed
+/// before any lane (journal · `--json` · the live fold) sees them.
+pub(crate) struct RedactingSink<'a> {
+    /// The lane this scrub rides (the run verb's whole tee in production).
+    inner: &'a mut dyn EventSink,
+    /// (raw · json-escaped) needle pairs, deduped — empty on the common
+    /// no-secrets run, where emit is a zero-cost forward. The escaped
+    /// form catches the value INSIDE a payload that carries serialized
+    /// JSON text (the `outcome`/`output` fields), where it appears
+    /// escaped.
+    needles: Vec<(String, String)>,
+}
+
+impl<'a> RedactingSink<'a> {
+    /// Wrap the run's sink with the scrub set derived from the RESOLVED
+    /// secrets map (the same map the run's [`Scope`](crate::expr::Scope)
+    /// binds).
+    pub(crate) fn new(inner: &'a mut dyn EventSink, resolved: &BTreeMap<String, Value>) -> Self {
+        let needles = resolved
+            .values()
+            .filter_map(|v| match v {
+                Value::String(s) if s.len() >= REDACT_FLOOR => Some(s.clone()),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>() // two secrets may share a value
+            .into_iter()
+            .map(|raw| {
+                let escaped = json_escaped(&raw);
+                (raw, escaped)
+            })
+            .collect();
+        Self { inner, needles }
+    }
+
+    /// Rewrite every needle occurrence in `text` to the marker — the
+    /// escaped form first (when the pair differs it is the more specific
+    /// needle), then the raw bytes. Borrowed when nothing matched (the
+    /// common field), owned only on a hit.
+    fn scrub<'t>(&self, text: &'t str) -> Cow<'t, str> {
+        let mut out = Cow::Borrowed(text);
+        for (raw, escaped) in &self.needles {
+            if out.contains(escaped.as_str()) {
+                out = Cow::Owned(out.replace(escaped.as_str(), REDACTED));
+            }
+            if raw != escaped && out.contains(raw.as_str()) {
+                out = Cow::Owned(out.replace(raw.as_str(), REDACTED));
+            }
+        }
+        out
+    }
+}
+
+impl EventSink for RedactingSink<'_> {
+    fn emit(&mut self, mut event: Event) {
+        if !self.needles.is_empty() {
+            for kv in &mut event.fields {
+                // Only a String field can carry a value (the enum's other
+                // arms are numbers/bools) — and the marker swaps whole
+                // bytes, never the field's shape.
+                if let FieldValue::String(text) = &mut kv.value
+                    && let Cow::Owned(scrubbed) = self.scrub(text)
+                {
+                    *text = scrubbed;
+                }
+            }
+        }
+        self.inner.emit(event);
+    }
+}
+
+/// The value as it appears INSIDE a serialized JSON text (the shape the
+/// `outcome`/`output` payload fields carry): its JSON string literal
+/// minus the quotes. Serializing a String is infallible in practice — a
+/// failure degrades to the raw form (the scrub stays total, never
+/// panics).
+fn json_escaped(raw: &str) -> String {
+    match serde_json::to_string(raw) {
+        Ok(quoted) => quoted
+            .strip_prefix('"')
+            .and_then(|q| q.strip_suffix('"'))
+            .unwrap_or(&quoted)
+            .to_owned(),
+        Err(_) => raw.to_owned(),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
@@ -211,5 +333,121 @@ mod tests {
         assert!(source_is_runtime_resolvable(SecretSource::Env));
         assert!(source_is_runtime_resolvable(SecretSource::File));
         assert!(!source_is_runtime_resolvable(SecretSource::Vault));
+    }
+
+    // ───────────────── S1 · the redaction seam ─────────────────
+
+    use nika_event::{Event, EventKind};
+    use nika_types::id::EventId;
+    use nika_types::resource::KeyValue;
+    use nika_types::timestamp::Timestamp;
+
+    /// One terminal-shaped event whose `outcome` field carries `payload`
+    /// verbatim — the frame the journal-mirror test pins semantically.
+    fn outcome_event(payload: &str) -> Event {
+        Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            EventKind::TaskCompleted,
+        )
+        .with_field(KeyValue::new(
+            "outcome",
+            FieldValue::String(payload.to_owned()),
+        ))
+        .with_field(KeyValue::new("tokens", FieldValue::Int(7)))
+    }
+
+    fn resolved(secret: &str) -> BTreeMap<String, Value> {
+        BTreeMap::from([("tok".to_owned(), Value::String(secret.to_owned()))])
+    }
+
+    /// Drive one event through the scrub and return the collected stream.
+    fn scrubbed(secret: &str, event: Event) -> Vec<Event> {
+        let mut inner = crate::VecSink::new();
+        {
+            let mut sink = RedactingSink::new(&mut inner, &resolved(secret));
+            sink.emit(event);
+        }
+        inner.into_events()
+    }
+
+    fn outcome_of(event: &Event) -> &str {
+        event
+            .fields
+            .iter()
+            .find(|kv| kv.key == "outcome")
+            .and_then(|kv| match &kv.value {
+                FieldValue::String(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .expect("the outcome field rides")
+    }
+
+    /// The audit's leak: a resolved value surfaced inside a task output
+    /// and rides the terminal frame's JSON-text payload — the scrub
+    /// rewrites it to the marker, leaving the payload valid JSON.
+    #[test]
+    fn redacting_sink_rewrites_a_raw_occurrence() {
+        let secret = "sk-live-9f2c7e4a1b6d";
+        let events = scrubbed(secret, outcome_event(&format!("echo {secret} done")));
+        let outcome = outcome_of(&events[0]);
+        assert!(!outcome.contains(secret), "the value is gone: {outcome}");
+        assert!(outcome.contains(REDACTED), "the marker stands: {outcome}");
+        // Non-string fields are never touched (numbers stay numbers).
+        assert!(
+            events[0]
+                .fields
+                .iter()
+                .any(|kv| kv.key == "tokens" && kv.value == FieldValue::Int(7)),
+            "a numeric field is out of the scrub's scope"
+        );
+    }
+
+    /// The double-encoded case: inside a payload that carries serialized
+    /// JSON text, the value appears ESCAPED — the escaped needle is the
+    /// one that bites, and the payload stays parseable afterwards.
+    #[test]
+    fn redacting_sink_rewrites_the_json_escaped_form() {
+        let secret = "ab\"cd1234"; // ≥ the floor · carries a quote
+        let payload = serde_json::json!({"class": "ok", "value": secret}).to_string();
+        let events = scrubbed(secret, outcome_event(&payload));
+        let outcome = outcome_of(&events[0]);
+        assert!(
+            !outcome.contains("ab\\\"cd1234") && !outcome.contains(secret),
+            "neither the escaped nor the raw form survives: {outcome}"
+        );
+        let parsed: serde_json::Value =
+            serde_json::from_str(outcome).expect("the payload stays valid JSON");
+        assert_eq!(parsed["value"], serde_json::json!(REDACTED));
+    }
+
+    /// The floor: a value shorter than 8 chars never joins the scrub set
+    /// (a short needle would redact the world — see `REDACT_FLOOR`), so it
+    /// rides through untouched.
+    #[test]
+    fn redacting_sink_skips_values_under_the_floor() {
+        let secret = "short7!";
+        let events = scrubbed(secret, outcome_event(&format!("echo {secret}")));
+        assert!(
+            outcome_of(&events[0]).contains(secret),
+            "under the floor the field is left alone"
+        );
+    }
+
+    /// No declared secrets (the common run): the event crosses the seam
+    /// byte-unchanged.
+    #[test]
+    fn redacting_sink_without_secrets_is_a_passthrough() {
+        let event = outcome_event("echo sk-live-9f2c7e4a1b6d done");
+        let mut inner = crate::VecSink::new();
+        {
+            let mut sink = RedactingSink::new(&mut inner, &BTreeMap::new());
+            sink.emit(event.clone());
+        }
+        assert_eq!(
+            inner.into_events(),
+            vec![event],
+            "zero needles · zero rewrites"
+        );
     }
 }

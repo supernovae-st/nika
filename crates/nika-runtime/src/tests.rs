@@ -142,6 +142,111 @@ async fn wave_settles_stream_before_the_join() {
     assert_eq!(completed, ["fast", "gate"], "the ordered spine holds");
 }
 
+/// S1 journal hygiene — the dynamic-flow backstop, end to end: an exec
+/// ECHOES a resolved secret (the static IFC sanctioned the declared
+/// flow; a file-sourced `cat` or an mcp echo takes the same dynamic
+/// path), so the value lands in the task's OUTPUT and would ride the
+/// terminal frame's `outcome` payload into the journal in plaintext.
+/// The stream every lane mirrors must carry the marker, never the
+/// value.
+#[tokio::test]
+async fn resolved_secret_is_scrubbed_from_the_event_stream() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    /// The composer's resolver, scripted (one env-sourced value).
+    struct MapResolver(&'static str, &'static str);
+    impl WorkflowSecretResolver for MapResolver {
+        fn resolve(
+            &self,
+            name: &str,
+            _reference: &nika_schema::types::SecretRef,
+        ) -> Result<String, SecretResolveError> {
+            if name == self.0 {
+                Ok(self.1.to_owned())
+            } else {
+                Err(SecretResolveError {
+                    name: name.to_owned(),
+                    reason: "absent".to_owned(),
+                })
+            }
+        }
+    }
+
+    const SECRET: &str = "sk-live-9f2c7e4a1b6d"; // ≥ the 8-char scrub floor
+    // The leak is DYNAMIC by construction: argv carries no `${{ secrets.X }}`
+    // (the static IFC sees nothing to sanction — the report is clean), and
+    // the shell mock's OUTPUT is the secret value — the same bytes a
+    // file-sourced `cat` or an mcp echo would surface. What the scrub must
+    // catch is the value, wherever it came from.
+    let yaml = "nika: v1\nworkflow:\n  id: journal-hygiene\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new().enqueue_ok(SECRET))),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    )
+    .with_secret_resolver(Arc::new(MapResolver("tok", SECRET)));
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    assert!(outcome.ok, "the workflow itself succeeds");
+
+    // The journal mirrors this stream byte-for-byte (plus its `chain`
+    // key) — serialize the way the NDJSON lanes do.
+    let bytes = sink
+        .events()
+        .iter()
+        .map(|e| serde_json::to_string(e).expect("event serializes"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !bytes.contains(SECRET),
+        "no event carries the resolved value: {bytes}"
+    );
+    assert!(
+        bytes.contains(secret::REDACTED),
+        "the marker stands where the value surfaced: {bytes}"
+    );
+    // And precisely: the terminal frame's `outcome` payload — the leak
+    // vector the audit named — carries the marker, not the plaintext.
+    let outcome_field = sink
+        .events()
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .and_then(|e| e.fields.iter().find(|kv| kv.key == "outcome"))
+        .and_then(|kv| match &kv.value {
+            FieldValue::String(s) => Some(s.as_str()),
+            _ => None,
+        })
+        .expect("a terminal frame carries its outcome");
+    assert!(outcome_field.contains(secret::REDACTED), "{outcome_field}");
+    assert!(!outcome_field.contains(SECRET), "{outcome_field}");
+}
+
 #[test]
 fn runtime_config_default_is_wave_width_seed_zero() {
     let cfg = RuntimeConfig::default();
