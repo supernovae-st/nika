@@ -1258,7 +1258,7 @@ pub(super) fn surface_trace(
     // fsync; additive — an absent key leaves the journal as today.
     let mut sealed = false;
     if let Some(hash) = workflow_hash
-        && let Some((sk, pk_box)) = crate::seal::load_secret_key()
+        && let Some((sk, pk_box)) = crate::seal::load_signing_key()
         && let Some(ev) = crate::seal::seal_event(
             EventId::generate(),
             Timestamp::from_unix_ms(now_millis()),

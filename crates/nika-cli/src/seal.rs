@@ -102,7 +102,7 @@ pub(crate) fn fingerprint(pubkey_box: &str) -> String {
 
 /// The signing half of the run-key, when one exists on this machine
 /// (keychain first · the 0600 fallback file second).
-pub(crate) fn load_secret_key() -> Option<(minisign::SecretKey, String)> {
+pub(crate) fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
     // An explicit key file wins (CI injects keys this way · hermetic tests
     // too — the OS keychain is never the only door).
     if let (Ok(kf), Ok(pf)) = (
@@ -148,7 +148,7 @@ fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, Stri
 /// generation/storage fails (keychain unavailable AND the 0600 fallback
 /// unwritable).
 pub fn key_init(force: bool) -> Result<String, String> {
-    if load_secret_key().is_some() && !force {
+    if load_signing_key().is_some() && !force {
         return Err(
             "a run-signing key already exists — `nika key trust` prints it, `--force` rotates it"
                 .to_owned(),
@@ -159,7 +159,7 @@ pub fn key_init(force: bool) -> Result<String, String> {
     let sk_box = pair
         .sk
         .to_box(None)
-        .map_err(|e| format!("cannot box the secret key: {e}"))?
+        .map_err(|e| format!("cannot box the signing key: {e}"))?
         .to_string();
     let pk_box = pair
         .pk
@@ -168,14 +168,14 @@ pub fn key_init(force: bool) -> Result<String, String> {
         .to_string()
         .trim()
         .to_owned();
-    store_secret_box(&sk_box, &pk_box)?;
+    store_key_boxes(&sk_box, &pk_box)?;
     Ok(fingerprint(&pk_box))
 }
 
 /// `nika key trust` — the public key + fingerprint to enroll elsewhere.
 #[must_use]
 pub fn key_trust() -> Option<(String, String)> {
-    let (_, pk_box) = load_secret_key()?;
+    let (_, pk_box) = load_signing_key()?;
     Some((pk_box.clone(), fingerprint(&pk_box)))
 }
 
@@ -188,7 +188,7 @@ pub fn key_trust() -> Option<(String, String)> {
 /// A refusal string when no key exists to rotate, or when the ledger or
 /// the new key cannot be written.
 pub fn key_rotate() -> Result<String, String> {
-    let (_, old_pk) = load_secret_key()
+    let (_, old_pk) = load_signing_key()
         .ok_or_else(|| "no run-signing key to rotate — `nika key init` first".to_owned())?;
     if let Some(path) = retired_path() {
         if let Some(parent) = path.parent() {
@@ -207,7 +207,7 @@ pub fn key_rotate() -> Result<String, String> {
 
 /// Store both boxes — the env override first (init writes where load
 /// reads), then the keychain, then the 0600 files as fallback.
-fn store_secret_box(sk_box: &str, pk_box: &str) -> Result<(), String> {
+fn store_key_boxes(sk_box: &str, pk_box: &str) -> Result<(), String> {
     if let (Ok(kf), Ok(pf)) = (
         key_file_env("NIKA_RUN_KEY_FILE"),
         key_file_env("NIKA_RUN_PUB_FILE"),
