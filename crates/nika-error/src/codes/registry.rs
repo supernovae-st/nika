@@ -794,6 +794,16 @@ pub const NIKA_1706: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "runtime-contract-violation",
 };
+/// NIKA-1707: The report's boundary lanes do not match the workflow
+/// bytes — the run-start re-derivation (permits-fit · trifecta) found
+/// something a clean report was credited with not having (audit-before-
+/// run violated · a clean report over DIFFERENT bytes is not clean).
+pub const NIKA_1707: NikaCode = NikaCode {
+    num: 1707,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-report-mismatch",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -820,5 +830,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305,
     NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502,
     NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
-    NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706,
+    NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706, NIKA_1707,
 ];

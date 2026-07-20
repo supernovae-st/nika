@@ -2,9 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The lethal-trifecta lane (NEP-0002 · `NIKA-SEC-009`) — needle-thin BY
-//! DESIGN (the [`super::policy`] precedent): this module only PROJECTS the
+//! DESIGN (the `super::policy` precedent): this module only PROJECTS the
 //! workflow; the pure judge lives in `nika-cap`, the realized-flow facts
-//! come from [`super::content_flow`].
+//! come from `super::content_flow`.
 //!
 //! - **egress-capable** = `exec:` · `invoke:` with a net/fs-write effect
 //!   (the ONE effect table) · `mcp:` (fail-closed) · `agent:` whose
@@ -23,7 +23,8 @@ use crate::source::Spanned;
 /// Judge the trifecta over the derived graph. Empty unless the workflow
 /// declares `permits:` AND the trifecta legs all hold AND an egress-capable
 /// task the untrusted content reaches escapes gate dominance.
-pub(super) fn scan_trifecta(
+#[must_use]
+pub fn scan_trifecta(
     wf: &RawWorkflow,
     edges: &[Edge],
     topo_waves: &[Vec<usize>],

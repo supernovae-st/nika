@@ -13,7 +13,11 @@
 //! ## Invariants
 //!
 //! - **Audit-before-run** · a dirty [`CheckReport`] is `NIKA-1700` ·
-//!   never executes (spec §3).
+//!   never executes (spec §3). Under a declared `permits:` block the
+//!   report must also MATCH the workflow bytes — the run-start boundary
+//!   re-derivation (permits-fit · trifecta) refuses a hand-built clean
+//!   report with `NIKA-1707` (the fail-closed backstop for library
+//!   embedders · the CLI re-checks right before run and never needs it).
 //! - **INV-024** · the runtime is the ONE emission site per verb path ·
 //!   the verbs stay event-free.
 //! - **Schedule is the checker's** · [`CheckReport::waves`] is executed
@@ -58,6 +62,7 @@ mod retry;
 mod secret;
 mod stamp;
 mod task;
+mod trust;
 mod workflow_call;
 
 use std::collections::BTreeMap;
@@ -516,6 +521,10 @@ where
     /// # Errors
     ///
     /// [`RuntimeError::DirtyReport`] (NIKA-1700) · audit-before-run ·
+    /// [`RuntimeError::ReportMismatch`] (NIKA-1707) · the report's
+    /// boundary lanes do not match the workflow bytes (re-derived at run
+    /// start under a declared `permits:` block — a clean report over
+    /// different bytes is not clean) ·
     /// [`RuntimeError::WaveOutOfBounds`] (NIKA-1701) · schedule breach.
     /// Expression failures (NIKA-1702/1703) fail the TASK (cascade) ·
     /// they never abort the run.
@@ -526,9 +535,7 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
-        if !report.is_clean() {
-            return Err(RuntimeError::DirtyReport);
-        }
+        trust::check_report(wf, report)?;
         let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
         // Secrets resolve ONCE at run start (MINOR-B · a miss stays
         // unbound → NIKA-1702, fail-closed); the sink gets the redaction

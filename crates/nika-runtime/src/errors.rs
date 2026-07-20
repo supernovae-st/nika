@@ -22,6 +22,23 @@ pub enum RuntimeError {
     #[diagnostic(code(nika::runtime::dirty_report))]
     DirtyReport,
 
+    /// NIKA-1707 · the report's boundary lanes do not match the workflow
+    /// bytes — the run-start re-derivation (the PURE permits-fit +
+    /// trifecta lanes, re-run over the bytes) found something a clean
+    /// report was credited with not having. The fail-closed backstop for
+    /// LIBRARY embedders (the CLI re-checks right before run and never
+    /// needs it): a clean report over DIFFERENT bytes is not clean.
+    #[error(
+        "NIKA-1707 · audit-before-run violated · the CheckReport does not match the workflow \
+         bytes — re-check the file ({detail})"
+    )]
+    #[diagnostic(code(nika::runtime::report_mismatch))]
+    ReportMismatch {
+        /// What the re-derived boundary names (bounded — the full lanes
+        /// are one `nika check` away).
+        detail: String,
+    },
+
     /// NIKA-1701 · a wave referenced a task index outside the workflow
     /// (the checker/runtime schedule contract was breached).
     #[error("NIKA-1701 · wave index {index} out of bounds (workflow has {task_count} tasks)")]
@@ -164,9 +181,10 @@ impl RuntimeError {
             // An out-of-subset expression reaching the runtime is NIKA-VAR-005
             // (validation_error · the checker is the primary site).
             Self::WhenUnsupported { .. } => "NIKA-VAR-005".to_owned(),
-            // DirtyReport · WaveOutOfBounds are engine invariant breaches that
-            // abort the run before the task pipeline (never a workflow-visible
-            // record) · their engine-internal code is the only wire form.
+            // DirtyReport · ReportMismatch · WaveOutOfBounds are engine
+            // invariant breaches that abort the run before the task pipeline
+            // (never a workflow-visible record) · their engine-internal code
+            // is the only wire form.
             other => other.nika_code().to_string(),
         }
     }
@@ -223,6 +241,7 @@ impl NikaErrorCode for RuntimeError {
     fn nika_code(&self) -> codes::NikaCode {
         match self {
             Self::DirtyReport => codes::NIKA_1700,
+            Self::ReportMismatch { .. } => codes::NIKA_1707,
             Self::WaveOutOfBounds { .. } => codes::NIKA_1701,
             Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
             // CelEval + OutputBinding are spec-plane evaluation classes ·
@@ -249,9 +268,12 @@ impl NikaErrorCode for RuntimeError {
 mod tests {
     use super::*;
 
-    fn all() -> [RuntimeError; 6] {
+    fn all() -> [RuntimeError; 7] {
         [
             RuntimeError::DirtyReport,
+            RuntimeError::ReportMismatch {
+                detail: "capability escape · task `danger`".into(),
+            },
             RuntimeError::WaveOutOfBounds {
                 index: 9,
                 task_count: 3,
@@ -276,8 +298,27 @@ mod tests {
         let mut nums: Vec<u16> = all().iter().map(|e| e.nika_code().num).collect();
         nums.sort_unstable();
         nums.dedup();
-        assert_eq!(nums.len(), 6, "duplicate code in the 1700 range");
+        assert_eq!(nums.len(), 7, "duplicate code in the 1700 range");
         assert!(nums.iter().all(|n| (1700..1800).contains(n)));
+    }
+
+    #[test]
+    fn report_mismatch_is_the_dirty_reports_twin_class() {
+        // The audit-before-run family: same wire shape as DirtyReport
+        // (engine-internal code-first Display · never transient), the
+        // message TEACHING the repair (re-check the file) and naming
+        // what the re-derived boundary found.
+        let err = RuntimeError::ReportMismatch {
+            detail: "trifecta · task `leak`".into(),
+        };
+        assert_eq!(err.spec_code(), "NIKA-1707");
+        assert_eq!(err.nika_code(), codes::NIKA_1707);
+        let msg = err.to_string();
+        assert!(msg.starts_with("NIKA-1707 · "), "{msg}");
+        assert!(msg.contains("audit-before-run violated"), "{msg}");
+        assert!(msg.contains("re-check the file"), "{msg}");
+        assert!(msg.contains("task `leak`"), "the finding is named: {msg}");
+        assert!(!err.is_transient(), "a forged report never retries");
     }
 
     #[test]
