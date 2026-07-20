@@ -408,6 +408,7 @@ pub fn nika_dap::seal::fingerprint(pubkey_box: &str) -> alloc::string::String
 pub fn nika_dap::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn nika_dap::seal::key_rotate() -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn nika_dap::seal::key_trust() -> core::option::Option<(alloc::string::String, alloc::string::String)>
+pub fn nika_dap::seal::load_public_box() -> core::option::Option<alloc::string::String>
 pub fn nika_dap::seal::load_signing_key() -> core::option::Option<(minisign::secret_key::SecretKey, alloc::string::String)>
 pub fn nika_dap::seal::seal_event(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
 pub mod nika_dap::sign

@@ -144,6 +144,29 @@ fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, Stri
     Some((sk, pk_box.trim().to_owned()))
 }
 
+/// The PUBLIC half of the run-key, when one exists on this machine —
+/// read WITHOUT touching the secret box (least-privilege: `key trust`,
+/// the clobber check and the rotation ledger never decrypt anything).
+/// Same precedence as [`load_signing_key`]: env override, keychain,
+/// 0600 fallback.
+#[must_use]
+pub fn load_public_box() -> Option<String> {
+    if let Ok(pf) = key_file_env("NIKA_RUN_PUB_FILE") {
+        return std::fs::read_to_string(pf)
+            .ok()
+            .map(|s| s.trim().to_owned());
+    }
+    if let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
+        && let Ok(pk_box) = pub_entry.get_password()
+    {
+        return Some(pk_box.trim().to_owned());
+    }
+    let path = fallback_key_path()?.with_extension("pub");
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_owned())
+}
+
 /// `nika key init` — generate + store a run-key (idempotent: refuses to
 /// clobber an existing one without `--force`).
 ///
@@ -153,7 +176,7 @@ fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, Stri
 /// generation/storage fails (keychain unavailable AND the 0600 fallback
 /// unwritable).
 pub fn key_init(force: bool) -> Result<String, String> {
-    if load_signing_key().is_some() && !force {
+    if load_public_box().is_some() && !force {
         return Err(
             "a run-signing key already exists — `nika key trust` prints it, `--force` rotates it"
                 .to_owned(),
@@ -180,7 +203,7 @@ pub fn key_init(force: bool) -> Result<String, String> {
 /// `nika key trust` — the public key + fingerprint to enroll elsewhere.
 #[must_use]
 pub fn key_trust() -> Option<(String, String)> {
-    let (_, pk_box) = load_signing_key()?;
+    let pk_box = load_public_box()?;
     Some((pk_box.clone(), fingerprint(&pk_box)))
 }
 
@@ -193,7 +216,7 @@ pub fn key_trust() -> Option<(String, String)> {
 /// A refusal string when no key exists to rotate, or when the ledger or
 /// the new key cannot be written.
 pub fn key_rotate() -> Result<String, String> {
-    let (_, old_pk) = load_signing_key()
+    let old_pk = load_public_box()
         .ok_or_else(|| "no run-signing key to rotate — `nika key init` first".to_owned())?;
     if let Some(path) = retired_path() {
         if let Some(parent) = path.parent() {
