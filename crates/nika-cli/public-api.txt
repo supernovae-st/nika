@@ -360,6 +360,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::ResumeRequ
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::ResumeRequest
 pub type nika_cli::verbs::run::ResumeRequest::Output = T
 pub struct nika_cli::verbs::run::RuntimeCapabilities
+pub nika_cli::verbs::run::RuntimeCapabilities::exec_tasks: bool
 pub nika_cli::verbs::run::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
 pub nika_cli::verbs::run::RuntimeCapabilities::net: nika_http::NetBoundary
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::RuntimeCapabilities

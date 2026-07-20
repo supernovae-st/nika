@@ -41,6 +41,7 @@
 
 mod agent_events;
 pub mod child;
+pub mod config;
 mod contract;
 mod dispatch;
 mod emit_task;
@@ -81,6 +82,7 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
+pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
@@ -93,49 +95,6 @@ use expr::Scope;
 use task::{Finish, SettleAs};
 
 /// Composer-owned execution knobs (spec §2).
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct RuntimeConfig {
-    /// Per-wave in-flight cap (`for_each` has its own `max_parallel`).
-    /// `None` = wave-width (every wave member in flight at once).
-    pub wave_parallelism: Option<NonZeroUsize>,
-    /// Seed for the retry full-jitter PRNG — pure splitmix64 over
-    /// `(seed, task, attempt)` · replay-stable by construction.
-    pub jitter_seed: u64,
-    /// Operator run budget (`--max-cost-usd`) over METERED spend. Once
-    /// crossed, the run stops admitting new work: in-flight tasks
-    /// complete and count, unstarted ones cancel, the run fails with
-    /// NIKA-1704. `None` = no budget (the default). Unmetered work
-    /// (local · mock · unpriced) can never trip it — the budget bounds
-    /// what the ledger can SEE, said loudly at the preflight.
-    pub max_cost_usd: Option<f64>,
-}
-
-impl RuntimeConfig {
-    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
-    #[must_use]
-    pub fn new(wave_parallelism: Option<NonZeroUsize>, jitter_seed: u64) -> Self {
-        Self {
-            wave_parallelism,
-            jitter_seed,
-            max_cost_usd: None,
-        }
-    }
-
-    /// Attach an operator run budget (builder — `new()` stays stable).
-    #[must_use]
-    pub fn with_max_cost_usd(mut self, budget: Option<f64>) -> Self {
-        self.max_cost_usd = budget;
-        self
-    }
-}
-
-impl Default for RuntimeConfig {
-    fn default() -> Self {
-        Self::new(None, 0)
-    }
-}
-
 /// The run's verdict + the result records (spec §2).
 #[derive(Debug)]
 #[non_exhaustive]
