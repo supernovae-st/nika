@@ -30,6 +30,7 @@
 mod analysis;
 mod certificate;
 mod composition;
+mod content_flow;
 mod cost;
 mod declass;
 mod effective;
@@ -428,12 +429,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     } else {
         Vec::new()
     };
-    // The trifecta lane shares the gating (NEP-0002 · valid DAG + declared
-    // boundary or no claim); the flat topological order drives the
-    // judge's dominance pass.
-    let topo_flat: Vec<usize> = topo_waves.iter().flatten().copied().collect();
+    // The trifecta lane shares the gating (NEP-0002 · valid DAG or no claim).
     let trifecta_findings = if conformance.is_empty() {
-        trifecta::scan_trifecta(wf, &edges, &topo_flat)
+        trifecta::scan_trifecta(wf, &edges, &topo_waves)
     } else {
         Vec::new()
     };

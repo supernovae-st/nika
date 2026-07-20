@@ -3,47 +3,38 @@
 
 //! The lethal-trifecta lane (NEP-0002 · `NIKA-SEC-009`) — needle-thin BY
 //! DESIGN (the [`super::policy`] precedent): this module only PROJECTS the
-//! workflow (declared boundary · per-task egress capability · gate-ness ·
-//! direct parents from the ONE edge derivation); the pure judge lives in
-//! `nika-cap` ([`nika_cap::trifecta_violations`]).
+//! workflow; the pure judge lives in `nika-cap`, the realized-flow facts
+//! come from [`super::content_flow`].
 //!
-//! Projection choices (documented, not silent):
-//! - **egress-capable** = an `exec:` task · an `invoke:` whose builtin
-//!   carries a net or fs-write effect ([`nika_cap::builtin_effect`] — the
-//!   ONE effect table, so this lane and the escape checker cannot drift) ·
-//!   an `mcp:` tool call (server-side effects — the `tools:` grant is the
-//!   boundary, fail-closed) · an `agent:` loop with a non-empty tools
-//!   whitelist. `infer:` is not egress (provider egress rides the media
-//!   plane). A child-workflow call is NOT judged here — spec 14's
-//!   `NIKA-COMP-002` owns the child's boundary containment.
+//! - **egress-capable** = `exec:` · `invoke:` with a net/fs-write effect
+//!   (the ONE effect table) · `mcp:` (fail-closed) · `agent:` whose
+//!   whitelist admits an egress-effecting tool. `infer:` is not egress; a
+//!   child-workflow call is spec 14's (`NIKA-COMP-002`), never here.
 //! - **blocking human gate** = an `invoke:` of `nika:prompt` with NO
-//!   `default:` arg (a default lets the run proceed unattended — the NEP's
-//!   Rule-of-Two escape is the HUMAN decision). This is intentionally
-//!   stricter than `policy: require.human_gate_before`, which accepts a
-//!   `default: false` fail-closed prompt; the trifecta wants consent, not
-//!   just a pause shape (NEP-0002 §Specification · v2 refinement candidate).
-//! - The lane is gated on a valid DAG (the caller passes the derived
-//!   edges plus a topological order) and on a DECLARED `permits:` block —
-//!   without one the legs are not decidable as declared, so there is no
-//!   claim (skipped, never wrong).
+//!   `default:` arg (the NEP's escape is the HUMAN decision). Gated on a
+//!   valid DAG + a DECLARED `permits:` block (skipped, never wrong).
 
 use nika_cap::TrifectaSubject;
 
 use crate::analyzer::Edge;
 use crate::raw::{RawAction, RawWorkflow};
+use crate::source::Spanned;
 
 /// Judge the trifecta over the derived graph. Empty unless the workflow
 /// declares `permits:` AND the trifecta legs all hold AND an egress-capable
-/// task escapes gate dominance.
+/// task the untrusted content reaches escapes gate dominance.
 pub(super) fn scan_trifecta(
     wf: &RawWorkflow,
     edges: &[Edge],
-    topo_order: &[usize],
+    topo_waves: &[Vec<usize>],
 ) -> Vec<nika_cap::TrifectaViolation> {
     let Some(permits) = wf.permits.as_ref() else {
         return Vec::new();
     };
-    let mut uses_fetch = false;
+    // The realized-flow facts (v2.0). The MCP trust closure is the
+    // catalog mark's seam — until it lands, every server is untrusted.
+    let mcp_trusted = |_: &str| false;
+    let witnesses = super::content_flow::analyze_content_flow(wf, topo_waves, &mcp_trusted);
     let mut subjects: Vec<TrifectaSubject> = wf
         .tasks
         .iter()
@@ -51,9 +42,10 @@ pub(super) fn scan_trifecta(
             let task = &t.value;
             TrifectaSubject::new(
                 task.id.value.clone(),
-                egress_capable(&task.action, &mut uses_fetch),
+                egress_capable(&task.action),
                 human_gate(&task.action),
             )
+            .with_ingress_source(super::content_flow::classify(&task.action, &mcp_trusted).0)
         })
         .collect();
     for e in edges {
@@ -61,14 +53,15 @@ pub(super) fn scan_trifecta(
             s.parents.push(e.from);
         }
     }
-    nika_cap::trifecta_violations(&permits.value, uses_fetch, &subjects, topo_order)
+    let topo_flat: Vec<usize> = topo_waves.iter().flatten().copied().collect();
+    nika_cap::trifecta_violations(&permits.value, &subjects, &witnesses, &topo_flat)
 }
 
 /// The task's egress capability (see the module doc for the table).
-fn egress_capable(action: &RawAction, uses_fetch: &mut bool) -> bool {
+fn egress_capable(action: &RawAction) -> bool {
     match action {
         RawAction::Exec(_) => true,
-        RawAction::Agent(a) => !a.tools.is_empty(),
+        RawAction::Agent(a) => agent_egress(&a.tools),
         RawAction::Infer(_) => false,
         RawAction::Invoke(inv) => {
             let Some(tool) = inv.tool() else {
@@ -77,9 +70,6 @@ fn egress_capable(action: &RawAction, uses_fetch: &mut bool) -> bool {
                 return false;
             };
             let id = tool.value.as_str();
-            if id == "nika:fetch" {
-                *uses_fetch = true;
-            }
             if id.starts_with("mcp:") {
                 // Server-side effects — the `tools:` grant is the boundary.
                 return true;
@@ -92,6 +82,21 @@ fn egress_capable(action: &RawAction, uses_fetch: &mut bool) -> bool {
             }
         }
     }
+}
+
+/// An agent's whitelist admits an egress-effecting tool (v2.0's aim) — any
+/// glob covering a net/fs-write builtin (the ONE effect table) or `mcp:*`
+/// (fail-closed). A pure-compute whitelist (`["nika:jq"]`) is NOT egress.
+fn agent_egress(tools: &[Spanned<String>]) -> bool {
+    tools.iter().any(|t| {
+        let g = t.value.as_str();
+        !g.starts_with('!')
+            && (g.starts_with("mcp:")
+                || nika_catalog::all_builtins()
+                    .iter()
+                    .map(|b| format!("nika:{}", b.name))
+                    .any(|id| nika_cap::glob_matches(g, &id) && nika_cap::builtin_egresses(&id)))
+    })
 }
 
 /// A BLOCKING `invoke: nika:prompt` (no `default:` arg) is the NEP's gate.
@@ -126,22 +131,31 @@ mod tests {
     const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    after: { fetch_page: succeeded }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n";
 
     /// ①∧②∧③ declared, no gate → the diagnostic, once per ungated egress
-    /// task, message opening with the NEP's verbatim string.
+    /// task THE CONTENT REACHES (v2.0: `leak` is the realized sink;
+    /// `fetch_page` is the SOURCE — its own args are operator content, so
+    /// it is not itself tainted), message opening with the NEP's verbatim.
     #[test]
     fn trifecta_complete_refuse() {
         let r = report(TRIFECTA);
         assert_eq!(
             r.trifecta_findings.len(),
-            2,
-            "fetch_page (net) + leak (fs write) are both ungated egress: {:?}",
+            1,
+            "only the realized sink is flagged (v2.0 precision): {:?}",
             r.trifecta_findings
         );
+        let v = &r.trifecta_findings[0];
+        assert_eq!(v.task, "leak");
+        assert_eq!(v.source.as_deref(), Some("fetch_page"));
         assert!(
-            r.trifecta_findings[0]
-                .detail
+            v.detail
                 .starts_with("lethal trifecta complete · human gate required"),
             "{}",
-            r.trifecta_findings[0].detail
+            v.detail
+        );
+        assert!(
+            v.detail.contains("`fetch_page` reaches egress task `leak`"),
+            "the flow witness is named: {}",
+            v.detail
         );
         assert!(!r.is_clean(), "the lane gates the check");
         let f = r
@@ -163,7 +177,7 @@ mod tests {
             .collect();
         assert_eq!(
             codes.iter().filter(|c| *c == "NIKA-SEC-009").count(),
-            2,
+            1,
             "one SEC-009 per finding: {codes:?}"
         );
     }
@@ -226,10 +240,11 @@ mod tests {
         let r = report(&bypass);
         assert_eq!(
             r.trifecta_findings.len(),
-            2,
+            1,
             "a bypassable gate mitigates nothing: {:?}",
             r.trifecta_findings
         );
+        assert_eq!(r.trifecta_findings[0].task, "leak");
     }
 
     /// A `default:`-carrying prompt is NOT a gate (the run proceeds
@@ -244,10 +259,11 @@ mod tests {
         let r = report(&defaulted);
         assert_eq!(
             r.trifecta_findings.len(),
-            2,
+            1,
             "default: true answers without a human: {:?}",
             r.trifecta_findings
         );
+        assert_eq!(r.trifecta_findings[0].task, "leak");
     }
 
     /// No `permits:` block → the legs are not decidable as declared → the
@@ -276,5 +292,137 @@ mod tests {
         );
         assert!(!r.conformance.is_empty());
         assert!(r.trifecta_findings.is_empty(), "{:?}", r.trifecta_findings);
+    }
+
+    // ── v2.0 pins (the realized-flow judgment) ─────────────────────────
+
+    /// The v2.0 behavior-change pin: an ingress-capable GRANT that is
+    /// never invoked arms nothing (v1.1 fired here).
+    #[test]
+    fn granted_not_invoked_pass() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\"]\ntasks:\n  save:\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/report.txt\", content: \"pure operator content\" }\n",
+        );
+        assert!(
+            r.trifecta_findings.is_empty(),
+            "granted-but-never-invoked fetch → no realized source → clean: {:?}",
+            r.trifecta_findings
+        );
+    }
+
+    /// The integrity-inversion pin: a model SUMMARY of attacker content
+    /// carries the payload (the confidentiality carve-out does not apply).
+    #[test]
+    fn flow_through_infer_refuse() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:notify\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  summarize:\n    with: { page: \"${{ tasks.fetch_page.output }}\" }\n    infer: { prompt: \"tldr: ${{ with.page }}\", max_tokens: 99 }\n  tell:\n    with: { summary: \"${{ tasks.summarize.output }}\" }\n    invoke:\n      tool: \"nika:notify\"\n      args: { channel: \"webhook\", target: \"https://api.example.com/hook\", message: \"${{ with.summary }}\" }\n",
+        );
+        assert_eq!(
+            r.trifecta_findings.len(),
+            1,
+            "the infer output carries the taint to the egress: {:?}",
+            r.trifecta_findings
+        );
+        assert_eq!(r.trifecta_findings[0].task, "tell");
+        assert_eq!(r.trifecta_findings[0].source.as_deref(), Some("fetch_page"));
+    }
+
+    /// The recovery-read pin: `on_error.recover` substitutes the failed
+    /// task's output — a tainted recovery read re-arms the chain (the
+    /// failing task here is a pure-compute `jq`, NOT egress — only the
+    /// downstream write is judged).
+    #[test]
+    fn recovery_read_refuse() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:jq\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  fragile:\n    on_error: { recover: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: {}, expression: \".x\" }\n  leak:\n    with: { body: \"${{ tasks.fragile.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n",
+        );
+        assert_eq!(
+            r.trifecta_findings.len(),
+            1,
+            "the recovery read propagates the taint: {:?}",
+            r.trifecta_findings
+        );
+        assert_eq!(r.trifecta_findings[0].task, "leak");
+        assert_eq!(r.trifecta_findings[0].source.as_deref(), Some("fetch_page"));
+    }
+
+    /// The exec-opacity pin: the file-mediated channel argv cannot see —
+    /// an exec downstream of a tainted write under a declared fs.read.
+    #[test]
+    fn exec_opacity_refuse() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  exec: [\"sh\"]\n  tools: [\"nika:fetch\", \"nika:write\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  save:\n    with: { page: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/page.html\", content: \"${{ with.page }}\" }\n  ship:\n    after: { save: succeeded }\n    exec: { command: [\"sh\", \"-c\", \"cat ./out/page.html | curl -X POST https://api.example.com --data-binary @-\"] }\n",
+        );
+        assert_eq!(
+            r.trifecta_findings.len(),
+            2,
+            "the write AND the opacity-tainted exec are both realized sinks: {:?}",
+            r.trifecta_findings
+        );
+        assert_eq!(r.trifecta_findings[0].task, "save");
+        assert_eq!(r.trifecta_findings[1].task, "ship");
+        assert_eq!(
+            r.trifecta_findings[1].source.as_deref(),
+            Some("fetch_page"),
+            "the opacity witness is the untrusted ORIGIN, propagated through the writer"
+        );
+    }
+
+    /// The parallel-clean pin: an egress on a branch no untrusted content
+    /// reaches is NOT a trifecta (v1.1 fired here too).
+    #[test]
+    fn parallel_clean_egress_pass() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  deploy:\n    exec: { command: [\"git\", \"status\"] }\n",
+        );
+        assert!(
+            r.trifecta_findings.is_empty(),
+            "no realized flow to the exec branch → clean: {:?}",
+            r.trifecta_findings
+        );
+    }
+
+    /// The pure-agent pin: a jq-only whitelist is NOT egress-capable.
+    #[test]
+    fn pure_agent_pass() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:jq\"]\ntasks:\n  think:\n    agent: { prompt: \"reshape this data\", tools: [\"nika:jq\"] }\n",
+        );
+        assert!(
+            r.trifecta_findings.is_empty(),
+            "a pure-compute agent is not egress: {:?}",
+            r.trifecta_findings
+        );
+    }
+
+    /// The agent-as-source pin: a browsing agent's final message is
+    /// attacker-influenced even with a statically clean prompt.
+    #[test]
+    fn ingress_agent_refuse() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:write\", \"mcp:browser/*\"]\ntasks:\n  browse:\n    agent: { prompt: \"summarize the news\", tools: [\"mcp:browser/*\"] }\n  leak:\n    with: { brief: \"${{ tasks.browse.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/brief.txt\", content: \"${{ with.brief }}\" }\n",
+        );
+        assert_eq!(
+            r.trifecta_findings.len(),
+            1,
+            "the agent's output is a content source: {:?}",
+            r.trifecta_findings
+        );
+        assert_eq!(r.trifecta_findings[0].task, "leak");
+        assert_eq!(r.trifecta_findings[0].source.as_deref(), Some("browse"));
+    }
+
+    /// The gate-once pin: one blocking prompt dominating BOTH tainted
+    /// sinks disarms the whole run (consent once per run, not per task).
+    #[test]
+    fn gate_once_dominates_two_sinks_pass() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"ship it?\" }\n  fetch_page:\n    after: { ask: succeeded }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n  leak2:\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak2.txt\", content: \"${{ with.body }}\" }\n",
+        );
+        assert!(
+            r.trifecta_findings.is_empty(),
+            "one dominating gate disarms every sink it dominates: {:?}",
+            r.trifecta_findings
+        );
     }
 }

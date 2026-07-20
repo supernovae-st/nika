@@ -696,13 +696,51 @@ pub unsafe fn nika_cap::Require::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::Require
 pub fn nika_cap::Require::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::Require where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::TaintWitness
+pub nika_cap::TaintWitness::source: core::option::Option<alloc::string::String>
+pub nika_cap::TaintWitness::tainted: bool
+impl nika_cap::TaintWitness
+pub fn nika_cap::TaintWitness::clean() -> Self
+pub fn nika_cap::TaintWitness::new(tainted: bool, source: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cap::TaintWitness
+pub fn nika_cap::TaintWitness::clone(&self) -> nika_cap::TaintWitness
+impl core::cmp::Eq for nika_cap::TaintWitness
+impl core::cmp::PartialEq for nika_cap::TaintWitness
+pub fn nika_cap::TaintWitness::eq(&self, other: &nika_cap::TaintWitness) -> bool
+impl core::fmt::Debug for nika_cap::TaintWitness
+pub fn nika_cap::TaintWitness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::TaintWitness
+impl<T, U> core::convert::Into<U> for nika_cap::TaintWitness where U: core::convert::From<T>
+pub fn nika_cap::TaintWitness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::TaintWitness where U: core::convert::Into<T>
+pub type nika_cap::TaintWitness::Error = core::convert::Infallible
+pub fn nika_cap::TaintWitness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::TaintWitness where U: core::convert::TryFrom<T>
+pub type nika_cap::TaintWitness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::TaintWitness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::TaintWitness where T: core::clone::Clone
+pub type nika_cap::TaintWitness::Owned = T
+pub fn nika_cap::TaintWitness::clone_into(&self, target: &mut T)
+pub fn nika_cap::TaintWitness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::TaintWitness where T: 'static + ?core::marker::Sized
+pub fn nika_cap::TaintWitness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::TaintWitness where T: ?core::marker::Sized
+pub fn nika_cap::TaintWitness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::TaintWitness where T: ?core::marker::Sized
+pub fn nika_cap::TaintWitness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::TaintWitness where T: core::clone::Clone
+pub unsafe fn nika_cap::TaintWitness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::TaintWitness
+pub fn nika_cap::TaintWitness::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::TrifectaSubject
 pub nika_cap::TrifectaSubject::egress_capable: bool
 pub nika_cap::TrifectaSubject::human_gate: bool
 pub nika_cap::TrifectaSubject::id: alloc::string::String
+pub nika_cap::TrifectaSubject::ingress_source: bool
 pub nika_cap::TrifectaSubject::parents: alloc::vec::Vec<usize>
 impl nika_cap::TrifectaSubject
 pub fn nika_cap::TrifectaSubject::new(id: alloc::string::String, egress_capable: bool, human_gate: bool) -> Self
+pub fn nika_cap::TrifectaSubject::with_ingress_source(self, ingress_source: bool) -> Self
 impl core::clone::Clone for nika_cap::TrifectaSubject
 pub fn nika_cap::TrifectaSubject::clone(&self) -> nika_cap::TrifectaSubject
 impl core::cmp::Eq for nika_cap::TrifectaSubject
@@ -735,6 +773,7 @@ impl<T> core::convert::From<T> for nika_cap::TrifectaSubject
 pub fn nika_cap::TrifectaSubject::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::TrifectaViolation
 pub nika_cap::TrifectaViolation::detail: alloc::string::String
+pub nika_cap::TrifectaViolation::source: core::option::Option<alloc::string::String>
 pub nika_cap::TrifectaViolation::task: alloc::string::String
 impl core::clone::Clone for nika_cap::TrifectaViolation
 pub fn nika_cap::TrifectaViolation::clone(&self) -> nika_cap::TrifectaViolation
@@ -774,8 +813,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_cap::TrifectaViolation where T
 pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::POLICY_KEYS: &[&str]
 pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_cap::BuiltinEffect>
+pub fn nika_cap::builtin_egresses(tool: &str) -> bool
 pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
+pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
 pub fn nika_cap::policy_child_keys(family: &str) -> core::option::Option<&'static [&'static str]>
 pub fn nika_cap::policy_violations(policy: &nika_cap::Policy, tasks: &[nika_cap::PolicySubject]) -> alloc::vec::Vec<nika_cap::PolicyViolation>
-pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, uses_fetch: bool, subjects: &[nika_cap::TrifectaSubject], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>
+pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>
