@@ -27,8 +27,14 @@
 //!
 //! `tools:` is default-deny. A model tool-use outside the whitelist is
 //! an IMMEDIATE failure (NIKA-462, zero dispatch) — security boundaries
-//! are not model-negotiable. Failing TOOLS are fed back as error
-//! results (the agentic convention); the loop continues on its budgets.
+//! are not model-negotiable. The SAME invariant binds at effect time: a
+//! whitelisted tool REFUSED by the security boundary mid-loop (the
+//! declared `permits:` boundary `NIKA-SEC-004` · the SSRF floor
+//! `NIKA-SEC-005`) is an immediate failure too (NIKA-468) — the refusal
+//! is NEVER fed back to the model (spec §permits · `security_error`).
+//! Every OTHER failing tool is fed back as an error result (the agentic
+//! convention — models recover from arg-shape mistakes); the loop
+//! continues on its budgets.
 //!
 //! ## Structured output (spec §2 `infer.schema:` parity · BUG#11)
 //!
@@ -355,7 +361,9 @@ where
     /// when the definitions seam fails · [`VerbAgentError::Inference`]
     /// (463) on a mid-loop provider failure ·
     /// [`VerbAgentError::WhitelistViolation`] (462) the IMMEDIATE
-    /// security stop · [`VerbAgentError::MaxTurns`] (460) /
+    /// security stop · [`VerbAgentError::SecurityBoundary`] (468) the
+    /// whitelisted-but-boundary-refused security stop (never fed back) ·
+    /// [`VerbAgentError::MaxTurns`] (460) /
     /// [`VerbAgentError::MaxTokens`] (461) the budget failures ·
     /// [`VerbAgentError::SchemaValidation`] (464) when the final output
     /// misses the task `schema:`.
@@ -514,7 +522,8 @@ where
     /// `max_turns` exit · BEFORE spending the batch, mirroring the token
     /// gate's "no wasted side effects"), else append the assistant turn and
     /// feed the tool batch back. Returns the observations digest for the
-    /// next routing query; maps a stall to NIKA-467.
+    /// next routing query; the stall and security stops surface as the
+    /// verb's own errors (NIKA-467 · NIKA-468).
     #[allow(clippy::too_many_arguments)] // the loop's owned state threaded
     // once into the dispatch step; splitting only relocates the args.
     async fn dispatch_and_feed(
@@ -538,14 +547,10 @@ where
         }
         // All-whitelisted, non-sentinel tools · feed results back.
         messages.push(Message::new(Role::Assistant, response.content));
-        self.dispatch_turn(observer, turns, tool_uses, router, guard, messages)
-            .await
-            .map_err(|(period, repeats)| VerbAgentError::Stalled {
-                period,
-                repeats,
-                partial_output: last_text.to_owned(),
-                spend: Box::default(), // decorated at the return seam
-            })
+        self.dispatch_turn(
+            observer, turns, tool_uses, router, guard, messages, last_text,
+        )
+        .await
     }
 
     /// Validate + resolve one run's fixed parameters (params · whitelist ·
@@ -725,8 +730,9 @@ where
     /// One Dispatch turn: run the batch, feed results into the
     /// transcript, then consult the stall guard (signature = actions +
     /// outcomes). Returns the observations digest for the next routing
-    /// query, or the stall evidence `(period, repeats)` when the guard
-    /// stops the run.
+    /// query. A security-boundary refusal in the batch propagates
+    /// UNFED-BACK (NIKA-468 — nothing reaches the transcript); a stall
+    /// verdict maps to NIKA-467 with the partial output attached.
     async fn dispatch_turn(
         &self,
         observer: &dyn AgentObserver,
@@ -735,8 +741,9 @@ where
         router: &mut ToolRouter,
         guard: &mut Guard,
         messages: &mut Vec<Message>,
-    ) -> Result<(String, f64), (u32, u32)> {
-        let batch = self.run_batch(observer, turn, tool_uses, router).await;
+        last_text: &str,
+    ) -> Result<(String, f64), VerbAgentError> {
+        let batch = self.run_batch(observer, turn, tool_uses, router).await?;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
         // `Role::User` message (which some provider wires reject as
@@ -762,7 +769,12 @@ where
                     period,
                     repeats,
                 });
-                return Err((period, repeats));
+                return Err(VerbAgentError::Stalled {
+                    period,
+                    repeats,
+                    partial_output: last_text.to_owned(),
+                    spend: Box::default(), // decorated at the return seam
+                });
             }
         }
         messages.push(Message::new(Role::User, content));
@@ -791,21 +803,25 @@ where
     /// CANCEL SAFETY: dropping this future drops the buffered stream →
     /// in-flight calls cancel per THEIR seam contracts (a compose
     /// `spawn_blocking` runs to completion detached, result discarded —
-    /// the documented blocking-pool contract).
+    /// the documented blocking-pool contract). A security-boundary
+    /// refusal short-circuits phase 1 through the SAME drop path: the
+    /// first refused resolve fails the batch (NIKA-468) and every
+    /// still-in-flight sibling is cancelled — the refusal never becomes
+    /// a transcript block.
     async fn run_batch(
         &self,
         observer: &dyn AgentObserver,
         turn: u32,
         tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
-    ) -> BatchOutcome {
-        use futures_util::StreamExt;
+    ) -> Result<BatchOutcome, VerbAgentError> {
+        use futures_util::{StreamExt, TryStreamExt};
         let cap = self.config.max_parallel_tools.max(1);
         let resolved: Vec<Resolved> =
             futures_util::stream::iter(tool_uses.into_iter().map(|u| self.resolve_tool(u)))
                 .buffered(cap)
-                .collect()
-                .await;
+                .try_collect()
+                .await?;
 
         let mut results: Vec<ContentBlock> = Vec::with_capacity(resolved.len());
         let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(resolved.len());
@@ -862,22 +878,24 @@ where
             .flat_map(|(content, _)| content.chars().take(512).chain(std::iter::once(' ')))
             .take(2048)
             .collect();
-        BatchOutcome {
+        Ok(BatchOutcome {
             signature: guard::turn_signature(&sig_calls, &sig_results),
             results,
             tools_cost_usd,
             observations_digest,
             // No real dispatch this turn (compose-only) ⇒ no error streak.
             all_errors: had_dispatch && all_dispatch_errors,
-        }
+        })
     }
 
     /// Resolve ONE tool call to its result block (phase-1 unit — pure
-    /// with respect to loop state: no observer, no router).
-    async fn resolve_tool(&self, u: ToolUse) -> Resolved {
+    /// with respect to loop state: no observer, no router). The ONE
+    /// fallible resolve: a security-boundary refusal (NIKA-468), which
+    /// must never materialize as a feedback block.
+    async fn resolve_tool(&self, u: ToolUse) -> Result<Resolved, VerbAgentError> {
         if let Some(intrinsic) = intrinsic::Intrinsic::parse(&u.name) {
             let (content, is_error, outcome) = self.run_intrinsic(intrinsic, u.args.clone()).await;
-            Resolved {
+            Ok(Resolved {
                 block: ContentBlock::ToolResult {
                     tool_use_id: u.id,
                     content,
@@ -887,16 +905,16 @@ where
                 args: u.args,
                 cost_usd: None,
                 compose: Some(outcome),
-            }
+            })
         } else {
-            let (block, cost_usd) = self.dispatch(&u.id, &u.name, u.args.clone()).await;
-            Resolved {
+            let (block, cost_usd) = self.dispatch(&u.id, &u.name, u.args.clone()).await?;
+            Ok(Resolved {
                 block,
                 name: u.name,
                 args: u.args,
                 cost_usd,
                 compose: None,
-            }
+            })
         }
     }
 
@@ -959,14 +977,16 @@ where
     }
 
     /// Dispatch one whitelisted tool call; a failing tool is FED BACK
-    /// (`is_error: true`), never fatal (spec §2 · the ONE exception is
-    /// the whitelist, handled before dispatch).
+    /// (`is_error: true`), never fatal (spec §2 · the exceptions: the
+    /// whitelist, handled before dispatch, and the security boundary —
+    /// a `NIKA-SEC-004`/`NIKA-SEC-005` refusal fails the loop HARD with
+    /// NIKA-468, never a feedback block).
     async fn dispatch(
         &self,
         id: &str,
         name: &str,
         args: serde_json::Value,
-    ) -> (ContentBlock, Option<f64>) {
+    ) -> Result<(ContentBlock, Option<f64>), VerbAgentError> {
         let mut call = InvokeInput::new(name);
         call.args = args;
         call.call_id = Some(id.to_owned());
@@ -981,23 +1001,42 @@ where
                     .and_then(|v| v.get("cost_usd"))
                     .and_then(serde_json::Value::as_f64)
                     .filter(|c| c.is_finite() && *c >= 0.0);
-                (
+                Ok((
                     ContentBlock::ToolResult {
                         tool_use_id: id.to_owned(),
                         content: output.content,
                         is_error: false,
                     },
                     cost_usd,
-                )
+                ))
             }
-            Err(err) => (
-                ContentBlock::ToolResult {
-                    tool_use_id: id.to_owned(),
-                    content: feedback_text(&err),
-                    is_error: true,
-                },
-                None,
-            ),
+            Err(err) => {
+                // A security-boundary refusal is NEVER negotiation
+                // material for the model (spec §permits ·
+                // `security_error` · one invariant, stated at
+                // `nika-cap/src/permits.rs`, the runtime's
+                // `security_err` and `nika-types/src/net.rs`): the loop
+                // FAILS, nothing is fed back — same class as the
+                // whitelist violation (NIKA-462), discovered one seam
+                // later (at effect time, not name-check time). Every
+                // OTHER coded tool error stays feedback — the model
+                // recovers from arg-shape mistakes.
+                if let Some(code) = security_boundary_code(&err) {
+                    return Err(VerbAgentError::SecurityBoundary {
+                        tool: name.to_owned(),
+                        code: code.to_owned(),
+                        spend: Box::default(), // decorated at the return seam
+                    });
+                }
+                Ok((
+                    ContentBlock::ToolResult {
+                        tool_use_id: id.to_owned(),
+                        content: feedback_text(&err),
+                        is_error: true,
+                    },
+                    None,
+                ))
+            }
         }
     }
 }
@@ -1353,10 +1392,29 @@ fn joined_text(content: &[ContentBlock]) -> String {
 
 /// The typed feedback a failing tool sends the model — the NIKA code
 /// rides along so the model can reason about (and the human can grep)
-/// the failure class.
+/// the failure class. Security-boundary refusals never reach here:
+/// [`security_boundary_code`] reroutes them to the hard stop first.
 fn feedback_text(err: &VerbInvokeError) -> String {
     use nika_error::traits::NikaErrorCode;
     format!("{} · {err}", err.nika_code())
+}
+
+/// The security-boundary refusal a tool error carries, when it carries
+/// one: the declared `permits:` boundary (`NIKA-SEC-004`) or the SSRF
+/// floor (`NIKA-SEC-005`). The code rides the tool's error-metadata
+/// channel end-to-end (`BuiltinFailure.code` → `ToolErrorMeta.spec_code`
+/// → `VerbInvokeError::ToolReportedError::spec_code` — the BUG-D seam),
+/// so it survives the builtin's text rendering intact. Anything else —
+/// a text-only tool error, a dispatch failure, a coded NON-security
+/// failure like `NIKA-BUILTIN-FETCH-001` — is `None`: ordinary feedback.
+fn security_boundary_code(err: &VerbInvokeError) -> Option<&str> {
+    match err {
+        VerbInvokeError::ToolReportedError {
+            spec_code: Some(code),
+            ..
+        } if matches!(code.as_str(), "NIKA-SEC-004" | "NIKA-SEC-005") => Some(code),
+        _ => None,
+    }
 }
 
 /// Is this a tool name the model may safely SEE (NIKA-450 parity)?

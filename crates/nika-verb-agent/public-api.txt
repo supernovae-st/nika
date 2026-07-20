@@ -138,6 +138,10 @@ pub nika_verb_agent::errors::VerbAgentError::MaxTurns::turns: u32
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::detail: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::errors::VerbAgentError::SecurityBoundary
+pub nika_verb_agent::errors::VerbAgentError::SecurityBoundary::code: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::SecurityBoundary::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::errors::VerbAgentError::SecurityBoundary::tool: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::Stalled
 pub nika_verb_agent::errors::VerbAgentError::Stalled::partial_output: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::Stalled::period: u32
@@ -708,6 +712,10 @@ pub nika_verb_agent::VerbAgentError::MaxTurns::turns: u32
 pub nika_verb_agent::VerbAgentError::SchemaValidation
 pub nika_verb_agent::VerbAgentError::SchemaValidation::detail: alloc::string::String
 pub nika_verb_agent::VerbAgentError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::VerbAgentError::SecurityBoundary
+pub nika_verb_agent::VerbAgentError::SecurityBoundary::code: alloc::string::String
+pub nika_verb_agent::VerbAgentError::SecurityBoundary::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::VerbAgentError::SecurityBoundary::tool: alloc::string::String
 pub nika_verb_agent::VerbAgentError::Stalled
 pub nika_verb_agent::VerbAgentError::Stalled::partial_output: alloc::string::String
 pub nika_verb_agent::VerbAgentError::Stalled::period: u32
