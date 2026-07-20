@@ -44,6 +44,7 @@ use std::path::{Path, PathBuf};
 
 use nika_kernel::http::{HttpGetDyn, HttpPostDyn, HttpRequest, HttpStreamResponse};
 
+use crate::digest;
 use crate::store::{self, ModelRef};
 
 /// The Hugging Face Hub origin (metadata + `resolve/` downloads; the
@@ -68,6 +69,19 @@ pub(crate) struct TreeEntry {
     /// Size in bytes (the confirm gate reads it BEFORE any download).
     #[serde(default)]
     pub size: u64,
+    /// The LFS pointer row, when the tree listing carries one — the
+    /// digest gate's declaration of record for LFS-backed files (every
+    /// GGUF); absent for small plain files.
+    #[serde(default)]
+    pub lfs: Option<LfsPointer>,
+}
+
+/// The Hub's LFS pointer (`lfs` on a tree row) — the file's sha256 in
+/// `oid` for LFS-backed content.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+pub(crate) struct LfsPointer {
+    /// The LFS object id — the file's sha256 (64-hex).
+    pub oid: String,
 }
 
 /// The confirm-gate verdict over a size (pure — the prompt I/O lives in
@@ -385,6 +399,9 @@ impl<H: HttpGetDyn + HttpPostDyn> Puller<H> {
             .send_streaming(request)
             .await
             .map_err(|e| transport_refusal(&mref.repo_id(), &e))?;
+        // The digest gate reads the response headers BEFORE the body
+        // drains (the `x-linked-etag` rides the redirect hop).
+        let resp_headers = response.headers.clone();
         let (out, start) = begin_write(
             response.status,
             &part,
@@ -402,12 +419,24 @@ impl<H: HttpGetDyn + HttpPostDyn> Puller<H> {
                 store::human_size(entry.size)
             )));
         }
-        std::fs::rename(&part, &dest).map_err(|e| {
-            refuse(format!(
-                "model pull: cannot move {} into place ({e})\n  fix: check the models dir\n",
-                part.display()
-            ))
-        })?;
+        // The integrity gate: the byte count says HOW MUCH landed; only
+        // the Hub-declared sha256 says WHAT landed. A declared digest
+        // that mismatches hard-refuses with nothing left behind.
+        let declared = digest::declared_sha256(
+            &resp_headers,
+            entry.lfs.as_ref().map(|lfs| lfs.oid.as_str()),
+        );
+        match digest::finish_write(declared, &part, &dest, file)? {
+            digest::Integrity::Verified(digest) => {
+                eprintln!("  {file} · sha256 verified · {digest}");
+            }
+            digest::Integrity::NotDeclared => {
+                eprintln!(
+                    "  {file} pulled WITHOUT integrity verification — the Hub declared no \
+                     sha256 for this file (size-checked only)"
+                );
+            }
+        }
         Ok((dest, start))
     }
 
@@ -772,7 +801,7 @@ pub(crate) type Refusal = String;
 
 /// The semantic marker: every `refuse(...)` site is a refusal, never a
 /// receipt (the identity keeps the sites greppable).
-fn refuse(text: String) -> Refusal {
+pub(crate) fn refuse(text: String) -> Refusal {
     text
 }
 
@@ -922,6 +951,7 @@ mod tests {
             kind: kind.to_owned(),
             path: path.to_owned(),
             size,
+            lfs: None,
         }
     }
 
@@ -964,6 +994,7 @@ mod tests {
         status: u16,
         content_length: Option<u64>,
         chunks: Vec<Bytes>,
+        headers: BTreeMap<String, String>,
     }
 
     /// The house-seam double: `get` answers from one queue,
@@ -998,6 +1029,31 @@ mod tests {
                     status,
                     content_length,
                     chunks: chunks.iter().map(|c| Bytes::copy_from_slice(c)).collect(),
+                    headers: BTreeMap::new(),
+                });
+            self
+        }
+
+        /// A streamed answer carrying response headers (the digest
+        /// gate's `x-linked-etag` hop).
+        fn stream_ok_with_headers(
+            self,
+            status: u16,
+            headers: &[(&str, &str)],
+            chunks: &[&[u8]],
+        ) -> Self {
+            let headers = headers
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect();
+            self.streams
+                .lock()
+                .expect("streams")
+                .push_back(CannedStream {
+                    status,
+                    content_length: None,
+                    chunks: chunks.iter().map(|c| Bytes::copy_from_slice(c)).collect(),
+                    headers,
                 });
             self
         }
@@ -1047,7 +1103,7 @@ mod tests {
                 canned.chunks.into_iter().map(Ok).collect();
             Ok(HttpStreamResponse::new(
                 canned.status,
-                BTreeMap::new(),
+                canned.headers,
                 String::new(),
                 canned.content_length,
                 Box::pin(ChunkStream(chunks)),
@@ -1224,6 +1280,72 @@ mod tests {
             "{}",
             sent[0].url
         );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    // -- the integrity gate, end to end --------------------------------
+
+    #[tokio::test]
+    async fn download_verifies_against_the_linked_etag_and_records() {
+        let digest = digest::sha256_of(b"hello wor");
+        let etag = format!("\"{digest}\"");
+        let http = StreamHttp::default().stream_ok_with_headers(
+            200,
+            &[("x-linked-etag", &etag)],
+            &[b"hello ", b"wor"],
+        );
+        let root = temp_root("dl-verified");
+        let puller = Puller::new(http, root.clone(), None, false);
+        let (dest, _) = puller
+            .download(&mref("u/m"), &entry("file", "w.gguf", 9))
+            .await
+            .expect("verified download completes");
+        assert_eq!(std::fs::read(&dest).expect("dest"), b"hello wor");
+        // The verified digest records beside the GGUF (what `list` shows).
+        let recorded = store::read_digest(&dest).expect("a digest sidecar exists");
+        assert_eq!(recorded, digest);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn download_hard_refuses_a_digest_mismatch_and_leaves_nothing() {
+        let etag = format!("\"{}\"", "0".repeat(64));
+        let http = StreamHttp::default().stream_ok_with_headers(
+            200,
+            &[("x-linked-etag", &etag)],
+            &[b"hello wor"],
+        );
+        let root = temp_root("dl-mismatch");
+        let puller = Puller::new(http, root.clone(), None, false);
+        let refusal = puller
+            .download(&mref("u/m"), &entry("file", "w.gguf", 9))
+            .await
+            .expect_err("a mismatched digest hard-refuses");
+        assert!(refusal.contains("integrity check"), "{refusal}");
+        assert!(refusal.contains("expected"), "{refusal}");
+        let dir = root.join("u").join("m");
+        assert!(
+            !dir.join("w.gguf").exists() && !dir.join("w.gguf.part").exists(),
+            "nothing was installed — no artifact, no .part to resume onto"
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn download_uses_the_tree_lfs_oid_when_headers_declare_nothing() {
+        let bytes = b"weights";
+        let mut e = entry("file", "w.gguf", bytes.len() as u64);
+        e.lfs = Some(LfsPointer {
+            oid: digest::sha256_of(bytes),
+        });
+        let http = StreamHttp::default().stream_ok(200, None, &[&bytes[..]]);
+        let root = temp_root("dl-lfs-oid");
+        let puller = Puller::new(http, root.clone(), None, false);
+        let (dest, _) = puller
+            .download(&mref("u/m"), &e)
+            .await
+            .expect("the tree's lfs.oid verifies the bytes");
+        assert!(store::read_digest(&dest).is_some());
         let _ = std::fs::remove_dir_all(root);
     }
 

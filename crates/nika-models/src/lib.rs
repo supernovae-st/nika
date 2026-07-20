@@ -21,6 +21,7 @@
 // Test fixtures expect/unwrap freely — the nika-http/nika-cli idiom.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+mod digest;
 pub mod gguf;
 pub mod pull;
 pub mod serve;
