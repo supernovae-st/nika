@@ -28,6 +28,8 @@ use serde_json::Value;
 
 use crate::Runtime;
 use crate::errors::RuntimeError;
+
+mod permits;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 
@@ -366,6 +368,11 @@ where
             }
         };
         let note = format!("invoke · {tool}");
+        // NIKA-SEC-004 BEFORE any arg rendering — the tool id is static,
+        // so an out-of-boundary invoke is refused without touching the scope.
+        if let Some(denial) = permits::check_tool_permits(scope.permits, &note, &tool) {
+            return denial;
+        }
         let args = match &action.args {
             None => Value::Object(serde_json::Map::new()),
             Some(a) => match expr::render_json(&a.value, scope) {
@@ -596,6 +603,12 @@ where
         agent_buffer: &crate::agent_events::BufferingObserver,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
+        // NIKA-SEC-004: the declared `tools:` universe must FIT
+        // `permits.tools` — refused before any render or provider call,
+        // one refusal for the whole task.
+        if let Some(denial) = permits::check_agent_tools_permits(scope.permits, &action.tools) {
+            return denial;
+        }
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
             Err(err) => return Dispatched::template_err("agent · ?", &err),
