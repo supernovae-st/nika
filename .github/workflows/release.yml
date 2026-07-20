@@ -239,9 +239,14 @@ jobs:
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
+          # The curated front page (What · Install · Verify · Provenance) is
+          # rendered from CHANGELOG.md; --generate-notes keeps the full PR
+          # list appended below it (gh prepends provided notes to generated).
+          bash scripts/release/render-notes.sh "$REF_NAME" > "$RUNNER_TEMP/release-notes.md"
           gh release create "$REF_NAME" \
             --repo "$REPO" \
             --title "$REF_NAME" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             --generate-notes \
             --verify-tag \
             artifacts/nika-*.tar.gz artifacts/SHA256SUMS
