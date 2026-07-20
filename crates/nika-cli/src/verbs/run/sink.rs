@@ -230,10 +230,16 @@ impl TraceFileSink {
         // be silent data loss. The fallback name carries the full 32-hex id
         // (uuid-unique), so it cannot collide again.
         let create = |p: &Path| {
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(p)
+            let mut opts = std::fs::OpenOptions::new();
+            opts.write(true).create_new(true);
+            // The journal can carry sensitive task output — owner-only
+            // (0600) from creation on unix; elsewhere the platform default.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600);
+            }
+            opts.open(p)
         };
         let (file, path) = match create(&path) {
             Ok(f) => (f, path),
@@ -937,6 +943,26 @@ mod tests {
             assert!(sink.into_error().is_none());
         }
         assert!(!dir.exists(), "no emit → the directory is never created");
+    }
+
+    /// The journal can carry sensitive task output — on unix it is
+    /// owner-only (0600) from creation.
+    #[cfg(unix)]
+    #[test]
+    fn trace_sink_journal_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("traces");
+        let mut sink = TraceFileSink::new(&dir);
+        for ev in &demo::success() {
+            sink.emit(ev.clone());
+        }
+        let path = sink.path().expect("opened on first emit").to_path_buf();
+        let mode = std::fs::metadata(&path)
+            .expect("stat the journal")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600, "journal perms: {mode:o}");
     }
 
     /// The journal is the `--json` lane SEMANTICALLY: same events in,

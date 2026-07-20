@@ -571,12 +571,12 @@ where
             return Err(RuntimeError::DirtyReport);
         }
         let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
-        // Resolve the `secrets:` namespace ONCE at run start (MINOR-B ·
-        // composer resolver reads env/file). A miss leaves the secret
-        // unbound → `${{ secrets.X }}` raises NIKA-1702 (fail-closed ·
-        // no token spent). Resolved values flow ONLY where the IFC
-        // sanctioned them and are never emitted to the event stream.
+        // Secrets resolve ONCE at run start (MINOR-B · a miss stays
+        // unbound → NIKA-1702, fail-closed); the sink gets the redaction
+        // scrub (secret.rs · S1) for every emitted event.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
+        let mut scrub = secret::RedactingSink::new(sink, &secrets);
+        let sink: &mut dyn EventSink = &mut scrub;
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
         // `--json` trace is later resumable).
