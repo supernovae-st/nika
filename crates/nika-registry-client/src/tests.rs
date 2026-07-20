@@ -226,6 +226,175 @@ fn fetches_verifies_and_caches_a_versioned_ref() {
         !client.cache_root.join("acme/greet/pin").exists(),
         "a versioned ref pins nothing"
     );
+    assert!(
+        !got.signed,
+        "an unsigned entry stays on the v0.1 digest floor"
+    );
+}
+
+// -- v0.2 · the signature half (minisign + TOFU) ----------------------
+
+/// One fresh publisher keypair per test (the minisign crate generates;
+/// both sides live in-test, so determinism is not needed).
+fn test_keypair() -> (String, minisign::SecretKey) {
+    let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair generates");
+    let pk = pair.pk.to_box().expect("pk boxes").to_string();
+    (pk, pair.sk)
+}
+
+fn sign_bytes(sk: &minisign::SecretKey, bytes: &[u8]) -> String {
+    minisign::sign(None, sk, std::io::Cursor::new(bytes), None, None)
+        .expect("signs")
+        .into_string()
+}
+
+fn signed_entry_toml(
+    owner: &str,
+    name: &str,
+    version: &str,
+    digest: &str,
+    sig: &str,
+    pk: &str,
+) -> String {
+    let mut entry = entry_toml(owner, name, version, digest);
+    entry.push_str(&format!(
+        "\n[signature]\nsignature = \"\"\"\n{sig}\"\"\"\npubkey = \"\"\"\n{pk}\"\"\"\n"
+    ));
+    entry
+}
+
+#[test]
+fn a_signed_entry_verifies_and_anchors_the_tofu_key() {
+    let (pk, sk) = test_keypair();
+    let sig = sign_bytes(&sk, BODY);
+    let digest = sha256_hex(BODY);
+    let mock = MockHttp::new()
+        .enqueue_ok(
+            200,
+            index_json(&[artifact_json(
+                "acme",
+                "greet",
+                "0.1.0",
+                "workflow",
+                &digest,
+                &[],
+            )]),
+        )
+        .enqueue_ok(
+            200,
+            signed_entry_toml("acme", "greet", "0.1.0", &digest, &sig, &pk),
+        )
+        .enqueue_ok(200, BODY.to_vec());
+    let (client, _dir) = client(mock);
+
+    let got = resolve(&client, "registry:acme/greet@0.1.0").expect("signed resolves");
+    assert!(got.signed, "the resolution reports the verified signature");
+    let record = client.cache_root.join("keys/acme.pub");
+    assert!(record.exists(), "the key anchored TOFU after verifying");
+    assert_eq!(
+        std::fs::read_to_string(record) // seam-bypass-ok: test harness disk fixtures
+            .expect("record reads")
+            .trim(),
+        pk.trim(),
+        "the anchored key is the publisher's"
+    );
+}
+
+#[test]
+fn a_signature_mismatch_refuses_and_writes_nothing() {
+    let (pk, sk) = test_keypair();
+    // The entry pins BODY's digest but the signature covers OTHER bytes.
+    let sig = sign_bytes(&sk, b"other bytes");
+    let digest = sha256_hex(BODY);
+    let mock = MockHttp::new()
+        .enqueue_ok(
+            200,
+            index_json(&[artifact_json(
+                "acme",
+                "greet",
+                "0.1.0",
+                "workflow",
+                &digest,
+                &[],
+            )]),
+        )
+        .enqueue_ok(
+            200,
+            signed_entry_toml("acme", "greet", "0.1.0", &digest, &sig, &pk),
+        )
+        .enqueue_ok(200, BODY.to_vec());
+    let (client, _dir) = client(mock);
+
+    let err = resolve(&client, "registry:acme/greet@0.1.0").expect_err("refused");
+    assert_eq!(err.code(), Some("NIKA-REG-006"));
+    assert!(
+        !client
+            .cache_root
+            .join("acme/greet/0.1.0.nika.yaml")
+            .exists(),
+        "nothing was written"
+    );
+}
+
+#[test]
+fn a_rekeyed_publisher_is_refused_by_the_tofu_record() {
+    let (pk1, sk1) = test_keypair();
+    let (pk2, sk2) = test_keypair();
+    let digest = sha256_hex(BODY);
+    // First fetch anchors pk1 (signed by sk1).
+    let sig1 = sign_bytes(&sk1, BODY);
+    let mock = MockHttp::new()
+        .enqueue_ok(
+            200,
+            index_json(&[artifact_json(
+                "acme",
+                "greet",
+                "0.1.0",
+                "workflow",
+                &digest,
+                &[],
+            )]),
+        )
+        .enqueue_ok(
+            200,
+            signed_entry_toml("acme", "greet", "0.1.0", &digest, &sig1, &pk1),
+        )
+        .enqueue_ok(200, BODY.to_vec());
+    let (client1, _dir) = client(mock);
+    resolve(&client1, "registry:acme/greet@0.1.0").expect("the first key anchors");
+
+    // A later entry presents a DIFFERENT key for the same publisher —
+    // signed correctly BY that key (a real re-key attack), so only the
+    // TOFU record can catch it.
+    let sig2 = sign_bytes(&sk2, BODY);
+    let mock2 = MockHttp::new()
+        .enqueue_ok(
+            200,
+            index_json(&[artifact_json(
+                "acme",
+                "greet",
+                "0.2.0",
+                "workflow",
+                &digest,
+                &[],
+            )]),
+        )
+        .enqueue_ok(
+            200,
+            signed_entry_toml("acme", "greet", "0.2.0", &digest, &sig2, &pk2),
+        )
+        .enqueue_ok(200, BODY.to_vec());
+    // Same machine: the second client shares the first one's cache root.
+    let client2 = RegistryClient::new(mock2, client1.cache_root.clone());
+    let err = resolve(&client2, "registry:acme/greet@0.2.0").expect_err("re-key refused");
+    assert_eq!(err.code(), Some("NIKA-REG-007"));
+    assert!(
+        !client1
+            .cache_root
+            .join("acme/greet/0.2.0.nika.yaml")
+            .exists(),
+        "nothing was written"
+    );
 }
 
 #[test]
