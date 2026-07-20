@@ -165,9 +165,11 @@ impl<'de> Deserialize<'de> for ExecPermit {
 
 /// Gitignore-style glob match for tool ids / hosts — v0.1 surface:
 /// exact match, or a single trailing `*` matching any (possibly empty)
-/// tail. Mirrors the agent `tools:` whitelist semantics.
+/// tail. Mirrors the agent `tools:` whitelist semantics. Public since
+/// v0.105.x (NEP-0002 v2.0's whitelist classification needs the ONE
+/// matcher — a second spelling of the same rule would drift).
 #[must_use]
-pub(crate) fn glob_matches(glob: &str, value: &str) -> bool {
+pub fn glob_matches(glob: &str, value: &str) -> bool {
     match glob.strip_suffix('*') {
         Some(prefix) => value.starts_with(prefix),
         None => glob == value,

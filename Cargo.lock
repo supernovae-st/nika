@@ -3760,6 +3760,8 @@ dependencies = [
  "nika-providers",
  "nika-registry-client",
  "nika-runtime",
+ "nika-sandbox-landlock",
+ "nika-sandbox-seatbelt",
  "nika-schema",
  "nika-types",
  "nika-verb-agent",
@@ -4086,6 +4088,7 @@ dependencies = [
  "nika-kernel",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
 ]
 

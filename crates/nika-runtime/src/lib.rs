@@ -41,6 +41,7 @@
 
 mod agent_events;
 pub mod child;
+pub mod config;
 mod contract;
 mod dispatch;
 mod emit_task;
@@ -81,6 +82,7 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
+pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
@@ -93,49 +95,6 @@ use expr::Scope;
 use task::{Finish, SettleAs};
 
 /// Composer-owned execution knobs (spec §2).
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct RuntimeConfig {
-    /// Per-wave in-flight cap (`for_each` has its own `max_parallel`).
-    /// `None` = wave-width (every wave member in flight at once).
-    pub wave_parallelism: Option<NonZeroUsize>,
-    /// Seed for the retry full-jitter PRNG — pure splitmix64 over
-    /// `(seed, task, attempt)` · replay-stable by construction.
-    pub jitter_seed: u64,
-    /// Operator run budget (`--max-cost-usd`) over METERED spend. Once
-    /// crossed, the run stops admitting new work: in-flight tasks
-    /// complete and count, unstarted ones cancel, the run fails with
-    /// NIKA-1704. `None` = no budget (the default). Unmetered work
-    /// (local · mock · unpriced) can never trip it — the budget bounds
-    /// what the ledger can SEE, said loudly at the preflight.
-    pub max_cost_usd: Option<f64>,
-}
-
-impl RuntimeConfig {
-    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
-    #[must_use]
-    pub fn new(wave_parallelism: Option<NonZeroUsize>, jitter_seed: u64) -> Self {
-        Self {
-            wave_parallelism,
-            jitter_seed,
-            max_cost_usd: None,
-        }
-    }
-
-    /// Attach an operator run budget (builder — `new()` stays stable).
-    #[must_use]
-    pub fn with_max_cost_usd(mut self, budget: Option<f64>) -> Self {
-        self.max_cost_usd = budget;
-        self
-    }
-}
-
-impl Default for RuntimeConfig {
-    fn default() -> Self {
-        Self::new(None, 0)
-    }
-}
-
 /// The run's verdict + the result records (spec §2).
 #[derive(Debug)]
 #[non_exhaustive]
@@ -571,12 +530,12 @@ where
             return Err(RuntimeError::DirtyReport);
         }
         let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
-        // Resolve the `secrets:` namespace ONCE at run start (MINOR-B ·
-        // composer resolver reads env/file). A miss leaves the secret
-        // unbound → `${{ secrets.X }}` raises NIKA-1702 (fail-closed ·
-        // no token spent). Resolved values flow ONLY where the IFC
-        // sanctioned them and are never emitted to the event stream.
+        // Secrets resolve ONCE at run start (MINOR-B · a miss stays
+        // unbound → NIKA-1702, fail-closed); the sink gets the redaction
+        // scrub (secret.rs · S1) for every emitted event.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
+        let mut scrub = secret::RedactingSink::new(sink, &secrets);
+        let sink: &mut dyn EventSink = &mut scrub;
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
         // `--json` trace is later resumable).

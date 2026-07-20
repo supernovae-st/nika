@@ -259,8 +259,8 @@ all enforcement (the file is the security boundary).
 | 6 sandbox seam | nika-kernel-core (CommandSandbox) | ✅ shipped |
 | 6 sandbox macOS | nika-sandbox-seatbelt | ✅ shipped · adversarially verified |
 | 6 sandbox wiring | nika-exec-runner (with_sandbox) | ✅ shipped |
-| 6 sandbox Linux | nika-sandbox-landlock | 🔜 CI-gated arc |
-| 6 permits→spec + composer inject | nika-runtime · engine | 🔜 follow-on |
+| 6 sandbox Linux | nika-sandbox-landlock | ✅ shipped · CI-gated (bwrap in the tests leg · 4 jail proofs) |
+| 6 permits→spec + composer inject | nika-runtime · engine | ✅ shipped (v0.105.x · dispatch derives the spec from `permits:` · the composer wires seatbelt/landlock · noop note when no backend) |
 | 7 blocklist tripwire | nika-exec-runner | ✅ shipped (mode-split) |
 
 ## References

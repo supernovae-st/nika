@@ -91,3 +91,65 @@ fn confined_can_read_a_declared_path() {
         String::from_utf8_lossy(&out.stderr),
     );
 }
+
+/// WRITE-DENY: a dir granted for READ is bound read-only — a write inside
+/// it fails, even though the same path is perfectly writable on the host
+/// (the read grant must never smuggle a write).
+#[test]
+fn confined_cannot_write_into_a_read_only_grant() {
+    if !LandlockSandbox::available() {
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("nika-sbx-ro-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+
+    let mut spec = SandboxSpec::new();
+    spec.fs_read = vec![format!("{}/**", dir.display())];
+    let target = dir.join("smuggle.txt");
+    let out = run(
+        &spec,
+        "/bin/sh",
+        &["-c", &format!("echo smuggled > {}", target.display())],
+    );
+    // Anti-vacuity (the sibling proofs' guard): a launcher-level failure
+    // voids the proof — the child never ran.
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("bwrap:"),
+        "the launcher itself failed — the proof is vacuous · stderr {stderr:?}"
+    );
+    assert!(
+        !out.status.success(),
+        "a write inside a read-only bind must fail · stderr {stderr:?}"
+    );
+    assert!(
+        !target.exists(),
+        "the host file must NOT appear · the ro-bind held"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// NETWORK-DENY: without an explicit lift the net namespace is UNSHARED —
+/// a connection that would succeed on the host fails inside the jail.
+/// 1.1.1.1:80 is near-universally reachable, so the failure can only come
+/// from the missing namespace, never from the target.
+#[test]
+fn confined_has_no_network_without_an_explicit_lift() {
+    if !LandlockSandbox::available() {
+        return;
+    }
+    let out = run(
+        &SandboxSpec::new(),
+        "/bin/bash",
+        &["-c", "echo probe > /dev/tcp/1.1.1.1/80"],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("bwrap:"),
+        "the launcher itself failed — the proof is vacuous · stderr {stderr:?}"
+    );
+    assert!(
+        !out.status.success(),
+        "an unshared netns must refuse the connection · stderr {stderr:?}"
+    );
+}

@@ -192,6 +192,31 @@ fn files(dir: &Path) -> Vec<(String, PathBuf, u64)> {
     out
 }
 
+/// A sha256 in the Hub's spelling: exactly 64 lowercase-or-uppercase
+/// hex characters, nothing else (a CDN Xet/md5 `etag` is 32 and
+/// declares nothing — the digest gate reads this before trusting any
+/// header).
+pub(crate) fn is_sha256_hex(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// `<file>.sha256` — the digest sidecar beside a verified GGUF (the
+/// store metadata `nika model list` reads).
+pub(crate) fn digest_sidecar(file: &Path) -> PathBuf {
+    let mut name = file.as_os_str().to_owned();
+    name.push(".sha256");
+    PathBuf::from(name)
+}
+
+/// Read the verified digest recorded beside an installed GGUF, when one
+/// exists (a pre-verification install has none — `None`, never an
+/// error).
+pub(crate) fn read_digest(file: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(digest_sidecar(file)).ok()?;
+    let digest = text.trim();
+    is_sha256_hex(digest).then(|| digest.to_owned())
+}
+
 /// The quant tag read from a GGUF file name (`model-Q4_K_M.gguf` →
 /// `Q4_K_M`) — the LAST `-`/`.`-separated segment that reads as a quant
 /// (quants sit at the tail by Hub convention). Uppercased.
@@ -416,9 +441,14 @@ pub(crate) fn list_at(root: &Path) -> String {
             any_servable = true;
         }
         let note = family.map_or(String::new(), |arch| format!("  ·  {arch} — runner-only"));
+        // A pulled GGUF that verified against the Hub's sha256 shows
+        // the proof (first 12 hex — the sidecar carries the whole).
+        let verified = read_digest(&m.path)
+            .map(|d| format!("  ·  sha256 ✓ {}", &d[..12]))
+            .unwrap_or_default();
         let _ = writeln!(
             text,
-            "  {:<id_width$}  ·  {:>9}  ·  {}{note}",
+            "  {:<id_width$}  ·  {:>9}  ·  {}{note}{verified}",
             m.serve_id(),
             human_size(m.size),
             m.file_name,

@@ -188,6 +188,10 @@ impl ChildRunner for ProdChildRunner {
             let caps = RuntimeCapabilities {
                 fs: fs_boundary_of_permits(child_permits.as_ref()),
                 net: net_boundary_of_permits(child_permits.as_ref()),
+                exec_tasks: wf
+                    .tasks
+                    .iter()
+                    .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
             };
             let model = wf.model.as_ref().map_or("", |m| m.value.as_str());
             let runtime = super::compose::production_runtime(model, caps)

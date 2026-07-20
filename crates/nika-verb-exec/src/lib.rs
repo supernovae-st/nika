@@ -110,6 +110,12 @@ pub struct ExecInput {
     /// Task-level timeout, resolved by the engine (03-dag) — the runner
     /// enforces the hard kill.
     pub timeout: Option<Duration>,
+    /// The OS-confinement boundary derived from the workflow's declared
+    /// `permits:` (ADR-095 Layer 6) — `Some` once a boundary exists, so
+    /// the child is jailed to it at spawn; `None` = the unconfined
+    /// blocklist-only floor (no `permits:` block). Set by the engine,
+    /// never authored.
+    pub sandbox: Option<nika_kernel::process::SandboxSpec>,
 }
 
 impl ExecInput {
@@ -155,6 +161,7 @@ impl ExecInput {
             capture: CaptureMode::Stdout,
             raw_capture: false,
             timeout: None,
+            sandbox: None,
         }
     }
 }
@@ -393,6 +400,9 @@ fn build_command(input: ExecInput) -> ShellCommand {
     cmd.env = input.env;
     cmd.stdin = input.stdin;
     cmd.timeout = input.timeout;
+    // The OS-confinement boundary rides untouched to the runner, which
+    // applies it AFTER the blocklist (the floor sees the REAL command).
+    cmd.sandbox = input.sandbox;
     cmd
 }
 
@@ -446,6 +456,28 @@ mod tests {
 
     fn verb(mock: MockShell) -> ExecVerb<MockShell> {
         ExecVerb::new(Arc::new(mock))
+    }
+
+    #[tokio::test]
+    async fn sandbox_spec_reaches_the_runner_untouched() {
+        // ADR-095 Layer 6 — the engine-derived confinement boundary rides
+        // from ExecInput to the runner verbatim (the runner applies it
+        // AFTER the blocklist, so the floor sees the real command).
+        let mock = MockShell::new().enqueue_ok("ok");
+        let v = verb(mock.clone());
+        let mut spec = nika_kernel::process::SandboxSpec::new();
+        spec.fs_read = vec!["/repo/data/**".to_owned()];
+        spec.allow_network = false;
+        let mut input = ExecInput::argv(["echo", "x"]);
+        input.sandbox = Some(spec.clone());
+        v.run(input).await.expect("runs");
+        let sent = mock.executed_commands();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(
+            sent[0].sandbox.as_ref(),
+            Some(&spec),
+            "the sandbox spec rides verbatim"
+        );
     }
 
     #[tokio::test]

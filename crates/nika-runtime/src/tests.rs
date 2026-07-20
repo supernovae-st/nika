@@ -72,6 +72,103 @@ impl EventSink for NotifyOnFastSettle {
 /// frames reach the sink at ITS settle, not the wave join. Proof by
 /// construction: `gate` (same wave, declared after `fast`) BLOCKS until
 /// the sink has seen fast's `task_completed` — join-granularity frames
+/// ADR-095 Layer 6 — a declared boundary attaches the OS-confinement
+/// spec to every exec child (grants absolutized at the config root ·
+/// network denied unless `net.http` lifts it).
+#[tokio::test]
+async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    let yaml = "nika: v1\nworkflow:\n  id: jail\npermits:\n  fs: { read: [\"./data/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+    let shell = MockShell::new().enqueue_ok("ok");
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(shell.clone())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default().with_sandbox_root(std::path::PathBuf::from("/repo")),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    let sent = shell.executed_commands();
+    assert_eq!(sent.len(), 1);
+    let spec = sent[0]
+        .sandbox
+        .as_ref()
+        .expect("a declared boundary attaches the spec");
+    assert_eq!(spec.fs_read, vec!["/repo/data/**".to_owned()]);
+    assert_eq!(spec.fs_write, vec!["/repo/out/**".to_owned()]);
+    assert!(!spec.allow_network, "no net.http = the deny holds");
+}
+
+/// No `permits:` block = today's unconfined floor (the blocklist only —
+/// the sandbox spec stays unset, so the noop-backend world is unchanged).
+#[tokio::test]
+async fn no_declared_boundary_attaches_no_spec() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+    let shell = MockShell::new().enqueue_ok("ok");
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(shell.clone())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    let sent = shell.executed_commands();
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].sandbox.is_none(), "no boundary = no spec attached");
+}
+
 /// would starve it forever (they'd only exist after gate itself
 /// finished); the streamed spine settles fast first and unblocks the
 /// wave. A 5s timeout turns a regression into a loud failure, never a
@@ -140,6 +237,111 @@ async fn wave_settles_stream_before_the_join() {
         })
         .collect();
     assert_eq!(completed, ["fast", "gate"], "the ordered spine holds");
+}
+
+/// S1 journal hygiene — the dynamic-flow backstop, end to end: an exec
+/// ECHOES a resolved secret (the static IFC sanctioned the declared
+/// flow; a file-sourced `cat` or an mcp echo takes the same dynamic
+/// path), so the value lands in the task's OUTPUT and would ride the
+/// terminal frame's `outcome` payload into the journal in plaintext.
+/// The stream every lane mirrors must carry the marker, never the
+/// value.
+#[tokio::test]
+async fn resolved_secret_is_scrubbed_from_the_event_stream() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    /// The composer's resolver, scripted (one env-sourced value).
+    struct MapResolver(&'static str, &'static str);
+    impl WorkflowSecretResolver for MapResolver {
+        fn resolve(
+            &self,
+            name: &str,
+            _reference: &nika_schema::types::SecretRef,
+        ) -> Result<String, SecretResolveError> {
+            if name == self.0 {
+                Ok(self.1.to_owned())
+            } else {
+                Err(SecretResolveError {
+                    name: name.to_owned(),
+                    reason: "absent".to_owned(),
+                })
+            }
+        }
+    }
+
+    const SECRET: &str = "sk-live-9f2c7e4a1b6d"; // ≥ the 8-char scrub floor
+    // The leak is DYNAMIC by construction: argv carries no `${{ secrets.X }}`
+    // (the static IFC sees nothing to sanction — the report is clean), and
+    // the shell mock's OUTPUT is the secret value — the same bytes a
+    // file-sourced `cat` or an mcp echo would surface. What the scrub must
+    // catch is the value, wherever it came from.
+    let yaml = "nika: v1\nworkflow:\n  id: journal-hygiene\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new().enqueue_ok(SECRET))),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    )
+    .with_secret_resolver(Arc::new(MapResolver("tok", SECRET)));
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    assert!(outcome.ok, "the workflow itself succeeds");
+
+    // The journal mirrors this stream byte-for-byte (plus its `chain`
+    // key) — serialize the way the NDJSON lanes do.
+    let bytes = sink
+        .events()
+        .iter()
+        .map(|e| serde_json::to_string(e).expect("event serializes"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !bytes.contains(SECRET),
+        "no event carries the resolved value: {bytes}"
+    );
+    assert!(
+        bytes.contains(secret::REDACTED),
+        "the marker stands where the value surfaced: {bytes}"
+    );
+    // And precisely: the terminal frame's `outcome` payload — the leak
+    // vector the audit named — carries the marker, not the plaintext.
+    let outcome_field = sink
+        .events()
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .and_then(|e| e.fields.iter().find(|kv| kv.key == "outcome"))
+        .and_then(|kv| match &kv.value {
+            FieldValue::String(s) => Some(s.as_str()),
+            _ => None,
+        })
+        .expect("a terminal frame carries its outcome");
+    assert!(outcome_field.contains(secret::REDACTED), "{outcome_field}");
+    assert!(!outcome_field.contains(SECRET), "{outcome_field}");
 }
 
 #[test]
@@ -1041,5 +1243,219 @@ mod skill_compose_tests {
         let error = outcome.records["go"].error.as_ref().expect("the error");
         assert_eq!(error.code, "NIKA-AGENT-004");
         assert!(error.message.contains("frontmatter"), "{}", error.message);
+    }
+}
+
+/// `permits.tools` RUNTIME enforcement (spec 01 §permits · NIKA-SEC-004) —
+/// the last check-only axis closes. The static `permits_fit` scan refuses
+/// an out-of-boundary tool at `nika check`; these fixtures prove the RUN
+/// refuses it too when the report can no longer vouch for the body — an
+/// embedder that skipped `check`, or a clean report forged for a different
+/// (permit-free) workflow. The honest path (check THEN run the same file)
+/// is covered by the granted fixtures, which ride their REAL clean report.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tools_permits_tests {
+    use std::sync::Arc;
+
+    use nika_kernel::tool_executor::ToolResult;
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_infer::InferVerb;
+    use nika_verb_invoke::InvokeVerb;
+
+    use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
+
+    type MockRuntime = Runtime<
+        MockShell,
+        MockToolExecutor,
+        nika_providers::NoHttp,
+        MockProvider,
+        MockToolDefinitionProvider,
+        MockClock,
+    >;
+
+    fn runtime_with(executor: MockToolExecutor, provider: MockProvider) -> MockRuntime {
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(executor)));
+        Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "mock/echo",
+            ),
+            AgentVerb::new(
+                Arc::new(provider),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+    }
+
+    fn parse(yaml: &str) -> nika_schema::raw::RawWorkflow {
+        nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses")
+    }
+
+    /// The embedder-bypass shape: `check` refuses the REAL workflow (its
+    /// body escapes the declared boundary), so the run is fed the CLEAN
+    /// report of its permit-free twin — same tasks, same waves. A skipped
+    /// check and a forged report are indistinguishable to the runtime; it
+    /// must enforce the boundary the WORKFLOW declares, never the one a
+    /// report vouches for. Every fixture writes `permits:` as ONE line so
+    /// the twin is a line-strip away.
+    fn forged_clean_report(
+        yaml: &str,
+    ) -> (nika_schema::raw::RawWorkflow, nika_schema::CheckReport) {
+        let wf = parse(yaml);
+        assert!(
+            !nika_schema::check(&wf).is_clean(),
+            "the honest check refuses the real workflow (the static half)"
+        );
+        let twin_yaml = yaml
+            .lines()
+            .filter(|line| !line.starts_with("permits:"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let report = nika_schema::check(&parse(&twin_yaml));
+        assert!(
+            report.is_clean(),
+            "the permit-free twin checks clean (same tasks → same waves)"
+        );
+        (wf, report)
+    }
+
+    async fn run(
+        runtime: &MockRuntime,
+        wf: &nika_schema::raw::RawWorkflow,
+        report: &nika_schema::CheckReport,
+    ) -> RunOutcome {
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        runtime
+            .run(wf, report, &mut stamper, &mut sink)
+            .await
+            .expect("run settles")
+    }
+
+    /// A tool OUTSIDE `permits.tools` is refused at the dispatch with the
+    /// SAME code the static checker emits — even under a forged clean
+    /// report — and the executor is NEVER reached.
+    #[tokio::test]
+    async fn invoke_outside_tools_boundary_is_refused_under_a_forged_report() {
+        let (wf, report) = forged_clean_report(
+            "nika: v1\nworkflow:\n  id: tools-deny\npermits: { tools: [\"nika:read\"] }\ntasks:\n  danger:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n",
+        );
+        let executor = MockToolExecutor::new(); // EMPTY — any call is a bug
+        let probe = executor.clone();
+        let runtime = runtime_with(executor, MockProvider::new("mock"));
+        let outcome = run(&runtime, &wf, &report).await;
+        assert!(!outcome.ok, "a refused tool fails the run");
+        let rec = &outcome.records["danger"];
+        assert_eq!(rec.status, TaskStatus::Failure);
+        let err = rec.error.as_ref().expect("the refusal is recorded");
+        assert_eq!(
+            err.code, "NIKA-SEC-004",
+            "one voice with the static checker"
+        );
+        assert!(!err.transient, "a security boundary never retries");
+        assert!(
+            err.message.contains("nika:write"),
+            "the refusal names the tool: {}",
+            err.message
+        );
+        assert!(
+            probe.captured_calls().is_empty(),
+            "the refused tool NEVER executed"
+        );
+    }
+
+    /// A declared block that omits `tools:` grants NO tool (default-deny —
+    /// the exact `Permits::allows_tool` verdict the static scan pins: an
+    /// omitted category is not an allow-all).
+    #[tokio::test]
+    async fn declared_block_with_omitted_tools_denies_every_tool() {
+        let (wf, report) = forged_clean_report(
+            "nika: v1\nworkflow:\n  id: tools-omitted\npermits: { exec: true }\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
+        );
+        let executor = MockToolExecutor::new();
+        let probe = executor.clone();
+        let runtime = runtime_with(executor, MockProvider::new("mock"));
+        let outcome = run(&runtime, &wf, &report).await;
+        assert!(!outcome.ok, "an omitted category is default-deny");
+        let err = outcome.records["t"].error.as_ref().expect("recorded");
+        assert_eq!(err.code, "NIKA-SEC-004");
+        assert!(probe.captured_calls().is_empty());
+    }
+
+    /// The honest path: a granted tool passes check AND run — the gate is
+    /// inert on a body that fits its declared boundary.
+    #[tokio::test]
+    async fn invoke_inside_tools_boundary_runs_on_the_real_report() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: tools-allow\npermits: { tools: [\"nika:read\"], fs: { read: [\"x\"] } }\ntasks:\n  ok:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
+        );
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "the fixture fits its boundary");
+        let executor = MockToolExecutor::new().enqueue_ok(ToolResult::success("t1", "file-bytes"));
+        let probe = executor.clone();
+        let runtime = runtime_with(executor, MockProvider::new("mock"));
+        let outcome = run(&runtime, &wf, &report).await;
+        assert!(outcome.ok, "a granted tool runs to success");
+        assert_eq!(outcome.records["ok"].status, TaskStatus::Success);
+        assert_eq!(probe.captured_calls().len(), 1, "exactly one tool call");
+    }
+
+    /// The agent verb's declared `tools:` universe is gated the same way —
+    /// refused BEFORE any provider call (the in-loop whitelist governs the
+    /// model's picks only within a boundary-fitting universe).
+    #[tokio::test]
+    async fn agent_universe_outside_tools_boundary_is_refused() {
+        let (wf, report) = forged_clean_report(
+            "nika: v1\nworkflow:\n  id: agent-tools-deny\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\", \"nika:write\"]\n",
+        );
+        let provider = MockProvider::new("mock").enqueue_text("never reached");
+        let probe = provider.clone();
+        let runtime = runtime_with(MockToolExecutor::new(), provider);
+        let outcome = run(&runtime, &wf, &report).await;
+        assert!(!outcome.ok);
+        let rec = &outcome.records["go"];
+        assert_eq!(rec.status, TaskStatus::Failure);
+        let err = rec.error.as_ref().expect("the refusal is recorded");
+        assert_eq!(err.code, "NIKA-SEC-004");
+        assert!(
+            probe.captured_requests().is_empty(),
+            "no token is spent on an out-of-boundary universe"
+        );
+    }
+
+    /// A universe INSIDE the boundary runs untouched — the gate defers to
+    /// the loop's whitelist for the model's picks (behavior unchanged).
+    #[tokio::test]
+    async fn agent_universe_inside_tools_boundary_runs() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: agent-tools-allow\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\"]\n",
+        );
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "the fixture fits its boundary");
+        let provider = MockProvider::new("mock").enqueue_text("done");
+        let probe = provider.clone();
+        let runtime = runtime_with(MockToolExecutor::new(), provider);
+        let outcome = run(&runtime, &wf, &report).await;
+        assert!(outcome.ok, "a granted universe runs to success");
+        assert_eq!(outcome.records["go"].status, TaskStatus::Success);
+        assert_eq!(probe.captured_requests().len(), 1, "one provider turn");
     }
 }

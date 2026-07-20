@@ -36,8 +36,8 @@ mod trifecta;
 // The fine-grained builtin effect table (boundary checking · inference) —
 // extracted from nika-schema's permits_fit under the same 15k pressure as
 // shape.rs; the coarse policy table (EffectClass) lives beside it.
-pub use effect::{BuiltinEffect, builtin_effect, chart_vl_sibling};
-pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
+pub use effect::{BuiltinEffect, builtin_effect, builtin_egresses, chart_vl_sibling};
+pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
 // W4 « the authority » (spec 10) — the policy: vocabulary (closed at the
 // type level) + the pure judge + the certificate's authority projection.
 pub use policy::{
@@ -49,4 +49,4 @@ pub use shape::builtin_shape_findings;
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
 // leg-conjunction + path-dominance logic; the projection lives in
 // `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).
-pub use trifecta::{TrifectaSubject, TrifectaViolation, trifecta_violations};
+pub use trifecta::{TaintWitness, TrifectaSubject, TrifectaViolation, trifecta_violations};

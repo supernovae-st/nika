@@ -330,8 +330,10 @@ mod tests {
                 "COMPOSITION",
             ),
             (
-                // trifecta: all three legs declared + ungated egress (NEP-0002)
-                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+                // trifecta: all three legs declared + an ungated egress the
+                // untrusted content REACHES (NEP-0002 v2.0 · the second
+                // fetch's url rides the first's untrusted output)
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
                 "trifecta",
                 "TRIFECTA",
             ),
@@ -414,9 +416,10 @@ mod tests {
         assert_eq!(policy.gate, "POLICY");
 
         // trifecta → NIKA-SEC-009 (NEP-0002) — the code rides with the
-        // witness task, one voice with the conformance-code surface.
+        // witness task (the SINK the content reaches · v2.0), one voice
+        // with the conformance-code surface.
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
         );
         let tri = r
             .findings
@@ -428,7 +431,7 @@ mod tests {
             tri.docs_url.as_deref(),
             Some("https://nika.sh/errors/NIKA-SEC-009")
         );
-        assert_eq!(tri.task.as_deref(), Some("a"));
+        assert_eq!(tri.task.as_deref(), Some("b"), "the sink is the witness");
     }
 
     /// The wire shape: absent optionals are ABSENT (never null) — the
