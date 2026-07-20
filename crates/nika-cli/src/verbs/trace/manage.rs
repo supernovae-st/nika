@@ -25,6 +25,43 @@ use crate::verbs::VerbOutput;
 use super::retention;
 use super::store::{self, TraceMeta, TraceState};
 
+/// Name the bare-form pick on stderr — the receipt names its subject.
+// The bare-form receipt speaks on stderr BY DESIGN (the run/mod.rs
+// precedent: the diagnostic stream is this surface's own channel).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+pub fn announce_latest(path: &Path) {
+    eprintln!(
+        "nika trace: reading {} (the workspace latest)",
+        path.display()
+    );
+}
+
+/// The bare form of a static trace reader: no path → the workspace's
+/// latest trace, named on stderr · zero traces → the teaching error,
+/// exit 3 (ADR-098 environment). Moved out of the bin's dispatcher
+/// (the 1500-LOC wall) when the anchor arm landed — every trace verb
+/// resolves through this ONE routing.
+///
+/// # Errors
+///
+/// `verbs::exit::ENV` when the store holds no trace to fall back on.
+// Same stderr channel as announce_latest (the teaching error is a
+// diagnostic, not the verb's report).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+pub fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
+    if let Some(path) = given {
+        return Ok(resolve_store_handle(&path));
+    }
+    if let Some(path) = latest() {
+        announce_latest(&path);
+        return Ok(path);
+    }
+    eprintln!(
+        "nika trace: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
+    );
+    Err(crate::verbs::exit::ENV)
+}
+
 /// `nika trace ls` — list the workspace trace store (`.nika/traces/`).
 #[must_use]
 pub fn ls(theme: Theme) -> VerbOutput {

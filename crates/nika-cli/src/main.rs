@@ -444,14 +444,30 @@ enum TraceAction {
         #[arg(long)]
         include_content: bool,
     },
-    /// Verify the journal's tamper-evidence chain (0.96+): any edited,
-    /// inserted, dropped or reordered line breaks every hash after it.
-    /// Exit 0 intact · 2 broken · 3 unchained (pre-chain journal).
+    /// Verify the journal's tamper-evidence chain (0.96+), then climb
+    /// the proof ladder: SEALED (the `run_sealed` signature verifies
+    /// against a custody key) · ANCHORED (the `<trace>.anchor.json`
+    /// sidecar verifies fully offline) · REPLAYED (--replay compares
+    /// a fresh run). The HIGHEST honestly-attained tier is reported.
+    /// Exit 0 the tier holds · 2 broken/forged · 3 unchained (pre-chain
+    /// journal) or a missing input.
     Verify {
         /// Trace NDJSON path(s) — a shell glob (`.nika/traces/*.ndjson`)
         /// just works: each file verifies under its own header, the
         /// worst exit survives (default: the workspace's latest trace).
         traces: Vec<PathBuf>,
+        /// A candidate run public key for the SEALED tier (default:
+        /// ~/.nika/keys/run-signing.pub, then the retired.pub ledger).
+        #[arg(long)]
+        key: Option<PathBuf>,
+        /// Require the anchor tier: a MISSING sidecar is exit 3 (a
+        /// forged one is exit 2 either way).
+        #[arg(long)]
+        anchored: bool,
+        /// The REPLAYED tier: a FRESH journal of the same workflow to
+        /// compare against (verify never re-executes).
+        #[arg(long)]
+        replay: Option<PathBuf>,
     },
     /// Notarize the journal head OUTSIDE the journal (S3): submit the
     /// post-seal head — signed with the run key — to the public
@@ -947,7 +963,7 @@ fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> 
             return verbs::exit::ENV;
         }
     };
-    match resolve_trace(trace) {
+    match verbs::trace::manage::resolve_trace(trace) {
         Ok(path) => emit(&verbs::trace::flow(
             &path.to_string_lossy(),
             &workflow,
@@ -1003,12 +1019,15 @@ fn mcp_verb(action: Option<McpAction>, transport: McpTransportArg, port: u16, bi
 /// `nika trace verify [TRACES…]` — several paths (the shell glob) go
 /// per-file/worst-of; zero or one keeps the existing voice byte-stable
 /// (bare form resolves the latest · one arg resolves store handles).
-fn verify_verb(mut traces: Vec<PathBuf>) -> u8 {
+fn verify_verb(mut traces: Vec<PathBuf>, opts: &verbs::trace_verify::VerifyOptions) -> u8 {
     if traces.len() > 1 {
-        return emit(&verbs::trace_verify::verify_many(&traces));
+        return emit(&verbs::trace_verify::verify_many_with(&traces, opts));
     }
-    match resolve_trace(traces.pop()) {
-        Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
+    match verbs::trace::manage::resolve_trace(traces.pop()) {
+        Ok(path) => emit(&verbs::trace_verify::verify_with(
+            &path.to_string_lossy(),
+            opts,
+        )),
         Err(code) => code,
     }
 }
@@ -1045,7 +1064,7 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             emit(&verbs::trace::manage::rm(&target, force, theme))
         }
         TraceAction::Outputs { trace } => {
-            let trace = match resolve_trace(trace) {
+            let trace = match verbs::trace::manage::resolve_trace(trace) {
                 Ok(path) => path,
                 Err(code) => return code,
             };
@@ -1054,12 +1073,24 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
-        TraceAction::Verify { traces } => verify_verb(traces),
+        TraceAction::Verify {
+            traces,
+            key,
+            anchored,
+            replay,
+        } => verify_verb(
+            traces,
+            &verbs::trace_verify::VerifyOptions {
+                key,
+                anchored,
+                replay,
+            },
+        ),
         TraceAction::Anchor {
             trace,
             rekor_url,
             tsa_url,
-        } => match resolve_trace(trace) {
+        } => match verbs::trace::manage::resolve_trace(trace) {
             Ok(path) => emit(&verbs::trace_anchor::run(
                 &path.to_string_lossy(),
                 &rekor_url,
@@ -1309,7 +1340,7 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
         // verify/outputs/flow).
         None => match verbs::trace::manage::latest() {
             Some(path) => {
-                announce_latest(&path);
+                verbs::trace::manage::announce_latest(&path);
                 path
             }
             None => {

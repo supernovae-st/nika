@@ -54,56 +54,35 @@ pub fn run(trace: &str, rekor_url: &str, tsa_url: &str) -> VerbOutput {
     VerbOutput::ok(render(&sidecar, &head, events, &path))
 }
 
-/// The head one may anchor: the walk's `Intact` verdict ONLY. A broken
-/// chain is a forgery-class refusal (FILE); a torn tail is honest
-/// about the truncated write (FILE too — the anchor would notarize a
-/// head that excludes live bytes); the pre-chain/garbage classes are
-/// environment answers, mirroring `trace verify`.
+/// The head one may anchor: the refusal is CLASSIFIED in the
+/// forensics crate (`nika_dap::anchor::head_of`); this verb maps each
+/// class to the house taxonomy — broken and torn are FILE (the
+/// journal's own state refuses), the pre-chain/garbage classes are
+/// ENV, mirroring `trace verify`.
 fn anchorable_head(trace: &str) -> Result<(String, [u8; 32], usize), VerbOutput> {
     let raw = match std::fs::read_to_string(trace) {
         // seam-bypass-ok: L4 verb reading the journal it anchors (trace_verify idiom)
         Ok(raw) => raw,
         Err(e) => return Err(VerbOutput::env(format!("cannot read {trace}: {e}"))),
     };
-    let (head, events) = match super::trace_verify::walk(&raw) {
-        super::trace_verify::Verdict::Intact { events, head, .. } => (head, events),
-        super::trace_verify::Verdict::Broken { line, .. } => {
-            return Err(VerbOutput::file(format!(
-                "BROKEN at line {line} — refusing to anchor a journal whose chain does not verify (fix the journal, then anchor)"
-            )));
-        }
-        super::trace_verify::Verdict::TornTail { events, .. } => {
-            return Err(VerbOutput::file(format!(
-                "the final line is TORN (a crash mid-write) — refusing to anchor: the chain covers {events} events but the journal is not cleanly final"
-            )));
-        }
-        super::trace_verify::Verdict::Unchained => {
-            return Err(VerbOutput::env(format!(
-                "unchained — {trace} predates the chain (pre-0.96 journal): there is no head to anchor"
-            )));
-        }
-        super::trace_verify::Verdict::Empty => {
-            return Err(VerbOutput::env(format!("{trace}: no events")));
-        }
-        super::trace_verify::Verdict::Unreadable { line, .. } => {
-            return Err(VerbOutput::env(format!(
-                "{trace}:{line}: not a journal — the line is not valid JSON"
-            )));
-        }
-        // The verdict is #[non_exhaustive] — refuse newer classes
-        // honestly rather than guess an anchoring posture.
-        _ => {
-            return Err(VerbOutput::env(format!(
-                "{trace}: unknown verdict class — the forensics library is newer than this CLI"
-            )));
-        }
-    };
-    let Some(head32) = anchor::hex_decode(&head) else {
-        return Err(VerbOutput::env(format!(
-            "{trace}: the chain head is not 64 lowercase-hex chars — the forensics library is newer than this CLI"
-        )));
-    };
-    Ok((head, head32, events))
+    anchor::head_of(&raw).map_err(|refusal| match refusal {
+        anchor::HeadRefusal::Broken { line } => VerbOutput::file(format!(
+            "BROKEN at line {line} — refusing to anchor a journal whose chain does not verify (fix the journal, then anchor)"
+        )),
+        anchor::HeadRefusal::TornTail { events } => VerbOutput::file(format!(
+            "the final line is TORN (a crash mid-write) — refusing to anchor: the chain covers {events} events but the journal is not cleanly final"
+        )),
+        anchor::HeadRefusal::Unchained => VerbOutput::env(format!(
+            "unchained — {trace} predates the chain (pre-0.96 journal): there is no head to anchor"
+        )),
+        anchor::HeadRefusal::Empty => VerbOutput::env(format!("{trace}: no events")),
+        anchor::HeadRefusal::Unreadable { line } => VerbOutput::env(format!(
+            "{trace}:{line}: not a journal — the line is not valid JSON"
+        )),
+        _ => VerbOutput::env(format!(
+            "{trace}: unknown verdict class — the forensics library is newer than this CLI"
+        )),
+    })
 }
 
 /// The blocking composer (the `registry.rs` idiom): the production

@@ -1,4 +1,614 @@
 pub mod nika_dap
+pub mod nika_dap::anchor
+pub mod nika_dap::anchor::rekor
+pub struct nika_dap::anchor::rekor::Checkpoint
+pub nika_dap::anchor::rekor::Checkpoint::root: [u8; 32]
+pub nika_dap::anchor::rekor::Checkpoint::tree_size: u64
+impl core::clone::Clone for nika_dap::anchor::rekor::Checkpoint
+pub fn nika_dap::anchor::rekor::Checkpoint::clone(&self) -> nika_dap::anchor::rekor::Checkpoint
+impl core::cmp::Eq for nika_dap::anchor::rekor::Checkpoint
+impl core::cmp::PartialEq for nika_dap::anchor::rekor::Checkpoint
+pub fn nika_dap::anchor::rekor::Checkpoint::eq(&self, other: &nika_dap::anchor::rekor::Checkpoint) -> bool
+impl core::fmt::Debug for nika_dap::anchor::rekor::Checkpoint
+pub fn nika_dap::anchor::rekor::Checkpoint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::rekor::Checkpoint
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::rekor::Checkpoint
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::rekor::Checkpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::Checkpoint::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::Checkpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::Checkpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::Checkpoint::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::rekor::Checkpoint::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::rekor::Checkpoint where U: core::convert::From<T>
+pub fn nika_dap::anchor::rekor::Checkpoint::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::rekor::Checkpoint where U: core::convert::Into<T>
+pub type nika_dap::anchor::rekor::Checkpoint::Error = core::convert::Infallible
+pub fn nika_dap::anchor::rekor::Checkpoint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::rekor::Checkpoint where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::rekor::Checkpoint::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::rekor::Checkpoint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::rekor::Checkpoint where T: core::clone::Clone
+pub type nika_dap::anchor::rekor::Checkpoint::Owned = T
+pub fn nika_dap::anchor::rekor::Checkpoint::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::rekor::Checkpoint::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::rekor::Checkpoint where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::Checkpoint::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::rekor::Checkpoint where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::Checkpoint::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::rekor::Checkpoint where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::Checkpoint::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::rekor::Checkpoint where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::rekor::Checkpoint::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::rekor::Checkpoint
+pub fn nika_dap::anchor::rekor::Checkpoint::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::rekor::Checkpoint where T: core::clone::Clone
+pub fn nika_dap::anchor::rekor::Checkpoint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::rekor::Checkpoint where T: 'static
+pub fn nika_dap::anchor::rekor::Checkpoint::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::rekor::Checkpoint
+pub type nika_dap::anchor::rekor::Checkpoint::Output = T
+pub struct nika_dap::anchor::rekor::SubmittedEntry
+pub nika_dap::anchor::rekor::SubmittedEntry::canonicalized_body_b64: alloc::string::String
+pub nika_dap::anchor::rekor::SubmittedEntry::checkpoint: alloc::string::String
+pub nika_dap::anchor::rekor::SubmittedEntry::log_id: alloc::string::String
+pub nika_dap::anchor::rekor::SubmittedEntry::log_index: alloc::string::String
+pub nika_dap::anchor::rekor::SubmittedEntry::proof_hashes: alloc::vec::Vec<alloc::string::String>
+pub nika_dap::anchor::rekor::SubmittedEntry::tree_size: alloc::string::String
+impl core::clone::Clone for nika_dap::anchor::rekor::SubmittedEntry
+pub fn nika_dap::anchor::rekor::SubmittedEntry::clone(&self) -> nika_dap::anchor::rekor::SubmittedEntry
+impl core::cmp::Eq for nika_dap::anchor::rekor::SubmittedEntry
+impl core::cmp::PartialEq for nika_dap::anchor::rekor::SubmittedEntry
+pub fn nika_dap::anchor::rekor::SubmittedEntry::eq(&self, other: &nika_dap::anchor::rekor::SubmittedEntry) -> bool
+impl core::fmt::Debug for nika_dap::anchor::rekor::SubmittedEntry
+pub fn nika_dap::anchor::rekor::SubmittedEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::rekor::SubmittedEntry
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::rekor::SubmittedEntry
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::rekor::SubmittedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::SubmittedEntry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::SubmittedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::SubmittedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::SubmittedEntry::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::rekor::SubmittedEntry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::rekor::SubmittedEntry where U: core::convert::From<T>
+pub fn nika_dap::anchor::rekor::SubmittedEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::rekor::SubmittedEntry where U: core::convert::Into<T>
+pub type nika_dap::anchor::rekor::SubmittedEntry::Error = core::convert::Infallible
+pub fn nika_dap::anchor::rekor::SubmittedEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::rekor::SubmittedEntry where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::rekor::SubmittedEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::rekor::SubmittedEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::rekor::SubmittedEntry where T: core::clone::Clone
+pub type nika_dap::anchor::rekor::SubmittedEntry::Owned = T
+pub fn nika_dap::anchor::rekor::SubmittedEntry::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::rekor::SubmittedEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::rekor::SubmittedEntry where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::SubmittedEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::rekor::SubmittedEntry where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::SubmittedEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::rekor::SubmittedEntry where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::SubmittedEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::rekor::SubmittedEntry where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::rekor::SubmittedEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::rekor::SubmittedEntry
+pub fn nika_dap::anchor::rekor::SubmittedEntry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::rekor::SubmittedEntry where T: core::clone::Clone
+pub fn nika_dap::anchor::rekor::SubmittedEntry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::rekor::SubmittedEntry where T: 'static
+pub fn nika_dap::anchor::rekor::SubmittedEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::rekor::SubmittedEntry
+pub type nika_dap::anchor::rekor::SubmittedEntry::Output = T
+pub const nika_dap::anchor::rekor::DEFAULT_REKOR_URL: &str
+pub const nika_dap::anchor::rekor::REKOR_ED25519_PUB_B64: &str
+pub const nika_dap::anchor::rekor::REKOR_ORIGIN: &str
+pub fn nika_dap::anchor::rekor::build_entry_request(artifact: &[u8; 32], signature: &[u8; 64], spki_der: &[u8]) -> alloc::string::String
+pub fn nika_dap::anchor::rekor::entry_digest(artifact: &[u8; 32]) -> [u8; 64]
+pub fn nika_dap::anchor::rekor::leaf_hash(canonicalized_body: &[u8]) -> [u8; 32]
+pub fn nika_dap::anchor::rekor::parse_checkpoint_body(envelope: &str) -> core::result::Result<(alloc::string::String, u64, [u8; 32]), alloc::string::String>
+pub fn nika_dap::anchor::rekor::parse_entry_response(body: &serde_json::value::Value) -> core::result::Result<nika_dap::anchor::rekor::SubmittedEntry, alloc::string::String>
+pub fn nika_dap::anchor::rekor::rfc6962_audit_root(leaf_index: u64, tree_size: u64, leaf_hash: &[u8; 32], path: &[[u8; 32]]) -> core::option::Option<[u8; 32]>
+pub fn nika_dap::anchor::rekor::spki_der_ed25519(pk32: &[u8; 32]) -> alloc::vec::Vec<u8>
+pub fn nika_dap::anchor::rekor::verify_checkpoint(envelope: &str) -> core::result::Result<nika_dap::anchor::rekor::Checkpoint, alloc::string::String>
+pub fn nika_dap::anchor::rekor::verify_entry_binds_head(canonicalized_body: &[u8], head: &[u8; 32], pk32: &[u8; 32]) -> core::result::Result<(), alloc::string::String>
+pub mod nika_dap::anchor::rfc3161
+pub struct nika_dap::anchor::rfc3161::VerifiedToken
+pub nika_dap::anchor::rfc3161::VerifiedToken::gen_time: alloc::string::String
+impl core::clone::Clone for nika_dap::anchor::rfc3161::VerifiedToken
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::clone(&self) -> nika_dap::anchor::rfc3161::VerifiedToken
+impl core::cmp::Eq for nika_dap::anchor::rfc3161::VerifiedToken
+impl core::cmp::PartialEq for nika_dap::anchor::rfc3161::VerifiedToken
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::eq(&self, other: &nika_dap::anchor::rfc3161::VerifiedToken) -> bool
+impl core::fmt::Debug for nika_dap::anchor::rfc3161::VerifiedToken
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::rfc3161::VerifiedToken
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::rfc3161::VerifiedToken
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::rfc3161::VerifiedToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rfc3161::VerifiedToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rfc3161::VerifiedToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::rfc3161::VerifiedToken where U: core::convert::From<T>
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::rfc3161::VerifiedToken where U: core::convert::Into<T>
+pub type nika_dap::anchor::rfc3161::VerifiedToken::Error = core::convert::Infallible
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::rfc3161::VerifiedToken where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::rfc3161::VerifiedToken::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::rfc3161::VerifiedToken where T: core::clone::Clone
+pub type nika_dap::anchor::rfc3161::VerifiedToken::Owned = T
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::rfc3161::VerifiedToken where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::rfc3161::VerifiedToken where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::rfc3161::VerifiedToken where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::rfc3161::VerifiedToken where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::rfc3161::VerifiedToken::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::rfc3161::VerifiedToken
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::rfc3161::VerifiedToken where T: core::clone::Clone
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::rfc3161::VerifiedToken where T: 'static
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::rfc3161::VerifiedToken
+pub type nika_dap::anchor::rfc3161::VerifiedToken::Output = T
+pub const nika_dap::anchor::rfc3161::DEFAULT_TSA_URL: &str
+pub const nika_dap::anchor::rfc3161::TSA_LEAF_CERT_B64: &str
+pub const nika_dap::anchor::rfc3161::TSA_LEAF_SEC1_B64: &str
+pub fn nika_dap::anchor::rfc3161::build_query(imprint: &[u8; 32], nonce: &[u8; 8]) -> alloc::vec::Vec<u8>
+pub fn nika_dap::anchor::rfc3161::verify_token(token: &[u8], expected: &[u8; 32]) -> core::result::Result<nika_dap::anchor::rfc3161::VerifiedToken, alloc::string::String>
+pub mod nika_dap::anchor::tier
+pub enum nika_dap::anchor::tier::AnchorTier
+pub nika_dap::anchor::tier::AnchorTier::Anchored(nika_dap::anchor::VerifiedAnchor)
+pub nika_dap::anchor::tier::AnchorTier::Gap(alloc::string::String)
+pub nika_dap::anchor::tier::AnchorTier::NotPresent
+pub nika_dap::anchor::tier::AnchorTier::Required
+impl core::clone::Clone for nika_dap::anchor::tier::AnchorTier
+pub fn nika_dap::anchor::tier::AnchorTier::clone(&self) -> nika_dap::anchor::tier::AnchorTier
+impl core::cmp::Eq for nika_dap::anchor::tier::AnchorTier
+impl core::cmp::PartialEq for nika_dap::anchor::tier::AnchorTier
+pub fn nika_dap::anchor::tier::AnchorTier::eq(&self, other: &nika_dap::anchor::tier::AnchorTier) -> bool
+impl core::fmt::Debug for nika_dap::anchor::tier::AnchorTier
+pub fn nika_dap::anchor::tier::AnchorTier::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::tier::AnchorTier
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::AnchorTier
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::AnchorTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AnchorTier::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::AnchorTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::AnchorTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AnchorTier::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::tier::AnchorTier::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::AnchorTier where U: core::convert::From<T>
+pub fn nika_dap::anchor::tier::AnchorTier::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::tier::AnchorTier where U: core::convert::Into<T>
+pub type nika_dap::anchor::tier::AnchorTier::Error = core::convert::Infallible
+pub fn nika_dap::anchor::tier::AnchorTier::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::tier::AnchorTier where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::tier::AnchorTier::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::tier::AnchorTier::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::tier::AnchorTier where T: core::clone::Clone
+pub type nika_dap::anchor::tier::AnchorTier::Owned = T
+pub fn nika_dap::anchor::tier::AnchorTier::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::tier::AnchorTier::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::tier::AnchorTier where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AnchorTier::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::tier::AnchorTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AnchorTier::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::tier::AnchorTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AnchorTier::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::tier::AnchorTier where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::tier::AnchorTier::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::tier::AnchorTier
+pub fn nika_dap::anchor::tier::AnchorTier::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::AnchorTier where T: core::clone::Clone
+pub fn nika_dap::anchor::tier::AnchorTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::AnchorTier where T: 'static
+pub fn nika_dap::anchor::tier::AnchorTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::AnchorTier
+pub type nika_dap::anchor::tier::AnchorTier::Output = T
+pub enum nika_dap::anchor::tier::SealTier
+pub nika_dap::anchor::tier::SealTier::Forged(alloc::string::String)
+pub nika_dap::anchor::tier::SealTier::Sealed(nika_dap::anchor::tier::SealVerdict)
+pub nika_dap::anchor::tier::SealTier::Unsealed
+impl core::clone::Clone for nika_dap::anchor::tier::SealTier
+pub fn nika_dap::anchor::tier::SealTier::clone(&self) -> nika_dap::anchor::tier::SealTier
+impl core::cmp::Eq for nika_dap::anchor::tier::SealTier
+impl core::cmp::PartialEq for nika_dap::anchor::tier::SealTier
+pub fn nika_dap::anchor::tier::SealTier::eq(&self, other: &nika_dap::anchor::tier::SealTier) -> bool
+impl core::fmt::Debug for nika_dap::anchor::tier::SealTier
+pub fn nika_dap::anchor::tier::SealTier::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::tier::SealTier
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::SealTier
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::SealTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealTier::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealTier::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::tier::SealTier::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::SealTier where U: core::convert::From<T>
+pub fn nika_dap::anchor::tier::SealTier::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::tier::SealTier where U: core::convert::Into<T>
+pub type nika_dap::anchor::tier::SealTier::Error = core::convert::Infallible
+pub fn nika_dap::anchor::tier::SealTier::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::tier::SealTier where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::tier::SealTier::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::tier::SealTier::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::tier::SealTier where T: core::clone::Clone
+pub type nika_dap::anchor::tier::SealTier::Owned = T
+pub fn nika_dap::anchor::tier::SealTier::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::tier::SealTier::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::tier::SealTier where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealTier::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::tier::SealTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealTier::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::tier::SealTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealTier::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::tier::SealTier where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::tier::SealTier::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::tier::SealTier
+pub fn nika_dap::anchor::tier::SealTier::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::SealTier where T: core::clone::Clone
+pub fn nika_dap::anchor::tier::SealTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::SealTier where T: 'static
+pub fn nika_dap::anchor::tier::SealTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::SealTier
+pub type nika_dap::anchor::tier::SealTier::Output = T
+pub struct nika_dap::anchor::tier::SealVerdict
+pub nika_dap::anchor::tier::SealVerdict::key_id: alloc::string::String
+pub nika_dap::anchor::tier::SealVerdict::pk32: [u8; 32]
+pub nika_dap::anchor::tier::SealVerdict::source: alloc::string::String
+impl core::clone::Clone for nika_dap::anchor::tier::SealVerdict
+pub fn nika_dap::anchor::tier::SealVerdict::clone(&self) -> nika_dap::anchor::tier::SealVerdict
+impl core::cmp::Eq for nika_dap::anchor::tier::SealVerdict
+impl core::cmp::PartialEq for nika_dap::anchor::tier::SealVerdict
+pub fn nika_dap::anchor::tier::SealVerdict::eq(&self, other: &nika_dap::anchor::tier::SealVerdict) -> bool
+impl core::fmt::Debug for nika_dap::anchor::tier::SealVerdict
+pub fn nika_dap::anchor::tier::SealVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::tier::SealVerdict
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::SealVerdict
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::SealVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealVerdict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealVerdict::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::tier::SealVerdict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::SealVerdict where U: core::convert::From<T>
+pub fn nika_dap::anchor::tier::SealVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::tier::SealVerdict where U: core::convert::Into<T>
+pub type nika_dap::anchor::tier::SealVerdict::Error = core::convert::Infallible
+pub fn nika_dap::anchor::tier::SealVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::tier::SealVerdict where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::tier::SealVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::tier::SealVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::tier::SealVerdict where T: core::clone::Clone
+pub type nika_dap::anchor::tier::SealVerdict::Owned = T
+pub fn nika_dap::anchor::tier::SealVerdict::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::tier::SealVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::tier::SealVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::tier::SealVerdict where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::tier::SealVerdict where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::tier::SealVerdict where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::tier::SealVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::tier::SealVerdict
+pub fn nika_dap::anchor::tier::SealVerdict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::SealVerdict where T: core::clone::Clone
+pub fn nika_dap::anchor::tier::SealVerdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::SealVerdict where T: 'static
+pub fn nika_dap::anchor::tier::SealVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::SealVerdict
+pub type nika_dap::anchor::tier::SealVerdict::Output = T
+pub fn nika_dap::anchor::tier::anchor_tier(trace: &str, head32: core::option::Option<[u8; 32]>, seal: &nika_dap::anchor::tier::SealVerdict, required: bool) -> nika_dap::anchor::tier::AnchorTier
+pub fn nika_dap::anchor::tier::last_complete_line(raw: &str, events: usize) -> core::option::Option<serde_json::value::Value>
+pub fn nika_dap::anchor::tier::seal_tier(line: core::option::Option<&serde_json::value::Value>, events: usize, candidates: &[(alloc::string::String, alloc::string::String)]) -> nika_dap::anchor::tier::SealTier
+#[non_exhaustive] pub enum nika_dap::anchor::HeadRefusal
+pub nika_dap::anchor::HeadRefusal::Broken
+pub nika_dap::anchor::HeadRefusal::Broken::line: usize
+pub nika_dap::anchor::HeadRefusal::Empty
+pub nika_dap::anchor::HeadRefusal::TornTail
+pub nika_dap::anchor::HeadRefusal::TornTail::events: usize
+pub nika_dap::anchor::HeadRefusal::Unchained
+pub nika_dap::anchor::HeadRefusal::Unknown
+pub nika_dap::anchor::HeadRefusal::Unreadable
+pub nika_dap::anchor::HeadRefusal::Unreadable::line: usize
+impl core::clone::Clone for nika_dap::anchor::HeadRefusal
+pub fn nika_dap::anchor::HeadRefusal::clone(&self) -> nika_dap::anchor::HeadRefusal
+impl core::cmp::Eq for nika_dap::anchor::HeadRefusal
+impl core::cmp::PartialEq for nika_dap::anchor::HeadRefusal
+pub fn nika_dap::anchor::HeadRefusal::eq(&self, other: &nika_dap::anchor::HeadRefusal) -> bool
+impl core::fmt::Debug for nika_dap::anchor::HeadRefusal
+pub fn nika_dap::anchor::HeadRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::HeadRefusal
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::HeadRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::HeadRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::HeadRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::HeadRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::HeadRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::HeadRefusal::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::HeadRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::HeadRefusal where U: core::convert::From<T>
+pub fn nika_dap::anchor::HeadRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::HeadRefusal where U: core::convert::Into<T>
+pub type nika_dap::anchor::HeadRefusal::Error = core::convert::Infallible
+pub fn nika_dap::anchor::HeadRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::HeadRefusal where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::HeadRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::HeadRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::HeadRefusal where T: core::clone::Clone
+pub type nika_dap::anchor::HeadRefusal::Owned = T
+pub fn nika_dap::anchor::HeadRefusal::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::HeadRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::HeadRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::HeadRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::HeadRefusal where T: ?core::marker::Sized
+pub fn nika_dap::anchor::HeadRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::HeadRefusal where T: ?core::marker::Sized
+pub fn nika_dap::anchor::HeadRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::HeadRefusal where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::HeadRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::HeadRefusal
+pub fn nika_dap::anchor::HeadRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::HeadRefusal where T: core::clone::Clone
+pub fn nika_dap::anchor::HeadRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::HeadRefusal where T: 'static
+pub fn nika_dap::anchor::HeadRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::HeadRefusal
+pub type nika_dap::anchor::HeadRefusal::Output = T
+pub struct nika_dap::anchor::AnchorSidecar
+pub nika_dap::anchor::AnchorSidecar::anchor_format: u32
+pub nika_dap::anchor::AnchorSidecar::anchored_at: alloc::string::String
+pub nika_dap::anchor::AnchorSidecar::engine: alloc::string::String
+pub nika_dap::anchor::AnchorSidecar::head: alloc::string::String
+pub nika_dap::anchor::AnchorSidecar::rekor: nika_dap::anchor::RekorAnchor
+pub nika_dap::anchor::AnchorSidecar::rfc3161: nika_dap::anchor::TsaAnchor
+impl core::clone::Clone for nika_dap::anchor::AnchorSidecar
+pub fn nika_dap::anchor::AnchorSidecar::clone(&self) -> nika_dap::anchor::AnchorSidecar
+impl core::cmp::Eq for nika_dap::anchor::AnchorSidecar
+impl core::cmp::PartialEq for nika_dap::anchor::AnchorSidecar
+pub fn nika_dap::anchor::AnchorSidecar::eq(&self, other: &nika_dap::anchor::AnchorSidecar) -> bool
+impl core::fmt::Debug for nika_dap::anchor::AnchorSidecar
+pub fn nika_dap::anchor::AnchorSidecar::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::AnchorSidecar
+impl serde_core::ser::Serialize for nika_dap::anchor::AnchorSidecar
+pub fn nika_dap::anchor::AnchorSidecar::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_dap::anchor::AnchorSidecar
+pub fn nika_dap::anchor::AnchorSidecar::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::AnchorSidecar
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::AnchorSidecar where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::AnchorSidecar::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::AnchorSidecar where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::AnchorSidecar where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::AnchorSidecar::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::AnchorSidecar::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::AnchorSidecar where U: core::convert::From<T>
+pub fn nika_dap::anchor::AnchorSidecar::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::AnchorSidecar where U: core::convert::Into<T>
+pub type nika_dap::anchor::AnchorSidecar::Error = core::convert::Infallible
+pub fn nika_dap::anchor::AnchorSidecar::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::AnchorSidecar where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::AnchorSidecar::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::AnchorSidecar::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::AnchorSidecar where T: core::clone::Clone
+pub type nika_dap::anchor::AnchorSidecar::Owned = T
+pub fn nika_dap::anchor::AnchorSidecar::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::AnchorSidecar::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::AnchorSidecar where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::AnchorSidecar::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::AnchorSidecar where T: ?core::marker::Sized
+pub fn nika_dap::anchor::AnchorSidecar::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::AnchorSidecar where T: ?core::marker::Sized
+pub fn nika_dap::anchor::AnchorSidecar::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::AnchorSidecar where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::AnchorSidecar::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::AnchorSidecar
+pub fn nika_dap::anchor::AnchorSidecar::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::AnchorSidecar where T: core::clone::Clone
+pub fn nika_dap::anchor::AnchorSidecar::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::AnchorSidecar where T: 'static
+pub fn nika_dap::anchor::AnchorSidecar::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::AnchorSidecar where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_dap::anchor::AnchorSidecar
+pub type nika_dap::anchor::AnchorSidecar::Output = T
+pub struct nika_dap::anchor::RekorAnchor
+pub nika_dap::anchor::RekorAnchor::canonicalized_body_b64: alloc::string::String
+pub nika_dap::anchor::RekorAnchor::checkpoint: alloc::string::String
+pub nika_dap::anchor::RekorAnchor::integrated_time: u64
+pub nika_dap::anchor::RekorAnchor::key_id: alloc::string::String
+pub nika_dap::anchor::RekorAnchor::log_id: alloc::string::String
+pub nika_dap::anchor::RekorAnchor::log_index: alloc::string::String
+pub nika_dap::anchor::RekorAnchor::proof_hashes: alloc::vec::Vec<alloc::string::String>
+pub nika_dap::anchor::RekorAnchor::tree_size: alloc::string::String
+pub nika_dap::anchor::RekorAnchor::url: alloc::string::String
+impl core::clone::Clone for nika_dap::anchor::RekorAnchor
+pub fn nika_dap::anchor::RekorAnchor::clone(&self) -> nika_dap::anchor::RekorAnchor
+impl core::cmp::Eq for nika_dap::anchor::RekorAnchor
+impl core::cmp::PartialEq for nika_dap::anchor::RekorAnchor
+pub fn nika_dap::anchor::RekorAnchor::eq(&self, other: &nika_dap::anchor::RekorAnchor) -> bool
+impl core::fmt::Debug for nika_dap::anchor::RekorAnchor
+pub fn nika_dap::anchor::RekorAnchor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::RekorAnchor
+impl serde_core::ser::Serialize for nika_dap::anchor::RekorAnchor
+pub fn nika_dap::anchor::RekorAnchor::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_dap::anchor::RekorAnchor
+pub fn nika_dap::anchor::RekorAnchor::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::RekorAnchor
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::RekorAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::RekorAnchor::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::RekorAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::RekorAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::RekorAnchor::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::RekorAnchor::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::RekorAnchor where U: core::convert::From<T>
+pub fn nika_dap::anchor::RekorAnchor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::RekorAnchor where U: core::convert::Into<T>
+pub type nika_dap::anchor::RekorAnchor::Error = core::convert::Infallible
+pub fn nika_dap::anchor::RekorAnchor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::RekorAnchor where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::RekorAnchor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::RekorAnchor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::RekorAnchor where T: core::clone::Clone
+pub type nika_dap::anchor::RekorAnchor::Owned = T
+pub fn nika_dap::anchor::RekorAnchor::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::RekorAnchor::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::RekorAnchor where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::RekorAnchor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::RekorAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::RekorAnchor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::RekorAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::RekorAnchor::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::RekorAnchor where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::RekorAnchor::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::RekorAnchor
+pub fn nika_dap::anchor::RekorAnchor::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::RekorAnchor where T: core::clone::Clone
+pub fn nika_dap::anchor::RekorAnchor::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::RekorAnchor where T: 'static
+pub fn nika_dap::anchor::RekorAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::RekorAnchor where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_dap::anchor::RekorAnchor
+pub type nika_dap::anchor::RekorAnchor::Output = T
+pub struct nika_dap::anchor::RunKeyMaterial
+pub nika_dap::anchor::RunKeyMaterial::pk32: [u8; 32]
+pub nika_dap::anchor::RunKeyMaterial::pk_box: alloc::string::String
+impl nika_dap::anchor::RunKeyMaterial
+pub fn nika_dap::anchor::RunKeyMaterial::sign(&self, artifact: &[u8; 32]) -> core::result::Result<[u8; 64], alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::RunKeyMaterial
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::RunKeyMaterial where U: core::convert::From<T>
+pub fn nika_dap::anchor::RunKeyMaterial::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::RunKeyMaterial where U: core::convert::Into<T>
+pub type nika_dap::anchor::RunKeyMaterial::Error = core::convert::Infallible
+pub fn nika_dap::anchor::RunKeyMaterial::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::RunKeyMaterial where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::RunKeyMaterial::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::RunKeyMaterial::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::anchor::RunKeyMaterial where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::RunKeyMaterial::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::RunKeyMaterial where T: ?core::marker::Sized
+pub fn nika_dap::anchor::RunKeyMaterial::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::RunKeyMaterial where T: ?core::marker::Sized
+pub fn nika_dap::anchor::RunKeyMaterial::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::anchor::RunKeyMaterial
+pub fn nika_dap::anchor::RunKeyMaterial::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::RunKeyMaterial where T: 'static
+pub fn nika_dap::anchor::RunKeyMaterial::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::RunKeyMaterial
+pub type nika_dap::anchor::RunKeyMaterial::Output = T
+pub struct nika_dap::anchor::TsaAnchor
+pub nika_dap::anchor::TsaAnchor::gen_time: alloc::string::String
+pub nika_dap::anchor::TsaAnchor::token_b64: alloc::string::String
+pub nika_dap::anchor::TsaAnchor::tsa_url: alloc::string::String
+impl core::clone::Clone for nika_dap::anchor::TsaAnchor
+pub fn nika_dap::anchor::TsaAnchor::clone(&self) -> nika_dap::anchor::TsaAnchor
+impl core::cmp::Eq for nika_dap::anchor::TsaAnchor
+impl core::cmp::PartialEq for nika_dap::anchor::TsaAnchor
+pub fn nika_dap::anchor::TsaAnchor::eq(&self, other: &nika_dap::anchor::TsaAnchor) -> bool
+impl core::fmt::Debug for nika_dap::anchor::TsaAnchor
+pub fn nika_dap::anchor::TsaAnchor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::TsaAnchor
+impl serde_core::ser::Serialize for nika_dap::anchor::TsaAnchor
+pub fn nika_dap::anchor::TsaAnchor::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_dap::anchor::TsaAnchor
+pub fn nika_dap::anchor::TsaAnchor::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::TsaAnchor
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::TsaAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::TsaAnchor::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::TsaAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::TsaAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::TsaAnchor::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::TsaAnchor::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::TsaAnchor where U: core::convert::From<T>
+pub fn nika_dap::anchor::TsaAnchor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::TsaAnchor where U: core::convert::Into<T>
+pub type nika_dap::anchor::TsaAnchor::Error = core::convert::Infallible
+pub fn nika_dap::anchor::TsaAnchor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::TsaAnchor where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::TsaAnchor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::TsaAnchor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::TsaAnchor where T: core::clone::Clone
+pub type nika_dap::anchor::TsaAnchor::Owned = T
+pub fn nika_dap::anchor::TsaAnchor::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::TsaAnchor::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::TsaAnchor where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::TsaAnchor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::TsaAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::TsaAnchor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::TsaAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::TsaAnchor::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::TsaAnchor where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::TsaAnchor::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::TsaAnchor
+pub fn nika_dap::anchor::TsaAnchor::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::TsaAnchor where T: core::clone::Clone
+pub fn nika_dap::anchor::TsaAnchor::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::TsaAnchor where T: 'static
+pub fn nika_dap::anchor::TsaAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::TsaAnchor where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_dap::anchor::TsaAnchor
+pub type nika_dap::anchor::TsaAnchor::Output = T
+pub struct nika_dap::anchor::VerifiedAnchor
+pub nika_dap::anchor::VerifiedAnchor::gen_time: alloc::string::String
+pub nika_dap::anchor::VerifiedAnchor::log_index: alloc::string::String
+pub nika_dap::anchor::VerifiedAnchor::tree_size: alloc::string::String
+impl core::clone::Clone for nika_dap::anchor::VerifiedAnchor
+pub fn nika_dap::anchor::VerifiedAnchor::clone(&self) -> nika_dap::anchor::VerifiedAnchor
+impl core::cmp::Eq for nika_dap::anchor::VerifiedAnchor
+impl core::cmp::PartialEq for nika_dap::anchor::VerifiedAnchor
+pub fn nika_dap::anchor::VerifiedAnchor::eq(&self, other: &nika_dap::anchor::VerifiedAnchor) -> bool
+impl core::fmt::Debug for nika_dap::anchor::VerifiedAnchor
+pub fn nika_dap::anchor::VerifiedAnchor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::anchor::VerifiedAnchor
+impl<D> owo_colors::OwoColorize for nika_dap::anchor::VerifiedAnchor
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::VerifiedAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::VerifiedAnchor::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::VerifiedAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::VerifiedAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::anchor::VerifiedAnchor::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::anchor::VerifiedAnchor::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::anchor::VerifiedAnchor where U: core::convert::From<T>
+pub fn nika_dap::anchor::VerifiedAnchor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::anchor::VerifiedAnchor where U: core::convert::Into<T>
+pub type nika_dap::anchor::VerifiedAnchor::Error = core::convert::Infallible
+pub fn nika_dap::anchor::VerifiedAnchor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::anchor::VerifiedAnchor where U: core::convert::TryFrom<T>
+pub type nika_dap::anchor::VerifiedAnchor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::anchor::VerifiedAnchor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::anchor::VerifiedAnchor where T: core::clone::Clone
+pub type nika_dap::anchor::VerifiedAnchor::Owned = T
+pub fn nika_dap::anchor::VerifiedAnchor::clone_into(&self, target: &mut T)
+pub fn nika_dap::anchor::VerifiedAnchor::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::anchor::VerifiedAnchor where T: 'static + ?core::marker::Sized
+pub fn nika_dap::anchor::VerifiedAnchor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::anchor::VerifiedAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::VerifiedAnchor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::anchor::VerifiedAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::VerifiedAnchor::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::anchor::VerifiedAnchor where T: core::clone::Clone
+pub unsafe fn nika_dap::anchor::VerifiedAnchor::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::anchor::VerifiedAnchor
+pub fn nika_dap::anchor::VerifiedAnchor::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::anchor::VerifiedAnchor where T: core::clone::Clone
+pub fn nika_dap::anchor::VerifiedAnchor::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::anchor::VerifiedAnchor where T: 'static
+pub fn nika_dap::anchor::VerifiedAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::anchor::VerifiedAnchor
+pub type nika_dap::anchor::VerifiedAnchor::Output = T
+pub const nika_dap::anchor::DEFAULT_REKOR_URL: &str
+pub const nika_dap::anchor::DEFAULT_TSA_URL: &str
+pub fn nika_dap::anchor::head_of(raw: &str) -> core::result::Result<(alloc::string::String, [u8; 32], usize), nika_dap::anchor::HeadRefusal>
+pub fn nika_dap::anchor::hex_decode(hex: &str) -> core::option::Option<[u8; 32]>
+pub fn nika_dap::anchor::hex_encode(bytes: &[u8; 32]) -> alloc::string::String
+pub fn nika_dap::anchor::load_sidecar(path: &std::path::Path) -> core::result::Result<nika_dap::anchor::AnchorSidecar, alloc::string::String>
+pub fn nika_dap::anchor::pk32_of_box(pk_box: &str) -> core::option::Option<[u8; 32]>
+pub fn nika_dap::anchor::run_key_material(sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::result::Result<nika_dap::anchor::RunKeyMaterial, alloc::string::String>
+pub fn nika_dap::anchor::sidecar_path(trace: &str) -> std::path::PathBuf
+pub async fn nika_dap::anchor::submit(http: &impl nika_kernel_core::io::http::HttpPostDyn, rekor_url: &str, tsa_url: &str, head: &[u8; 32], key: &nika_dap::anchor::RunKeyMaterial) -> core::result::Result<nika_dap::anchor::AnchorSidecar, alloc::string::String>
+pub fn nika_dap::anchor::verify_offline(sidecar: &nika_dap::anchor::AnchorSidecar, head: &[u8; 32], pk32: &[u8; 32], key_id: &str) -> core::result::Result<nika_dap::anchor::VerifiedAnchor, alloc::string::String>
+pub fn nika_dap::anchor::write_sidecar(path: &std::path::Path, sidecar: &nika_dap::anchor::AnchorSidecar) -> core::result::Result<(), alloc::string::String>
 pub mod nika_dap::chain
 #[non_exhaustive] pub enum nika_dap::chain::Verdict
 #[non_exhaustive] pub nika_dap::chain::Verdict::Broken
@@ -494,6 +1104,7 @@ pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::reten
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
 pub mod nika_dap::seal
+pub fn nika_dap::seal::candidate_pubkeys(key_file: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::string::String>
 pub fn nika_dap::seal::fingerprint(pubkey_box: &str) -> alloc::string::String
 pub fn nika_dap::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn nika_dap::seal::key_rotate() -> core::result::Result<alloc::string::String, alloc::string::String>

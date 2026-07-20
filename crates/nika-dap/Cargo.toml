@@ -16,6 +16,7 @@ nika-schema = { path = "../nika-schema", version = "0.105.0" }  # parse the work
 nika-types  = { path = "../nika-types", version = "0.105.0" }   # field values on replayed frames
 nika-cap    = { path = "../nika-cap", version = "0.105.0" }     # BuiltinEffect — the drift scan's permit taxonomy
 nika-runtime = { path = "../nika-runtime", version = "0.105.0" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
+nika-kernel = { path = "../nika-kernel", version = "0.105.0" }   # the HttpPostDyn seam the anchor's submit rides
 sha2        = { workspace = true }                              # the chain primitive + source identity (one voice)
 # The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
 # compute descends, render stays): seal custody · workflow signing.
@@ -25,11 +26,22 @@ serde      = { workspace = true }                             # protocol frames 
 serde_json = { workspace = true }                             # DAP wire bodies + replay journal parse
 thiserror  = { workspace = true }                             # RecoverError — typed, never a bare String (FCI-019)
 url      = { workspace = true }                              # the drift scan's literal-URL host parse (pinned with the SSRF stack)
+# The trust plane, second leg (2026-07-20 · compute descends, render stays):
+# the anchor's two notaries (Rekor v2 + RFC 3161).
+base64         = { workspace = true }   # the Rekor/RFC 3161 wire encoding
+bytes          = { workspace = true }   # kernel HttpRequest bodies (the anchor's POSTs)
+ed25519-dalek  = { workspace = true }   # Ed25519ph entry signature + checkpoint verification
+der            = { workspace = true }   # RFC 3161 TimeStampReq/TSTInfo DER
+cms            = { workspace = true }   # the TSA token's CMS SignedData verification
+p384           = { workspace = true }   # the Sigstore TSA leaf's ECDSA P-384
+jiff           = { workspace = true }   # the sidecar's `anchored_at` RFC 3339 render
+uuid           = { workspace = true }   # the RFC 3161 nonce entropy
 
 [dev-dependencies]
-uuid     = { workspace = true }   # test EventIds (the replay fixtures)
 tempfile = { workspace = true }   # replay fixtures on disk
 proptest = { workspace = true }   # stats totality (quantile_h7 over arbitrary finite samples)
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.105.0" }   # the anchor submit path's MockHttp seam
+tokio    = { workspace = true }   # the submit path's test runtime (current-thread block_on)
 
 [package.metadata.lore]
 daemon        = "scribe"

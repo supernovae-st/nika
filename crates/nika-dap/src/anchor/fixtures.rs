@@ -36,28 +36,36 @@ use base64::Engine as _;
 use super::{AnchorSidecar, hex_decode};
 
 /// The frozen journal (sealed · 6 events).
+#[cfg(test)]
 pub(crate) const JOURNAL: &str = include_str!("fixtures/journal.ndjson");
 /// The frozen sidecar (verified live at capture).
+#[cfg(test)]
 pub(crate) const SIDECAR_JSON: &str = include_str!("fixtures/sidecar.json");
 /// The throwaway fixture key's secret box (empty password).
+#[cfg(test)]
 pub(crate) const SECRET_BOX: &str = include_str!("fixtures/run-signing.key");
 /// The throwaway fixture key's public box.
+#[cfg(test)]
 pub(crate) const PUBLIC_BOX: &str = include_str!("fixtures/run-signing.pub");
 
 /// The fixture run key's fingerprint (the seal's `key_id`).
+#[cfg(test)]
 pub(crate) const KEY_ID: &str = "1e772a7b922d7be3";
 
 /// The parsed fixture sidecar.
+#[cfg(test)]
 pub(crate) fn sidecar() -> AnchorSidecar {
     serde_json::from_str(SIDECAR_JSON).expect("the frozen sidecar parses")
 }
 
 /// The fixture head as raw bytes.
+#[cfg(test)]
 pub(crate) fn head32() -> [u8; 32] {
     hex_decode(&sidecar().head).expect("the frozen head is 64 hex")
 }
 
 /// The fixture run key's raw ed25519 public half.
+#[cfg(test)]
 pub(crate) fn pk32() -> [u8; 32] {
     let pk = minisign::PublicKeyBox::from_string(PUBLIC_BOX)
         .and_then(minisign::PublicKey::from_box)
@@ -68,6 +76,7 @@ pub(crate) fn pk32() -> [u8; 32] {
 
 /// The fixture run key's signing material (secret box · empty
 /// password — see the module doc for why this key is committed).
+#[cfg(test)]
 pub(crate) fn key_material() -> super::RunKeyMaterial {
     let sk = minisign::SecretKeyBox::from_string(SECRET_BOX)
         .and_then(|b| b.into_secret_key(Some(String::new())))
@@ -78,6 +87,7 @@ pub(crate) fn key_material() -> super::RunKeyMaterial {
 /// A Rekor `TransparencyLogEntry` response body rebuilt from the frozen
 /// sidecar's fields — the `MockHttp` answer for the submit-path test
 /// (shaped exactly as `parse_entry_response` expects).
+#[cfg(test)]
 pub(crate) fn rekor_response_json() -> String {
     let sidecar = sidecar();
     let (_, _, root) = super::rekor::parse_checkpoint_body(&sidecar.rekor.checkpoint)
@@ -101,6 +111,7 @@ pub(crate) fn rekor_response_json() -> String {
 }
 
 /// The TSA token bytes (the `MockHttp` answer for the TSA leg).
+#[cfg(test)]
 pub(crate) fn tsa_token_bytes() -> Vec<u8> {
     base64::engine::general_purpose::STANDARD
         .decode(&sidecar().rfc3161.token_b64)

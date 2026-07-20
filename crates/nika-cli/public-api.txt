@@ -9,6 +9,8 @@ pub use nika_cli::display
 pub use nika_cli::frame
 pub use nika_cli::frame_with_outputs
 pub use nika_cli::verdict_frame
+pub mod nika_cli::anchor
+pub use nika_cli::anchor::<<nika_dap::anchor::*>>
 pub mod nika_cli::registry
 pub use nika_cli::registry::RegistryError
 pub use nika_cli::registry::Resolved
@@ -526,9 +528,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::SystemStamper
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::SystemStamper
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::SystemStamper
 pub type nika_cli::verbs::run::SystemStamper::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli::verbs::run::SystemStamper where T: core::default::Default
-pub type nika_cli::verbs::run::SystemStamper::NoneType = T
-pub fn nika_cli::verbs::run::SystemStamper::null_value() -> T
 pub fn nika_cli::verbs::run::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_cli::verbs::run::RuntimeCapabilities
 pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
@@ -624,21 +623,71 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::manage::RmTa
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::manage::RmTarget
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::manage::RmTarget
 pub type nika_cli::verbs::trace::manage::RmTarget::Output = T
+pub fn nika_cli::verbs::trace::manage::announce_latest(path: &std::path::Path)
 pub fn nika_cli::verbs::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
 pub fn nika_cli::verbs::trace::manage::ls(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::manage::parse_older_than(raw: &str) -> core::result::Result<core::time::Duration, alloc::string::String>
 pub fn nika_cli::verbs::trace::manage::resolve_store_handle(handle: &std::path::Path) -> std::path::PathBuf
+pub fn nika_cli::verbs::trace::manage::resolve_trace(given: core::option::Option<std::path::PathBuf>) -> core::result::Result<std::path::PathBuf, u8>
 pub fn nika_cli::verbs::trace::manage::rm(target: &nika_cli::verbs::trace::manage::RmTarget, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::trace_anchor
+pub fn nika_cli::verbs::trace_anchor::run(trace: &str, rekor_url: &str, tsa_url: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_otel
 pub fn nika_cli::verbs::trace_otel::export(trace: &str, out: core::option::Option<&str>, include_content: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_reproduce
 pub fn nika_cli::verbs::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_verify
+pub struct nika_cli::verbs::trace_verify::VerifyOptions
+pub nika_cli::verbs::trace_verify::VerifyOptions::anchored: bool
+pub nika_cli::verbs::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
+impl core::clone::Clone for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::clone(&self) -> nika_cli::verbs::trace_verify::VerifyOptions
+impl core::default::Default for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::default() -> nika_cli::verbs::trace_verify::VerifyOptions
+impl core::fmt::Debug for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace_verify::VerifyOptions
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace_verify::VerifyOptions where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace_verify::VerifyOptions where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace_verify::VerifyOptions where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Owned = T
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::trace_verify::VerifyOptions where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace_verify::VerifyOptions where T: 'static
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace_verify::VerifyOptions
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace_verify::VerifyOptions
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace_verify::VerifyOptions
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Output = T
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace_verify::verify_with(trace: &str, opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::welcome
 pub fn nika_cli::verbs::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
