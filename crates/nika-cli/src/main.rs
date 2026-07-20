@@ -217,6 +217,9 @@ enum Command {
         #[command(subcommand)]
         action: verbs::key::KeyAction,
     },
+    /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
+    #[command(display_order = 71)]
+    Sign(verbs::sign::SignArgs),
     /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     #[command(display_order = 42)]
@@ -581,6 +584,10 @@ struct RunArgs {
     /// so on stderr).
     #[arg(long)]
     no_gc: bool,
+    /// Refuse to run an unsigned or invalidly-signed workflow (exit 2 ·
+    /// checked BEFORE any task executes). OPT-IN — default is unsigned-tolerant.
+    #[arg(long)]
+    require_signature: bool,
 }
 
 /// `--max-cost-usd` must be a real, non-negative dollar amount — `NaN`
@@ -784,6 +791,7 @@ fn main() -> std::process::ExitCode {
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
+        Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
@@ -1054,6 +1062,7 @@ fn run_verb(
         args.no_outputs,
         args.max_cost_usd,
         args.no_gc,
+        args.require_signature,
     )
 }
 

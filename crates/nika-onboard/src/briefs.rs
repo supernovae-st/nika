@@ -98,6 +98,12 @@ builtins. Copy, fill, check.
 - `nika trace show|replay <run>` — the flight recorder (every run records).
 - `nika trace verify <run>` — the journal is hash-chained: verify it after a
   run that matters, cite the trace instead of trusting a memory of the run.
+- `nika key init|trust|rotate` — the run-signing key: it seals journals and
+  signs workflows (print the fingerprint with `nika key trust` to enroll it).
+- `nika sign <file>` — author-bind a workflow (detached `<file>.minisig`
+  sidecar · the workflow itself never changes) · `nika sign --check <file>`
+  verifies · `nika run --require-signature <file>` refuses an unsigned or
+  invalidly-signed workflow BEFORE anything executes (exit 2).
 - `nika dap` — step a recorded run under a debugger UI, forward AND back.
 
 ## Servers (stdio · for editors and agent clients)

@@ -28,6 +28,7 @@ pub mod new;
 pub mod pack_surface;
 pub mod probe;
 pub mod run;
+pub mod sign;
 pub mod test;
 pub mod tools;
 pub mod trace;
@@ -70,21 +71,21 @@ pub struct VerbOutput {
 }
 
 impl VerbOutput {
-    fn ok(text: String) -> Self {
+    pub(crate) fn ok(text: String) -> Self {
         Self {
             text,
             code: exit::OK,
         }
     }
 
-    fn file(text: String) -> Self {
+    pub(crate) fn file(text: String) -> Self {
         Self {
             text,
             code: exit::FILE,
         }
     }
 
-    fn env(text: String) -> Self {
+    pub(crate) fn env(text: String) -> Self {
         Self {
             text,
             code: exit::ENV,
