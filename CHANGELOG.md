@@ -3812,12 +3812,14 @@ The organism's skeleton is in place. Now it grows. 🦋
 
 ---
 
-## The exploration era (0.1 → 0.79 · 2026-01-01 → 2026-04-13)
+## The brouillon era (0.1 → 0.79 · 2026-01-01 → 2026-04-13)
 
-Before Diamond, the language found its shape by shipping: **79 minor
-versions in 103 days**, from « initial nika v0.1 with strict templating
-system » (committed New Year's Day 2026, 21:29 CET) to a 138K-line
-monolith at v0.79.3. DAG validation landed hours after the first
+The language was conceived earlier still — through private prototypes
+and vibe-code experiments from **summer 2025** (the *exploration* era,
+before git). It entered git on **New Year's Day 2026** (21:29 CET) on a
+branch literally named `brouillon` (draft), and found its shape by
+shipping: **79 minor versions in 103 days**, from « initial nika v0.1
+with strict templating system » to a 138K-line monolith at v0.79.3. DAG validation landed hours after the first
 commit; providers, tools, and the check-before-run discipline followed
 version by version.
 
