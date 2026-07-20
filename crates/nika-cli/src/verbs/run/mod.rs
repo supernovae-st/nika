@@ -157,8 +157,7 @@ fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> 
         .and_then(|r| r.error.clone())
 }
 
-// Fourteen independent CLI parameters ARE the clap surface — the same idiom
-// as TraceArgs' bools, not a state machine to encode in a struct.
+// Fifteen independent CLI parameters ARE the clap surface (the TraceArgs idiom).
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 pub fn run(
@@ -176,6 +175,7 @@ pub fn run(
     no_outputs: bool,
     max_cost_usd: Option<f64>,
     no_gc: bool,
+    require_signature: bool,
 ) -> u8 {
     run_verdict(
         file,
@@ -192,6 +192,7 @@ pub fn run(
         no_outputs,
         max_cost_usd,
         no_gc,
+        require_signature,
     )
     .code
 }
@@ -213,9 +214,8 @@ fn run_verdict(
     no_outputs: bool,
     max_cost_usd: Option<f64>,
     no_gc: bool,
+    require_signature: bool,
 ) -> RunVerdict {
-    // `--output` validated up front so an unknown format fails before any
-    // work (machine-result mode · see `output_mode`).
     let output_json = match output_mode(output) {
         Ok(flag) => flag,
         Err(code) => return RunVerdict::bare(code),
@@ -233,6 +233,9 @@ fn run_verdict(
         }
     };
 
+    if require_signature && let Err(code) = require_signature_gate(file, output_json) {
+        return RunVerdict::bare(code);
+    }
     // ── `--task` scope + clean/skills gates + `--var` overrides ─────
     let (wf, report, skills) =
         match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
@@ -391,6 +394,22 @@ fn load_resume_plan(
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
     Ok(plan)
+}
+
+/// The `--require-signature` trust gate: verify against an enrolled key
+/// before anything executes (exit 2 FILE · already printed + enveloped).
+fn require_signature_gate(file: &str, output_json: bool) -> Result<(), u8> {
+    use crate::seal::WorkflowSig;
+    let reason = match crate::seal::check_workflow(std::path::Path::new(file)) {
+        WorkflowSig::Valid(_) => return Ok(()),
+        WorkflowSig::MissingSidecar => "missing sidecar — `nika sign <file>` mints one".to_owned(),
+        WorkflowSig::NoEnrolledKey => "unknown key — nothing enrolled on this machine".to_owned(),
+        WorkflowSig::Invalid(why) => why,
+    };
+    let message = format!("--require-signature: {reason}");
+    eprintln!("nika run: {message}");
+    epilogue::emit_error_envelope(&message, output_json);
+    Err(exit::FILE)
 }
 
 /// House-voice a pre-run refusal (the empty-state audit · design §3):
@@ -1110,6 +1129,7 @@ mod tests {
             false,
             None,
             true,
+            false, // unsigned-tolerant (the signature gate has its own test)
         );
         assert_eq!(
             code,
@@ -1144,6 +1164,7 @@ mod tests {
             false,
             None,
             true,
+            false, // unsigned-tolerant (the signature gate has its own test)
         );
         assert_eq!(
             overridden,
@@ -1175,6 +1196,7 @@ mod tests {
             false,
             None,
             true,
+            false, // unsigned-tolerant (the signature gate has its own test)
         )
     }
 
@@ -1309,5 +1331,66 @@ mod tests {
             exit::WORKFLOW,
             "no skills map → NIKA-AGENT-003 task failure"
         );
+    }
+
+    /// `--require-signature` refuses an unsigned workflow BEFORE any task
+    /// executes: exit 2, and the exec task's sentinel is never created.
+    /// The counterfactual (the file itself is runnable) rides a dry-run —
+    /// plan only, zero effects.
+    #[test]
+    fn require_signature_refuses_unsigned_before_execution() {
+        let sentinel =
+            std::env::temp_dir().join(format!("nika-sig-gate-sentinel-{}", std::process::id()));
+        let _ = std::fs::remove_file(&sentinel);
+        let yaml = format!(
+            "nika: v1\nworkflow:\n  id: sig-gate\nmodel: mock/echo\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
+            sentinel.display()
+        );
+        let wf = stage("sig-gate.nika.yaml", &yaml);
+        let gated = run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            None,
+            &[],
+            None,
+            true, // tests never write .nika/traces (cwd hygiene)
+            None,
+            false,
+            None,
+            true,
+            true, // --require-signature
+        );
+        assert_eq!(
+            gated,
+            exit::FILE,
+            "unsigned + --require-signature must refuse (exit 2)"
+        );
+        assert!(
+            !sentinel.exists(),
+            "the gate fired BEFORE execution — the exec task never ran"
+        );
+        // The counterfactual: the SAME file without the flag plans green.
+        let planned = run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            true, // --dry-run: plan only, zero effects
+            None,
+            &[],
+            None,
+            true,
+            None,
+            false,
+            None,
+            true,
+            false, // unsigned-tolerant default
+        );
+        assert_eq!(planned, exit::OK, "the workflow itself is runnable");
     }
 }

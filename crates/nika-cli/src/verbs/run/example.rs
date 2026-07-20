@@ -82,6 +82,7 @@ pub fn example(
         // An example runs a TEMP-staged file, not a workspace run — the
         // workspace's trace store is not this invocation's to collect.
         true,
+        false, // examples are engine-staged content — unsigned-tolerant
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the infer tip then

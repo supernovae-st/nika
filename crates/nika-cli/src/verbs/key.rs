@@ -31,38 +31,22 @@ pub enum KeyAction {
 pub fn run(action: KeyAction) -> VerbOutput {
     match action {
         KeyAction::Init { force } => match crate::seal::key_init(force) {
-            Ok(fp) => VerbOutput {
-                text: format!(
-                    "run-signing key minted · fingerprint {fp}\n  every run on this machine now seals its journal (verify: nika trace verify <file>)"
-                ),
-                code: super::exit::OK,
-            },
-            Err(msg) => VerbOutput {
-                text: format!("nika key init: {msg}"),
-                code: super::exit::FILE,
-            },
+            Ok(fp) => VerbOutput::ok(format!(
+                "run-signing key minted · fingerprint {fp}\n  every run on this machine now seals its journal (verify: nika trace verify <file>)"
+            )),
+            Err(msg) => VerbOutput::file(format!("nika key init: {msg}")),
         },
         KeyAction::Trust => match crate::seal::key_trust() {
-            Some((pk, fp)) => VerbOutput {
-                text: format!("run-signing public key · fingerprint {fp}\n{pk}"),
-                code: super::exit::OK,
-            },
-            None => VerbOutput {
-                text: "no run-signing key on this machine — `nika key init` mints one".to_owned(),
-                code: super::exit::OK,
-            },
+            Some((pk, fp)) => {
+                VerbOutput::ok(format!("run-signing public key · fingerprint {fp}\n{pk}"))
+            }
+            None => VerbOutput::ok("no run-signing key — `nika key init` mints one".to_owned()),
         },
         KeyAction::Rotate => match crate::seal::key_rotate() {
-            Ok(fp) => VerbOutput {
-                text: format!(
-                    "rotated · new fingerprint {fp} · the retired public key stays verifiable in ~/.nika/keys/retired.pub"
-                ),
-                code: super::exit::OK,
-            },
-            Err(msg) => VerbOutput {
-                text: format!("nika key rotate: {msg}"),
-                code: super::exit::FILE,
-            },
+            Ok(fp) => VerbOutput::ok(format!(
+                "rotated · new fingerprint {fp} · the retired public key stays verifiable in ~/.nika/keys/retired.pub"
+            )),
+            Err(msg) => VerbOutput::file(format!("nika key rotate: {msg}")),
         },
     }
 }
