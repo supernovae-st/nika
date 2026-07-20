@@ -3812,6 +3812,7 @@ dependencies = [
  "keyring",
  "minisign",
  "nika-builtin",
+ "nika-cap",
  "nika-catalog",
  "nika-clock",
  "nika-dap",
@@ -3848,6 +3849,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit",
+ "url",
  "uuid",
 ]
 
