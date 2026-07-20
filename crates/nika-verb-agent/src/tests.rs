@@ -684,6 +684,112 @@ async fn tool_error_feeds_back_and_the_loop_continues() {
     )));
 }
 
+// ── §6 · the security boundary is never fed back (NIKA-468) ─────────
+
+#[tokio::test]
+async fn security_boundary_refusal_fails_the_loop_unfed_back() {
+    // A whitelisted tool whose call the boundary refuses: the refusal's
+    // own spec code rides the error-metadata seam (BUG-D) — the loop
+    // FAILS HARD (NIKA-468) and the refusal never materializes as a
+    // model-visible feedback block (the whitelist stop's invariant,
+    // discovered one seam later, at effect time).
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "c1",
+                "nika:read",
+                serde_json::json!({"path": "/etc/passwd"}),
+            ))
+            .enqueue_response(text_response("never reached")),
+        MockToolExecutor::new().enqueue_ok(
+            ToolResult::error("c1", "outside the declared fs boundary").with_error_meta(
+                nika_kernel::runtime::tool_executor::ToolErrorMeta::new(
+                    Some("NIKA-SEC-004".to_owned()),
+                    false,
+                ),
+            ),
+        ),
+        vec![def("nika:read")],
+    );
+    let mut input = AgentInput::new("probe the boundary");
+    input.tools = vec!["nika:read".to_owned()];
+    let err = r.verb.run(input).await.expect_err("security stop");
+    assert!(matches!(
+        &err,
+        VerbAgentError::SecurityBoundary { tool, code, .. }
+            if tool == "nika:read" && code == "NIKA-SEC-004"
+    ));
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        1,
+        "the loop failed before any feedback could be composed — the \
+         model never learns which boundary refused (no probing oracle)"
+    );
+}
+
+#[tokio::test]
+async fn a_coded_non_security_tool_error_stays_feedback() {
+    // The carve-out is EXACTLY the two security codes: a coded
+    // non-security failure (the fetch builtin's own code) keeps the
+    // agentic convention — fed back, the model recovers.
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "c1",
+                "nika:fetch",
+                serde_json::json!({"url": "https://example.com"}),
+            ))
+            .enqueue_response(text_response("recovered")),
+        MockToolExecutor::new().enqueue_ok(
+            ToolResult::error("c1", "fetch blew up").with_error_meta(
+                nika_kernel::runtime::tool_executor::ToolErrorMeta::new(
+                    Some("NIKA-BUILTIN-FETCH-001".to_owned()),
+                    false,
+                ),
+            ),
+        ),
+        vec![def("nika:fetch")],
+    );
+    let mut input = AgentInput::new("resilient");
+    input.tools = vec!["nika:fetch".to_owned()];
+    let out = r
+        .verb
+        .run(input)
+        .await
+        .expect("a coded non-security error stays feedback");
+    assert_eq!(out.output, AgentValue::Text("recovered".to_owned()));
+    assert_eq!(r.provider.captured_requests().len(), 2);
+}
+
+#[tokio::test]
+async fn ssrf_floor_refusal_fails_the_loop_unfed_back() {
+    // NIKA-SEC-005 (the SSRF floor) is the second boundary code — same
+    // hard stop, same silence toward the model.
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(tool_use_response(
+            "c1",
+            "nika:fetch",
+            serde_json::json!({"url": "http://169.254.169.254/latest/meta-data"}),
+        )),
+        MockToolExecutor::new().enqueue_ok(
+            ToolResult::error("c1", "blocked by the SSRF floor").with_error_meta(
+                nika_kernel::runtime::tool_executor::ToolErrorMeta::new(
+                    Some("NIKA-SEC-005".to_owned()),
+                    false,
+                ),
+            ),
+        ),
+        vec![def("nika:fetch")],
+    );
+    let mut input = AgentInput::new("reach the metadata service");
+    input.tools = vec!["nika:fetch".to_owned()];
+    let err = r.verb.run(input).await.expect_err("security stop");
+    assert!(matches!(
+        &err,
+        VerbAgentError::SecurityBoundary { code, .. } if code == "NIKA-SEC-005"
+    ));
+}
+
 // ── §6 · final-message schema validation ────────────────────────────
 
 #[tokio::test]

@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `VerbAgentError` — the `agent` verb error surface (NIKA-460..467).
+//! `VerbAgentError` — the `agent` verb error surface (NIKA-460..468).
 //!
 //! Spec mapping (`docs/crate-specs/nika-verb-agent.md` §4): budgets are
 //! FAILURES (460 turns · 461 tokens · spec `NIKA-AGENT-001/002`), the
 //! whitelist violation is the immediate security stop (462 · spec
 //! `NIKA-SEC-002` · not model-negotiable), provider failures chain
 //! (463 · wire `NIKA-INFER-001` · the same class the `infer` verb
-//! speaks · #468), the final-message schema gate (464 · wire
-//! `NIKA-INFER-002`), parameter validation (465), and the
-//! tool-definition seam failure (466 · wraps the kernel NIKA-234).
+//! speaks · one voice · #468), the final-message schema gate (464 · wire
+//! `NIKA-INFER-002`), parameter validation (465), the
+//! tool-definition seam failure (466 · wraps the kernel NIKA-234), the
+//! stall verdict (467 · ADR-096), and the security-boundary refusal
+//! (468 · a whitelisted tool denied by `permits:`/the SSRF floor mid-loop
+//! — the wire speaks the boundary's own `NIKA-SEC-004`/`NIKA-SEC-005`,
+//! never fed back to the model).
 
 use nika_error::codes::{
-    NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NikaCode,
+    NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NIKA_468,
+    NikaCode,
 };
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
@@ -123,6 +128,29 @@ pub enum VerbAgentError {
         /// The spend the stalled loop had already incurred.
         spend: Box<SpendOnFailure>,
     },
+
+    /// A whitelisted tool was REFUSED by the security boundary mid-loop
+    /// (NIKA-468): the declared `permits:` capability boundary
+    /// (`NIKA-SEC-004`) or the SSRF floor (`NIKA-SEC-005`). Same class as
+    /// the whitelist violation — security boundaries are not
+    /// model-negotiable, so the refusal is NEVER fed back to the model
+    /// (spec §permits · `security_error` · the invariant
+    /// `nika-cap/src/permits.rs`, the runtime's `security_err` and
+    /// `nika-types` state): the loop fails immediately. The boundary's
+    /// own spec code rides the wire (one voice with a bare `invoke`
+    /// refusal) — the internal registry numeral never surfaces.
+    #[error("agent tool `{tool}` refused by the security boundary ({code})")]
+    #[diagnostic(code(nika::verb::agent_security_boundary))]
+    SecurityBoundary {
+        /// The denied tool id.
+        tool: String,
+        /// The boundary's own spec code (`NIKA-SEC-004` · `NIKA-SEC-005`),
+        /// passed through as the wire code.
+        code: String,
+        /// The spend the loop had already incurred (a mid-loop refusal
+        /// arrives after billed turns).
+        spend: Box<SpendOnFailure>,
+    },
 }
 
 impl VerbAgentError {
@@ -141,7 +169,8 @@ impl VerbAgentError {
             | Self::WhitelistViolation { spend, .. }
             | Self::Inference { spend, .. }
             | Self::SchemaValidation { spend, .. }
-            | Self::Stalled { spend, .. } => *spend = incurred,
+            | Self::Stalled { spend, .. }
+            | Self::SecurityBoundary { spend, .. } => *spend = incurred,
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => {}
         }
         self
@@ -158,7 +187,8 @@ impl VerbAgentError {
             | Self::WhitelistViolation { spend, .. }
             | Self::Inference { spend, .. }
             | Self::SchemaValidation { spend, .. }
-            | Self::Stalled { spend, .. } => spend.has_signal().then_some(spend),
+            | Self::Stalled { spend, .. }
+            | Self::SecurityBoundary { spend, .. } => spend.has_signal().then_some(spend),
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => None,
         }
     }
@@ -175,6 +205,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::InvalidParam { .. } => NIKA_465,
             Self::ToolDefs { .. } => NIKA_466,
             Self::Stalled { .. } => NIKA_467,
+            Self::SecurityBoundary { .. } => NIKA_468,
         }
     }
 
@@ -189,8 +220,12 @@ impl NikaErrorCode for VerbAgentError {
     /// provider failure is `NIKA-INFER-001` (provider call failed · the
     /// SAME code the `infer` verb emits · one voice · #468) and the
     /// final-message schema gate is `NIKA-INFER-002` (structured output
-    /// failed `schema:`). The remaining variants (`InvalidParam` ·
-    /// `ToolDefs` · `Stalled`) have no spec namespace row — they keep
+    /// failed `schema:`). The boundary refusal passes the boundary's OWN
+    /// code through (`NIKA-SEC-004` · `NIKA-SEC-005`) — the refusal is
+    /// the same verdict whether it stopped a bare `invoke` task or an
+    /// agent loop, so the wire says the same thing (one voice with the
+    /// runtime's `security_err`). The remaining variants (`InvalidParam`
+    /// · `ToolDefs` · `Stalled`) have no spec namespace row — they keep
     /// their numeric wire form via the trait default.
     fn spec_code(&self) -> String {
         match self {
@@ -199,6 +234,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::WhitelistViolation { .. } => "NIKA-SEC-002".to_owned(),
             Self::Inference { .. } => "NIKA-INFER-001".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
+            Self::SecurityBoundary { code, .. } => code.clone(),
             Self::InvalidParam { .. } | Self::ToolDefs { .. } | Self::Stalled { .. } => {
                 self.nika_code().to_string()
             }
@@ -216,7 +252,8 @@ impl NikaErrorCode for VerbAgentError {
             | Self::WhitelistViolation { .. }
             | Self::SchemaValidation { .. }
             | Self::InvalidParam { .. }
-            | Self::Stalled { .. } => false,
+            | Self::Stalled { .. }
+            | Self::SecurityBoundary { .. } => false,
             // Mid-loop provider failures inherit the provider's verdict
             // (rate limits ARE transient).
             Self::Inference { source, .. } => source.is_transient(),
@@ -286,6 +323,14 @@ mod tests {
                     spend: Box::default(),
                 },
                 467,
+            ),
+            (
+                VerbAgentError::SecurityBoundary {
+                    tool: "nika:read".to_owned(),
+                    code: "NIKA-SEC-004".to_owned(),
+                    spend: Box::default(),
+                },
+                468,
             ),
         ];
         for (err, num) in cases {
@@ -362,5 +407,47 @@ mod tests {
             assert_eq!(partial_output, "draft so far");
         }
         assert!(err.to_string().contains('3'));
+    }
+
+    #[test]
+    fn security_boundary_speaks_the_boundary_code_on_the_wire() {
+        // One-voice: a `permits:` refusal that stops an agent loop carries
+        // the SAME wire code a bare `invoke` refusal carries (what
+        // `on_codes:` filters and `tasks.X.error.code` records) — the
+        // internal registry numeral NIKA-468 never surfaces (it is outside
+        // the spec grammar, exactly like 463/464 → NIKA-INFER-00x).
+        for code in ["NIKA-SEC-004", "NIKA-SEC-005"] {
+            let err = VerbAgentError::SecurityBoundary {
+                tool: "nika:read".to_owned(),
+                code: code.to_owned(),
+                spend: Box::default(),
+            };
+            assert_eq!(err.nika_code().num, 468, "{code}");
+            assert_eq!(err.spec_code(), code, "the boundary's own code rides");
+            assert!(!err.is_transient(), "a boundary refusal is a verdict");
+        }
+        // The refusal detail reaches the operator message, not the model —
+        // and the variant decorates at the return seam like every mid-loop
+        // security stop (the NIKA-462 precedent).
+        let err = VerbAgentError::SecurityBoundary {
+            tool: "nika:read".to_owned(),
+            code: "NIKA-SEC-004".to_owned(),
+            spend: Box::default(),
+        };
+        assert!(
+            err.spend().is_none(),
+            "a zero-signal spend reads as None pre-decoration"
+        );
+        let mut billed = nika_kernel::ai::provider::TokenUsage::default();
+        billed.input_tokens = 15;
+        let decorated = err.with_spend(SpendOnFailure::new(
+            billed,
+            None,
+            Some("mock/agent".to_owned()),
+        ));
+        assert!(
+            decorated.spend().is_some(),
+            "billed turns before the refusal are real money"
+        );
     }
 }
