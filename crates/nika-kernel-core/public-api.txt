@@ -2140,6 +2140,7 @@ impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellResult
 pub fn nika_kernel_core::io::process::ShellResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellResult where T: 'static
 pub fn nika_kernel_core::io::process::ShellResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_kernel_core::io::process::DANGEROUS_ENV_VARS: &[&str]
 pub trait nika_kernel_core::io::process::ShellCancel: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel_core::io::process::ShellCancel::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::process::ShellCancelDyn> nika_kernel_core::io::process::ShellCancel for TraitVariantBlanketType
