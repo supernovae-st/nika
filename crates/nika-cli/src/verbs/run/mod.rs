@@ -51,6 +51,13 @@ use scope::scope_to_task;
 
 use sink::{TRACE_DIR, Tee, TraceFileSink};
 
+/// The workflow's semantic hash for the run seal (the proof layer's
+/// Merkle commitment over the task leaves — `None` when any task is
+/// unprojectable, and an unhashable workflow stays on the unsigned floor).
+fn seal_hash(wf: &nika_schema::raw::RawWorkflow) -> Option<String> {
+    nika_runtime::proof::ir::merkle_by_task(wf).map(|p| p.workflow.as_hex().to_owned())
+}
+
 use std::collections::BTreeMap;
 use std::io::Write as _;
 
@@ -741,7 +748,7 @@ async fn execute(
         let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
-        let trace_path = surface_trace(trace, TraceNote::Stderr, None);
+        let trace_path = surface_trace(trace, TraceNote::Stderr, None, seal_hash(wf).as_deref());
         // A paused run teaches its exact resume command on stderr — the
         // pause sibling of the failure lane's `autopsy:` line.
         if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
@@ -784,7 +791,7 @@ async fn execute(
         let (sink, trace) = tee.into_parts();
         // stdout stays NDJSON verbatim (byte-identical with or without the
         // journal) — the trace note rides on stderr here.
-        let trace_path = surface_trace(trace, TraceNote::Stderr, None);
+        let trace_path = surface_trace(trace, TraceNote::Stderr, None, seal_hash(wf).as_deref());
         if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
             eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
         }
@@ -901,6 +908,7 @@ async fn execute_fold_lane(
             TraceNote::Stdout
         },
         failed_task.as_deref(),
+        seal_hash(wf).as_deref(),
     );
     epilogue::print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.take_error() {

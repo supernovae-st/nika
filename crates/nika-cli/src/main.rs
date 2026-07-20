@@ -209,6 +209,14 @@ enum Command {
         #[arg(long)]
         forecast: bool,
     },
+    /// The run-signing key lifecycle (S2 · verifiable runs): mint the
+    /// ed25519 key the journal seals with, print the TOFU fingerprint to
+    /// enroll elsewhere, rotate with the old public half kept verifiable.
+    #[command(display_order = 70)]
+    Key {
+        #[command(subcommand)]
+        action: verbs::key::KeyAction,
+    },
     /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     #[command(display_order = 42)]
@@ -775,6 +783,7 @@ fn main() -> std::process::ExitCode {
             json,
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
+        Command::Key { action } => emit(&verbs::key::run(action)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),

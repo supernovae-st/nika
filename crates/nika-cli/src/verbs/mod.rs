@@ -22,6 +22,7 @@ pub(crate) mod forecast;
 pub mod graph;
 pub mod init;
 pub mod inspect;
+pub mod key;
 pub mod model;
 pub mod new;
 pub mod pack_surface;
