@@ -325,8 +325,12 @@ enum Command {
     /// schema/examples/templates/canon — the in-binary Model Context Protocol
     /// surface for Cursor · Claude Desktop · agents). Default transport:
     /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
+    /// `approve` runs the CLIENT side: the MCP tool-pinning re-approval over
+    /// the servers configured in `.nika/mcp_servers.json`.
     #[command(display_order = 60)]
     Mcp {
+        #[command(subcommand)]
+        action: Option<McpAction>,
         /// The wire: `stdio` (the editor/agent default) or `http`
         /// (Streamable HTTP · POST JSON-RPC · spec 2025-11-25).
         #[arg(long, value_enum, default_value_t = McpTransportArg::Stdio)]
@@ -339,6 +343,16 @@ enum Command {
         /// `NIKA_MCP_TOKEN`) in front before you do.
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum McpAction {
+    /// Re-pin the server's CURRENT tool definitions after human review
+    /// (the remediation a drift refusal names), printing the new pin set.
+    Approve {
+        /// The server name from `.nika/mcp_servers.json`.
+        server: String,
     },
 }
 
@@ -823,12 +837,14 @@ fn main() -> std::process::ExitCode {
         },
         // The MCP server OWNS stdout (JSON-RPC) — like `lsp`, it must not go
         // through `emit`. Same server-process exit convention: 0 on a clean
-        // EOF shutdown, 1 on a transport failure.
+        // EOF shutdown, 1 on a transport failure. The CLIENT subcommands
+        // (verify · approve) are ordinary verbs and DO go through emit.
         Command::Mcp {
+            action,
             transport,
             port,
             bind,
-        } => mcp_verb(transport, port, &bind),
+        } => mcp_verb(action, transport, port, &bind),
     };
     std::process::ExitCode::from(code)
 }
@@ -899,8 +915,13 @@ fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> 
 /// `nika mcp` — serve the read-only MCP surface. stdio owns stdout
 /// (JSON-RPC); http binds first so the banner names the RESOLVED
 /// address, reads `NIKA_MCP_TOKEN` here (the crate is env-free by
-/// discipline), then serves forever.
-fn mcp_verb(transport: McpTransportArg, port: u16, bind: &str) -> u8 {
+/// discipline), then serves forever. The client subcommand (the
+/// tool-pinning re-approval) dispatches to the verbs layer instead.
+fn mcp_verb(action: Option<McpAction>, transport: McpTransportArg, port: u16, bind: &str) -> u8 {
+    match action {
+        Some(McpAction::Approve { server }) => return emit(&verbs::mcp_pins::approve(&server)),
+        None => {}
+    }
     let served = match transport {
         McpTransportArg::Stdio => nika_mcp::run_stdio(),
         McpTransportArg::Http => match nika_mcp::HttpServer::bind(bind, port) {

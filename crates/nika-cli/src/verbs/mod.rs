@@ -23,6 +23,7 @@ pub mod graph;
 pub mod init;
 pub mod inspect;
 pub mod key;
+pub mod mcp_pins;
 pub mod model;
 pub mod new;
 pub mod pack_surface;

@@ -23,7 +23,9 @@ nika-catalog = { path = "../nika-catalog", version = "0.105.0", default-features
 nika-builtin = { path = "../nika-builtin", version = "0.105.0" }
 
 serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire format · no SDK)
+serde       = { workspace = true }   # the lockfile/registry envelopes (pin.rs · client.rs)
 thiserror   = { workspace = true }   # the transport error enum
+blake3      = { workspace = true }   # the per-tool pin hash (the proof layer's algorithm · domain-separated pre-image replicated in pin.rs)
 
 [lints]
 workspace = true

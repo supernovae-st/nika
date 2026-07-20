@@ -4134,6 +4134,7 @@ dependencies = [
 name = "nika-mcp"
 version = "0.105.0"
 dependencies = [
+ "blake3",
  "nika-builtin",
  "nika-catalog",
  "nika-error",
@@ -4142,6 +4143,7 @@ dependencies = [
  "nika-providers",
  "nika-schema",
  "proptest",
+ "serde",
  "serde_json",
  "thiserror 2.0.18",
 ]

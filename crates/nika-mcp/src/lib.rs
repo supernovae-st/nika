@@ -20,8 +20,18 @@
 //! Running a workflow is NOT exposed (it needs the effect-permits boundary) —
 //! the server surface is read-only by construction. `nika run` stays the
 //! effectful path, gated and audited.
+//!
+//! The crate also owns the CLIENT side of the protocol: [`client`] is the
+//! `tools/list` seam over configured servers (`.nika/mcp_servers.json`) and
+//! [`pin`] is the anti-rug-pull defence — per-tool pins over
+//! `{name, description, inputSchema}` in `.nika/mcp_pins.json`, enrolled on
+//! first contact (TOFU), re-verified on EVERY connect, and failed closed
+//! with a human-readable diff on any drift (`nika mcp approve <server>`
+//! re-pins after human review).
 
+pub mod client;
 mod http;
+pub mod pin;
 mod protocol;
 mod tools;
 

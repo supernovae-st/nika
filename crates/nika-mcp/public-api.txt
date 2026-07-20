@@ -1,4 +1,365 @@
 pub mod nika_mcp
+pub mod nika_mcp::client
+#[non_exhaustive] pub enum nika_mcp::client::ConnectOutcome
+pub nika_mcp::client::ConnectOutcome::Enrolled
+pub nika_mcp::client::ConnectOutcome::Enrolled::pinned_at: alloc::string::String
+pub nika_mcp::client::ConnectOutcome::Enrolled::server: alloc::string::String
+pub nika_mcp::client::ConnectOutcome::Enrolled::tools: alloc::vec::Vec<nika_mcp::pin::McpToolDef>
+pub nika_mcp::client::ConnectOutcome::Verified
+pub nika_mcp::client::ConnectOutcome::Verified::server: alloc::string::String
+pub nika_mcp::client::ConnectOutcome::Verified::tools: alloc::vec::Vec<nika_mcp::pin::McpToolDef>
+impl nika_mcp::client::ConnectOutcome
+pub fn nika_mcp::client::ConnectOutcome::tool_count(&self) -> usize
+impl core::fmt::Debug for nika_mcp::client::ConnectOutcome
+pub fn nika_mcp::client::ConnectOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_mcp::client::ConnectOutcome
+impl<T, U> core::convert::Into<U> for nika_mcp::client::ConnectOutcome where U: core::convert::From<T>
+pub fn nika_mcp::client::ConnectOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::client::ConnectOutcome where U: core::convert::Into<T>
+pub type nika_mcp::client::ConnectOutcome::Error = core::convert::Infallible
+pub fn nika_mcp::client::ConnectOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::client::ConnectOutcome where U: core::convert::TryFrom<T>
+pub type nika_mcp::client::ConnectOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::client::ConnectOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::client::ConnectOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::client::ConnectOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::client::ConnectOutcome where T: ?core::marker::Sized
+pub fn nika_mcp::client::ConnectOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::client::ConnectOutcome where T: ?core::marker::Sized
+pub fn nika_mcp::client::ConnectOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::client::ConnectOutcome
+pub fn nika_mcp::client::ConnectOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::client::ConnectOutcome where T: 'static
+pub fn nika_mcp::client::ConnectOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::client::ConnectOutcome
+pub type nika_mcp::client::ConnectOutcome::Output = T
+#[non_exhaustive] pub struct nika_mcp::client::ApproveReport
+pub nika_mcp::client::ApproveReport::pinned_at: alloc::string::String
+pub nika_mcp::client::ApproveReport::pins: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_mcp::client::ApproveReport::server: alloc::string::String
+impl core::fmt::Debug for nika_mcp::client::ApproveReport
+pub fn nika_mcp::client::ApproveReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_mcp::client::ApproveReport
+impl<T, U> core::convert::Into<U> for nika_mcp::client::ApproveReport where U: core::convert::From<T>
+pub fn nika_mcp::client::ApproveReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::client::ApproveReport where U: core::convert::Into<T>
+pub type nika_mcp::client::ApproveReport::Error = core::convert::Infallible
+pub fn nika_mcp::client::ApproveReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::client::ApproveReport where U: core::convert::TryFrom<T>
+pub type nika_mcp::client::ApproveReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::client::ApproveReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::client::ApproveReport where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::client::ApproveReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::client::ApproveReport where T: ?core::marker::Sized
+pub fn nika_mcp::client::ApproveReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::client::ApproveReport where T: ?core::marker::Sized
+pub fn nika_mcp::client::ApproveReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::client::ApproveReport
+pub fn nika_mcp::client::ApproveReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::client::ApproveReport where T: 'static
+pub fn nika_mcp::client::ApproveReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::client::ApproveReport
+pub type nika_mcp::client::ApproveReport::Output = T
+#[non_exhaustive] pub struct nika_mcp::client::McpServerConfig
+pub nika_mcp::client::McpServerConfig::args: alloc::vec::Vec<alloc::string::String>
+pub nika_mcp::client::McpServerConfig::command: core::option::Option<alloc::string::String>
+pub nika_mcp::client::McpServerConfig::name: alloc::string::String
+pub nika_mcp::client::McpServerConfig::url: core::option::Option<alloc::string::String>
+impl nika_mcp::client::McpServerConfig
+pub fn nika_mcp::client::McpServerConfig::remote(name: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_mcp::client::McpServerConfig::stdio(name: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>, args: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_mcp::client::McpServerConfig
+pub fn nika_mcp::client::McpServerConfig::clone(&self) -> nika_mcp::client::McpServerConfig
+impl core::cmp::Eq for nika_mcp::client::McpServerConfig
+impl core::cmp::PartialEq for nika_mcp::client::McpServerConfig
+pub fn nika_mcp::client::McpServerConfig::eq(&self, other: &nika_mcp::client::McpServerConfig) -> bool
+impl core::fmt::Debug for nika_mcp::client::McpServerConfig
+pub fn nika_mcp::client::McpServerConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::client::McpServerConfig
+impl<D> owo_colors::OwoColorize for nika_mcp::client::McpServerConfig
+impl<Q, K> equivalent::Equivalent<K> for nika_mcp::client::McpServerConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::client::McpServerConfig::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::client::McpServerConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::client::McpServerConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::client::McpServerConfig::equivalent(&self, key: &K) -> bool
+pub fn nika_mcp::client::McpServerConfig::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_mcp::client::McpServerConfig where U: core::convert::From<T>
+pub fn nika_mcp::client::McpServerConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::client::McpServerConfig where U: core::convert::Into<T>
+pub type nika_mcp::client::McpServerConfig::Error = core::convert::Infallible
+pub fn nika_mcp::client::McpServerConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::client::McpServerConfig where U: core::convert::TryFrom<T>
+pub type nika_mcp::client::McpServerConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::client::McpServerConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::client::McpServerConfig where T: core::clone::Clone
+pub type nika_mcp::client::McpServerConfig::Owned = T
+pub fn nika_mcp::client::McpServerConfig::clone_into(&self, target: &mut T)
+pub fn nika_mcp::client::McpServerConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_mcp::client::McpServerConfig where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::client::McpServerConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::client::McpServerConfig where T: ?core::marker::Sized
+pub fn nika_mcp::client::McpServerConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::client::McpServerConfig where T: ?core::marker::Sized
+pub fn nika_mcp::client::McpServerConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::client::McpServerConfig where T: core::clone::Clone
+pub unsafe fn nika_mcp::client::McpServerConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::client::McpServerConfig
+pub fn nika_mcp::client::McpServerConfig::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::client::McpServerConfig where T: core::clone::Clone
+pub fn nika_mcp::client::McpServerConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::client::McpServerConfig where T: 'static
+pub fn nika_mcp::client::McpServerConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::client::McpServerConfig
+pub type nika_mcp::client::McpServerConfig::Output = T
+pub struct nika_mcp::client::StdioMcpClient
+impl nika_mcp::client::StdioMcpClient
+pub fn nika_mcp::client::StdioMcpClient::new(config: &nika_mcp::client::McpServerConfig) -> Self
+pub fn nika_mcp::client::StdioMcpClient::with_timeout(self, timeout: core::time::Duration) -> Self
+impl nika_mcp::client::ToolsListDyn for nika_mcp::client::StdioMcpClient
+pub fn nika_mcp::client::StdioMcpClient::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
+impl<D> owo_colors::OwoColorize for nika_mcp::client::StdioMcpClient
+impl<T, U> core::convert::Into<U> for nika_mcp::client::StdioMcpClient where U: core::convert::From<T>
+pub fn nika_mcp::client::StdioMcpClient::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::client::StdioMcpClient where U: core::convert::Into<T>
+pub type nika_mcp::client::StdioMcpClient::Error = core::convert::Infallible
+pub fn nika_mcp::client::StdioMcpClient::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::client::StdioMcpClient where U: core::convert::TryFrom<T>
+pub type nika_mcp::client::StdioMcpClient::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::client::StdioMcpClient::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::client::StdioMcpClient where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::client::StdioMcpClient::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::client::StdioMcpClient where T: ?core::marker::Sized
+pub fn nika_mcp::client::StdioMcpClient::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::client::StdioMcpClient where T: ?core::marker::Sized
+pub fn nika_mcp::client::StdioMcpClient::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::client::StdioMcpClient
+pub fn nika_mcp::client::StdioMcpClient::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::client::StdioMcpClient where T: 'static
+pub fn nika_mcp::client::StdioMcpClient::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::client::StdioMcpClient
+pub type nika_mcp::client::StdioMcpClient::Output = T
+pub const nika_mcp::client::SERVERS_FORMAT: u32
+pub const nika_mcp::client::SERVERS_PATH: &str
+pub trait nika_mcp::client::ToolsListDyn
+pub fn nika_mcp::client::ToolsListDyn::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
+impl nika_mcp::client::ToolsListDyn for nika_mcp::client::StdioMcpClient
+pub fn nika_mcp::client::StdioMcpClient::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
+pub fn nika_mcp::client::approve_server<C: nika_mcp::client::ToolsListDyn + ?core::marker::Sized>(config: &nika_mcp::client::McpServerConfig, client: &C, project_dir: &std::path::Path, now_epoch: u64) -> core::result::Result<nika_mcp::client::ApproveReport, nika_mcp::pin::PinError>
+pub fn nika_mcp::client::connect_verified<C: nika_mcp::client::ToolsListDyn + ?core::marker::Sized>(config: &nika_mcp::client::McpServerConfig, client: &C, project_dir: &std::path::Path, now_epoch: u64) -> core::result::Result<nika_mcp::client::ConnectOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::client::load_server_configs(project_dir: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_mcp::client::McpServerConfig>, nika_mcp::pin::PinError>
+pub mod nika_mcp::pin
+#[non_exhaustive] pub enum nika_mcp::pin::PinError
+pub nika_mcp::pin::PinError::Corrupt
+pub nika_mcp::pin::PinError::Corrupt::path: std::path::PathBuf
+pub nika_mcp::pin::PinError::Corrupt::why: alloc::string::String
+pub nika_mcp::pin::PinError::Drift(nika_mcp::pin::ServerDrift)
+pub nika_mcp::pin::PinError::Io
+pub nika_mcp::pin::PinError::Io::path: std::path::PathBuf
+pub nika_mcp::pin::PinError::Io::why: alloc::string::String
+pub nika_mcp::pin::PinError::Malformed
+pub nika_mcp::pin::PinError::Malformed::server: alloc::string::String
+pub nika_mcp::pin::PinError::Malformed::why: alloc::string::String
+pub nika_mcp::pin::PinError::Transport
+pub nika_mcp::pin::PinError::Transport::server: alloc::string::String
+pub nika_mcp::pin::PinError::Transport::why: alloc::string::String
+pub nika_mcp::pin::PinError::Unsupported
+pub nika_mcp::pin::PinError::Unsupported::server: alloc::string::String
+pub nika_mcp::pin::PinError::Unsupported::why: alloc::string::String
+impl nika_mcp::pin::PinError
+pub fn nika_mcp::pin::PinError::code(&self) -> core::option::Option<&'static str>
+impl core::clone::Clone for nika_mcp::pin::PinError
+pub fn nika_mcp::pin::PinError::clone(&self) -> nika_mcp::pin::PinError
+impl core::cmp::Eq for nika_mcp::pin::PinError
+impl core::cmp::PartialEq for nika_mcp::pin::PinError
+pub fn nika_mcp::pin::PinError::eq(&self, other: &nika_mcp::pin::PinError) -> bool
+impl core::error::Error for nika_mcp::pin::PinError
+impl core::fmt::Debug for nika_mcp::pin::PinError
+pub fn nika_mcp::pin::PinError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_mcp::pin::PinError
+pub fn nika_mcp::pin::PinError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::pin::PinError
+impl<D> owo_colors::OwoColorize for nika_mcp::pin::PinError
+impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::PinError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::PinError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::PinError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::equivalent(&self, key: &K) -> bool
+pub fn nika_mcp::pin::PinError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_mcp::pin::PinError where U: core::convert::From<T>
+pub fn nika_mcp::pin::PinError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::pin::PinError where U: core::convert::Into<T>
+pub type nika_mcp::pin::PinError::Error = core::convert::Infallible
+pub fn nika_mcp::pin::PinError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::pin::PinError where U: core::convert::TryFrom<T>
+pub type nika_mcp::pin::PinError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::pin::PinError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::pin::PinError where T: core::clone::Clone
+pub type nika_mcp::pin::PinError::Owned = T
+pub fn nika_mcp::pin::PinError::clone_into(&self, target: &mut T)
+pub fn nika_mcp::pin::PinError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_mcp::pin::PinError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_mcp::pin::PinError where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::pin::PinError where T: ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::pin::PinError where T: ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::pin::PinError where T: core::clone::Clone
+pub unsafe fn nika_mcp::pin::PinError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::pin::PinError
+pub fn nika_mcp::pin::PinError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::pin::PinError where T: core::clone::Clone
+pub fn nika_mcp::pin::PinError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::pin::PinError where T: 'static
+pub fn nika_mcp::pin::PinError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::pin::PinError
+pub type nika_mcp::pin::PinError::Output = T
+#[non_exhaustive] pub struct nika_mcp::pin::McpToolDef
+pub nika_mcp::pin::McpToolDef::description: alloc::string::String
+pub nika_mcp::pin::McpToolDef::input_schema: serde_json::value::Value
+pub nika_mcp::pin::McpToolDef::name: alloc::string::String
+impl nika_mcp::pin::McpToolDef
+pub fn nika_mcp::pin::McpToolDef::from_list_value(server: &str, tools: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<Self>, nika_mcp::pin::PinError>
+pub fn nika_mcp::pin::McpToolDef::new(name: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>, input_schema: serde_json::value::Value) -> Self
+pub fn nika_mcp::pin::McpToolDef::pin_hash(&self) -> alloc::string::String
+impl core::clone::Clone for nika_mcp::pin::McpToolDef
+pub fn nika_mcp::pin::McpToolDef::clone(&self) -> nika_mcp::pin::McpToolDef
+impl core::cmp::PartialEq for nika_mcp::pin::McpToolDef
+pub fn nika_mcp::pin::McpToolDef::eq(&self, other: &nika_mcp::pin::McpToolDef) -> bool
+impl core::fmt::Debug for nika_mcp::pin::McpToolDef
+pub fn nika_mcp::pin::McpToolDef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::pin::McpToolDef
+impl<D> owo_colors::OwoColorize for nika_mcp::pin::McpToolDef
+impl<T, U> core::convert::Into<U> for nika_mcp::pin::McpToolDef where U: core::convert::From<T>
+pub fn nika_mcp::pin::McpToolDef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::pin::McpToolDef where U: core::convert::Into<T>
+pub type nika_mcp::pin::McpToolDef::Error = core::convert::Infallible
+pub fn nika_mcp::pin::McpToolDef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::pin::McpToolDef where U: core::convert::TryFrom<T>
+pub type nika_mcp::pin::McpToolDef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::pin::McpToolDef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::pin::McpToolDef where T: core::clone::Clone
+pub type nika_mcp::pin::McpToolDef::Owned = T
+pub fn nika_mcp::pin::McpToolDef::clone_into(&self, target: &mut T)
+pub fn nika_mcp::pin::McpToolDef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_mcp::pin::McpToolDef where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::pin::McpToolDef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::pin::McpToolDef where T: ?core::marker::Sized
+pub fn nika_mcp::pin::McpToolDef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::pin::McpToolDef where T: ?core::marker::Sized
+pub fn nika_mcp::pin::McpToolDef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::pin::McpToolDef where T: core::clone::Clone
+pub unsafe fn nika_mcp::pin::McpToolDef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::pin::McpToolDef
+pub fn nika_mcp::pin::McpToolDef::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::pin::McpToolDef where T: core::clone::Clone
+pub fn nika_mcp::pin::McpToolDef::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::pin::McpToolDef where T: 'static
+pub fn nika_mcp::pin::McpToolDef::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::pin::McpToolDef
+pub type nika_mcp::pin::McpToolDef::Output = T
+#[non_exhaustive] pub struct nika_mcp::pin::ServerDrift
+pub nika_mcp::pin::ServerDrift::added: alloc::vec::Vec<alloc::string::String>
+pub nika_mcp::pin::ServerDrift::changed: alloc::vec::Vec<nika_mcp::pin::ToolDrift>
+pub nika_mcp::pin::ServerDrift::removed: alloc::vec::Vec<alloc::string::String>
+pub nika_mcp::pin::ServerDrift::server: alloc::string::String
+impl core::clone::Clone for nika_mcp::pin::ServerDrift
+pub fn nika_mcp::pin::ServerDrift::clone(&self) -> nika_mcp::pin::ServerDrift
+impl core::cmp::Eq for nika_mcp::pin::ServerDrift
+impl core::cmp::PartialEq for nika_mcp::pin::ServerDrift
+pub fn nika_mcp::pin::ServerDrift::eq(&self, other: &nika_mcp::pin::ServerDrift) -> bool
+impl core::fmt::Debug for nika_mcp::pin::ServerDrift
+pub fn nika_mcp::pin::ServerDrift::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_mcp::pin::ServerDrift
+pub fn nika_mcp::pin::ServerDrift::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::pin::ServerDrift
+impl<D> owo_colors::OwoColorize for nika_mcp::pin::ServerDrift
+impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::ServerDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ServerDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ServerDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::equivalent(&self, key: &K) -> bool
+pub fn nika_mcp::pin::ServerDrift::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_mcp::pin::ServerDrift where U: core::convert::From<T>
+pub fn nika_mcp::pin::ServerDrift::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::pin::ServerDrift where U: core::convert::Into<T>
+pub type nika_mcp::pin::ServerDrift::Error = core::convert::Infallible
+pub fn nika_mcp::pin::ServerDrift::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::pin::ServerDrift where U: core::convert::TryFrom<T>
+pub type nika_mcp::pin::ServerDrift::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::pin::ServerDrift::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::pin::ServerDrift where T: core::clone::Clone
+pub type nika_mcp::pin::ServerDrift::Owned = T
+pub fn nika_mcp::pin::ServerDrift::clone_into(&self, target: &mut T)
+pub fn nika_mcp::pin::ServerDrift::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_mcp::pin::ServerDrift where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_mcp::pin::ServerDrift where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::pin::ServerDrift where T: ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::pin::ServerDrift where T: ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::pin::ServerDrift where T: core::clone::Clone
+pub unsafe fn nika_mcp::pin::ServerDrift::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::pin::ServerDrift
+pub fn nika_mcp::pin::ServerDrift::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::pin::ServerDrift where T: core::clone::Clone
+pub fn nika_mcp::pin::ServerDrift::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::pin::ServerDrift where T: 'static
+pub fn nika_mcp::pin::ServerDrift::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::pin::ServerDrift
+pub type nika_mcp::pin::ServerDrift::Output = T
+#[non_exhaustive] pub struct nika_mcp::pin::ToolDrift
+pub nika_mcp::pin::ToolDrift::description_changed: bool
+pub nika_mcp::pin::ToolDrift::name: alloc::string::String
+pub nika_mcp::pin::ToolDrift::schema_changed: bool
+impl core::clone::Clone for nika_mcp::pin::ToolDrift
+pub fn nika_mcp::pin::ToolDrift::clone(&self) -> nika_mcp::pin::ToolDrift
+impl core::cmp::Eq for nika_mcp::pin::ToolDrift
+impl core::cmp::PartialEq for nika_mcp::pin::ToolDrift
+pub fn nika_mcp::pin::ToolDrift::eq(&self, other: &nika_mcp::pin::ToolDrift) -> bool
+impl core::fmt::Debug for nika_mcp::pin::ToolDrift
+pub fn nika_mcp::pin::ToolDrift::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::pin::ToolDrift
+impl<D> owo_colors::OwoColorize for nika_mcp::pin::ToolDrift
+impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::ToolDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::ToolDrift::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ToolDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ToolDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::ToolDrift::equivalent(&self, key: &K) -> bool
+pub fn nika_mcp::pin::ToolDrift::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_mcp::pin::ToolDrift where U: core::convert::From<T>
+pub fn nika_mcp::pin::ToolDrift::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::pin::ToolDrift where U: core::convert::Into<T>
+pub type nika_mcp::pin::ToolDrift::Error = core::convert::Infallible
+pub fn nika_mcp::pin::ToolDrift::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::pin::ToolDrift where U: core::convert::TryFrom<T>
+pub type nika_mcp::pin::ToolDrift::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::pin::ToolDrift::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::pin::ToolDrift where T: core::clone::Clone
+pub type nika_mcp::pin::ToolDrift::Owned = T
+pub fn nika_mcp::pin::ToolDrift::clone_into(&self, target: &mut T)
+pub fn nika_mcp::pin::ToolDrift::to_owned(&self) -> T
+impl<T> core::any::Any for nika_mcp::pin::ToolDrift where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::pin::ToolDrift::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::pin::ToolDrift where T: ?core::marker::Sized
+pub fn nika_mcp::pin::ToolDrift::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::pin::ToolDrift where T: ?core::marker::Sized
+pub fn nika_mcp::pin::ToolDrift::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::pin::ToolDrift where T: core::clone::Clone
+pub unsafe fn nika_mcp::pin::ToolDrift::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::pin::ToolDrift
+pub fn nika_mcp::pin::ToolDrift::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::pin::ToolDrift where T: core::clone::Clone
+pub fn nika_mcp::pin::ToolDrift::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::pin::ToolDrift where T: 'static
+pub fn nika_mcp::pin::ToolDrift::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::pin::ToolDrift
+pub type nika_mcp::pin::ToolDrift::Output = T
+pub const nika_mcp::pin::PINS_FORMAT: u32
+pub const nika_mcp::pin::PINS_PATH: &str
 #[non_exhaustive] pub enum nika_mcp::McpError
 pub nika_mcp::McpError::Transport(core::io::error::Error)
 impl core::convert::From<core::io::error::Error> for nika_mcp::McpError
