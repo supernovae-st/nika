@@ -95,6 +95,8 @@ impl<T> dyn_clone::DynClone for nika_dap::evidence::PackError where T: core::clo
 pub fn nika_dap::evidence::PackError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::evidence::PackError where T: 'static
 pub fn nika_dap::evidence::PackError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::evidence::PackError
+impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::PackError
 impl<T> typenum::type_operators::Same for nika_dap::evidence::PackError
 pub type nika_dap::evidence::PackError::Output = T
 #[non_exhaustive] pub struct nika_dap::evidence::EvidencePack
@@ -123,6 +125,8 @@ impl<T> core::convert::From<T> for nika_dap::evidence::EvidencePack
 pub fn nika_dap::evidence::EvidencePack::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::evidence::EvidencePack where T: 'static
 pub fn nika_dap::evidence::EvidencePack::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::evidence::EvidencePack
+impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::EvidencePack
 impl<T> typenum::type_operators::Same for nika_dap::evidence::EvidencePack
 pub type nika_dap::evidence::EvidencePack::Output = T
 pub fn nika_dap::evidence::build(trace: &std::path::Path, workflow: core::option::Option<&std::path::Path>, keys: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<nika_dap::evidence::EvidencePack, nika_dap::evidence::PackError>
