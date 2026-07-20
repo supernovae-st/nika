@@ -18,10 +18,10 @@ use std::time::Duration;
 /// derived from `permits.fs` / `permits.net`). A `CommandSandbox` (the L1
 /// `nika-sandbox-{seatbelt,landlock}` crates) translates this into a
 /// platform sandbox (Seatbelt profile · Landlock ruleset) that confines the
-/// child to the declared filesystem reach and denies network unless granted.
+/// child to the declared filesystem reach and the declared network arm.
 ///
 /// Empty spec = maximally confined (no reads/writes beyond the always-allowed
-/// system paths · no network) — `permits: {}` pure compute. Absent (the
+/// system paths · network denied) — `permits: {}` pure compute. Absent (the
 /// `ShellCommand.sandbox` field is `None`) = today's behavior, unconfined
 /// (the blocklist floor is the only gate).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -33,10 +33,9 @@ pub struct SandboxSpec {
     /// Writable path prefixes (the ONLY paths the child may write · beyond
     /// the always-allowed scratch like `$TMPDIR`).
     pub fs_write: Vec<String>,
-    /// Whether outbound network is allowed at all. `false` = deny egress (the
-    /// default under a declared boundary). Host-granular filtering is a
-    /// follow-on (it needs a local proxy · a Seatbelt host rule is TLS-blind).
-    pub allow_network: bool,
+    /// The network arm (the tri-state below). [`NetPolicy::Deny`] is the
+    /// default under a declared boundary — fail-closed.
+    pub net: NetPolicy,
 }
 
 impl SandboxSpec {
@@ -44,6 +43,66 @@ impl SandboxSpec {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+/// The network arm of the confinement boundary — the tri-state derived from
+/// `permits.net` (ADR-095 Layer 6 · the Anthropic sandbox-runtime model:
+/// host-granular egress needs a loopback proxy, a Seatbelt host rule is
+/// TLS-blind).
+///
+/// Derivation (`nika-runtime`'s `permits:` → [`SandboxSpec`] pass):
+///
+/// - a declared `net.http` host list maps to [`NetPolicy::Allowlist`] —
+///   egress confined to exactly that set, enforced by the per-run loopback
+///   egress proxy (the child gets proxy env vars · the OS fence admits
+///   loopback only). Until the proxy lands, this arm confines EXACTLY as
+///   [`NetPolicy::Allow`] (the pre-tri-state `allow_network = true`
+///   behavior — zero regression, never a silent partial).
+/// - an absent `net:` block or an empty `net.http` maps to
+///   [`NetPolicy::Deny`] — the default, fail-closed.
+/// - the bare `*` host entry (`net: { http: ["*"] }`) maps to
+///   [`NetPolicy::Allow`] — unrestricted egress, reachable ONLY from that
+///   explicit in-file declaration, never by default.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum NetPolicy {
+    /// No outbound network (the default under a declared boundary ·
+    /// fail-closed).
+    #[default]
+    Deny,
+    /// Unrestricted outbound network — the explicit escape hatch, reached
+    /// only by declaring the bare `*` host in `permits.net.http`.
+    Allow,
+    /// Egress confined to the declared `permits.net.http` host set, via the
+    /// loopback egress proxy (see the enum doc for the transitional mapping).
+    Allowlist(EgressAllowlist),
+}
+
+/// The declared `permits.net.http` host set carried by
+/// [`NetPolicy::Allowlist`]. Matched with the ONE host matcher
+/// (`nika_types::net::host_glob_matches`) so the sandbox decision can never
+/// drift from the static check or the http effect's boundary.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct EgressAllowlist {
+    /// Allowed hosts (exact names or leading-`*.` subdomain globs — the same
+    /// language the author writes in `permits.net.http`).
+    pub hosts: Vec<String>,
+    /// The loopback port the per-run egress proxy listens on — filled by the
+    /// runner when it starts the proxy (the Seatbelt fence scopes outbound to
+    /// exactly this port). `None` at derivation time.
+    pub proxy_port: Option<u16>,
+}
+
+impl EgressAllowlist {
+    /// The derivation-time allowlist — the declared hosts, no proxy yet.
+    #[must_use]
+    pub fn new(hosts: Vec<String>) -> Self {
+        Self {
+            hosts,
+            proxy_port: None,
+        }
     }
 }
 

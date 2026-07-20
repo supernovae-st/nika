@@ -467,7 +467,7 @@ mod tests {
         let v = verb(mock.clone());
         let mut spec = nika_kernel::process::SandboxSpec::new();
         spec.fs_read = vec!["/repo/data/**".to_owned()];
-        spec.allow_network = false;
+        spec.net = nika_kernel::process::NetPolicy::Deny;
         let mut input = ExecInput::argv(["echo", "x"]);
         input.sandbox = Some(spec.clone());
         v.run(input).await.expect("runs");

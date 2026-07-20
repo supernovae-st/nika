@@ -31,9 +31,11 @@ ride the outer launcher so the confined child inherits them.
 
 ## 3. What the jail enforces (deny-default)
 
-- **Network** — `--unshare-all` drops the net namespace; `--share-net` re-adds it
-  ONLY when `spec.allow_network` (host-granular filtering needs a proxy · the
-  same honest follow-on the sibling declares).
+- **Network** — the `spec.net` tri-state: `--unshare-all` drops the net
+  namespace (`deny`); `--share-net` re-adds it (`allow`, and `allowlist` until
+  the loopback egress proxy lands — the proxy then serves the declared hosts
+  over the shared namespace; a loopback-only fence needs the socat/unix-socket
+  bridge, the named follow-on).
 - **Writes** — read-write `--bind` only under the validated `fs_write` literal
   prefixes; everything else is read-only or absent.
 - **Reads** — the system trees (linker, libs, shell) are `--ro-bind`; declared
