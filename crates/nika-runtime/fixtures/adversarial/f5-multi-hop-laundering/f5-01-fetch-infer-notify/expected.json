@@ -1,0 +1,13 @@
+{
+  "family": "F5",
+  "slug": "f5-01-fetch-infer-notify",
+  "title": "The payload crosses fetch → infer → notify before reaching egress",
+  "rationale": "two hops with a model rewrite in the middle: the integrity-inversion rule keeps the taint on the infer output, so the realized-flow judge names the original source at the egress sink",
+  "verdict": "static-deny",
+  "containment": "trifecta-static",
+  "static": {
+    "gate": "TRIFECTA",
+    "code": "NIKA-SEC-009",
+    "task": "tell"
+  }
+}

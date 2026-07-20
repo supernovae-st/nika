@@ -1,0 +1,13 @@
+{
+  "family": "F2",
+  "slug": "f2-03-agent-browses-and-summarizes",
+  "title": "A browsing agent's summary carries the tool-result payload to an ungated sink",
+  "rationale": "the agent's ingress is entirely tool results (indirect channel by construction); its output is a realized content source and the write sink is egress-capable with all three legs declared and no dominating human gate",
+  "verdict": "static-deny",
+  "containment": "trifecta-static",
+  "static": {
+    "gate": "TRIFECTA",
+    "code": "NIKA-SEC-009",
+    "task": "leak"
+  }
+}

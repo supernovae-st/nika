@@ -1,0 +1,13 @@
+{
+  "family": "F4",
+  "slug": "f4-01-exec-effect-undeclared",
+  "title": "An exec task under a permits block that declares no exec category",
+  "rationale": "default-deny is statically decidable here — with no exec grant at all, ANY exec task escapes regardless of its (dynamic) command, so the PERMITS lane refuses at check time with NIKA-SEC-004; only a RENDERED program outside an existing allowlist (f4-02) defers to the runtime gate",
+  "verdict": "static-deny",
+  "containment": "permits-static",
+  "static": {
+    "gate": "PERMITS",
+    "code": "NIKA-SEC-004",
+    "task": "run_it"
+  }
+}

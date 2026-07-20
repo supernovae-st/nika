@@ -1,0 +1,13 @@
+{
+  "family": "F3",
+  "slug": "f3-01-jq-hop-steers-the-egress-url",
+  "title": "A jq-extracted field steers the egress URL the literal scan cannot see",
+  "rationale": "the second fetch's host is dynamic, so the literal permits scan is blind by design — but the trifecta's realized-flow analysis propagates the taint through the jq hop and flags the ungated egress statically",
+  "verdict": "static-deny",
+  "containment": "trifecta-static",
+  "static": {
+    "gate": "TRIFECTA",
+    "code": "NIKA-SEC-009",
+    "task": "follow"
+  }
+}

@@ -1,0 +1,21 @@
+# F3 — DOCUMENTED RESIDUAL: the page's content fills an argv slot of an
+# ALLOWLISTED program. The exec allowlist gates the program (echo), never
+# the arguments — the untrusted string runs as data. The argv form is the
+# structural fix against shell re-parsing (no `sh -c` ever sees the bytes),
+# so this fixture pins exactly where the boundary ends: the program name.
+nika: v1
+workflow:
+  id: f3-03-allowlisted-program-tainted-argv
+permits:
+  exec: ["echo"]
+  net: { http: ["news.example"] }
+  tools: ["nika:fetch"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.example/msg.txt" }
+  announce:
+    after: { fetch_page: succeeded }
+    with: { msg: "${{ tasks.fetch_page.output }}" }
+    exec: { command: ["echo", "${{ with.msg }}"] }

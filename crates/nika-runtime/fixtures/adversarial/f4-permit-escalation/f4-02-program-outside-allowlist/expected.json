@@ -1,0 +1,20 @@
+{
+  "family": "F4",
+  "slug": "f4-02-program-outside-allowlist",
+  "title": "The injected program name escapes the exec allowlist after rendering",
+  "rationale": "permits.exec grants git only; the page renders argv[0] to curl — the runtime checks the RENDERED program against the allowlist and refuses before spawn; the mock shell records zero executions",
+  "verdict": "runtime-block",
+  "containment": "exec-permit-gate",
+  "script": {
+    "tools": [
+      { "ok": "curl" }
+    ]
+  },
+  "expect": {
+    "task": "run_it",
+    "status": "failure",
+    "code": "NIKA-SEC-004",
+    "tool_calls": 1,
+    "shell_calls": 0
+  }
+}

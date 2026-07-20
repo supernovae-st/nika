@@ -1461,3 +1461,9 @@ fn json_type_name(value: &Value) -> &'static str {
 
 #[cfg(test)]
 mod tests;
+
+/// The deterministic adversarial suite (B8) — attack fixtures F1..F5 with a
+/// scripted mock-model hijack, asserted against the real static + runtime
+/// boundaries. Test-only: no public surface, no production code.
+#[cfg(test)]
+mod adversarial;
