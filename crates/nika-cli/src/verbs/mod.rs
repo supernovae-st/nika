@@ -34,6 +34,7 @@ pub mod sign;
 pub mod test;
 pub mod tools;
 pub mod trace;
+pub mod trace_anchor;
 pub mod trace_otel;
 pub mod trace_reproduce;
 pub mod trace_verify;

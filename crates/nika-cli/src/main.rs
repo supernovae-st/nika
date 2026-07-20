@@ -453,6 +453,26 @@ enum TraceAction {
         /// worst exit survives (default: the workspace's latest trace).
         traces: Vec<PathBuf>,
     },
+    /// Notarize the journal head OUTSIDE the journal (S3): submit the
+    /// post-seal head — signed with the run key — to the public
+    /// Sigstore Rekor v2 transparency log plus an RFC 3161 timestamp,
+    /// writing a detached `<trace>.anchor.json` sidecar. An explicit
+    /// NETWORK act: this verb IS the opt-in. Exit 0 anchored · 2 the
+    /// journal refuses (broken/torn) · 3 no key/network.
+    Anchor {
+        /// Trace NDJSON path (default: the workspace's latest trace).
+        trace: Option<PathBuf>,
+        /// The Rekor v2 shard. A private rekor-tiles deployment works,
+        /// but its checkpoint is not the pinned Sigstore key's — the
+        /// ANCHORED verify tier stays out of reach there.
+        #[arg(long, default_value_t = nika_cli::anchor::DEFAULT_REKOR_URL.to_owned())]
+        rekor_url: String,
+        /// The RFC 3161 timestamp authority. The token verifies against
+        /// the pinned Sigstore TSA leaf — mirrors of that TSA work,
+        /// other authorities fail closed.
+        #[arg(long, default_value_t = nika_cli::anchor::DEFAULT_TSA_URL.to_owned())]
+        tsa_url: String,
+    },
     /// Is this run reproducible? Compare a recorded journal against a
     /// fresh one and classify every task: reproduced · nondeterministic
     /// (same def+inputs, different output) · authored · environment ·
@@ -1035,6 +1055,18 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
         TraceAction::Verify { traces } => verify_verb(traces),
+        TraceAction::Anchor {
+            trace,
+            rekor_url,
+            tsa_url,
+        } => match resolve_trace(trace) {
+            Ok(path) => emit(&verbs::trace_anchor::run(
+                &path.to_string_lossy(),
+                &rekor_url,
+                &tsa_url,
+            )),
+            Err(code) => code,
+        },
         TraceAction::Reproduce { recorded, fresh } => emit(&verbs::trace_reproduce::reproduce(
             &recorded.to_string_lossy(),
             &fresh.to_string_lossy(),
