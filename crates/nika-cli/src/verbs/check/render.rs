@@ -66,6 +66,7 @@ pub(super) fn render(
     t: Theme,
     model_findings: &[ModelFinding],
     skills: &nika_schema::ResolvedSkills,
+    drift_hints: &[String],
 ) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -158,7 +159,7 @@ pub(super) fn render(
     permits(&mut out, report, wf, t);
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, t);
+    hints_and_verdict(&mut out, report, wf, t, drift_hints);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
     // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
@@ -301,8 +302,14 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
 }
 
 /// Advisory hints + the one-line verdict (the report's last words).
-fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
-    let mut hint_count = report.hints.len();
+fn hints_and_verdict(
+    out: &mut String,
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    t: Theme,
+    drift_hints: &[String],
+) {
+    let mut hint_count = report.hints.len() + drift_hints.len();
     for h in &report.hints {
         let _ = writeln!(
             out,
@@ -311,6 +318,19 @@ fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t
             t.paint(Role::Strong, "HINT"),
             h.kind,
             h.advice
+        );
+    }
+    // NIKA-DRIFT-001 rows — the declared-vs-unused family, computed at
+    // this edge (super::drift); the code-first bracket voice matches the
+    // PERMITS rows (`[NIKA-SEC-005 · net]`).
+    for advice in drift_hints {
+        let _ = writeln!(
+            out,
+            " {} {}     [{} · drift] {}",
+            t.paint(Role::Accent, "↳"),
+            t.paint(Role::Strong, "HINT"),
+            super::drift::DRIFT_CODE,
+            advice
         );
     }
     // The stranger's first trap (V-arc F1): statically-resolvable

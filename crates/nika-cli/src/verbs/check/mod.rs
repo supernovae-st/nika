@@ -20,6 +20,7 @@ use nika_schema::raw::RawWorkflow;
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 
+mod drift;
 mod models_rung;
 use models_rung::{ModelFinding, pricing_section, unresolvable_models};
 
@@ -61,6 +62,9 @@ pub fn run(
         }
         None => (wf, report),
     };
+    // The declared-vs-used drift family (NIKA-DRIFT-001 · drift.rs) —
+    // advisory in both projections, never an exit-code input.
+    let drift_hints = drift::scan(&wf);
     let native_hints = report
         .hints
         .iter()
@@ -80,13 +84,23 @@ pub fn run(
             &report,
             &model_findings,
             &skills,
+            &drift_hints,
             clean,
             strict_clean,
             native_strict,
         );
     }
 
-    let mut text = render(&report, &wf, &source, path, theme, &model_findings, &skills);
+    let mut text = render(
+        &report,
+        &wf,
+        &source,
+        path,
+        theme,
+        &model_findings,
+        &skills,
+        &drift_hints,
+    );
     if native_strict && report.is_clean() && native_hints > 0 {
         let hint_word = if native_hints == 1 { "hint" } else { "hints" };
         let _ = writeln!(
@@ -148,11 +162,13 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
 /// The `--json` verdict: the full report + the machine keys (`clean` ·
 /// `models_resolve` · `model_findings[]` · `skills_resolve` ·
 /// `skill_findings[]` · `pricing` · the strict flag) — never coloured,
-/// the contract bytes are the contract.
+/// the contract bytes are the contract. The drift rows (NIKA-DRIFT-001)
+/// append to `hints[]` in the report's row shape plus their `code`.
 fn json_verdict(
     report: &CheckReport,
     model_findings: &[ModelFinding],
     skills: &nika_schema::ResolvedSkills,
+    drift_hints: &[String],
     clean: bool,
     strict_clean: bool,
     native_strict: bool,
@@ -162,6 +178,14 @@ fn json_verdict(
         Err(e) => return VerbOutput::env(format!("cannot serialize report: {e}")),
     };
     if let Some(obj) = payload.as_object_mut() {
+        if let Some(hints) = obj
+            .get_mut("hints")
+            .and_then(serde_json::Value::as_array_mut)
+        {
+            for advice in drift_hints {
+                hints.push(serde_json::json!({"kind": "drift", "task": "-", "advice": advice, "code": drift::DRIFT_CODE}));
+            }
+        }
         obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
         obj.insert(
             "models_resolve".to_owned(),
@@ -781,6 +805,88 @@ mod tests {
         assert!(
             text.contains("(skipped — no valid DAG order while conformance fails)"),
             "{text}"
+        );
+    }
+
+    /// NIKA-DRIFT-001: a declared-but-unused envelope entry is an
+    /// advisory HINT — rendered code-first (the bracket voice), counted
+    /// in the audited card line, and the exit stays GREEN (dead
+    /// declarations are smell, not failure).
+    #[test]
+    fn unused_declaration_is_hinted_and_the_exit_stays_green() {
+        let out = checked_output(
+            "drift-unused.nika.yaml",
+            "nika: v1\nworkflow:\n  id: w\nvars:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            false,
+        );
+        assert_eq!(out.code, 0, "a drift hint never fails: {}", out.text);
+        assert!(
+            out.text.contains("[NIKA-DRIFT-001 · drift]"),
+            "code-first bracket voice: {}",
+            out.text
+        );
+        assert!(out.text.contains("`vars.ghost`"), "{}", out.text);
+        assert!(
+            out.text.contains("audited") && out.text.contains("hint"),
+            "the card line still renders: {}",
+            out.text
+        );
+    }
+
+    /// The machine projection law: `--json` carries the drift hint with
+    /// its code, `clean` stays true, and the exit stays 0.
+    #[test]
+    fn drift_hint_rides_the_json_projection() {
+        // Per-PROCESS dir (the check-expect mktemp collision class, #376).
+        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("drift-json.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow:\n  id: w\nvars:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        )
+        .expect("fixture body");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            true,
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        assert_eq!(out.code, 0, "{}", out.text);
+        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+        assert_eq!(payload["clean"], true, "{payload:#}");
+        let hints = payload["hints"].as_array().expect("hints array");
+        let drift = hints
+            .iter()
+            .find(|h| h["kind"] == "drift")
+            .expect("the drift hint rides the machine surface");
+        assert_eq!(drift["code"], "NIKA-DRIFT-001", "{drift:#}");
+        assert!(
+            drift["advice"]
+                .as_str()
+                .expect("advice")
+                .contains("`vars.ghost`"),
+            "{drift:#}"
+        );
+    }
+
+    /// The no-duplication law: an UNDECLARED reference is the hard
+    /// lane's (`NIKA-VAR-001`) — the drift code must not also fire for
+    /// it (the two codes never name the same site).
+    #[test]
+    fn unresolved_reference_never_also_drifts() {
+        let out = checked_output(
+            "drift-no-dup.nika.yaml",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.ghost }}\"] }\n",
+            false,
+        );
+        assert_eq!(out.code, 2, "the hard lane fails: {}", out.text);
+        assert!(out.text.contains("NIKA-VAR-001"), "{}", out.text);
+        assert!(
+            !out.text.contains("NIKA-DRIFT-001"),
+            "no drift duplication: {}",
+            out.text
         );
     }
 }

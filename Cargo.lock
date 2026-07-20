@@ -3739,6 +3739,7 @@ dependencies = [
  "clap_complete",
  "expectrl",
  "nika-builtin",
+ "nika-cap",
  "nika-catalog",
  "nika-clock",
  "nika-dap",
@@ -3775,6 +3776,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit",
+ "url",
  "uuid",
 ]
 
