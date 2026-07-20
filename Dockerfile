@@ -24,7 +24,7 @@
 # Run:  docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika check flow.nika.yaml
 # MCP:  docker run -i --rm ghcr.io/supernovae-st/nika mcp
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 ARG TARGETARCH
 LABEL org.opencontainers.image.source="https://github.com/supernovae-st/nika" \
       org.opencontainers.image.description="Nika — the workflow language for AI. One YAML file: check it, run it, trace it." \
