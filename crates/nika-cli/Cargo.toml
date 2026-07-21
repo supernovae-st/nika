@@ -72,6 +72,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
+minisign       = { version = "0.7", default-features = false }   # the tier tests' keypair fixtures (custody lives in nika-dap now)
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.105.0" }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 tempfile = { workspace = true }   # trace-file sink fixtures (`.nika/traces/` journal · sink.rs tests)

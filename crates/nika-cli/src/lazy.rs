@@ -11,7 +11,8 @@ use nika_cli::Theme;
 use nika_cli::display::format::LinkChoice;
 use nika_cli::verbs;
 
-use crate::{CheckFlags, ColorWhenArg, RunArgs, registry_args};
+use crate::{ColorWhenArg, RunArgs, registry_args};
+use nika_cli::verbs::check::CheckFlags;
 
 /// The check-side lazy door — an explicit list passes through; an
 /// empty one resolves the workspace's only workflow (or refuses with

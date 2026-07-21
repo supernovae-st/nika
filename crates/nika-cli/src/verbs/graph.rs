@@ -124,6 +124,32 @@ pub enum GraphFormat {
     Ascii,
 }
 
+/// The clap-facing arm of [`GraphFormat`] (descended from the bin's
+/// dispatcher 2026-07-21 · the 1500-line file cap — the bin composes,
+/// the verbs own their arg types).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum GraphFormatArg {
+    /// Canonical JSON projection (`graph_format: 2`).
+    Json,
+    /// Mermaid flowchart.
+    Mermaid,
+    /// Graphviz dot.
+    Dot,
+    /// Terminal drawing (waves as columns · real wires · honest fallback).
+    Ascii,
+}
+
+impl From<GraphFormatArg> for GraphFormat {
+    fn from(arg: GraphFormatArg) -> Self {
+        match arg {
+            GraphFormatArg::Json => Self::Json,
+            GraphFormatArg::Mermaid => Self::Mermaid,
+            GraphFormatArg::Dot => Self::Dot,
+            GraphFormatArg::Ascii => Self::Ascii,
+        }
+    }
+}
+
 /// The `nika inspect <file> --format …` projector arm. The theme feeds the `ascii` renderer
 /// only — the file formats (json · mermaid · dot) never carry escapes.
 #[must_use]

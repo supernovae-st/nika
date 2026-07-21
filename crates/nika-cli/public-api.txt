@@ -9,6 +9,8 @@ pub use nika_cli::display
 pub use nika_cli::frame
 pub use nika_cli::frame_with_outputs
 pub use nika_cli::verdict_frame
+pub mod nika_cli::anchor
+pub use nika_cli::anchor::<<nika_dap::anchor::*>>
 pub mod nika_cli::registry
 pub use nika_cli::registry::RegistryError
 pub use nika_cli::registry::Resolved
@@ -21,6 +23,37 @@ pub mod nika_cli::verbs
 pub mod nika_cli::verbs::catalog
 pub fn nika_cli::verbs::catalog::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::check
+pub struct nika_cli::verbs::check::CheckFlags
+pub nika_cli::verbs::check::CheckFlags::infer_permits: bool
+pub nika_cli::verbs::check::CheckFlags::json: bool
+pub nika_cli::verbs::check::CheckFlags::native_strict: bool
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::check::CheckFlags
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::CheckFlags where U: core::convert::From<T>
+pub fn nika_cli::verbs::check::CheckFlags::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::check::CheckFlags where U: core::convert::Into<T>
+pub type nika_cli::verbs::check::CheckFlags::Error = core::convert::Infallible
+pub fn nika_cli::verbs::check::CheckFlags::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::check::CheckFlags where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::check::CheckFlags::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::check::CheckFlags::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::check::CheckFlags where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckFlags::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::check::CheckFlags where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckFlags::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::check::CheckFlags where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckFlags::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckFlags
+pub fn nika_cli::verbs::check::CheckFlags::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckFlags where T: 'static
+pub fn nika_cli::verbs::check::CheckFlags::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckFlags where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckFlags::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::check::CheckFlags::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::CheckFlags
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::CheckFlags
+impl<T> typenum::type_operators::Same for nika_cli::verbs::check::CheckFlags
+pub type nika_cli::verbs::check::CheckFlags::Output = T
+pub fn nika_cli::verbs::check::dispatch(files: &[alloc::string::String], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_many(paths: &[alloc::string::String], native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
@@ -102,6 +135,8 @@ pub fn nika_cli::verbs::graph::GraphFormat::clone(&self) -> nika_cli::verbs::gra
 impl core::cmp::Eq for nika_cli::verbs::graph::GraphFormat
 impl core::cmp::PartialEq for nika_cli::verbs::graph::GraphFormat
 pub fn nika_cli::verbs::graph::GraphFormat::eq(&self, other: &nika_cli::verbs::graph::GraphFormat) -> bool
+impl core::convert::From<nika_cli::verbs::graph::GraphFormatArg> for nika_cli::verbs::graph::GraphFormat
+pub fn nika_cli::verbs::graph::GraphFormat::from(arg: nika_cli::verbs::graph::GraphFormatArg) -> Self
 impl core::fmt::Debug for nika_cli::verbs::graph::GraphFormat
 pub fn nika_cli::verbs::graph::GraphFormat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_cli::verbs::graph::GraphFormat
@@ -148,6 +183,67 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::GraphFormat
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::GraphFormat
 impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::GraphFormat
 pub type nika_cli::verbs::graph::GraphFormat::Output = T
+pub enum nika_cli::verbs::graph::GraphFormatArg
+pub nika_cli::verbs::graph::GraphFormatArg::Ascii
+pub nika_cli::verbs::graph::GraphFormatArg::Dot
+pub nika_cli::verbs::graph::GraphFormatArg::Json
+pub nika_cli::verbs::graph::GraphFormatArg::Mermaid
+impl clap_builder::derive::ValueEnum for nika_cli::verbs::graph::GraphFormatArg
+pub fn nika_cli::verbs::graph::GraphFormatArg::to_possible_value<'a>(&self) -> core::option::Option<clap_builder::builder::possible_value::PossibleValue>
+pub fn nika_cli::verbs::graph::GraphFormatArg::value_variants<'a>() -> &'a [Self]
+impl core::clone::Clone for nika_cli::verbs::graph::GraphFormatArg
+pub fn nika_cli::verbs::graph::GraphFormatArg::clone(&self) -> nika_cli::verbs::graph::GraphFormatArg
+impl core::cmp::Eq for nika_cli::verbs::graph::GraphFormatArg
+impl core::cmp::PartialEq for nika_cli::verbs::graph::GraphFormatArg
+pub fn nika_cli::verbs::graph::GraphFormatArg::eq(&self, other: &nika_cli::verbs::graph::GraphFormatArg) -> bool
+impl core::convert::From<nika_cli::verbs::graph::GraphFormatArg> for nika_cli::verbs::graph::GraphFormat
+pub fn nika_cli::verbs::graph::GraphFormat::from(arg: nika_cli::verbs::graph::GraphFormatArg) -> Self
+impl core::fmt::Debug for nika_cli::verbs::graph::GraphFormatArg
+pub fn nika_cli::verbs::graph::GraphFormatArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::verbs::graph::GraphFormatArg
+impl core::marker::StructuralPartialEq for nika_cli::verbs::graph::GraphFormatArg
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::GraphFormatArg
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::GraphFormatArg where U: core::convert::From<T>
+pub fn nika_cli::verbs::graph::GraphFormatArg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::GraphFormatArg where U: core::convert::Into<T>
+pub type nika_cli::verbs::graph::GraphFormatArg::Error = core::convert::Infallible
+pub fn nika_cli::verbs::graph::GraphFormatArg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::graph::GraphFormatArg where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::graph::GraphFormatArg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::graph::GraphFormatArg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::graph::GraphFormatArg where T: core::clone::Clone
+pub type nika_cli::verbs::graph::GraphFormatArg::Owned = T
+pub fn nika_cli::verbs::graph::GraphFormatArg::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::graph::GraphFormatArg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::graph::GraphFormatArg where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::graph::GraphFormatArg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::graph::GraphFormatArg where T: ?core::marker::Sized
+pub fn nika_cli::verbs::graph::GraphFormatArg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::graph::GraphFormatArg where T: ?core::marker::Sized
+pub fn nika_cli::verbs::graph::GraphFormatArg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::graph::GraphFormatArg where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::graph::GraphFormatArg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::graph::GraphFormatArg
+pub fn nika_cli::verbs::graph::GraphFormatArg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::graph::GraphFormatArg where T: core::clone::Clone
+pub fn nika_cli::verbs::graph::GraphFormatArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::GraphFormatArg where T: 'static
+pub fn nika_cli::verbs::graph::GraphFormatArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::verbs::graph::GraphFormatArg where T: core::marker::Copy
+pub fn nika_cli::verbs::graph::GraphFormatArg::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::GraphFormatArg where T: ?core::marker::Sized
+pub fn nika_cli::verbs::graph::GraphFormatArg::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::graph::GraphFormatArg::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::GraphFormatArg
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::GraphFormatArg
+impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::GraphFormatArg
+pub type nika_cli::verbs::graph::GraphFormatArg::Output = T
 pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::GraphFormat, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::graph::to_dot(doc: &nika_graph::GraphDoc) -> alloc::string::String
 pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_graph::GraphDoc) -> alloc::string::String
@@ -274,7 +370,113 @@ impl<T> typenum::type_operators::Same for nika_cli::verbs::key::KeyAction
 pub type nika_cli::verbs::key::KeyAction::Output = T
 pub fn nika_cli::verbs::key::run(action: nika_cli::verbs::key::KeyAction) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::mcp_pins
+pub enum nika_cli::verbs::mcp_pins::McpAction
+pub nika_cli::verbs::mcp_pins::McpAction::Approve
+pub nika_cli::verbs::mcp_pins::McpAction::Approve::server: alloc::string::String
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::mcp_pins::McpAction
+pub fn nika_cli::verbs::mcp_pins::McpAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::mcp_pins::McpAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::mcp_pins::McpAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::mcp_pins::McpAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_cli::verbs::mcp_pins::McpAction
+pub fn nika_cli::verbs::mcp_pins::McpAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::mcp_pins::McpAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::mcp_pins::McpAction::has_subcommand(__clap_name: &str) -> bool
+impl core::clone::Clone for nika_cli::verbs::mcp_pins::McpAction
+pub fn nika_cli::verbs::mcp_pins::McpAction::clone(&self) -> nika_cli::verbs::mcp_pins::McpAction
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::mcp_pins::McpAction
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::mcp_pins::McpAction where U: core::convert::From<T>
+pub fn nika_cli::verbs::mcp_pins::McpAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::mcp_pins::McpAction where U: core::convert::Into<T>
+pub type nika_cli::verbs::mcp_pins::McpAction::Error = core::convert::Infallible
+pub fn nika_cli::verbs::mcp_pins::McpAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::mcp_pins::McpAction where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::mcp_pins::McpAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::mcp_pins::McpAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::mcp_pins::McpAction where T: core::clone::Clone
+pub type nika_cli::verbs::mcp_pins::McpAction::Owned = T
+pub fn nika_cli::verbs::mcp_pins::McpAction::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::mcp_pins::McpAction::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::mcp_pins::McpAction where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::mcp_pins::McpAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::mcp_pins::McpAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::mcp_pins::McpAction where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::mcp_pins::McpAction::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::mcp_pins::McpAction
+pub fn nika_cli::verbs::mcp_pins::McpAction::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::mcp_pins::McpAction where T: core::clone::Clone
+pub fn nika_cli::verbs::mcp_pins::McpAction::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::mcp_pins::McpAction where T: 'static
+pub fn nika_cli::verbs::mcp_pins::McpAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::mcp_pins::McpAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::mcp_pins::McpAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::mcp_pins::McpAction
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::mcp_pins::McpAction
+impl<T> typenum::type_operators::Same for nika_cli::verbs::mcp_pins::McpAction
+pub type nika_cli::verbs::mcp_pins::McpAction::Output = T
+pub enum nika_cli::verbs::mcp_pins::McpTransportArg
+pub nika_cli::verbs::mcp_pins::McpTransportArg::Http
+pub nika_cli::verbs::mcp_pins::McpTransportArg::Stdio
+impl clap_builder::derive::ValueEnum for nika_cli::verbs::mcp_pins::McpTransportArg
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::to_possible_value<'a>(&self) -> core::option::Option<clap_builder::builder::possible_value::PossibleValue>
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::value_variants<'a>() -> &'a [Self]
+impl core::clone::Clone for nika_cli::verbs::mcp_pins::McpTransportArg
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::clone(&self) -> nika_cli::verbs::mcp_pins::McpTransportArg
+impl core::cmp::Eq for nika_cli::verbs::mcp_pins::McpTransportArg
+impl core::cmp::PartialEq for nika_cli::verbs::mcp_pins::McpTransportArg
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::eq(&self, other: &nika_cli::verbs::mcp_pins::McpTransportArg) -> bool
+impl core::fmt::Debug for nika_cli::verbs::mcp_pins::McpTransportArg
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::verbs::mcp_pins::McpTransportArg
+impl core::marker::StructuralPartialEq for nika_cli::verbs::mcp_pins::McpTransportArg
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::mcp_pins::McpTransportArg
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::mcp_pins::McpTransportArg where U: core::convert::From<T>
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::mcp_pins::McpTransportArg where U: core::convert::Into<T>
+pub type nika_cli::verbs::mcp_pins::McpTransportArg::Error = core::convert::Infallible
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::mcp_pins::McpTransportArg where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::mcp_pins::McpTransportArg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::clone::Clone
+pub type nika_cli::verbs::mcp_pins::McpTransportArg::Owned = T
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::mcp_pins::McpTransportArg where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::mcp_pins::McpTransportArg where T: ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::mcp_pins::McpTransportArg where T: ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::mcp_pins::McpTransportArg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::mcp_pins::McpTransportArg
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::clone::Clone
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::mcp_pins::McpTransportArg where T: 'static
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::marker::Copy
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::mcp_pins::McpTransportArg where T: ?core::marker::Sized
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::mcp_pins::McpTransportArg::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::mcp_pins::McpTransportArg
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::mcp_pins::McpTransportArg
+impl<T> typenum::type_operators::Same for nika_cli::verbs::mcp_pins::McpTransportArg
+pub type nika_cli::verbs::mcp_pins::McpTransportArg::Output = T
 pub fn nika_cli::verbs::mcp_pins::approve(server: &str) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::mcp_pins::mcp_verb(action: core::option::Option<nika_cli::verbs::mcp_pins::McpAction>, transport: nika_cli::verbs::mcp_pins::McpTransportArg, port: u16, bind: &str) -> u8
 pub mod nika_cli::verbs::model
 pub mod nika_cli::verbs::model::pull
 pub fn nika_cli::verbs::model::pull::run(arg: &str, yes: bool) -> nika_cli::verbs::VerbOutput
@@ -291,7 +493,8 @@ pub mod nika_cli::verbs::pack_surface
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::probe
-pub fn nika_cli::verbs::probe::collect_workflow_paths(root: &std::path::Path, dir: &std::path::Path, depth: u8, budget: &mut usize, out: &mut alloc::vec::Vec<std::path::PathBuf>)
+pub use nika_cli::verbs::probe::SKIP_DIRS
+pub use nika_cli::verbs::probe::collect_workflow_paths
 pub mod nika_cli::verbs::run
 pub use nika_cli::verbs::run::RecoveredTrace
 pub use nika_cli::verbs::run::recover_events
@@ -581,7 +784,119 @@ pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display:
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace
+pub mod nika_cli::verbs::trace::action
+pub enum nika_cli::verbs::trace::action::TraceAction
+pub nika_cli::verbs::trace::action::TraceAction::Anchor
+pub nika_cli::verbs::trace::action::TraceAction::Anchor::rekor_url: alloc::string::String
+pub nika_cli::verbs::trace::action::TraceAction::Anchor::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::action::TraceAction::Anchor::tsa_url: alloc::string::String
+pub nika_cli::verbs::trace::action::TraceAction::Export
+pub nika_cli::verbs::trace::action::TraceAction::Export::include_content: bool
+pub nika_cli::verbs::trace::action::TraceAction::Export::out: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::action::TraceAction::Export::trace: std::path::PathBuf
+pub nika_cli::verbs::trace::action::TraceAction::Flow
+pub nika_cli::verbs::trace::action::TraceAction::Flow::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::action::TraceAction::Flow::workflow: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::trace::action::TraceAction::Ls
+pub nika_cli::verbs::trace::action::TraceAction::Outputs
+pub nika_cli::verbs::trace::action::TraceAction::Outputs::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::action::TraceAction::Peek
+pub nika_cli::verbs::trace::action::TraceAction::Peek::raw: bool
+pub nika_cli::verbs::trace::action::TraceAction::Peek::task: alloc::string::String
+pub nika_cli::verbs::trace::action::TraceAction::Peek::trace: std::path::PathBuf
+pub nika_cli::verbs::trace::action::TraceAction::Replay(nika_cli::verbs::trace::action::TraceArgs)
+pub nika_cli::verbs::trace::action::TraceAction::Reproduce
+pub nika_cli::verbs::trace::action::TraceAction::Reproduce::fresh: std::path::PathBuf
+pub nika_cli::verbs::trace::action::TraceAction::Reproduce::recorded: std::path::PathBuf
+pub nika_cli::verbs::trace::action::TraceAction::Rm
+pub nika_cli::verbs::trace::action::TraceAction::Rm::all: bool
+pub nika_cli::verbs::trace::action::TraceAction::Rm::force: bool
+pub nika_cli::verbs::trace::action::TraceAction::Rm::older_than: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::trace::action::TraceAction::Rm::trace: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::trace::action::TraceAction::Show(nika_cli::verbs::trace::action::TraceArgs)
+pub nika_cli::verbs::trace::action::TraceAction::Verify
+pub nika_cli::verbs::trace::action::TraceAction::Verify::anchored: bool
+pub nika_cli::verbs::trace::action::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::action::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::action::TraceAction::Verify::traces: alloc::vec::Vec<std::path::PathBuf>
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::trace::action::TraceAction
+pub fn nika_cli::verbs::trace::action::TraceAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_cli::verbs::trace::action::TraceAction
+pub fn nika_cli::verbs::trace::action::TraceAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceAction::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace::action::TraceAction
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace::action::TraceAction where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace::action::TraceAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace::action::TraceAction where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace::action::TraceAction::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace::action::TraceAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace::action::TraceAction where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace::action::TraceAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace::action::TraceAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::trace::action::TraceAction where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceAction
+pub fn nika_cli::verbs::trace::action::TraceAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceAction where T: 'static
+pub fn nika_cli::verbs::trace::action::TraceAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace::action::TraceAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::TraceAction
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceAction
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceAction
+pub type nika_cli::verbs::trace::action::TraceAction::Output = T
+pub struct nika_cli::verbs::trace::action::TraceArgs
+pub nika_cli::verbs::trace::action::TraceArgs::demo: bool
+pub nika_cli::verbs::trace::action::TraceArgs::demo_fail: bool
+pub nika_cli::verbs::trace::action::TraceArgs::no_outputs: bool
+pub nika_cli::verbs::trace::action::TraceArgs::speed: f64
+pub nika_cli::verbs::trace::action::TraceArgs::trace: core::option::Option<std::path::PathBuf>
+impl clap_builder::derive::Args for nika_cli::verbs::trace::action::TraceArgs
+pub fn nika_cli::verbs::trace::action::TraceArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::trace::action::TraceArgs
+pub fn nika_cli::verbs::trace::action::TraceArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace::action::TraceArgs
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace::action::TraceArgs where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace::action::TraceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace::action::TraceArgs where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace::action::TraceArgs::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace::action::TraceArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace::action::TraceArgs where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace::action::TraceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace::action::TraceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::trace::action::TraceArgs where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceArgs
+pub fn nika_cli::verbs::trace::action::TraceArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceArgs where T: 'static
+pub fn nika_cli::verbs::trace::action::TraceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace::action::TraceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::TraceArgs
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceArgs
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceArgs
+pub type nika_cli::verbs::trace::action::TraceArgs::Output = T
 pub mod nika_cli::verbs::trace::manage
+pub use nika_cli::verbs::trace::manage::parse_older_than
 pub enum nika_cli::verbs::trace::manage::RmTarget
 pub nika_cli::verbs::trace::manage::RmTarget::All
 pub nika_cli::verbs::trace::manage::RmTarget::OlderThan(core::time::Duration)
@@ -624,21 +939,185 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::manage::RmTa
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::manage::RmTarget
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::manage::RmTarget
 pub type nika_cli::verbs::trace::manage::RmTarget::Output = T
+pub fn nika_cli::verbs::trace::manage::announce_latest(path: &std::path::Path)
+pub fn nika_cli::verbs::trace::manage::flow_verb(trace: core::option::Option<std::path::PathBuf>, workflow: core::option::Option<alloc::string::String>, theme: nika_display::theme::Theme) -> core::result::Result<nika_cli::verbs::VerbOutput, u8>
 pub fn nika_cli::verbs::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
+pub fn nika_cli::verbs::trace::manage::load_events(args: &nika_cli::verbs::trace::action::TraceArgs) -> core::result::Result<alloc::vec::Vec<nika_event::event::Event>, alloc::string::String>
 pub fn nika_cli::verbs::trace::manage::ls(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
-pub fn nika_cli::verbs::trace::manage::parse_older_than(raw: &str) -> core::result::Result<core::time::Duration, alloc::string::String>
 pub fn nika_cli::verbs::trace::manage::resolve_store_handle(handle: &std::path::Path) -> std::path::PathBuf
+pub fn nika_cli::verbs::trace::manage::resolve_trace(given: core::option::Option<std::path::PathBuf>) -> core::result::Result<std::path::PathBuf, u8>
 pub fn nika_cli::verbs::trace::manage::rm(target: &nika_cli::verbs::trace::manage::RmTarget, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub enum nika_cli::verbs::trace::TraceAction
+pub nika_cli::verbs::trace::TraceAction::Anchor
+pub nika_cli::verbs::trace::TraceAction::Anchor::rekor_url: alloc::string::String
+pub nika_cli::verbs::trace::TraceAction::Anchor::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::TraceAction::Anchor::tsa_url: alloc::string::String
+pub nika_cli::verbs::trace::TraceAction::Export
+pub nika_cli::verbs::trace::TraceAction::Export::include_content: bool
+pub nika_cli::verbs::trace::TraceAction::Export::out: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::TraceAction::Export::trace: std::path::PathBuf
+pub nika_cli::verbs::trace::TraceAction::Flow
+pub nika_cli::verbs::trace::TraceAction::Flow::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::TraceAction::Flow::workflow: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::trace::TraceAction::Ls
+pub nika_cli::verbs::trace::TraceAction::Outputs
+pub nika_cli::verbs::trace::TraceAction::Outputs::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::TraceAction::Peek
+pub nika_cli::verbs::trace::TraceAction::Peek::raw: bool
+pub nika_cli::verbs::trace::TraceAction::Peek::task: alloc::string::String
+pub nika_cli::verbs::trace::TraceAction::Peek::trace: std::path::PathBuf
+pub nika_cli::verbs::trace::TraceAction::Replay(nika_cli::verbs::trace::action::TraceArgs)
+pub nika_cli::verbs::trace::TraceAction::Reproduce
+pub nika_cli::verbs::trace::TraceAction::Reproduce::fresh: std::path::PathBuf
+pub nika_cli::verbs::trace::TraceAction::Reproduce::recorded: std::path::PathBuf
+pub nika_cli::verbs::trace::TraceAction::Rm
+pub nika_cli::verbs::trace::TraceAction::Rm::all: bool
+pub nika_cli::verbs::trace::TraceAction::Rm::force: bool
+pub nika_cli::verbs::trace::TraceAction::Rm::older_than: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::trace::TraceAction::Rm::trace: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::trace::TraceAction::Show(nika_cli::verbs::trace::action::TraceArgs)
+pub nika_cli::verbs::trace::TraceAction::Verify
+pub nika_cli::verbs::trace::TraceAction::Verify::anchored: bool
+pub nika_cli::verbs::trace::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace::TraceAction::Verify::traces: alloc::vec::Vec<std::path::PathBuf>
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::trace::action::TraceAction
+pub fn nika_cli::verbs::trace::action::TraceAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_cli::verbs::trace::action::TraceAction
+pub fn nika_cli::verbs::trace::action::TraceAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceAction::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace::action::TraceAction
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace::action::TraceAction where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace::action::TraceAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace::action::TraceAction where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace::action::TraceAction::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace::action::TraceAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace::action::TraceAction where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace::action::TraceAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace::action::TraceAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::trace::action::TraceAction where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceAction
+pub fn nika_cli::verbs::trace::action::TraceAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceAction where T: 'static
+pub fn nika_cli::verbs::trace::action::TraceAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace::action::TraceAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::TraceAction
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceAction
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceAction
+pub type nika_cli::verbs::trace::action::TraceAction::Output = T
+pub struct nika_cli::verbs::trace::TraceArgs
+pub nika_cli::verbs::trace::TraceArgs::demo: bool
+pub nika_cli::verbs::trace::TraceArgs::demo_fail: bool
+pub nika_cli::verbs::trace::TraceArgs::no_outputs: bool
+pub nika_cli::verbs::trace::TraceArgs::speed: f64
+pub nika_cli::verbs::trace::TraceArgs::trace: core::option::Option<std::path::PathBuf>
+impl clap_builder::derive::Args for nika_cli::verbs::trace::action::TraceArgs
+pub fn nika_cli::verbs::trace::action::TraceArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::trace::action::TraceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::trace::action::TraceArgs
+pub fn nika_cli::verbs::trace::action::TraceArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::trace::action::TraceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace::action::TraceArgs
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace::action::TraceArgs where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace::action::TraceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace::action::TraceArgs where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace::action::TraceArgs::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace::action::TraceArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace::action::TraceArgs where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace::action::TraceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace::action::TraceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::trace::action::TraceArgs where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceArgs
+pub fn nika_cli::verbs::trace::action::TraceArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceArgs where T: 'static
+pub fn nika_cli::verbs::trace::action::TraceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::action::TraceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace::action::TraceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::TraceArgs
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceArgs
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceArgs
+pub type nika_cli::verbs::trace::action::TraceArgs::Output = T
 pub fn nika_cli::verbs::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::trace_anchor
+pub fn nika_cli::verbs::trace_anchor::run(trace: &str, rekor_url: &str, tsa_url: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_otel
 pub fn nika_cli::verbs::trace_otel::export(trace: &str, out: core::option::Option<&str>, include_content: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_reproduce
 pub fn nika_cli::verbs::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_verify
+pub struct nika_cli::verbs::trace_verify::VerifyOptions
+pub nika_cli::verbs::trace_verify::VerifyOptions::anchored: bool
+pub nika_cli::verbs::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
+impl core::clone::Clone for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::clone(&self) -> nika_cli::verbs::trace_verify::VerifyOptions
+impl core::default::Default for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::default() -> nika_cli::verbs::trace_verify::VerifyOptions
+impl core::fmt::Debug for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace_verify::VerifyOptions
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace_verify::VerifyOptions where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace_verify::VerifyOptions where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace_verify::VerifyOptions where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Owned = T
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::trace_verify::VerifyOptions where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::trace_verify::VerifyOptions
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace_verify::VerifyOptions where T: 'static
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace_verify::VerifyOptions
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace_verify::VerifyOptions
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace_verify::VerifyOptions
+pub type nika_cli::verbs::trace_verify::VerifyOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::trace_verify::VerifyOptions where T: core::default::Default
+pub type nika_cli::verbs::trace_verify::VerifyOptions::NoneType = T
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::null_value() -> T
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace_verify::verify_with(trace: &str, opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::welcome
 pub fn nika_cli::verbs::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire

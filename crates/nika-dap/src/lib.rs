@@ -23,9 +23,12 @@
 //! → `initialized` event → launch → setBreakpoints → configurationDone
 //! → stopped/continue loop → disconnect.
 
+pub mod anchor;
 pub mod chain;
 pub mod drift;
 pub mod evidence;
+pub mod flow;
+pub mod inventory;
 pub mod otel;
 pub mod recover;
 pub mod reproduce;

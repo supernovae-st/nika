@@ -415,6 +415,51 @@ fn hex_lower(bytes: &[u8]) -> String {
     out
 }
 
+/// The candidate public keys for the SEALED verify tier, in pick
+/// order: an explicit key file first (the `--key` voice), then the
+/// custody default, then every line of the retired ledger (rotation
+/// keeps old journals verifiable). Each entry is `(public box, source
+/// label)` — the source rides into the tier's report line.
+///
+/// # Errors
+///
+/// A reason string when the explicit key file cannot be read (the
+/// invocation's own failure — never a forgery signal).
+pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)>, String> {
+    let mut out = Vec::new();
+    if let Some(path) = key_file {
+        // seam-bypass-ok: reading the operator-named key file (the custody idiom above)
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| format!("cannot read --key {}: {e}", path.display()))?;
+        out.push((text.trim().to_owned(), path.display().to_string()));
+    }
+    for name in ["run-signing.pub", "retired.pub"] {
+        let Some(path) = keys_path(name) else {
+            continue;
+        };
+        // seam-bypass-ok: reading the operator's own key custody (the idiom above)
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        for line in text.lines() {
+            let line = line.trim();
+            if !line.is_empty() {
+                out.push((line.to_owned(), format!("~/.nika/keys/{name}")));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// `~/.nika/keys/<name>` — a config path, never a secret read (the
+/// scoped exemption the custody helpers above already carry).
+#[allow(clippy::disallowed_methods)]
+fn keys_path(name: &str) -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|home| PathBuf::from(home).join(".nika").join("keys").join(name))
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {

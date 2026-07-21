@@ -14,9 +14,12 @@
 //! recorded sizes) — a fold over two existing truths, zero new
 //! analysis.
 
+pub mod action;
 pub mod manage;
 pub(crate) mod retention;
 pub(crate) mod store;
+
+pub use action::{TraceAction, TraceArgs};
 
 use std::fmt::Write as _;
 
@@ -24,6 +27,8 @@ use crate::display::flow::fmt_wall_ms;
 use crate::display::shape;
 use crate::display::theme::{Role, Theme};
 use crate::{RunView, TaskRow, TaskState};
+
+pub(crate) use nika_dap::flow::{FlowEdge, flow_edges};
 
 use super::VerbOutput;
 
@@ -46,12 +51,12 @@ pub fn outputs(trace: &str, theme: Theme) -> VerbOutput {
 /// Load + tolerantly parse + fold one trace file (the shared entry of
 /// every static trace reader).
 pub(crate) fn load_view(trace: &str) -> Result<RunView, VerbOutput> {
-    let raw = std::fs::read_to_string(trace)
-        .map_err(|e| VerbOutput::env(format!("cannot read {trace}: {e}")))?;
-    let recovered =
-        super::run::recover_events(&raw, trace).map_err(|e| VerbOutput::env(e.to_string()))?;
+    // The file half (read + tolerant recover) lives in the forensics
+    // crate (nika_dap::recover — the 15k descent); the fold into the
+    // ONE RunView truth stays display-side.
+    let events = nika_dap::recover::load_events(trace).map_err(VerbOutput::env)?;
     let mut view = RunView::new();
-    for event in &recovered.events {
+    for event in &events {
         view.apply(event);
     }
     Ok(view)
@@ -274,7 +279,7 @@ fn render_failure_peek(row: &TaskRow, theme: Theme) -> String {
     let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
     let _ = writeln!(out);
     let _ = writeln!(out, "  {}", theme.paint(Role::Bad, &row.detail));
-    if let Some(code) = wire_code(&row.detail) {
+    if let Some(code) = nika_dap::recover::first_wire_code(&row.detail) {
         let _ = writeln!(
             out,
             "  {}",
@@ -282,24 +287,6 @@ fn render_failure_peek(row: &TaskRow, theme: Theme) -> String {
         );
     }
     out
-}
-
-/// The first wire-code-shaped token in a failure detail (`NIKA-INFER-001`
-/// · `DAG-003`) — uppercase segments joined by dashes, at least two.
-fn wire_code(detail: &str) -> Option<&str> {
-    detail
-        .split([' ', '·', ':', '(', ')'])
-        .map(str::trim)
-        .find(|t| {
-            t.len() >= 5
-                && t.contains('-')
-                && t.split('-').count() >= 2
-                && t.split('-').all(|s| {
-                    !s.is_empty()
-                        && s.bytes()
-                            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
-                })
-        })
 }
 
 /// The pretty read: identity block (task · verb · time · tokens ·
@@ -350,20 +337,13 @@ fn clip_hash(hash: &str, theme: Theme) -> String {
     format!("{head}{}", if theme.ascii { ".." } else { "…" })
 }
 
-/// One data edge: `from` fed `to` — `bytes` is the SOURCE task's
-/// recorded output size when the trace carries it (the honest measure
-/// of what flowed; a consumer may read a subpath of it).
-struct FlowEdge {
-    from: String,
-    to: String,
-    bytes: Option<usize>,
-}
-
 /// `nika trace flow <trace> <workflow>` — the data waterfall: edges
 /// from the checked definition's bindings (`after:` + `${{ tasks.X
 /// }}` references · the SAME over-collecting scan `--resume --from`
 /// walks) × output sizes from the trace, plus the `outputs.<name>`
 /// terminal edges. The time-waterfall shows WHEN; this shows WHY.
+/// The edge COMPUTE lives in the forensics crate (`nika_dap::flow` —
+/// the 15k descent); this verb keeps the view fold + the render.
 #[must_use]
 pub fn flow(trace: &str, workflow: &str, theme: Theme) -> VerbOutput {
     let view = match load_view(trace) {
@@ -387,73 +367,20 @@ pub fn flow(trace: &str, workflow: &str, theme: Theme) -> VerbOutput {
         );
         let _ = writeln!(out, "  {}", theme.paint(Role::Warn, &note));
     }
-    out.push_str(&render_flow(&flow_edges(&wf, &view), theme));
-    VerbOutput::ok(out)
-}
-
-/// Join plan bindings × trace sizes into the edge list (task edges in
-/// definition order, then the `outputs.<name>` terminal edges).
-fn flow_edges(wf: &nika_schema::raw::RawWorkflow, view: &RunView) -> Vec<FlowEdge> {
-    let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
-    let size_of = |task: &str| -> Option<usize> {
+    let mut size_of = |task: &str| -> Option<usize> {
         view.rows()
             .iter()
             .find(|r| r.id == task)
-            .and_then(|r| r.output_json.as_deref())
-            .map(str::len)
+            .and_then(output_size)
     };
-    let mut edges = Vec::new();
-    for task in &wf.tasks {
-        let to = task.value.id.value.as_str();
-        for from in nika_runtime::resume::referenced_upstreams(&task.value) {
-            // The scan over-collects by design — keep only edges from a
-            // REAL sibling task (never self).
-            if from != to && ids.contains(&from.as_str()) {
-                edges.push(FlowEdge {
-                    bytes: size_of(&from),
-                    from,
-                    to: to.to_owned(),
-                });
-            }
-        }
-    }
-    for (key, decl) in &wf.outputs {
-        // CLOSED vocabulary (nika-vocab) — both forms named.
-        let template = match decl {
-            nika_schema::types::OutputDecl::Untyped(v) => &v.value,
-            nika_schema::types::OutputDecl::Typed { value, .. } => &value.value,
-        };
-        let mut refs = std::collections::BTreeSet::new();
-        scan_task_refs(template, &mut refs);
-        for from in refs {
-            if ids.contains(&from.as_str()) {
-                edges.push(FlowEdge {
-                    bytes: size_of(&from),
-                    from,
-                    to: format!("outputs.{}", key.value),
-                });
-            }
-        }
-    }
-    edges
+    out.push_str(&render_flow(&flow_edges(&wf, &mut size_of), theme));
+    VerbOutput::ok(out)
 }
 
-/// Collect every `tasks.<snake_case_id>` token — the SAME boundary scan
-/// the runtime's `referenced_upstreams` applies to task definitions
-/// (task ids are checker-enforced `snake_case`; over-collection is
-/// safe, the caller filters to real task ids).
-fn scan_task_refs(text: &str, out: &mut std::collections::BTreeSet<String>) {
-    let mut rest = text;
-    while let Some(at) = rest.find("tasks.") {
-        let after = &rest[at + "tasks.".len()..];
-        let end = after
-            .find(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'))
-            .unwrap_or(after.len());
-        if end > 0 {
-            out.insert(after[..end].to_owned());
-        }
-        rest = &after[end..];
-    }
+/// The recorded byte size of one task row's output (the display-side
+/// answer the edge compute asks through the injected lookup).
+fn output_size(row: &TaskRow) -> Option<usize> {
+    row.output_json.as_deref().map(str::len)
 }
 
 /// Render the waterfall: one `from ─size→ to` line per edge (a source
@@ -769,14 +696,17 @@ mod tests {
     #[test]
     fn wire_code_finds_codes_and_ignores_prose() {
         assert_eq!(
-            wire_code("NIKA-INFER-001 · model x failed"),
+            nika_dap::recover::first_wire_code("NIKA-INFER-001 · model x failed"),
             Some("NIKA-INFER-001")
         );
         assert_eq!(
-            wire_code("cycle found (DAG-003) in wave 2"),
+            nika_dap::recover::first_wire_code("cycle found (DAG-003) in wave 2"),
             Some("DAG-003")
         );
-        assert_eq!(wire_code("plain prose failure - nothing coded"), None);
+        assert_eq!(
+            nika_dap::recover::first_wire_code("plain prose failure - nothing coded"),
+            None
+        );
     }
 
     /// A guarded skip explains itself — no hypothesis, no blame.

@@ -337,54 +337,12 @@ fn iso_to_epoch_days(iso: &str) -> Option<i64> {
     Some(era * 146_097 + day_of_era - 719_468)
 }
 
-/// Directories the mirror-family workspace walks never enter —
-/// dependency/build trees dwarf the workspace and these surfaces have
-/// a latency budget, not a completeness one (welcome · context).
-pub(crate) const SKIP_DIRS: [&str; 8] = [
-    ".git",
-    "node_modules",
-    "target",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    "vendor",
-];
-
-/// Bounded workspace walk: collect root-relative `*.nika.yaml` paths
-/// (depth- and budget-capped · dot/dep dirs skipped). The ONE walk the
-/// mirror family shares — welcome counts it, context audits it.
-pub fn collect_workflow_paths(
-    root: &Path,
-    dir: &Path,
-    depth: u8,
-    budget: &mut usize,
-    out: &mut Vec<PathBuf>,
-) {
-    if depth == 0 || *budget == 0 {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        if *budget == 0 {
-            return;
-        }
-        *budget -= 1;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if path.is_dir() {
-            if name.starts_with('.') || SKIP_DIRS.contains(&name.as_ref()) {
-                continue;
-            }
-            collect_workflow_paths(root, &path, depth - 1, budget, out);
-        } else if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
-            out.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
-        }
-    }
-}
+/// The ONE walk the mirror family shares (welcome counts it, context
+/// audits it) — descended to the forensics crate
+/// (`nika_dap::inventory` · 2026-07-21 · the 15k wall); re-exported at
+/// the old path so every `probe::collect_workflow_paths` consumer
+/// reads unchanged.
+pub use nika_dap::inventory::{SKIP_DIRS, collect_workflow_paths};
 
 /// The environment fragment both machine mirrors emit (welcome ·
 /// context): client wiring booleans · local provider ids · cloud key

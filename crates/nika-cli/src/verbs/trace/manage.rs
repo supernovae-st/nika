@@ -25,6 +25,126 @@ use crate::verbs::VerbOutput;
 use super::retention;
 use super::store::{self, TraceMeta, TraceState};
 
+/// Name the bare-form pick on stderr — the receipt names its subject.
+// The bare-form receipt speaks on stderr BY DESIGN (the run/mod.rs
+// precedent: the diagnostic stream is this surface's own channel).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+pub fn announce_latest(path: &Path) {
+    eprintln!(
+        "nika trace: reading {} (the workspace latest)",
+        path.display()
+    );
+}
+
+/// The bare form of a static trace reader: no path → the workspace's
+/// latest trace, named on stderr · zero traces → the teaching error,
+/// exit 3 (ADR-098 environment). Moved out of the bin's dispatcher
+/// (the 1500-LOC wall) when the anchor arm landed — every trace verb
+/// resolves through this ONE routing.
+///
+/// # Errors
+///
+/// `verbs::exit::ENV` when the store holds no trace to fall back on.
+// Same stderr channel as announce_latest (the teaching error is a
+// diagnostic, not the verb's report).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+pub fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
+    if let Some(path) = given {
+        return Ok(resolve_store_handle(&path));
+    }
+    if let Some(path) = latest() {
+        announce_latest(&path);
+        return Ok(path);
+    }
+    eprintln!(
+        "nika trace: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
+    );
+    Err(crate::verbs::exit::ENV)
+}
+
+/// `nika trace flow` — two positionals, both optional to clap (a
+/// required one may not follow an optional one): one arg IS the
+/// workflow and the trace defaults, matching the bare-form contract.
+/// Descended from the bin's dispatcher 2026-07-21 (the 1500-line file
+/// cap — the bin composes, the verbs own their routing). Returns the
+/// renderable output or the exit code the teach line already printed.
+///
+/// # Errors
+///
+/// The exit code after the teach line has printed (ENV).
+// The teach line rides stderr verbatim (the arm's own `nika trace:`
+// voice — emit must not re-prefix it; the resolve_trace precedent).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+pub fn flow_verb(
+    trace: Option<PathBuf>,
+    workflow: Option<String>,
+    theme: Theme,
+) -> Result<VerbOutput, u8> {
+    let (trace, workflow) = match (trace, workflow) {
+        (trace, Some(workflow)) => (trace, workflow),
+        (Some(only), None) if only.extension().and_then(|e| e.to_str()) != Some("ndjson") => {
+            (None, only.to_string_lossy().into_owned())
+        }
+        _ => {
+            eprintln!(
+                "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
+            );
+            return Err(crate::verbs::exit::ENV);
+        }
+    };
+    resolve_trace(trace).map(|path| super::flow(&path.to_string_lossy(), &workflow, theme))
+}
+
+/// Load the events a replay/show renders: the demo storyboards first,
+/// then the named trace or the workspace's latest (the bare-form
+/// contract), recovered tolerantly. Descended from the bin 2026-07-21.
+///
+/// # Errors
+///
+/// A reason string when no trace exists to read or the file cannot be.
+pub fn load_events(args: &super::action::TraceArgs) -> Result<Vec<nika_event::Event>, String> {
+    if args.demo {
+        return Ok(crate::demo::success());
+    }
+    if args.demo_fail {
+        return Ok(crate::demo::failure());
+    }
+    let path = match &args.trace {
+        Some(path) => resolve_store_handle(path),
+        // Bare form: the workspace's latest trace (same contract as
+        // verify/outputs/flow).
+        None => match latest() {
+            Some(path) => {
+                announce_latest(&path);
+                path
+            }
+            None => {
+                return Err("no trace given and no traces in .nika/traces yet — run a \
+                            workflow first, pass a .ndjson path, or try --demo"
+                    .to_owned());
+            }
+        },
+    };
+    let raw =
+        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    recover_events(&raw, &path.display().to_string())
+}
+
+/// Parse an NDJSON trace, tolerating a truncated/corrupt TAIL — a crashed run
+/// (SIGSEGV · OOM · hard kill) leaves a half-written last line, and recovering
+/// it is the whole point of a flight recorder. Delegates to the library's
+/// tolerant reader (the SAME one `nika run --resume` folds through — one
+/// recovery contract, two consumers) and surfaces the truncation note here.
+// The truncation note rides stderr (the replay's own voice).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+fn recover_events(raw: &str, label: &str) -> Result<Vec<nika_event::Event>, String> {
+    let recovered = nika_dap::recover::recover_events(raw, label).map_err(|e| e.to_string())?;
+    if let Some(note) = &recovered.truncated_note {
+        eprintln!("nika trace: {note} — rendering the recovered prefix");
+    }
+    Ok(recovered.events)
+}
+
 /// `nika trace ls` — list the workspace trace store (`.nika/traces/`).
 #[must_use]
 pub fn ls(theme: Theme) -> VerbOutput {
@@ -159,26 +279,7 @@ pub enum RmTarget {
 /// Parse the `--older-than` duration form: `<N><unit>` with `s`/`m`/
 /// `h`/`d` (`7d` · `12h` · `30m` · `45s`).
 ///
-/// # Errors
-///
-/// A human-readable refusal naming the accepted form.
-pub fn parse_older_than(raw: &str) -> Result<Duration, String> {
-    let raw = raw.trim();
-    let refuse = || format!("--older-than expects <N><unit> (s · m · h · d) — got `{raw}`");
-    // Split on CHARS, not bytes — a multi-byte trailing unit (`7é`) must
-    // refuse, never panic on a char boundary.
-    let mut digits = raw.chars();
-    let unit = digits.next_back().ok_or_else(refuse)?;
-    let n: u64 = digits.as_str().parse().map_err(|_| refuse())?;
-    let seconds = match unit {
-        's' => n,
-        'm' => n.saturating_mul(60),
-        'h' => n.saturating_mul(3_600),
-        'd' => n.saturating_mul(86_400),
-        _ => return Err(refuse()),
-    };
-    Ok(Duration::from_secs(seconds))
-}
+pub use nika_dap::store::parse_older_than;
 
 /// The workspace's most recent trace (mtime · name tie-break) — what a
 /// bare static reader means: the first thing typed after a run should
@@ -190,7 +291,7 @@ pub fn latest() -> Option<PathBuf> {
 
 /// The dir-injected core (tests point it at a staged store).
 pub(crate) fn latest_in(dir: &Path) -> Option<PathBuf> {
-    store::scan(dir).into_iter().next().map(|meta| meta.path)
+    nika_dap::store::latest_in(dir)
 }
 
 /// A bare name from `trace ls` resolves in the store, like `rm` (one
@@ -303,20 +404,13 @@ fn paused_refusal(meta: &store::TraceMeta) -> String {
 /// Resolve a `rm` handle: an explicit path wins; a bare name resolves
 /// inside the store (the form `trace ls` prints).
 fn resolve_handle(dir: &Path, handle: &str) -> Option<PathBuf> {
-    let direct = PathBuf::from(handle);
-    if direct.is_file() {
-        return Some(direct);
-    }
-    let in_store = dir.join(handle);
-    in_store.is_file().then_some(in_store)
+    nika_dap::store::resolve_handle(dir, handle)
 }
 
 /// Facts for a trace OUTSIDE the store dir (an explicit path handle):
 /// the same one-file fold `scan` applies per entry.
 fn scan_foreign(path: &Path) -> Option<store::TraceMeta> {
-    store::scan(path.parent()?)
-        .into_iter()
-        .find(|t| t.path == path)
+    nika_dap::store::scan_foreign(path)
 }
 
 #[cfg(test)]
@@ -600,5 +694,30 @@ mod tests {
             let err = parse_older_than(junk).expect_err("refused");
             assert!(err.contains("--older-than expects"), "{err}");
         }
+    }
+
+    fn valid_line() -> String {
+        let events = crate::demo::success();
+        let first = events.first().expect("demo has events");
+        serde_json::to_string(first).expect("event serializes")
+    }
+
+    /// Flight-recorder resilience: a crashed run leaves a truncated last line.
+    /// The reader must render the valid PREFIX, not lose the whole trace.
+    #[test]
+    fn truncated_tail_recovers_the_valid_prefix() {
+        let v = valid_line();
+        // 2 valid events + a truncated 3rd line (the crash signature).
+        let raw = format!("{v}\n{v}\n{{\"id\":{{\"uuid\":\"trunc");
+        let events = recover_events(&raw, "t").expect("recovers the valid prefix");
+        assert_eq!(events.len(), 2, "both valid events recovered");
+    }
+
+    /// A bad FIRST line (nothing recovered) is genuinely unreadable → error;
+    /// an empty trace likewise.
+    #[test]
+    fn bad_first_line_and_empty_are_hard_errors() {
+        assert!(recover_events("{not json at all\n", "t").is_err());
+        assert!(recover_events("", "t").is_err(), "empty trace errors");
     }
 }

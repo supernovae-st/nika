@@ -517,3 +517,97 @@ mod tests {
         assert!(!report.diverged(), "unverifiable never fails the verdict");
     }
 }
+
+// ── The file plumbing (descended from nika-cli 2026-07-21) ──────────
+
+/// The file-level reproduce outcome — the plumbing half of the
+/// `trace reproduce` verb AND the verify ladder's REPLAYED leg. The
+/// CLI keeps the renderer and the exit mapping.
+#[derive(Debug)]
+pub struct JournalComparison {
+    /// The compare report (the CLI renders it).
+    pub report: Report,
+    /// The honesty warnings, in the order the verb has always printed
+    /// them (unnamed workflow · torn prefixes · broken chains).
+    pub warnings: Vec<String>,
+}
+
+/// The refusal before any comparison is possible (the CLI's ENV class
+/// — never a FILE finding: no journal was judged).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CompareRefusal {
+    /// A journal cannot be read or recovered (the message names which).
+    Unreadable(String),
+    /// The two journals record DIFFERENT workflows — nothing is
+    /// comparable (reproduce pairs runs of the SAME workflow).
+    DifferentWorkflows {
+        /// The recorded journal's workflow name.
+        recorded: String,
+        /// The fresh journal's workflow name.
+        fresh: String,
+    },
+}
+
+/// Read + recover + guard + compare two journals on disk — the exact
+/// plumbing the shim ran (same reads, same guard, same warnings, in
+/// the same order).
+///
+/// # Errors
+///
+/// The [`CompareRefusal`] for an unreadable/unrecoverable journal or
+/// a cross-workflow pair.
+pub fn compare_journals(recorded: &str, fresh: &str) -> Result<JournalComparison, CompareRefusal> {
+    let rec_raw = std::fs::read_to_string(recorded) // seam-bypass-ok: L4 verb reading the journals it compares
+        .map_err(|e| CompareRefusal::Unreadable(format!("cannot read {recorded}: {e}")))?;
+    let new_raw =
+        std::fs::read_to_string(fresh) // seam-bypass-ok: same read
+            .map_err(|e| CompareRefusal::Unreadable(format!("cannot read {fresh}: {e}")))?;
+    let rec = crate::recover::recover_events(&rec_raw, recorded)
+        .map_err(|e| CompareRefusal::Unreadable(e.to_string()))?;
+    let new = crate::recover::recover_events(&new_raw, fresh)
+        .map_err(|e| CompareRefusal::Unreadable(e.to_string()))?;
+
+    // The identity guard: task ids pair by name, so a cross-workflow
+    // compare renders a confident taxonomy about two runs that never
+    // shared a definition. Both journals name their workflow on
+    // `workflow_started` (0.95+); when both speak and disagree,
+    // nothing is comparable.
+    let rec_wf = workflow_of(&rec.events).map(str::to_owned);
+    let new_wf = workflow_of(&new.events).map(str::to_owned);
+    if let (Some(a), Some(b)) = (&rec_wf, &new_wf)
+        && a != b
+    {
+        return Err(CompareRefusal::DifferentWorkflows {
+            recorded: a.clone(),
+            fresh: b.clone(),
+        });
+    }
+
+    let mut warnings = Vec::new();
+    if rec_wf.is_none() || new_wf.is_none() {
+        warnings.push(
+            "WARNING — a journal names no workflow (pre-0.95 engine?): same-workflow pairing is unverified"
+                .to_owned(),
+        );
+    }
+    // A torn journal compares on its recovered prefix — SAY so, or the
+    // lost tail's tasks surface as phantom divergences.
+    for note in [&rec.truncated_note, &new.truncated_note]
+        .into_iter()
+        .flatten()
+    {
+        warnings.push(format!("WARNING — {note}"));
+    }
+    for (label, raw) in [("recorded", &rec_raw), ("fresh", &new_raw)] {
+        if let crate::chain::Verdict::Broken { line, .. } = crate::chain::walk(raw) {
+            warnings.push(format!(
+                "WARNING — the {label} journal fails verification (chain broken at line {line}); its claims are unverified"
+            ));
+        }
+    }
+    Ok(JournalComparison {
+        report: compare(&rec.events, &new.events),
+        warnings,
+    })
+}

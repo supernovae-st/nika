@@ -104,6 +104,41 @@ pub fn recover_events(raw: &str, label: &str) -> Result<RecoveredTrace, RecoverE
     Ok(RecoveredTrace::new(events, truncated_note))
 }
 
+/// Load a journal file and tolerantly recover its events (the file
+/// half of [`recover_events`] — the static trace readers share it).
+///
+/// # Errors
+///
+/// A reason string when the file cannot be read or the recovery
+/// refuses (garbage from line one).
+pub fn load_events(trace: &str) -> Result<Vec<Event>, String> {
+    let raw = std::fs::read_to_string(trace) // seam-bypass-ok: L4 verb reading the journal it folds
+        .map_err(|e| format!("cannot read {trace}: {e}"))?;
+    let recovered = recover_events(&raw, trace).map_err(|e| e.to_string())?;
+    Ok(recovered.events)
+}
+
+/// The first wire-code-shaped token in a failure detail (`NIKA-INFER-001`
+/// · `DAG-003`) — uppercase segments joined by dashes, at least two
+/// (descended from `verbs::trace::peek` 2026-07-21 · the 15k wall —
+/// the autopsy's teach line asks this, never the journal's prose).
+#[must_use]
+pub fn first_wire_code(detail: &str) -> Option<&str> {
+    detail
+        .split([' ', '·', ':', '(', ')'])
+        .map(str::trim)
+        .find(|t| {
+            t.len() >= 5
+                && t.contains('-')
+                && t.split('-').count() >= 2
+                && t.split('-').all(|s| {
+                    !s.is_empty()
+                        && s.bytes()
+                            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+                })
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
