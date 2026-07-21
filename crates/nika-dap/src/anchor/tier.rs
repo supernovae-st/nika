@@ -362,3 +362,220 @@ mod tests {
         assert_eq!(verified.log_index, "34612959");
     }
 }
+
+// ── The ladder EVALUATION (descended from nika-cli 2026-07-21) ──────
+
+/// The evaluated ladder, pre-render: every leg's verdict, the highest
+/// honestly-attained tier, the exit class, and the per-tier report
+/// lines. The lines are DATA (what the proof honestly says); the
+/// CLI's `VerbOutput` envelope + exit code are the render. Descended
+/// from `verbs::trace_verify::tiered` (the 15k wall — compute
+/// descends, render stays).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TierReport {
+    /// The seal leg's verdict.
+    pub seal: SealTier,
+    /// The anchor leg's verdict.
+    pub anchor: AnchorTier,
+    /// The replay leg's verdict.
+    pub replay: ReplayTier,
+    /// The highest honestly-attained tier.
+    pub attained: AttainedTier,
+    /// The exit class the verdicts map to.
+    pub exit: TierExit,
+    /// The per-tier report lines, in ladder order (the chain's OK
+    /// line is NOT among them — it predates the ladder and stays the
+    /// CLI's byte-locked surface).
+    pub lines: Vec<String>,
+}
+
+/// The highest honestly-attained tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AttainedTier {
+    /// Chain intact, nothing more proven.
+    Ok,
+    /// The `run_sealed` signature verifies.
+    Sealed,
+    /// The external anchor verifies offline.
+    Anchored,
+    /// The journal re-executes identically.
+    Replayed,
+}
+
+/// The exit class the verdicts map to (the house taxonomy — the CLI
+/// carries the numeric codes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TierExit {
+    /// The reported tier holds.
+    Ok,
+    /// A broken or forged claim (FILE).
+    File,
+    /// A missing input or unchained journal (ENV).
+    Env,
+}
+
+/// The replay leg's verdict.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ReplayTier {
+    /// `--replay` was not passed.
+    NotAsked,
+    /// The journal re-executes identically.
+    Replayed,
+    /// The fresh run diverges (the reproduce report text rides).
+    Diverged(String),
+    /// The reproduce path cannot run for this journal — stated
+    /// honestly, never faked.
+    NotAttempted(String),
+}
+
+/// The neutral reproduce outcome the CLI injects (its shim owns the
+/// file plumbing + the `VerbOutput`-class mapping; the ladder owns
+/// what the outcome MEANS).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ReplayCompare {
+    /// Every comparable task reproduced.
+    Reproduced,
+    /// Any divergence (the reproduce report text).
+    Diverged(String),
+    /// The comparison cannot run (the honest why).
+    CannotRun(String),
+}
+
+/// The tier evaluation: seal leg → anchor leg → replay leg, then the
+/// attained tier + exit class + report lines. `torn` is carried only
+/// for the OK-line decision, which stays the CLI's.
+#[must_use]
+pub fn evaluate(
+    trace: &str,
+    raw: &str,
+    events: usize,
+    head: &str,
+    require_anchor: bool,
+    replay: Option<&ReplayCompare>,
+    candidates: &[(String, String)],
+) -> TierReport {
+    let mut lines = Vec::new();
+    let seal = seal_tier(last_complete_line(raw, events).as_ref(), events, candidates);
+    let verdict = match &seal {
+        SealTier::Unsealed => {
+            return TierReport {
+                seal,
+                anchor: AnchorTier::NotPresent,
+                replay: ReplayTier::NotAsked,
+                attained: AttainedTier::Ok,
+                exit: TierExit::Ok,
+                lines,
+            };
+        }
+        SealTier::Forged(reason) => {
+            lines.push(format!("SEAL FORGED — {reason}"));
+            return TierReport {
+                seal,
+                anchor: AnchorTier::NotPresent,
+                replay: ReplayTier::NotAsked,
+                attained: AttainedTier::Ok,
+                exit: TierExit::File,
+                lines,
+            };
+        }
+        SealTier::Sealed(v) => {
+            lines.push(format!(
+                "SEALED — the run_sealed signature verifies · key {} ({})",
+                v.key_id, v.source
+            ));
+            v.clone()
+        }
+    };
+    let Some((anchor, attained, mut exit)) =
+        anchor_leg(trace, head, &verdict, require_anchor, &mut lines)
+    else {
+        return TierReport {
+            seal,
+            anchor: AnchorTier::Required,
+            replay: ReplayTier::NotAsked,
+            attained: AttainedTier::Sealed,
+            exit: TierExit::Env,
+            lines,
+        };
+    };
+    let replay = match replay {
+        Some(ReplayCompare::Reproduced) => {
+            lines.push("REPLAYED — the journal re-executes identically".to_owned());
+            ReplayTier::Replayed
+        }
+        Some(ReplayCompare::Diverged(text)) => {
+            lines
+                .push("REPLAY DIVERGED — the fresh run does not reproduce this journal".to_owned());
+            lines.push(text.clone());
+            exit = TierExit::File;
+            ReplayTier::Diverged(text.clone())
+        }
+        Some(ReplayCompare::CannotRun(why)) => {
+            lines.push(format!("REPLAYED — not attempted: {why}"));
+            ReplayTier::NotAttempted(why.clone())
+        }
+        None => {
+            lines.push(
+                "REPLAYED — not attempted (pass --replay <fresh.ndjson> — verify never re-executes)"
+                    .to_owned(),
+            );
+            ReplayTier::NotAsked
+        }
+    };
+    let attained = if matches!(&replay, ReplayTier::Replayed) && exit == TierExit::Ok {
+        AttainedTier::Replayed
+    } else {
+        attained
+    };
+    TierReport {
+        seal,
+        anchor,
+        replay,
+        attained,
+        exit,
+        lines,
+    }
+}
+
+/// The anchor leg: verify the sidecar offline and voice the outcome —
+/// `None` when `--anchored` was REQUIRED and the sidecar is absent
+/// (the caller's early-ENV return).
+fn anchor_leg(
+    trace: &str,
+    head: &str,
+    verdict: &SealVerdict,
+    require_anchor: bool,
+    lines: &mut Vec<String>,
+) -> Option<(AnchorTier, AttainedTier, TierExit)> {
+    let anchor = anchor_tier(trace, super::hex_decode(head), verdict, require_anchor);
+    let (attained, exit) = match &anchor {
+        AnchorTier::Anchored(verified) => {
+            lines.push(format!(
+                "ANCHORED — rekor index {} · checkpoint + inclusion proof verified offline\n  rfc3161 gen_time {} (the trusted time)",
+                verified.log_index, verified.gen_time
+            ));
+            (AttainedTier::Anchored, TierExit::Ok)
+        }
+        AnchorTier::NotPresent => {
+            lines.push(
+                "ANCHORED — no sidecar (`nika trace anchor` notarizes the head outside the journal)"
+                    .to_owned(),
+            );
+            (AttainedTier::Sealed, TierExit::Ok)
+        }
+        AnchorTier::Required => {
+            lines.push("ANCHORED — REQUIRED but no <trace>.anchor.json sidecar exists".to_owned());
+            return None;
+        }
+        AnchorTier::Gap(reason) => {
+            lines.push(format!("ANCHOR FORGED — {reason}"));
+            lines.push("  reported tier: SEALED (the anchor vouches for nothing)".to_owned());
+            (AttainedTier::Sealed, TierExit::File)
+        }
+    };
+    Some((anchor, attained, exit))
+}

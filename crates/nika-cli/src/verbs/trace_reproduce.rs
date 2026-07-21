@@ -16,72 +16,42 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
-use nika_dap::reproduce::{Report, Verdict, compare, workflow_of};
+use nika_dap::reproduce::{Report, Verdict};
 
 use super::VerbOutput;
 
 #[must_use]
 pub fn reproduce(recorded: &str, fresh: &str) -> VerbOutput {
-    let rec_raw = match std::fs::read_to_string(recorded) {
-        Ok(raw) => raw,
-        Err(e) => return VerbOutput::env(format!("cannot read {recorded}: {e}")),
-    };
-    let new_raw = match std::fs::read_to_string(fresh) {
-        Ok(raw) => raw,
-        Err(e) => return VerbOutput::env(format!("cannot read {fresh}: {e}")),
-    };
-    let rec = match super::run::recover_events(&rec_raw, recorded) {
-        Ok(r) => r,
-        Err(e) => return VerbOutput::env(e.to_string()),
-    };
-    let new = match super::run::recover_events(&new_raw, fresh) {
-        Ok(r) => r,
-        Err(e) => return VerbOutput::env(e.to_string()),
-    };
-
-    // The identity guard: reproduce pairs two runs of the SAME
-    // workflow — task ids pair by name, so a cross-workflow compare
-    // (wrong file in a directory of look-alike traces) renders a
-    // confident MISSING/ADDED/AUTHORED taxonomy about two runs that
-    // never shared a definition (the rust-pro review's F1). Both
-    // journals name their workflow on `workflow_started` (0.95+);
-    // when both speak and disagree, nothing is comparable.
-    let rec_wf = workflow_of(&rec.events);
-    let new_wf = workflow_of(&new.events);
-    if let (Some(a), Some(b)) = (rec_wf, new_wf)
-        && a != b
-    {
-        return VerbOutput::env(format!(
-            "the two journals record DIFFERENT workflows — recorded `{a}` vs fresh `{b}`: nothing to compare (reproduce pairs runs of the same workflow)"
-        ));
-    }
-
-    let mut out = String::new();
-    if rec_wf.is_none() || new_wf.is_none() {
-        let _ = writeln!(
-            out,
-            "WARNING — a journal names no workflow (pre-0.95 engine?): same-workflow pairing is unverified"
-        );
-    }
-    // A torn journal compares on its recovered prefix — SAY so, or the
-    // lost tail's tasks surface as phantom divergences.
-    for note in [&rec.truncated_note, &new.truncated_note]
-        .into_iter()
-        .flatten()
-    {
-        let _ = writeln!(out, "WARNING — {note}");
-    }
-    for (label, raw) in [("recorded", &rec_raw), ("fresh", &new_raw)] {
-        if let super::trace_verify::Verdict::Broken { line, .. } = super::trace_verify::walk(raw) {
-            let _ = writeln!(
-                out,
-                "WARNING — the {label} journal fails verification (chain broken at line {line}); its claims are unverified"
+    // The plumbing (read · recover · the identity guard · the honesty
+    // warnings · the compare) lives in the forensics crate
+    // (nika_dap::reproduce::compare_journals — the 15k descent); this
+    // shim keeps the renderer and the exit mapping.
+    let compared = match nika_dap::reproduce::compare_journals(recorded, fresh) {
+        Ok(compared) => compared,
+        Err(nika_dap::reproduce::CompareRefusal::Unreadable(msg)) => {
+            return VerbOutput::env(msg);
+        }
+        Err(nika_dap::reproduce::CompareRefusal::DifferentWorkflows { recorded, fresh }) => {
+            return VerbOutput::env(format!(
+                "the two journals record DIFFERENT workflows — recorded `{recorded}` vs fresh `{fresh}`: nothing to compare (reproduce pairs runs of the same workflow)"
+            ));
+        }
+        // The refusal is #[non_exhaustive] — a newer class is an era
+        // answer, never a guessed divergence.
+        Err(_) => {
+            return VerbOutput::env(
+                "the reproduce path cannot classify this pair — the forensics library is newer than this CLI"
+                    .to_owned(),
             );
         }
+    };
+    let mut out = String::new();
+    for warning in &compared.warnings {
+        use std::fmt::Write as _;
+        let _ = writeln!(out, "{warning}");
     }
-
-    let report = compare(&rec.events, &new.events);
-    let _ = write!(out, "{}", render(&report));
+    let report = &compared.report;
+    let _ = std::fmt::Write::write_fmt(&mut out, format_args!("{}", render(report)));
     if report.diverged() {
         VerbOutput::file(out)
     } else if report.nothing_verified() {
@@ -160,6 +130,7 @@ fn render(report: &Report) -> String {
 
 #[cfg(test)]
 mod tests {
+    use nika_dap::reproduce::compare;
     use nika_event::EventKind;
     use nika_types::resource::{KeyValue, Value};
 

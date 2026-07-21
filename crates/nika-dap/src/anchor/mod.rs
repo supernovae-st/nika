@@ -43,6 +43,7 @@
 
 pub mod rekor;
 pub mod rfc3161;
+pub mod run;
 pub mod tier;
 
 #[cfg(test)]

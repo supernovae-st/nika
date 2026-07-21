@@ -18,113 +18,71 @@
 //! journal is refused, the log's answer is verified before it is
 //! trusted, and the sidecar is written atomically or not at all.
 //!
+//! The ORCHESTRATION lives in the forensics crate
+//! (`nika_dap::anchor::run::anchor_journal` — the 15k descent); this
+//! verb keeps the effect composer (`ReqwestHttp`), the receipt, and
+//! the exit-code envelope.
+//!
 //! Exit codes (the house taxonomy): 0 anchored · 2 (FILE) the journal
 //! itself refuses (broken chain · torn tail) · 3 (ENV) unchained or
 //! unreadable input · no run key · network/service/verification
 //! failure.
 
 use super::VerbOutput;
-use crate::anchor::{self, rekor};
+use crate::anchor::run as anchor_run;
 
-/// The verb body — resolve the head, sign, notarize, persist.
+/// The verb body — compose the production client, delegate, render.
 #[must_use]
 pub fn run(trace: &str, rekor_url: &str, tsa_url: &str) -> VerbOutput {
-    let (head, head32, events) = match anchorable_head(trace) {
-        Ok(found) => found,
-        Err(out) => return out,
-    };
-    let Some((sk, pk_box)) = crate::seal::load_signing_key() else {
-        return VerbOutput::env(
-            "no run-signing key on this machine — the Rekor entry is signed with it; `nika key init` mints one"
-                .to_owned(),
-        );
-    };
-    let material = match anchor::run_key_material(&sk, &pk_box) {
-        Ok(material) => material,
-        Err(e) => return VerbOutput::env(format!("the run key cannot sign: {e}")),
-    };
-    let sidecar = match submit_blocking(rekor_url, tsa_url, &head32, &material) {
-        Ok(sidecar) => sidecar,
-        Err(e) => return VerbOutput::env(e),
-    };
-    let path = anchor::sidecar_path(trace);
-    if let Err(e) = anchor::write_sidecar(&path, &sidecar) {
-        return VerbOutput::env(e);
+    match submit_blocking(trace, rekor_url, tsa_url) {
+        Ok(report) => VerbOutput::ok(render(&report)),
+        Err(failure) => {
+            let out = failure.describe(trace);
+            if failure.is_file() {
+                VerbOutput::file(out)
+            } else {
+                VerbOutput::env(out)
+            }
+        }
     }
-    VerbOutput::ok(render(&sidecar, &head, events, &path))
-}
-
-/// The head one may anchor: the refusal is CLASSIFIED in the
-/// forensics crate (`nika_dap::anchor::head_of`); this verb maps each
-/// class to the house taxonomy — broken and torn are FILE (the
-/// journal's own state refuses), the pre-chain/garbage classes are
-/// ENV, mirroring `trace verify`.
-fn anchorable_head(trace: &str) -> Result<(String, [u8; 32], usize), VerbOutput> {
-    let raw = match std::fs::read_to_string(trace) {
-        // seam-bypass-ok: L4 verb reading the journal it anchors (trace_verify idiom)
-        Ok(raw) => raw,
-        Err(e) => return Err(VerbOutput::env(format!("cannot read {trace}: {e}"))),
-    };
-    anchor::head_of(&raw).map_err(|refusal| match refusal {
-        anchor::HeadRefusal::Broken { line } => VerbOutput::file(format!(
-            "BROKEN at line {line} — refusing to anchor a journal whose chain does not verify (fix the journal, then anchor)"
-        )),
-        anchor::HeadRefusal::TornTail { events } => VerbOutput::file(format!(
-            "the final line is TORN (a crash mid-write) — refusing to anchor: the chain covers {events} events but the journal is not cleanly final"
-        )),
-        anchor::HeadRefusal::Unchained => VerbOutput::env(format!(
-            "unchained — {trace} predates the chain (pre-0.96 journal): there is no head to anchor"
-        )),
-        anchor::HeadRefusal::Empty => VerbOutput::env(format!("{trace}: no events")),
-        anchor::HeadRefusal::Unreadable { line } => VerbOutput::env(format!(
-            "{trace}:{line}: not a journal — the line is not valid JSON"
-        )),
-        _ => VerbOutput::env(format!(
-            "{trace}: unknown verdict class — the forensics library is newer than this CLI"
-        )),
-    })
 }
 
 /// The blocking composer (the `registry.rs` idiom): the production
 /// client is `ReqwestHttp` with SSRF enforcement ON — anchoring talks
 /// to public HTTPS hosts only.
 fn submit_blocking(
+    trace: &str,
     rekor_url: &str,
     tsa_url: &str,
-    head: &[u8; 32],
-    material: &anchor::RunKeyMaterial,
-) -> Result<anchor::AnchorSidecar, String> {
+) -> Result<anchor_run::AnchoredReport, anchor_run::AnchorFailure> {
     let config = nika_http::HttpConfig::default();
-    let http = nika_http::ReqwestHttp::with_config(config)
-        .map_err(|e| format!("cannot initialize the anchor client: {e}"))?;
+    let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| {
+        anchor_run::AnchorFailure::Submit(format!("cannot initialize the anchor client: {e}"))
+    })?;
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map_err(|e| format!("cannot start the anchor runtime: {e}"))?;
-    rt.block_on(anchor::submit(&http, rekor_url, tsa_url, head, material))
+        .map_err(|e| {
+            anchor_run::AnchorFailure::Submit(format!("cannot start the anchor runtime: {e}"))
+        })?;
+    rt.block_on(anchor_run::anchor_journal(&http, trace, rekor_url, tsa_url))
 }
 
 /// The receipt: what was notarized, where, and the path to verify it.
-fn render(
-    sidecar: &anchor::AnchorSidecar,
-    head: &str,
-    events: usize,
-    path: &std::path::Path,
-) -> String {
+fn render(report: &anchor_run::AnchoredReport) -> String {
     use std::fmt::Write as _;
+    let sidecar = &report.sidecar;
     let mut out = format!(
-        "ANCHORED — {events} events · head {} notarized outside the journal\n",
-        super::trace_verify::sanitize(head)
+        "ANCHORED — {} events · head {} notarized outside the journal\n",
+        report.events,
+        super::trace_verify::sanitize(&report.head)
     );
     let _ = writeln!(
         out,
         "  rekor {} · index {} · the checkpoint + inclusion proof verified before this line printed",
         sidecar.rekor.url, sidecar.rekor.log_index
     );
-    if rekor::parse_checkpoint_body(&sidecar.rekor.checkpoint)
-        .map(|(origin, _, _)| origin != rekor::REKOR_ORIGIN)
-        .unwrap_or(true)
-    {
+    if report.custom_shard {
         let _ = writeln!(
             out,
             "  note: a custom shard — the checkpoint is NOT the pinned Sigstore key's, so `trace verify` will not claim ANCHORED (the pin is the Sigstore public shard's)"
@@ -138,7 +96,7 @@ fn render(
     let _ = writeln!(
         out,
         "  sidecar: {} (detached — the journal was never touched; verify: nika trace verify)",
-        path.display()
+        report.path.display()
     );
     out
 }
@@ -192,8 +150,8 @@ mod tests {
         let path = stage("broken.ndjson", &raw);
         let out = run(
             &path.to_string_lossy(),
-            anchor::DEFAULT_REKOR_URL,
-            anchor::DEFAULT_TSA_URL,
+            crate::anchor::DEFAULT_REKOR_URL,
+            crate::anchor::DEFAULT_TSA_URL,
         );
         let _ = std::fs::remove_file(path);
         assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
@@ -209,8 +167,8 @@ mod tests {
         let torn = stage("torn.ndjson", &torn_raw);
         let out = run(
             &torn.to_string_lossy(),
-            anchor::DEFAULT_REKOR_URL,
-            anchor::DEFAULT_TSA_URL,
+            crate::anchor::DEFAULT_REKOR_URL,
+            crate::anchor::DEFAULT_TSA_URL,
         );
         let _ = std::fs::remove_file(torn);
         assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
@@ -219,8 +177,8 @@ mod tests {
         let unchained = stage("unchained.ndjson", "{\"kind\":\"workflow_started\"}\n");
         let out = run(
             &unchained.to_string_lossy(),
-            anchor::DEFAULT_REKOR_URL,
-            anchor::DEFAULT_TSA_URL,
+            crate::anchor::DEFAULT_REKOR_URL,
+            crate::anchor::DEFAULT_TSA_URL,
         );
         let _ = std::fs::remove_file(unchained);
         assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
@@ -239,13 +197,13 @@ mod tests {
         let path = stage("intact.ndjson", &chained(&["workflow_started"]));
         let out = run(
             &path.to_string_lossy(),
-            anchor::DEFAULT_REKOR_URL,
-            anchor::DEFAULT_TSA_URL,
+            crate::anchor::DEFAULT_REKOR_URL,
+            crate::anchor::DEFAULT_TSA_URL,
         );
         assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
         assert!(out.text.contains("no run-signing key"), "{}", out.text);
         // And no sidecar appeared beside the staged journal.
-        assert!(!anchor::sidecar_path(&path.to_string_lossy()).exists());
+        assert!(!crate::anchor::sidecar_path(&path.to_string_lossy()).exists());
         let _ = std::fs::remove_file(path);
     }
 }

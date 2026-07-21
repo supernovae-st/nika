@@ -196,26 +196,7 @@ pub enum RmTarget {
 /// Parse the `--older-than` duration form: `<N><unit>` with `s`/`m`/
 /// `h`/`d` (`7d` · `12h` · `30m` · `45s`).
 ///
-/// # Errors
-///
-/// A human-readable refusal naming the accepted form.
-pub fn parse_older_than(raw: &str) -> Result<Duration, String> {
-    let raw = raw.trim();
-    let refuse = || format!("--older-than expects <N><unit> (s · m · h · d) — got `{raw}`");
-    // Split on CHARS, not bytes — a multi-byte trailing unit (`7é`) must
-    // refuse, never panic on a char boundary.
-    let mut digits = raw.chars();
-    let unit = digits.next_back().ok_or_else(refuse)?;
-    let n: u64 = digits.as_str().parse().map_err(|_| refuse())?;
-    let seconds = match unit {
-        's' => n,
-        'm' => n.saturating_mul(60),
-        'h' => n.saturating_mul(3_600),
-        'd' => n.saturating_mul(86_400),
-        _ => return Err(refuse()),
-    };
-    Ok(Duration::from_secs(seconds))
-}
+pub use nika_dap::store::parse_older_than;
 
 /// The workspace's most recent trace (mtime · name tie-break) — what a
 /// bare static reader means: the first thing typed after a run should
@@ -227,7 +208,7 @@ pub fn latest() -> Option<PathBuf> {
 
 /// The dir-injected core (tests point it at a staged store).
 pub(crate) fn latest_in(dir: &Path) -> Option<PathBuf> {
-    store::scan(dir).into_iter().next().map(|meta| meta.path)
+    nika_dap::store::latest_in(dir)
 }
 
 /// A bare name from `trace ls` resolves in the store, like `rm` (one
@@ -340,20 +321,13 @@ fn paused_refusal(meta: &store::TraceMeta) -> String {
 /// Resolve a `rm` handle: an explicit path wins; a bare name resolves
 /// inside the store (the form `trace ls` prints).
 fn resolve_handle(dir: &Path, handle: &str) -> Option<PathBuf> {
-    let direct = PathBuf::from(handle);
-    if direct.is_file() {
-        return Some(direct);
-    }
-    let in_store = dir.join(handle);
-    in_store.is_file().then_some(in_store)
+    nika_dap::store::resolve_handle(dir, handle)
 }
 
 /// Facts for a trace OUTSIDE the store dir (an explicit path handle):
 /// the same one-file fold `scan` applies per entry.
 fn scan_foreign(path: &Path) -> Option<store::TraceMeta> {
-    store::scan(path.parent()?)
-        .into_iter()
-        .find(|t| t.path == path)
+    nika_dap::store::scan_foreign(path)
 }
 
 #[cfg(test)]

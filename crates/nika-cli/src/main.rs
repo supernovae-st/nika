@@ -189,7 +189,7 @@ enum Command {
         /// Project the graph instead of the human anatomy (json
         /// canonical · mermaid/dot derived — the docs/site surfaces).
         #[arg(long, value_enum)]
-        format: Option<GraphFormatArg>,
+        format: Option<verbs::graph::GraphFormatArg>,
     },
     /// Teach one error code (cause · category · fix-form) — or narrate a
     /// workflow FILE: what it does · the waves · cost before a token is
@@ -369,29 +369,6 @@ enum McpTransportArg {
     Stdio,
     /// Streamable HTTP (POST JSON-RPC · origin-gated · loopback default).
     Http,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-enum GraphFormatArg {
-    /// Canonical JSON projection (`graph_format: 2`).
-    Json,
-    /// Mermaid flowchart.
-    Mermaid,
-    /// Graphviz dot.
-    Dot,
-    /// Terminal drawing (waves as columns · real wires · honest fallback).
-    Ascii,
-}
-
-impl From<GraphFormatArg> for verbs::graph::GraphFormat {
-    fn from(arg: GraphFormatArg) -> Self {
-        match arg {
-            GraphFormatArg::Json => Self::Json,
-            GraphFormatArg::Mermaid => Self::Mermaid,
-            GraphFormatArg::Dot => Self::Dot,
-            GraphFormatArg::Ascii => Self::Ascii,
-        }
-    }
 }
 
 #[derive(Subcommand)]

@@ -339,7 +339,6 @@ fn hex_lower(bytes: &[u8]) -> String {
     out
 }
 
-
 /// The candidate public keys for the SEALED verify tier, in pick
 /// order: an explicit key file first (the `--key` voice), then the
 /// custody default, then every line of the retired ledger (rotation

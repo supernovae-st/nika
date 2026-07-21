@@ -142,7 +142,10 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
 /// The ladder above an intact chain: the OK line stays byte-identical
 /// to the pre-tier surface; the tiers then speak for themselves.
 /// `torn` marks the torn-tail OK variant (a crash mid-write — the
-/// ladder still climbs over the COMPLETE prefix).
+/// ladder still climbs over the COMPLETE prefix). The EVALUATION lives
+/// in the forensics crate (`nika_dap::anchor::tier::evaluate` — the
+/// 15k descent); this verb keeps the OK line, the reproduce shim call
+/// (the fs seam), and the `VerbOutput` envelope + exit code.
 fn tiered(
     trace: &str,
     raw: &str,
@@ -161,128 +164,43 @@ fn tiered(
             "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
         )
     };
-    let mut code = super::exit::OK;
-    let seal = tier::seal_tier(
-        tier::last_complete_line(raw, events).as_ref(),
+    // The replay comparison is the CLI's fs seam — the ladder only
+    // hears what the outcome MEANS.
+    let compared = opts.replay.as_ref().map(|fresh| {
+        let out = super::trace_reproduce::reproduce(trace, &fresh.to_string_lossy());
+        match out.code {
+            super::exit::OK => tier::ReplayCompare::Reproduced,
+            super::exit::FILE => tier::ReplayCompare::Diverged(out.text),
+            _ => tier::ReplayCompare::CannotRun(
+                out.text
+                    .lines()
+                    .next()
+                    .unwrap_or("the reproduce path cannot run")
+                    .to_owned(),
+            ),
+        }
+    });
+    let report = tier::evaluate(
+        trace,
+        raw,
         events,
+        head,
+        opts.anchored,
+        compared.as_ref(),
         candidates,
     );
-    let seal_verdict = match &seal {
-        tier::SealTier::Unsealed => return VerbOutput { text: out, code },
-        tier::SealTier::Forged(reason) => {
-            push_line(&mut out, &format!("SEAL FORGED — {reason}"));
-            return VerbOutput {
-                text: out,
-                code: super::exit::FILE,
-            };
-        }
-        tier::SealTier::Sealed(verdict) => {
-            push_line(
-                &mut out,
-                &format!(
-                    "SEALED — the run_sealed signature verifies · key {} ({})",
-                    verdict.key_id, verdict.source
-                ),
-            );
-            Some(verdict)
-        }
-    };
-    let Some(seal_verdict) = seal_verdict else {
-        return VerbOutput { text: out, code };
-    };
-    // ANCHORED — the sidecar must verify fully offline; every gap
-    // demotes honestly and is a FILE finding.
-    let head32 = crate::anchor::hex_decode(head);
-    match tier::anchor_tier(trace, head32, seal_verdict, opts.anchored) {
-        tier::AnchorTier::Anchored(verified) => {
-            push_line(
-                &mut out,
-                &format!(
-                    "ANCHORED — rekor index {} · checkpoint + inclusion proof verified offline\n  rfc3161 gen_time {} (the trusted time)",
-                    verified.log_index, verified.gen_time
-                ),
-            );
-        }
-        tier::AnchorTier::NotPresent => {
-            push_line(
-                &mut out,
-                "ANCHORED — no sidecar (`nika trace anchor` notarizes the head outside the journal)",
-            );
-        }
-        tier::AnchorTier::Required => {
-            push_line(
-                &mut out,
-                "ANCHORED — REQUIRED but no <trace>.anchor.json sidecar exists",
-            );
-            return VerbOutput {
-                text: out,
-                code: super::exit::ENV,
-            };
-        }
-        tier::AnchorTier::Gap(reason) => {
-            push_line(&mut out, &format!("ANCHOR FORGED — {reason}"));
-            push_line(
-                &mut out,
-                "  reported tier: SEALED (the anchor vouches for nothing)",
-            );
-            code = super::exit::FILE;
-        }
+    for line in &report.lines {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{line}");
     }
-    // REPLAYED — only ever by explicit ask; verify never re-executes.
-    let (replay_text, replay_code) = replay_tier(trace, opts.replay.as_ref());
-    out.push_str(&replay_text);
-    code = code.max(replay_code);
+    let code = match report.exit {
+        tier::TierExit::Ok => super::exit::OK,
+        tier::TierExit::File => super::exit::FILE,
+        // TierExit is #[non_exhaustive]: a class newer than this CLI is
+        // an era answer (ENV), never a guessed forgery.
+        _ => super::exit::ENV,
+    };
     VerbOutput { text: out, code }
-}
-
-/// The REPLAYED leg: `--replay <fresh>` drives the `trace reproduce`
-/// comparison (divergence is FILE); without the flag the tier is
-/// stated as not attempted, never faked.
-fn replay_tier(trace: &str, replay: Option<&PathBuf>) -> (String, u8) {
-    let mut out = String::new();
-    let code = super::exit::OK;
-    match replay {
-        Some(fresh) => {
-            let compared = super::trace_reproduce::reproduce(trace, &fresh.to_string_lossy());
-            match compared.code {
-                super::exit::OK => {
-                    push_line(&mut out, "REPLAYED — the journal re-executes identically");
-                }
-                super::exit::FILE => {
-                    push_line(
-                        &mut out,
-                        "REPLAY DIVERGED — the fresh run does not reproduce this journal",
-                    );
-                    push_line(&mut out, &compared.text);
-                    return (out, super::exit::FILE);
-                }
-                _ => {
-                    push_line(
-                        &mut out,
-                        &format!(
-                            "REPLAYED — not attempted: {}",
-                            compared
-                                .text
-                                .lines()
-                                .next()
-                                .unwrap_or("the reproduce path cannot run")
-                        ),
-                    );
-                }
-            }
-        }
-        None => push_line(
-            &mut out,
-            "REPLAYED — not attempted (pass --replay <fresh.ndjson> — verify never re-executes)",
-        ),
-    }
-    (out, code)
-}
-
-/// Append one line to the report.
-fn push_line(out: &mut String, line: &str) {
-    use std::fmt::Write as _;
-    let _ = write!(out, "\n{line}");
 }
 
 // The walk + its verdict live in the forensics crate (one genesis tag ·

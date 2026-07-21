@@ -214,6 +214,58 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
     })
 }
 
+// ── The handle resolution + retention knobs (descended from
+// nika-cli's verbs::trace::manage 2026-07-21 · the 15k wall) ─────────
+
+/// `--older-than <N><unit>` — the duration parse (`45s` · `30m` ·
+/// `12h` · `7d`). Split on CHARS, not bytes — a multi-byte trailing
+/// unit (`7é`) must refuse, never panic on a char boundary.
+///
+/// # Errors
+///
+/// A human-readable refusal naming the accepted form.
+pub fn parse_older_than(raw: &str) -> Result<std::time::Duration, String> {
+    let raw = raw.trim();
+    let refuse = || format!("--older-than expects <N><unit> (s · m · h · d) — got `{raw}`");
+    let mut digits = raw.chars();
+    let unit = digits.next_back().ok_or_else(refuse)?;
+    let n: u64 = digits.as_str().parse().map_err(|_| refuse())?;
+    let seconds = match unit {
+        's' => n,
+        'm' => n.saturating_mul(60),
+        'h' => n.saturating_mul(3_600),
+        'd' => n.saturating_mul(86_400),
+        _ => return Err(refuse()),
+    };
+    Ok(std::time::Duration::from_secs(seconds))
+}
+
+/// A handle resolves to a file: the path itself first, then inside
+/// `dir` (the store). `None` when neither exists.
+#[must_use]
+pub fn resolve_handle(dir: &std::path::Path, handle: &str) -> Option<std::path::PathBuf> {
+    let direct = std::path::PathBuf::from(handle);
+    if direct.is_file() {
+        return Some(direct);
+    }
+    let in_store = dir.join(handle);
+    in_store.is_file().then_some(in_store)
+}
+
+/// The newest trace in `dir` (mtime · name tie-break from [`scan`]) —
+/// `None` on an empty store.
+#[must_use]
+pub fn latest_in(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    scan(dir).into_iter().next().map(|meta| meta.path)
+}
+
+/// Facts for a trace OUTSIDE the store dir (an explicit path handle):
+/// the same one-file fold [`scan`] applies per entry.
+#[must_use]
+pub fn scan_foreign(path: &std::path::Path) -> Option<TraceMeta> {
+    scan(path.parent()?).into_iter().find(|t| t.path == path)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

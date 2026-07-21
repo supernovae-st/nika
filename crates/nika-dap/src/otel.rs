@@ -713,3 +713,52 @@ mod tests {
         format!("{first}\n{second}\n")
     }
 }
+
+/// The exported artifact's facts (the CLI voices them).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportOutcome {
+    /// Where the `.otlp.jsonl` landed.
+    pub target: String,
+    /// The chain break line, when the journal fails verification
+    /// (the export still lands — the WARNING rides).
+    pub broken_at: Option<usize>,
+}
+
+/// `run.ndjson` → `run.otlp.jsonl`, beside the journal.
+#[must_use]
+pub fn default_out_path(trace: &str) -> String {
+    trace.strip_suffix(".ndjson").map_or_else(
+        || format!("{trace}.otlp.jsonl"),
+        |stem| format!("{stem}.otlp.jsonl"),
+    )
+}
+
+/// The export plumbing (descended from `verbs::trace_otel` 2026-07-21
+/// · the 15k wall): read · recover · verify-then-trust (the git
+/// index-pack model — a BROKEN chain still exports, but says so) ·
+/// project · write. `engine` is the caller's version string (the
+/// projection stamps it).
+///
+/// # Errors
+///
+/// A reason string on a read, recovery, projection, or write failure.
+pub fn export_journal(
+    trace: &str,
+    out: Option<&str>,
+    include_content: bool,
+    engine: &str,
+) -> Result<ExportOutcome, String> {
+    let raw = std::fs::read_to_string(trace) // seam-bypass-ok: L4 verb reading the journal it exports
+        .map_err(|e| format!("cannot read {trace}: {e}"))?;
+    let recovered = crate::recover::recover_events(&raw, trace).map_err(|e| e.to_string())?;
+    let verdict = crate::chain::walk(&raw);
+    let broken_at = match &verdict {
+        crate::chain::Verdict::Broken { line, .. } => Some(*line),
+        _ => None,
+    };
+    let line = project(&recovered.events, include_content, Some(&verdict), engine)?;
+    let target = out.map_or_else(|| default_out_path(trace), ToOwned::to_owned);
+    std::fs::write(&target, format!("{line}\n")) // seam-bypass-ok: L4 verb writing the export beside the journal
+        .map_err(|e| format!("cannot write {target}: {e}"))?;
+    Ok(ExportOutcome { target, broken_at })
+}
