@@ -23,11 +23,12 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use nika_check::check;
 use nika_event::{Event, EventKind};
 use nika_kernel_mock::{MockClock, MockProvider, MockShell, MockToolDefinitionProvider};
 use nika_providers::{NoHttp, ProviderRegistry, ProvidersConfig};
 use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;

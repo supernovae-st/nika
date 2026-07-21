@@ -9,7 +9,7 @@
 
 use std::fmt::Write as _;
 
-use nika_schema::check::CheckReport;
+use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
 pub use nika_graph::{GraphDoc, Node, project};
@@ -223,7 +223,7 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let doc = project(&wf, &report);
         (to_mermaid(&doc), to_dot(&doc))
     }
@@ -310,7 +310,7 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let doc = project(&wf, &report);
 
         let guarded = doc

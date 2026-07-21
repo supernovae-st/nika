@@ -107,7 +107,7 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
 /// failure blast radii. Single-task workflows render nothing extra
 /// (width 1 of 1 is noise) and an absent read (oversized workflow ·
 /// honest skip) renders nothing — never a claim it cannot back.
-fn render_analysis(out: &mut String, analysis: Option<&nika_schema::check::DagAnalysis>) {
+fn render_analysis(out: &mut String, analysis: Option<&nika_check::DagAnalysis>) {
     let Some(a) = analysis else { return };
     if a.width_witness.len() < 2 {
         return;

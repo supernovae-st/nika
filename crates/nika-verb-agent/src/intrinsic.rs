@@ -177,7 +177,7 @@ pub(crate) fn run_compose(args: &serde_json::Value) -> (String, bool, ComposeOut
         }
     };
 
-    let report = nika_schema::check(&workflow);
+    let report = nika_check::check(&workflow);
     let valid = report.conformance.is_empty();
     #[allow(clippy::cast_possible_truncation)] // violation counts ≪ u32::MAX
     let violations = report.conformance.len() as u32;
@@ -219,7 +219,7 @@ pub(crate) fn run_compose(args: &serde_json::Value) -> (String, bool, ComposeOut
 /// per-task witness exists for local `audit()` re-verification, not for
 /// the model. Same `.len()`-not-`.clone()` discipline the sibling fields
 /// already use.
-fn certificate_summary(cert: &nika_schema::RunCertificate) -> serde_json::Value {
+fn certificate_summary(cert: &nika_check::RunCertificate) -> serde_json::Value {
     serde_json::json!({
         "task_attempts": cert.task_attempts.constant,
         "llm_calls": cert.llm_calls.constant,

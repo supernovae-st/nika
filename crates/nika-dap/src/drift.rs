@@ -13,7 +13,7 @@
 //!
 //! ## Why the pass lives HERE (the second move)
 //!
-//! The natural home was `nika_schema::check`, but that crate sits AT
+//! The natural home was `nika_check::check`, but that crate sits AT
 //! the 15,000-LOC cap (vector 24 · zero headroom), so #661 rendered
 //! from the check verb — and the SAME wall then pushed the COMPUTE
 //! out of `nika-cli` (2026-07-21 · the trust-plane descent: compute
@@ -633,7 +633,7 @@ mod tests {
             ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(
             report.conformance.iter().any(|c| c.code == "NIKA-VAR-001"),
             "the hard diagnostic fires: {:?}",
@@ -658,7 +658,7 @@ mod tests {
             ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(
             report
                 .conformance
@@ -867,7 +867,7 @@ mod tests {
             ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(
             report
                 .capability_escapes

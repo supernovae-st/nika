@@ -13,7 +13,8 @@ publish                = false  # Internal L4 interface crate (the binary ships,
 [dependencies]
 nika-event  = { path = "../nika-event", version = "0.105.0" }  # the REAL event taxonomy (the fold input)
 nika-types  = { path = "../nika-types", version = "0.105.0" }  # Timestamp · KeyValue · ids
-nika-schema = { path = "../nika-schema", version = "0.105.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
+nika-schema = { path = "../nika-schema", version = "0.105.0" } # parse (check · inspect · graph · run)
+nika-check  = { path = "../nika-check", version = "0.105.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
 nika-graph = { path = "../nika-graph", version = "0.105.0" }   # the canonical projection (inspect --format json renders it)
 nika-error  = { path = "../nika-error", version = "0.105.0" }  # the code registry (`nika explain`)
 nika-pack   = { path = "../nika-pack", version = "0.105.0" }   # the embedded language pack (`nika spec|schema|examples|new`)

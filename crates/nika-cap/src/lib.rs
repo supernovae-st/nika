@@ -16,7 +16,8 @@
 //! matcher is shared (`nika_types::net::host_glob_matches`).
 //!
 //! Extracted from `nika-schema` (the types were `nika_schema::types::permits`;
-//! the fits predicate was private in `nika_schema::check::permits_fit`) so the
+//! the fits predicate was private in its check module — `nika_check::permits_fit`
+//! since the 2026-07-21 judgment split) so the
 //! vocabulary lives in one dependency-light leaf that a future `nika-policy`
 //! (or any capability-aware crate) can consume without pulling in the parser.
 

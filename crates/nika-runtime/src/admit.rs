@@ -29,7 +29,7 @@
 
 use std::collections::BTreeMap;
 
-use nika_schema::check::CheckReport;
+use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::types::VarDecl;
 use serde_json::Value;
@@ -153,7 +153,7 @@ mod tests {
     }
 
     async fn run(runtime: &MockRuntime, wf: &RawWorkflow) -> RunOutcome {
-        let report = nika_schema::check(wf);
+        let report = nika_check::check(wf);
         assert!(report.is_clean(), "the fixture checks clean");
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
@@ -167,7 +167,7 @@ mod tests {
     /// The refusal precedes the prologue (fail-closed): the sink MUST
     /// stay empty (the trust-gate pin, mirrored once here).
     async fn run_refused(runtime: &MockRuntime, wf: &RawWorkflow) -> RuntimeError {
-        let report = nika_schema::check(wf);
+        let report = nika_check::check(wf);
         assert!(report.is_clean(), "the fixture checks clean");
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();

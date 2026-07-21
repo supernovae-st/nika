@@ -327,7 +327,7 @@ mod tests {
                 )
                 .expect("recipe scaffold parses");
                 assert!(
-                    nika_schema::check::check(&wf).is_clean(),
+                    nika_check::check(&wf).is_clean(),
                     "{path}: a fresh recipe scaffold FAILS its own audit (own-corpus law)"
                 );
             }

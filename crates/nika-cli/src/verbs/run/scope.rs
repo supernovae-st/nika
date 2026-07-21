@@ -23,7 +23,7 @@ pub(super) fn scope_to_task(mut wf: RawWorkflow, target: &str) -> Result<RawWork
     for t in &wf.tasks {
         deps_of.insert(
             t.value.id.value.as_str().to_owned(),
-            nika_schema::analyzer::edges::producer_ids(&t.value),
+            nika_check::analyzer::edges::producer_ids(&t.value),
         );
     }
     if !deps_of.contains_key(target) {

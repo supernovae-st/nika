@@ -439,7 +439,7 @@ mod tests {
                 nika_schema::ParseMode::Strict,
             )
             .expect("fixture parses");
-            let report = nika_schema::check(&wf);
+            let report = nika_check::check(&wf);
             assert!(report.is_clean());
             let mut shell = MockShell::new();
             for out in seams.shell {

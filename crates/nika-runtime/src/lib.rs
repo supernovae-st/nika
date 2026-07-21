@@ -72,6 +72,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use futures_util::StreamExt;
+use nika_check::CheckReport;
 use nika_event::{Event, EventKind};
 use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
@@ -79,7 +80,6 @@ use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
 use nika_types::resource::{KeyValue, Value as FieldValue};
@@ -632,7 +632,7 @@ where
         // The acyclic named types (spec 09 · `types:`) — resolved ONCE
         // per run through the schema's one projection; every task's
         // `returns:` contract parses against THIS environment (W3).
-        let types = nika_schema::named_types(wf);
+        let types = nika_check::named_types(wf);
         emit_prologue(
             wf,
             &workflow_name,
@@ -1108,7 +1108,7 @@ fn first_output_type_violation(
     wf: &RawWorkflow,
     resolved: &BTreeMap<String, Value>,
 ) -> Option<OutputTypeViolation> {
-    let named = nika_schema::named_types(wf);
+    let named = nika_check::named_types(wf);
     let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
     for (key, decl) in &wf.outputs {
         let OutputDecl::Typed {

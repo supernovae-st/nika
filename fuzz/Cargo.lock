@@ -874,6 +874,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-check"
+version = "0.105.0"
+dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "jsonschema",
+ "nika-cap",
+ "nika-catalog",
+ "nika-schema",
+ "nika-types",
+ "nika-vocab",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "nika-error"
 version = "0.105.0"
 dependencies = [
@@ -888,24 +906,17 @@ dependencies = [
 name = "nika-schema"
 version = "0.105.0"
 dependencies = [
- "jaq-core",
- "jaq-json",
- "jaq-std",
- "jsonschema",
  "marked-yaml",
  "miette",
- "nika-cap",
  "nika-catalog",
  "nika-error",
  "nika-source",
  "nika-tmpl",
  "nika-types",
  "nika-vocab",
- "serde",
  "serde-saphyr",
  "serde_json",
  "thiserror",
- "url",
 ]
 
 [[package]]
@@ -913,6 +924,7 @@ name = "nika-schema-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "nika-check",
  "nika-schema",
 ]
 

@@ -7,7 +7,7 @@
 //! budget · warn loud when the ceiling cannot bound everything (the
 //! budget gates METERED spend only — local/mock work never trips it).
 
-use nika_schema::check::{CheckReport, CostCeiling, UnboundedReason};
+use nika_check::{CheckReport, CostCeiling, UnboundedReason};
 use nika_schema::raw::RawWorkflow;
 
 use crate::verbs::exit;
@@ -57,7 +57,7 @@ pub(super) fn preflight(
 /// default (per-task `model:` overrides keep winning, mirroring the
 /// runtime's precedence).
 fn effective_cost(wf: &RawWorkflow, model_override: &str) -> CostCeiling {
-    nika_schema::check::check(&crate::verbs::with_model_override(wf, model_override)).cost
+    nika_check::check(&crate::verbs::with_model_override(wf, model_override)).cost
 }
 
 /// Tally the unbounded tasks BY THEIR ACTUAL reason (the report carries
@@ -125,7 +125,7 @@ mod tests {
 
     fn breakdown_of(yaml: &str) -> String {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-        unbounded_breakdown(&nika_schema::check::check(&wf).cost)
+        unbounded_breakdown(&nika_check::check(&wf).cost)
     }
 
     /// #342 — the delegation idiom (`--model <p/m> --max-cost-usd <usd>`):
@@ -137,7 +137,7 @@ mod tests {
         let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-        let report = nika_schema::check::check(&wf);
+        let report = nika_check::check(&wf);
         assert_eq!(
             report.cost.min_path_total_usd, 0.0,
             "the FILE's floor is zero — the un-overridden gate would pass"
@@ -147,7 +147,7 @@ mod tests {
         let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-        let report = nika_schema::check::check(&wf);
+        let report = nika_check::check(&wf);
         let refused = preflight(
             &wf,
             &report,
@@ -175,7 +175,7 @@ mod tests {
         let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-        let report = nika_schema::check::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(
             report.cost.min_path_total_usd > 0.000_001,
             "the FILE's floor alone would refuse"

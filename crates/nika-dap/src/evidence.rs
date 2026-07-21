@@ -159,7 +159,7 @@ enum FileArm {
 /// The validated `--workflow` payload.
 struct ValidFile {
     wf: nika_schema::raw::RawWorkflow,
-    report: nika_schema::check::CheckReport,
+    report: nika_check::CheckReport,
     semantic: Option<SemanticHash>,
 }
 
@@ -498,7 +498,7 @@ fn load_workflow(
     (
         String,
         nika_schema::raw::RawWorkflow,
-        nika_schema::check::CheckReport,
+        nika_check::CheckReport,
     ),
     PackError,
 > {
@@ -511,7 +511,7 @@ fn load_workflow(
         nika_schema::ParseMode::Strict,
     )
     .map_err(|e| PackError::Workflow(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
-    let report = nika_schema::check_composed(&wf, path, &mut |p| {
+    let report = nika_check::check_composed(&wf, path, &mut |p| {
         // seam-bypass-ok: the composed lane's child-workflow reads (the check seam)
         std::fs::read_to_string(p).map_err(|e| e.to_string())
     });

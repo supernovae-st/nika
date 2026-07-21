@@ -3,8 +3,9 @@
 
 //! The pure "fits" predicate over a declared [`Permits`] boundary.
 //!
-//! Moved from `nika_schema::check::permits_fit` (where these were private
-//! `fn`s exercised only through `scan_escapes(parse(yaml))`). Here they are
+//! Moved from the schema crate's check module (where these were private
+//! `fn`s exercised only through `scan_escapes(parse(yaml))` — the module is
+//! `nika_check::permits_fit` since the 2026-07-21 judgment split). Here they are
 //! first-class + unit-tested in isolation. This is the STATIC, lexical half:
 //! `..`/`.` are folded before comparison so a traversal that climbs OUT of a
 //! glob's literal prefix no longer string-matches it. Symlink escapes still

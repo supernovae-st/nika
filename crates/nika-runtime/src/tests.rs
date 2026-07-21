@@ -90,7 +90,7 @@ async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
     let shell = MockShell::new().enqueue_ok("ok");
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
@@ -141,7 +141,7 @@ async fn no_declared_boundary_attaches_no_spec() {
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
     let shell = MockShell::new().enqueue_ok("ok");
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
@@ -187,7 +187,7 @@ async fn wave_settles_stream_before_the_join() {
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture must check clean");
     assert_eq!(report.waves.len(), 1, "ONE wave — the whole point");
 
@@ -286,7 +286,7 @@ async fn resolved_secret_is_scrubbed_from_the_event_stream() {
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
 
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
@@ -732,12 +732,10 @@ mod tools_permits_tests {
     /// unmasks the twin's report at run start (NIKA-1707), before dispatch.
     /// Every fixture writes `permits:` as ONE line so the twin is a
     /// line-strip away.
-    fn forged_clean_report(
-        yaml: &str,
-    ) -> (nika_schema::raw::RawWorkflow, nika_schema::CheckReport) {
+    fn forged_clean_report(yaml: &str) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
         let wf = parse(yaml);
         assert!(
-            !nika_schema::check(&wf).is_clean(),
+            !nika_check::check(&wf).is_clean(),
             "the honest check refuses the real workflow (the static half)"
         );
         let twin_yaml = yaml
@@ -745,7 +743,7 @@ mod tools_permits_tests {
             .filter(|line| !line.starts_with("permits:"))
             .collect::<Vec<_>>()
             .join("\n");
-        let report = nika_schema::check(&parse(&twin_yaml));
+        let report = nika_check::check(&parse(&twin_yaml));
         assert!(
             report.is_clean(),
             "the permit-free twin checks clean (same tasks → same waves)"
@@ -756,7 +754,7 @@ mod tools_permits_tests {
     async fn run(
         runtime: &MockRuntime,
         wf: &nika_schema::raw::RawWorkflow,
-        report: &nika_schema::CheckReport,
+        report: &nika_check::CheckReport,
     ) -> RunOutcome {
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
@@ -772,7 +770,7 @@ mod tools_permits_tests {
     async fn run_refused(
         runtime: &MockRuntime,
         wf: &nika_schema::raw::RawWorkflow,
-        report: &nika_schema::CheckReport,
+        report: &nika_check::CheckReport,
     ) -> crate::RuntimeError {
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
@@ -846,7 +844,7 @@ mod tools_permits_tests {
         let wf = parse(
             "nika: v1\nworkflow:\n  id: tools-allow\npermits: { tools: [\"nika:read\"], fs: { read: [\"x\"] } }\ntasks:\n  ok:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
         );
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
         let executor = MockToolExecutor::new().enqueue_ok(ToolResult::success("t1", "file-bytes"));
         let probe = executor.clone();
@@ -890,7 +888,7 @@ mod tools_permits_tests {
         let wf = parse(
             "nika: v1\nworkflow:\n  id: agent-tools-allow\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\"]\n",
         );
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
         let provider = MockProvider::new("mock").enqueue_text("done");
         let probe = provider.clone();

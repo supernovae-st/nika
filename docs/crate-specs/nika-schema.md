@@ -4,7 +4,7 @@
 |---|---|
 | Status | Phase 1 — Step 4 of `nika-core` split |
 | Layer | L0 (PURE, zero I/O, zero async) |
-| Design | **Monolithic** — AST + parser + analyzer + validator + DAG in 1 crate (split rejected: circular deps) |
+| Design | **THE PARSER** (its blueprint shape) — AST + raw + error + keysets + parser in 1 crate. Amended 2026-07-21: the analyzer + `check` ladder descended to **`nika-check`** at the 15k wall (the nika-graph/nika-dap precedents — the D1 "split rejected" call was falsified by the crate-boundary direction: the judgment depends on the parser, never the reverse, so no circular dep materialized) |
 | LOC budget | ≤15,000 src (target ~13,000, alarm at 14,000, hard cap 15,000) |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
@@ -18,31 +18,34 @@
 
 ## 1. Purpose
 
-`nika-schema` is the **schema layer** for Nika: it defines the workflow AST
-types, parses YAML into those types, analyzes them for correctness, and
-validates the resulting DAG. This is the largest L0 crate and the core
-data model of the entire engine.
+`nika-schema` is the **schema layer** for Nika — **THE PARSER** (its
+blueprint shape): it defines the workflow AST types and parses YAML into
+those types (`RawWorkflow` + spans). It is the core data model of the
+entire engine.
 
-### Three-phase pipeline
+> **2026-07-21 — the judgment split.** The analyzer (Core conformance ·
+> the derived DAG edges) and the `nika check` ladder lived here until the
+> 15k crate-size wall fired; they are now **`nika-check`** (L0, depends
+> on THIS crate — `docs/crate-specs/nika-check.md`). The D1 « split
+> rejected: circular deps » call below is preserved as the historical
+> record; the split that landed moves exactly the cluster that call
+> feared to move, and no cycle materialized because the dependency points
+> one way (judgment → parser). What stays: parser · raw · error · types ·
+> skill · source — the parse-only half of the pipeline.
+
+### The one phase
 
 ```
 YAML string
     |
     v
 [Parser] ─── YAML → RawWorkflow (spans, no validation)
-    |
-    v
-[Analyzer] ── Raw → AnalyzedWorkflow (taint, guardrails, verb checks, DAG)
-    |
-    v
-[Validator] ─ cycle detection, topological sort, schema validation
-    |
-    v
-AnalyzedWorkflow (ready for lowering in nika-runtime)
 ```
 
-The lowering step (AnalyzedWorkflow to runtime types) is NOT in this crate.
-It lives in `nika-runtime` (L3) because it depends on runtime capabilities.
+The Analyzer/Validator phases of the former three-phase pipeline live in
+`nika-check` (`analyze` · `AnalyzedWorkflow`); the lowering step
+(AnalyzedWorkflow to runtime types) is NOT in this crate either — it
+lives in `nika-runtime` (L3) because it depends on runtime capabilities.
 
 ### Why 1 crate, not split
 

@@ -1,17 +1,20 @@
 # nika-schema
 
-Workflow AST, parser, analyzer, and DAG validation — pure, zero I/O, zero async.
+Workflow AST + parser — THE PARSER (its blueprint shape) — pure, zero I/O, zero async.
 
 > **Status · ADMITTED** (2026-06-18 · all 12 gates · the last L0 crate).
-> The workflow AST, parser, analyzer, and the ADR-092 `nika check` static
-> ladder. Gate 5 closed in BUDGET mode (survivors ≤ 300); see the crate
-> spec for the full gate table. Sibling crates depend on it freely.
+> Parser-only since 2026-07-21: the analyzer and the ADR-092 `nika check`
+> static ladder descended to **`nika-check`** at the 15k crate-size wall
+> (the nika-graph/nika-dap precedents). Gate 5 closed in BUDGET mode
+> (survivors ≤ 300); see the crate spec for the full gate table. Sibling
+> crates depend on it freely.
 
 Layer **L0**. Parses the canonical `nika: v1` envelope
-(per [nika-spec]) into a typed AST, validates the DAG of tasks, and surfaces
+(per [nika-spec]) into a typed AST and surfaces
 diagnostics via [miette] so the CLI can render rich error spans. The
 parser is a two-stage pipeline : `marked-yaml` (source-span preserving) →
-`serde-saphyr` (typed deserialize) → analyzer (DAG checks + guardrails).
+`serde-saphyr` (typed deserialize). The analyzer (DAG checks · the edge
+derivation) and the `check` ladder live in `nika-check` (L0 → this crate).
 
 ## Usage (planned · subject to change pre-admission)
 

@@ -102,3 +102,5 @@ nika-graph
 nika-migrate
 nika-source
 nika-vocab
+# --- 2026-07-21: the static-judgment descent (analyzer + the check ladder out of nika-schema · the 15k wall — nika-graph precedent) ---
+nika-check

@@ -4051,6 +4051,29 @@ name = "nika-chart"
 version = "0.105.0"
 
 [[package]]
+name = "nika-check"
+version = "0.105.0"
+dependencies = [
+ "criterion",
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "jsonschema",
+ "nika-cap",
+ "nika-catalog",
+ "nika-event",
+ "nika-pack",
+ "nika-schema",
+ "nika-types",
+ "nika-vocab",
+ "proptest",
+ "serde",
+ "serde_json",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "nika-cli"
 version = "0.105.0"
 dependencies = [
@@ -4060,6 +4083,7 @@ dependencies = [
  "minisign",
  "nika-builtin",
  "nika-catalog",
+ "nika-check",
  "nika-clock",
  "nika-dap",
  "nika-display",
@@ -4119,6 +4143,7 @@ dependencies = [
  "keyring",
  "minisign",
  "nika-cap",
+ "nika-check",
  "nika-event",
  "nika-kernel",
  "nika-kernel-mock",
@@ -4143,8 +4168,8 @@ version = "0.105.0"
 dependencies = [
  "annotate-snippets 0.12.16",
  "anstyle",
+ "nika-check",
  "nika-event",
- "nika-schema",
  "nika-types",
  "serde_json",
  "uuid",
@@ -4234,6 +4259,7 @@ version = "0.105.0"
 name = "nika-graph"
 version = "0.105.0"
 dependencies = [
+ "nika-check",
  "nika-schema",
  "serde",
 ]
@@ -4370,6 +4396,7 @@ dependencies = [
 name = "nika-lints"
 version = "0.105.0"
 dependencies = [
+ "nika-check",
  "nika-schema",
  "serde",
  "serde_json",
@@ -4382,6 +4409,7 @@ dependencies = [
  "lsp-server",
  "lsp-types",
  "nika-catalog",
+ "nika-check",
  "nika-graph",
  "nika-pack",
  "nika-schema",
@@ -4400,6 +4428,7 @@ dependencies = [
  "blake3",
  "nika-builtin",
  "nika-catalog",
+ "nika-check",
  "nika-error",
  "nika-graph",
  "nika-kernel",
@@ -4452,6 +4481,7 @@ version = "0.105.0"
 dependencies = [
  "nika-bm25",
  "nika-catalog",
+ "nika-check",
  "nika-display",
  "nika-pack",
  "nika-schema",
@@ -4522,6 +4552,7 @@ dependencies = [
  "nika-builtin",
  "nika-catalog",
  "nika-cel",
+ "nika-check",
  "nika-error",
  "nika-event",
  "nika-kernel",
@@ -4563,30 +4594,19 @@ name = "nika-schema"
 version = "0.105.0"
 dependencies = [
  "criterion",
- "insta",
- "jaq-core",
- "jaq-json",
- "jaq-std",
- "jsonschema",
  "marked-yaml",
  "miette",
- "nika-cap",
  "nika-catalog",
  "nika-error",
- "nika-event",
  "nika-pack",
  "nika-source",
  "nika-tmpl",
  "nika-types",
  "nika-vocab",
- "proptest",
  "rstest",
- "serde",
  "serde-saphyr",
  "serde_json",
  "thiserror 2.0.18",
- "url",
- "uuid",
 ]
 
 [[package]]
@@ -4634,6 +4654,7 @@ dependencies = [
  "jsonschema",
  "miette",
  "nika-bm25",
+ "nika-check",
  "nika-error",
  "nika-kernel",
  "nika-kernel-mock",

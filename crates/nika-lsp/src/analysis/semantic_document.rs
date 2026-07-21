@@ -76,7 +76,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
             spans: BTreeMap::new(),
         };
     };
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     let spans: BTreeMap<String, Range> = wf
         .tasks
         .iter()
@@ -123,7 +123,7 @@ mod tests {
     fn graph_half_is_the_canonical_projection_verbatim() {
         let doc = as_value(&semantic_document(DIAMOND));
         let wf = parse(DIAMOND, FileId::new(0), ParseMode::Lenient).expect("parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
         assert_eq!(doc["graph"], expected);
         assert_eq!(doc["graph"]["graph_format"], 2, "in-payload version (W2)");

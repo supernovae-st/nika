@@ -1,6 +1,6 @@
 //! Fuzz target 4 · the `--infer-permits` synthesis surface.
 //!
-//! Invariant under fuzz · for any input that PARSES, `nika_schema::infer_permits`
+//! Invariant under fuzz · for any input that PARSES, `nika_check::infer_permits`
 //! (the mechanism behind `nika check --infer-permits`, which derives the
 //! tightest boundary a workflow needs) NEVER panics, aborts, or hangs. This is
 //! the second surface the thesis leans on — the audit flagged it uncovered
@@ -10,7 +10,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use nika_schema::{infer_permits, parse, FileId, ParseMode};
+use nika_check::infer_permits;
+use nika_schema::{FileId, ParseMode, parse};
 
 fuzz_target!(|data: &[u8]| {
     if let Ok(src) = std::str::from_utf8(data) {

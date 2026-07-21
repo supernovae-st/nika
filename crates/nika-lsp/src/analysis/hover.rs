@@ -136,7 +136,7 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
 
 /// Hover on a task DECLARATION (the `X:` map key) — the task's place in the
 /// DAG, from the SAME wave computation the engine schedules with
-/// (`nika_schema::analyze` · Kahn levels over the DERIVED `with:`/`after:`
+/// (`nika_check::analyze` · Kahn levels over the DERIVED `with:`/`after:`
 /// edges — one math, one voice). Cyclic or unresolved graphs stay
 /// silent here: the diagnostics lane already carries that story.
 fn task_decl_hover(text: &str, offset: usize) -> Option<Hover> {
@@ -174,7 +174,7 @@ fn dag_card(wf: &nika_schema::raw::RawWorkflow, id: &str) -> Option<String> {
     use std::fmt::Write as _;
     let idx = wf.tasks.iter().position(|t| t.value.id.value == id)?;
     let task = &wf.tasks[idx].value;
-    let analyzed = nika_schema::analyze(wf).ok()?;
+    let analyzed = nika_check::analyze(wf).ok()?;
     let waves = &analyzed.topo_waves;
     let wave = waves.iter().position(|w| w.contains(&idx))?;
     let mut body = format!(
@@ -184,14 +184,14 @@ fn dag_card(wf: &nika_schema::raw::RawWorkflow, id: &str) -> Option<String> {
         waves.len()
     );
     // incoming edges with their ROLES (spec 03 §with/§after · the two doors)
-    let incoming = nika_schema::analyzer::edges::incoming_of(task);
+    let incoming = nika_check::analyzer::edges::incoming_of(task);
     let waits: Vec<String> = {
         let mut seen = std::collections::BTreeSet::new();
         incoming
             .iter()
             .filter(|(p, _)| seen.insert(p.clone()))
             .map(|(p, kind)| match kind {
-                nika_schema::analyzer::EdgeKind::Control(pred) => {
+                nika_check::analyzer::EdgeKind::Control(pred) => {
                     format!("`{p}` (control · {pred})")
                 }
                 other => format!("`{p}` ({})", other.wire_kind()),
@@ -206,7 +206,7 @@ fn dag_card(wf: &nika_schema::raw::RawWorkflow, id: &str) -> Option<String> {
         .tasks
         .iter()
         .filter(|t| {
-            nika_schema::analyzer::edges::producer_ids(&t.value)
+            nika_check::analyzer::edges::producer_ids(&t.value)
                 .iter()
                 .any(|p| p == id)
         })

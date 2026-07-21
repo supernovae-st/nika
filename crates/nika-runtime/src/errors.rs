@@ -17,7 +17,7 @@ use nika_kernel::prelude::codes;
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum RuntimeError {
-    /// NIKA-1700 · a dirty [`nika_schema::check::CheckReport`] reached
+    /// NIKA-1700 · a dirty [`nika_check::CheckReport`] reached
     /// `run` (audit-before-run violated · a dirty workflow never executes).
     #[error("NIKA-1700 · audit-before-run violated · the CheckReport is dirty")]
     #[diagnostic(code(nika::runtime::dirty_report))]

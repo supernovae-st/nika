@@ -26,7 +26,7 @@ pub(super) fn parse_var_overrides(
     pairs: &[String],
     wf: &RawWorkflow,
 ) -> Result<BTreeMap<String, Value>, String> {
-    let named = nika_schema::named_types(wf);
+    let named = nika_check::named_types(wf);
     let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
     let mut overrides = BTreeMap::new();
     for pair in pairs {

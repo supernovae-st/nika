@@ -21,7 +21,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
-use nika_schema::check::{CheckReport, UnboundedReason};
+use nika_check::{CheckReport, UnboundedReason};
 
 use crate::verbs::graph::{GraphDoc, Node, project};
 use crate::verbs::run::{lf_normal_form, sha256_hex};

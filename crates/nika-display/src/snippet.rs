@@ -15,7 +15,7 @@
 use annotate_snippets::renderer::DecorStyle;
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use anstyle::{AnsiColor, Style};
-use nika_schema::check::ByteSpan;
+use nika_check::ByteSpan;
 
 use super::theme::Theme;
 

@@ -5,7 +5,7 @@
 | Status | **WIP** (Phase B announce-ladder · `nika lsp` v0.1 IN-BINARY · D-2026-06-10-N6 launch floor · ADR-003 12 gates) |
 | Layer | L4 — interface (language server) · gated on L0 only (pure analysis over `nika-schema`) · sync · stdio |
 | Sub-tier | L4-surface — the editor surface. Pure analysis modules (`analysis::*`) over the L0 `nika-schema` parse + check ladder, driven by a sync `lsp-server` JSON-RPC loop. Feeds the `nika-vscode` extension (and any LSP client) the day `nika --help` lists `lsp` (the extension auto-detects via `caps.lsp`). |
-| Design | ONE crate (collapse · per `nika-invariants.md` « nika-lsp-core → merged into nika-lsp » + the collapse-vs-publish default · reconciles D-2026-06-10-N6 steps 19.6/19.7 which carried the brouillon two-crate shape — the LSP has zero external crates.io value, so one crate with internal modules wins). Stack = `lsp-server` 0.7 (rust-analyzer's sync stdio loop · MIT) + `lsp-types` 0.97 (LSP 3.17 types · MIT) — NOT `tower-lsp`/tokio (the v0.1 scope is parse + position-map + full-reparse-on-change · no async needed · Rams « less but better » + minimal deps). Diagnostics reuse the SAME `nika_schema::check` ladder that powers `nika check` (one source of truth · no second checker). |
+| Design | ONE crate (collapse · per `nika-invariants.md` « nika-lsp-core → merged into nika-lsp » + the collapse-vs-publish default · reconciles D-2026-06-10-N6 steps 19.6/19.7 which carried the brouillon two-crate shape — the LSP has zero external crates.io value, so one crate with internal modules wins). Stack = `lsp-server` 0.7 (rust-analyzer's sync stdio loop · MIT) + `lsp-types` 0.97 (LSP 3.17 types · MIT) — NOT `tower-lsp`/tokio (the v0.1 scope is parse + position-map + full-reparse-on-change · no async needed · Rams « less but better » + minimal deps). Diagnostics reuse the SAME `nika_check` ladder that powers `nika check` (one source of truth · no second checker · descended from nika-schema 2026-07-21). |
 | LOC budget | ≤4,000 src (server loop + 8 analysis modules) |
 | File cap | ≤1,500 LOC each · Function cap ≤100 lines |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
@@ -35,7 +35,7 @@ ships — zero extension change.
 
 | Feature | In v0.1 | Source |
 |---|:--:|---|
-| **Diagnostics** (publishDiagnostics) | ✅ | `nika_schema::check` ladder → `lsp_types::Diagnostic` (code + message + range + severity) |
+| **Diagnostics** (publishDiagnostics) | ✅ | `nika_check` ladder → `lsp_types::Diagnostic` (code + message + range + severity) |
 | **Hover** | ✅ | verb/keyword docs · task refs → target id+verb · task DECLARATION → the DAG card (wave k/N from the engine's own `analyze` · waits/feeds · downstream reach) · `tool:` → builtin card (category·args·required) · `model:` → catalog windows, provider-card fallback for hand-typed models · member refs → declaration cards |
 | **Completion** | ✅ | top-level keys · task fields · the 4 verbs · `model:` providers → per-provider models · `tool:` + agent `tools: [` builtins · builtin `args:` keys (required-first) · `mode:` extract vocabulary (contextual to `nika:fetch`) · closed enums (`nika:` · `type:` · `capture:` · `backoff_strategy:`) · island members (`${{ vars./secrets./env./tasks.<id>. }}`) · task refs by the law that judges each context (DAG-003 declared edges · recover carve-out · outputs freedom · depends_on anti-cycle) · JSON-Schema keyset inside `schema:` · auto-trigger on `.` `/` `[` and ` ` (value-colon pause · prose-empty pinned) |
 | **Document symbols** | ✅ | every declaration: vars (typed detail) · env · secrets · tasks(verb) — the navigation twin of member go-to-definition |
@@ -100,7 +100,7 @@ pub mod vocab;       // the static language vocabulary (verbs, keys, docs)
 
 ```rust
 // parse: nika_schema::parser::parse(yaml, FileId, ParseMode) -> Result<RawWorkflow, SchemaError>
-// check: nika_schema::check::check(&RawWorkflow) -> CheckReport
+// check: nika_check::check(&RawWorkflow) -> CheckReport
 //        CheckReport.{conformance, schema_findings, gate_findings, unknown_tools,
 //                     unknown_args, missing_args, schema_lints, secret_leaks,
 //                     secret_egresses, capability_escapes, hints}
@@ -152,7 +152,7 @@ TOTAL                  ~1,960  (well under the 4,000 budget)
 ## 6. Invariants honoured
 
 - **One source of truth for diagnostics** — the LSP calls the SAME
-  `nika_schema::check` the CLI does. No second parser, no drift (the
+  `nika_check` the CLI does. No second parser, no drift (the
   brouillon's separate tree-sitter recovery path is deliberately NOT ported
   for v0.1; full-reparse on the real parser keeps codes/spans identical to
   `nika check`).

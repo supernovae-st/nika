@@ -225,7 +225,7 @@ pub fn nika_display::shape::fmt_bytes(n: usize) -> alloc::string::String
 pub fn nika_display::shape::output_tail(output_json: core::option::Option<&str>, tokens: core::option::Option<u64>, theme: &nika_display::theme::Theme) -> core::option::Option<alloc::string::String>
 pub fn nika_display::shape::summarize(json_text: &str, max_cells: usize) -> core::option::Option<alloc::string::String>
 pub mod nika_display::snippet
-pub fn nika_display::snippet::paint_span(source: &str, path: &str, span: nika_schema::check::ByteSpan, theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::snippet::paint_span(source: &str, path: &str, span: nika_check::ByteSpan, theme: nika_display::theme::Theme) -> alloc::string::String
 pub mod nika_display::state
 pub enum nika_display::state::TaskState
 pub nika_display::state::TaskState::Cancelled

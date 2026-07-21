@@ -48,7 +48,7 @@ async fn run_to_events(
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder");
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));
@@ -501,7 +501,7 @@ tasks:
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     let tools = MockToolExecutor::new()
         .enqueue_ok(ToolResult::success("t", "1").with_structured(serde_json::json!(1)));
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
@@ -587,7 +587,7 @@ tasks:
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder");
     let tools = MockToolExecutor::new()
         .enqueue_ok(ToolResult::success("seed", "1").with_structured(serde_json::json!(1)));

@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Gate 7 BENCHMARKS · criterion · the parse + analyze hot path.
+//! Gate 7 BENCHMARKS · criterion · the parse hot path.
 //!
-//! The parser/analyzer is the one component EVERY surface hits: `nika check`,
+//! The parser is the one component EVERY surface hits: `nika check`,
 //! `nika run` (parse before execute), each LSP keystroke / editor save, the
 //! `--explain` path. Spec §10 marks Gate 7 NOT exempt for exactly this reason
 //! ("the parser is a hot path — every workflow parses"). The envelope: `parse`
-//! is a `marked-yaml` tree build + a typed lowering; `analyze` runs the
-//! DAG-order + dataflow-typing + IFC passes (super-linear in task count). Both
-//! must stay imperceptible on a human-sized workflow and scale gracefully on a
-//! large generated one.
+//! is a `marked-yaml` tree build + a typed lowering; it must stay
+//! imperceptible on a human-sized workflow and scale gracefully on a large
+//! generated one. (The analyze + check legs descended to `nika-check`
+//! 2026-07-21 with the judgment crate — `refonte_baseline` there still
+//! measures the analyze stage across topologies.)
 //!
 //! Reference targets (CPU · informational — the real numbers print on run):
 //! - `parse/small_2_tasks`      · a typical hand-written workflow   · target <50µs
 //! - `parse/large_200_tasks`    · a 200-node generated DAG          · target <5ms
-//! - `analyze/large_200_tasks`  · the super-linear passes           · the one to watch
 
 // Bench fixtures are known-valid by construction; `expect` on the parse of a
 // literal fixture is the right failure mode (a broken fixture must fail loud).
 #![allow(clippy::expect_used)]
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use nika_schema::{FileId, ParseMode, analyze, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use std::hint::black_box;
 
 /// A realistic small workflow: an `infer` producer with a structured-output
 /// schema feeding an `exec` consumer that binds two declared output paths.
-/// (The `declared_property_path_is_accepted` shape — parses + analyzes clean.)
+/// (The `declared_property_path_is_accepted` shape — parses clean.)
 const SMALL: &str = r#"nika: v1
 workflow:
   id: bench-small
@@ -51,8 +51,8 @@ tasks:
 "#;
 
 /// One `infer` producer + `n` fan-out `exec` consumers, each binding a declared
-/// output path so the analyzer's dataflow-typing + DAG passes do real work on
-/// every node. Plain `push_str` (no `format!`) keeps the `${{ }}` literal clean.
+/// output path so the parser's lowering does real work on every node. Plain
+/// `push_str` (no `format!`) keeps the `${{ }}` literal clean.
 fn large_workflow(n: usize) -> String {
     let mut s = String::from(
         "nika: v1\nworkflow:\n  id: bench-large\ntasks:\n  extract:\n    infer:\n      \
@@ -82,14 +82,5 @@ fn bench_parse(c: &mut Criterion) {
     });
 }
 
-fn bench_analyze(c: &mut Criterion) {
-    // analyze() takes the parsed workflow — the super-linear DAG passes.
-    let large = large_workflow(200);
-    let raw = parse(&large, FileId::new(0), ParseMode::Lenient).expect("bench fixture parses");
-    c.bench_function("analyze/large_200_tasks", |b| {
-        b.iter(|| analyze(black_box(&raw)));
-    });
-}
-
-criterion_group!(benches, bench_parse, bench_analyze);
+criterion_group!(benches, bench_parse);
 criterion_main!(benches);

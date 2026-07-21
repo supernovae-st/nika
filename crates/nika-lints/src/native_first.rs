@@ -11,7 +11,7 @@
 //! fires. This module only reshapes the verdict into [`Lint`] records
 //! (rule id · task · span · message · suggestion).
 
-use nika_schema::check::native_first::classify;
+use nika_check::native_first::classify;
 use nika_schema::raw::{RawAction, RawWorkflow};
 
 use super::preference_rules::Lint;

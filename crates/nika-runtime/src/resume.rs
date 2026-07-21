@@ -226,7 +226,7 @@ pub type ResumePlan = BTreeMap<String, PriorSuccess>;
 #[must_use]
 pub fn referenced_upstreams(task: &RawTask) -> std::collections::BTreeSet<String> {
     let mut out: std::collections::BTreeSet<String> =
-        nika_schema::analyzer::edges::producer_ids(task)
+        nika_check::analyzer::edges::producer_ids(task)
             .into_iter()
             .collect();
     if let Some(def) = definition_value(task) {

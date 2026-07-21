@@ -63,9 +63,9 @@ use std::io::Write as _;
 
 use serde_json::Value;
 
+use nika_check::CheckReport;
 use nika_runtime::resume::ResumePlan;
 use nika_runtime::{EventSink, RunOutcome, Runtime, RuntimeError, Stamper};
-use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
 use crate::Theme;
@@ -460,7 +460,7 @@ fn render_dry_run(file: &str, theme: Theme) -> u8 {
 fn dry_run_verdict(
     file: &str,
     wf: &RawWorkflow,
-    report: &nika_schema::check::CheckReport,
+    report: &nika_check::CheckReport,
     json: bool,
     theme: Theme,
 ) -> u8 {
@@ -479,7 +479,7 @@ fn dry_run_verdict(
 /// `explain --json` and reconstructing the plan client-side.
 /// `plan_version` follows the check-report discipline: additive keys
 /// never bump it.
-fn dry_run_json(file: &str, wf: &RawWorkflow, report: &nika_schema::check::CheckReport) -> u8 {
+fn dry_run_json(file: &str, wf: &RawWorkflow, report: &nika_check::CheckReport) -> u8 {
     println!("{:#}", dry_run_payload(file, wf, report));
     exit::OK
 }
@@ -490,7 +490,7 @@ fn dry_run_json(file: &str, wf: &RawWorkflow, report: &nika_schema::check::Check
 fn dry_run_payload(
     file: &str,
     wf: &RawWorkflow,
-    report: &nika_schema::check::CheckReport,
+    report: &nika_check::CheckReport,
 ) -> serde_json::Value {
     let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
     let waves: Vec<Vec<&str>> = report
@@ -700,7 +700,7 @@ fn apply_task_scope(
     };
     match scope_to_task(wf, target) {
         Ok(sub) => {
-            let sub_report = nika_schema::check(&sub);
+            let sub_report = nika_check::check(&sub);
             Ok((sub, sub_report))
         }
         Err(msg) => {
@@ -1052,7 +1052,7 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let p = dry_run_payload("demo.nika.yaml", &wf, &report);
         assert_eq!(p["plan_version"], 1);
         assert_eq!(p["workflow"], "demo");
@@ -1279,7 +1279,7 @@ mod tests {
         )
         .expect("pair parses");
         let sub = scope_to_task(wf, "a").expect("a scopes");
-        let report = nika_schema::check(&sub);
+        let report = nika_check::check(&sub);
         assert!(
             report.is_clean(),
             "the cone stands alone (no dangling refs)"
@@ -1319,7 +1319,7 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the pure ladder is fs-free");
 
         let resolved = crate::verbs::resolve_workflow_skills(&wf);

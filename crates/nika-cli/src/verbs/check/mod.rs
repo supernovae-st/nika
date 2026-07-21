@@ -85,8 +85,8 @@ pub fn dispatch(
 
 use std::fmt::Write as _;
 
-use nika_schema::check::CheckReport;
-use nika_schema::infer_permits;
+use nika_check::CheckReport;
+use nika_check::infer_permits;
 #[cfg(test)]
 use nika_schema::raw::RawWorkflow;
 
@@ -130,7 +130,7 @@ pub fn run(
     let (wf, report) = match model_override {
         Some(m) => {
             let wf = crate::verbs::with_model_override(&wf, m);
-            let report = nika_schema::check(&wf);
+            let report = nika_check::check(&wf);
             (wf, report)
         }
         None => (wf, report),
@@ -217,11 +217,10 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     });
     if let Some(c) = &code {
         finding["code"] = serde_json::json!(c);
-        finding["docs_url"] =
-            serde_json::json!(format!("{}/{c}", nika_schema::check::ERROR_DOCS_BASE));
+        finding["docs_url"] = serde_json::json!(format!("{}/{c}", nika_check::ERROR_DOCS_BASE));
     }
     let payload = serde_json::json!({
-        "report_version": nika_schema::check::REPORT_VERSION,
+        "report_version": nika_check::REPORT_VERSION,
         "parse_fatal": true,
         "clean": false,
         "findings": [finding],
@@ -432,7 +431,7 @@ mod tests {
             present = present.display(),
         );
         let wf = parse_wf(&yaml);
-        let flagged: Vec<(String, String)> = nika_schema::check::static_read_paths(&wf)
+        let flagged: Vec<(String, String)> = nika_check::static_read_paths(&wf)
             .into_iter()
             .filter(|(_, p)| !std::path::Path::new(p).exists())
             .collect();
@@ -448,7 +447,7 @@ mod tests {
         let wf = parse_wf(
             "nika: v1\nworkflow:\n  id: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  think:\n    infer:\n      prompt: hi\n  odd:\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
         );
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let section = pricing_section(&report, &unresolvable_models(&report));
         let models = section["models"].as_array().expect("array");
         assert_eq!(models.len(), 2, "one row per requirements model");
@@ -488,7 +487,7 @@ mod tests {
         let wf = parse_wf(
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
         );
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(
             !report.capability_escapes.is_empty(),
             "the floor pass fires without permits"
@@ -517,7 +516,7 @@ mod tests {
         let clean = parse_wf(
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
-        let clean_report = nika_schema::check(&clean);
+        let clean_report = nika_check::check(&clean);
         let mut clean_out = String::new();
         permits(&mut clean_out, &clean_report, &clean, theme);
         assert!(clean_out.contains("no boundary declared"), "{clean_out}");
@@ -532,7 +531,7 @@ mod tests {
         let wf = parse_wf(
             "nika: v1\nworkflow:\n  id: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
         );
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(
             report.capability_escapes.is_empty(),
             "the exact literal declassifies: {:?}",
@@ -553,7 +552,7 @@ mod tests {
         let plain = parse_wf(
             "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
-        let plain_report = nika_schema::check(&plain);
+        let plain_report = nika_check::check(&plain);
         let mut plain_out = String::new();
         permits(&mut plain_out, &plain_report, &plain, theme);
         assert!(

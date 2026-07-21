@@ -20,7 +20,7 @@
 //! The trust clause is NOT a second check for the CLI, which re-checks
 //! right before run; it is the fail-closed word for every other driver.
 
-use nika_schema::check::CheckReport;
+use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
 use crate::errors::RuntimeError;
@@ -46,11 +46,11 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     // mirrored one-for-one: the trifecta lane reads the derived graph (a
     // valid DAG or no claim — skipped, never wrong) · permits-fit is
     // DAG-independent and runs unconditionally.
-    let trifecta = match nika_schema::analyze(wf) {
-        Ok(a) => nika_schema::check::trifecta::scan_trifecta(wf, &a.edges, &a.topo_waves),
+    let trifecta = match nika_check::analyze(wf) {
+        Ok(a) => nika_check::trifecta::scan_trifecta(wf, &a.edges, &a.topo_waves),
         Err(_) => Vec::new(),
     };
-    let escapes = nika_schema::check::permits_fit::scan_escapes(wf);
+    let escapes = nika_check::permits_fit::scan_escapes(wf);
     // Post-`is_clean` the report's boundary lanes are empty, so an
     // inequality here always means the re-derivation found something the
     // report does not know. The comparison stays symmetric anyway — one
@@ -146,12 +146,10 @@ mod tests {
     /// The hand-built clean report: `check` refuses the REAL workflow, so
     /// the run is fed the CLEAN report of its permit-free twin — same
     /// tasks, same waves (the `permits:` line strips away).
-    fn forged_clean_report(
-        yaml: &str,
-    ) -> (nika_schema::raw::RawWorkflow, nika_schema::CheckReport) {
+    fn forged_clean_report(yaml: &str) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
         let wf = parse(yaml);
         assert!(
-            !nika_schema::check(&wf).is_clean(),
+            !nika_check::check(&wf).is_clean(),
             "the honest check refuses the real workflow (the static half)"
         );
         let twin_yaml = yaml
@@ -159,7 +157,7 @@ mod tests {
             .filter(|line| !line.starts_with("permits:"))
             .collect::<Vec<_>>()
             .join("\n");
-        let report = nika_schema::check(&parse(&twin_yaml));
+        let report = nika_check::check(&parse(&twin_yaml));
         assert!(
             report.is_clean(),
             "the permit-free twin checks clean (same tasks → same waves)"
@@ -170,7 +168,7 @@ mod tests {
     async fn run(
         runtime: &MockRuntime,
         wf: &nika_schema::raw::RawWorkflow,
-        report: &nika_schema::CheckReport,
+        report: &nika_check::CheckReport,
     ) -> RunOutcome {
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
@@ -186,7 +184,7 @@ mod tests {
     async fn run_refused(
         runtime: &MockRuntime,
         wf: &nika_schema::raw::RawWorkflow,
-        report: &nika_schema::CheckReport,
+        report: &nika_check::CheckReport,
     ) -> crate::RuntimeError {
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
@@ -211,9 +209,9 @@ mod tests {
         let (wf, report) = forged_clean_report(TRIFECTA);
         // The re-derivation itself, run the way the gate runs it: the
         // trifecta lane over the workflow's own graph names the sink.
-        let analyzed = nika_schema::analyze(&wf).expect("the DAG derives");
+        let analyzed = nika_check::analyze(&wf).expect("the DAG derives");
         let trifecta =
-            nika_schema::check::trifecta::scan_trifecta(&wf, &analyzed.edges, &analyzed.topo_waves);
+            nika_check::trifecta::scan_trifecta(&wf, &analyzed.edges, &analyzed.topo_waves);
         assert_eq!(
             trifecta.len(),
             1,
@@ -244,7 +242,7 @@ mod tests {
     #[tokio::test]
     async fn trifecta_complete_with_the_real_report_is_the_dirty_twin() {
         let wf = parse(TRIFECTA);
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(!report.is_clean(), "the honest report carries the SEC-009");
         let runtime = runtime_with(
             MockShell::new(),
@@ -267,7 +265,7 @@ mod tests {
         let wf = parse(
             "nika: v1\nworkflow:\n  id: honest\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
         let shell = MockShell::new().enqueue_ok("ok");
         let probe = shell.clone();
@@ -294,11 +292,11 @@ mod tests {
         let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1/x\" } }\n";
         let wf = parse(yaml);
         assert!(
-            !nika_schema::check(&wf).is_clean(),
+            !nika_check::check(&wf).is_clean(),
             "the floor escape dirties the honest report even without permits"
         );
         let twin = parse(&yaml.replace("http://127.0.0.1/x", "https://api.example.com/x"));
-        let report = nika_schema::check(&twin);
+        let report = nika_check::check(&twin);
         assert!(report.is_clean(), "the public-host twin checks clean");
         let executor = MockToolExecutor::new().enqueue_ok(ToolResult::success("t1", "page"));
         let probe = executor.clone();

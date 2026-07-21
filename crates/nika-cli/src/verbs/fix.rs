@@ -115,7 +115,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
                 Some(false) | None => break, // STOP, or not rename-shaped — check will tell
             },
             Ok(wf) => {
-                let report = nika_schema::check(&wf);
+                let report = nika_check::check(&wf);
                 if let Some(stop_or_continue) =
                     try_w2_hoist(&report, &mut source, &mut repairs, &mut stop_notes)
                 {
@@ -158,9 +158,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
 }
 
 /// This round's typed renames (tools · args · conformance refs), deduped.
-fn collect_typed_renames(
-    report: &nika_schema::check::CheckReport,
-) -> Vec<(String, String, &'static str)> {
+fn collect_typed_renames(report: &nika_check::CheckReport) -> Vec<(String, String, &'static str)> {
     let mut renames: Vec<(String, String, &'static str)> = Vec::new();
     for t in &report.unknown_tools {
         if let Some(s) = &t.suggestion {
@@ -302,7 +300,7 @@ fn apply_predicates(source: &mut String, repairs: &mut Vec<Repair>) -> bool {
 /// round) · `Some(false)` = STOP diagnostics captured (end the loop) ·
 /// `None` = no boundary finding this round.
 fn try_w2_hoist(
-    report: &nika_schema::check::CheckReport,
+    report: &nika_check::CheckReport,
     source: &mut String,
     repairs: &mut Vec<Repair>,
     stop_notes: &mut StopNotes,

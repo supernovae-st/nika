@@ -1,0 +1,2113 @@
+pub mod nika_check
+pub use nika_check::ERROR_DOCS_BASE
+pub mod nika_check::analyzer
+pub mod nika_check::analyzer::edges
+#[non_exhaustive] pub enum nika_check::analyzer::edges::EdgeKind
+pub nika_check::analyzer::edges::EdgeKind::Control(nika_vocab::after::AfterPredicate)
+pub nika_check::analyzer::edges::EdgeKind::FailureObservation
+pub nika_check::analyzer::edges::EdgeKind::TerminalObservation
+pub nika_check::analyzer::edges::EdgeKind::Value
+impl nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::admits(self, s: nika_check::analyzer::edges::SettledState) -> bool
+pub fn nika_check::analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
+impl core::clone::Clone for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::clone(&self) -> nika_check::analyzer::edges::EdgeKind
+impl core::cmp::Eq for nika_check::analyzer::edges::EdgeKind
+impl core::cmp::PartialEq for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::eq(&self, other: &nika_check::analyzer::edges::EdgeKind) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::analyzer::edges::EdgeKind
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::EdgeKind
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::EdgeKind
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::EdgeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::EdgeKind::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::EdgeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::EdgeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::EdgeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub type nika_check::analyzer::edges::EdgeKind::Owned = T
+pub fn nika_check::analyzer::edges::EdgeKind::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::EdgeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::EdgeKind where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::EdgeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::EdgeKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::EdgeKind where T: 'static
+pub fn nika_check::analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::analyzer::edges::EdgeKind where T: core::marker::Copy
+pub fn nika_check::analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check::analyzer::edges::SettledState
+pub nika_check::analyzer::edges::SettledState::Cancelled
+pub nika_check::analyzer::edges::SettledState::Failure
+pub nika_check::analyzer::edges::SettledState::Skipped
+pub nika_check::analyzer::edges::SettledState::Success
+impl core::clone::Clone for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::clone(&self) -> nika_check::analyzer::edges::SettledState
+impl core::cmp::Eq for nika_check::analyzer::edges::SettledState
+impl core::cmp::PartialEq for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::eq(&self, other: &nika_check::analyzer::edges::SettledState) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::analyzer::edges::SettledState
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::SettledState
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::SettledState
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::SettledState where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::SettledState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::SettledState where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::SettledState::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::SettledState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::SettledState where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::SettledState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::SettledState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::SettledState where T: core::clone::Clone
+pub type nika_check::analyzer::edges::SettledState::Owned = T
+pub fn nika_check::analyzer::edges::SettledState::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::SettledState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::SettledState where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::SettledState where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::SettledState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::SettledState where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::SettledState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::SettledState where T: 'static
+pub fn nika_check::analyzer::edges::SettledState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::analyzer::edges::SettledState where T: core::marker::Copy
+pub fn nika_check::analyzer::edges::SettledState::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check::analyzer::edges::Edge
+pub nika_check::analyzer::edges::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_check::analyzer::edges::Edge::from: usize
+pub nika_check::analyzer::edges::Edge::kind: nika_check::analyzer::edges::EdgeKind
+pub nika_check::analyzer::edges::Edge::span: nika_source::span::Span
+pub nika_check::analyzer::edges::Edge::to: usize
+impl core::clone::Clone for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::clone(&self) -> nika_check::analyzer::edges::Edge
+impl core::cmp::Eq for nika_check::analyzer::edges::Edge
+impl core::cmp::PartialEq for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::eq(&self, other: &nika_check::analyzer::edges::Edge) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::Edge
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::Edge
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::Edge where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::Edge where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::Edge::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::Edge where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::Edge where T: core::clone::Clone
+pub type nika_check::analyzer::edges::Edge::Owned = T
+pub fn nika_check::analyzer::edges::Edge::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::Edge where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::Edge where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::Edge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::Edge where T: 'static
+pub fn nika_check::analyzer::edges::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::analyzer::edges::RecoveryRead
+pub nika_check::analyzer::edges::RecoveryRead::from: usize
+pub nika_check::analyzer::edges::RecoveryRead::to: usize
+impl core::clone::Clone for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::clone(&self) -> nika_check::analyzer::edges::RecoveryRead
+impl core::cmp::Eq for nika_check::analyzer::edges::RecoveryRead
+impl core::cmp::PartialEq for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::eq(&self, other: &nika_check::analyzer::edges::RecoveryRead) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::RecoveryRead
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::RecoveryRead
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::RecoveryRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::RecoveryRead::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::RecoveryRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::RecoveryRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::RecoveryRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub type nika_check::analyzer::edges::RecoveryRead::Owned = T
+pub fn nika_check::analyzer::edges::RecoveryRead::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::RecoveryRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::RecoveryRead where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::RecoveryRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::RecoveryRead where T: 'static
+pub fn nika_check::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check::analyzer::edges::derive_edges(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check::analyzer::edges::Edge>
+pub fn nika_check::analyzer::edges::derive_recovery_reads(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check::analyzer::edges::RecoveryRead>
+pub fn nika_check::analyzer::edges::incoming_of(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<(alloc::string::String, nika_check::analyzer::edges::EdgeKind)>
+pub fn nika_check::analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_check::analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
+pub mod nika_check::analyzer::types_contract
+pub fn nika_check::analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check::analyzer::types_contract::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
+pub fn nika_check::analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+#[non_exhaustive] pub enum nika_check::analyzer::EdgeKind
+pub nika_check::analyzer::EdgeKind::Control(nika_vocab::after::AfterPredicate)
+pub nika_check::analyzer::EdgeKind::FailureObservation
+pub nika_check::analyzer::EdgeKind::TerminalObservation
+pub nika_check::analyzer::EdgeKind::Value
+impl nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::admits(self, s: nika_check::analyzer::edges::SettledState) -> bool
+pub fn nika_check::analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
+impl core::clone::Clone for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::clone(&self) -> nika_check::analyzer::edges::EdgeKind
+impl core::cmp::Eq for nika_check::analyzer::edges::EdgeKind
+impl core::cmp::PartialEq for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::eq(&self, other: &nika_check::analyzer::edges::EdgeKind) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::analyzer::edges::EdgeKind
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::EdgeKind
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::EdgeKind
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::EdgeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::EdgeKind::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::EdgeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::EdgeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::EdgeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub type nika_check::analyzer::edges::EdgeKind::Owned = T
+pub fn nika_check::analyzer::edges::EdgeKind::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::EdgeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::EdgeKind where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::EdgeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::EdgeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::EdgeKind
+pub fn nika_check::analyzer::edges::EdgeKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::EdgeKind where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::EdgeKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::EdgeKind where T: 'static
+pub fn nika_check::analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::analyzer::edges::EdgeKind where T: core::marker::Copy
+pub fn nika_check::analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check::analyzer::SettledState
+pub nika_check::analyzer::SettledState::Cancelled
+pub nika_check::analyzer::SettledState::Failure
+pub nika_check::analyzer::SettledState::Skipped
+pub nika_check::analyzer::SettledState::Success
+impl core::clone::Clone for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::clone(&self) -> nika_check::analyzer::edges::SettledState
+impl core::cmp::Eq for nika_check::analyzer::edges::SettledState
+impl core::cmp::PartialEq for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::eq(&self, other: &nika_check::analyzer::edges::SettledState) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::analyzer::edges::SettledState
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::SettledState
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::SettledState
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::SettledState where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::SettledState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::SettledState where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::SettledState::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::SettledState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::SettledState where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::SettledState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::SettledState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::SettledState where T: core::clone::Clone
+pub type nika_check::analyzer::edges::SettledState::Owned = T
+pub fn nika_check::analyzer::edges::SettledState::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::SettledState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::SettledState where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::SettledState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::SettledState where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::SettledState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::SettledState
+pub fn nika_check::analyzer::edges::SettledState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::SettledState where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::SettledState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::SettledState where T: 'static
+pub fn nika_check::analyzer::edges::SettledState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::analyzer::edges::SettledState where T: core::marker::Copy
+pub fn nika_check::analyzer::edges::SettledState::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check::analyzer::AnalyzedWorkflow
+pub nika_check::analyzer::AnalyzedWorkflow::edges: alloc::vec::Vec<nika_check::analyzer::edges::Edge>
+pub nika_check::analyzer::AnalyzedWorkflow::recovery_reads: alloc::vec::Vec<nika_check::analyzer::edges::RecoveryRead>
+pub nika_check::analyzer::AnalyzedWorkflow::topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
+impl nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::new(edges: alloc::vec::Vec<nika_check::analyzer::edges::Edge>, recovery_reads: alloc::vec::Vec<nika_check::analyzer::edges::RecoveryRead>, topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
+impl core::clone::Clone for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::clone(&self) -> nika_check::analyzer::AnalyzedWorkflow
+impl core::cmp::Eq for nika_check::analyzer::AnalyzedWorkflow
+impl core::cmp::PartialEq for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::eq(&self, other: &nika_check::analyzer::AnalyzedWorkflow) -> bool
+impl core::fmt::Debug for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::analyzer::AnalyzedWorkflow
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::AnalyzedWorkflow
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::From<T>
+pub fn nika_check::analyzer::AnalyzedWorkflow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::Into<T>
+pub type nika_check::analyzer::AnalyzedWorkflow::Error = core::convert::Infallible
+pub fn nika_check::analyzer::AnalyzedWorkflow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::AnalyzedWorkflow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::AnalyzedWorkflow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub type nika_check::analyzer::AnalyzedWorkflow::Owned = T
+pub fn nika_check::analyzer::AnalyzedWorkflow::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::AnalyzedWorkflow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::AnalyzedWorkflow where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::AnalyzedWorkflow where T: ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::AnalyzedWorkflow where T: ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::AnalyzedWorkflow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub fn nika_check::analyzer::AnalyzedWorkflow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::AnalyzedWorkflow where T: 'static
+pub fn nika_check::analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::analyzer::Edge
+pub nika_check::analyzer::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_check::analyzer::Edge::from: usize
+pub nika_check::analyzer::Edge::kind: nika_check::analyzer::edges::EdgeKind
+pub nika_check::analyzer::Edge::span: nika_source::span::Span
+pub nika_check::analyzer::Edge::to: usize
+impl core::clone::Clone for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::clone(&self) -> nika_check::analyzer::edges::Edge
+impl core::cmp::Eq for nika_check::analyzer::edges::Edge
+impl core::cmp::PartialEq for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::eq(&self, other: &nika_check::analyzer::edges::Edge) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::Edge
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::Edge
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::Edge where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::Edge where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::Edge::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::Edge where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::Edge where T: core::clone::Clone
+pub type nika_check::analyzer::edges::Edge::Owned = T
+pub fn nika_check::analyzer::edges::Edge::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::Edge where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::Edge
+pub fn nika_check::analyzer::edges::Edge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::Edge where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::Edge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::Edge where T: 'static
+pub fn nika_check::analyzer::edges::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::analyzer::RecoveryRead
+pub nika_check::analyzer::RecoveryRead::from: usize
+pub nika_check::analyzer::RecoveryRead::to: usize
+impl core::clone::Clone for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::clone(&self) -> nika_check::analyzer::edges::RecoveryRead
+impl core::cmp::Eq for nika_check::analyzer::edges::RecoveryRead
+impl core::cmp::PartialEq for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::eq(&self, other: &nika_check::analyzer::edges::RecoveryRead) -> bool
+impl core::fmt::Debug for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::RecoveryRead
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::RecoveryRead
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::From<T>
+pub fn nika_check::analyzer::edges::RecoveryRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::Into<T>
+pub type nika_check::analyzer::edges::RecoveryRead::Error = core::convert::Infallible
+pub fn nika_check::analyzer::edges::RecoveryRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::edges::RecoveryRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::edges::RecoveryRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub type nika_check::analyzer::edges::RecoveryRead::Owned = T
+pub fn nika_check::analyzer::edges::RecoveryRead::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::edges::RecoveryRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::edges::RecoveryRead where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check::analyzer::edges::RecoveryRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::edges::RecoveryRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::edges::RecoveryRead
+pub fn nika_check::analyzer::edges::RecoveryRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub fn nika_check::analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::RecoveryRead where T: 'static
+pub fn nika_check::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check::analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
+pub fn nika_check::analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check::analyzer::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
+pub fn nika_check::analyzer::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+pub fn nika_check::analyzer::role_of_field(field: core::option::Option<&str>) -> nika_check::analyzer::edges::EdgeKind
+pub mod nika_check::native_first
+pub fn nika_check::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
+pub mod nika_check::permits_fit
+#[non_exhaustive] pub struct nika_check::permits_fit::CapabilityEscape
+pub nika_check::permits_fit::CapabilityEscape::category: &'static str
+pub nika_check::permits_fit::CapabilityEscape::detail: alloc::string::String
+pub nika_check::permits_fit::CapabilityEscape::fix: core::option::Option<alloc::string::String>
+pub nika_check::permits_fit::CapabilityEscape::floor: bool
+pub nika_check::permits_fit::CapabilityEscape::task: alloc::string::String
+impl core::clone::Clone for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::clone(&self) -> nika_check::permits_fit::CapabilityEscape
+impl core::cmp::Eq for nika_check::permits_fit::CapabilityEscape
+impl core::cmp::PartialEq for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::eq(&self, other: &nika_check::permits_fit::CapabilityEscape) -> bool
+impl core::fmt::Debug for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::permits_fit::CapabilityEscape
+impl serde_core::ser::Serialize for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::permits_fit::CapabilityEscape
+impl<Q, K> equivalent::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::From<T>
+pub fn nika_check::permits_fit::CapabilityEscape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::Into<T>
+pub type nika_check::permits_fit::CapabilityEscape::Error = core::convert::Infallible
+pub fn nika_check::permits_fit::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::TryFrom<T>
+pub type nika_check::permits_fit::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::permits_fit::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub type nika_check::permits_fit::CapabilityEscape::Owned = T
+pub fn nika_check::permits_fit::CapabilityEscape::clone_into(&self, target: &mut T)
+pub fn nika_check::permits_fit::CapabilityEscape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::permits_fit::CapabilityEscape where T: 'static + ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub unsafe fn nika_check::permits_fit::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub fn nika_check::permits_fit::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::permits_fit::CapabilityEscape where T: 'static
+pub fn nika_check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check::permits_fit::scan_escapes(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check::permits_fit::CapabilityEscape>
+pub mod nika_check::trifecta
+pub fn nika_check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check::analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
+#[non_exhaustive] pub enum nika_check::FindingSeverity
+pub nika_check::FindingSeverity::Error
+pub nika_check::FindingSeverity::Info
+pub nika_check::FindingSeverity::Warning
+impl core::clone::Clone for nika_check::FindingSeverity
+pub fn nika_check::FindingSeverity::clone(&self) -> nika_check::FindingSeverity
+impl core::cmp::Eq for nika_check::FindingSeverity
+impl core::cmp::PartialEq for nika_check::FindingSeverity
+pub fn nika_check::FindingSeverity::eq(&self, other: &nika_check::FindingSeverity) -> bool
+impl core::fmt::Debug for nika_check::FindingSeverity
+pub fn nika_check::FindingSeverity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::FindingSeverity
+impl core::marker::StructuralPartialEq for nika_check::FindingSeverity
+impl serde_core::ser::Serialize for nika_check::FindingSeverity
+pub fn nika_check::FindingSeverity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::FindingSeverity
+impl<Q, K> equivalent::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
+pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::FindingSeverity where U: core::convert::From<T>
+pub fn nika_check::FindingSeverity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::FindingSeverity where U: core::convert::Into<T>
+pub type nika_check::FindingSeverity::Error = core::convert::Infallible
+pub fn nika_check::FindingSeverity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::FindingSeverity where U: core::convert::TryFrom<T>
+pub type nika_check::FindingSeverity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::FindingSeverity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::FindingSeverity where T: core::clone::Clone
+pub type nika_check::FindingSeverity::Owned = T
+pub fn nika_check::FindingSeverity::clone_into(&self, target: &mut T)
+pub fn nika_check::FindingSeverity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::FindingSeverity where T: 'static + ?core::marker::Sized
+pub fn nika_check::FindingSeverity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::FindingSeverity where T: ?core::marker::Sized
+pub fn nika_check::FindingSeverity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::FindingSeverity where T: ?core::marker::Sized
+pub fn nika_check::FindingSeverity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::FindingSeverity where T: core::clone::Clone
+pub unsafe fn nika_check::FindingSeverity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::FindingSeverity
+pub fn nika_check::FindingSeverity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::FindingSeverity where T: core::clone::Clone
+pub fn nika_check::FindingSeverity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::FindingSeverity where T: 'static
+pub fn nika_check::FindingSeverity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::FindingSeverity where T: core::marker::Copy
+pub fn nika_check::FindingSeverity::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check::GateFindingKind
+pub nika_check::GateFindingKind::BadStatusLiteral
+pub nika_check::GateFindingKind::DeadTask
+impl nika_check::GateFindingKind
+pub fn nika_check::GateFindingKind::wire_code(self) -> &'static str
+impl core::clone::Clone for nika_check::GateFindingKind
+pub fn nika_check::GateFindingKind::clone(&self) -> nika_check::GateFindingKind
+impl core::cmp::Eq for nika_check::GateFindingKind
+impl core::cmp::PartialEq for nika_check::GateFindingKind
+pub fn nika_check::GateFindingKind::eq(&self, other: &nika_check::GateFindingKind) -> bool
+impl core::fmt::Debug for nika_check::GateFindingKind
+pub fn nika_check::GateFindingKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::GateFindingKind
+impl core::marker::StructuralPartialEq for nika_check::GateFindingKind
+impl serde_core::ser::Serialize for nika_check::GateFindingKind
+pub fn nika_check::GateFindingKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::GateFindingKind
+impl<Q, K> equivalent::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
+pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::GateFindingKind where U: core::convert::From<T>
+pub fn nika_check::GateFindingKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::GateFindingKind where U: core::convert::Into<T>
+pub type nika_check::GateFindingKind::Error = core::convert::Infallible
+pub fn nika_check::GateFindingKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::GateFindingKind where U: core::convert::TryFrom<T>
+pub type nika_check::GateFindingKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::GateFindingKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::GateFindingKind where T: core::clone::Clone
+pub type nika_check::GateFindingKind::Owned = T
+pub fn nika_check::GateFindingKind::clone_into(&self, target: &mut T)
+pub fn nika_check::GateFindingKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::GateFindingKind where T: 'static + ?core::marker::Sized
+pub fn nika_check::GateFindingKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::GateFindingKind where T: ?core::marker::Sized
+pub fn nika_check::GateFindingKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::GateFindingKind where T: ?core::marker::Sized
+pub fn nika_check::GateFindingKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::GateFindingKind where T: core::clone::Clone
+pub unsafe fn nika_check::GateFindingKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::GateFindingKind
+pub fn nika_check::GateFindingKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::GateFindingKind where T: core::clone::Clone
+pub fn nika_check::GateFindingKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::GateFindingKind where T: 'static
+pub fn nika_check::GateFindingKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::GateFindingKind where T: core::marker::Copy
+pub fn nika_check::GateFindingKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check::PermitsSource
+pub nika_check::PermitsSource::Declared
+pub nika_check::PermitsSource::Floor
+impl core::clone::Clone for nika_check::PermitsSource
+pub fn nika_check::PermitsSource::clone(&self) -> nika_check::PermitsSource
+impl core::cmp::Eq for nika_check::PermitsSource
+impl core::cmp::PartialEq for nika_check::PermitsSource
+pub fn nika_check::PermitsSource::eq(&self, other: &nika_check::PermitsSource) -> bool
+impl core::fmt::Debug for nika_check::PermitsSource
+pub fn nika_check::PermitsSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::PermitsSource
+impl core::marker::StructuralPartialEq for nika_check::PermitsSource
+impl serde_core::ser::Serialize for nika_check::PermitsSource
+pub fn nika_check::PermitsSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::PermitsSource
+impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
+pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::PermitsSource where U: core::convert::From<T>
+pub fn nika_check::PermitsSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::PermitsSource where U: core::convert::Into<T>
+pub type nika_check::PermitsSource::Error = core::convert::Infallible
+pub fn nika_check::PermitsSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::PermitsSource where U: core::convert::TryFrom<T>
+pub type nika_check::PermitsSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::PermitsSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::PermitsSource where T: core::clone::Clone
+pub type nika_check::PermitsSource::Owned = T
+pub fn nika_check::PermitsSource::clone_into(&self, target: &mut T)
+pub fn nika_check::PermitsSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::PermitsSource where T: 'static + ?core::marker::Sized
+pub fn nika_check::PermitsSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::PermitsSource where T: ?core::marker::Sized
+pub fn nika_check::PermitsSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::PermitsSource where T: ?core::marker::Sized
+pub fn nika_check::PermitsSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::PermitsSource where T: core::clone::Clone
+pub unsafe fn nika_check::PermitsSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::PermitsSource
+pub fn nika_check::PermitsSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::PermitsSource where T: core::clone::Clone
+pub fn nika_check::PermitsSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::PermitsSource where T: 'static
+pub fn nika_check::PermitsSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::PermitsSource where T: core::marker::Copy
+pub fn nika_check::PermitsSource::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check::UnboundedReason
+pub nika_check::UnboundedReason::NoPrice
+pub nika_check::UnboundedReason::NoTokenLimit
+pub nika_check::UnboundedReason::UnknownIterations
+impl core::clone::Clone for nika_check::UnboundedReason
+pub fn nika_check::UnboundedReason::clone(&self) -> nika_check::UnboundedReason
+impl core::cmp::Eq for nika_check::UnboundedReason
+impl core::cmp::PartialEq for nika_check::UnboundedReason
+pub fn nika_check::UnboundedReason::eq(&self, other: &nika_check::UnboundedReason) -> bool
+impl core::fmt::Debug for nika_check::UnboundedReason
+pub fn nika_check::UnboundedReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::UnboundedReason
+impl core::marker::StructuralPartialEq for nika_check::UnboundedReason
+impl serde_core::ser::Serialize for nika_check::UnboundedReason
+pub fn nika_check::UnboundedReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::UnboundedReason
+impl<Q, K> equivalent::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
+pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::UnboundedReason where U: core::convert::From<T>
+pub fn nika_check::UnboundedReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::UnboundedReason where U: core::convert::Into<T>
+pub type nika_check::UnboundedReason::Error = core::convert::Infallible
+pub fn nika_check::UnboundedReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::UnboundedReason where U: core::convert::TryFrom<T>
+pub type nika_check::UnboundedReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::UnboundedReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::UnboundedReason where T: core::clone::Clone
+pub type nika_check::UnboundedReason::Owned = T
+pub fn nika_check::UnboundedReason::clone_into(&self, target: &mut T)
+pub fn nika_check::UnboundedReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::UnboundedReason where T: 'static + ?core::marker::Sized
+pub fn nika_check::UnboundedReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::UnboundedReason where T: ?core::marker::Sized
+pub fn nika_check::UnboundedReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::UnboundedReason where T: ?core::marker::Sized
+pub fn nika_check::UnboundedReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::UnboundedReason where T: core::clone::Clone
+pub unsafe fn nika_check::UnboundedReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::UnboundedReason
+pub fn nika_check::UnboundedReason::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::UnboundedReason where T: core::clone::Clone
+pub fn nika_check::UnboundedReason::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::UnboundedReason where T: 'static
+pub fn nika_check::UnboundedReason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::UnboundedReason where T: core::marker::Copy
+pub fn nika_check::UnboundedReason::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check::AnalyzedWorkflow
+pub nika_check::AnalyzedWorkflow::edges: alloc::vec::Vec<nika_check::analyzer::edges::Edge>
+pub nika_check::AnalyzedWorkflow::recovery_reads: alloc::vec::Vec<nika_check::analyzer::edges::RecoveryRead>
+pub nika_check::AnalyzedWorkflow::topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
+impl nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::new(edges: alloc::vec::Vec<nika_check::analyzer::edges::Edge>, recovery_reads: alloc::vec::Vec<nika_check::analyzer::edges::RecoveryRead>, topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
+impl core::clone::Clone for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::clone(&self) -> nika_check::analyzer::AnalyzedWorkflow
+impl core::cmp::Eq for nika_check::analyzer::AnalyzedWorkflow
+impl core::cmp::PartialEq for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::eq(&self, other: &nika_check::analyzer::AnalyzedWorkflow) -> bool
+impl core::fmt::Debug for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::analyzer::AnalyzedWorkflow
+impl<D> owo_colors::OwoColorize for nika_check::analyzer::AnalyzedWorkflow
+impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::From<T>
+pub fn nika_check::analyzer::AnalyzedWorkflow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::Into<T>
+pub type nika_check::analyzer::AnalyzedWorkflow::Error = core::convert::Infallible
+pub fn nika_check::analyzer::AnalyzedWorkflow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::TryFrom<T>
+pub type nika_check::analyzer::AnalyzedWorkflow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::analyzer::AnalyzedWorkflow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub type nika_check::analyzer::AnalyzedWorkflow::Owned = T
+pub fn nika_check::analyzer::AnalyzedWorkflow::clone_into(&self, target: &mut T)
+pub fn nika_check::analyzer::AnalyzedWorkflow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::analyzer::AnalyzedWorkflow where T: 'static + ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::analyzer::AnalyzedWorkflow where T: ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::analyzer::AnalyzedWorkflow where T: ?core::marker::Sized
+pub fn nika_check::analyzer::AnalyzedWorkflow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub unsafe fn nika_check::analyzer::AnalyzedWorkflow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::analyzer::AnalyzedWorkflow
+pub fn nika_check::analyzer::AnalyzedWorkflow::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub fn nika_check::analyzer::AnalyzedWorkflow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::analyzer::AnalyzedWorkflow where T: 'static
+pub fn nika_check::analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::Bound
+pub nika_check::Bound::constant: u64
+pub nika_check::Bound::terms: alloc::vec::Vec<nika_check::CertTerm>
+impl nika_check::Bound
+pub fn nika_check::Bound::is_zero(&self) -> bool
+impl core::clone::Clone for nika_check::Bound
+pub fn nika_check::Bound::clone(&self) -> nika_check::Bound
+impl core::cmp::Eq for nika_check::Bound
+impl core::cmp::PartialEq for nika_check::Bound
+pub fn nika_check::Bound::eq(&self, other: &nika_check::Bound) -> bool
+impl core::default::Default for nika_check::Bound
+pub fn nika_check::Bound::default() -> nika_check::Bound
+impl core::fmt::Debug for nika_check::Bound
+pub fn nika_check::Bound::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::Bound
+impl serde_core::ser::Serialize for nika_check::Bound
+pub fn nika_check::Bound::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::Bound
+impl<Q, K> equivalent::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
+pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::Bound where U: core::convert::From<T>
+pub fn nika_check::Bound::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::Bound where U: core::convert::Into<T>
+pub type nika_check::Bound::Error = core::convert::Infallible
+pub fn nika_check::Bound::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::Bound where U: core::convert::TryFrom<T>
+pub type nika_check::Bound::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::Bound::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::Bound where T: core::clone::Clone
+pub type nika_check::Bound::Owned = T
+pub fn nika_check::Bound::clone_into(&self, target: &mut T)
+pub fn nika_check::Bound::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::Bound where T: 'static + ?core::marker::Sized
+pub fn nika_check::Bound::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::Bound where T: ?core::marker::Sized
+pub fn nika_check::Bound::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::Bound where T: ?core::marker::Sized
+pub fn nika_check::Bound::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::Bound where T: core::clone::Clone
+pub unsafe fn nika_check::Bound::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::Bound
+pub fn nika_check::Bound::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::Bound where T: core::clone::Clone
+pub fn nika_check::Bound::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::Bound where T: 'static
+pub fn nika_check::Bound::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::ByteSpan
+pub nika_check::ByteSpan::end: u32
+pub nika_check::ByteSpan::start: u32
+impl nika_check::ByteSpan
+pub const fn nika_check::ByteSpan::new(start: u32, end: u32) -> Self
+impl core::clone::Clone for nika_check::ByteSpan
+pub fn nika_check::ByteSpan::clone(&self) -> nika_check::ByteSpan
+impl core::cmp::Eq for nika_check::ByteSpan
+impl core::cmp::PartialEq for nika_check::ByteSpan
+pub fn nika_check::ByteSpan::eq(&self, other: &nika_check::ByteSpan) -> bool
+impl core::fmt::Debug for nika_check::ByteSpan
+pub fn nika_check::ByteSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::ByteSpan
+impl core::marker::StructuralPartialEq for nika_check::ByteSpan
+impl serde_core::ser::Serialize for nika_check::ByteSpan
+pub fn nika_check::ByteSpan::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::ByteSpan
+impl<Q, K> equivalent::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
+pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::ByteSpan where U: core::convert::From<T>
+pub fn nika_check::ByteSpan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::ByteSpan where U: core::convert::Into<T>
+pub type nika_check::ByteSpan::Error = core::convert::Infallible
+pub fn nika_check::ByteSpan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::ByteSpan where U: core::convert::TryFrom<T>
+pub type nika_check::ByteSpan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::ByteSpan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::ByteSpan where T: core::clone::Clone
+pub type nika_check::ByteSpan::Owned = T
+pub fn nika_check::ByteSpan::clone_into(&self, target: &mut T)
+pub fn nika_check::ByteSpan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::ByteSpan where T: 'static + ?core::marker::Sized
+pub fn nika_check::ByteSpan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::ByteSpan where T: ?core::marker::Sized
+pub fn nika_check::ByteSpan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::ByteSpan where T: ?core::marker::Sized
+pub fn nika_check::ByteSpan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::ByteSpan where T: core::clone::Clone
+pub unsafe fn nika_check::ByteSpan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::ByteSpan
+pub fn nika_check::ByteSpan::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::ByteSpan where T: core::clone::Clone
+pub fn nika_check::ByteSpan::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::ByteSpan where T: 'static
+pub fn nika_check::ByteSpan::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::ByteSpan where T: core::marker::Copy
+pub fn nika_check::ByteSpan::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check::CapabilityEscape
+pub nika_check::CapabilityEscape::category: &'static str
+pub nika_check::CapabilityEscape::detail: alloc::string::String
+pub nika_check::CapabilityEscape::fix: core::option::Option<alloc::string::String>
+pub nika_check::CapabilityEscape::floor: bool
+pub nika_check::CapabilityEscape::task: alloc::string::String
+impl core::clone::Clone for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::clone(&self) -> nika_check::permits_fit::CapabilityEscape
+impl core::cmp::Eq for nika_check::permits_fit::CapabilityEscape
+impl core::cmp::PartialEq for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::eq(&self, other: &nika_check::permits_fit::CapabilityEscape) -> bool
+impl core::fmt::Debug for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::permits_fit::CapabilityEscape
+impl serde_core::ser::Serialize for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::permits_fit::CapabilityEscape
+impl<Q, K> equivalent::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::From<T>
+pub fn nika_check::permits_fit::CapabilityEscape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::Into<T>
+pub type nika_check::permits_fit::CapabilityEscape::Error = core::convert::Infallible
+pub fn nika_check::permits_fit::CapabilityEscape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::TryFrom<T>
+pub type nika_check::permits_fit::CapabilityEscape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::permits_fit::CapabilityEscape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub type nika_check::permits_fit::CapabilityEscape::Owned = T
+pub fn nika_check::permits_fit::CapabilityEscape::clone_into(&self, target: &mut T)
+pub fn nika_check::permits_fit::CapabilityEscape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::permits_fit::CapabilityEscape where T: 'static + ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::permits_fit::CapabilityEscape where T: ?core::marker::Sized
+pub fn nika_check::permits_fit::CapabilityEscape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub unsafe fn nika_check::permits_fit::CapabilityEscape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::permits_fit::CapabilityEscape
+pub fn nika_check::permits_fit::CapabilityEscape::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::permits_fit::CapabilityEscape where T: core::clone::Clone
+pub fn nika_check::permits_fit::CapabilityEscape::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::permits_fit::CapabilityEscape where T: 'static
+pub fn nika_check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::CertTerm
+pub nika_check::CertTerm::coeff: u64
+pub nika_check::CertTerm::task: alloc::string::String
+impl core::clone::Clone for nika_check::CertTerm
+pub fn nika_check::CertTerm::clone(&self) -> nika_check::CertTerm
+impl core::cmp::Eq for nika_check::CertTerm
+impl core::cmp::PartialEq for nika_check::CertTerm
+pub fn nika_check::CertTerm::eq(&self, other: &nika_check::CertTerm) -> bool
+impl core::fmt::Debug for nika_check::CertTerm
+pub fn nika_check::CertTerm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::CertTerm
+impl serde_core::ser::Serialize for nika_check::CertTerm
+pub fn nika_check::CertTerm::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::CertTerm
+impl<Q, K> equivalent::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
+pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::CertTerm where U: core::convert::From<T>
+pub fn nika_check::CertTerm::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::CertTerm where U: core::convert::Into<T>
+pub type nika_check::CertTerm::Error = core::convert::Infallible
+pub fn nika_check::CertTerm::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::CertTerm where U: core::convert::TryFrom<T>
+pub type nika_check::CertTerm::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::CertTerm::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::CertTerm where T: core::clone::Clone
+pub type nika_check::CertTerm::Owned = T
+pub fn nika_check::CertTerm::clone_into(&self, target: &mut T)
+pub fn nika_check::CertTerm::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::CertTerm where T: 'static + ?core::marker::Sized
+pub fn nika_check::CertTerm::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::CertTerm where T: ?core::marker::Sized
+pub fn nika_check::CertTerm::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::CertTerm where T: ?core::marker::Sized
+pub fn nika_check::CertTerm::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::CertTerm where T: core::clone::Clone
+pub unsafe fn nika_check::CertTerm::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::CertTerm
+pub fn nika_check::CertTerm::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::CertTerm where T: core::clone::Clone
+pub fn nika_check::CertTerm::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::CertTerm where T: 'static
+pub fn nika_check::CertTerm::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::CheckReport
+pub nika_check::CheckReport::analysis: core::option::Option<nika_check::DagAnalysis>
+pub nika_check::CheckReport::capability_escapes: alloc::vec::Vec<nika_check::permits_fit::CapabilityEscape>
+pub nika_check::CheckReport::certificate: nika_check::RunCertificate
+pub nika_check::CheckReport::composition: alloc::vec::Vec<nika_check::CompositionFinding>
+pub nika_check::CheckReport::conformance: alloc::vec::Vec<nika_check::ConformanceViolation>
+pub nika_check::CheckReport::cost: nika_check::CostCeiling
+pub nika_check::CheckReport::findings: alloc::vec::Vec<nika_check::UnifiedFinding>
+pub nika_check::CheckReport::gate_findings: alloc::vec::Vec<nika_check::GateFinding>
+pub nika_check::CheckReport::hints: alloc::vec::Vec<nika_check::Hint>
+pub nika_check::CheckReport::missing_args: alloc::vec::Vec<nika_check::MissingArg>
+pub nika_check::CheckReport::permits: nika_check::EffectivePermits
+pub nika_check::CheckReport::policy_findings: alloc::vec::Vec<nika_cap::policy::PolicyViolation>
+pub nika_check::CheckReport::report_version: u32
+pub nika_check::CheckReport::requirements: nika_check::Requirements
+pub nika_check::CheckReport::schema_findings: alloc::vec::Vec<nika_check::SchemaTypeFinding>
+pub nika_check::CheckReport::schema_lints: alloc::vec::Vec<nika_check::SchemaLintFinding>
+pub nika_check::CheckReport::secret_egresses: alloc::vec::Vec<nika_check::SecretEgress>
+pub nika_check::CheckReport::secret_leaks: alloc::vec::Vec<nika_check::SecretLeak>
+pub nika_check::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
+pub nika_check::CheckReport::unknown_args: alloc::vec::Vec<nika_check::UnknownArg>
+pub nika_check::CheckReport::unknown_tools: alloc::vec::Vec<nika_check::UnknownTool>
+pub nika_check::CheckReport::waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
+impl nika_check::CheckReport
+pub fn nika_check::CheckReport::extra_conformance_codes(&self) -> alloc::vec::Vec<nika_schema::error::spec_code::SpecCode>
+pub fn nika_check::CheckReport::is_clean(&self) -> bool
+impl core::clone::Clone for nika_check::CheckReport
+pub fn nika_check::CheckReport::clone(&self) -> nika_check::CheckReport
+impl core::fmt::Debug for nika_check::CheckReport
+pub fn nika_check::CheckReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_check::CheckReport
+pub fn nika_check::CheckReport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::CheckReport
+impl<T, U> core::convert::Into<U> for nika_check::CheckReport where U: core::convert::From<T>
+pub fn nika_check::CheckReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::CheckReport where U: core::convert::Into<T>
+pub type nika_check::CheckReport::Error = core::convert::Infallible
+pub fn nika_check::CheckReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::CheckReport where U: core::convert::TryFrom<T>
+pub type nika_check::CheckReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::CheckReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::CheckReport where T: core::clone::Clone
+pub type nika_check::CheckReport::Owned = T
+pub fn nika_check::CheckReport::clone_into(&self, target: &mut T)
+pub fn nika_check::CheckReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::CheckReport where T: 'static + ?core::marker::Sized
+pub fn nika_check::CheckReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::CheckReport where T: ?core::marker::Sized
+pub fn nika_check::CheckReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::CheckReport where T: ?core::marker::Sized
+pub fn nika_check::CheckReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::CheckReport where T: core::clone::Clone
+pub unsafe fn nika_check::CheckReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::CheckReport
+pub fn nika_check::CheckReport::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::CheckReport where T: core::clone::Clone
+pub fn nika_check::CheckReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::CheckReport where T: 'static
+pub fn nika_check::CheckReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::CompositionFinding
+pub nika_check::CompositionFinding::code: &'static str
+pub nika_check::CompositionFinding::detail: alloc::string::String
+pub nika_check::CompositionFinding::span: nika_check::ByteSpan
+pub nika_check::CompositionFinding::target: alloc::string::String
+pub nika_check::CompositionFinding::task: alloc::string::String
+impl nika_check::CompositionFinding
+pub fn nika_check::CompositionFinding::row(&self) -> alloc::string::String
+impl core::clone::Clone for nika_check::CompositionFinding
+pub fn nika_check::CompositionFinding::clone(&self) -> nika_check::CompositionFinding
+impl core::cmp::Eq for nika_check::CompositionFinding
+impl core::cmp::PartialEq for nika_check::CompositionFinding
+pub fn nika_check::CompositionFinding::eq(&self, other: &nika_check::CompositionFinding) -> bool
+impl core::fmt::Debug for nika_check::CompositionFinding
+pub fn nika_check::CompositionFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::CompositionFinding
+impl serde_core::ser::Serialize for nika_check::CompositionFinding
+pub fn nika_check::CompositionFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::CompositionFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::CompositionFinding where U: core::convert::From<T>
+pub fn nika_check::CompositionFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::CompositionFinding where U: core::convert::Into<T>
+pub type nika_check::CompositionFinding::Error = core::convert::Infallible
+pub fn nika_check::CompositionFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::CompositionFinding where U: core::convert::TryFrom<T>
+pub type nika_check::CompositionFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::CompositionFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::CompositionFinding where T: core::clone::Clone
+pub type nika_check::CompositionFinding::Owned = T
+pub fn nika_check::CompositionFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::CompositionFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::CompositionFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::CompositionFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::CompositionFinding where T: ?core::marker::Sized
+pub fn nika_check::CompositionFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::CompositionFinding where T: ?core::marker::Sized
+pub fn nika_check::CompositionFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::CompositionFinding where T: core::clone::Clone
+pub unsafe fn nika_check::CompositionFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::CompositionFinding
+pub fn nika_check::CompositionFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::CompositionFinding where T: core::clone::Clone
+pub fn nika_check::CompositionFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::CompositionFinding where T: 'static
+pub fn nika_check::CompositionFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::ConformanceViolation
+pub nika_check::ConformanceViolation::code: alloc::string::String
+pub nika_check::ConformanceViolation::docs_url: alloc::string::String
+pub nika_check::ConformanceViolation::message: alloc::string::String
+pub nika_check::ConformanceViolation::offending: core::option::Option<alloc::string::String>
+pub nika_check::ConformanceViolation::severity: nika_check::FindingSeverity
+pub nika_check::ConformanceViolation::span: core::option::Option<nika_check::ByteSpan>
+pub nika_check::ConformanceViolation::suggestion: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_check::ConformanceViolation
+pub fn nika_check::ConformanceViolation::clone(&self) -> nika_check::ConformanceViolation
+impl core::cmp::Eq for nika_check::ConformanceViolation
+impl core::cmp::PartialEq for nika_check::ConformanceViolation
+pub fn nika_check::ConformanceViolation::eq(&self, other: &nika_check::ConformanceViolation) -> bool
+impl core::fmt::Debug for nika_check::ConformanceViolation
+pub fn nika_check::ConformanceViolation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::ConformanceViolation
+impl serde_core::ser::Serialize for nika_check::ConformanceViolation
+pub fn nika_check::ConformanceViolation::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::ConformanceViolation
+impl<Q, K> equivalent::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
+pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::ConformanceViolation where U: core::convert::From<T>
+pub fn nika_check::ConformanceViolation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::ConformanceViolation where U: core::convert::Into<T>
+pub type nika_check::ConformanceViolation::Error = core::convert::Infallible
+pub fn nika_check::ConformanceViolation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::ConformanceViolation where U: core::convert::TryFrom<T>
+pub type nika_check::ConformanceViolation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::ConformanceViolation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::ConformanceViolation where T: core::clone::Clone
+pub type nika_check::ConformanceViolation::Owned = T
+pub fn nika_check::ConformanceViolation::clone_into(&self, target: &mut T)
+pub fn nika_check::ConformanceViolation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::ConformanceViolation where T: 'static + ?core::marker::Sized
+pub fn nika_check::ConformanceViolation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::ConformanceViolation where T: ?core::marker::Sized
+pub fn nika_check::ConformanceViolation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::ConformanceViolation where T: ?core::marker::Sized
+pub fn nika_check::ConformanceViolation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::ConformanceViolation where T: core::clone::Clone
+pub unsafe fn nika_check::ConformanceViolation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::ConformanceViolation
+pub fn nika_check::ConformanceViolation::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::ConformanceViolation where T: core::clone::Clone
+pub fn nika_check::ConformanceViolation::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::ConformanceViolation where T: 'static
+pub fn nika_check::ConformanceViolation::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::CostCeiling
+pub nika_check::CostCeiling::bounded_total_usd: f64
+pub nika_check::CostCeiling::has_unbounded: bool
+pub nika_check::CostCeiling::min_path_total_usd: f64
+pub nika_check::CostCeiling::tasks: alloc::vec::Vec<nika_check::TaskCost>
+impl core::clone::Clone for nika_check::CostCeiling
+pub fn nika_check::CostCeiling::clone(&self) -> nika_check::CostCeiling
+impl core::cmp::PartialEq for nika_check::CostCeiling
+pub fn nika_check::CostCeiling::eq(&self, other: &nika_check::CostCeiling) -> bool
+impl core::fmt::Debug for nika_check::CostCeiling
+pub fn nika_check::CostCeiling::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::CostCeiling
+impl serde_core::ser::Serialize for nika_check::CostCeiling
+pub fn nika_check::CostCeiling::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::CostCeiling
+impl<T, U> core::convert::Into<U> for nika_check::CostCeiling where U: core::convert::From<T>
+pub fn nika_check::CostCeiling::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::CostCeiling where U: core::convert::Into<T>
+pub type nika_check::CostCeiling::Error = core::convert::Infallible
+pub fn nika_check::CostCeiling::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::CostCeiling where U: core::convert::TryFrom<T>
+pub type nika_check::CostCeiling::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::CostCeiling::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::CostCeiling where T: core::clone::Clone
+pub type nika_check::CostCeiling::Owned = T
+pub fn nika_check::CostCeiling::clone_into(&self, target: &mut T)
+pub fn nika_check::CostCeiling::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::CostCeiling where T: 'static + ?core::marker::Sized
+pub fn nika_check::CostCeiling::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::CostCeiling where T: ?core::marker::Sized
+pub fn nika_check::CostCeiling::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::CostCeiling where T: ?core::marker::Sized
+pub fn nika_check::CostCeiling::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::CostCeiling where T: core::clone::Clone
+pub unsafe fn nika_check::CostCeiling::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::CostCeiling
+pub fn nika_check::CostCeiling::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::CostCeiling where T: core::clone::Clone
+pub fn nika_check::CostCeiling::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::CostCeiling where T: 'static
+pub fn nika_check::CostCeiling::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::DagAnalysis
+pub nika_check::DagAnalysis::blast_radius: alloc::vec::Vec<nika_check::TaskBlast>
+pub nika_check::DagAnalysis::pinch_points: alloc::vec::Vec<alloc::string::String>
+pub nika_check::DagAnalysis::width: usize
+pub nika_check::DagAnalysis::width_witness: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_check::DagAnalysis
+pub fn nika_check::DagAnalysis::clone(&self) -> nika_check::DagAnalysis
+impl core::fmt::Debug for nika_check::DagAnalysis
+pub fn nika_check::DagAnalysis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_check::DagAnalysis
+pub fn nika_check::DagAnalysis::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::DagAnalysis
+impl<T, U> core::convert::Into<U> for nika_check::DagAnalysis where U: core::convert::From<T>
+pub fn nika_check::DagAnalysis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::DagAnalysis where U: core::convert::Into<T>
+pub type nika_check::DagAnalysis::Error = core::convert::Infallible
+pub fn nika_check::DagAnalysis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::DagAnalysis where U: core::convert::TryFrom<T>
+pub type nika_check::DagAnalysis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::DagAnalysis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::DagAnalysis where T: core::clone::Clone
+pub type nika_check::DagAnalysis::Owned = T
+pub fn nika_check::DagAnalysis::clone_into(&self, target: &mut T)
+pub fn nika_check::DagAnalysis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::DagAnalysis where T: 'static + ?core::marker::Sized
+pub fn nika_check::DagAnalysis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::DagAnalysis where T: ?core::marker::Sized
+pub fn nika_check::DagAnalysis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::DagAnalysis where T: ?core::marker::Sized
+pub fn nika_check::DagAnalysis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::DagAnalysis where T: core::clone::Clone
+pub unsafe fn nika_check::DagAnalysis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::DagAnalysis
+pub fn nika_check::DagAnalysis::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::DagAnalysis where T: core::clone::Clone
+pub fn nika_check::DagAnalysis::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::DagAnalysis where T: 'static
+pub fn nika_check::DagAnalysis::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::EffectivePermits
+pub nika_check::EffectivePermits::declared: core::option::Option<nika_cap::permits::Permits>
+pub nika_check::EffectivePermits::needed: nika_cap::permits::Permits
+pub nika_check::EffectivePermits::notes: alloc::vec::Vec<alloc::string::String>
+pub nika_check::EffectivePermits::source: nika_check::PermitsSource
+impl core::clone::Clone for nika_check::EffectivePermits
+pub fn nika_check::EffectivePermits::clone(&self) -> nika_check::EffectivePermits
+impl core::fmt::Debug for nika_check::EffectivePermits
+pub fn nika_check::EffectivePermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_check::EffectivePermits
+pub fn nika_check::EffectivePermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::EffectivePermits
+impl<T, U> core::convert::Into<U> for nika_check::EffectivePermits where U: core::convert::From<T>
+pub fn nika_check::EffectivePermits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::EffectivePermits where U: core::convert::Into<T>
+pub type nika_check::EffectivePermits::Error = core::convert::Infallible
+pub fn nika_check::EffectivePermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::EffectivePermits where U: core::convert::TryFrom<T>
+pub type nika_check::EffectivePermits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::EffectivePermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::EffectivePermits where T: core::clone::Clone
+pub type nika_check::EffectivePermits::Owned = T
+pub fn nika_check::EffectivePermits::clone_into(&self, target: &mut T)
+pub fn nika_check::EffectivePermits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::EffectivePermits where T: 'static + ?core::marker::Sized
+pub fn nika_check::EffectivePermits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::EffectivePermits where T: ?core::marker::Sized
+pub fn nika_check::EffectivePermits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::EffectivePermits where T: ?core::marker::Sized
+pub fn nika_check::EffectivePermits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::EffectivePermits where T: core::clone::Clone
+pub unsafe fn nika_check::EffectivePermits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::EffectivePermits
+pub fn nika_check::EffectivePermits::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::EffectivePermits where T: core::clone::Clone
+pub fn nika_check::EffectivePermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::EffectivePermits where T: 'static
+pub fn nika_check::EffectivePermits::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::FlowFacts
+impl nika_check::FlowFacts
+pub fn nika_check::FlowFacts::effect_leak(&self, task: usize) -> core::option::Option<&nika_check::TaintTrace>
+pub fn nika_check::FlowFacts::effect_taint(&self, task: usize) -> core::option::Option<&nika_check::TaintTrace>
+pub fn nika_check::FlowFacts::egresses(&self) -> alloc::vec::Vec<(&str, &nika_check::TaintTrace)>
+pub fn nika_check::FlowFacts::finally_effect_taint(&self, task: usize) -> core::option::Option<(&nika_check::TaintTrace, &'static str, usize)>
+impl core::clone::Clone for nika_check::FlowFacts
+pub fn nika_check::FlowFacts::clone(&self) -> nika_check::FlowFacts
+impl core::default::Default for nika_check::FlowFacts
+pub fn nika_check::FlowFacts::default() -> nika_check::FlowFacts
+impl core::fmt::Debug for nika_check::FlowFacts
+pub fn nika_check::FlowFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_check::FlowFacts
+impl<T, U> core::convert::Into<U> for nika_check::FlowFacts where U: core::convert::From<T>
+pub fn nika_check::FlowFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::FlowFacts where U: core::convert::Into<T>
+pub type nika_check::FlowFacts::Error = core::convert::Infallible
+pub fn nika_check::FlowFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::FlowFacts where U: core::convert::TryFrom<T>
+pub type nika_check::FlowFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::FlowFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::FlowFacts where T: core::clone::Clone
+pub type nika_check::FlowFacts::Owned = T
+pub fn nika_check::FlowFacts::clone_into(&self, target: &mut T)
+pub fn nika_check::FlowFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::FlowFacts where T: 'static + ?core::marker::Sized
+pub fn nika_check::FlowFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::FlowFacts where T: ?core::marker::Sized
+pub fn nika_check::FlowFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::FlowFacts where T: ?core::marker::Sized
+pub fn nika_check::FlowFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::FlowFacts where T: core::clone::Clone
+pub unsafe fn nika_check::FlowFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::FlowFacts
+pub fn nika_check::FlowFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::FlowFacts where T: core::clone::Clone
+pub fn nika_check::FlowFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::FlowFacts where T: 'static
+pub fn nika_check::FlowFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::GateFinding
+pub nika_check::GateFinding::detail: alloc::string::String
+pub nika_check::GateFinding::fix: core::option::Option<alloc::string::String>
+pub nika_check::GateFinding::kind: nika_check::GateFindingKind
+pub nika_check::GateFinding::span: core::option::Option<nika_check::ByteSpan>
+pub nika_check::GateFinding::task: alloc::string::String
+impl core::clone::Clone for nika_check::GateFinding
+pub fn nika_check::GateFinding::clone(&self) -> nika_check::GateFinding
+impl core::cmp::PartialEq for nika_check::GateFinding
+pub fn nika_check::GateFinding::eq(&self, other: &nika_check::GateFinding) -> bool
+impl core::fmt::Debug for nika_check::GateFinding
+pub fn nika_check::GateFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::GateFinding
+impl serde_core::ser::Serialize for nika_check::GateFinding
+pub fn nika_check::GateFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::GateFinding
+impl<T, U> core::convert::Into<U> for nika_check::GateFinding where U: core::convert::From<T>
+pub fn nika_check::GateFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::GateFinding where U: core::convert::Into<T>
+pub type nika_check::GateFinding::Error = core::convert::Infallible
+pub fn nika_check::GateFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::GateFinding where U: core::convert::TryFrom<T>
+pub type nika_check::GateFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::GateFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::GateFinding where T: core::clone::Clone
+pub type nika_check::GateFinding::Owned = T
+pub fn nika_check::GateFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::GateFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::GateFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::GateFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::GateFinding where T: ?core::marker::Sized
+pub fn nika_check::GateFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::GateFinding where T: ?core::marker::Sized
+pub fn nika_check::GateFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::GateFinding where T: core::clone::Clone
+pub unsafe fn nika_check::GateFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::GateFinding
+pub fn nika_check::GateFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::GateFinding where T: core::clone::Clone
+pub fn nika_check::GateFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::GateFinding where T: 'static
+pub fn nika_check::GateFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::Hint
+pub nika_check::Hint::advice: alloc::string::String
+pub nika_check::Hint::kind: &'static str
+pub nika_check::Hint::task: alloc::string::String
+impl core::clone::Clone for nika_check::Hint
+pub fn nika_check::Hint::clone(&self) -> nika_check::Hint
+impl core::cmp::Eq for nika_check::Hint
+impl core::cmp::PartialEq for nika_check::Hint
+pub fn nika_check::Hint::eq(&self, other: &nika_check::Hint) -> bool
+impl core::fmt::Debug for nika_check::Hint
+pub fn nika_check::Hint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::Hint
+impl serde_core::ser::Serialize for nika_check::Hint
+pub fn nika_check::Hint::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::Hint
+impl<Q, K> equivalent::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
+pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::Hint where U: core::convert::From<T>
+pub fn nika_check::Hint::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::Hint where U: core::convert::Into<T>
+pub type nika_check::Hint::Error = core::convert::Infallible
+pub fn nika_check::Hint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::Hint where U: core::convert::TryFrom<T>
+pub type nika_check::Hint::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::Hint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::Hint where T: core::clone::Clone
+pub type nika_check::Hint::Owned = T
+pub fn nika_check::Hint::clone_into(&self, target: &mut T)
+pub fn nika_check::Hint::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::Hint where T: 'static + ?core::marker::Sized
+pub fn nika_check::Hint::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::Hint where T: ?core::marker::Sized
+pub fn nika_check::Hint::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::Hint where T: ?core::marker::Sized
+pub fn nika_check::Hint::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::Hint where T: core::clone::Clone
+pub unsafe fn nika_check::Hint::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::Hint
+pub fn nika_check::Hint::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::Hint where T: core::clone::Clone
+pub fn nika_check::Hint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::Hint where T: 'static
+pub fn nika_check::Hint::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::InferredPermits
+pub nika_check::InferredPermits::notes: alloc::vec::Vec<alloc::string::String>
+pub nika_check::InferredPermits::permits: nika_cap::permits::Permits
+impl nika_check::InferredPermits
+pub fn nika_check::InferredPermits::to_yaml(&self) -> alloc::string::String
+impl core::clone::Clone for nika_check::InferredPermits
+pub fn nika_check::InferredPermits::clone(&self) -> nika_check::InferredPermits
+impl core::cmp::Eq for nika_check::InferredPermits
+impl core::cmp::PartialEq for nika_check::InferredPermits
+pub fn nika_check::InferredPermits::eq(&self, other: &nika_check::InferredPermits) -> bool
+impl core::fmt::Debug for nika_check::InferredPermits
+pub fn nika_check::InferredPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::InferredPermits
+impl<D> owo_colors::OwoColorize for nika_check::InferredPermits
+impl<Q, K> equivalent::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
+pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::InferredPermits where U: core::convert::From<T>
+pub fn nika_check::InferredPermits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::InferredPermits where U: core::convert::Into<T>
+pub type nika_check::InferredPermits::Error = core::convert::Infallible
+pub fn nika_check::InferredPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::InferredPermits where U: core::convert::TryFrom<T>
+pub type nika_check::InferredPermits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::InferredPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::InferredPermits where T: core::clone::Clone
+pub type nika_check::InferredPermits::Owned = T
+pub fn nika_check::InferredPermits::clone_into(&self, target: &mut T)
+pub fn nika_check::InferredPermits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::InferredPermits where T: 'static + ?core::marker::Sized
+pub fn nika_check::InferredPermits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::InferredPermits where T: ?core::marker::Sized
+pub fn nika_check::InferredPermits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::InferredPermits where T: ?core::marker::Sized
+pub fn nika_check::InferredPermits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::InferredPermits where T: core::clone::Clone
+pub unsafe fn nika_check::InferredPermits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::InferredPermits
+pub fn nika_check::InferredPermits::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::InferredPermits where T: core::clone::Clone
+pub fn nika_check::InferredPermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::InferredPermits where T: 'static
+pub fn nika_check::InferredPermits::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::MissingArg
+pub nika_check::MissingArg::arg: alloc::string::String
+pub nika_check::MissingArg::task: alloc::string::String
+pub nika_check::MissingArg::tool: alloc::string::String
+impl core::clone::Clone for nika_check::MissingArg
+pub fn nika_check::MissingArg::clone(&self) -> nika_check::MissingArg
+impl core::cmp::Eq for nika_check::MissingArg
+impl core::cmp::PartialEq for nika_check::MissingArg
+pub fn nika_check::MissingArg::eq(&self, other: &nika_check::MissingArg) -> bool
+impl core::fmt::Debug for nika_check::MissingArg
+pub fn nika_check::MissingArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::MissingArg
+impl serde_core::ser::Serialize for nika_check::MissingArg
+pub fn nika_check::MissingArg::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::MissingArg
+impl<Q, K> equivalent::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
+pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::MissingArg where U: core::convert::From<T>
+pub fn nika_check::MissingArg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::MissingArg where U: core::convert::Into<T>
+pub type nika_check::MissingArg::Error = core::convert::Infallible
+pub fn nika_check::MissingArg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::MissingArg where U: core::convert::TryFrom<T>
+pub type nika_check::MissingArg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::MissingArg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::MissingArg where T: core::clone::Clone
+pub type nika_check::MissingArg::Owned = T
+pub fn nika_check::MissingArg::clone_into(&self, target: &mut T)
+pub fn nika_check::MissingArg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::MissingArg where T: 'static + ?core::marker::Sized
+pub fn nika_check::MissingArg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::MissingArg where T: ?core::marker::Sized
+pub fn nika_check::MissingArg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::MissingArg where T: ?core::marker::Sized
+pub fn nika_check::MissingArg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::MissingArg where T: core::clone::Clone
+pub unsafe fn nika_check::MissingArg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::MissingArg
+pub fn nika_check::MissingArg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::MissingArg where T: core::clone::Clone
+pub fn nika_check::MissingArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::MissingArg where T: 'static
+pub fn nika_check::MissingArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_check::ModelRequirement
+pub nika_check::ModelRequirement::model: alloc::string::String
+pub nika_check::ModelRequirement::tasks: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_check::ModelRequirement
+pub fn nika_check::ModelRequirement::clone(&self) -> nika_check::ModelRequirement
+impl core::cmp::Eq for nika_check::ModelRequirement
+impl core::cmp::PartialEq for nika_check::ModelRequirement
+pub fn nika_check::ModelRequirement::eq(&self, other: &nika_check::ModelRequirement) -> bool
+impl core::fmt::Debug for nika_check::ModelRequirement
+pub fn nika_check::ModelRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::ModelRequirement
+impl serde_core::ser::Serialize for nika_check::ModelRequirement
+pub fn nika_check::ModelRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::ModelRequirement
+impl<Q, K> equivalent::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
+pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::ModelRequirement where U: core::convert::From<T>
+pub fn nika_check::ModelRequirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::ModelRequirement where U: core::convert::Into<T>
+pub type nika_check::ModelRequirement::Error = core::convert::Infallible
+pub fn nika_check::ModelRequirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::ModelRequirement where U: core::convert::TryFrom<T>
+pub type nika_check::ModelRequirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::ModelRequirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::ModelRequirement where T: core::clone::Clone
+pub type nika_check::ModelRequirement::Owned = T
+pub fn nika_check::ModelRequirement::clone_into(&self, target: &mut T)
+pub fn nika_check::ModelRequirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::ModelRequirement where T: 'static + ?core::marker::Sized
+pub fn nika_check::ModelRequirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::ModelRequirement where T: ?core::marker::Sized
+pub fn nika_check::ModelRequirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::ModelRequirement where T: ?core::marker::Sized
+pub fn nika_check::ModelRequirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::ModelRequirement where T: core::clone::Clone
+pub unsafe fn nika_check::ModelRequirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::ModelRequirement
+pub fn nika_check::ModelRequirement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::ModelRequirement where T: core::clone::Clone
+pub fn nika_check::ModelRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::ModelRequirement where T: 'static
+pub fn nika_check::ModelRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_check::Requirements
+pub nika_check::Requirements::config_defined: alloc::vec::Vec<alloc::string::String>
+pub nika_check::Requirements::config_reads: alloc::vec::Vec<alloc::string::String>
+pub nika_check::Requirements::inputs_required: alloc::vec::Vec<alloc::string::String>
+pub nika_check::Requirements::models: alloc::vec::Vec<nika_check::ModelRequirement>
+pub nika_check::Requirements::secrets: alloc::vec::Vec<nika_check::SecretRequirement>
+impl core::clone::Clone for nika_check::Requirements
+pub fn nika_check::Requirements::clone(&self) -> nika_check::Requirements
+impl core::cmp::Eq for nika_check::Requirements
+impl core::cmp::PartialEq for nika_check::Requirements
+pub fn nika_check::Requirements::eq(&self, other: &nika_check::Requirements) -> bool
+impl core::default::Default for nika_check::Requirements
+pub fn nika_check::Requirements::default() -> nika_check::Requirements
+impl core::fmt::Debug for nika_check::Requirements
+pub fn nika_check::Requirements::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::Requirements
+impl serde_core::ser::Serialize for nika_check::Requirements
+pub fn nika_check::Requirements::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::Requirements
+impl<Q, K> equivalent::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
+pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::Requirements where U: core::convert::From<T>
+pub fn nika_check::Requirements::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::Requirements where U: core::convert::Into<T>
+pub type nika_check::Requirements::Error = core::convert::Infallible
+pub fn nika_check::Requirements::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::Requirements where U: core::convert::TryFrom<T>
+pub type nika_check::Requirements::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::Requirements::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::Requirements where T: core::clone::Clone
+pub type nika_check::Requirements::Owned = T
+pub fn nika_check::Requirements::clone_into(&self, target: &mut T)
+pub fn nika_check::Requirements::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::Requirements where T: 'static + ?core::marker::Sized
+pub fn nika_check::Requirements::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::Requirements where T: ?core::marker::Sized
+pub fn nika_check::Requirements::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::Requirements where T: ?core::marker::Sized
+pub fn nika_check::Requirements::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::Requirements where T: core::clone::Clone
+pub unsafe fn nika_check::Requirements::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::Requirements
+pub fn nika_check::Requirements::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::Requirements where T: core::clone::Clone
+pub fn nika_check::Requirements::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::Requirements where T: 'static
+pub fn nika_check::Requirements::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::RunCertificate
+pub nika_check::RunCertificate::derivation: alloc::vec::Vec<nika_check::certificate::TaskContribution>
+pub nika_check::RunCertificate::effect_calls: nika_check::Bound
+pub nika_check::RunCertificate::effects: nika_cap::policy::CertEffects
+pub nika_check::RunCertificate::llm_calls: nika_check::Bound
+pub nika_check::RunCertificate::span_attempts: u64
+pub nika_check::RunCertificate::task_attempts: nika_check::Bound
+pub nika_check::RunCertificate::usd_micros: core::option::Option<nika_check::Bound>
+impl nika_check::RunCertificate
+pub fn nika_check::RunCertificate::audit(&self, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<(), alloc::string::String>
+impl core::clone::Clone for nika_check::RunCertificate
+pub fn nika_check::RunCertificate::clone(&self) -> nika_check::RunCertificate
+impl core::cmp::Eq for nika_check::RunCertificate
+impl core::cmp::PartialEq for nika_check::RunCertificate
+pub fn nika_check::RunCertificate::eq(&self, other: &nika_check::RunCertificate) -> bool
+impl core::default::Default for nika_check::RunCertificate
+pub fn nika_check::RunCertificate::default() -> nika_check::RunCertificate
+impl core::fmt::Debug for nika_check::RunCertificate
+pub fn nika_check::RunCertificate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::RunCertificate
+impl serde_core::ser::Serialize for nika_check::RunCertificate
+pub fn nika_check::RunCertificate::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::RunCertificate
+impl<Q, K> equivalent::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
+pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::RunCertificate where U: core::convert::From<T>
+pub fn nika_check::RunCertificate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::RunCertificate where U: core::convert::Into<T>
+pub type nika_check::RunCertificate::Error = core::convert::Infallible
+pub fn nika_check::RunCertificate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::RunCertificate where U: core::convert::TryFrom<T>
+pub type nika_check::RunCertificate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::RunCertificate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::RunCertificate where T: core::clone::Clone
+pub type nika_check::RunCertificate::Owned = T
+pub fn nika_check::RunCertificate::clone_into(&self, target: &mut T)
+pub fn nika_check::RunCertificate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::RunCertificate where T: 'static + ?core::marker::Sized
+pub fn nika_check::RunCertificate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::RunCertificate where T: ?core::marker::Sized
+pub fn nika_check::RunCertificate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::RunCertificate where T: ?core::marker::Sized
+pub fn nika_check::RunCertificate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::RunCertificate where T: core::clone::Clone
+pub unsafe fn nika_check::RunCertificate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::RunCertificate
+pub fn nika_check::RunCertificate::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::RunCertificate where T: core::clone::Clone
+pub fn nika_check::RunCertificate::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::RunCertificate where T: 'static
+pub fn nika_check::RunCertificate::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SchemaLintFinding
+pub nika_check::SchemaLintFinding::detail: alloc::string::String
+pub nika_check::SchemaLintFinding::path: alloc::string::String
+pub nika_check::SchemaLintFinding::task: alloc::string::String
+impl core::clone::Clone for nika_check::SchemaLintFinding
+pub fn nika_check::SchemaLintFinding::clone(&self) -> nika_check::SchemaLintFinding
+impl core::cmp::Eq for nika_check::SchemaLintFinding
+impl core::cmp::PartialEq for nika_check::SchemaLintFinding
+pub fn nika_check::SchemaLintFinding::eq(&self, other: &nika_check::SchemaLintFinding) -> bool
+impl core::fmt::Debug for nika_check::SchemaLintFinding
+pub fn nika_check::SchemaLintFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SchemaLintFinding
+impl serde_core::ser::Serialize for nika_check::SchemaLintFinding
+pub fn nika_check::SchemaLintFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SchemaLintFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SchemaLintFinding where U: core::convert::From<T>
+pub fn nika_check::SchemaLintFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SchemaLintFinding where U: core::convert::Into<T>
+pub type nika_check::SchemaLintFinding::Error = core::convert::Infallible
+pub fn nika_check::SchemaLintFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SchemaLintFinding where U: core::convert::TryFrom<T>
+pub type nika_check::SchemaLintFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SchemaLintFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SchemaLintFinding where T: core::clone::Clone
+pub type nika_check::SchemaLintFinding::Owned = T
+pub fn nika_check::SchemaLintFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::SchemaLintFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SchemaLintFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::SchemaLintFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SchemaLintFinding where T: ?core::marker::Sized
+pub fn nika_check::SchemaLintFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SchemaLintFinding where T: ?core::marker::Sized
+pub fn nika_check::SchemaLintFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SchemaLintFinding where T: core::clone::Clone
+pub unsafe fn nika_check::SchemaLintFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SchemaLintFinding
+pub fn nika_check::SchemaLintFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SchemaLintFinding where T: core::clone::Clone
+pub fn nika_check::SchemaLintFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SchemaLintFinding where T: 'static
+pub fn nika_check::SchemaLintFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SchemaTypeFinding
+pub nika_check::SchemaTypeFinding::detail: alloc::string::String
+pub nika_check::SchemaTypeFinding::reference: alloc::string::String
+pub nika_check::SchemaTypeFinding::site: alloc::string::String
+pub nika_check::SchemaTypeFinding::target: alloc::string::String
+impl core::clone::Clone for nika_check::SchemaTypeFinding
+pub fn nika_check::SchemaTypeFinding::clone(&self) -> nika_check::SchemaTypeFinding
+impl core::cmp::Eq for nika_check::SchemaTypeFinding
+impl core::cmp::PartialEq for nika_check::SchemaTypeFinding
+pub fn nika_check::SchemaTypeFinding::eq(&self, other: &nika_check::SchemaTypeFinding) -> bool
+impl core::fmt::Debug for nika_check::SchemaTypeFinding
+pub fn nika_check::SchemaTypeFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SchemaTypeFinding
+impl serde_core::ser::Serialize for nika_check::SchemaTypeFinding
+pub fn nika_check::SchemaTypeFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SchemaTypeFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SchemaTypeFinding where U: core::convert::From<T>
+pub fn nika_check::SchemaTypeFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SchemaTypeFinding where U: core::convert::Into<T>
+pub type nika_check::SchemaTypeFinding::Error = core::convert::Infallible
+pub fn nika_check::SchemaTypeFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SchemaTypeFinding where U: core::convert::TryFrom<T>
+pub type nika_check::SchemaTypeFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SchemaTypeFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SchemaTypeFinding where T: core::clone::Clone
+pub type nika_check::SchemaTypeFinding::Owned = T
+pub fn nika_check::SchemaTypeFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::SchemaTypeFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SchemaTypeFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::SchemaTypeFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SchemaTypeFinding where T: ?core::marker::Sized
+pub fn nika_check::SchemaTypeFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SchemaTypeFinding where T: ?core::marker::Sized
+pub fn nika_check::SchemaTypeFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SchemaTypeFinding where T: core::clone::Clone
+pub unsafe fn nika_check::SchemaTypeFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SchemaTypeFinding
+pub fn nika_check::SchemaTypeFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SchemaTypeFinding where T: core::clone::Clone
+pub fn nika_check::SchemaTypeFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SchemaTypeFinding where T: 'static
+pub fn nika_check::SchemaTypeFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SecretEgress
+pub nika_check::SecretEgress::output: alloc::string::String
+pub nika_check::SecretEgress::secret: alloc::string::String
+pub nika_check::SecretEgress::trace: alloc::string::String
+impl core::clone::Clone for nika_check::SecretEgress
+pub fn nika_check::SecretEgress::clone(&self) -> nika_check::SecretEgress
+impl core::cmp::Eq for nika_check::SecretEgress
+impl core::cmp::PartialEq for nika_check::SecretEgress
+pub fn nika_check::SecretEgress::eq(&self, other: &nika_check::SecretEgress) -> bool
+impl core::fmt::Debug for nika_check::SecretEgress
+pub fn nika_check::SecretEgress::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SecretEgress
+impl serde_core::ser::Serialize for nika_check::SecretEgress
+pub fn nika_check::SecretEgress::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SecretEgress
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
+pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SecretEgress where U: core::convert::From<T>
+pub fn nika_check::SecretEgress::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SecretEgress where U: core::convert::Into<T>
+pub type nika_check::SecretEgress::Error = core::convert::Infallible
+pub fn nika_check::SecretEgress::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SecretEgress where U: core::convert::TryFrom<T>
+pub type nika_check::SecretEgress::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SecretEgress::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SecretEgress where T: core::clone::Clone
+pub type nika_check::SecretEgress::Owned = T
+pub fn nika_check::SecretEgress::clone_into(&self, target: &mut T)
+pub fn nika_check::SecretEgress::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SecretEgress where T: 'static + ?core::marker::Sized
+pub fn nika_check::SecretEgress::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SecretEgress where T: ?core::marker::Sized
+pub fn nika_check::SecretEgress::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SecretEgress where T: ?core::marker::Sized
+pub fn nika_check::SecretEgress::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SecretEgress where T: core::clone::Clone
+pub unsafe fn nika_check::SecretEgress::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SecretEgress
+pub fn nika_check::SecretEgress::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SecretEgress where T: core::clone::Clone
+pub fn nika_check::SecretEgress::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SecretEgress where T: 'static
+pub fn nika_check::SecretEgress::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SecretLeak
+pub nika_check::SecretLeak::secret: alloc::string::String
+pub nika_check::SecretLeak::sink: &'static str
+pub nika_check::SecretLeak::sink_id: alloc::string::String
+pub nika_check::SecretLeak::task: alloc::string::String
+pub nika_check::SecretLeak::trace: alloc::string::String
+impl core::clone::Clone for nika_check::SecretLeak
+pub fn nika_check::SecretLeak::clone(&self) -> nika_check::SecretLeak
+impl core::cmp::Eq for nika_check::SecretLeak
+impl core::cmp::PartialEq for nika_check::SecretLeak
+pub fn nika_check::SecretLeak::eq(&self, other: &nika_check::SecretLeak) -> bool
+impl core::fmt::Debug for nika_check::SecretLeak
+pub fn nika_check::SecretLeak::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SecretLeak
+impl serde_core::ser::Serialize for nika_check::SecretLeak
+pub fn nika_check::SecretLeak::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SecretLeak
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
+pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SecretLeak where U: core::convert::From<T>
+pub fn nika_check::SecretLeak::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SecretLeak where U: core::convert::Into<T>
+pub type nika_check::SecretLeak::Error = core::convert::Infallible
+pub fn nika_check::SecretLeak::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SecretLeak where U: core::convert::TryFrom<T>
+pub type nika_check::SecretLeak::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SecretLeak::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SecretLeak where T: core::clone::Clone
+pub type nika_check::SecretLeak::Owned = T
+pub fn nika_check::SecretLeak::clone_into(&self, target: &mut T)
+pub fn nika_check::SecretLeak::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SecretLeak where T: 'static + ?core::marker::Sized
+pub fn nika_check::SecretLeak::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SecretLeak where T: ?core::marker::Sized
+pub fn nika_check::SecretLeak::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SecretLeak where T: ?core::marker::Sized
+pub fn nika_check::SecretLeak::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SecretLeak where T: core::clone::Clone
+pub unsafe fn nika_check::SecretLeak::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SecretLeak
+pub fn nika_check::SecretLeak::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SecretLeak where T: core::clone::Clone
+pub fn nika_check::SecretLeak::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SecretLeak where T: 'static
+pub fn nika_check::SecretLeak::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_check::SecretRequirement
+pub nika_check::SecretRequirement::key: alloc::string::String
+pub nika_check::SecretRequirement::name: alloc::string::String
+pub nika_check::SecretRequirement::source: nika_vocab::secret::SecretSource
+impl core::clone::Clone for nika_check::SecretRequirement
+pub fn nika_check::SecretRequirement::clone(&self) -> nika_check::SecretRequirement
+impl core::cmp::Eq for nika_check::SecretRequirement
+impl core::cmp::PartialEq for nika_check::SecretRequirement
+pub fn nika_check::SecretRequirement::eq(&self, other: &nika_check::SecretRequirement) -> bool
+impl core::fmt::Debug for nika_check::SecretRequirement
+pub fn nika_check::SecretRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SecretRequirement
+impl serde_core::ser::Serialize for nika_check::SecretRequirement
+pub fn nika_check::SecretRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SecretRequirement
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
+pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SecretRequirement where U: core::convert::From<T>
+pub fn nika_check::SecretRequirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SecretRequirement where U: core::convert::Into<T>
+pub type nika_check::SecretRequirement::Error = core::convert::Infallible
+pub fn nika_check::SecretRequirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SecretRequirement where U: core::convert::TryFrom<T>
+pub type nika_check::SecretRequirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SecretRequirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SecretRequirement where T: core::clone::Clone
+pub type nika_check::SecretRequirement::Owned = T
+pub fn nika_check::SecretRequirement::clone_into(&self, target: &mut T)
+pub fn nika_check::SecretRequirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SecretRequirement where T: 'static + ?core::marker::Sized
+pub fn nika_check::SecretRequirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SecretRequirement where T: ?core::marker::Sized
+pub fn nika_check::SecretRequirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SecretRequirement where T: ?core::marker::Sized
+pub fn nika_check::SecretRequirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SecretRequirement where T: core::clone::Clone
+pub unsafe fn nika_check::SecretRequirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SecretRequirement
+pub fn nika_check::SecretRequirement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SecretRequirement where T: core::clone::Clone
+pub fn nika_check::SecretRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SecretRequirement where T: 'static
+pub fn nika_check::SecretRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::TaintTrace
+pub nika_check::TaintTrace::secret: alloc::string::String
+impl nika_check::TaintTrace
+pub fn nika_check::TaintTrace::render(&self) -> alloc::string::String
+impl core::clone::Clone for nika_check::TaintTrace
+pub fn nika_check::TaintTrace::clone(&self) -> nika_check::TaintTrace
+impl core::cmp::Eq for nika_check::TaintTrace
+impl core::cmp::PartialEq for nika_check::TaintTrace
+pub fn nika_check::TaintTrace::eq(&self, other: &nika_check::TaintTrace) -> bool
+impl core::fmt::Debug for nika_check::TaintTrace
+pub fn nika_check::TaintTrace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::TaintTrace
+impl<D> owo_colors::OwoColorize for nika_check::TaintTrace
+impl<Q, K> equivalent::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
+pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::TaintTrace where U: core::convert::From<T>
+pub fn nika_check::TaintTrace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::TaintTrace where U: core::convert::Into<T>
+pub type nika_check::TaintTrace::Error = core::convert::Infallible
+pub fn nika_check::TaintTrace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::TaintTrace where U: core::convert::TryFrom<T>
+pub type nika_check::TaintTrace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::TaintTrace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::TaintTrace where T: core::clone::Clone
+pub type nika_check::TaintTrace::Owned = T
+pub fn nika_check::TaintTrace::clone_into(&self, target: &mut T)
+pub fn nika_check::TaintTrace::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::TaintTrace where T: 'static + ?core::marker::Sized
+pub fn nika_check::TaintTrace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::TaintTrace where T: ?core::marker::Sized
+pub fn nika_check::TaintTrace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::TaintTrace where T: ?core::marker::Sized
+pub fn nika_check::TaintTrace::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::TaintTrace where T: core::clone::Clone
+pub unsafe fn nika_check::TaintTrace::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::TaintTrace
+pub fn nika_check::TaintTrace::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::TaintTrace where T: core::clone::Clone
+pub fn nika_check::TaintTrace::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::TaintTrace where T: 'static
+pub fn nika_check::TaintTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::TaskBlast
+pub nika_check::TaskBlast::blocks: usize
+pub nika_check::TaskBlast::task: alloc::string::String
+impl core::clone::Clone for nika_check::TaskBlast
+pub fn nika_check::TaskBlast::clone(&self) -> nika_check::TaskBlast
+impl core::fmt::Debug for nika_check::TaskBlast
+pub fn nika_check::TaskBlast::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_check::TaskBlast
+pub fn nika_check::TaskBlast::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::TaskBlast
+impl<T, U> core::convert::Into<U> for nika_check::TaskBlast where U: core::convert::From<T>
+pub fn nika_check::TaskBlast::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::TaskBlast where U: core::convert::Into<T>
+pub type nika_check::TaskBlast::Error = core::convert::Infallible
+pub fn nika_check::TaskBlast::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::TaskBlast where U: core::convert::TryFrom<T>
+pub type nika_check::TaskBlast::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::TaskBlast::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::TaskBlast where T: core::clone::Clone
+pub type nika_check::TaskBlast::Owned = T
+pub fn nika_check::TaskBlast::clone_into(&self, target: &mut T)
+pub fn nika_check::TaskBlast::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::TaskBlast where T: 'static + ?core::marker::Sized
+pub fn nika_check::TaskBlast::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::TaskBlast where T: ?core::marker::Sized
+pub fn nika_check::TaskBlast::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::TaskBlast where T: ?core::marker::Sized
+pub fn nika_check::TaskBlast::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::TaskBlast where T: core::clone::Clone
+pub unsafe fn nika_check::TaskBlast::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::TaskBlast
+pub fn nika_check::TaskBlast::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::TaskBlast where T: core::clone::Clone
+pub fn nika_check::TaskBlast::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::TaskBlast where T: 'static
+pub fn nika_check::TaskBlast::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::TaskCost
+pub nika_check::TaskCost::attempts: u64
+pub nika_check::TaskCost::gated: bool
+pub nika_check::TaskCost::iterations: u64
+pub nika_check::TaskCost::max_tokens: core::option::Option<u64>
+pub nika_check::TaskCost::min_path_usd: core::option::Option<f64>
+pub nika_check::TaskCost::model: core::option::Option<alloc::string::String>
+pub nika_check::TaskCost::task: alloc::string::String
+pub nika_check::TaskCost::unbounded_reason: core::option::Option<nika_check::UnboundedReason>
+pub nika_check::TaskCost::usd: core::option::Option<f64>
+impl core::clone::Clone for nika_check::TaskCost
+pub fn nika_check::TaskCost::clone(&self) -> nika_check::TaskCost
+impl core::cmp::PartialEq for nika_check::TaskCost
+pub fn nika_check::TaskCost::eq(&self, other: &nika_check::TaskCost) -> bool
+impl core::fmt::Debug for nika_check::TaskCost
+pub fn nika_check::TaskCost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::TaskCost
+impl serde_core::ser::Serialize for nika_check::TaskCost
+pub fn nika_check::TaskCost::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::TaskCost
+impl<T, U> core::convert::Into<U> for nika_check::TaskCost where U: core::convert::From<T>
+pub fn nika_check::TaskCost::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::TaskCost where U: core::convert::Into<T>
+pub type nika_check::TaskCost::Error = core::convert::Infallible
+pub fn nika_check::TaskCost::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::TaskCost where U: core::convert::TryFrom<T>
+pub type nika_check::TaskCost::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::TaskCost::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::TaskCost where T: core::clone::Clone
+pub type nika_check::TaskCost::Owned = T
+pub fn nika_check::TaskCost::clone_into(&self, target: &mut T)
+pub fn nika_check::TaskCost::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::TaskCost where T: 'static + ?core::marker::Sized
+pub fn nika_check::TaskCost::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::TaskCost where T: ?core::marker::Sized
+pub fn nika_check::TaskCost::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::TaskCost where T: ?core::marker::Sized
+pub fn nika_check::TaskCost::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::TaskCost where T: core::clone::Clone
+pub unsafe fn nika_check::TaskCost::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::TaskCost
+pub fn nika_check::TaskCost::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::TaskCost where T: core::clone::Clone
+pub fn nika_check::TaskCost::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::TaskCost where T: 'static
+pub fn nika_check::TaskCost::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::UnifiedFinding
+pub nika_check::UnifiedFinding::code: core::option::Option<alloc::string::String>
+pub nika_check::UnifiedFinding::docs_url: core::option::Option<alloc::string::String>
+pub nika_check::UnifiedFinding::gate: &'static str
+pub nika_check::UnifiedFinding::kind: &'static str
+pub nika_check::UnifiedFinding::message: alloc::string::String
+pub nika_check::UnifiedFinding::severity: nika_check::FindingSeverity
+pub nika_check::UnifiedFinding::span: core::option::Option<nika_check::ByteSpan>
+pub nika_check::UnifiedFinding::task: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_check::UnifiedFinding
+pub fn nika_check::UnifiedFinding::clone(&self) -> nika_check::UnifiedFinding
+impl core::fmt::Debug for nika_check::UnifiedFinding
+pub fn nika_check::UnifiedFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_check::UnifiedFinding
+pub fn nika_check::UnifiedFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::UnifiedFinding
+impl<T, U> core::convert::Into<U> for nika_check::UnifiedFinding where U: core::convert::From<T>
+pub fn nika_check::UnifiedFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::UnifiedFinding where U: core::convert::Into<T>
+pub type nika_check::UnifiedFinding::Error = core::convert::Infallible
+pub fn nika_check::UnifiedFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::UnifiedFinding where U: core::convert::TryFrom<T>
+pub type nika_check::UnifiedFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::UnifiedFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::UnifiedFinding where T: core::clone::Clone
+pub type nika_check::UnifiedFinding::Owned = T
+pub fn nika_check::UnifiedFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::UnifiedFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::UnifiedFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::UnifiedFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::UnifiedFinding where T: ?core::marker::Sized
+pub fn nika_check::UnifiedFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::UnifiedFinding where T: ?core::marker::Sized
+pub fn nika_check::UnifiedFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::UnifiedFinding where T: core::clone::Clone
+pub unsafe fn nika_check::UnifiedFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::UnifiedFinding
+pub fn nika_check::UnifiedFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::UnifiedFinding where T: core::clone::Clone
+pub fn nika_check::UnifiedFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::UnifiedFinding where T: 'static
+pub fn nika_check::UnifiedFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::UnknownArg
+pub nika_check::UnknownArg::arg: alloc::string::String
+pub nika_check::UnknownArg::declared: alloc::vec::Vec<alloc::string::String>
+pub nika_check::UnknownArg::suggestion: core::option::Option<alloc::string::String>
+pub nika_check::UnknownArg::task: alloc::string::String
+pub nika_check::UnknownArg::tool: alloc::string::String
+impl core::clone::Clone for nika_check::UnknownArg
+pub fn nika_check::UnknownArg::clone(&self) -> nika_check::UnknownArg
+impl core::cmp::Eq for nika_check::UnknownArg
+impl core::cmp::PartialEq for nika_check::UnknownArg
+pub fn nika_check::UnknownArg::eq(&self, other: &nika_check::UnknownArg) -> bool
+impl core::fmt::Debug for nika_check::UnknownArg
+pub fn nika_check::UnknownArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::UnknownArg
+impl serde_core::ser::Serialize for nika_check::UnknownArg
+pub fn nika_check::UnknownArg::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::UnknownArg
+impl<Q, K> equivalent::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
+pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::UnknownArg where U: core::convert::From<T>
+pub fn nika_check::UnknownArg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::UnknownArg where U: core::convert::Into<T>
+pub type nika_check::UnknownArg::Error = core::convert::Infallible
+pub fn nika_check::UnknownArg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::UnknownArg where U: core::convert::TryFrom<T>
+pub type nika_check::UnknownArg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::UnknownArg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::UnknownArg where T: core::clone::Clone
+pub type nika_check::UnknownArg::Owned = T
+pub fn nika_check::UnknownArg::clone_into(&self, target: &mut T)
+pub fn nika_check::UnknownArg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::UnknownArg where T: 'static + ?core::marker::Sized
+pub fn nika_check::UnknownArg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::UnknownArg where T: ?core::marker::Sized
+pub fn nika_check::UnknownArg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::UnknownArg where T: ?core::marker::Sized
+pub fn nika_check::UnknownArg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::UnknownArg where T: core::clone::Clone
+pub unsafe fn nika_check::UnknownArg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::UnknownArg
+pub fn nika_check::UnknownArg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::UnknownArg where T: core::clone::Clone
+pub fn nika_check::UnknownArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::UnknownArg where T: 'static
+pub fn nika_check::UnknownArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::UnknownTool
+pub nika_check::UnknownTool::suggestion: core::option::Option<alloc::string::String>
+pub nika_check::UnknownTool::task: alloc::string::String
+pub nika_check::UnknownTool::tool: alloc::string::String
+impl core::clone::Clone for nika_check::UnknownTool
+pub fn nika_check::UnknownTool::clone(&self) -> nika_check::UnknownTool
+impl core::cmp::Eq for nika_check::UnknownTool
+impl core::cmp::PartialEq for nika_check::UnknownTool
+pub fn nika_check::UnknownTool::eq(&self, other: &nika_check::UnknownTool) -> bool
+impl core::fmt::Debug for nika_check::UnknownTool
+pub fn nika_check::UnknownTool::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::UnknownTool
+impl serde_core::ser::Serialize for nika_check::UnknownTool
+pub fn nika_check::UnknownTool::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::UnknownTool
+impl<Q, K> equivalent::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
+pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::UnknownTool where U: core::convert::From<T>
+pub fn nika_check::UnknownTool::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::UnknownTool where U: core::convert::Into<T>
+pub type nika_check::UnknownTool::Error = core::convert::Infallible
+pub fn nika_check::UnknownTool::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::UnknownTool where U: core::convert::TryFrom<T>
+pub type nika_check::UnknownTool::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::UnknownTool::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::UnknownTool where T: core::clone::Clone
+pub type nika_check::UnknownTool::Owned = T
+pub fn nika_check::UnknownTool::clone_into(&self, target: &mut T)
+pub fn nika_check::UnknownTool::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::UnknownTool where T: 'static + ?core::marker::Sized
+pub fn nika_check::UnknownTool::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::UnknownTool where T: ?core::marker::Sized
+pub fn nika_check::UnknownTool::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::UnknownTool where T: ?core::marker::Sized
+pub fn nika_check::UnknownTool::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::UnknownTool where T: core::clone::Clone
+pub unsafe fn nika_check::UnknownTool::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::UnknownTool
+pub fn nika_check::UnknownTool::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::UnknownTool where T: core::clone::Clone
+pub fn nika_check::UnknownTool::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::UnknownTool where T: 'static
+pub fn nika_check::UnknownTool::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_check::REPORT_VERSION: u32
+pub const nika_check::STATUS_VOCAB: [&str; 4]
+pub fn nika_check::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
+pub fn nika_check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::CheckReport
+pub fn nika_check::check_composed(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_check::CheckReport
+pub fn nika_check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::InferredPermits
+pub fn nika_check::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
+pub fn nika_check::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub fn nika_check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
