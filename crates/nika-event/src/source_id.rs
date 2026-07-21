@@ -1,11 +1,17 @@
-// source_id.rs — the run's SOURCE identity seam.
-//
-// A journal names the definition it recorded: `workflow_sha256` hashes
-// the exact bytes the composer read, and CRLF/BOM sources additionally
-// record `workflow_sha256_lf` (the LF normal form) so drift checks can
-// tell an editor re-encode from a content edit. Hash + normal form
-// live together here; the stamping happens in the composer (mod.rs)
-// and the comparison in dap replay.
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The run's SOURCE identity seam — the hash the journal's
+//! `workflow_sha256` / `def_hash` fields speak.
+//!
+//! A journal names the definition it recorded: `workflow_sha256` hashes
+//! the exact bytes the composer read, and CRLF/BOM sources additionally
+//! record `workflow_sha256_lf` (the LF normal form) so drift checks can
+//! tell an editor re-encode from a content edit. Hash + normal form
+//! live together here; the stamping happens in the composer and the
+//! comparison in dap replay. Descended from `nika-dap::source_id`
+//! 2026-07-22 (the run-composer descent needed the primitive at L≤3 —
+//! the taxonomy owner keeps the one home: sha2 is pure, zero I/O).
 
 /// The run's source identity: sha256 hex over the exact bytes read.
 #[must_use]

@@ -46,7 +46,7 @@ mod budget;
 mod epilogue;
 mod heartbeat;
 mod scope;
-pub(crate) use nika_dap::source_id::{lf_normal_form, sha256_hex};
+pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use scope::scope_to_task;
 
 use sink::{TRACE_DIR, Tee, TraceFileSink};

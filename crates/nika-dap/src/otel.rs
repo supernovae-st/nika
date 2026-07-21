@@ -687,12 +687,12 @@ mod tests {
     /// exact bytes.
     fn chained_raw() -> String {
         let first = serde_json::json!({
-            "chain": crate::source_id::sha256_hex(crate::chain::CHAIN_GENESIS),
+            "chain": nika_event::source_id::sha256_hex(crate::chain::CHAIN_GENESIS),
             "kind": "workflow_started",
         })
         .to_string();
         let second = serde_json::json!({
-            "chain": crate::source_id::sha256_hex(first.as_bytes()),
+            "chain": nika_event::source_id::sha256_hex(first.as_bytes()),
             "kind": "workflow_completed",
         })
         .to_string();
@@ -701,7 +701,7 @@ mod tests {
 
     fn broken_raw() -> String {
         let first = serde_json::json!({
-            "chain": crate::source_id::sha256_hex(crate::chain::CHAIN_GENESIS),
+            "chain": nika_event::source_id::sha256_hex(crate::chain::CHAIN_GENESIS),
             "kind": "workflow_started",
         })
         .to_string();

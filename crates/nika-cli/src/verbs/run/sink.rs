@@ -27,7 +27,7 @@ use crate::{RunView, Theme, frame, frame_with_outputs, verdict_frame};
 // The chain primitive + genesis tag live in the forensics crate — the
 // sink WRITES the same chain the walk verifies (one constant, one hash).
 use nika_dap::chain::CHAIN_GENESIS;
-use nika_dap::source_id::sha256_hex;
+use nika_event::source_id::sha256_hex;
 
 /// Where run journals land, relative to the run's CWD (the workspace
 /// root by convention — the editor extension watches exactly this

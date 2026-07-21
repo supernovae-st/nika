@@ -110,11 +110,12 @@ impl ReplaySession {
             .iter()
             .find(|e| e.kind == EventKind::WorkflowStarted)?;
         let recorded = field_str(started, "workflow_sha256")?;
-        if crate::source_id::sha256_hex(yaml.as_bytes()) == recorded {
+        if nika_event::source_id::sha256_hex(yaml.as_bytes()) == recorded {
             return Some(false);
         }
-        let lf_sha =
-            crate::source_id::sha256_hex(crate::source_id::lf_normal_form(yaml).as_bytes());
+        let lf_sha = nika_event::source_id::sha256_hex(
+            nika_event::source_id::lf_normal_form(yaml).as_bytes(),
+        );
         if lf_sha == recorded || field_str(started, "workflow_sha256_lf") == Some(lf_sha.as_str()) {
             return Some(false);
         }
@@ -407,7 +408,7 @@ mod tests {
         assert_eq!(session().drifted, None);
 
         // A recorded sha that MATCHES the current bytes → not drifted.
-        let sha = crate::source_id::sha256_hex(YAML.as_bytes());
+        let sha = nika_event::source_id::sha256_hex(YAML.as_bytes());
         let make = |recorded: &str| {
             let events = vec![
                 ev(
@@ -429,7 +430,7 @@ mod tests {
         // the two re-encode cases; the LF normal forms agree — only a
         // content change may say drifted.
         let crlf = YAML.replace('\n', "\r\n");
-        let raw = |text: &str| crate::source_id::sha256_hex(text.as_bytes());
+        let raw = |text: &str| nika_event::source_id::sha256_hex(text.as_bytes());
         let started = |fields: &[(&str, &str)]| vec![ev(1, EventKind::WorkflowStarted, fields)];
 
         // LF-recorded · current CRLF → the LF form matches the recorded raw.

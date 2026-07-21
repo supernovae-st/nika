@@ -44,7 +44,7 @@ use nika_runtime::proof::{HashDomain, SemanticHash, preimage};
 use serde_json::{Value, json};
 
 use crate::chain::{Verdict, walk};
-use crate::source_id::sha256_hex;
+use nika_event::source_id::sha256_hex;
 
 /// The pack envelope version (`pack.json`'s `evidence_format` field) —
 /// additive fields bump nothing (the forward-compat posture); a shape

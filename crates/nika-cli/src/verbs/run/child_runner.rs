@@ -36,7 +36,7 @@ use nika_schema::raw::RawWorkflow;
 use nika_schema::types::Permits;
 use nika_schema::{FileId, ParseMode};
 
-use nika_dap::source_id::sha256_hex;
+use nika_event::source_id::sha256_hex;
 
 use super::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits};
 use super::sink::{TRACE_DIR, TraceFileSink};

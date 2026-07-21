@@ -224,7 +224,7 @@ pub(crate) fn sanitize(s: &str) -> String {
 mod tests {
     use super::*;
     use nika_dap::chain::CHAIN_GENESIS;
-    use nika_dap::source_id::sha256_hex;
+    use nika_event::source_id::sha256_hex;
 
     /// Build a chained journal the way the sink does (the nika-dap
     /// chain-test idiom).

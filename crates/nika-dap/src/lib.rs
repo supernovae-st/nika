@@ -35,7 +35,6 @@ pub mod reproduce;
 pub mod retention;
 pub mod seal;
 pub mod sign;
-pub mod source_id;
 pub mod stats;
 pub mod store;
 

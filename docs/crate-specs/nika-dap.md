@@ -4,7 +4,7 @@
 |---|---|
 | Status | **ADMITTED 2026-07-09** — Gate 1 authored at the split (a descent, not a greenfield: every line arrived tested from `nika-cli`). |
 | Layer | L4 — interface crate (stdio protocol server + the forensic read seams) |
-| Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), the source-identity hashes (`source_id`), the forensic statistics (`stats` — the Prior honesty ladder + Hyndman-Fan-7 quantiles every learned-truth reader speaks · descended from nika-cli at the 15060-LOC wall, the same session as the crate itself), and since the W0 descent (§5) the forensic half of the trace family — the OTLP projection (`otel`), the reproduce comparison (`reproduce`), the store scan (`store`) and the retention policy (`retention`). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive. |
+| Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), the forensic statistics (`stats` — the Prior honesty ladder + Hyndman-Fan-7 quantiles every learned-truth reader speaks · descended from nika-cli at the 15060-LOC wall, the same session as the crate itself), and since the W0 descent (§5) the forensic half of the trace family — the OTLP projection (`otel`), the reproduce comparison (`reproduce`), the store scan (`store`) and the retention policy (`retention`). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive (the hash itself re-homed to `nika-event::source_id` 2026-07-22 — the run-composer descent needed it at L≤3). |
 | LOC budget | the 15k-prod workspace ratchet governs (≤1,500/file · ≤100/fn as everywhere) — admitted at ~1,450 src incl. in-file tests; the 2026-07-09 W0 trace descent (§5) added the four forensic trace modules (~1.1k prod) with headroom for live DAP sessions intact |
 | File cap | ≤1,500 LOC each (max at admission: `replay.rs` ~490) |
 | Function cap | ≤100 lines each |
@@ -34,6 +34,10 @@
    chain the walk verifies.
 4. **`source_id`** — `sha256_hex` + `lf_normal_form` (a CRLF re-encode
    is not an edit — the 0.96.0 dap-review lesson lives here).
+   **Re-homed to `nika-event::source_id` 2026-07-22** (the run-composer
+   descent: `nika-runtime`'s child runner hashes the child source at
+   L≤3, and dap is L4 — the taxonomy owner keeps the one primitive;
+   every reader below rewired, zero behavior change).
 
 ## 2. Why a crate (and why now)
 
@@ -55,7 +59,6 @@ same wall (2026-07-07).
 pub fn run_stdio() -> u8
 pub mod recover    { RecoveredTrace · RecoverError · recover_events }
 pub mod chain      { CHAIN_GENESIS · Verdict · walk }
-pub mod source_id  { sha256_hex · lf_normal_form }
 pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 · ConformalUpper · conformal_upper }
 pub mod otel       { project (journal + chain Verdict → one OTLP/JSON line) }
 pub mod reproduce  { Verdict · Row · Report · compare · workflow_of }
