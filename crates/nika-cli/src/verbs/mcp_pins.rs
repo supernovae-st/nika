@@ -12,6 +12,96 @@
 //! match · fail-closed drift diff) is library-side in `nika-mcp`, awaiting
 //! the runtime MCP dispatch; this verb drives the same seam.
 
+/// The MCP subcommand surface — `approve` (the tool-pinning
+/// remediation) or serve (stdio · streamable HTTP). Descended from the
+/// bin's dispatcher 2026-07-21 (the 1500-line file cap — the bin
+/// composes, the verbs own their routing).
+#[derive(Clone, clap::Subcommand)]
+pub enum McpAction {
+    /// Re-pin the server's CURRENT tool definitions after human review
+    /// (the remediation a drift refusal names), printing the new pin set.
+    Approve {
+        /// The server name from `.nika/mcp_servers.json`.
+        server: String,
+    },
+}
+
+/// The MCP wire (the clap arm of `--transport`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum McpTransportArg {
+    /// Newline-delimited JSON-RPC over stdin/stdout.
+    Stdio,
+    /// Streamable HTTP (POST JSON-RPC · origin-gated · loopback default).
+    Http,
+}
+
+/// The `nika mcp` routing: the client subcommand dispatches to the pins
+/// layer; the server surfaces bind + serve forever (the composition the
+/// bin handed down). The banner + errors ride stderr verbatim (the
+/// `resolve_trace` precedent — no re-prefixing).
+///
+/// # Errors
+///
+/// `verbs::exit::OK` on a clean serve; `1` when the server itself fails
+/// (the MCP surface's own failure voice, not the spec §4 taxonomy).
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+#[must_use]
+pub fn mcp_verb(
+    action: Option<McpAction>,
+    transport: McpTransportArg,
+    port: u16,
+    bind: &str,
+) -> u8 {
+    match action {
+        Some(McpAction::Approve { server }) => return emit(&approve(&server)),
+        None => {}
+    }
+    let served = match transport {
+        McpTransportArg::Stdio => nika_mcp::run_stdio(),
+        McpTransportArg::Http => match nika_mcp::HttpServer::bind(bind, port) {
+            Ok(server) => {
+                // The sanctioned env boundary (same seam as config_from_env):
+                // the token is operator config crossing into a server hold.
+                #[allow(clippy::disallowed_methods)]
+                let token = std::env::var("NIKA_MCP_TOKEN").ok();
+                let addr = server
+                    .addr()
+                    .map_or_else(|_| format!("{bind}:{port}"), |a| a.to_string());
+                eprintln!(
+                    "nika mcp · http://{addr}/mcp · POST JSON-RPC (MCP 2025-11-25) · origin-gated · {} · production TLS belongs to a reverse proxy",
+                    if token.is_some() {
+                        "bearer auth ON (NIKA_MCP_TOKEN)"
+                    } else {
+                        "no auth (set NIKA_MCP_TOKEN to require a bearer)"
+                    }
+                );
+                server.serve(token.as_deref())
+            }
+            Err(err) => Err(err),
+        },
+    };
+    match served {
+        Ok(()) => crate::verbs::exit::OK,
+        Err(err) => {
+            eprintln!("nika mcp: {err}");
+            1
+        }
+    }
+}
+
+/// Print a verb's text on the right stream and return its exit code
+/// (the bin's `emit` — findings and successes go to stdout, only
+/// environment errors to stderr).
+// The MCP surface owns its streams (the resolve_trace precedent).
+#[allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
+fn emit(out: &VerbOutput) -> u8 {
+    if out.code == crate::verbs::exit::ENV {
+        eprintln!("nika: {}", out.text);
+    } else if !out.text.is_empty() {
+        println!("{}", out.text.trim_end());
+    }
+    out.code
+}
 use std::path::Path;
 
 use nika_mcp::client::{

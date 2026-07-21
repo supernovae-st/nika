@@ -12,7 +12,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 use std::io::{IsTerminal, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 mod examples_args;
@@ -311,7 +311,7 @@ enum Command {
     #[command(display_order = 31)]
     Trace {
         #[command(subcommand)]
-        action: TraceAction,
+        action: verbs::trace::TraceAction,
     },
     /// Export the evidence pack for one run (journal + manifest + receipt + VERIFY.md).
     #[command(display_order = 32)]
@@ -337,11 +337,11 @@ enum Command {
     #[command(display_order = 60)]
     Mcp {
         #[command(subcommand)]
-        action: Option<McpAction>,
+        action: Option<verbs::mcp_pins::McpAction>,
         /// The wire: `stdio` (the editor/agent default) or `http`
         /// (Streamable HTTP · POST JSON-RPC · spec 2025-11-25).
-        #[arg(long, value_enum, default_value_t = McpTransportArg::Stdio)]
-        transport: McpTransportArg,
+        #[arg(long, value_enum, default_value_t = verbs::mcp_pins::McpTransportArg::Stdio)]
+        transport: verbs::mcp_pins::McpTransportArg,
         /// HTTP port (with `--transport http`).
         #[arg(long, default_value_t = 8123)]
         port: u16,
@@ -350,153 +350,6 @@ enum Command {
         /// `NIKA_MCP_TOKEN`) in front before you do.
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
-    },
-}
-
-#[derive(Subcommand)]
-enum McpAction {
-    /// Re-pin the server's CURRENT tool definitions after human review
-    /// (the remediation a drift refusal names), printing the new pin set.
-    Approve {
-        /// The server name from `.nika/mcp_servers.json`.
-        server: String,
-    },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-enum McpTransportArg {
-    /// Newline-delimited JSON-RPC over stdin/stdout.
-    Stdio,
-    /// Streamable HTTP (POST JSON-RPC · origin-gated · loopback default).
-    Http,
-}
-
-#[derive(Subcommand)]
-enum TraceAction {
-    /// Re-render a run live (replay = re-render, NEVER re-execute).
-    Replay(TraceArgs),
-    /// Print the final card only.
-    Show(TraceArgs),
-    /// List the workspace trace store (`.nika/traces/`): age · size ·
-    /// workflow · terminal state (completed/failed/paused) · the
-    /// resume-candidate marker (★ — the newest of each workflow, the
-    /// trace retention never collects · ADR-100).
-    Ls {},
-    /// Remove traces from the store — one by name/path, `--older-than
-    /// <dur>`, or `--all`. Removing a paused trace refuses without
-    /// `--force` and names the unanswered prompt it would destroy
-    /// (ADR-100).
-    Rm {
-        /// The trace to remove — a name from `trace ls` or a path.
-        #[arg(required_unless_present_any = ["older_than", "all"],
-              conflicts_with_all = ["older_than", "all"])]
-        trace: Option<String>,
-        /// Remove every trace older than this (`45s` · `30m` · `12h` · `7d`).
-        #[arg(long, value_name = "DURATION", conflicts_with = "all")]
-        older_than: Option<String>,
-        /// Remove every trace in the store.
-        #[arg(long)]
-        all: bool,
-        /// Remove even a paused trace (destroys its unanswered prompt).
-        #[arg(long)]
-        force: bool,
-    },
-    /// Browse per-task outputs: verb · duration · tokens · bounded
-    /// preview (full value: `trace peek`).
-    Outputs {
-        /// Trace NDJSON path (default: the workspace's latest trace).
-        trace: Option<PathBuf>,
-    },
-    /// Project the journal to OTLP/JSON lines — every `OTel` tool becomes
-    /// a viewer (drag into Jaeger UI ≥1.60 · POST lines to any OTLP/HTTP
-    /// endpoint). Local file, zero collector, zero vendor.
-    Export {
-        /// Trace NDJSON path (one `nika-event` Event per line).
-        trace: PathBuf,
-        /// Output path (default: `<trace>.otlp.jsonl` beside the journal).
-        #[arg(short, long)]
-        out: Option<PathBuf>,
-        /// Include recorded task outputs as span attributes (payloads
-        /// stay LOCAL either way — this only widens the exported file).
-        #[arg(long)]
-        include_content: bool,
-    },
-    /// Verify the journal's tamper-evidence chain (0.96+), then climb
-    /// the proof ladder: SEALED (the `run_sealed` signature verifies
-    /// against a custody key) · ANCHORED (the `<trace>.anchor.json`
-    /// sidecar verifies fully offline) · REPLAYED (--replay compares
-    /// a fresh run). The HIGHEST honestly-attained tier is reported.
-    /// Exit 0 the tier holds · 2 broken/forged · 3 unchained (pre-chain
-    /// journal) or a missing input.
-    Verify {
-        /// Trace NDJSON path(s) — a shell glob (`.nika/traces/*.ndjson`)
-        /// just works: each file verifies under its own header, the
-        /// worst exit survives (default: the workspace's latest trace).
-        traces: Vec<PathBuf>,
-        /// A candidate run public key for the SEALED tier (default:
-        /// ~/.nika/keys/run-signing.pub, then the retired.pub ledger).
-        #[arg(long)]
-        key: Option<PathBuf>,
-        /// Require the anchor tier: a MISSING sidecar is exit 3 (a
-        /// forged one is exit 2 either way).
-        #[arg(long)]
-        anchored: bool,
-        /// The REPLAYED tier: a FRESH journal of the same workflow to
-        /// compare against (verify never re-executes).
-        #[arg(long)]
-        replay: Option<PathBuf>,
-    },
-    /// Notarize the journal head OUTSIDE the journal (S3): submit the
-    /// post-seal head — signed with the run key — to the public
-    /// Sigstore Rekor v2 transparency log plus an RFC 3161 timestamp,
-    /// writing a detached `<trace>.anchor.json` sidecar. An explicit
-    /// NETWORK act: this verb IS the opt-in. Exit 0 anchored · 2 the
-    /// journal refuses (broken/torn) · 3 no key/network.
-    Anchor {
-        /// Trace NDJSON path (default: the workspace's latest trace).
-        trace: Option<PathBuf>,
-        /// The Rekor v2 shard. A private rekor-tiles deployment works,
-        /// but its checkpoint is not the pinned Sigstore key's — the
-        /// ANCHORED verify tier stays out of reach there.
-        #[arg(long, default_value_t = nika_cli::anchor::DEFAULT_REKOR_URL.to_owned())]
-        rekor_url: String,
-        /// The RFC 3161 timestamp authority. The token verifies against
-        /// the pinned Sigstore TSA leaf — mirrors of that TSA work,
-        /// other authorities fail closed.
-        #[arg(long, default_value_t = nika_cli::anchor::DEFAULT_TSA_URL.to_owned())]
-        tsa_url: String,
-    },
-    /// Is this run reproducible? Compare a recorded journal against a
-    /// fresh one and classify every task: reproduced · nondeterministic
-    /// (same def+inputs, different output) · authored · environment ·
-    /// status-changed · unverifiable. Exit 0 reproduced · 2 diverged.
-    Reproduce {
-        /// The RECORDED journal (the reference frame).
-        recorded: PathBuf,
-        /// A FRESH journal of the same workflow (run it again first).
-        fresh: PathBuf,
-    },
-    /// Read ONE task's full output + its identity (hashes · duration ·
-    /// tokens). `--raw` prints the exact value only (pipe it to jq).
-    Peek {
-        /// Trace NDJSON path (one `nika-event` Event per line).
-        trace: PathBuf,
-        /// The task id whose output to read.
-        task: String,
-        /// Print the exact recorded value only (machine-friendly).
-        #[arg(long)]
-        raw: bool,
-    },
-    /// The data waterfall: which output fed which task, with recorded
-    /// sizes (plan bindings from the workflow file × sizes from the
-    /// trace).
-    Flow {
-        /// Trace NDJSON path (default: the workspace's latest trace —
-        /// `nika trace flow <workflow>` alone reads the last run).
-        trace: Option<PathBuf>,
-        /// The workflow file the run executed (`*.nika.yaml`) — the
-        /// trace records values, the definition records the bindings.
-        workflow: Option<String>,
     },
 }
 
@@ -635,99 +488,6 @@ pub(crate) fn parse_budget_usd(raw: &str) -> Result<f64, String> {
     Ok(value)
 }
 
-#[derive(Args)]
-// Five independent CLI flags ARE five bools — the clap-surface idiom, not
-// a state machine to encode.
-#[allow(clippy::struct_excessive_bools)]
-struct TraceArgs {
-    /// Trace NDJSON path (one `nika-event` Event per line).
-    trace: Option<PathBuf>,
-    /// Render the built-in success storyboard.
-    #[arg(long, conflicts_with = "trace")]
-    demo: bool,
-    /// Render the built-in failure storyboard.
-    #[arg(long, conflicts_with_all = ["trace", "demo"])]
-    demo_fail: bool,
-    /// Replay time compression (6 = 6× faster than recorded).
-    #[arg(long, default_value_t = 6.0)]
-    speed: f64,
-    /// Hide the per-task output summaries (`→ {…} · 312B`) on the
-    /// rendered storyboard. Interactive TTY only — a piped `trace show`
-    /// never carries them anyway.
-    #[arg(long)]
-    no_outputs: bool,
-}
-
-/// The `check` arm's routing: single file = the pre-variadic path,
-/// byte-identical (every existing consumer — hooks · agents · CI — sees
-/// exactly what it saw before); several files fan out through
-/// [`verbs::check::run_many`]. The machine modes stay one-file-per-call —
-/// `report_version: 1` and the inferred boundary are per-file contracts —
-/// so `--json`/`--infer-permits` with several files refuse with a teach
-/// line at exit 3 (the INVOCATION is wrong, no file was judged), and
-/// stdin (`-`) cannot join a multi-file audit.
-struct CheckFlags {
-    json: bool,
-    infer_permits: bool,
-    native_strict: bool,
-}
-
-fn check_dispatch(
-    files: &[String],
-    flags: &CheckFlags,
-    fix: bool,
-    model: Option<&str>,
-    theme: Theme,
-) -> verbs::VerbOutput {
-    let CheckFlags {
-        json,
-        infer_permits,
-        native_strict,
-    } = *flags;
-    if fix {
-        // The repair loop rewrites a file: stdin has nothing to rewrite,
-        // --json's report_version is a single immutable audit, several
-        // files would interleave rewrites with one summary, and
-        // --infer-permits is a different output entirely.
-        if json || infer_permits {
-            return verbs::fix::refuse(
-                "--fix pairs with the plain audit only (not --json / --infer-permits)",
-            );
-        }
-        return match files {
-            [file] if file != "-" => verbs::fix::run(file, native_strict, model, theme),
-            [_] => verbs::fix::refuse("stdin (`-`) has no file to rewrite — name a real path"),
-            _ => {
-                verbs::fix::refuse("one file per repair loop — loop the files, one --fix per call")
-            }
-        };
-    }
-    if let [file] = files {
-        if infer_permits {
-            verbs::check::run_infer_permits(file, json)
-        } else {
-            verbs::check::run(file, json, native_strict, model, theme)
-        }
-    } else if json || infer_permits {
-        verbs::VerbOutput {
-            text: "check: --json and --infer-permits report ONE file per call \
-                   (report_version 1 is a per-file contract)\n  fix: loop the \
-                   files, one check per call\n"
-                .to_owned(),
-            code: verbs::exit::ENV,
-        }
-    } else if files.iter().any(|f| f == "-") {
-        verbs::VerbOutput {
-            text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
-                   pipe one call per stream, or name the files\n"
-                .to_owned(),
-            code: verbs::exit::ENV,
-        }
-    } else {
-        verbs::check::run_many(files, native_strict, model, theme)
-    }
-}
-
 impl Cli {
     /// `--plain` folds the whole sober story BEFORE any resolution —
     /// the downstream chains then see an explicit `never` at the top
@@ -797,7 +557,7 @@ fn main() -> std::process::ExitCode {
             model,
         } => check_lazy(
             files,
-            &CheckFlags {
+            &verbs::check::CheckFlags {
                 json,
                 infer_permits,
                 native_strict,
@@ -870,9 +630,23 @@ fn main() -> std::process::ExitCode {
             transport,
             port,
             bind,
-        } => mcp_verb(action, transport, port, &bind),
+        } => verbs::mcp_pins::mcp_verb(action, transport, port, &bind),
     };
     std::process::ExitCode::from(code)
+}
+
+/// The `evidence` arm's routing: resolve the trace (store handle or
+/// bare-latest), then export the pack through the verbs seam.
+fn evidence_run(args: verbs::evidence::EvidenceArgs) -> u8 {
+    match verbs::trace::manage::resolve_trace(args.trace) {
+        Ok(path) => emit(&verbs::evidence::export(
+            &path.to_string_lossy(),
+            args.out.as_deref(),
+            args.workflow.as_deref(),
+            args.json,
+        )),
+        Err(code) => code,
+    }
 }
 
 /// Print a verb's text on the right stream and return its exit code.
@@ -887,112 +661,11 @@ fn emit(out: &VerbOutput) -> u8 {
     out.code
 }
 
-/// Name the bare-form pick on stderr — the receipt names its subject.
-fn announce_latest(path: &Path) {
-    eprintln!(
-        "nika trace: reading {} (the workspace latest)",
-        path.display()
-    );
-}
-
-/// The bare form of a static trace reader: no path → the workspace's
-/// latest trace, named on stderr · zero traces → the teaching error,
-/// exit 3 (ADR-098 environment).
-fn evidence_run(args: verbs::evidence::EvidenceArgs) -> u8 {
-    match resolve_trace(args.trace) {
-        Ok(path) => emit(&verbs::evidence::export(
-            &path.to_string_lossy(),
-            args.out.as_deref(),
-            args.workflow.as_deref(),
-            args.json,
-        )),
-        Err(code) => code,
-    }
-}
-
-fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
-    if let Some(path) = given {
-        return Ok(verbs::trace::manage::resolve_store_handle(&path));
-    }
-    if let Some(path) = verbs::trace::manage::latest() {
-        announce_latest(&path);
-        return Ok(path);
-    }
-    eprintln!(
-        "nika trace: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
-    );
-    Err(verbs::exit::ENV)
-}
-
-/// `nika trace flow` — two positionals, both optional to clap (a
-/// required one may not follow an optional one): one arg IS the
-/// workflow and the trace defaults, matching the bare-form contract.
-fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> u8 {
-    let (trace, workflow) = match (trace, workflow) {
-        (trace, Some(workflow)) => (trace, workflow),
-        (Some(only), None) if only.extension().and_then(|e| e.to_str()) != Some("ndjson") => {
-            (None, only.to_string_lossy().into_owned())
-        }
-        _ => {
-            eprintln!(
-                "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
-            );
-            return verbs::exit::ENV;
-        }
-    };
-    match verbs::trace::manage::resolve_trace(trace) {
-        Ok(path) => emit(&verbs::trace::flow(
-            &path.to_string_lossy(),
-            &workflow,
-            theme,
-        )),
-        Err(code) => code,
-    }
-}
-
 /// `nika mcp` — serve the read-only MCP surface. stdio owns stdout
 /// (JSON-RPC); http binds first so the banner names the RESOLVED
 /// address, reads `NIKA_MCP_TOKEN` here (the crate is env-free by
 /// discipline), then serves forever. The client subcommand (the
 /// tool-pinning re-approval) dispatches to the verbs layer instead.
-fn mcp_verb(action: Option<McpAction>, transport: McpTransportArg, port: u16, bind: &str) -> u8 {
-    match action {
-        Some(McpAction::Approve { server }) => return emit(&verbs::mcp_pins::approve(&server)),
-        None => {}
-    }
-    let served = match transport {
-        McpTransportArg::Stdio => nika_mcp::run_stdio(),
-        McpTransportArg::Http => match nika_mcp::HttpServer::bind(bind, port) {
-            Ok(server) => {
-                // The sanctioned env boundary (same seam as config_from_env):
-                // the token is operator config crossing into a server hold.
-                #[allow(clippy::disallowed_methods)]
-                let token = std::env::var("NIKA_MCP_TOKEN").ok();
-                let addr = server
-                    .addr()
-                    .map_or_else(|_| format!("{bind}:{port}"), |a| a.to_string());
-                eprintln!(
-                    "nika mcp · http://{addr}/mcp · POST JSON-RPC (MCP 2025-11-25) · origin-gated · {} · production TLS belongs to a reverse proxy",
-                    if token.is_some() {
-                        "bearer auth ON (NIKA_MCP_TOKEN)"
-                    } else {
-                        "no auth (set NIKA_MCP_TOKEN to require a bearer)"
-                    }
-                );
-                server.serve(token.as_deref())
-            }
-            Err(err) => Err(err),
-        },
-    };
-    match served {
-        Ok(()) => verbs::exit::OK,
-        Err(err) => {
-            eprintln!("nika mcp: {err}");
-            1
-        }
-    }
-}
-
 /// `nika trace verify [TRACES…]` — several paths (the shell glob) go
 /// per-file/worst-of; zero or one keeps the existing voice byte-stable
 /// (bare form resolves the latest · one arg resolves store handles).
@@ -1009,12 +682,21 @@ fn verify_verb(mut traces: Vec<PathBuf>, opts: &verbs::trace_verify::VerifyOptio
     }
 }
 
-fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
+fn trace_verb(
+    action: verbs::trace::TraceAction,
+    theme: Theme,
+    color: ColorWhenArg,
+    link_when: LinkChoice,
+) -> u8 {
     match action {
-        TraceAction::Replay(args) => trace_render(&args, true, color, link_when, theme.ascii),
-        TraceAction::Show(args) => trace_render(&args, false, color, link_when, theme.ascii),
-        TraceAction::Ls {} => emit(&verbs::trace::manage::ls(theme)),
-        TraceAction::Rm {
+        verbs::trace::TraceAction::Replay(args) => {
+            trace_render(&args, true, color, link_when, theme.ascii)
+        }
+        verbs::trace::TraceAction::Show(args) => {
+            trace_render(&args, false, color, link_when, theme.ascii)
+        }
+        verbs::trace::TraceAction::Ls {} => emit(&verbs::trace::manage::ls(theme)),
+        verbs::trace::TraceAction::Rm {
             trace,
             older_than,
             all,
@@ -1040,7 +722,7 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             };
             emit(&verbs::trace::manage::rm(&target, force, theme))
         }
-        TraceAction::Outputs { trace } => {
+        verbs::trace::TraceAction::Outputs { trace } => {
             let trace = match verbs::trace::manage::resolve_trace(trace) {
                 Ok(path) => path,
                 Err(code) => return code,
@@ -1050,7 +732,7 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
-        TraceAction::Verify {
+        verbs::trace::TraceAction::Verify {
             traces,
             key,
             anchored,
@@ -1063,23 +745,18 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
                 replay,
             },
         ),
-        TraceAction::Anchor {
+        verbs::trace::TraceAction::Anchor {
             trace,
             rekor_url,
             tsa_url,
-        } => match verbs::trace::manage::resolve_trace(trace) {
-            Ok(path) => emit(&verbs::trace_anchor::run(
-                &path.to_string_lossy(),
-                &rekor_url,
-                &tsa_url,
-            )),
-            Err(code) => code,
-        },
-        TraceAction::Reproduce { recorded, fresh } => emit(&verbs::trace_reproduce::reproduce(
-            &recorded.to_string_lossy(),
-            &fresh.to_string_lossy(),
-        )),
-        TraceAction::Export {
+        } => anchor_verb(trace, &rekor_url, &tsa_url),
+        verbs::trace::TraceAction::Reproduce { recorded, fresh } => {
+            emit(&verbs::trace_reproduce::reproduce(
+                &recorded.to_string_lossy(),
+                &fresh.to_string_lossy(),
+            ))
+        }
+        verbs::trace::TraceAction::Export {
             trace,
             out,
             include_content,
@@ -1090,13 +767,31 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
                 .as_deref(),
             include_content,
         )),
-        TraceAction::Peek { trace, task, raw } => emit(&verbs::trace::peek(
+        verbs::trace::TraceAction::Peek { trace, task, raw } => emit(&verbs::trace::peek(
             &trace.to_string_lossy(),
             &task,
             raw,
             theme,
         )),
-        TraceAction::Flow { trace, workflow } => flow_verb(trace, workflow, theme),
+        verbs::trace::TraceAction::Flow { trace, workflow } => {
+            match verbs::trace::manage::flow_verb(trace, workflow, theme) {
+                Ok(out) => emit(&out),
+                Err(code) => code,
+            }
+        }
+    }
+}
+
+/// The `anchor` arm's routing: resolve the trace (store handle or
+/// bare-latest), then notarize through the verbs seam.
+fn anchor_verb(trace: Option<PathBuf>, rekor_url: &str, tsa_url: &str) -> u8 {
+    match verbs::trace::manage::resolve_trace(trace) {
+        Ok(path) => emit(&verbs::trace_anchor::run(
+            &path.to_string_lossy(),
+            rekor_url,
+            tsa_url,
+        )),
+        Err(code) => code,
     }
 }
 
@@ -1199,13 +894,13 @@ fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme 
 
 /// Load events, fold, render — live replay or final card.
 fn trace_render(
-    args: &TraceArgs,
+    args: &verbs::trace::TraceArgs,
     replay: bool,
     color: ColorWhenArg,
     link_when: LinkChoice,
     ascii: bool,
 ) -> u8 {
-    let events = match load_events(args) {
+    let events = match verbs::trace::manage::load_events(args) {
         Ok(events) => events,
         Err(message) => {
             eprintln!("nika trace: {message}");
@@ -1302,47 +997,6 @@ fn print_lines(lines: &[String]) {
     }
     let mut out = std::io::stdout().lock();
     let _ = writeln!(out, "{}", lines.join("\n"));
-}
-
-fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
-    if args.demo {
-        return Ok(nika_cli::demo::success());
-    }
-    if args.demo_fail {
-        return Ok(nika_cli::demo::failure());
-    }
-    let path = match &args.trace {
-        Some(path) => verbs::trace::manage::resolve_store_handle(path),
-        // Bare form: the workspace's latest trace (same contract as
-        // verify/outputs/flow).
-        None => match verbs::trace::manage::latest() {
-            Some(path) => {
-                verbs::trace::manage::announce_latest(&path);
-                path
-            }
-            None => {
-                return Err("no trace given and no traces in .nika/traces yet — run a \
-                            workflow first, pass a .ndjson path, or try --demo"
-                    .to_owned());
-            }
-        },
-    };
-    let raw =
-        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    recover_events(&raw, &path.display().to_string())
-}
-
-/// Parse an NDJSON trace, tolerating a truncated/corrupt TAIL — a crashed run
-/// (SIGSEGV · OOM · hard kill) leaves a half-written last line, and recovering
-/// it is the whole point of a flight recorder. Delegates to the library's
-/// tolerant reader (the SAME one `nika run --resume` folds through — one
-/// recovery contract, two consumers) and surfaces the truncation note here.
-fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
-    let recovered = verbs::run::recover_events(raw, label).map_err(|e| e.to_string())?;
-    if let Some(note) = &recovered.truncated_note {
-        eprintln!("nika trace: {note} — rendering the recovered prefix");
-    }
-    Ok(recovered.events)
 }
 
 /// Read a boolean presentation flag from the environment.
@@ -1508,31 +1162,5 @@ mod tests {
             "bash completes `nika`, never nika-cli: {bash}"
         );
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
-    }
-
-    /// One valid serialized Event line — reuse the demo's real events.
-    fn valid_line() -> String {
-        let events = nika_cli::demo::success();
-        let first = events.first().expect("demo has events");
-        serde_json::to_string(first).expect("event serializes")
-    }
-
-    /// Flight-recorder resilience: a crashed run leaves a truncated last line.
-    /// The reader must render the valid PREFIX, not lose the whole trace.
-    #[test]
-    fn truncated_tail_recovers_the_valid_prefix() {
-        let v = valid_line();
-        // 2 valid events + a truncated 3rd line (the crash signature).
-        let raw = format!("{v}\n{v}\n{{\"id\":{{\"uuid\":\"trunc");
-        let events = recover_events(&raw, "t").expect("recovers the valid prefix");
-        assert_eq!(events.len(), 2, "both valid events recovered");
-    }
-
-    /// A bad FIRST line (nothing recovered) is genuinely unreadable → error;
-    /// an empty trace likewise.
-    #[test]
-    fn bad_first_line_and_empty_are_hard_errors() {
-        assert!(recover_events("{not json at all\n", "t").is_err());
-        assert!(recover_events("", "t").is_err(), "empty trace errors");
     }
 }

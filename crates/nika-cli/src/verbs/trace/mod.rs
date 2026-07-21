@@ -14,9 +14,12 @@
 //! recorded sizes) — a fold over two existing truths, zero new
 //! analysis.
 
+pub mod action;
 pub mod manage;
 pub(crate) mod retention;
 pub(crate) mod store;
+
+pub use action::{TraceAction, TraceArgs};
 
 use std::fmt::Write as _;
 

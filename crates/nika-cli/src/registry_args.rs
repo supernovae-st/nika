@@ -12,8 +12,9 @@
 use nika_cli::registry;
 use nika_cli::verbs::{self, VerbOutput};
 
-use crate::{CheckFlags, ColorWhenArg, RunArgs, check_dispatch, emit, run_verb};
+use crate::{ColorWhenArg, RunArgs, emit, run_verb};
 use nika_cli::display::format::LinkChoice;
+use nika_cli::verbs::check::{CheckFlags, dispatch as check_dispatch};
 
 /// The `check` arm: registry refs resolve first (the `--fix` guard
 /// rides the same seam), then the normal multi-file dispatch.

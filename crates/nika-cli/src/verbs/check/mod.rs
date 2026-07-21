@@ -10,6 +10,79 @@
 //! contract bytes are the contract. Check is INFALLIBLE past parse
 //! (rustc model): every defect lands in the report, one round-trip.
 
+/// The `check` arm's routing: single file = the pre-variadic path,
+/// byte-identical (every existing consumer — hooks · agents · CI — sees
+/// exactly what it saw before); several files fan out through
+/// [`run_many`]. The machine modes stay one-file-per-call —
+/// `report_version: 1` and the inferred boundary are per-file contracts —
+/// so `--json`/`--infer-permits` with several files refuse with a teach
+/// line at exit 3 (the INVOCATION is wrong, no file was judged), and
+/// stdin (`-`) cannot join a multi-file audit.
+pub struct CheckFlags {
+    pub json: bool,
+    pub infer_permits: bool,
+    pub native_strict: bool,
+}
+
+#[must_use]
+pub fn dispatch(
+    files: &[String],
+    flags: &CheckFlags,
+    fix: bool,
+    model: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let CheckFlags {
+        json,
+        infer_permits,
+        native_strict,
+    } = *flags;
+    if fix {
+        // The repair loop rewrites a file: stdin has nothing to rewrite,
+        // --json's report_version is a single immutable audit, several
+        // files would interleave rewrites with one summary, and
+        // --infer-permits is a different output entirely.
+        if json || infer_permits {
+            return crate::verbs::fix::refuse(
+                "--fix pairs with the plain audit only (not --json / --infer-permits)",
+            );
+        }
+        return match files {
+            [file] if file != "-" => crate::verbs::fix::run(file, native_strict, model, theme),
+            [_] => {
+                crate::verbs::fix::refuse("stdin (`-`) has no file to rewrite — name a real path")
+            }
+            _ => crate::verbs::fix::refuse(
+                "one file per repair loop — loop the files, one --fix per call",
+            ),
+        };
+    }
+    if let [file] = files {
+        if infer_permits {
+            run_infer_permits(file, json)
+        } else {
+            run(file, json, native_strict, model, theme)
+        }
+    } else if json || infer_permits {
+        VerbOutput {
+            text: "check: --json and --infer-permits report ONE file per call \
+                   (report_version 1 is a per-file contract)\n  fix: loop the \
+                   files, one check per call\n"
+                .to_owned(),
+            code: crate::verbs::exit::ENV,
+        }
+    } else if files.iter().any(|f| f == "-") {
+        VerbOutput {
+            text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
+                   pipe one call per stream, or name the files\n"
+                .to_owned(),
+            code: crate::verbs::exit::ENV,
+        }
+    } else {
+        run_many(files, native_strict, model, theme)
+    }
+}
+
 use std::fmt::Write as _;
 
 use nika_schema::check::CheckReport;

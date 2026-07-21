@@ -1184,6 +1184,134 @@ impl<T> typenum::type_operators::Same for nika_dap::flow::FlowEdge
 pub type nika_dap::flow::FlowEdge::Output = T
 pub fn nika_dap::flow::flow_edges(wf: &nika_schema::raw::workflow::RawWorkflow, size_of: &mut dyn core::ops::function::FnMut(&str) -> core::option::Option<usize>) -> alloc::vec::Vec<nika_dap::flow::FlowEdge>
 pub fn nika_dap::flow::scan_task_refs(text: &str, out: &mut alloc::collections::btree::set::BTreeSet<alloc::string::String>)
+pub mod nika_dap::inventory
+pub struct nika_dap::inventory::Rollups
+pub nika_dap::inventory::Rollups::cost_bounded_usd: f64
+pub nika_dap::inventory::Rollups::cost_is_floor: bool
+pub nika_dap::inventory::Rollups::permits_declared: usize
+pub nika_dap::inventory::Rollups::runs_cost_usd: f64
+pub nika_dap::inventory::Rollups::runs_unpriced_calls: u64
+pub nika_dap::inventory::Rollups::workflows_clean: usize
+pub nika_dap::inventory::Rollups::workflows_total: usize
+pub nika_dap::inventory::Rollups::workflows_with_findings: usize
+impl core::fmt::Debug for nika_dap::inventory::Rollups
+pub fn nika_dap::inventory::Rollups::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_dap::inventory::Rollups
+pub fn nika_dap::inventory::Rollups::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::inventory::Rollups
+impl<T, U> core::convert::Into<U> for nika_dap::inventory::Rollups where U: core::convert::From<T>
+pub fn nika_dap::inventory::Rollups::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::inventory::Rollups where U: core::convert::Into<T>
+pub type nika_dap::inventory::Rollups::Error = core::convert::Infallible
+pub fn nika_dap::inventory::Rollups::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::inventory::Rollups where U: core::convert::TryFrom<T>
+pub type nika_dap::inventory::Rollups::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::inventory::Rollups::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::inventory::Rollups where T: 'static + ?core::marker::Sized
+pub fn nika_dap::inventory::Rollups::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::inventory::Rollups where T: ?core::marker::Sized
+pub fn nika_dap::inventory::Rollups::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::inventory::Rollups where T: ?core::marker::Sized
+pub fn nika_dap::inventory::Rollups::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::inventory::Rollups
+pub fn nika_dap::inventory::Rollups::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::inventory::Rollups where T: 'static
+pub fn nika_dap::inventory::Rollups::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::inventory::Rollups
+impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::Rollups
+impl<T> typenum::type_operators::Same for nika_dap::inventory::Rollups
+pub type nika_dap::inventory::Rollups::Output = T
+pub struct nika_dap::inventory::WorkflowFact
+pub nika_dap::inventory::WorkflowFact::clean: bool
+pub nika_dap::inventory::WorkflowFact::cost_bounded_usd: f64
+pub nika_dap::inventory::WorkflowFact::cost_is_floor: bool
+pub nika_dap::inventory::WorkflowFact::findings: usize
+pub nika_dap::inventory::WorkflowFact::path: alloc::string::String
+pub nika_dap::inventory::WorkflowFact::permits_declared: bool
+pub nika_dap::inventory::WorkflowFact::strict_clean: bool
+pub nika_dap::inventory::WorkflowFact::tasks: usize
+pub nika_dap::inventory::WorkflowFact::verbs: alloc::collections::btree::map::BTreeMap<&'static str, usize>
+pub nika_dap::inventory::WorkflowFact::waves: usize
+pub nika_dap::inventory::WorkflowFact::workflow: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_dap::inventory::WorkflowFact
+pub fn nika_dap::inventory::WorkflowFact::clone(&self) -> nika_dap::inventory::WorkflowFact
+impl core::fmt::Debug for nika_dap::inventory::WorkflowFact
+pub fn nika_dap::inventory::WorkflowFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_dap::inventory::WorkflowFact
+pub fn nika_dap::inventory::WorkflowFact::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::inventory::WorkflowFact
+impl<T, U> core::convert::Into<U> for nika_dap::inventory::WorkflowFact where U: core::convert::From<T>
+pub fn nika_dap::inventory::WorkflowFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::inventory::WorkflowFact where U: core::convert::Into<T>
+pub type nika_dap::inventory::WorkflowFact::Error = core::convert::Infallible
+pub fn nika_dap::inventory::WorkflowFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::inventory::WorkflowFact where U: core::convert::TryFrom<T>
+pub type nika_dap::inventory::WorkflowFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::inventory::WorkflowFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::inventory::WorkflowFact where T: core::clone::Clone
+pub type nika_dap::inventory::WorkflowFact::Owned = T
+pub fn nika_dap::inventory::WorkflowFact::clone_into(&self, target: &mut T)
+pub fn nika_dap::inventory::WorkflowFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::inventory::WorkflowFact where T: 'static + ?core::marker::Sized
+pub fn nika_dap::inventory::WorkflowFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::inventory::WorkflowFact where T: ?core::marker::Sized
+pub fn nika_dap::inventory::WorkflowFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::inventory::WorkflowFact where T: ?core::marker::Sized
+pub fn nika_dap::inventory::WorkflowFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::inventory::WorkflowFact where T: core::clone::Clone
+pub unsafe fn nika_dap::inventory::WorkflowFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::inventory::WorkflowFact
+pub fn nika_dap::inventory::WorkflowFact::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::inventory::WorkflowFact where T: core::clone::Clone
+pub fn nika_dap::inventory::WorkflowFact::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::inventory::WorkflowFact where T: 'static
+pub fn nika_dap::inventory::WorkflowFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::inventory::WorkflowFact
+impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::WorkflowFact
+impl<T> typenum::type_operators::Same for nika_dap::inventory::WorkflowFact
+pub type nika_dap::inventory::WorkflowFact::Output = T
+pub struct nika_dap::inventory::Workspace
+pub nika_dap::inventory::Workspace::git: bool
+pub nika_dap::inventory::Workspace::root: alloc::string::String
+pub nika_dap::inventory::Workspace::runs: alloc::vec::Vec<nika_event::fold::RunFact>
+pub nika_dap::inventory::Workspace::runs_capped: bool
+pub nika_dap::inventory::Workspace::runs_total_found: usize
+pub nika_dap::inventory::Workspace::workflows: alloc::vec::Vec<nika_dap::inventory::WorkflowFact>
+pub nika_dap::inventory::Workspace::workflows_capped: bool
+pub nika_dap::inventory::Workspace::workflows_total_found: usize
+impl core::fmt::Debug for nika_dap::inventory::Workspace
+pub fn nika_dap::inventory::Workspace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_dap::inventory::Workspace
+pub fn nika_dap::inventory::Workspace::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::inventory::Workspace
+impl<T, U> core::convert::Into<U> for nika_dap::inventory::Workspace where U: core::convert::From<T>
+pub fn nika_dap::inventory::Workspace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::inventory::Workspace where U: core::convert::Into<T>
+pub type nika_dap::inventory::Workspace::Error = core::convert::Infallible
+pub fn nika_dap::inventory::Workspace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::inventory::Workspace where U: core::convert::TryFrom<T>
+pub type nika_dap::inventory::Workspace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::inventory::Workspace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::inventory::Workspace where T: 'static + ?core::marker::Sized
+pub fn nika_dap::inventory::Workspace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::inventory::Workspace where T: ?core::marker::Sized
+pub fn nika_dap::inventory::Workspace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::inventory::Workspace where T: ?core::marker::Sized
+pub fn nika_dap::inventory::Workspace::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::inventory::Workspace
+pub fn nika_dap::inventory::Workspace::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::inventory::Workspace where T: 'static
+pub fn nika_dap::inventory::Workspace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::inventory::Workspace
+impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::Workspace
+impl<T> typenum::type_operators::Same for nika_dap::inventory::Workspace
+pub type nika_dap::inventory::Workspace::Output = T
+pub const nika_dap::inventory::MAX_WORKFLOWS: usize
+pub const nika_dap::inventory::SKIP_DIRS: [&str; 8]
+pub const nika_dap::inventory::WALK_BUDGET: usize
+pub fn nika_dap::inventory::collect_workflow_paths(root: &std::path::Path, dir: &std::path::Path, depth: u8, budget: &mut usize, out: &mut alloc::vec::Vec<std::path::PathBuf>)
+pub fn nika_dap::inventory::collect_workflows(root: &std::path::Path) -> (alloc::vec::Vec<nika_dap::inventory::WorkflowFact>, bool, usize)
+pub fn nika_dap::inventory::rollups(facts: &[nika_dap::inventory::WorkflowFact], runs: &[nika_event::fold::RunFact]) -> nika_dap::inventory::Rollups
 pub mod nika_dap::otel
 pub struct nika_dap::otel::ExportOutcome
 pub nika_dap::otel::ExportOutcome::broken_at: core::option::Option<usize>
