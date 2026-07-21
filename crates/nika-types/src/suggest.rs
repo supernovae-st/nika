@@ -23,6 +23,7 @@
 //! (a WRONG suggestion is worse than none). Pure · `no_std` + alloc.
 
 use alloc::vec::Vec;
+use alloc::{format, string::String};
 
 /// The best near-match for `target` among `candidates`, when one is
 /// close enough to assert. Ties break to the lexicographically smallest
@@ -86,6 +87,22 @@ pub fn damerau_levenshtein(a: &str, b: &str) -> usize {
         core::mem::swap(&mut prev, &mut curr);
     }
     prev[b.len()]
+}
+
+/// Render a suggestion clause (`" — did you mean ___?"`) or empty.
+/// A suggestion carrying spaces is a TEACHING sentence (e.g. a
+/// cause-namer), not a candidate key — it renders as prose, no question.
+/// Descended from `nika-schema`'s suggest door at the C2 wall (the
+/// render half of the metric, one home).
+#[must_use]
+pub fn suggestion_clause(suggestion: Option<&str>) -> String {
+    suggestion.map_or_else(String::new, |s| {
+        if s.contains(' ') {
+            format!(" — {s}")
+        } else {
+            format!(" — did you mean `{s}`?")
+        }
+    })
 }
 
 #[cfg(test)]

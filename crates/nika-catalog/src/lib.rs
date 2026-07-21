@@ -31,6 +31,8 @@
 // Collapsing to two public paths avoids the drift an architect review
 // flagged: callers could otherwise write `nika_catalog::data::generated::*`
 // and our `cargo public-api` diff would churn on every data edit.
+#[cfg(feature = "serde")]
+pub mod codegen;
 pub(crate) mod data;
 pub mod error;
 // The wire projection (`nika catalog --json` · MCP `nika_catalog`) needs

@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The bare `for_each:` / `when:` value positions — whole `${{ … }}`
-//! islands composed from THIS document's declarations (typed array vars
+//! islands composed from THIS document's declarations (typed array inputs
 //! float first for a fan-out; upstream tasks ride cycle-safe), so the
 //! author picks a working expression instead of recalling the grammar.
 //! Once an island is open the generic expression lanes take over — this
@@ -32,6 +32,7 @@ pub(super) fn island_value_key(prefix: &str) -> Option<&'static str> {
 
 struct DocView {
     /// (name, `is_typed_array`) — typed arrays float first for a fan-out.
+    /// Dotted value-authority refs (`inputs.x` · `const.x`) + array flag.
     vars: Vec<(String, bool)>,
     /// Upstream candidates: every task except the editing one and its
     /// downstream closure (a reference downstream is a cycle).
@@ -45,19 +46,26 @@ fn doc_view(text: &str, offset: usize) -> DocView {
     if let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient)
         && !wf.tasks.is_empty()
     {
-        let vars = wf
-            .vars
+        fn authority_ref(
+            root: &str,
+            name: &nika_schema::source::Spanned<String>,
+            decl: &nika_schema::VarDecl,
+        ) -> (String, bool) {
+            let is_array = match decl {
+                nika_schema::VarDecl::Typed {
+                    r#type: nika_schema::VarType::Array,
+                    ..
+                } => true,
+                nika_schema::VarDecl::Untyped(v) => v.is_array(),
+                nika_schema::VarDecl::Typed { .. } => false,
+            };
+            (format!("{root}.{name}", name = name.value), is_array)
+        }
+        let vars: Vec<(String, bool)> = wf
+            .inputs
             .iter()
-            .map(|(name, decl)| {
-                let is_array = matches!(
-                    decl,
-                    nika_schema::VarDecl::Typed {
-                        r#type: nika_schema::VarType::Array,
-                        ..
-                    }
-                );
-                (name.value.clone(), is_array)
-            })
+            .map(|(n, d)| authority_ref("inputs", n, d))
+            .chain(wf.consts.iter().map(|(n, d)| authority_ref("const", n, d)))
             .collect();
         let illegal: std::collections::BTreeSet<&str> = current
             .as_deref()
@@ -86,7 +94,7 @@ fn doc_view(text: &str, offset: usize) -> DocView {
     // Mid-keystroke fallback — the same honest degradation as task_ids:
     // line scans, self excluded, no closure knowledge.
     DocView {
-        vars: super::members::scan_vars_keys(text)
+        vars: super::members::scan_value_authority_keys(text)
             .into_iter()
             .map(|n| (n, false))
             .collect(),
@@ -110,16 +118,16 @@ fn island(label: String, detail: String) -> CompletionItem {
 /// `for_each:` — the collection candidates: typed array inputs lead,
 /// the task's OWN bindings follow (the collection is a pre-fan-out
 /// LOCAL surface · spec 03 §`for_each` — an upstream array crosses
-/// through `with:` first), other vars offered honestly. No `tasks.*`
+/// through `with:` first), other values offered honestly. No `tasks.*`
 /// form is ever offered here (NIKA-VAR-021 · never offer what check
 /// refuses).
 pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     let view = doc_view(text, offset);
     let mut items = Vec::new();
-    for (name, _) in view.vars.iter().filter(|(_, a)| *a) {
+    for (reference, _) in view.vars.iter().filter(|(_, a)| *a) {
         items.push(island(
-            format!("${{{{ vars.{name} }}}}"),
-            "array input — one run per element".to_owned(),
+            format!("${{{{ {reference} }}}}"),
+            "array value — one run per element".to_owned(),
         ));
     }
     for name in &view.bindings {
@@ -134,9 +142,9 @@ pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
             "bind the upstream array first — with: { items: ${{ tasks.<id>.output }} }".to_owned(),
         ));
     }
-    for (name, _) in view.vars.iter().filter(|(_, a)| !*a) {
+    for (reference, _) in view.vars.iter().filter(|(_, a)| !*a) {
         items.push(island(
-            format!("${{{{ vars.{name} }}}}"),
+            format!("${{{{ {reference} }}}}"),
             "runs if it holds a list at launch".to_owned(),
         ));
     }
@@ -150,10 +158,10 @@ pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
 pub(super) fn when_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     let view = doc_view(text, offset);
     let mut items = Vec::new();
-    for (name, _) in &view.vars {
+    for (reference, _) in &view.vars {
         items.push(island(
-            format!("${{{{ vars.{name} }}}}"),
-            "the input as a boolean switch".to_owned(),
+            format!("${{{{ {reference} }}}}"),
+            "the value as a boolean switch".to_owned(),
         ));
     }
     for name in &view.bindings {

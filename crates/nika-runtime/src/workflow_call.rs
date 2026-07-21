@@ -214,3 +214,6 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 }
+
+#[cfg(test)]
+mod tests;

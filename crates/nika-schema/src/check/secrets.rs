@@ -346,7 +346,7 @@ tasks:
 nika: v1
 workflow:
   id: w
-vars: { ep: \"api.stripe.com\" }
+const: { ep: \"api.stripe.com\" }
 secrets:
   stripe:
     source: env
@@ -359,7 +359,7 @@ tasks:
     invoke:
       tool: \"nika:fetch\"
       args:
-        url: \"https://${{ vars.ep }}/v1/charges\"
+        url: \"https://${{ const.ep }}/v1/charges\"
         headers: { Authorization: \"Bearer ${{ secrets.stripe }}\" }
 ";
         assert_eq!(leaks_of(yaml).len(), 1, "templated host is injectable");

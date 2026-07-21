@@ -78,8 +78,9 @@ pub(crate) struct PendingRecovery {
 #[derive(Clone, Copy)]
 pub(crate) struct ResolveScope<'a> {
     pub wf: &'a RawWorkflow,
-    pub vars: &'a BTreeMap<String, Value>,
-    pub env: &'a BTreeMap<String, Value>,
+    pub inputs: &'a BTreeMap<String, Value>,
+    pub config: &'a BTreeMap<String, Value>,
+    pub consts: &'a BTreeMap<String, Value>,
     pub secrets: &'a BTreeMap<String, Value>,
     pub resume_ctx: &'a ResumeContext,
 }
@@ -183,7 +184,7 @@ pub(crate) fn settle_or_park(
     sink: &mut dyn EventSink,
 ) {
     if let Some(finish) = try_park(finish, scope, parked) {
-        crate::settle(finish, live, ok, cache_hits, stamper, sink);
+        crate::settle::settle(finish, live, ok, cache_hits, stamper, sink);
     }
     drain_ready(scope, parked, prior, live, ok, cache_hits, stamper, sink);
 }
@@ -328,7 +329,7 @@ fn drain_ready(
             view.extend(live.iter().map(|(k, v)| (k.clone(), v.clone())));
             resolve_parked(id, park, scope, &view)
         };
-        crate::settle(finish, live, ok, cache_hits, stamper, sink);
+        crate::settle::settle(finish, live, ok, cache_hits, stamper, sink);
     }
 }
 
@@ -373,7 +374,7 @@ pub(crate) fn resolve_at_end(
         }
     }
     for finish in resolved {
-        crate::settle(finish, records, ok, cache_hits, stamper, sink);
+        crate::settle::settle(finish, records, ok, cache_hits, stamper, sink);
     }
 }
 
@@ -429,8 +430,9 @@ fn resolve_parked(
         Some(template) => {
             let render_scope = Scope {
                 records: view,
-                vars: scope.vars,
-                env: scope.env,
+                inputs: scope.inputs,
+                config: scope.config,
+                consts: scope.consts,
                 secrets: scope.secrets,
                 with_ns: Some(&with_ns),
                 item: None, // iterations never park (fan-out boundary)
@@ -500,3 +502,6 @@ fn recover_template(wf: &RawWorkflow, index: usize) -> Option<&Value> {
 fn task_index(wf: &RawWorkflow, id: &str) -> Option<usize> {
     wf.tasks.iter().position(|t| t.value.id.value == id)
 }
+
+#[cfg(test)]
+mod tests;

@@ -209,11 +209,12 @@ fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Th
     }
 }
 
-/// Declared `vars:` that the operator MUST pass at run time — `required: true`
-/// with no `default:`. The static surface can NAME them (so `check` warns
-/// before a bare `run` hits `NIKA-VAR-001`); only the runtime binds them.
+/// Declared `inputs:` that the operator MUST pass at run time —
+/// `required: true` with no `default:`. The static surface can NAME them
+/// (so `check` warns before a bare `run` hits `NIKA-VAR-001`); only the
+/// runtime binds them.
 pub(super) fn required_inputs(wf: &RawWorkflow) -> Vec<&str> {
-    wf.vars
+    wf.inputs
         .iter()
         .filter_map(|(name, decl)| match decl {
             VarDecl::Typed {

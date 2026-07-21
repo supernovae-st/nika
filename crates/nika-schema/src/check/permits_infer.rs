@@ -571,7 +571,7 @@ tasks:
         // A dynamic SHELL string rides the shell-string arm (the form
         // decides before the head is even looked at).
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nvars: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ vars.c }} status\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.c }} status\" }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any), "dynamic → true");
         assert_eq!(r.notes.len(), 1);
@@ -601,7 +601,7 @@ tasks:
         // `["${{ vars.bin }}"]` must NOT be inferred as a literal program
         // named `${{ vars.bin }}` — the head is dynamic → exec: true + note.
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nvars: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ vars.bin }}\", \"status\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any));
         assert!(r.notes.iter().any(|n| n.contains("dynamic exec")));
@@ -610,7 +610,7 @@ tasks:
     #[test]
     fn dynamic_fetch_url_notes_review() {
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nvars: { h: \"x.com\" }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ vars.h }}/p\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst: { h: \"x.com\" }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ const.h }}/p\" } }\n",
         );
         // host couldn't be pinned → net stays unset, a note flags it
         assert!(r.permits.net.is_none());
@@ -682,7 +682,7 @@ tasks:
     #[test]
     fn dynamic_image_output_dir_notes_review() {
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nvars: { dir: \"./assets\" }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ vars.dir }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst: { dir: \"./assets\" }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ const.dir }}\" } }\n",
         );
         assert!(r.permits.fs.is_none(), "dynamic dir cannot be pinned");
         assert!(r.notes.iter().any(|n| n.contains("dynamic path")));
@@ -715,7 +715,7 @@ tasks:
         );
         // ExecPermit::Any — a dynamic command renders `exec: true`.
         assert_round_trips_clean(
-            "nika: v1\nworkflow:\n  id: w\nvars: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ vars.c }} status\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.c }} status\" }\n",
         );
     }
 

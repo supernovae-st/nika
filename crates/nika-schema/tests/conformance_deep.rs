@@ -40,6 +40,39 @@ const DEEP_GAPS: &[(&str, &str)] = &[
     // harness now verdicts against the full `check()` surface (its
     // `capability_escapes`), so the fixture passes. Row deleted per the
     // ratchet (« the suite fails on a stale row by design »).
+
+    // ── The R5 predicates wave (spec #118 · pc-light · `after:` speaks
+    // the outcome-class spellings success·failure·skipped·terminal — the
+    // engine's closed set is still succeeded·failed·skipped·terminal, so
+    // every after:-carrying fixture refuses NIKA-DAG-005 before reaching
+    // its expected verdict). The wave is its own epic (display · dap ·
+    // lints · lsp · runtime all speak the participial spellings); each
+    // row deletes itself when the rename lands.
+    (
+        "001-cel-chained-relation",
+        "R5 predicates (success·failure)",
+    ),
+    ("007-bare-when-string", "R5 predicates (success·failure)"),
+    (
+        "023-dead-after-skipped-on-success-producer",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "024-dead-after-skipped-on-failure-producer",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "025-dead-after-skipped-on-cancelled-producer",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "026-dead-after-success-on-skipped-producer",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "027-dead-after-failure-on-skipped-producer",
+        "R5 predicates (success·failure)",
+    ),
 ];
 
 #[test]

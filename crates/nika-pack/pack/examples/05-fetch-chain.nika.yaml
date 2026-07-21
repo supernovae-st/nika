@@ -22,7 +22,7 @@ workflow:
   id: fetch-chain
 
 model: mock/echo
-vars:
+const:
   api_url: "https://api.example.com/v1/articles/latest"
 
 tasks:
@@ -30,7 +30,7 @@ tasks:
     invoke:
       tool: nika:fetch
       args:
-        url: "${{ vars.api_url }}"
+        url: "${{ const.api_url }}"
         mode: jq                    # extract structured fields, not markdown
         jq: "."
     output:                         # named bindings, extracted via jq

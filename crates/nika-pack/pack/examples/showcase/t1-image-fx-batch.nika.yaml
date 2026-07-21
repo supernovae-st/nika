@@ -23,7 +23,7 @@ workflow:
   id: image-fx-batch
   description: "Folder of PNG files → deterministic art (grayscale · dither · pixelate) · offline batch"
 
-vars:
+const:
   photos: "./photos" # the input folder · every .png in it gets the treatment
 
 permits:
@@ -42,7 +42,7 @@ tasks:
   shots:
     invoke:
       tool: "nika:glob"
-      args: { pattern: "${{ vars.photos }}/*.png" }
+      args: { pattern: "${{ const.photos }}/*.png" }
 
   # One deterministic darkroom pass per photo · the ops run IN ORDER.
   stylize:

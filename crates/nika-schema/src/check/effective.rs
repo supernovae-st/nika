@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn dynamic_effects_surface_as_notes() {
         let report = collect(&wf(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  host: { type: string, default: \"https://x.dev\" }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ vars.host }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\ninputs:\n  host: { type: string, default: \"https://x.dev\" }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ inputs.host }}\" } }\n",
         ));
         assert!(
             !report.notes.is_empty(),

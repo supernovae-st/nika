@@ -11,7 +11,7 @@
 
 ```yaml
 # Inside a string
-prompt: "Summarize · ${{ vars.topic }}"
+prompt: "Summarize · ${{ inputs.topic }}"
 
 # Inside a value position
 with:
@@ -22,32 +22,50 @@ when: ${{ with.coverage > 80 }}
 
 # Inside an array
 tools:
-  - ${{ vars.tool_a }}
-  - ${{ vars.tool_b }}
+  - ${{ const.tool_a }}
+  - ${{ const.tool_b }}
 ```
 
 If you have used GitHub Actions, this is the same. If you have not, the rule is simple · **anywhere you want a value resolved at task dispatch time, wrap it in `${{ }}`**.
 
 **What's inside `${{ }}` is [CEL](https://cel.dev)** (Common Expression
 Language · the validated, non-Turing-complete standard used by Kubernetes,
-Envoy, and gRPC). A bare reference like `${{ vars.topic }}` is a CEL identifier
+Envoy, and gRPC). A bare reference like `${{ inputs.topic }}` is a CEL identifier
 path that evaluates to its value; a condition like `${{ with.coverage > 80 }}`
 is a CEL boolean. One expression language, everywhere: Nika does not invent a
 DSL. See [03-dag.md](./03-dag.md#expression-language--a-documented-subset-of-cel) for the v0.1 CEL subset.
 
 ---
 
-## The 5 namespaces
+## The 6 namespaces
 
 ```
-${{ vars.X }}             workflow inputs               (declared in envelope `vars:` · untyped or typed)
-${{ with.X }}             task-level scope               (declared per-task `with:` block · the bindings ARE the data edges)
+${{ inputs.X }}            typed workflow input          (declared in envelope `inputs:` · supplied by the caller at launch)
+${{ config.X }}            non-sensitive runtime config   (declared in envelope `config:` · supplied by the deployment · may appear in logs)
+${{ const.X }}             named constant                 (declared in envelope `const:` · a fixed value baked into the workflow)
+${{ secrets.X }}           masked secret reference        (vault-backed · never in logs)
+${{ with.X }}              task-level scope               (declared per-task `with:` block · the bindings ARE the data edges)
 ${{ tasks.X.output }}      task record reference          (or .status · .error · .duration_ms · the CLOSED projection set · BOUNDARY surfaces only — see below)
-${{ env.X }}              environment variable           (non-sensitive runtime config)
-${{ secrets.X }}          masked secret reference        (vault-backed · never in logs)
 ```
 
-Five namespaces. That's it.
+Six namespaces. That's it.
+
+The first four — `inputs` · `config` · `const` · `secrets` — are the **value
+authorities**, the closed family every workflow value is declared under
+(LAW-SURFACE-0201 · one authority, one spelling, no alias). `with` and
+`tasks` are the **runtime namespaces** (task-scope bindings and settled task
+records) — legal in `${{ }}`, never value authorities.
+
+> **Dead forms (refused with a classification teaching · the E-split).**
+> The pre-flip `vars:` and `env:` envelope fields are dead: a `vars:` block
+> refuses with `NIKA-VALUES-001`, an `env:` block with `NIKA-VALUES-002`,
+> and a `${{ vars.X }}` / `${{ env.X }}` read with the same codes. Each
+> old use **classifies** into the authority its role commands — a typed
+> parameter is an `inputs:` declaration, a fixed value a `const:` entry,
+> non-sensitive runtime configuration a `config:` declaration, a governed
+> store reference a `secrets:` entry (classify-not-rename · never a bulk
+> rename). A value-namespace read outside the four-authority family
+> (`${{ params.X }}` and friends) refuses with `NIKA-VALUES-003`.
 
 ### The reference boundary · where `tasks.*` may appear
 
@@ -81,8 +99,9 @@ summarize:
       prompt: "Summarize · ${{ with.article }}"
 ```
 
-The task body is a **pure function of its declared inputs** (`with` · `vars`
-· `env` · `secrets` · the loop locals): every cross-task dependency is
+The task body is a **pure function of its declared inputs** (`with` · the
+four value authorities `inputs` · `config` · `const` · `secrets` · the loop
+locals): every cross-task dependency is
 visible at the boundary, named, and typed by its edge role. Nothing else
 reads another task.
 
@@ -96,49 +115,109 @@ reads another task.
 > the golden-drift trap engine#524 had to teach around. No aliases —
 > one meaning per spelling.
 
-> **Loop-locals are not a 6th namespace.** Inside a `for_each` task body, two
+> **Loop-locals are not a 7th namespace.** Inside a `for_each` task body, two
 > extra identifiers are in scope: `${{ item }}` (the current element) and
 > `${{ index }}` (its 0-based position). They are **loop-scoped locals**, alive
 > only within that task's body, not global namespaces. So the count stays
-> « <!-- canon:namespaces -->5<!-- /canon --> namespaces » + the for-each locals where a loop is present.
+> « <!-- canon:namespaces -->6<!-- /canon --> namespaces » + the for-each locals where a loop is present.
 
 **Shadowing is structurally impossible.** Every namespace is reached
-through its explicit prefix (`vars.` · `with.` · `tasks.` · `env.` ·
-`secrets.`): a `vars.item` and the loop-local `item` never collide
-(one is `vars.item` · the other is bare `item`), a task may be named
-`item` (`tasks.item.output` is unambiguous), and `with.X` never hides a
-`vars.X`. The only bare identifiers in the language are the two
+through its explicit prefix (`inputs.` · `config.` · `const.` · `secrets.` ·
+`with.` · `tasks.`): an `inputs.item` and the loop-local `item` never collide
+(one is `inputs.item` · the other is bare `item`), a task may be named
+`item` (`tasks.item.output` is unambiguous), and `with.X` never hides an
+`inputs.X`. The only bare identifiers in the language are the two
 loop-locals, and `for_each` does not nest within a task, so there is no
 scope chain · no resolution-order subtleties · nothing to shadow. This
 is by construction, not by rule.
 
-### `${{ vars.X }}` · workflow inputs
+### `${{ inputs.X }}` · typed workflow inputs
 
-Declared once in the envelope · immutable across the workflow run · may be
-**untyped** (the value is the default) or **typed** (enables validation +
-schema generation for callable workflows · see [01-envelope.md](./01-envelope.md#vars--optional--workflow-inputs--untyped-or-typed)) ·
+Declared once in the envelope · immutable across the workflow run · every
+entry is a **typed declaration** whose `type:` speaks the full TypeExpr of
+[09-types.md](./09-types.md) (the flat 6-enum is dead · `bool` is the one
+boolean spelling) — validation + schema generation for callable workflows
+(see [01-envelope.md](./01-envelope.md#inputs--optional--typed-workflow-inputs)) ·
 
 ```yaml
 nika: v1
 workflow:
   id: research-pipeline
 
-vars:
-  topic: "Rust async runtimes 2026"    # untyped · value is the default
-  output_dir: "./output"
+inputs:
+  topic:
+    type: string
+    required: true                   # the caller MUST supply it
+    description: "Subject to research"
+  paragraphs:
+    type: integer
+    default: 5                       # MUST conform to type: (checked · NIKA-DEFAULT-001)
 
 tasks:
   research:
     infer:
-      prompt: "Research · ${{ vars.topic }}"
+      prompt: "Research · ${{ inputs.topic }} · in ${{ inputs.paragraphs }} paragraphs"
 ```
 
-To supply or override an input at launch ·
+A `required: true` input has no default: the caller must supply it at
+launch. To supply or override an input ·
 `nika run flow.nika.yaml --var topic="CEL subsets in 2026"` (repeatable ·
 engine CLI concern). A `--var` value overrides the declared default and
-satisfies a `required: true` var · an undeclared key is refused before the
-run. See [01-envelope.md](./01-envelope.md#vars--optional--workflow-inputs--untyped-or-typed)
+satisfies a `required: true` input · an undeclared key is refused before the
+run. See [01-envelope.md](./01-envelope.md#inputs--optional--typed-workflow-inputs)
 for the launch contract.
+
+### `${{ config.X }}` · non-sensitive runtime config
+
+```yaml
+config:
+  log_level:
+    type: string
+    default: "info"
+
+tasks:
+  note:
+    infer:
+      prompt: "Running at ${{ config.log_level }} verbosity"
+```
+
+`config` holds **non-sensitive** runtime configuration, supplied by the
+deployment or environment (engine launch concern, the same way inputs are
+caller-supplied) with `default:` as the declared fallback. Each entry is a
+typed declaration (`type:` required · the full TypeExpr · a `default:` MUST
+conform to it · `NIKA-DEFAULT-001`). Values may appear in logs +
+traces. For anything secret, use `secrets:` (below) instead: never put a
+credential in `config`.
+
+**Declared-only · no ambient OS fallback** · `${{ config.X }}` resolves ONLY
+against the envelope `config:` block. An entry absent from the block is
+`NIKA-VAR-001`: the engine never silently reads the OS environment (a
+workflow's inputs are all visible in the file · sovereignty + portability).
+
+### `${{ const.X }}` · named constants
+
+```yaml
+const:
+  retries: 3                                # bare literal
+  output_dir: "./output"
+  window:                                   # typed constant · value MUST conform to type:
+    type: integer
+    value: 30
+
+tasks:
+  note:
+    infer:
+      prompt: "Keep the ${{ const.retries }} retries in ${{ const.output_dir }}"
+```
+
+`const` holds the fixed values baked into the workflow: either a **bare
+literal** (any YAML value) or a **typed constant** `{ type, value }` whose
+`value:` MUST conform to its `type:` (checked · `NIKA-DEFAULT-001`). An
+object carrying BOTH `type` and `value` keys is the typed form; an object
+missing either key is a bare literal object constant (the discriminator ·
+so a literal like `config: { type: "custom" }` is never misread). Constants
+are immutable across the run and are never caller-supplied: a value the
+caller must be able to override is an `inputs:` declaration, not a constant.
 
 ### `${{ with.X }}` · task-level scope
 
@@ -172,7 +251,7 @@ at the boundary ·
 
 ```yaml
 deploy:
-    after: { test: succeeded }                            # strict gate · no data from test
+    after: { test: success }                              # strict gate · no data from test
     with:
       coverage: ${{ tasks.test.output.coverage }}         # value edge · read the number
       artifact: ${{ tasks.build.output.artifact_path }}   # value edge · build → deploy
@@ -272,26 +351,6 @@ closed object is `NIKA-VAR-003` (the same code · one voice), and only
 `additional: true` or an `Unknown` producer opens a level. The raw
 `schema:` hatch keeps the weaker subset walk above.
 
-### `${{ env.X }}` · environment variable
-
-```yaml
-env:
-  LOG_LEVEL: info
-infer:
-  prompt: "Running at ${{ env.LOG_LEVEL }} verbosity"
-```
-
-`env` holds **non-sensitive** runtime config. Values may appear in logs +
-traces. For anything secret, use `secrets:` (below) instead: never put a
-credential in `env`.
-
-**Declared-only · no ambient OS fallback** · `${{ env.X }}` resolves ONLY
-against the envelope `env:` block. An entry absent from the block is
-`NIKA-VAR-001`: the engine never silently reads the OS environment (a
-workflow's inputs are all visible in the file · sovereignty + portability).
-To pass an OS value in, do it explicitly at launch
-(`nika run flow.yaml --env LOG_LEVEL="$LOG_LEVEL"` · engine CLI concern).
-
 ### `${{ secrets.X }}` · masked secret reference
 
 ```yaml
@@ -307,8 +366,8 @@ headers:
 A secret is always a **reference to a store** (the local `nika-vault` by
 default), declared in the envelope `secrets:` block, never an inline
 literal. The engine **masks** every resolved `secrets.X` value in logs,
-traces, and journal events (it renders as `••••••`). This `env` / `secrets`
-split is the modern secure-workflow default: non-sensitive config in `env`,
+traces, and journal events (it renders as `••••••`). This `config` / `secrets`
+split is the modern secure-workflow default: non-sensitive config in `config`,
 masked references in `secrets`.
 
 > **The masking boundary (normative).** Masking covers the engine's OWN
@@ -443,7 +502,7 @@ extraction-and-transform language (`output:` bindings + the `nika:jq` builtin).
   CEL reads the namespaces · jq reads the task output). To parametrize an
   extraction by a workflow value, shape the verb's *input* with `${{ }}` ·
   the jq then runs over the result. (Exposing the read namespaces as jq
-  variables, `.items[] | select(.id == $vars.target)`, is a v0.2 candidate ·
+  variables, `.items[] | select(.id == $inputs.target)`, is a v0.2 candidate ·
   jq-native · additive · NOT in the v0.1 subset.)
 
 ---
@@ -453,8 +512,8 @@ extraction-and-transform language (`output:` bindings + the `nika:jq` builtin).
 When a task is admitted · the engine resolves `${{ ... }}` references in this order ·
 
 1. **Boundary first** · the `with:` bindings materialize (their `tasks.X.field` references read the settled records — this is where the data edges deliver)
-2. **`when:`** evaluates over the local namespaces (`vars` · `env` · `with` · loop locals)
-3. **Body** · verb-field expressions resolve (`vars.X` · `with.X` · `env.X` · `secrets.X` · loop locals — never `tasks.*`)
+2. **`when:`** evaluates over the local namespaces (`inputs` · `config` · `const` · `with` · loop locals)
+3. **Body** · verb-field expressions resolve (`inputs.X` · `config.X` · `const.X` · `secrets.X` · `with.X` · loop locals — never `tasks.*`)
 4. **Single-pass** · a substitution result is NOT re-evaluated (no nested substitution)
 
 If a reference is unresolved · the engine raises a `NIKA-VAR-001` (undefined
@@ -493,7 +552,7 @@ To embed a literal `${{` in a string · use `\${{` (backslash escape). The engin
 
 ```yaml
 infer:
-  prompt: "The syntax \\${{ var.x }} is how you reference variables."
+  prompt: "The syntax \\${{ inputs.x }} is how you reference variables."
 ```
 
 (Note · YAML escaping of backslash · `\\` in double-quoted strings · `\` in single-quoted or block scalars.)
@@ -530,7 +589,7 @@ Reasons ·
 
 ## Forward-compat
 
-The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->5<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ vars.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features: the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`output:` + `nika:jq`).
+The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->6<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ inputs.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features: the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`output:` + `nika:jq`).
 
 Out of scope for v0.1 (deferred · see [`08-out-of-scope.md`](./08-out-of-scope.md)) ·
 - Expression language (no arithmetic in templates)

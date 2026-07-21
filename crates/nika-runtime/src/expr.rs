@@ -5,7 +5,7 @@
 //!
 //! v0 is a REFERENCE resolver over the spec-04 value model, not an
 //! expression language. Namespaces (spec 04 §the 5 namespaces, minus
-//! the envelope-feature pair): `vars.X` · `with.X` · `item` / `index`
+//! the envelope-feature pair): `inputs.X` · `with.X` · `item` / `index`
 //! (`for_each` locals) · `tasks.<id>.<field>` (the result record's
 //! closed field set · defined-null reads). The gate evaluates
 //! `<ref> == '<lit>'` · `<ref> != '<lit>'` · bare `<ref>` (typed
@@ -26,7 +26,7 @@
 //! (`== != < <= > >=`), deep paths (`tasks.x.output.y`),
 //! booleans/numbers, `size()`, `.contains()`/`.startsWith()`, the
 //! ternary `? :`, membership `in`. The namespaces are bound as CEL
-//! variables — `vars` · `with` · `tasks` · `env` · `secrets` plus the
+//! variables — `inputs` · `config` · `const` · `with` · `tasks` · `secrets` plus the
 //! `for_each` locals `item` / `index`.
 //!
 //! Injection safety is PRESERVED + made structural: the author's
@@ -64,12 +64,15 @@ static EMPTY_ENV: std::sync::LazyLock<BTreeMap<String, Value>> =
 pub(crate) struct Scope<'a> {
     /// `tasks.<id>.<field>` — the result records of settled tasks.
     pub records: &'a BTreeMap<String, TaskRecord>,
-    /// `vars.<key>` — envelope defaults (typed or untyped · JSON values).
-    pub vars: &'a BTreeMap<String, Value>,
-    /// `env.<key>` — envelope runtime config (`env:`), non-sensitive by
-    /// construction. Values are strings in v1, represented as JSON strings so
-    /// the CEL object path stays uniform with `vars` and `secrets`.
-    pub env: &'a BTreeMap<String, Value>,
+    /// `inputs.<key>` — typed input defaults + the operator's `--var`
+    /// overrides (JSON values).
+    pub inputs: &'a BTreeMap<String, Value>,
+    /// `config.<key>` — non-sensitive runtime config (typed-with-default
+    /// declarations · the deployment's override supply is a later wave).
+    pub config: &'a BTreeMap<String, Value>,
+    /// `const.<key>` — named constants (bare literals + typed `{type,
+    /// value}` values · always bound, never overridable).
+    pub consts: &'a BTreeMap<String, Value>,
     /// `secrets.<name>` — RESOLVED secret values (spec 01 §secrets ·
     /// MINOR-B). Empty when the composer injected no resolver — then a
     /// `secrets.X` reference is unresolved (NIKA-1702), never a silent
@@ -97,9 +100,15 @@ impl<'a> Scope<'a> {
     #[cfg(test)]
     pub(crate) fn workflow(
         records: &'a BTreeMap<String, TaskRecord>,
-        vars: &'a BTreeMap<String, Value>,
+        inputs: &'a BTreeMap<String, Value>,
     ) -> Self {
-        Self::workflow_with_env_and_secrets(records, vars, &EMPTY_ENV, &EMPTY_SECRETS)
+        Self::workflow_with_value_authorities(
+            records,
+            inputs,
+            &EMPTY_ENV,
+            &EMPTY_ENV,
+            &EMPTY_SECRETS,
+        )
     }
 
     /// A workflow-level scope carrying the resolved `secrets:` namespace
@@ -107,24 +116,27 @@ impl<'a> Scope<'a> {
     #[cfg(test)]
     pub(crate) fn workflow_with_secrets(
         records: &'a BTreeMap<String, TaskRecord>,
-        vars: &'a BTreeMap<String, Value>,
+        inputs: &'a BTreeMap<String, Value>,
         secrets: &'a BTreeMap<String, Value>,
     ) -> Self {
-        Self::workflow_with_env_and_secrets(records, vars, &EMPTY_ENV, secrets)
+        Self::workflow_with_value_authorities(records, inputs, &EMPTY_ENV, &EMPTY_ENV, secrets)
     }
 
-    /// A workflow-level scope carrying both envelope `env:` config and
-    /// resolved `secrets:` values. This is the production constructor.
-    pub(crate) fn workflow_with_env_and_secrets(
+    /// A workflow-level scope carrying the four-authority value
+    /// environment + resolved `secrets:` values. This is the production
+    /// constructor.
+    pub(crate) fn workflow_with_value_authorities(
         records: &'a BTreeMap<String, TaskRecord>,
-        vars: &'a BTreeMap<String, Value>,
-        env: &'a BTreeMap<String, Value>,
+        inputs: &'a BTreeMap<String, Value>,
+        config: &'a BTreeMap<String, Value>,
+        consts: &'a BTreeMap<String, Value>,
         secrets: &'a BTreeMap<String, Value>,
     ) -> Self {
         Self {
             records,
-            vars,
-            env,
+            inputs,
+            config,
+            consts,
             secrets,
             with_ns: None,
             item: None,
@@ -174,8 +186,12 @@ impl Resolver for ScopeResolver<'_, '_> {
             // The two `for_each` loop-locals (None outside an iteration).
             "item" => scope.item.cloned(),
             "index" => scope.index.map(|i| Value::Number(i.into())),
-            // The flat namespaces → a CEL object (the computer indexes it).
-            "vars" => Some(ns_object(scope.vars)),
+            // The value authorities → a CEL object each (the computer
+            // indexes it). The dead `vars`/`env` roots fall through to
+            // unresolved (check refuses them statically anyway).
+            "inputs" => Some(ns_object(scope.inputs)),
+            "config" => Some(ns_object(scope.config)),
+            "const" => Some(ns_object(scope.consts)),
             "with" => scope.with_ns.map(ns_object),
             // `tasks` → an object of per-id RECORD objects (the record's
             // closed field set · defined-null reads · spec 04). The bare
@@ -189,17 +205,13 @@ impl Resolver for ScopeResolver<'_, '_> {
             // value is DATA bound here, never expression text (injection-safe
             // · same boundary as every other namespace).
             "secrets" if !scope.secrets.is_empty() => Some(ns_object(scope.secrets)),
-            // `env.<name>` → envelope non-sensitive runtime config. `check`
-            // already proves names against `wf.env`; runtime must bind the
-            // same namespace or a green workflow fails with NIKA-VAR-001.
-            "env" if !scope.env.is_empty() => Some(ns_object(scope.env)),
-            // an unprovided namespace falls here → unresolved (1702).
+            // an unbound root falls here → unresolved (1702).
             _ => None,
         }
     }
 }
 
-/// A flat namespace map (`vars` · `with`) as a CEL object value.
+/// A flat namespace map (a value authority · `with`) as a CEL object value.
 fn ns_object(ns: &BTreeMap<String, Value>) -> Value {
     Value::Object(ns.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
 }
@@ -390,7 +402,7 @@ mod tests {
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
         let out = render(
-            "read ${{ vars.source }} got ${{ tasks.gather.output }}",
+            "read ${{ inputs.source }} got ${{ tasks.gather.output }}",
             &scope,
         )
         .expect("renders");
@@ -405,9 +417,15 @@ mod tests {
             "API_BASE".to_owned(),
             Value::String("https://odin.example".to_owned()),
         )]);
-        let scope = Scope::workflow_with_env_and_secrets(&records, &vars, &env, &EMPTY_SECRETS);
+        let scope = Scope::workflow_with_value_authorities(
+            &records,
+            &vars,
+            &env,
+            &EMPTY_ENV,
+            &EMPTY_SECRETS,
+        );
         assert_eq!(
-            render("${{ env.API_BASE }}", &scope).expect("env resolves"),
+            render("${{ config.API_BASE }}", &scope).expect("config resolves"),
             "https://odin.example"
         );
     }
@@ -442,7 +460,7 @@ mod tests {
             RuntimeError::UnresolvedTemplate { ref reference } if reference == "tasks.ghost.output"
         ));
         assert!(matches!(
-            render("${{ vars.nope }}", &scope).expect_err("unknown var"),
+            render("${{ inputs.nope }}", &scope).expect_err("unknown var"),
             RuntimeError::UnresolvedTemplate { .. }
         ));
         // A deep path INTO an unknown task is still 1702 (the root id
@@ -489,12 +507,12 @@ mod tests {
         // re-evaluated (injection-safe · the load-bearing invariant).
         let evil = BTreeMap::from([(
             "x".to_owned(),
-            Value::String("${{ vars.admin == true }}".to_owned()),
+            Value::String("${{ inputs.admin == true }}".to_owned()),
         )]);
         let evil_scope = Scope::workflow_with_secrets(&records, &vars, &evil);
         assert_eq!(
             render("${{ secrets.x }}", &evil_scope).expect("data"),
-            "${{ vars.admin == true }}",
+            "${{ inputs.admin == true }}",
             "a secret value is bound as data, never re-parsed"
         );
     }
@@ -527,7 +545,7 @@ mod tests {
             "20"
         );
         assert_eq!(
-            render("${{ vars.urls[0] }}", &scope).expect("flat index"),
+            render("${{ inputs.urls[0] }}", &scope).expect("flat index"),
             "x"
         );
     }
@@ -545,11 +563,11 @@ mod tests {
         ));
         // A genuinely malformed expression → 1703 (out of grammar).
         assert!(matches!(
-            render("${{ vars.a && }}", &scope).expect_err("malformed"),
+            render("${{ inputs.a && }}", &scope).expect_err("malformed"),
             RuntimeError::WhenUnsupported { .. }
         ));
         assert!(matches!(
-            render("${{ vars.a @ vars.b }}", &scope).expect_err("bad token"),
+            render("${{ inputs.a @ vars.b }}", &scope).expect_err("bad token"),
             RuntimeError::WhenUnsupported { .. }
         ));
     }
@@ -558,7 +576,7 @@ mod tests {
     fn render_dangling_island_is_loud() {
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
-        render("oops ${{ vars.source", &scope).expect_err("dangling island");
+        render("oops ${{ inputs.source", &scope).expect_err("dangling island");
     }
 
     #[test]
@@ -593,22 +611,22 @@ mod tests {
         // escape means it is never looked up — so this renders cleanly
         // (pre-fix it raised NIKA-1702 on the undefined reference).
         assert_eq!(
-            render("The syntax \\${{ vars.x }} references variables.", &scope)
+            render("The syntax \\${{ inputs.x }} references variables.", &scope)
                 .expect("escaped ref is documentation text, not resolved"),
-            "The syntax ${{ vars.x }} references variables."
+            "The syntax ${{ inputs.x }} references variables."
         );
 
         // The escape wins even when the reference WOULD resolve — a literal
         // `${{` is the author's intent, never a substitution.
         assert_eq!(
-            render("literal \\${{ vars.source }}", &scope).expect("literal"),
-            "literal ${{ vars.source }}"
+            render("literal \\${{ inputs.source }}", &scope).expect("literal"),
+            "literal ${{ inputs.source }}"
         );
 
         // Escaped + real island mix: the escape stays literal, the real
         // island resolves (mirrors the static analyzer's mixed-scan test).
         assert_eq!(
-            render("esc \\${{ a }} real ${{ vars.source }}", &scope).expect("mix"),
+            render("esc \\${{ a }} real ${{ inputs.source }}", &scope).expect("mix"),
             "esc ${{ a }} real ./news.json"
         );
 
@@ -654,7 +672,7 @@ mod tests {
         // surfaced reference is the DANGLING body — not `vars.nope`.
         assert!(
             matches!(
-                render("${{ vars.nope }} ${{ dangling", &scope)
+                render("${{ inputs.nope }} ${{ dangling", &scope)
                     .expect_err("doubly-malformed template must error"),
                 RuntimeError::UnresolvedTemplate { ref reference } if reference == "dangling"
             ),
@@ -674,19 +692,22 @@ mod tests {
 
         // RHS string literal carrying `}}` resolves (island not truncated).
         assert_eq!(
-            render("${{ vars.source == '}}' }}", &scope).expect("compare vs }} literal"),
+            render("${{ inputs.source == '}}' }}", &scope).expect("compare vs }} literal"),
             "false"
         );
         // `.contains('}}')` — the literal `}}` is method-arg data, not a close.
         assert_eq!(
-            render("${{ vars.source.contains('}}') }}", &scope).expect("contains }}"),
+            render("${{ inputs.source.contains('}}') }}", &scope).expect("contains }}"),
             "false"
         );
         // The REAL close (after the literal) is found, so a trailing real
         // island still scans: a literal-bearing island, then a normal one.
         assert_eq!(
-            render("${{ vars.source != '}}' }} :: ${{ vars.source }}", &scope)
-                .expect("literal-island then real island"),
+            render(
+                "${{ inputs.source != '}}' }} :: ${{ inputs.source }}",
+                &scope
+            )
+            .expect("literal-island then real island"),
             "true :: ./news.json"
         );
     }
@@ -699,7 +720,7 @@ mod tests {
         // string is NEVER re-parsed as an expression. A payload that
         // WOULD resolve to something else (or trip a guard / inject a
         // reference) if re-evaluated must come back as the literal bytes.
-        let payload = "${{ vars.secret_admin == true }}"; // attacker-controlled
+        let payload = "${{ inputs.secret_admin == true }}"; // attacker-controlled
         let records = BTreeMap::from([(
             "evil".to_owned(),
             record(TaskStatus::Success, Value::String(payload.into())),
@@ -731,7 +752,7 @@ mod tests {
         // embedded `${{ x }}` is never resolved, so the equality is honest.
         assert!(
             eval_when(
-                "${{ tasks.evil.output == \"${{ vars.secret_admin == true }}\" }}",
+                "${{ tasks.evil.output == \"${{ inputs.secret_admin == true }}\" }}",
                 &scope
             )
             .expect("compares the literal payload bytes"),
@@ -739,7 +760,7 @@ mod tests {
         );
         // And a tainted var compared as data is a plain (false) string compare,
         // never a re-parse of its `${{ x }}` fragment.
-        assert!(!eval_when("${{ vars.tainted == 'admin' }}", &scope).expect("string compare"),);
+        assert!(!eval_when("${{ inputs.tainted == 'admin' }}", &scope).expect("string compare"),);
     }
 
     #[test]
@@ -787,8 +808,9 @@ mod tests {
         let item = serde_json::json!({"path": "docs/intro.md", "text": "Hello"});
         let scope = Scope {
             records: &records,
-            vars: &vars,
-            env: &EMPTY_ENV,
+            inputs: &vars,
+            config: &EMPTY_ENV,
+            consts: &EMPTY_ENV,
             secrets: &EMPTY_SECRETS,
             with_ns: None,
             item: Some(&item),
@@ -813,7 +835,7 @@ mod tests {
         let scope = Scope::workflow(&records, &vars);
         assert_eq!(
             render(
-                "${{ vars.env == 'prod' ? 'anthropic/claude' : 'ollama/llama3' }}",
+                "${{ inputs.env == 'prod' ? 'anthropic/claude' : 'ollama/llama3' }}",
                 &scope
             )
             .expect("ternary value"),
@@ -832,14 +854,14 @@ mod tests {
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
         // Exactly-one-island string leaf → the VALUE (array stays array).
-        let v = render_json(&serde_json::json!("${{ vars.urls }}"), &scope).expect("renders");
+        let v = render_json(&serde_json::json!("${{ inputs.urls }}"), &scope).expect("renders");
         assert_eq!(v, serde_json::json!(["a", "b"]));
         // Mixed text → textual render.
-        let v = render_json(&serde_json::json!("x ${{ vars.source }}"), &scope).expect("renders");
+        let v = render_json(&serde_json::json!("x ${{ inputs.source }}"), &scope).expect("renders");
         assert_eq!(v, serde_json::json!("x ./news.json"));
         // Nested leaves resolve · non-strings untouched.
         let v = render_json(
-            &serde_json::json!({"path": "${{ vars.source }}", "n": [7, true]}),
+            &serde_json::json!({"path": "${{ inputs.source }}", "n": [7, true]}),
             &scope,
         )
         .expect("renders");
@@ -856,8 +878,9 @@ mod tests {
         let item = Value::String("element".to_owned());
         let scope = Scope {
             records: &records,
-            vars: &vars,
-            env: &EMPTY_ENV,
+            inputs: &vars,
+            config: &EMPTY_ENV,
+            consts: &EMPTY_ENV,
             secrets: &EMPTY_SECRETS,
             with_ns: Some(&with_ns),
             item: Some(&item),
@@ -880,10 +903,10 @@ mod tests {
     fn when_equality_open_and_closed() {
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
-        assert!(!eval_when("${{ vars.publish == 'yes' }}", &scope).expect("closed"));
-        assert!(eval_when("${{ vars.publish == 'no' }}", &scope).expect("open"));
-        assert!(eval_when("${{ vars.publish != 'yes' }}", &scope).expect("negated open"));
-        assert!(eval_when("vars.publish == \"no\"", &scope).expect("bare body · double quotes"));
+        assert!(!eval_when("${{ inputs.publish == 'yes' }}", &scope).expect("closed"));
+        assert!(eval_when("${{ inputs.publish == 'no' }}", &scope).expect("open"));
+        assert!(eval_when("${{ inputs.publish != 'yes' }}", &scope).expect("negated open"));
+        assert!(eval_when("inputs.publish == \"no\"", &scope).expect("bare body · double quotes"));
         // Status comparisons (spec 04 · the always-pattern's idiom).
         assert!(eval_when("${{ tasks.gather.status == 'success' }}", &scope).expect("status"));
         assert!(eval_when("${{ tasks.ghosted.status != 'success' }}", &scope).expect("skipped"));
@@ -912,22 +935,22 @@ mod tests {
         assert!(eval_when("${{ tasks.check.output.valid == true }}", &scope).expect("deep bool"));
         // Numeric comparisons.
         assert!(eval_when("${{ tasks.check.output.coverage > 80 }}", &scope).expect("> "));
-        assert!(eval_when("${{ vars.threshold >= 80 }}", &scope).expect(">="));
+        assert!(eval_when("${{ inputs.threshold >= 80 }}", &scope).expect(">="));
         assert!(eval_when("${{ tasks.check.output.coverage != 0 }}", &scope).expect("!="));
         assert!(!eval_when("${{ tasks.check.output.coverage < 80 }}", &scope).expect("<"));
         // size() + .contains() + membership + boolean ops + ternary.
         assert!(eval_when("${{ size(tasks.check.output.tags) > 0 }}", &scope).expect("size"));
-        assert!(eval_when("${{ vars.msg.contains('error') }}", &scope).expect("contains"));
+        assert!(eval_when("${{ inputs.msg.contains('error') }}", &scope).expect("contains"));
         assert!(
             eval_when(
-                "${{ vars.env == 'production' && tasks.check.output.valid }}",
+                "${{ inputs.env == 'production' && tasks.check.output.valid }}",
                 &scope
             )
             .expect("&&")
         );
-        assert!(eval_when("${{ vars.env in ['staging', 'production'] }}", &scope).expect("in"));
+        assert!(eval_when("${{ inputs.env in ['staging', 'production'] }}", &scope).expect("in"));
         assert!(
-            eval_when("${{ vars.env == 'production' ? true : false }}", &scope).expect("ternary")
+            eval_when("${{ inputs.env == 'production' ? true : false }}", &scope).expect("ternary")
         );
         // The bare YAML-boolean idiom (a wrapped `true`/`false` literal).
         assert!(eval_when("${{ true }}", &scope).expect("literal true"));
@@ -946,9 +969,9 @@ mod tests {
         let records = BTreeMap::new();
         let scope = Scope::workflow(&records, &vars);
         for non_bool in [
-            "${{ vars.count }}",
-            "${{ vars.name }}",
-            "${{ size(vars.name) }}",
+            "${{ inputs.count }}",
+            "${{ inputs.name }}",
+            "${{ size(inputs.name) }}",
         ] {
             let err = eval_when(non_bool, &scope).expect_err(non_bool);
             assert!(
@@ -957,7 +980,7 @@ mod tests {
             );
         }
         // A cross-type compare is also VAR-006 (no silent `false`).
-        let err = eval_when("${{ vars.count == 'three' }}", &scope).expect_err("cross-type");
+        let err = eval_when("${{ inputs.count == 'three' }}", &scope).expect_err("cross-type");
         assert!(matches!(
             &err,
             RuntimeError::CelEval { code, .. } if *code == "NIKA-VAR-006"
@@ -972,10 +995,10 @@ mod tests {
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
         for malformed in [
-            "${{ vars.a < vars.b < vars.c }}", // chained relation
-            "${{ frobnicate(vars.x) }}",       // unknown function
-            "${{ vars.a && }}",                // dangling operator
-            "${{ vars.a @ vars.b }}",          // bad token
+            "${{ inputs.a < vars.b < vars.c }}", // chained relation
+            "${{ frobnicate(vars.x) }}",         // unknown function
+            "${{ inputs.a && }}",                // dangling operator
+            "${{ inputs.a @ vars.b }}",          // bad token
         ] {
             let err = eval_when(malformed, &scope).expect_err(malformed);
             assert!(
@@ -987,7 +1010,7 @@ mod tests {
         // → unresolved (1702), NOT a grammar error · `yes`/`no` are not
         // reserved words in cel-subset/0.1 (only true/false/null/in are).
         assert!(matches!(
-            eval_when("${{ vars.publish == yes }}", &scope).expect_err("unbound rhs ident"),
+            eval_when("${{ inputs.publish == yes }}", &scope).expect_err("unbound rhs ident"),
             RuntimeError::UnresolvedTemplate { .. }
         ));
     }

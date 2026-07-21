@@ -1172,12 +1172,12 @@ mod tests {
         let scope = Scope::workflow(&records, &vars);
 
         let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("printenv")));
-        action.cwd = Some(spanned("${{ vars.dir }}"));
+        action.cwd = Some(spanned("${{ inputs.dir }}"));
         action.env = vec![
-            (spanned("API_BASE"), spanned("${{ vars.base }}")),
+            (spanned("API_BASE"), spanned("${{ inputs.base }}")),
             (spanned("STATIC"), spanned("lit")),
         ];
-        action.stdin = Some(spanned("${{ vars.payload }}"));
+        action.stdin = Some(spanned("${{ inputs.payload }}"));
 
         let mut input = ExecInput::shell("printenv");
         render_exec_io(&mut input, &action, &scope).expect("renders");
@@ -1195,21 +1195,23 @@ mod tests {
     fn exec_env_can_forward_envelope_env_config() {
         // The spec has two env layers: envelope `env:` config and
         // `exec.env` subprocess variables. The latter commonly forwards the
-        // former (`QRCODE_AI_API_BASE: ${{ env.QRCODE_AI_API_BASE }}`); this
+        // former (`QRCODE_AI_API_BASE: ${{ config.QRCODE_AI_API_BASE }}`); this
         // must render after a green `nika check`.
         let records = BTreeMap::new();
-        let vars = BTreeMap::new();
-        let env = BTreeMap::from([(
+        let inputs = BTreeMap::new();
+        let config = BTreeMap::from([(
             "QRCODE_AI_API_BASE".to_owned(),
             Value::String("https://odin.qrcode-ai.com".to_owned()),
         )]);
+        let consts = BTreeMap::new();
         let secrets = BTreeMap::new();
-        let scope = Scope::workflow_with_env_and_secrets(&records, &vars, &env, &secrets);
+        let scope =
+            Scope::workflow_with_value_authorities(&records, &inputs, &config, &consts, &secrets);
 
         let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("printenv")));
         action.env = vec![(
             spanned("QRCODE_AI_API_BASE"),
-            spanned("${{ env.QRCODE_AI_API_BASE }}"),
+            spanned("${{ config.QRCODE_AI_API_BASE }}"),
         )];
 
         let mut input = ExecInput::shell("printenv");

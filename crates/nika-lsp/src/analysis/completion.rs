@@ -413,7 +413,7 @@ fn cel_methods() -> Vec<CompletionItem> {
         .collect()
 }
 
-/// Expression ROOTS (the five locked namespaces · D-N11) + the two free
+/// Expression ROOTS (the four value authorities + the runtime
 /// functions the parser accepts (`size` · `has` — a closed set there too).
 /// The loop-scoped pair (`item` · `index` — spec 04 §loop-scoped locals)
 /// appears ONLY when the enclosing task declares `for_each:` (#574):
@@ -422,8 +422,9 @@ fn cel_methods() -> Vec<CompletionItem> {
 fn expression_roots(in_for_each: bool) -> Vec<CompletionItem> {
     const ROOTS: &[(&str, &str)] = &[
         ("tasks", "an upstream task's output (`tasks.<id>.output`)"),
-        ("vars", "a declared workflow var"),
-        ("env", "an allowed environment value"),
+        ("inputs", "a declared typed workflow input"),
+        ("config", "a declared non-sensitive runtime config"),
+        ("const", "a declared named constant"),
         ("secrets", "a declared secret (never echoed)"),
         ("with", "this task's own `with:` aliases"),
     ];

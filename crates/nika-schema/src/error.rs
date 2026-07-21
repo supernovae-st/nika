@@ -610,7 +610,46 @@ pub enum SchemaError {
         /// Span of the `decode:` value.
         span: Option<Span>,
     },
+
+    // ── The C2 dead value forms · NIKA-VALUES ─────────────────────────
+    /// A pre-C2 `vars:`/`env:` usage — the dead envelope field itself, or
+    /// a `${{ vars.X }}`/`${{ env.X }}` read that survives it
+    /// (`NIKA-VALUES-001`/`NIKA-VALUES-002` · the E-split). The teaching
+    /// classifies each use into the four-authority family, never a generic
+    /// unknown-field error, and names the codemod repair.
+    #[error("{message}")]
+    DeadValueForm {
+        /// The dead form (`vars` · `env`) — drives the spec code.
+        form: DeadForm,
+        /// The byte-mirrored teaching (envelope-field or reference site).
+        message: String,
+        /// Source span.
+        span: Option<Span>,
+    },
+
+    /// A `${{ <root>.X }}` read whose root is outside the four value
+    /// authorities AND the runtime namespaces AND the dead forms
+    /// (`NIKA-VALUES-003` · LAW-SURFACE-0201 — the family is closed).
+    /// Rides ALONGSIDE the unresolved-reference refusal (`NIKA-VAR-001`
+    /// carries the did-you-mean): the layered oracle emits both.
+    #[error("{message}")]
+    ForeignValueNamespace {
+        /// The offending root (`params` in `${{ params.region }}`).
+        root: String,
+        /// The byte-mirrored teaching.
+        message: String,
+        /// Source span.
+        span: Option<Span>,
+    },
 }
+
+// The dead-form vocabulary + the teaching texts DESCENDED to
+// `nika-vocab` at the C2 wall (the 15k prod-LOC budget — the teachings
+// are message vocabulary, the vocabulary crate is their home · the
+// `keysets` precedent). These re-exports keep the `crate::error::DeadForm`
+// path byte-stable for every matcher (the CLI's fix verb included).
+pub use nika_vocab::DeadForm;
+pub(crate) use nika_vocab::dead_form::foreign_namespace_teaching;
 
 impl SchemaError {
     /// The machine-applicable RENAME this error teaches, as the exact
@@ -687,7 +726,9 @@ impl SchemaError {
             | Self::TypeRecursive { span, .. }
             | Self::TypeContractDuplicated { span, .. }
             | Self::TypeUndecodable { span, .. }
-            | Self::DecodeWithStructuredCapture { span, .. } => *span,
+            | Self::DecodeWithStructuredCapture { span, .. }
+            | Self::DeadValueForm { span, .. }
+            | Self::ForeignValueNamespace { span, .. } => *span,
             Self::Cycle { .. } => None,
         }
     }
@@ -770,6 +811,8 @@ schema_code!(SCHEMA_320, 320, "type-recursive");
 schema_code!(SCHEMA_321, 321, "type-contract-duplicated");
 schema_code!(SCHEMA_322, 322, "type-undecodable");
 schema_code!(SCHEMA_323, 323, "decode-with-structured-capture");
+schema_code!(SCHEMA_324, 324, "dead-value-form");
+schema_code!(SCHEMA_325, 325, "foreign-value-namespace");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -817,6 +860,8 @@ impl NikaErrorCode for SchemaError {
             Self::TypeContractDuplicated { .. } => SCHEMA_321,
             Self::TypeUndecodable { .. } => SCHEMA_322,
             Self::DecodeWithStructuredCapture { .. } => SCHEMA_323,
+            Self::DeadValueForm { .. } => SCHEMA_324,
+            Self::ForeignValueNamespace { .. } => SCHEMA_325,
         }
     }
 
@@ -936,6 +981,16 @@ fn parse_level_variants() -> Vec<SchemaError> {
 #[cfg(test)]
 fn analysis_level_variants() -> Vec<SchemaError> {
     vec![
+        SchemaError::DeadValueForm {
+            form: crate::error::DeadForm::Vars,
+            message: String::new(),
+            span: None,
+        },
+        SchemaError::ForeignValueNamespace {
+            root: String::new(),
+            message: String::new(),
+            span: None,
+        },
         SchemaError::Cycle { cycle: vec![] },
         SchemaError::UnknownDependency {
             from: String::new(),
@@ -998,6 +1053,17 @@ fn analysis_level_variants() -> Vec<SchemaError> {
             location: String::new(),
             span: None,
         },
+    ]
+    .into_iter()
+    .chain(type_level_variants())
+    .collect()
+}
+
+/// The W3 type-core variants (spec 09 · split out of
+/// [`analysis_level_variants`] at the 100-line fn ratchet).
+#[cfg(test)]
+fn type_level_variants() -> Vec<SchemaError> {
+    vec![
         // NIKA-TYPE-001 here — the SAME variant also emits TYPE-006
         // (regex dialect) via `num: 6`; enumerating it once keeps the
         // engine-internal `nika_code()` uniqueness law intact, and the

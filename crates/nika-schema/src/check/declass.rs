@@ -450,7 +450,7 @@ tasks:
 nika: v1
 workflow:
   id: w
-vars: { ep: \"api.stripe.com\" }
+const: { ep: \"api.stripe.com\" }
 secrets:
   k:
     source: env
@@ -460,7 +460,7 @@ secrets:
         host: \"api.stripe.com\"
 tasks:
   t:
-    invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ vars.ep }}/v1/x\", headers: { Authorization: \"${{ secrets.k }}\" } } }
+    invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ const.ep }}/v1/x\", headers: { Authorization: \"${{ secrets.k }}\" } } }
 ";
         assert!(
             !sanctioned(y, "k", "t"),

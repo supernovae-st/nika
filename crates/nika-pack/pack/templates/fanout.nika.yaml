@@ -13,14 +13,14 @@ workflow:
 
 model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
-vars:
+const:
   collection_source: "./items"      # SLOT: where the collection comes from
 
 tasks:
   discover:
     invoke:                         # SLOT: glob / fetch sitemap / exec + jq split
       tool: "nika:glob"
-      args: { pattern: "${{ vars.collection_source }}/*.md" }
+      args: { pattern: "${{ const.collection_source }}/*.md" }
 
   process:
     with:

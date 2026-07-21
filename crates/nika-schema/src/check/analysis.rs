@@ -620,7 +620,7 @@ mod tests {
 
     #[test]
     fn distinct_or_dynamic_paths_make_no_claim() {
-        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\nvars:\n  name: report\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/a.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"out/${{ vars.name }}.md\"\n        content: \"b\"\n";
+        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\nconst:\n  name: report\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/a.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"out/${{ const.name }}.md\"\n        content: \"b\"\n";
         assert!(read(yaml).conflicts.is_empty());
     }
 

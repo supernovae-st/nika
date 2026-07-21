@@ -19,10 +19,57 @@
 //! (`<engine>/../spec`) — the suite HARD-FAILS when missing (the
 //! conformance gate must never silently skip). Harness plumbing is
 //! shared with the `deep` tier (`tests/common/mod.rs`).
+//!
+//! The `CORE_GAPS` ledger mirrors the deep tier's ratchet: every entry
+//! names the wave that owns the fixture's expected verdict, and the
+//! suite asserts BOTH directions — a fixture NOT in the ledger MUST
+//! pass, a fixture IN the ledger MUST still fail (a landed wave forces
+//! removing its row · the ledger cannot go stale).
 
 mod common;
 
 use common::{fixture_dirs, fixture_verdict, skip_in_mutants_sandbox, spec_dir};
+
+/// The core-tier gap ledger · fixture-name prefix → why the engine does
+/// not hold the verdict yet. Closing a gap = implement + DELETE the row.
+const CORE_GAPS: &[(&str, &str)] = &[
+    // ── The R5 predicates wave (spec #118 · pc-light · `after:` speaks
+    // the outcome-class spellings success·failure·skipped·terminal — the
+    // engine's closed set is still succeeded·failed·skipped·terminal, so
+    // every after:-carrying fixture refuses NIKA-DAG-005 before reaching
+    // its expected verdict). The wave is its own epic (display · dap ·
+    // lints · lsp · runtime all speak the participial spellings); each
+    // row deletes itself when the rename lands.
+    ("dag-topology/001-cycle", "R5 predicates (success·failure)"),
+    (
+        "dag-topology/002-unresolved-after-target",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "dag-topology/003-when-task-ref-illegal",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "dag-topology/004-self-dependency",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "dag-topology/008-valid-diamond",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "dag-topology/009-valid-tightened-value-edge",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "dag-topology/012-recover-downstream-deadlock",
+        "R5 predicates (success·failure)",
+    ),
+    (
+        "dag-topology/015-cycle-mixed-with-after",
+        "R5 predicates (success·failure)",
+    ),
+];
 
 #[test]
 fn core_conformance_suite() {
@@ -38,6 +85,7 @@ fn core_conformance_suite() {
 
     let mut failures: Vec<String> = Vec::new();
     let mut total = 0_usize;
+    let mut gaps_hit = 0_usize;
 
     for dir in fixture_dirs(&core) {
         total += 1;
@@ -46,8 +94,19 @@ fn core_conformance_suite() {
             .unwrap_or(&dir)
             .display()
             .to_string();
-        if let Some(failure) = fixture_verdict(&dir, false) {
-            failures.push(format!("{label} · {failure}"));
+        let gap = CORE_GAPS.iter().find(|(name, _)| label.starts_with(name));
+        let verdict = fixture_verdict(&dir, false);
+
+        match (gap, verdict) {
+            // Not in the ledger · must pass.
+            (None, Some(failure)) => failures.push(format!("{label} · {failure}")),
+            (None, None) => {}
+            // In the ledger · must STILL fail (else the row is stale).
+            (Some((name, reason)), None) => failures.push(format!(
+                "{label} · PASSES but is in CORE_GAPS (`{name}` · {reason}) — \
+                 the wave landed · DELETE its ledger row"
+            )),
+            (Some(_), Some(_)) => gaps_hit += 1,
         }
     }
 
@@ -56,6 +115,13 @@ fn core_conformance_suite() {
         "{} of {total} core fixtures FAILED ·\n\n{}",
         failures.len(),
         failures.join("\n\n")
+    );
+    assert_eq!(
+        gaps_hit,
+        CORE_GAPS.len(),
+        "ledger drift — {gaps_hit} gap fixtures hit vs {} ledger rows \
+         (a renamed/removed fixture leaves a dead row)",
+        CORE_GAPS.len()
     );
     // Sanity floor — the suite ships 5 groups · 40+ fixtures.
     assert!(total >= 30, "only {total} fixtures walked — layout drift?");

@@ -1,6 +1,6 @@
 //! The workflow's REQUIREMENTS (E-REQ) — declaration facts only:
-//! models per task · secrets (never values) · env reads vs defines ·
-//! required vars. Presence stays the caller's check.
+//! models per task · secrets (never values) · config reads vs defines ·
+//! required inputs. Presence stays the caller's check.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -38,12 +38,12 @@ pub struct Requirements {
     pub models: Vec<ModelRequirement>,
     /// Declared `secrets:` (facts only — presence is the caller's check).
     pub secrets: Vec<SecretRequirement>,
-    /// `${{ env.X }}` names the BODY reads — the requirements.
-    pub env_reads: Vec<String>,
-    /// Envelope `env:` keys — configuration (covers a matching read).
-    pub env_defined: Vec<String>,
-    /// `vars:` that are `required: true` with no `default:`.
-    pub vars_required: Vec<String>,
+    /// `${{ config.X }}` names the BODY reads — the requirements.
+    pub config_reads: Vec<String>,
+    /// Envelope `config:` keys — configuration (covers a matching read).
+    pub config_defined: Vec<String>,
+    /// `inputs:` that are `required: true` with no `default:`.
+    pub inputs_required: Vec<String>,
 }
 
 /// Collect the requirements (total — a half-broken workflow still
@@ -51,7 +51,7 @@ pub struct Requirements {
 pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     let envelope_model = wf.model.as_ref().map(|m| m.value.clone());
     let mut models: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut env_reads: BTreeSet<String> = BTreeSet::new();
+    let mut config_reads: BTreeSet<String> = BTreeSet::new();
 
     for task in &wf.tasks {
         // Model resolution: the verb's own override ?? the envelope.
@@ -67,7 +67,7 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
                 .push(task.value.id.value.clone());
         }
 
-        env_reads_of_task(task, &mut env_reads);
+        config_reads_of_task(task, &mut config_reads);
     }
 
     // The envelope `outputs:` return contract — its ${{ }} refs are body
@@ -75,10 +75,10 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     for (_, decl) in &wf.outputs {
         match decl {
             crate::types::OutputDecl::Untyped(expr) => {
-                collect_env_reads(&expr.value, &mut env_reads);
+                collect_config_reads(&expr.value, &mut config_reads);
             }
             crate::types::OutputDecl::Typed { value, .. } => {
-                collect_env_reads(&value.value, &mut env_reads);
+                collect_config_reads(&value.value, &mut config_reads);
             }
         }
     }
@@ -97,10 +97,10 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
                 key: decl.value.key.clone(),
             })
             .collect(),
-        env_reads: env_reads.into_iter().collect(),
-        env_defined: wf.env.iter().map(|(k, _)| k.value.clone()).collect(),
-        vars_required: wf
-            .vars
+        config_reads: config_reads.into_iter().collect(),
+        config_defined: wf.config.iter().map(|(k, _)| k.value.clone()).collect(),
+        inputs_required: wf
+            .inputs
             .iter()
             .filter(|(_, decl)| {
                 matches!(
@@ -117,36 +117,39 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     }
 }
 
-/// Every `${{ env.X }}` read across ONE task's whole surface —
+/// Every `${{ config.X }}` read across ONE task's whole surface —
 /// action fields (prompts included) · `with` · when-CEL · `output` ·
 /// `for_each` · `on_error` recover · `on_finally` cleanups.
-fn env_reads_of_task(task: &crate::Spanned<crate::raw::RawTask>, env_reads: &mut BTreeSet<String>) {
+fn config_reads_of_task(
+    task: &crate::Spanned<crate::raw::RawTask>,
+    config_reads: &mut BTreeSet<String>,
+) {
     // Env reads: every template-bearing string of the task surface,
     // through the REAL extractor (the same path the analyzer uses).
     for text in task_template_fields(&task.value.action) {
-        collect_env_reads(text, env_reads);
+        collect_config_reads(text, config_reads);
     }
     for (_, v) in &task.value.with {
         for text in collect_json_strings(&v.value) {
-            collect_env_reads(text, env_reads);
+            collect_config_reads(text, config_reads);
         }
     }
     if let Some(WhenGate::Expr(cel)) = task.value.when.as_ref().map(|g| &g.value) {
-        collect_env_reads(cel, env_reads);
+        collect_config_reads(cel, config_reads);
     }
     for (_, expr) in &task.value.output {
-        collect_env_reads(&expr.value, env_reads);
+        collect_config_reads(&expr.value, config_reads);
     }
     // `for_each:` — the collection expression (or list literals) can
     // read env like any other template surface.
     if let Some(fe) = &task.value.for_each {
         match &fe.value {
             crate::raw::ForEachValue::Expression(expr) => {
-                collect_env_reads(expr, env_reads);
+                collect_config_reads(expr, config_reads);
             }
             crate::raw::ForEachValue::List(list) => {
                 for text in collect_json_strings(list) {
-                    collect_env_reads(text, env_reads);
+                    collect_config_reads(text, config_reads);
                 }
             }
         }
@@ -157,22 +160,22 @@ fn env_reads_of_task(task: &crate::Spanned<crate::raw::RawTask>, env_reads: &mut
         task.value.on_error.as_ref().map(|o| &o.value.action)
     {
         for text in collect_json_strings(&value.value) {
-            collect_env_reads(text, env_reads);
+            collect_config_reads(text, config_reads);
         }
     }
     // `on_finally:` cleanups carry full actions (and gates) of their own.
     for cleanup in &task.value.on_finally {
         for text in task_template_fields(&cleanup.value.action) {
-            collect_env_reads(text, env_reads);
+            collect_config_reads(text, config_reads);
         }
         if let Some(WhenGate::Expr(cel)) = cleanup.value.when.as_ref().map(|g| &g.value) {
-            collect_env_reads(cel, env_reads);
+            collect_config_reads(cel, config_reads);
         }
     }
 }
 
 /// Every template-bearing string of one action — flow's effect fields
-/// (command · stdin · exec env · invoke args) PLUS the prompts (an env
+/// (command · stdin · exec env · invoke args) PLUS the prompts (a config
 /// read in a prompt is as much a requirement as one in a command).
 fn task_template_fields(action: &RawAction) -> Vec<&str> {
     let mut fields = action_effect_fields(action);
@@ -188,9 +191,9 @@ fn task_template_fields(action: &RawAction) -> Vec<&str> {
     fields
 }
 
-fn collect_env_reads(text: &str, out: &mut BTreeSet<String>) {
+fn collect_config_reads(text: &str, out: &mut BTreeSet<String>) {
     for r in refs_in_str(text) {
-        if let NamespaceRef::Env(name) = r
+        if let NamespaceRef::Config(name) = r
             && !name.is_empty()
         {
             out.insert(name);
@@ -216,7 +219,7 @@ nika: v1
 workflow:
   id: req-probe
 model: anthropic/claude-sonnet-4-6
-vars:
+inputs:
   target_url: { type: string, required: true }
   region: { type: string, required: true, default: "eu" }
 secrets:
@@ -224,28 +227,29 @@ secrets:
     source: env
     key: GITHUB_TOKEN
   vault_pass:
+    source: vault
     key: prod/db-pass
-env:
-  REGION: eu-west-1
+config:
+  REGION: { type: string, default: "eu-west-1" }
 tasks:
   fetch:
     invoke:
       tool: "nika:fetch"
-      args: { url: "https://api.example.com/${{ env.GITHUB_ORG }}" }
+      args: { url: "https://api.example.com/${{ config.GITHUB_ORG }}" }
   digest:
     after: { fetch: succeeded }
     infer:
-      prompt: "Summarize for ${{ env.REGION }}"
+      prompt: "Summarize for ${{ config.REGION }}"
   local_pass:
     after: { fetch: succeeded }
-    for_each: "${{ env.SHARDS }}"
+    for_each: "${{ config.SHARDS }}"
     on_finally:
-      - exec: { command: ["echo", "${{ env.CLEANUP_FLAG }}"] }
+      - exec: { command: ["echo", "${{ config.CLEANUP_FLAG }}"] }
     infer:
       model: ollama/qwen3
       prompt: "rank"
 outputs:
-  report: "${{ env.REPORT_PATH }}"
+  report: "${{ config.REPORT_PATH }}"
 "#,
         );
         let req = collect(&wf);
@@ -270,7 +274,7 @@ outputs:
         // The split IS the semantics: REGION is read AND defined ·
         // GITHUB_ORG is read-only (the caller requirement).
         assert_eq!(
-            req.env_reads,
+            req.config_reads,
             vec![
                 "CLEANUP_FLAG",
                 "GITHUB_ORG",
@@ -279,9 +283,9 @@ outputs:
                 "SHARDS"
             ]
         );
-        assert_eq!(req.env_defined, vec!["REGION"]);
+        assert_eq!(req.config_defined, vec!["REGION"]);
         // required + defaulted is NOT a requirement.
-        assert_eq!(req.vars_required, vec!["target_url"]);
+        assert_eq!(req.inputs_required, vec!["target_url"]);
     }
 
     #[test]
@@ -291,6 +295,6 @@ outputs:
         );
         let req = collect(&wf);
         assert!(req.models.is_empty());
-        assert!(req.env_reads.is_empty());
+        assert!(req.config_reads.is_empty());
     }
 }

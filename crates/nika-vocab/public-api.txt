@@ -231,6 +231,46 @@ pub unsafe fn nika_vocab::capture::CaptureMode::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_vocab::capture::CaptureMode
 pub fn nika_vocab::capture::CaptureMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::capture::CaptureMode where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_vocab::dead_form
+#[non_exhaustive] pub enum nika_vocab::dead_form::DeadForm
+pub nika_vocab::dead_form::DeadForm::Env
+pub nika_vocab::dead_form::DeadForm::Vars
+impl nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::field_teaching(self) -> alloc::string::String
+pub fn nika_vocab::dead_form::DeadForm::ref_teaching(self, reference: &str) -> alloc::string::String
+pub fn nika_vocab::dead_form::DeadForm::spec_num(self) -> u16
+impl core::clone::Clone for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::clone(&self) -> nika_vocab::dead_form::DeadForm
+impl core::cmp::Eq for nika_vocab::dead_form::DeadForm
+impl core::cmp::PartialEq for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::eq(&self, other: &nika_vocab::dead_form::DeadForm) -> bool
+impl core::fmt::Debug for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_vocab::dead_form::DeadForm
+impl core::marker::StructuralPartialEq for nika_vocab::dead_form::DeadForm
+impl<T, U> core::convert::Into<U> for nika_vocab::dead_form::DeadForm where U: core::convert::From<T>
+pub fn nika_vocab::dead_form::DeadForm::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::dead_form::DeadForm where U: core::convert::Into<T>
+pub type nika_vocab::dead_form::DeadForm::Error = core::convert::Infallible
+pub fn nika_vocab::dead_form::DeadForm::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::dead_form::DeadForm where U: core::convert::TryFrom<T>
+pub type nika_vocab::dead_form::DeadForm::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::dead_form::DeadForm::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::dead_form::DeadForm where T: core::clone::Clone
+pub type nika_vocab::dead_form::DeadForm::Owned = T
+pub fn nika_vocab::dead_form::DeadForm::clone_into(&self, target: &mut T)
+pub fn nika_vocab::dead_form::DeadForm::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::dead_form::DeadForm where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::dead_form::DeadForm where T: ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::dead_form::DeadForm where T: ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::dead_form::DeadForm where T: core::clone::Clone
+pub unsafe fn nika_vocab::dead_form::DeadForm::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::from(t: T) -> T
+pub fn nika_vocab::dead_form::foreign_namespace_teaching(root: &str) -> alloc::string::String
 pub mod nika_vocab::decode
 pub enum nika_vocab::decode::DecodeMode
 pub nika_vocab::decode::DecodeMode::Bytes
@@ -428,6 +468,25 @@ pub unsafe fn nika_vocab::extract::ResponseMode::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::extract::ResponseMode where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_vocab::keys
+pub const nika_vocab::keys::AGENT_KEYS: &[&str]
+pub const nika_vocab::keys::CONFIG_KEYS: &[&str]
+pub const nika_vocab::keys::CONST_TYPED_KEYS: &[&str]
+pub const nika_vocab::keys::EGRESS_KEYS: &[&str]
+pub const nika_vocab::keys::EXEC_KEYS: &[&str]
+pub const nika_vocab::keys::FINALLY_KEYS: &[&str]
+pub const nika_vocab::keys::INFER_KEYS: &[&str]
+pub const nika_vocab::keys::INPUT_KEYS: &[&str]
+pub const nika_vocab::keys::INVOKE_KEYS: &[&str]
+pub const nika_vocab::keys::ON_ERROR_KEYS: &[&str]
+pub const nika_vocab::keys::PERMITS_FS_KEYS: &[&str]
+pub const nika_vocab::keys::PERMITS_KEYS: &[&str]
+pub const nika_vocab::keys::PERMITS_NET_KEYS: &[&str]
+pub const nika_vocab::keys::RETRY_KEYS: &[&str]
+pub const nika_vocab::keys::SECRET_KEYS: &[&str]
+pub const nika_vocab::keys::THINKING_KEYS: &[&str]
+pub const nika_vocab::keys::TYPED_OUTPUT_KEYS: &[&str]
+pub fn nika_vocab::keys::known_child_keys(block_key: &str, parent: core::option::Option<&str>) -> core::option::Option<&'static [&'static str]>
 pub mod nika_vocab::on_error
 #[non_exhaustive] pub enum nika_vocab::on_error::OnErrorAction
 pub nika_vocab::on_error::OnErrorAction::FailWorkflow
@@ -1178,6 +1237,44 @@ pub unsafe fn nika_vocab::capture::CaptureMode::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_vocab::capture::CaptureMode
 pub fn nika_vocab::capture::CaptureMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::capture::CaptureMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_vocab::DeadForm
+pub nika_vocab::DeadForm::Env
+pub nika_vocab::DeadForm::Vars
+impl nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::field_teaching(self) -> alloc::string::String
+pub fn nika_vocab::dead_form::DeadForm::ref_teaching(self, reference: &str) -> alloc::string::String
+pub fn nika_vocab::dead_form::DeadForm::spec_num(self) -> u16
+impl core::clone::Clone for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::clone(&self) -> nika_vocab::dead_form::DeadForm
+impl core::cmp::Eq for nika_vocab::dead_form::DeadForm
+impl core::cmp::PartialEq for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::eq(&self, other: &nika_vocab::dead_form::DeadForm) -> bool
+impl core::fmt::Debug for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_vocab::dead_form::DeadForm
+impl core::marker::StructuralPartialEq for nika_vocab::dead_form::DeadForm
+impl<T, U> core::convert::Into<U> for nika_vocab::dead_form::DeadForm where U: core::convert::From<T>
+pub fn nika_vocab::dead_form::DeadForm::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::dead_form::DeadForm where U: core::convert::Into<T>
+pub type nika_vocab::dead_form::DeadForm::Error = core::convert::Infallible
+pub fn nika_vocab::dead_form::DeadForm::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::dead_form::DeadForm where U: core::convert::TryFrom<T>
+pub type nika_vocab::dead_form::DeadForm::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::dead_form::DeadForm::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::dead_form::DeadForm where T: core::clone::Clone
+pub type nika_vocab::dead_form::DeadForm::Owned = T
+pub fn nika_vocab::dead_form::DeadForm::clone_into(&self, target: &mut T)
+pub fn nika_vocab::dead_form::DeadForm::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::dead_form::DeadForm where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::dead_form::DeadForm where T: ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::dead_form::DeadForm where T: ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::dead_form::DeadForm where T: core::clone::Clone
+pub unsafe fn nika_vocab::dead_form::DeadForm::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::dead_form::DeadForm
+pub fn nika_vocab::dead_form::DeadForm::from(t: T) -> T
 pub enum nika_vocab::DecodeMode
 pub nika_vocab::DecodeMode::Bytes
 pub nika_vocab::DecodeMode::Json

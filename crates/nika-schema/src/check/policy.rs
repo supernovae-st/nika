@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn templated_model_fails_closed() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\nvars:\n  m: { default: \"ollama/llama3.2\" }\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"${{ vars.m }}\" }\n",
+            "nika: v1\nworkflow:\n  id: t\nconst:\n  m: { default: \"ollama/llama3.2\" }\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"${{ const.m }}\" }\n",
         );
         assert_eq!(r.policy_findings.len(), 1);
         assert!(

@@ -130,7 +130,7 @@ fn enum_fields_offer_exactly_the_closed_sets() {
 
     // vars declaration types — and the same lane serves JSON-Schema
     // `type:` lines inside `schema:` blocks
-    let text4 = "nika: v1\nvars:\n  city:\n    type: ";
+    let text4 = "nika: v1\ninputs:\n  city:\n    type: ";
     let l4 = labels(&completion(text4, text4.len()));
     assert_eq!(
         l4,
@@ -352,7 +352,7 @@ fn template_island_without_tasks_dot_offers_nothing() {
     // AND `ends_with("tasks.")` — flipping the `&&` to `||` would fire on
     // any open island.
     let text =
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: \"echo ${{ vars.";
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: \"echo ${{ inputs.";
     let items = completion(text, text.len());
     assert!(
         !labels(&items).iter().any(|l| l == "extract"),
@@ -373,8 +373,9 @@ fn top_level_offers_exactly_the_envelope_keys() {
             "workflow",
             "description",
             "model",
-            "vars",
-            "env",
+            "inputs",
+            "config",
+            "const",
             "secrets",
             "permits",
             "tasks",
@@ -565,7 +566,7 @@ fn expression_start_completes_roots_and_free_functions() {
         .into_iter()
         .map(|i| i.label)
         .collect();
-    for root in ["tasks", "vars", "env", "secrets", "with"] {
+    for root in ["tasks", "inputs", "config", "const", "secrets", "with"] {
         assert!(
             labels.contains(&root.to_owned()),
             "missing root {root}: {labels:?}"
@@ -575,7 +576,7 @@ fn expression_start_completes_roots_and_free_functions() {
 
     // A closed island offers nothing from the expression vocab.
     let closed =
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ vars.x }} and ";
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ inputs.x }} and ";
     let after: Vec<String> = completion(closed, closed.len())
         .into_iter()
         .map(|i| i.label)
@@ -747,15 +748,15 @@ fn fetch_mode_offers_the_stdlib_extract_vocabulary() {
     );
 }
 
-/// `${{ vars.` offers the file's OWN declared vars. On a document
+/// `${{ inputs.` offers the file's OWN declared vars. On a document
 /// that parses (cursor mid-island, island closed), typed vars carry
 /// type + required + description and untyped ones their default; a
 /// mid-keystroke document that no longer parses falls back to the
 /// block scan — names still arrive, detail goes generic.
 #[test]
 fn island_vars_offer_the_declared_names() {
-    let text = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: \"./out\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.city }}\"] }\n";
-    let cursor = text.find("${{ vars.").expect("island") + "${{ vars.".len();
+    let text = "nika: v1\nworkflow:\n  id: w\ninputs:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: { type: string, default: \"./out\" }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.city }}\"] }\n";
+    let cursor = text.find("${{ inputs.").expect("island") + "${{ inputs.".len();
     let items = completion(text, cursor);
     let got = labels(&items);
     assert_eq!(got, vec!["city", "out_dir"], "{got:?}");
@@ -771,19 +772,19 @@ fn island_vars_offer_the_declared_names() {
 
     // mid-keystroke fallback: unterminated island · parse fails · the
     // block scan still teaches the NAMES
-    let typing = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n  out_dir: \"./out\"\ntasks:\n  a:\n    exec: { command: \"echo ${{ vars.";
+    let typing = "nika: v1\nworkflow:\n  id: w\ninputs:\n  city:\n    type: string\n  out_dir: { type: string, default: \"./out\" }\ntasks:\n  a:\n    exec: { command: \"echo ${{ inputs.";
     let fallback = labels(&completion(typing, typing.len()));
     assert_eq!(fallback, vec!["city", "out_dir"], "{fallback:?}");
 }
 
-/// `${{ secrets.` / `${{ env.` offer the file's own declared names.
+/// `${{ secrets.` / `${{ config.` offer the file's own declared names.
 #[test]
 fn island_secrets_and_env_offer_declared_names() {
-    let text = "nika: v1\nworkflow:\n  id: w\nenv:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  a:\n    exec: { command: \"echo ${{ secrets.";
+    let text = "nika: v1\nworkflow:\n  id: w\nconfig:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  a:\n    exec: { command: \"echo ${{ secrets.";
     let labels_s = labels(&completion(text, text.len()));
     assert_eq!(labels_s, vec!["api_key"], "{labels_s:?}");
 
-    let text2 = "nika: v1\nworkflow:\n  id: w\nenv:\n  REGION: eu-west-1\ntasks:\n  a:\n    exec: { command: \"echo ${{ env.";
+    let text2 = "nika: v1\nworkflow:\n  id: w\nconfig:\n  REGION: eu-west-1\ntasks:\n  a:\n    exec: { command: \"echo ${{ config.";
     let labels_e = labels(&completion(text2, text2.len()));
     assert_eq!(labels_e, vec!["REGION"], "{labels_e:?}");
 }
@@ -981,7 +982,7 @@ fn task_fields_survive_outside_schema() {
 /// (so the doc PARSES and the island lanes ride the parse path; the
 /// cursor sits just after `for_each: ` where the typed prefix is still
 /// the empty-value position).
-const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\nvars:\n  urls:\n    type: array\n    default: []\n  topic: \"rust\"\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: succeeded }\n    for_each: \"${{ vars.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: succeeded }\n    exec:\n      command: [\"true\"]\n";
+const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\ninputs:\n  urls:\n    type: array\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: succeeded }\n    for_each: \"${{ inputs.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: succeeded }\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
@@ -994,7 +995,11 @@ fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
     let got = labels(&items);
     assert_eq!(
         got,
-        vec!["${{ vars.urls }}", "${{ with.items }}", "${{ vars.topic }}"],
+        vec![
+            "${{ inputs.urls }}",
+            "${{ with.items }}",
+            "${{ inputs.topic }}"
+        ],
         "typed array first · the teaching import · other vars honestly"
     );
     assert!(
@@ -1041,7 +1046,7 @@ fn when_composes_the_cel_shapes_from_the_document() {
             "    with:\n      items: \"${{ tasks.gather.output }}\"\n",
         )
         .replace(
-            "for_each: \"${{ vars.urls }}\"",
+            "for_each: \"${{ inputs.urls }}\"",
             "when: \"${{ with.items != null }}\"",
         );
     let at = doc.find("when: ").expect("key") + "when: ".len();
@@ -1049,8 +1054,8 @@ fn when_composes_the_cel_shapes_from_the_document() {
     assert_eq!(
         got,
         vec![
-            "${{ vars.urls }}",
-            "${{ vars.topic }}",
+            "${{ inputs.urls }}",
+            "${{ inputs.topic }}",
             "${{ with.items != null }}",
             "${{ size(with.items) > 0 }}"
         ],
@@ -1064,7 +1069,7 @@ fn when_composes_the_cel_shapes_from_the_document() {
 
 #[test]
 fn a_partial_non_island_value_stays_silent() {
-    let doc = FLOW_DOC.replace("for_each: \"${{ vars.urls }}\"", "for_each: som");
+    let doc = FLOW_DOC.replace("for_each: \"${{ inputs.urls }}\"", "for_each: som");
     let at = doc.find("for_each: som").expect("key") + "for_each: som".len();
     assert!(
         completion(&doc, at).is_empty(),
@@ -1181,7 +1186,7 @@ fn loop_roots_are_gated_to_for_each_tasks() {
     );
     assert!(!got.contains(&"index".to_owned()), "{got:?}");
 
-    let fanned = "nika: v1\nworkflow:\n  id: w\nvars:\n  urls: [1, 2]\ntasks:\n  a:\n    for_each: \"${{ vars.urls }}\"\n    exec: { command: [\"echo\", \"${{ ";
+    let fanned = "nika: v1\nworkflow:\n  id: w\ninputs:\n  urls: [1, 2]\ntasks:\n  a:\n    for_each: \"${{ inputs.urls }}\"\n    exec: { command: [\"echo\", \"${{ ";
     let got = labels(&completion(fanned, fanned.len()));
     assert!(got.contains(&"item".to_owned()), "{got:?}");
     assert!(

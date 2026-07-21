@@ -21,17 +21,32 @@
 //! handled — the parser's teaching names the file and a human decides
 //! (never guess; the conformance suite pins the refusal).
 //!
-//! The crate carries both waves — `w1` (the map) and `w2` (equivalence-or-stop
-//! flow migration). Split out of `nika-cli` per the size-cap discipline
+//! The crate carries three waves — `w1` (the map), `w2` (equivalence-or-stop
+//! flow migration) and [`esplit()`](fn@esplit) (the C2 four-authority
+//! flag-day). Split out
+//! of `nika-cli` per the size-cap discipline
 //! (D-2026-07-09-N1 · one architectural unit, N workspace members · the
 //! `nika-source` / `nika-vocab` precedent): the CLI's `fix` verb calls
-//! `nika_migrate::w1` / `w2` unchanged. Pure `std` · zero I/O · zero deps.
+//! `nika_migrate::w1` / `w2` / `esplit` unchanged. The migrations are
+//! pure transforms; the `repair` module carries the byte-level mechanics
+//! of applying them (whole-word splice · atomic publish · `std` only).
+//! Zero deps.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(
     test,
-    allow(clippy::unwrap_used, clippy::expect_used, clippy::unreachable)
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::unreachable,
+        clippy::panic
+    )
 )]
+
+mod esplit;
+pub mod repair;
+
+pub use esplit::{EsplitOutcome, esplit};
 
 /// Apply the W1 migration. `Some(new)` when the document changed,
 /// `None` when it is already in the new form (idempotence by contract).

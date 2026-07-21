@@ -586,7 +586,7 @@ tasks:
         // `["${{ vars.bin }}", "x"]` — the program is template-built. The
         // static check must NOT compare the raw `${{ }}` island against the
         // allowlist (that was a false positive); runtime NIKA-SEC-004 owns it.
-        let y = "nika: v1\nworkflow:\n  id: w\nvars: { bin: \"git\" }\npermits: { exec: [\"git\"] }\ntasks:\n  t:\n    exec: { command: [\"${{ vars.bin }}\", \"status\"] }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\nconst: { bin: \"git\" }\npermits: { exec: [\"git\"] }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n";
         assert!(
             escapes_of(y).is_empty(),
             "dynamic argv[0] is not statically checkable"
@@ -710,7 +710,7 @@ tasks:
         // Before this rule the dynamic head was waved through as « a
         // runtime concern » — but the runtime refuses the string form
         // under an allowlist before it ever looks at the head.
-        let y = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ vars.cmd }} status\" }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"git\"] }\nconst: { cmd: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.cmd }} status\" }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "string form under an allowlist escapes");
     }
@@ -868,13 +868,13 @@ tasks:
         let y = r#"nika: v1
 workflow:
   id: w
-vars: { host: "api.anthropic.com" }
+const: { host: "api.anthropic.com" }
 permits:
   net: { http: ["api.anthropic.com"] }
   tools: ["nika:fetch"]
 tasks:
   t:
-    invoke: { tool: "nika:fetch", args: { url: "https://${{ vars.host }}/x" } }
+    invoke: { tool: "nika:fetch", args: { url: "https://${{ const.host }}/x" } }
 "#;
         assert!(escapes(y).is_empty(), "interpolated url = runtime check");
     }
@@ -927,7 +927,7 @@ tasks:
         let y = r#"nika: v1
 workflow:
   id: w
-vars: { x: "y" }
+const: { x: "y" }
 permits: { exec: ["git"] }
 tasks:
   t:
@@ -1189,10 +1189,10 @@ tasks:
         let dynamic = r#"nika: v1
 workflow:
   id: w
-vars: { target: "http://127.0.0.1/x" }
+const: { target: "http://127.0.0.1/x" }
 tasks:
   t:
-    invoke: { tool: "nika:fetch", args: { url: "${{ vars.target }}" } }
+    invoke: { tool: "nika:fetch", args: { url: "${{ const.target }}" } }
 "#;
         assert!(escapes(dynamic).is_empty(), "dynamic = runtime concern");
     }

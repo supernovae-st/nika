@@ -3,28 +3,13 @@
 
 //! Deterministic « did you mean » — the checker's suggestion surface.
 //!
-//! The METRIC (Damerau-Levenshtein OSA + the rustc `max(len/3, 1)`
-//! threshold) lives in [`nika_types::suggest`] — hoisted 2026-07-11 (the
-//! `ip_is_blocked` precedent) so the closed-namespace surfaces OUTSIDE
-//! this crate (the provider resolver's MODELS rung · the extract-mode
-//! typo rung) suggest with the SAME semantics as the parser/checker.
-//! This module re-exports it verbatim for the in-crate callers and keeps
-//! the render-side clause helper (schema-only vocabulary).
+//! The metric (Damerau-Levenshtein OSA + the rustc `max(len/3, 1)`
+//! threshold) AND the render clause live in [`nika_types::suggest`] —
+//! the metric hoisted 2026-07-11 (the `ip_is_blocked` precedent), the
+//! clause descended at the C2 wall (the 15k prod-LOC budget). This shim
+//! re-exports the door verbatim for the in-crate callers.
 
-pub(crate) use nika_types::suggest::{damerau_levenshtein, did_you_mean};
-
-/// Render a suggestion clause (`" — did you mean ___?"`) or empty.
-/// A suggestion carrying spaces is a TEACHING sentence (e.g. the modeline
-/// cause-namer), not a candidate key — it renders as prose, no question.
-pub(crate) fn suggestion_clause(suggestion: Option<&str>) -> String {
-    suggestion.map_or_else(String::new, |s| {
-        if s.contains(' ') {
-            format!(" — {s}")
-        } else {
-            format!(" — did you mean `{s}`?")
-        }
-    })
-}
+pub(crate) use nika_types::suggest::{damerau_levenshtein, did_you_mean, suggestion_clause};
 
 #[cfg(test)]
 mod tests {

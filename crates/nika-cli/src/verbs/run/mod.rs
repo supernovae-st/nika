@@ -1177,7 +1177,7 @@ mod tests {
 
     /// The workflow of the field repro: a `required: true` var with no
     /// default. Before F4 there was NO way to run it from the CLI.
-    const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow:\n  id: needs-var\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ vars.topic }}\" }\n";
+    const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow:\n  id: needs-var\nmodel: mock/echo\ninputs:\n  topic:\n    type: string\n    required: true\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
 
     fn run_with_vars(name: &str, vars: &[String]) -> u8 {
         let wf = stage(name, REQUIRED_VAR_WF);

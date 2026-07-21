@@ -169,6 +169,9 @@ fn classify_root(root: &str, path: &[String]) -> NamespaceRef {
     let first = path.first().cloned();
     match root {
         "vars" => NamespaceRef::Vars(first.unwrap_or_default()),
+        "inputs" => NamespaceRef::Inputs(first.unwrap_or_default()),
+        "config" => NamespaceRef::Config(first.unwrap_or_default()),
+        "const" => NamespaceRef::Const(first.unwrap_or_default()),
         "with" => NamespaceRef::With(first.unwrap_or_default()),
         "env" => NamespaceRef::Env(first.unwrap_or_default()),
         "secrets" => NamespaceRef::Secrets(first.unwrap_or_default()),

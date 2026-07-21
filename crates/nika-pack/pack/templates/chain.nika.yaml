@@ -13,7 +13,7 @@ workflow:
 
 model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
-vars:
+const:
   source: "./README.md"             # SLOT: your input — README.md exists in ANY repo, so the
                                     # skeleton runs green BEFORE you point it at real data
 
@@ -21,7 +21,7 @@ tasks:
   gather:
     invoke:                         # SLOT: the fact source · nika:read / nika:fetch / exec
       tool: "nika:read"
-      args: { path: "${{ vars.source }}" }
+      args: { path: "${{ const.source }}" }
 
   think:
     with:

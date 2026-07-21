@@ -11,7 +11,7 @@ workflow:
   id: gate-and-act-template     # SLOT: kebab-case workflow id
   description: "watch a value · act only when the condition holds"   # SLOT
 
-vars:
+const:
   source_url: "https://api.example.com/v1/value"   # SLOT: what to watch
   threshold: 100                    # SLOT: the trigger condition value
 
@@ -28,7 +28,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.source_url }}"
+        url: "${{ const.source_url }}"
         mode: jq
         jq: "."
     output:
@@ -42,7 +42,7 @@ tasks:
     with:
       value: ${{ tasks.check.value }}   # the binding IS the edge · check → act
     # when: is a SKIP gate — routing, not failure (a skipped task is not an error)
-    when: ${{ with.value > vars.threshold }}   # SLOT: the CEL condition
+    when: ${{ with.value > const.threshold }}   # SLOT: the CEL condition
     invoke:
       tool: "nika:notify"           # SLOT: the action · notify / write / exec
       args:

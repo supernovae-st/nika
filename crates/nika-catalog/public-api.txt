@@ -479,6 +479,8 @@ impl<T> core::convert::From<T> for nika_catalog::category::ParseCategoryError
 pub fn nika_catalog::category::ParseCategoryError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::category::ParseCategoryError where T: 'static
 pub fn nika_catalog::category::ParseCategoryError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_catalog::codegen
+pub fn nika_catalog::codegen::nika_builtin_tool_enum_schema() -> serde_json::value::Value
 pub mod nika_catalog::distribution
 #[non_exhaustive] pub enum nika_catalog::distribution::AuthMode
 pub nika_catalog::distribution::AuthMode::Bearer

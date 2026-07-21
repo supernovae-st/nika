@@ -37,7 +37,7 @@ nothing), use `after:` ·
 ```yaml
   deploy:
     after:
-      tests: succeeded      # ← control edge · state, never data
+      tests: success        # ← control edge · state, never data
     exec:
       command: ["./deploy.sh"]
 ```
@@ -52,8 +52,8 @@ my_task:                        # the map KEY is the identity · snake_case · u
     data: ${{ tasks.task_a.output }}
     config: { foo: "bar" }      # literals are fine — only tasks.* refs create edges
   after:                        # optional · the CONTROL boundary · {producer: predicate}
-    task_b: succeeded           # predicate ∈ succeeded | failed | skipped | terminal
-  when: ${{ vars.enabled }}     # optional · LOCAL business condition · evaluated POST-gate
+    task_b: success             # predicate ∈ success | failure | skipped | terminal
+  when: ${{ inputs.enabled }}   # optional · LOCAL business condition · evaluated POST-gate
   for_each: ${{ with.pages }}   # optional · map this task over a collection (local namespaces)
   retry:                        # optional · retry policy (see 05-errors.md)
     max_attempts: 3
@@ -138,8 +138,8 @@ boundary. (Same law as a `when:` evaluation error · §Task states.)
 ```yaml
 deploy:
     after:
-      tests: succeeded        # run only if tests settled success
-      scan: succeeded
+      tests: success          # run only if tests settled success
+      scan: success
     exec:
       command: ["./deploy.sh"]
 ```
@@ -150,8 +150,8 @@ task ·
 
 | predicate | admits when the producer settles… |
 |---|---|
-| `succeeded` | `success` |
-| `failed` | `failure` |
+| `success` | `success` |
+| `failure` | `failure` |
 | `skipped` | `skipped` |
 | `terminal` | any terminal state — `success` · `failure` · `skipped` · **`cancelled`** (the always-pattern: « run once X is settled, whatever happened » · cancelled IS terminal) |
 
@@ -178,7 +178,7 @@ composition law precise.)
 
 **Do not restate a `with:` edge.** An `after:` entry on a producer you
 already bind through `with:` is meaningful ONLY if it *tightens* the gate
-(`after: {x: succeeded}` + a value edge = run on `success` only, excluding
+(`after: {x: success}` + a value edge = run on `success` only, excluding
 the skipped-`null` case). A non-tightening restatement (`after: {x: terminal}`
 next to a value edge) changes nothing and the reference linter warns
 (`one-obvious-way/010`).
@@ -191,7 +191,7 @@ language now spells ·
 | the old spelling meant… | the W2 spelling |
 |---|---|
 | « B consumes A's output » | a `with:` binding — the data IS the edge |
-| « B runs only after A worked » (no data) | `after: { a: succeeded }` |
+| « B runs only after A worked » (no data) | `after: { a: success }` |
 | « B runs once A is settled, whatever happened » (the `when: true` pattern) | `after: { a: terminal }` |
 
 A task carrying `depends_on:` is refused at parse time (`NIKA-PARSE-024` ·
@@ -207,7 +207,7 @@ codemod is *equivalence-or-stop*, it never guesses.
 `depends_on: [a]` on a producer that may settle `skipped` admitted on
 `{success, skipped}` with no data read. W2 makes you choose: consume the
 value (`with:` · keeps `{success, skipped}` · the skipped value is `null`) ·
-require success (`after: {a: succeeded}` · a skipped producer now cancels
+require success (`after: {a: success}` · a skipped producer now cancels
 you) · or accept every outcome (`after: {a: terminal}`). Choosing is the
 point — the old spelling hid the choice.
 
@@ -224,7 +224,7 @@ notify:
 
 `when:` decides **whether an admitted task runs**. It is evaluated *after*
 the gate (§gate algebra) and it reads **local namespaces only** ·
-`vars` · `env` · `with` · and the `for_each` locals `item` / `index`.
+`inputs` · `config` · `const` · `with` · and the `for_each` locals `item` / `index`.
 A `tasks.*` reference inside `when:` is refused at parse time
 (`NIKA-VAR-021` · « hoist it into `with:` » — the binding creates the edge,
 `when:` reads the binding).
@@ -256,7 +256,7 @@ DSL would be none of those.
 **The v0.1 subset** (the only CEL features a conformant engine must support) ·
 
 ```
-identifier / field access   vars.topic · with.content · item.url
+identifier / field access   inputs.topic · with.content · item.url
 index access                with.pages[0] · obj['key-with-dash']
 comparison                  == · != · < · <= · > · >=
 boolean                     && · || · !
@@ -336,8 +336,9 @@ STRING   = /'([^'\\]|\\.)*'/ | /"([^"\\]|\\.)*"/ ;   (* escapes · \\ \' \" \n \
    `validation_error`); an expression that passes the static shape check
    but evaluates non-boolean fails at evaluation (`NIKA-VAR-006` ·
    `variable_error`). See §`when:` shape rules below.
-6. **Identifier roots resolve against the namespaces** · the 5 global
-   namespaces (`vars` · `with` · `tasks` · `env` · `secrets`) plus the two
+6. **Identifier roots resolve against the namespaces** · the 6 global
+   namespaces (`inputs` · `config` · `const` · `secrets` · `with` · `tasks`)
+   plus the two
    `for_each` loop-locals (`item` · `index`) per
    [04-variables.md](./04-variables.md) §Resolution order — and the `tasks`
    root is legal ONLY on the boundary surfaces
@@ -355,16 +356,16 @@ the meaning of an expression that parses today. The conditional `?:`, the
 
 ```yaml
 # pick a model / a path / a prompt by condition — anywhere a value is taken
-model:  ${{ vars.env == 'prod' ? 'mistral/mistral-large' : 'ollama/qwen3.5:9b' }}
-prompt: ${{ has(vars.style) ? vars.style : 'be concise' }}
+model:  ${{ inputs.env == 'prod' ? 'mistral/mistral-large' : 'ollama/qwen3.5:9b' }}
+prompt: ${{ has(inputs.style) ? inputs.style : 'be concise' }}
 when:   ${{ with.scan_log.contains('ERROR') }}      # branch on substring · the log arrived via with:
 ```
 
-**Namespaces are CEL variables** · the <!-- canon:namespaces -->5<!-- /canon --> namespaces (`vars` · `with` · `tasks`
-· `env` · `secrets`) are bound as top-level CEL variables — `tasks.*` on the
+**Namespaces are CEL variables** · the <!-- canon:namespaces -->6<!-- /canon --> namespaces (`inputs` · `config`
+· `const` · `secrets` · `with` · `tasks`) are bound as top-level CEL variables — `tasks.*` on the
 boundary surfaces only. **Inside a `for_each` task body, two
 more scoped CEL variables are bound** · `item` (the current element) and `index`
-(its 0-based position), available ONLY within that task (the <!-- canon:namespaces -->5<!-- /canon --> namespaces are
+(its 0-based position), available ONLY within that task (the <!-- canon:namespaces -->6<!-- /canon --> namespaces are
 global · `item`/`index` are for_each-local · see `for_each` below).
 
 #### The binding is the edge — no invisible edges
@@ -410,10 +411,10 @@ A `when:` expression evaluates to a boolean. If `false`, the task is
 Common patterns ·
 
 ```yaml
-when: ${{ vars.env == 'production' }}
+when: ${{ inputs.env == 'production' }}
 when: ${{ with.coverage > 80 }}                       # the number arrived via with:
 when: ${{ size(with.findings) > 0 }}
-when: ${{ has(vars.style) && vars.style != 'none' }}
+when: ${{ has(inputs.style) && inputs.style != 'none' }}
 when: ${{ item.kind == 'article' }}                   # for_each-local
 ```
 
@@ -436,7 +437,7 @@ Anything else is rejected.
 **Parse time (MUST · `NIKA-VAR-005` · `validation_error`)**: statically
 non-boolean-SHAPED roots are rejected before any execution ·
 ```yaml
-when: ${{ vars.threshold }}                    # ❌ bare reference · no relation/boolean operator
+when: ${{ inputs.threshold }}                  # ❌ bare reference · no relation/boolean operator
 when: ${{ with.report }}                       # ❌ bare reference
 when: ${{ 'production' }}                      # ❌ bare literal
 when: "literal string"                          # ❌ neither ${{ }} nor a YAML boolean
@@ -449,9 +450,9 @@ pass could not see) fails when evaluated.
 
 For non-boolean values · use explicit comparison ·
 ```yaml
-when: ${{ vars.threshold > 0 }}                # explicit > comparison
-when: ${{ vars.message != "" }}                # empty string check
-when: ${{ size(vars.items) > 0 }}              # collection size check
+when: ${{ inputs.threshold > 0 }}              # explicit > comparison
+when: ${{ inputs.message != "" }}              # empty string check
+when: ${{ size(inputs.items) > 0 }}            # collection size check
 ```
 
 ---
@@ -472,7 +473,7 @@ scrape_all:
 
 `for_each` runs the task **once per element** of the collection. Inside the
 task body, `${{ item }}` resolves to the current element (and `${{ index }}`
-to its zero-based position). The collection is a literal list, a `vars.*`
+to its zero-based position). The collection is a literal list, an `inputs.*`
 list, or an upstream array imported through `with:` — the **matrix /
 fan-out** pattern familiar from GitHub Actions.
 
@@ -494,7 +495,7 @@ sequential iteration · set `max_parallel: 1` ·
 
 ```yaml
 process_in_order:
-    for_each: ${{ vars.items }}
+    for_each: ${{ inputs.items }}
     max_parallel: 1                              # iterations run one-at-a-time, in order
     exec:
       command: ["process", "${{ item }}"]
@@ -503,7 +504,7 @@ process_in_order:
 #### `max_parallel:` · *optional · cap concurrent iterations*
 
 ```yaml
-for_each: ${{ vars.urls }}     # 1000 URLs
+for_each: ${{ inputs.urls }}   # 1000 URLs
 max_parallel: 5                # at most 5 in-flight at any time
 ```
 
@@ -518,7 +519,7 @@ max_parallel: 5                # at most 5 in-flight at any time
 #### `fail_fast:` · *optional · abort-on-error policy*
 
 ```yaml
-for_each: ${{ vars.urls }}
+for_each: ${{ inputs.urls }}
 fail_fast: false                # default true · false = process all even if some fail
 ```
 
@@ -571,7 +572,7 @@ fail_fast: false                # default true · false = process all even if so
   `variable_error`). **The skipped-upstream corollary** · a value edge
   passes on a skipped producer and its binding reads `null`, so a
   fan-out over that binding fails with `NIKA-VAR-006` unless the author
-  gates it (`after: {producer: succeeded}` or a `when:` size check).
+  gates it (`after: {producer: success}` or a `when:` size check).
 - `for_each` is **bounded fan-out**, not recursion · a task cannot
   `for_each` over its own output. The DAG stays acyclic.
 - If the collection is empty · the task is `skipped` (status `skipped`).
@@ -721,8 +722,8 @@ that admit the consumer ·
 value edge                {success, skipped}
 terminal-observation      {success, failure, skipped, cancelled}
 failure-observation       {failure, skipped}
-control · succeeded       {success}
-control · failed          {failure}
+control · success         {success}
+control · failure         {failure}
 control · skipped         {skipped}
 control · terminal        {success, failure, skipped, cancelled}
 ```
@@ -756,7 +757,7 @@ the verb, not the boundary that feeds it).
 **The migration table** — how the three W2 spellings propagate, next to the
 dead form they replace ·
 
-| producer X settles | `with:` value edge | `after: {x: succeeded}` | `after: {x: terminal}` | *(dead)* `depends_on: [x]` |
+| producer X settles | `with:` value edge | `after: {x: success}` | `after: {x: terminal}` | *(dead)* `depends_on: [x]` |
 |---|---|---|---|---|
 | `success` | run (binding = value) | run | run | ran |
 | `skipped` | **run** (binding = `null`) | **cancelled** | run | ran |
@@ -764,7 +765,7 @@ dead form they replace ·
 | `cancelled` | cancelled | cancelled | **run** (terminal includes cancelled) | cancelled |
 
 Choose knowingly · the value edge keeps the old default (skipped passes ·
-read `null` · the diamond-join unlock) · `succeeded` is the strict gate ·
+read `null` · the diamond-join unlock) · `success` is the strict gate ·
 `terminal` is the always-pattern (the report / cleanup / notify class —
 pair it with a `.status` observation to branch on what happened).
 
@@ -784,8 +785,7 @@ along G_p ·
   that cannot skip is a check error, not a silent never-fires edge.)
 - a status observation compared against a literal outside the vocabulary
   (`success` · `failure` · `skipped` · `cancelled`) can never match — `==`
-  is always false, `!=` always true. Refused · **`NIKA-DAG-007`**, with a
-  did-you-mean fix (`'failed'` → `failure`).
+  is always false, `!=` always true. Refused · **`NIKA-DAG-007`**.
 
 A literal `when: false` alone is **not** a finding — it is the documented
 never-pattern (feature-flag). The task settles `skipped` by explicit
@@ -878,13 +878,13 @@ tasks:
   setup:
     exec: { command: ["./prepare.sh"] }
   analyze_a:
-    after: { setup: succeeded }
+    after: { setup: success }
     infer: { prompt: "Analyze A" }
   analyze_b:
-    after: { setup: succeeded }
+    after: { setup: success }
     infer: { prompt: "Analyze B" }
   analyze_c:
-    after: { setup: succeeded }
+    after: { setup: success }
     infer: { prompt: "Analyze C" }
   merge:
     with:
@@ -1052,9 +1052,9 @@ completes · REGARDLESS of outcome (success · failure · timeout · cancel).
 #### Use cases
 
 ```yaml
-# 1 · cleanup temp files (scratch_dir declared in envelope vars:)
+# 1 · cleanup temp files (scratch_dir declared in envelope const:)
 on_finally:
-  - exec: { command: ["rm", "-rf", "${{ vars.scratch_dir }}"] }   # argv: the var cannot break out
+  - exec: { command: ["rm", "-rf", "${{ const.scratch_dir }}"] }   # argv: the constant cannot break out
 
 # 2 · always-emit completion event
 on_finally:
@@ -1090,9 +1090,9 @@ discouraged form ·
 | Rule | Intent | ✅ The one way | ❌ Discouraged · why |
 |---|---|---|---|
 | `/010` | « B consumes A's output » | a `with:` binding — the data IS the edge | adding a non-tightening `after:` entry next to it (`after: {a: terminal}` beside a value edge changes nothing) |
-| `/002` | « depend on a skippable producer » | decide the skip path: `after: {a: succeeded}` (skip cancels me) or read the value (`with:` · skip passes as `null`) | an `on_error: { skip: true }` producer whose dependents never acknowledge the skip either way |
-| `/003` | « retry on transient failure » | `retry:` · the ONE retry shape (`max_attempts` · `backoff_*` · `on_codes`) | an `after: {a: failed}` duplicate of the failing task · a self-referencing recovery chain |
-| `/004` | « provide a fallback value » | `on_error: { recover: … }` · the route stays *in the failing task* | a second task `after: {a: failed}` for a mere value · use a task only when real *work* runs on failure |
+| `/002` | « depend on a skippable producer » | decide the skip path: `after: {a: success}` (skip cancels me) or read the value (`with:` · skip passes as `null`) | an `on_error: { skip: true }` producer whose dependents never acknowledge the skip either way |
+| `/003` | « retry on transient failure » | `retry:` · the ONE retry shape (`max_attempts` · `backoff_*` · `on_codes`) | an `after: {a: failure}` duplicate of the failing task · a self-referencing recovery chain |
+| `/004` | « provide a fallback value » | `on_error: { recover: … }` · the route stays *in the failing task* | a second task `after: {a: failure}` for a mere value · use a task only when real *work* runs on failure |
 | `/005` | « cleanup that always runs » | `on_finally:` (per task) · or ONE terminal report task | a task with `after: {…: terminal}` on everything — a cleanup smuggled into the graph |
 | `/006` | « time-bound an iteration » | `timeout:` on the `for_each` task · it applies **per iteration** (§for_each semantics) | per-element timing tricks inside the body · a whole-fan-out timer (none exists in v0.1) |
 | `/007` | « cap fan-out concurrency » | `max_parallel:` | manual sharding into N sequential tasks |
@@ -1173,7 +1173,7 @@ workflow whose conformance report is clean.
   ],
   "edges": [
     { "from": "gather", "to": "think", "kind": "value", "binding": "readme" },
-    { "from": "think", "to": "publish", "kind": "control", "predicate": "succeeded" },
+    { "from": "think", "to": "publish", "kind": "control", "predicate": "success" },
     { "from": "gather", "to": "publish", "kind": "recovery" }
   ]
 }
@@ -1209,7 +1209,7 @@ wire contract:
 | `value` | `binding` (the `with:` key that created it) | a `.output` / named-binding reference in `with:` |
 | `terminal-observation` | `binding` | a `.status`/`.duration_ms`/`.started_at`/`.ended_at` reference in `with:` |
 | `failure-observation` | `binding` | an `.error` reference in `with:` |
-| `control` | `predicate` (`succeeded` · `failed` · `skipped` · `terminal`) | an `after:` entry |
+| `control` | `predicate` (`success` · `failure` · `skipped` · `terminal`) | an `after:` entry |
 | `recovery` | — | an `on_error.recover:` reference (source task → declaring task · a parking read, not an ordering edge) |
 | `finally` | — | **reserved** · cleanup units have no runtime identity yet (no events · no trace rows), so W2 emits no `finally` edges — the kind is named so the enum is complete when the trace contract (W5) gives cleanup units identity |
 

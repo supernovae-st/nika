@@ -31,6 +31,8 @@ brand:
   assets: "https://nika.sh/brand/"
   color:
     bg: "#08090b"             # the dark surface (website --v4-bg == docs bg dark)
+    bg_base: "#0d0d0e"        # the canvas base surface — the plane every *_text ramp is proven on
+    bg_elevated: "#1c1d21"    # the elevated surface (cards · hovers) — the second proving plane
     accent: "#4f86ff"         # THE accent (blue) · website --v4-accent
     accent_strong: "#2f6bff"  # website --v4-accent-strong == docs primary/dark
     accent_bright: "#8db4ff"  # website --v4-accent-bright == docs light
@@ -42,27 +44,35 @@ brand:
 # The 4 verbs — locked forever (spec/02-verbs.md). codicon + glyph are the
 # SHIPPED vscode bindings (workflowTree ThemeIcons · the ◇▷◆✦ unicode set);
 # fa is the Mintlify binding; icon is the nika.sh ontology id (icons.json).
+# text is the verb hue re-anchored for BODY COPY: it clears
+# rules.contrast_apca.body (APCA Lc >= 60) on brand.color.bg_base AND
+# bg_elevated. invoke already clears at its base hue — its ramp is the
+# identity, stored anyway (consumers read, never re-derive).
 verbs:
   infer:
     color: "#5b8cff"
+    text: "#90b4ff"
     codicon: "sparkle"
     fa: "sparkles"
     glyph: "◇"
     icon: "ai-magic/sparkle"
   exec:
     color: "#ff7a3c"
+    text: "#ff9a6f"
     codicon: "terminal"
     fa: "terminal"
     glyph: "▷"
     icon: "console"
   invoke:
     color: "#22d3ee"
+    text: "#22d3ee"
     codicon: "plug"
     fa: "plug"
     glyph: "◆"
     icon: "api-connection"
   agent:
     color: "#b07bff"
+    text: "#c5a4ff"
     codicon: "robot"
     fa: "robot"
     glyph: "✦"
@@ -74,6 +84,7 @@ verbs:
 severity:
   ok: "#34d399"
   fail: "#ff5d5d"
+  fail_text: "#ff9791"      # fail re-anchored for body copy (APCA Lc >= 60 on both bg_* planes)
 
 # The LIVE run-state palette — the register every surface that animates a
 # run speaks (website run/morph/plan css · the vscode canvas NIKA skin ·
@@ -87,6 +98,23 @@ status:
   running: "#5b8cff"
   retrying: "#e0b071"
   muted: "#5a606b"
+
+# The per-FEATURE icon bindings — vscode codicon ids, drawn on the
+# rules.icon_grid contract. Unlike the 4 verbs this set is OPEN: a feature
+# lands here the day a surface pins its icon. Keys stay TS-identifier-safe
+# (projected as bare object keys); values are codicon slugs (kebab). cost
+# rides credit-card as the shipped interim (a bespoke 16px SVG is the
+# named owed — the codicon set has no cost glyph).
+icons:
+  features:
+    doctor: "pulse"
+    wired: "plug"
+    trace: "record"
+    permits: "shield"
+    replay: "debug-rerun"
+    chain: "verified-filled"
+    station: "radio-tower"
+    cost: "credit-card"
 
 # The provider PRESENTATION order (operator lock 2026-06-12): wherever a
 # surface lists or exemplifies the catalog (pickers · docs · quickstarts),
@@ -116,3 +144,16 @@ rules:
   # Mermaid classDef fill = verb color + this alpha suffix. Derived at
   # projection time, never stored as a 5th value per verb.
   mermaid_fill_alpha: "22"
+  # APCA contrast floors (Lc · absolute) every *_text ramp above clears on
+  # bg_base AND bg_elevated: body copy · glyphs/large text · non-text UI
+  # (borders · focus rings). Floors, never targets — a surface may exceed.
+  contrast_apca:
+    body: 60
+    glyph: 45
+    nontext: 30
+  # The icon raster contract every feature icon draws to: one grid size,
+  # filled style, fill follows the text color — never a fixed hex.
+  icon_grid:
+    size: 16
+    style: "filled"
+    fill: "currentColor"

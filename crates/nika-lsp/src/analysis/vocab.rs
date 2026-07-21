@@ -74,13 +74,16 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
         doc: "The workflow-level default model, as `<provider>/<name>`.",
     },
     Entry {
-        name: "vars",
-        doc: "Workflow inputs — untyped values or typed input declarations \
-              (`${{ vars.X }}`).",
+        name: "inputs",
+        doc: "Typed workflow inputs — caller-supplied declarations (`${{ inputs.X }}`).",
     },
     Entry {
-        name: "env",
-        doc: "Non-sensitive runtime config (`${{ env.X }}`).",
+        name: "config",
+        doc: "Non-sensitive runtime config — deployment-supplied (`${{ config.X }}`).",
+    },
+    Entry {
+        name: "const",
+        doc: "Named constants — author-fixed values (`${{ const.X }}`).",
     },
     Entry {
         name: "secrets",
@@ -289,8 +292,9 @@ mod tests {
                 "workflow",
                 "description",
                 "model",
-                "vars",
-                "env",
+                "inputs",
+                "config",
+                "const",
                 "secrets",
                 "permits",
                 "tasks",

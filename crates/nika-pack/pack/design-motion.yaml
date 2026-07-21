@@ -15,15 +15,31 @@
 #   5. rest/done glyphs identical across families (one vocabulary)
 motion:
   version: 1
+  # The named duration scale (ms · DTCG duration type). ONE quantum:
+  # `fast` is both the terminal frame floor (gate 2's >= 80) and the UI
+  # frame cadence below. Consumers speak the names, never raw ms.
+  duration:
+    fast: 80
+    base: 160
+    slow: 240
+    deliberate: 400
+  # The UI frame cadence — a NAME from the scale above (one clock).
+  frame_interval: fast
   easing:
     calm: [0.4, 0.0, 0.6, 1.0]
     steady: [0.0, 0.0, 1.0, 1.0]
     snap: [0.2, 0.0, 0.0, 1.0]
+    # spatial motion (transforms · layout travel) rides the house spring —
+    # a linear() keypoint ramp (~4% overshoot) owned surface-side, bound
+    # here BY NAME; effects (color · opacity) ride this cubicBezier.
+    spatial: spring
+    effects: [0.22, 1.0, 0.36, 1.0]
   families:
     infer:            # thinking → SAMPLING · scattered dots settle
       css_keyframes: nika-motion-infer
       easing: calm
       duration_ms: 800
+      reduced: freeze   # prefers-reduced-motion per family · enum: keep-fade | freeze | off
       terminal:
         frames: ["⠂","⠈","⠐","⠄","⠠","⠁","⡀","⠃","⠘","⠨"]
         ascii_fallback: [".","o","O","o"]
@@ -33,6 +49,7 @@ motion:
       css_keyframes: nika-motion-exec
       easing: steady
       duration_ms: 800
+      reduced: freeze
       terminal:
         frames: ["⠉","⠒","⠤","⣀","⠤","⠒","⠉","⠒","⠤","⣀"]
         edge_frames: ["━╍┄┈","┈━╍┄","┄┈━╍","╍┄┈━"]   # the dag rail pulse window
@@ -43,6 +60,7 @@ motion:
       css_keyframes: nika-motion-invoke
       easing: snap
       duration_ms: 800
+      reduced: freeze
       terminal:
         frames: ["⠆","⠃","⠉","⠘","⠰","⢠","⠰","⠘","⠉","⠃"]
         ascii_fallback: ["<","^",">","v"]
@@ -52,6 +70,7 @@ motion:
       css_keyframes: nika-motion-agent
       easing: calm
       duration_ms: 800
+      reduced: freeze
       terminal:
         frames: ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
         ascii_fallback: ["|","/","-","\\"]

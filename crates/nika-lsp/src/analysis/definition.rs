@@ -45,25 +45,30 @@ pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
     ))
 }
 
-/// If `offset` sits on a `vars.X` / `secrets.X` / `env.X` member inside
-/// an island, return the DECLARATION's name span (+ byte length). The
-/// same byte-scan discipline as [`template_task_target`], generalized
-/// over the three declaring roots.
+/// If `offset` sits on an `inputs.X` / `config.X` / `const.X` /
+/// `secrets.X` member inside an island, return the DECLARATION's name
+/// span (+ byte length). The same byte-scan discipline as
+/// [`template_task_target`], generalized over the declaring roots.
 fn member_decl_target(wf: &RawWorkflow, text: &str, offset: usize) -> Option<(Span, usize)> {
     let (root, name) = template_member_at(text, offset)?;
     match root {
-        "vars" => wf
-            .vars
+        "inputs" => wf
+            .inputs
             .iter()
             .find(|(n, _)| n.value == name)
             .map(|(n, _)| (n.span, n.value.len())),
-        "secrets" => wf
-            .secrets
+        "config" => wf
+            .config
+            .iter()
+            .find(|(n, _)| n.value == name)
+            .map(|(n, _)| (n.span, n.value.len())),
+        "const" => wf
+            .consts
             .iter()
             .find(|(n, _)| n.value == name)
             .map(|(n, _)| (n.span, n.value.len())),
         _ => wf
-            .env
+            .secrets
             .iter()
             .find(|(n, _)| n.value == name)
             .map(|(n, _)| (n.span, n.value.len())),
@@ -80,7 +85,7 @@ pub(crate) fn template_member_at(text: &str, offset: usize) -> Option<(&'static 
             continue;
         }
         let inner = text.get(island_start..island_end)?;
-        for root in ["vars", "secrets", "env"] {
+        for root in ["inputs", "config", "const", "secrets"] {
             let needle = format!("{root}.");
             let mut search_from = 0usize;
             while let Some(rel) = inner.get(search_from..)?.find(&needle) {
@@ -751,15 +756,15 @@ mod tests {
     /// member resolves nowhere (no invented target).
     #[test]
     fn member_ref_jumps_to_its_declaration() {
-        let text = "nika: v1\nworkflow:\n  id: w\nvars:\n  city: \"paris\"\nenv:\n  REGION: eu\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.city }}\", \"${{ env.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\nconst:\n  city: \"paris\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ const.city }}\", \"${{ config.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
         let uri: Uri = "file:///w.nika.yaml".parse().expect("uri");
         let decl_line = |needle: &str| {
             let at = text.find(needle).expect(needle);
             u32::try_from(text[..at].matches('\n').count()).expect("line fits")
         };
         for (ref_needle, decl_needle) in [
-            ("vars.city", "  city:"),
-            ("env.REGION", "  REGION:"),
+            ("const.city", "  city:"),
+            ("config.REGION", "  REGION:"),
             ("secrets.api_key", "  api_key:"),
         ] {
             let at = text.find(ref_needle).expect(ref_needle) + ref_needle.len() - 2;
@@ -771,8 +776,8 @@ mod tests {
             );
         }
         // undeclared member → nothing
-        let at = text.find("vars.city").expect("ref");
-        let miss = text.replace("vars.city", "vars.ghost");
+        let at = text.find("const.city").expect("ref");
+        let miss = text.replace("const.city", "const.ghost");
         assert!(definition(&uri, &miss, at + 7).is_none());
     }
 }

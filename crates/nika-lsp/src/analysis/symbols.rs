@@ -41,11 +41,10 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
         .as_ref()
         .map_or_else(|| "workflow".to_owned(), |w| w.value.clone());
     let mut children: Vec<DocumentSymbol> = Vec::new();
-    for (name, decl) in &wf.vars {
+    for (name, decl) in &wf.inputs {
         let detail = match decl {
-            // CLOSED vocabulary (nika-vocab) — both forms named.
-            nika_schema::VarDecl::Typed { r#type, .. } => format!("var · {type}"),
-            nika_schema::VarDecl::Untyped(_) => "var".to_owned(),
+            nika_schema::VarDecl::Typed { r#type, .. } => format!("input · {type}"),
+            nika_schema::VarDecl::Untyped(_) => "input".to_owned(),
         };
         children.push(decl_symbol(
             index,
@@ -55,12 +54,29 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
             SymbolKind::VARIABLE,
         ));
     }
-    for (name, _) in &wf.env {
+    for (name, decl) in &wf.config {
+        let detail = match decl {
+            nika_schema::VarDecl::Typed { r#type, .. } => format!("config · {type}"),
+            nika_schema::VarDecl::Untyped(_) => "config".to_owned(),
+        };
         children.push(decl_symbol(
             index,
             &name.value,
             name.span,
-            "env".to_owned(),
+            detail,
+            SymbolKind::VARIABLE,
+        ));
+    }
+    for (name, decl) in &wf.consts {
+        let detail = match decl {
+            nika_schema::VarDecl::Typed { r#type, .. } => format!("const · {type}"),
+            nika_schema::VarDecl::Untyped(_) => "const".to_owned(),
+        };
+        children.push(decl_symbol(
+            index,
+            &name.value,
+            name.span,
+            detail,
             SymbolKind::CONSTANT,
         ));
     }
@@ -324,11 +340,11 @@ mod tests {
     }
 
     /// The outline carries every DECLARATION — vars (typed detail) ·
-    /// env · secrets · tasks, in declaration order, each selection
+    /// inputs · config · const · secrets · tasks, in declaration order, each selection
     /// range on the declaring name (the go-to-definition twin).
     #[test]
     fn outline_carries_vars_env_secrets_and_tasks() {
-        let text = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n  out: \"./o\"\nenv:\n  REGION: eu\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\ninputs:\n  city:\n    type: string\nconst:\n  out: \"./o\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(text);
         assert_eq!(syms.len(), 1, "one workflow root");
         let children = syms[0].children.as_ref().expect("children");
@@ -338,15 +354,15 @@ mod tests {
             names,
             vec![
                 ("city", SymbolKind::VARIABLE),
-                ("out", SymbolKind::VARIABLE),
-                ("REGION", SymbolKind::CONSTANT),
+                ("REGION", SymbolKind::VARIABLE),
+                ("out", SymbolKind::CONSTANT),
                 ("api_key", SymbolKind::KEY),
                 ("a", SymbolKind::METHOD),
             ],
             "{names:?}"
         );
         let city = &children[0];
-        assert_eq!(city.detail.as_deref(), Some("var · string"));
+        assert_eq!(city.detail.as_deref(), Some("input · string"));
         // the selection range sits on the declaring token, not 0-width
         assert!(
             city.selection_range.end.character > city.selection_range.start.character,
