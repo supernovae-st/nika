@@ -53,9 +53,19 @@ fn fresh_dir(tag: &str) -> tempfile::TempDir {
 
 /// Spawn `nika <args>` on a PTY in `dir`. `plain` = `NO_COLOR` (keeps the
 /// transcript byte-assertable); one test drops it to prove colour lives.
+///
+/// The colour env is HERMETIC (nika#675): the ambient developer shell can
+/// leak `NO_COLOR` / `CLICOLOR*` / `TERM` into the PTY child and silently
+/// flip the wizard's `--color auto` resolution — the two halves must pin
+/// the four knobs the resolver reads (`main.rs`), never inherit them.
 fn spawn_pty(dir: &std::path::Path, args: &[&str], plain: bool) -> LoggedSession {
     let mut cmd = Command::new(bin());
     cmd.args(args).current_dir(dir);
+    cmd.env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env_remove("CLICOLOR_FORCE")
+        .env_remove("FORCE_COLOR");
+    cmd.env("TERM", "xterm-256color");
     if plain {
         cmd.env("NO_COLOR", "1");
     }
