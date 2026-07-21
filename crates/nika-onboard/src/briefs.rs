@@ -142,11 +142,11 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - `agent:` multi-turn loop (`prompt`, `tools`, `max_turns`, `max_tokens_total`)
 
 ## Authoring Discipline
-- Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
+- Interpolation uses `${{ inputs.x }}` · `${{ const.x }}` · `${{ config.KEY }}` · `${{ tasks.id.output }}` · `${{ with.alias }}`.
 - Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
 - Edges are declared, never restated: a `with:` binding reading `${{ tasks.id.output }}` IS the data edge · `after: { task_id: success }` is the control edge (predicates: `success` · `failure` · `skipped` · `terminal`). `depends_on` is dead — `nika check --fix` migrates it.
-- Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
+- Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; non-sensitive configuration declares `config:` and reads `${{ config.KEY }}`.
 - After every edit, run `nika check <file>` — `--fix` heals the mechanical
   renames, the diagnostics teach the rest.
 - Unknown code? Run `nika explain NIKA-XXXX`.
