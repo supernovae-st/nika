@@ -167,7 +167,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
 fn graph_mermaid_and_dot_derive_from_the_projection() {
     let yaml = WORKFLOW;
     let wf = nika_schema::parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     let doc = project(&wf, &report);
 
     let mermaid = to_mermaid(&doc);

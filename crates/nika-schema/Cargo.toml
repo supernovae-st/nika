@@ -1,6 +1,6 @@
 [package]
 name          = "nika-schema"
-description   = "Workflow AST, parser, analyzer, and DAG validation for the Nika diamond. Layer L0 — pure, zero I/O, zero async."
+description   = "Workflow AST + parser for the Nika diamond (THE PARSER — its blueprint shape). The static judgment (analyzer + `nika check` ladder) lives in nika-check (split 2026-07-21 · the 15k crate-size wall · the nika-graph precedent). Layer L0 — pure, zero I/O, zero async."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -11,69 +11,44 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 
 [dependencies]
-# L0-DEP-FANOUT-EXEMPT: nika-schema is the workflow AST/parser/analyzer hub — it
+# L0-DEP-FANOUT-EXEMPT: nika-schema is the workflow AST/parser hub — it
 # assembles the closed vocabularies from the L0 leaf crates it depends on
-# (nika-error codes · nika-types base+ExtractMode · nika-catalog capability
-# vocab · nika-cap permits · nika-tmpl the shared island lexer). The 4th (nika-cap
-# permits) + 5th (nika-tmpl · the ${{ }} island lexer the runtime ALSO consumes for
-# check⇄run parity) are dependency-light L0 leaves extracted FROM this crate for
-# reuse without pulling the parser; inlining them back to stay at 3 would defeat the
-# extractions + re-introduce the check⇄run scanner drift. High fan-in is intentional
-# for the schema assembler hub (ADR-027 · marker-based exemption).
+# (nika-error codes · nika-types base+suggest · nika-catalog capability
+# vocab · nika-tmpl the shared island lexer the runtime ALSO consumes for
+# check⇄run parity). nika-tmpl is a dependency-light L0 leaf extracted FROM
+# this crate for reuse without pulling the parser; inlining it back to stay
+# at 3 would defeat the extraction + re-introduce the check⇄run scanner
+# drift. (The analyzer + check ladder — and the nika-cap permits edge they
+# needed — descended to nika-check 2026-07-21 · the 15k wall.) High fan-in
+# is intentional for the schema assembler hub (ADR-027 · marker-based
+# exemption).
 nika-source  = { path = "../nika-source", version = "0.105.0" } # spans + file registry (size-cap split of THIS unit · D-2026-07-09-N1 · re-exported at src/source)
 nika-vocab   = { path = "../nika-vocab", version = "0.105.0" }  # .nika.yaml config vocabulary (size-cap split of THIS unit · 3rd member · re-exported at src/types)
 nika-error   = { path = "../nika-error", version = "0.105.0" }
 nika-catalog = { path = "../nika-catalog", version = "0.105.0" }
 nika-types   = { path = "../nika-types", version = "0.105.0" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)
-nika-cap     = { path = "../nika-cap", version = "0.105.0" }   # the permits vocab lives here now (extracted 2026-07-03)
 nika-tmpl    = { path = "../nika-tmpl", version = "0.105.0" }   # the ${{ }} language crate (island lexer + expression grammar · check⇄run parity)
 
 thiserror  = { workspace = true }
-serde      = { workspace = true }
 marked-yaml  = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 miette     = { workspace = true }
-url        = { workspace = true }   # permits.net.http host extraction — the SAME WHATWG parse the runtime http effect connects with (no check↔runtime drift · pure/sync)
-# jq COMPILE-check (static · L0-legal: pure/sync · no I/O) — the SAME jaq the
-# runtime nika:jq builtin (nika-builtin) compiles with, workspace-pinned to one
-# version, so a jq that the checker accepts the runtime also accepts (parity-tested · no drift).
-jaq-core   = { workspace = true }
-jaq-std    = { workspace = true }
-jaq-json   = { workspace = true }
-# JSON Schema META-check (static · L0-legal: pure/sync · default-features=false
-# compiles out the http/file retrievers, so no I/O) — the SAME jsonschema crate
-# + the SAME validator_for() the runtime nika-verb-infer compiles a schema: with,
-# workspace-pinned to one version (parity-verified · validator_for == meta).
-jsonschema = { workspace = true }
 
 [dev-dependencies]
-# the verb-theater example folds REAL engine events (the telemetry truth)
-nika-event = { path = "../nika-event", version = "0.105.0" }
 # the emitted⊆registered ratchet cross-checks every statically-emittable
 # spec code against the embedded canon registry (spec/05-errors.md SSOT)
 nika-pack  = { path = "../nika-pack", version = "0.105.0" }
-uuid       = { workspace = true }
-insta      = { workspace = true }
-proptest   = { workspace = true }
 rstest     = { workspace = true }
 serde_json = { workspace = true }
-criterion  = { workspace = true }  # gate-7 benches · parse + check hot paths
-
-[[bench]]
-name    = "refonte_baseline"
-harness = false            # own harness: explicit p50/p95 + allocs + slope (W0 gate 8)
+criterion  = { workspace = true }  # gate-7 benches · the parse hot path
 
 [[bench]]
 name = "parse_bench"
 harness = false
 
-[[bench]]
-name = "parser_bench"
-harness = false
-
 [package.metadata.cargo-machete]
-ignored = ["insta", "proptest", "rstest", "nika-catalog", "serde-saphyr", "serde_json", "criterion"]  # dev-deps + Round 3+ deps (analyzer, json_schema)
+ignored = ["rstest", "serde-saphyr", "criterion"]  # macro-invisible dev + parse-backend + bench-harness uses machete cannot see
 
 [lints]
 workspace = true

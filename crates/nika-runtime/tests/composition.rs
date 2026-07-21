@@ -28,6 +28,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+use nika_check::CheckReport;
 use nika_event::{Event, EventKind};
 use nika_kernel_mock::{MockClock, MockProvider, MockShell, MockToolDefinitionProvider};
 use nika_providers::{ProviderRegistry, ProvidersConfig};
@@ -37,7 +38,7 @@ use nika_runtime::child::{
 use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
 use nika_schema::raw::RawWorkflow;
 use nika_schema::source::FileId;
-use nika_schema::{CheckReport, ParseMode, parse};
+use nika_schema::{ParseMode, parse};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
@@ -106,7 +107,7 @@ fn parse_and_check(yaml: &str) -> (RawWorkflow, CheckReport) {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
     // PURE check only — the resolved lane is the CLI's; these fixtures
     // exercise the runtime seam, whose gate is the clean report.
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder: {report:#?}");
     (wf, report)
 }

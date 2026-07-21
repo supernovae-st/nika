@@ -1058,7 +1058,7 @@ mod tests {
             // The check ladder must not choke either (a dirty audit is
             // fine; a PARSE error at this point is the bug).
             let wf = parsed.expect("asserted ok above");
-            let _ = nika_schema::check::check(&wf);
+            let _ = nika_check::check(&wf);
         }
     }
 
@@ -1096,7 +1096,7 @@ mod tests {
             assert!(parsed.is_ok(), "{name}: template must parse: {parsed:?}");
             let wf = parsed.expect("asserted ok above");
             let is_gap = KNOWN_GAP.contains(&name.as_str());
-            if nika_schema::check::check(&wf).is_clean() {
+            if nika_check::check(&wf).is_clean() {
                 assert!(
                     !is_gap,
                     "{name}: now audits CLEAN — remove it from KNOWN_GAP, the design gap is resolved"

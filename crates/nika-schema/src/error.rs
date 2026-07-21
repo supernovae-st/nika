@@ -10,7 +10,7 @@
 
 pub mod spec_code;
 
-pub use spec_code::{SpecCategory, SpecCode};
+pub use spec_code::{ERROR_DOCS_BASE, SpecCategory, SpecCode};
 
 use nika_error::codes::{Category, NikaCode, Severity};
 use nika_error::traits::NikaErrorCode;
@@ -652,10 +652,11 @@ pub enum SchemaError {
 // The dead-form vocabulary + the teaching texts DESCENDED to
 // `nika-vocab` at the C2 wall (the 15k prod-LOC budget — the teachings
 // are message vocabulary, the vocabulary crate is their home · the
-// `keysets` precedent). These re-exports keep the `crate::error::DeadForm`
-// path byte-stable for every matcher (the CLI's fix verb included).
+// `keysets` precedent). This re-export keeps the `crate::error::DeadForm`
+// path byte-stable for every matcher (the CLI's fix verb included) ·
+// `foreign_namespace_teaching` rides `nika_vocab` directly since its only
+// caller descended to nika-check (2026-07-21).
 pub use nika_vocab::DeadForm;
-pub(crate) use nika_vocab::dead_form::foreign_namespace_teaching;
 
 impl SchemaError {
     /// The machine-applicable RENAME this error teaches, as the exact

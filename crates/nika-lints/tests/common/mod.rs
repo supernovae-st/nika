@@ -14,7 +14,8 @@
 
 use std::path::{Path, PathBuf};
 
-use nika_schema::{FileId, ParseMode, SchemaError, SpecCode, analyze, check, parse};
+use nika_check::{analyze, check};
+use nika_schema::{FileId, ParseMode, SchemaError, SpecCode, parse};
 
 /// Resolve the nika-spec checkout (env override · sibling default).
 pub(crate) fn spec_dir() -> PathBuf {

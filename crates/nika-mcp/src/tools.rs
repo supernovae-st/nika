@@ -188,7 +188,7 @@ fn check(args: &Value) -> Result<String, String> {
         nika_schema::ParseMode::Strict,
     )
     .map_err(|e| format!("PARSE ✗ {e}"))?;
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     // The MODELS rung, MCP lane (#320 repro 3): the schema ladder alone
     // audited a hallucinated model green — cross every requirement against
     // the RESOLVER law shared with the CLI rung (nika-providers).
@@ -285,7 +285,7 @@ fn inspect(args: &Value) -> Result<String, String> {
         nika_schema::ParseMode::Strict,
     )
     .map_err(|e| format!("PARSE ✗ {e}"))?;
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     if report.is_clean() {
         serde_json::to_string_pretty(&nika_graph::project(&wf, &report))
             .map_err(|e| format!("projection serialization failed: {e}"))
@@ -368,7 +368,7 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
         assert_eq!(got, expected);
         assert_eq!(got["graph_format"], 2, "in-payload version");

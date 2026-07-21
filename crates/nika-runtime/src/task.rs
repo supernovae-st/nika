@@ -1119,8 +1119,8 @@ fn gate_finish(
     id: String,
     records: &BTreeMap<String, TaskRecord>,
 ) -> Option<Finish> {
-    use nika_schema::analyzer::edges::SettledState;
-    for (producer, kind) in nika_schema::analyzer::edges::incoming_of(task) {
+    use nika_check::analyzer::edges::SettledState;
+    for (producer, kind) in nika_check::analyzer::edges::incoming_of(task) {
         // Missing record: the checker law makes it unreachable (every
         // target resolves · waves order producers first) — defensively
         // treated as not-admitting, loudly NOT silently-open.

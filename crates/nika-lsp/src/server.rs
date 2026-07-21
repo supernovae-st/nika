@@ -372,7 +372,7 @@ fn diagnose(doc: &Document) -> Vec<lsp_types::Diagnostic> {
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     ) {
-        Ok(wf) => diagnostics::from_report(index, &nika_schema::check(&wf), &wf),
+        Ok(wf) => diagnostics::from_report(index, &nika_check::check(&wf), &wf),
         Err(err) => vec![diagnostics::from_parse_error(index, &err)],
     }
 }

@@ -10,6 +10,22 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika-check`** — the static judgment crate (new L0 member · split
+  from `nika-schema` at the 15k crate-size wall; the
+  nika-graph/nika-dap precedents): the workflow analyzer (`analyze` ·
+  `AnalyzedWorkflow` · the ONE derived-DAG-edge computation every
+  surface projects) plus the whole `nika check` ladder (`check` ·
+  `check_composed` · cost ceiling · secret-leak IFC · capability-escape
+  fit · trifecta · policy · gate reachability · the RunCertificate ·
+  `infer_permits`). `nika-schema` keeps its blueprint shape (THE PARSER:
+  AST + raw + error + keysets) and every consumer — cli · lsp · runtime
+  · dap · mcp · verb-agent · lints · graph · display · onboard · the
+  fuzz harness — now points at `nika_check` directly (no re-export
+  shims; the clean cut). Static judgment without the CLI, for the
+  embedder/SDK surface.
+
 ## [0.105.0](https://github.com/supernovae-st/nika/compare/v0.104.0..v0.105.0) - 2026-07-20
 
 ### ✨ Features

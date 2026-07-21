@@ -23,6 +23,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use nika_check::{CheckReport, check};
 use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::clock::ClockDyn;
@@ -37,7 +38,7 @@ use nika_kernel_mock::{
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use nika_schema::raw::action::RawAction;
 use nika_schema::raw::workflow::RawWorkflow;
-use nika_schema::{CheckReport, FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;

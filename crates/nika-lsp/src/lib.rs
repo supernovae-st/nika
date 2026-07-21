@@ -7,7 +7,7 @@
 //! static guarantees into live, in-editor feedback over any LSP client
 //! (VS Code, Cursor, Zed, Neovim, Helix) ·
 //!
-//! - **diagnostics** — the ADR-092 `nika_schema::check` ladder, surfaced as
+//! - **diagnostics** — the ADR-092 `nika_check::check` ladder, surfaced as
 //!   red squiggles carrying the existing `NIKA-*` codes verbatim (one
 //!   source of truth with `nika check`);
 //! - **hover** — docs for the 4 verbs (`infer · exec · invoke · agent`) and

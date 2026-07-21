@@ -16,7 +16,7 @@ pub(super) struct ModelFinding {
 /// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor
 /// catalog, which advertises providers this binary cannot drive (the
 /// azure class: cataloged, unresolvable, green until the run died).
-pub(super) fn unresolvable_models(report: &nika_schema::check::CheckReport) -> Vec<ModelFinding> {
+pub(super) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<ModelFinding> {
     report
         .requirements
         .models
@@ -49,7 +49,7 @@ pub(super) fn unresolvable_models(report: &nika_schema::check::CheckReport) -> V
 /// sha) + derived counts — the machine-readable answer to « priced
 /// against WHAT, from WHEN? » (no surveyed tool ships this · 2026-07).
 pub(super) fn pricing_section(
-    report: &nika_schema::check::CheckReport,
+    report: &nika_check::CheckReport,
     model_findings: &[ModelFinding],
 ) -> serde_json::Value {
     let models: Vec<serde_json::Value> = report

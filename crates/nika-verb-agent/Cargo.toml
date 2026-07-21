@@ -16,7 +16,8 @@ nika-kernel      = { path = "../nika-kernel", version = "0.105.0" }       # ai::
 nika-error       = { path = "../nika-error", version = "0.105.0" }        # NIKA_460..467 registry constants
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.105.0" }  # tool dispatch (same-layer L2 · spec §0.5)
 nika-bm25        = { path = "../nika-bm25", version = "0.105.0" }         # deterministic per-turn tool routing (L2→L1 downward · ADR-096)
-nika-schema      = { path = "../nika-schema", version = "0.105.0" }       # agent:compose static gate (L2→L0 downward · check-before-permission)
+nika-schema      = { path = "../nika-schema", version = "0.105.0" }       # agent:compose parse (L2→L0 downward)
+nika-check       = { path = "../nika-check", version = "0.105.0" }        # agent:compose static gate (L2→L0 downward · check-before-permission)
 jsonschema       = { workspace = true }                                   # final-message `schema:` validation (NIKA_464)
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }

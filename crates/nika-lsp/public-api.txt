@@ -9,7 +9,7 @@ pub mod nika_lsp::analysis::definition
 pub fn nika_lsp::analysis::definition::definition(uri: &lsp_types::uri::Uri, text: &str, offset: usize) -> core::option::Option<lsp_types::Location>
 pub mod nika_lsp::analysis::diagnostics
 pub fn nika_lsp::analysis::diagnostics::from_parse_error(index: &nika_lsp::analysis::position::LineIndex, err: &nika_schema::error::SchemaError) -> lsp_types::Diagnostic
-pub fn nika_lsp::analysis::diagnostics::from_report(index: &nika_lsp::analysis::position::LineIndex, report: &nika_schema::check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<lsp_types::Diagnostic>
+pub fn nika_lsp::analysis::diagnostics::from_report(index: &nika_lsp::analysis::position::LineIndex, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<lsp_types::Diagnostic>
 pub mod nika_lsp::analysis::document
 pub struct nika_lsp::analysis::document::Document
 impl nika_lsp::analysis::document::Document

@@ -19,7 +19,8 @@ serde_json   = { workspace = true }                              # the canvas st
 # The own-corpus ratchet: every recipe scaffold must parse AND check
 # clean — proven against the REAL ladder, test-side only (the runtime
 # audit arrives injected from the composition root).
-nika-schema = { path = "../nika-schema", version = "0.105.0" }
+nika-schema = { path = "../nika-schema", version = "0.105.0" }  # parse the scaffolded workflow
+nika-check  = { path = "../nika-check", version = "0.105.0" }  # the is_clean gate the guided loop judges against
 
 [package.metadata.lore]
 daemon        = "forgeron"

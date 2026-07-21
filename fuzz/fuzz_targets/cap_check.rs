@@ -1,6 +1,6 @@
 //! Fuzz target 3 · the capability CHECKER.
 //!
-//! Invariant under fuzz · for any input that PARSES, `nika_schema::check`
+//! Invariant under fuzz · for any input that PARSES, `nika_check::check`
 //! NEVER panics, aborts, or hangs — it returns a `CheckReport` (findings or
 //! clean). The checker is the component whose soundness the whole
 //! capability-boundary argument rests on, so its robustness on arbitrary
@@ -11,7 +11,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use nika_schema::{check, parse, FileId, ParseMode};
+use nika_check::check;
+use nika_schema::{FileId, ParseMode, parse};
 
 fuzz_target!(|data: &[u8]| {
     if let Ok(src) = std::str::from_utf8(data) {

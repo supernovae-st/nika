@@ -15,11 +15,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use nika_check::check;
 use nika_event::Event;
 use nika_kernel_mock::{MockClock, MockProvider, MockShell, MockToolDefinitionProvider};
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use nika_runtime::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;

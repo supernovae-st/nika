@@ -35,7 +35,7 @@
 //!
 //! The judge is pure L0 (the [`crate::policy_violations`] precedent): it
 //! reads projected [`TrifectaSubject`] rows, [`TaintWitness`] flow facts
-//! and the declared boundary, never an AST. `nika_schema::check` owns the
+//! and the declared boundary, never an AST. `nika_check` owns the
 //! projection, the content-taint pass, and the DAG-validity gating (an
 //! unanalyzable graph yields NO claim — skipped, never wrong).
 

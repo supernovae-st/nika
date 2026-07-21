@@ -44,7 +44,7 @@ async fn run_yaml(
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(
         report.is_clean(),
         "fixture passes the ladder: {}",
@@ -297,7 +297,7 @@ mod billed_then_failed {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(report.is_clean(), "fixture passes the ladder");
         let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
         let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));

@@ -4,7 +4,7 @@
 //! Map a parse error OR a [`CheckReport`] to LSP [`Diagnostic`]s.
 //!
 //! ONE source of truth: the LSP runs the SAME `nika_schema::parse` +
-//! `nika_schema::check` ladder the `nika check` CLI runs, so the codes and
+//! `nika_check::check` ladder the `nika check` CLI runs, so the codes and
 //! messages are byte-identical to the command line — no second checker, no
 //! drift (spec §6 « One source of truth for diagnostics »).
 //!
@@ -27,9 +27,10 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range};
-use nika_schema::check::ByteSpan;
+use nika_check::ByteSpan;
+use nika_check::CheckReport;
+use nika_schema::SchemaError;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::{CheckReport, SchemaError};
 
 use super::position::LineIndex;
 
@@ -306,10 +307,10 @@ fn byte_span_range(index: &LineIndex, start: u32, end: u32) -> Range {
 }
 
 /// The diagnostic code for a gate finding kind.
-fn gate_code(kind: nika_schema::GateFindingKind) -> String {
+fn gate_code(kind: nika_check::GateFindingKind) -> String {
     match kind {
-        nika_schema::GateFindingKind::DeadTask => "NIKA-DAG-DEAD".to_owned(),
-        nika_schema::GateFindingKind::BadStatusLiteral => "NIKA-DAG-STATUS".to_owned(),
+        nika_check::GateFindingKind::DeadTask => "NIKA-DAG-DEAD".to_owned(),
+        nika_check::GateFindingKind::BadStatusLiteral => "NIKA-DAG-STATUS".to_owned(),
         // The enum is #[non_exhaustive] — a future kind degrades to a
         // generic gate code rather than a build break.
         _ => "NIKA-DAG-GATE".to_owned(),
@@ -319,7 +320,8 @@ fn gate_code(kind: nika_schema::GateFindingKind) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_schema::{FileId, ParseMode, check, parse};
+    use nika_check::check;
+    use nika_schema::{FileId, ParseMode, parse};
 
     fn index_of(yaml: &str) -> LineIndex {
         LineIndex::new(yaml)

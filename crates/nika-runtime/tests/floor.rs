@@ -11,6 +11,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use nika_check::CheckReport;
+use nika_check::check;
 use nika_event::EventKind;
 use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
 use nika_kernel::tool_executor::ToolResult;
@@ -19,9 +21,8 @@ use nika_kernel_mock::{
 };
 use nika_providers::{NoHttp, ProviderRegistry, ProvidersConfig};
 use nika_runtime::{DeterministicStamper, Runtime, RuntimeConfig, RuntimeError, VecSink};
-use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_types::resource::Value;
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;

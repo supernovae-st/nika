@@ -16,6 +16,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use nika_check::check;
 use nika_kernel_mock::{
     MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
 };
@@ -25,7 +26,7 @@ use nika_runtime::{
     VecSink, WorkflowSecretResolver,
 };
 use nika_schema::types::SecretRef;
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_types::resource::Value as FieldValue;
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;

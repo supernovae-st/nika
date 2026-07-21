@@ -40,7 +40,7 @@ async fn run_yaml(yaml: &str, shell: MockShell, cap: Option<usize>) -> (RunOutco
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));

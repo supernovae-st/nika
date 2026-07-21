@@ -63,7 +63,7 @@ fn renames(text: &str) -> Vec<Rename> {
         }],
         Err(_) => Vec::new(),
         Ok(wf) => {
-            let report = nika_schema::check(&wf);
+            let report = nika_check::check(&wf);
             let mut out = Vec::new();
             for v in &report.conformance {
                 if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {

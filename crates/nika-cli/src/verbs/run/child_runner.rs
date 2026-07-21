@@ -66,7 +66,7 @@ impl ProdChildRunner {
     fn load_child(
         &self,
         call: &ChildCall,
-    ) -> Result<(PathBuf, String, RawWorkflow, nika_schema::CheckReport), ChildRunRefusal> {
+    ) -> Result<(PathBuf, String, RawWorkflow, nika_check::CheckReport), ChildRunRefusal> {
         if call.target.starts_with("registry:") {
             return Err(refusal(
                 "NIKA-COMP-001",
@@ -93,7 +93,7 @@ impl ProdChildRunner {
         // The child clears the SAME gate a standalone run clears — its
         // own composed check (grandchildren judged from ITS root).
         let root = path.to_string_lossy().into_owned();
-        let report = nika_schema::check_composed(&wf, &root, &mut |p| {
+        let report = nika_check::check_composed(&wf, &root, &mut |p| {
             std::fs::read_to_string(p).map_err(|e| e.to_string())
         });
         if !report.is_clean() {
@@ -121,7 +121,7 @@ fn effective_permits(child: Option<&Permits>, parent: Option<&Permits>) -> Optio
 
 /// The first blocking finding of a dirty child report — `(code, row)`,
 /// the child's OWN voice surfaced by the parent.
-fn first_finding(report: &nika_schema::CheckReport) -> (String, String) {
+fn first_finding(report: &nika_check::CheckReport) -> (String, String) {
     report.findings.first().map_or_else(
         || ("NIKA-COMP-001".to_owned(), "unnamed finding".to_owned()),
         |f| {

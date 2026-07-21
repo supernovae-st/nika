@@ -87,7 +87,7 @@ fn runtime_with(
 #[tokio::test]
 async fn resolved_skills_reach_the_provider_system_message() {
     let wf = wf_with_skill();
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "the static ladder is fs-free — clean");
     let provider = MockProvider::new("mock").enqueue_text("done");
     let probe = provider.clone();
@@ -127,7 +127,7 @@ async fn unresolved_skill_fails_the_task_with_the_check_code() {
     // with the same code `nika check` teaches (NIKA-AGENT-003), and
     // NO provider call is ever made (fail BEFORE spend).
     let wf = wf_with_skill();
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     let provider = MockProvider::new("mock").enqueue_text("never reached");
     let probe = provider.clone();
     let runtime = runtime_with(provider, BTreeMap::new());
@@ -154,7 +154,7 @@ async fn invalid_skill_text_fails_the_task_with_the_defect_code() {
     // A text that reaches dispatch but is NOT a valid Agent Skill —
     // the NIKA-AGENT-004 voice (same defect wording as nika check).
     let wf = wf_with_skill();
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     let provider = MockProvider::new("mock").enqueue_text("never reached");
     let runtime = runtime_with(
         provider,

@@ -11,8 +11,8 @@
 
 use std::fmt::Write as _;
 
-use nika_schema::check::{CheckReport, ConformanceViolation, UnboundedReason};
-use nika_schema::infer_permits;
+use nika_check::infer_permits;
+use nika_check::{CheckReport, ConformanceViolation, UnboundedReason};
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::VarDecl;
 
@@ -338,7 +338,7 @@ fn hints_and_verdict(
     // `nika:read` paths that do not exist HERE — a hint, never an
     // error (the file may appear at run time). Analysis is
     // nika-schema's; only the filesystem question lives at this edge.
-    for (task, path) in nika_schema::check::static_read_paths(wf)
+    for (task, path) in nika_check::static_read_paths(wf)
         .into_iter()
         .filter(|(_, p)| !std::path::Path::new(p).exists())
     {
@@ -413,7 +413,7 @@ fn composition_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t:
         report
             .composition
             .iter()
-            .map(nika_schema::check::CompositionFinding::row)
+            .map(nika_check::CompositionFinding::row)
             .collect(),
     );
 }

@@ -16,7 +16,7 @@
 //! Lints are **warnings · never errors** (spec `03-dag.md` §One obvious
 //! way · « the discouraged forms are legal · just not canonical »). They
 //! run on the raw AST after [`nika_schema::parse`] succeeds and are orthogonal
-//! to [`nika_schema::analyze`] (which emits spec ERRORS).
+//! to [`nika_check::analyze`] (which emits spec ERRORS).
 //!
 //! v0.1 ships THREE rule sets · [`one_obvious_way`] — the control-flow
 //! preference rules the spec marks « normative for linters » —

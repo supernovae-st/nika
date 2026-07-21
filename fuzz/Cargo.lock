@@ -383,6 +383,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
+name = "granit-parser"
+version = "0.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d03f81ad4732830d85cfd417a9f62cde6dadda4354d37d078a6084a19560aa2d"
+dependencies = [
+ "arraydeque",
+ "smallvec",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -864,6 +874,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-check"
+version = "0.105.0"
+dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "jsonschema",
+ "nika-cap",
+ "nika-catalog",
+ "nika-schema",
+ "nika-types",
+ "nika-vocab",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "nika-error"
 version = "0.105.0"
 dependencies = [
@@ -878,13 +906,8 @@ dependencies = [
 name = "nika-schema"
 version = "0.105.0"
 dependencies = [
- "jaq-core",
- "jaq-json",
- "jaq-std",
- "jsonschema",
  "marked-yaml",
  "miette",
- "nika-cap",
  "nika-catalog",
  "nika-error",
  "nika-source",
@@ -895,7 +918,6 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "thiserror",
- "url",
 ]
 
 [[package]]
@@ -903,6 +925,7 @@ name = "nika-schema-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "nika-check",
  "nika-schema",
 ]
 
@@ -1323,17 +1346,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
-name = "saphyr-parser-bw"
-version = "0.0.611"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67dec0c833db75dc98957956b303fe447ffc5eb13f2325ef4c2350f7f3aa69e3"
-dependencies = [
- "arraydeque",
- "smallvec",
- "thiserror",
-]
-
-[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1369,21 +1381,20 @@ dependencies = [
 
 [[package]]
 name = "serde-saphyr"
-version = "0.0.23"
+version = "0.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09fbdfe7a27a1b1633dfc0c4c8e65940b8d819c5ddb9cca48ebc3223b00c8b14"
+checksum = "7bd22781911de0ca6debda95f073c8f18bec65d1a94f1fa9573f3102e514cea4"
 dependencies = [
  "ahash",
  "annotate-snippets",
  "base64",
  "encoding_rs_io",
  "getrandom 0.3.4",
+ "granit-parser",
  "miette",
  "nohash-hasher",
  "num-traits",
- "regex",
- "saphyr-parser-bw",
- "serde",
+ "serde_core",
  "smallvec",
  "zmij",
 ]

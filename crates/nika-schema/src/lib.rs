@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-schema` — workflow AST, parser, analyzer, and DAG validation.
+//! `nika-schema` — the workflow AST and parser (THE PARSER · its blueprint
+//! shape).
 //!
 //! This crate sits at **L0**: pure, zero I/O, zero async.
 //!
-//! # Three-phase pipeline
+//! # The one phase
 //!
 //! ```text
 //! YAML string
 //!     │
 //!     ▼
 //! [Parser]  ── YAML → RawWorkflow (spans, no validation)
-//!     │
-//!     ▼
-//! [Analyzer] ── Raw → AnalyzedWorkflow (taint, guardrails, verb checks, DAG)
-//!     │
-//!     ▼
-//! [Validator] ─ cycle detection, topological sort, schema validation
-//!     │
-//!     ▼
-//! AnalyzedWorkflow (ready for lowering in nika-runtime)
 //! ```
+//!
+//! The static judgment over the parsed AST — the analyzer (Core
+//! conformance · derived DAG edges) and the `nika check` ladder — lives in
+//! **`nika-check`** (split 2026-07-21 at the 15k crate-size wall · the
+//! nika-graph/nika-dap precedents · L0, depends on THIS crate — never the
+//! reverse).
 
 #![cfg_attr(
     test,
@@ -36,8 +34,6 @@
     )
 )]
 
-pub mod analyzer;
-pub mod check;
 pub mod error;
 /// The `${{ }}` expression language — DESCENDED to `nika-tmpl` (2026-07-10 ·
 /// the 15k crate-size wall · the trace→dap precedent). Re-exported verbatim:
@@ -50,14 +46,6 @@ pub mod source;
 pub mod types;
 
 // Re-exports for convenience.
-pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, named_types, returns_type};
-pub use check::{
-    Bound, ByteSpan, CapabilityEscape, CertTerm, CheckReport, CompositionFinding,
-    ConformanceViolation, CostCeiling, ERROR_DOCS_BASE, FindingSeverity, GateFinding,
-    GateFindingKind, Hint, InferredPermits, REPORT_VERSION, RunCertificate, STATUS_VOCAB,
-    SchemaLintFinding, SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check, check_composed,
-    infer_permits,
-};
 pub use error::{SchemaError, SpecCategory, SpecCode};
 pub use nika_catalog::codegen::nika_builtin_tool_enum_schema;
 pub use parser::{ParseMode, parse};

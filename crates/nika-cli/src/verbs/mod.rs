@@ -41,7 +41,7 @@ pub mod trace_verify;
 pub mod welcome;
 pub mod wire;
 
-use nika_schema::check::CheckReport;
+use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::{FileId, ParseMode};
 
@@ -168,7 +168,7 @@ pub(crate) fn load_checked_with_source(
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     // The composed lane (spec 14): child targets resolve against the
     // file the operator named; the fs edge is the skills reader's twin.
-    let report = nika_schema::check_composed(&wf, path, &mut |p| {
+    let report = nika_check::check_composed(&wf, path, &mut |p| {
         std::fs::read_to_string(p).map_err(|e| e.to_string())
     });
     Ok((yaml, wf, report))

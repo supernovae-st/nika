@@ -14,6 +14,8 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use nika_check::CheckReport;
+use nika_check::check;
 use nika_event::{Event, EventKind};
 use nika_kernel::provider::ProviderError;
 use nika_kernel::tool_executor::{ToolCall, ToolExecError, ToolExecuteDyn, ToolResult};
@@ -22,9 +24,8 @@ use nika_kernel_mock::{
 };
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
-use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_types::resource::Value as FieldValue;
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;

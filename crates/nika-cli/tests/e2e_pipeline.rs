@@ -34,6 +34,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use nika_check::CheckReport;
+use nika_check::{check, infer_permits};
 use nika_cli::{RunView, TaskState, Theme, frame};
 use nika_event::{Event, EventKind};
 use nika_kernel::tool_executor::ToolResult;
@@ -42,9 +44,8 @@ use nika_kernel_mock::{
 };
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use nika_runtime::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
-use nika_schema::check::CheckReport;
 use nika_schema::raw::{RawAction, RawWorkflow};
-use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
+use nika_schema::{FileId, ParseMode, parse};
 use nika_types::resource::Value;
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;

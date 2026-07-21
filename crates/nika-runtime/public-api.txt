@@ -261,7 +261,7 @@ pub fn nika_runtime::proof::ir::task_semantic_hash(task: &nika_schema::raw::task
 pub mod nika_runtime::proof::receipt
 pub const nika_runtime::proof::receipt::RECEIPT_FORMAT: u32
 pub fn nika_runtime::proof::receipt::build_receipt(proves: &str, certificate: serde_json::value::Value, trace_verdict: serde_json::value::Value, assertions: alloc::vec::Vec<serde_json::value::Value>, lock_digest: &str) -> serde_json::value::Value
-pub fn nika_runtime::proof::receipt::build_run_receipt(proves: &nika_runtime::proof::SemanticHash, certificate: &nika_schema::check::certificate::RunCertificate, judged: &[(nika_vocab::assert::AssertProperty, nika_vocab::assert::AssertLevel)], trace_verdict: serde_json::value::Value, lock_digest: &str) -> serde_json::value::Value
+pub fn nika_runtime::proof::receipt::build_run_receipt(proves: &nika_runtime::proof::SemanticHash, certificate: &nika_check::certificate::RunCertificate, judged: &[(nika_vocab::assert::AssertProperty, nika_vocab::assert::AssertLevel)], trace_verdict: serde_json::value::Value, lock_digest: &str) -> serde_json::value::Value
 pub fn nika_runtime::proof::receipt::verify(receipt: &serde_json::value::Value, expected_semantic: &str) -> bool
 #[non_exhaustive] pub enum nika_runtime::proof::HashDomain
 pub nika_runtime::proof::HashDomain::Artifact
@@ -790,7 +790,7 @@ impl<T> nika_error::traits::AsAny for nika_runtime::RunOutcome where T: 'static
 pub fn nika_runtime::RunOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
-pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
+pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self

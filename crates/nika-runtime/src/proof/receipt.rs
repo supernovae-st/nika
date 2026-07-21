@@ -24,7 +24,7 @@
 //! `digest` itself differs (the reference's sha256 vs this engine's blake3) —
 //! the parity is on the bytes, never across algorithms.
 
-use nika_schema::RunCertificate;
+use nika_check::RunCertificate;
 use nika_schema::types::{AssertLevel, AssertProperty};
 use serde_json::{Map, Value};
 
@@ -236,7 +236,7 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         let proves = semantic_ir_hash(&wf).expect("projectable");
 
         // Judge one obligation at its honest level (no_secret_egress is static).

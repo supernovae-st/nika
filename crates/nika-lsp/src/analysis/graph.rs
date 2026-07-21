@@ -20,7 +20,7 @@ pub(super) fn downstream_ids<'a>(wf: &'a RawWorkflow, id: &str) -> Vec<&'a str> 
     let mut children: BTreeMap<String, Vec<&'a str>> = BTreeMap::new();
     for t in &wf.tasks {
         let child = t.value.id.value.as_str();
-        for producer in nika_schema::analyzer::edges::producer_ids(&t.value) {
+        for producer in nika_check::analyzer::edges::producer_ids(&t.value) {
             children.entry(producer).or_default().push(child);
         }
     }

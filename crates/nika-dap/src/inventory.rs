@@ -195,7 +195,7 @@ fn audit(root: &Path, rel: &Path) -> WorkflowFact {
     ) else {
         return unread(1);
     };
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     let mut verbs: BTreeMap<&'static str, usize> = BTreeMap::default();
     for task in &wf.tasks {
         *verbs.entry(task.value.action.verb()).or_insert(0) += 1;

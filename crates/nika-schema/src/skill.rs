@@ -206,7 +206,7 @@ impl SkillFinding {
             "path": self.path,
             "code": self.code,
             "detail": self.detail,
-            "docs_url": format!("{}/{}", crate::check::ERROR_DOCS_BASE, self.code),
+            "docs_url": format!("{}/{}", crate::error::ERROR_DOCS_BASE, self.code),
         })
     }
 }
@@ -246,7 +246,8 @@ impl ResolvedSkills {
 
     /// Insert the `check --json` machine keys (`skills_resolve` +
     /// `skill_findings[]` when red) — the report shape lives beside
-    /// [`crate::check::CheckReport`]'s own serialization.
+    /// `nika_check::CheckReport`'s own serialization (the check ladder
+    /// crate — a doc name, not a link: this crate never depends upward).
     pub fn extend_check_json(&self, obj: &mut serde_json::Map<String, serde_json::Value>) {
         obj.insert("skills_resolve".to_owned(), self.findings.is_empty().into());
         if !self.findings.is_empty() {

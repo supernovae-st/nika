@@ -33,7 +33,8 @@ and effects are declared (`permits:`). Every Turing-complete competitor
 steps) makes the questions below **undecidable** for their workflows. This is
 the moat: we can prove properties before a single token is spent; they cannot.
 
-`nika check` shipped 2026-06-11 (`crates/nika-schema/src/check/` · ~700 LOC ·
+`nika check` shipped 2026-06-11 (then crates/nika-schema/src/check/ — the cluster
+descended to `crates/nika-check/src/` 2026-07-21 · ~700 LOC ·
 commits `9dfe2fda6`..`0a26e8703`) with four reports: the wave **plan**, the
 **cost ceiling**, the **secret-leak** scan, and the **capability-escape** scan
 against `permits:`. A 3-angle adversarial review (commit `9a0c20510`) hardened
@@ -126,32 +127,32 @@ design, not a leak; the model response is not a verbatim echo).
 
 ## Evidence / Affected code
 
-- `crates/nika-schema/src/check/` -- the shipped `nika check` (mod/cost/secrets/permits_fit)
-- `crates/nika-schema/src/check/flow.rs` -- the IFC engine (this ADR · ladder #1+#3)
-- `crates/nika-schema/src/check/permits_infer.rs` -- capability inference (ladder #2 ·
+- `crates/nika-check/src/` -- the shipped `nika check` (mod/cost/secrets/permits_fit)
+- `crates/nika-check/src/flow.rs` -- the IFC engine (this ADR · ladder #1+#3)
+- `crates/nika-check/src/permits_infer.rs` -- capability inference (ladder #2 ·
   `infer_permits()` + `InferredPermits::to_yaml()` · sound-by-honesty notes ·
   round-trip property: the inferred block re-checks clean)
-- `crates/nika-schema/src/check/permits_fit.rs` -- `static_program` + `builtin_effect`
+- `crates/nika-check/src/permits_fit.rs` -- `static_program` + `builtin_effect`
   (the shared extraction/classification surfaces · fixed the dynamic-argv[0] false
   positive both sides · read/write/edit/grep/fetch/webhook-notify covered, glob
   excluded as statically undecidable)
-- `crates/nika-schema/src/check/schema_typing.rs` -- dataflow schema typing (ladder #4 ·
+- `crates/nika-check/src/schema_typing.rs` -- dataflow schema typing (ladder #4 ·
   deep `tasks.X.output.<path>` references resolved against X's `schema:` JSON Schema or
   `output:` binding names · properties/items/anyOf descent · explicit
   `additionalProperties: true` honored as opaque · typo'd fields caught with zero tokens)
 - `crates/nika-tmpl/src/expression/refs.rs` -- `walk_chains` shared chain-flattening
   core (`expr_refs` + `task_output_paths` consume one walker — no drift)
-- `crates/nika-schema/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
+- `crates/nika-check/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
 - `crates/nika-tmpl/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
-- `crates/nika-schema/src/suggest.rs` -- deterministic did-you-mean core (moved out of `check/` when the analyzer adopted it)
+- `crates/nika-types/src/suggest.rs` -- deterministic did-you-mean core (moved out of `check/` when the analyzer adopted it)
   (Damerau-Levenshtein · rustc threshold · lexicographic tie-break — the diagnostic
   model: every finding carries its machine-applicable repair)
-- `crates/nika-schema/src/check/tools.rs` -- unknown `nika:` builtin detection vs the
+- `crates/nika-check/src/tools.rs` -- unknown `nika:` builtin detection vs the
   closed catalog (same `all_builtins()` source as the codegen enum — no drift)
-- `crates/nika-schema/src/check/schema_lint.rs` -- authored `schema:` verification
+- `crates/nika-check/src/schema_lint.rs` -- authored `schema:` verification
   (the static half of structured-output reliability: required∉properties · type
   names · empty enum, with fixes)
-- `crates/nika-schema/examples/check/` -- `--infer-permits` + `--json` runnable
+- `crates/nika-check/examples/check/` -- `--infer-permits` + `--json` runnable
   surface (the agent repair loop: check → apply emitted fixes → re-check → clean,
   e2e-proven convergent)
 - Commit `9a0c20510` -- the review that exposed the one-hop + N-walks ceiling

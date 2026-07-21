@@ -52,7 +52,7 @@ async fn try_run(
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let report = nika_schema::check(&wf);
+    let report = nika_check::check(&wf);
     assert!(report.is_clean(), "fixture passes the ladder");
 
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));

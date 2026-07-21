@@ -140,7 +140,7 @@ fn rule_008_interpolated_string_command(tasks: &[&RawTask], lints: &mut Vec<Lint
 /// value edge alone (spec 03 §one obvious way). Tighten to `success`
 /// or drop the entry.
 fn rule_010_non_tightening_after(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
-    use nika_schema::analyzer::edges::{EdgeKind, role_of_field, task_refs_in_value};
+    use nika_check::analyzer::edges::{EdgeKind, role_of_field, task_refs_in_value};
     for task in tasks {
         for (target, pred) in &task.after {
             if !matches!(pred.value, nika_schema::types::AfterPredicate::Terminal) {
@@ -311,7 +311,7 @@ fn action_fingerprint(a: &RawAction) -> Value {
 /// contract. The canonical route is an explicit `when:` on the
 /// dependent.
 fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
-    use nika_schema::analyzer::edges::{EdgeKind, incoming_of};
+    use nika_check::analyzer::edges::{EdgeKind, incoming_of};
     for task in tasks {
         if !matches!(
             task.on_error.as_ref().map(|o| &o.value.action),
@@ -331,11 +331,11 @@ fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
                 .iter()
                 .filter(|(_k, v)| {
                     let mut refs = Vec::new();
-                    nika_schema::analyzer::edges::task_refs_in_value(&v.value, &mut refs);
+                    nika_check::analyzer::edges::task_refs_in_value(&v.value, &mut refs);
                     refs.iter().any(|(rid, field)| {
                         rid == id
                             && matches!(
-                                nika_schema::analyzer::edges::role_of_field(field.as_deref()),
+                                nika_check::analyzer::edges::role_of_field(field.as_deref()),
                                 EdgeKind::Value
                             )
                     })
@@ -566,7 +566,7 @@ fn rule_007_manual_sharding(
     // successor map · only single-producer links count as chain edges.
     let mut successors: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for (j, task) in tasks.iter().enumerate() {
-        let producers = nika_schema::analyzer::edges::producer_ids(task);
+        let producers = nika_check::analyzer::edges::producer_ids(task);
         if let [producer] = producers.as_slice()
             && let Some(&i) = index.get(producer.as_str())
         {

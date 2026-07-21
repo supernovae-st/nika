@@ -6,7 +6,7 @@
 //! every consumer: the CLI's `inspect --format json|mermaid|dot`, the
 //! LSP's `nika/semanticDocument`, and any future surface read THIS
 //! document. The edges are DERIVED from the Graph IR
-//! (`nika_schema::analyzer::edges` — the one computation the checker
+//! (`nika_check::analyzer::edges` — the one computation the checker
 //! and the runtime gate also consume). Format 1 is dead (no producer ·
 //! no consumer · no fallback); within format 2, evolution is additive
 //! and spec-first (a new field lands in 03-dag first, then here).
@@ -24,7 +24,7 @@
 
 use serde::Serialize;
 
-use nika_schema::check::CheckReport;
+use nika_check::CheckReport;
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::{OnErrorAction, WhenGate};
 
@@ -154,7 +154,7 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                     WhenGate::Literal(b) => b.to_string(),
                     WhenGate::Expr(e) => e.clone(),
                 }),
-                permits: nika_schema::check::task_permits(task),
+                permits: nika_check::task_permits(task),
                 fan_out: task.for_each.as_ref().map(|f| match &f.value {
                     nika_schema::raw::ForEachValue::List(items) => FanOut {
                         kind: "list",
@@ -215,21 +215,21 @@ fn typed_edges(wf: &RawWorkflow) -> Vec<Edge> {
         .map(|(i, t)| (t.value.id.value.clone(), i))
         .collect();
     let id_of = |ix: usize| wf.tasks[ix].value.id.value.clone();
-    let mut edges: Vec<Edge> = nika_schema::analyzer::edges::derive_edges(&wf.tasks, &ids)
+    let mut edges: Vec<Edge> = nika_check::analyzer::edges::derive_edges(&wf.tasks, &ids)
         .into_iter()
         .map(|e| Edge {
             from: id_of(e.from),
             to: id_of(e.to),
             kind: e.kind.wire_kind(),
             predicate: match e.kind {
-                nika_schema::analyzer::EdgeKind::Control(p) => Some(p.as_str()),
+                nika_check::analyzer::EdgeKind::Control(p) => Some(p.as_str()),
                 _ => None,
             },
             binding: e.binding,
         })
         .collect();
     edges.extend(
-        nika_schema::analyzer::edges::derive_recovery_reads(&wf.tasks, &ids)
+        nika_check::analyzer::edges::derive_recovery_reads(&wf.tasks, &ids)
             .into_iter()
             .map(|r| Edge {
                 from: id_of(r.from),
@@ -308,7 +308,7 @@ mod tests {
 
     fn doc(yaml: &str) -> GraphDoc {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-        let report = nika_schema::check(&wf);
+        let report = nika_check::check(&wf);
         assert!(report.is_clean(), "fixture must be clean");
         project(&wf, &report)
     }
