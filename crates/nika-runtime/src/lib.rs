@@ -43,6 +43,7 @@
 
 #![forbid(unsafe_code)]
 
+mod admit;
 mod agent_events;
 pub mod child;
 pub mod config;
@@ -88,6 +89,7 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
+pub use admit::required_inputs_refusal;
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
 pub use pause::WorkflowPause;
@@ -590,7 +592,11 @@ where
     /// boundary lanes do not match the workflow bytes (re-derived at run
     /// start under a declared `permits:` block — a clean report over
     /// different bytes is not clean) ·
-    /// [`RuntimeError::WaveOutOfBounds`] (NIKA-1701) · schedule breach.
+    /// [`RuntimeError::WaveOutOfBounds`] (NIKA-1701) · schedule breach ·
+    /// [`RuntimeError::MissingRequiredInputs`] (NIKA-1708) · the admission
+    /// preflight (issue #603): a `required: true` input with neither a
+    /// declared `default:` nor a `--var` override refuses BEFORE the
+    /// prologue — zero events, zero spend.
     /// Expression failures (NIKA-1702/1703) fail the TASK (cascade) ·
     /// they never abort the run.
     pub async fn run(
@@ -600,7 +606,9 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
-        trust::check_report(wf, report)?;
+        // The launch gates (audit-before-run · the #603 preflight) —
+        // a refusal here precedes the prologue: zero events, zero spend.
+        admit::gates(wf, report, &self.var_overrides)?;
         let EnvelopeValues {
             inputs,
             config,

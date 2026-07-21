@@ -7,7 +7,7 @@
 //! type-coercion fix pushed the file past the 1500-LOC ratchet): the
 //! run-time input surface is one coherent unit — the raw pairs in, the
 //! validated `BTreeMap<String, Value>` out, the declared `inputs:` block
-//! the sole authority on both keys and types.
+//! the sole authority on keys, types — and (#603) required-satisfaction.
 
 use std::collections::BTreeMap;
 
@@ -65,18 +65,26 @@ pub(super) fn parse_var_overrides(
     Ok(overrides)
 }
 
-/// [`parse_var_overrides`] mapped to the ENV-class refusal the caller
+/// [`parse_var_overrides`] + the admission preflight (#603 — the runtime's
+/// ONE constructor), both mapped to the ENV-class refusal the caller
 /// returns — the message rides stderr + the machine error envelope.
 pub(super) fn validated_var_overrides(
     vars: &[String],
     wf: &RawWorkflow,
     output_json: bool,
 ) -> Result<BTreeMap<String, Value>, u8> {
-    parse_var_overrides(vars, wf).map_err(|message| {
+    let overrides = parse_var_overrides(vars, wf).map_err(|message| {
         eprintln!("nika run: {message}");
         epilogue::emit_error_envelope(&message, output_json);
         exit::ENV
-    })
+    })?;
+    if let Some(err) = nika_runtime::required_inputs_refusal(wf, &overrides) {
+        let message = err.to_string();
+        eprintln!("nika run: {message}");
+        epilogue::emit_error_envelope(&message, output_json);
+        return Err(exit::ENV);
+    }
+    Ok(overrides)
 }
 
 #[cfg(test)]

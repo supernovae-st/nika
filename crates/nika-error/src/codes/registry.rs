@@ -804,6 +804,17 @@ pub const NIKA_1707: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "runtime-report-mismatch",
 };
+/// NIKA-1708: A `required: true` input reached `run` with neither a
+/// declared `default:` nor an operator `--var` override — the admission
+/// preflight refuses the launch BEFORE the prologue (issue #603 · zero
+/// events, zero spend; the mid-DAG NIKA-VAR-001 at the first read was
+/// the bug).
+pub const NIKA_1708: NikaCode = NikaCode {
+    num: 1708,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-missing-required-input",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -831,4 +842,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502,
     NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
     NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706, NIKA_1707,
+    NIKA_1708,
 ];
