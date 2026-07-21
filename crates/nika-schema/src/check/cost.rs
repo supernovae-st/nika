@@ -116,7 +116,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
             None => Some(1),
             Some(ForEachValue::List(arr)) => Some(arr.as_array().map_or(1, Vec::len) as u64),
             // An expression source is unknown EXCEPT when it is a bare
-            // `${{ vars.<name> }}` over a literal array — that count is
+            // `${{ <authority>.<name> }}` over a literal array — that count is
             // statically known, so the cost is bounded (parity with a List).
             Some(ForEachValue::Expression(expr)) => static_vars_array_len(wf, expr),
         };
@@ -186,20 +186,29 @@ pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
 }
 
 /// A `for_each:` count that is statically known: the expression is exactly
-/// `${{ vars.<name> }}` and that var declares a LITERAL array (an untyped
-/// array value, or a typed-array with a literal `default:`). Returns `None`
-/// for anything else — a task-output ref, a computed/navigated expression, a
-/// typed var with no default, or a non-array value — which stays an unknown
-/// count (`UnknownIterations`).
+/// `${{ <authority>.<name> }}` (inputs · config · const — the value
+/// authorities whose declared value is static) and that name declares a
+/// LITERAL array (an untyped array value, or a typed-array with a literal
+/// `default:`). Returns `None` for anything else — a task-output ref, a
+/// computed/navigated expression, a typed input with no default, or a
+/// non-array value — which stays an unknown count (`UnknownIterations`).
 fn static_vars_array_len(wf: &RawWorkflow, expr: &str) -> Option<u64> {
     let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let name = inner.strip_prefix("vars.")?;
-    // A BARE `vars.<name>` only — reject further navigation (`.field` ·
-    // `[0]`) or operators, whose runtime value is not statically known.
+    let (authority, name) = ["const.", "inputs.", "config."]
+        .into_iter()
+        .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
+    // A BARE `<authority>.<name>` only — reject further navigation
+    // (`.field` · `[0]`) or operators, whose runtime value is not
+    // statically known.
     if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
         return None;
     }
-    let (_, decl) = wf.vars.iter().find(|(k, _)| k.value == name)?;
+    let block = match authority {
+        "const." => &wf.consts,
+        "inputs." => &wf.inputs,
+        _ => &wf.config,
+    };
+    let (_, decl) = block.iter().find(|(k, _)| k.value == name)?;
     let value = match decl {
         VarDecl::Untyped(v)
         | VarDecl::Typed {
@@ -241,7 +250,7 @@ tasks:
 
     #[test]
     fn for_each_over_a_literal_vars_array_is_bounded() {
-        // NEW-5: a static `${{ vars.items }}` over a literal array has a known
+        // NEW-5: a static `${{ const.items }}` over a literal array has a known
         // count → bounded cost (parity with an inline list), not UnknownIterations.
         let c = ceiling_of(
             "\
@@ -249,17 +258,17 @@ nika: v1
 workflow:
   id: fe-vars
 model: anthropic/claude-sonnet-4-6
-vars:
+const:
   items: [\"a\", \"b\", \"c\"]
 tasks:
   fan:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
         );
         assert!(
             !c.has_unbounded,
-            "literal vars-array count is statically known"
+            "literal const-array count is statically known"
         );
         assert_eq!(c.tasks[0].iterations, 3);
         assert!(c.tasks[0].usd.is_some(), "bounded → priced");
@@ -274,11 +283,11 @@ nika: v1
 workflow:
   id: fe-typed
 model: anthropic/claude-sonnet-4-6
-vars:
+inputs:
   items: { type: array, required: true }
 tasks:
   fan:
-    for_each: ${{ vars.items }}
+    for_each: ${{ inputs.items }}
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
         );
@@ -298,11 +307,11 @@ nika: v1
 workflow:
   id: fe-typed-default
 model: anthropic/claude-sonnet-4-6
-vars:
+inputs:
   items: { type: array, default: [\"a\", \"b\"] }
 tasks:
   fan:
-    for_each: ${{ vars.items }}
+    for_each: ${{ inputs.items }}
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
         );
@@ -500,9 +509,9 @@ mod for_each_fanout {
 
     #[test]
     fn expression_for_each_is_unbounded() {
-        // ${{ vars.items }} source → unknown iteration count → unbounded.
+        // ${{ inputs.items }} source → unknown iteration count → unbounded.
         let c = ceiling_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { items: \"x\" }\ntasks:\n  t:\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ninputs: { items: { type: string, required: true } }\ntasks:\n  t:\n    for_each: ${{ inputs.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert!(c.has_unbounded);
         assert_eq!(
@@ -615,13 +624,13 @@ mod static_vars_array_len_unit {
         // (len 1) instead of `items` (len 3). `items` is listed first so the
         // `!=` mutant skips it and resolves the wrong array → 1 not 3.
         let mut wf = RawWorkflow::new();
-        wf.vars
+        wf.consts
             .push(var("items", serde_json::json!(["a", "b", "c"])));
-        wf.vars.push(var("other", serde_json::json!(["x"])));
+        wf.consts.push(var("other", serde_json::json!(["x"])));
         assert_eq!(
-            static_vars_array_len(&wf, "${{ vars.items }}"),
+            static_vars_array_len(&wf, "${{ const.items }}"),
             Some(3),
-            "must resolve `items` (len 3), never a different var"
+            "must resolve `items` (len 3), never a different entry"
         );
     }
 
@@ -632,12 +641,12 @@ mod static_vars_array_len_unit {
         // through and (because the var exists) resolves a count instead of the
         // correct `None`. The bare-name guard must reject `bad-name` outright.
         let mut wf = RawWorkflow::new();
-        wf.vars
+        wf.consts
             .push(var("bad-name", serde_json::json!(["one", "two"])));
         assert_eq!(
-            static_vars_array_len(&wf, "${{ vars.bad-name }}"),
+            static_vars_array_len(&wf, "${{ const.bad-name }}"),
             None,
-            "a hyphenated name is not a bare `vars.<ident>` — reject, never count"
+            "a hyphenated name is not a bare `const.<ident>` — reject, never count"
         );
     }
 }

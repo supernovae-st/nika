@@ -53,6 +53,46 @@ struct StopNotes(Vec<String>);
 /// the first defect), so this bounds pathological inputs, not real files.
 const MAX_ROUNDS: usize = 16;
 
+/// One round's DEAD-FORM arm — W1 « the map » · W2 « the flow » · C2
+/// « the E-split ». `Some(true)` = a migration applied (the round
+/// restarts, the re-parse is the proof) · `Some(false)` = STOP (the
+/// diagnostics name each case · never guess) · `None` = not a dead-form
+/// error (the caller's remaining path judges).
+fn apply_dead_form_arm(
+    err: &SchemaError,
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+) -> Option<bool> {
+    match err {
+        // W1 « the map » dead forms (PARSE-020..023): ONE structural
+        // repair — the shared migration (comment-preserving ·
+        // idempotent). The old form is repairable, never executable.
+        SchemaError::W1WorkflowScalar { .. }
+        | SchemaError::W1TopLevelDescription { .. }
+        | SchemaError::W1TasksSequence { .. }
+        | SchemaError::W1TaskIdField { .. } => Some(apply_w1_map(source, repairs)),
+        // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
+        // stop migration (spec 03 §depends_on): data → with: bindings ·
+        // provably-strict control → after: {d: succeeded} · every
+        // ambiguous case STOPS with its candidates.
+        SchemaError::W2DependsOnField { .. } => Some(apply_w2_flow(source, repairs, stop_notes)),
+        // C2 « the E-split » dead forms (VALUES-001/002): the `vars:`
+        // block is classified into `inputs:`/`const:` by the codemod
+        // (classify-not-rename · never a bulk rename). `env:` has NO
+        // mechanical repair — re-shaping a flat string map into typed
+        // `config:` declarations is a human classification (the teaching
+        // names it; the spec codemod carries config=0 for the same
+        // reason) · a form this binary predates joins it.
+        SchemaError::DeadValueForm {
+            form: nika_schema::error::DeadForm::Vars,
+            ..
+        } => Some(apply_esplit(source, repairs, stop_notes)),
+        SchemaError::DeadValueForm { .. } => Some(false),
+        _ => None,
+    }
+}
+
 /// The `nika check <file> --fix` verb. Single real file only (the caller
 /// refuses stdin and multi-file — a rewrite needs a place to write).
 #[must_use]
@@ -79,30 +119,10 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
                     break;
                 }
             }
-            // W1 « the map » dead forms (PARSE-020..023): ONE structural
-            // repair — the shared migration (comment-preserving ·
-            // idempotent) — then the round restarts and the re-parse is
-            // the proof. The old form is repairable, never executable.
-            Err(
-                SchemaError::W1WorkflowScalar { .. }
-                | SchemaError::W1TopLevelDescription { .. }
-                | SchemaError::W1TasksSequence { .. }
-                | SchemaError::W1TaskIdField { .. },
-            ) => {
-                if !apply_w1_map(&mut source, &mut repairs) {
-                    break; // ambiguous document — the teaching names it
-                }
-            }
-            // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
-            // stop migration (spec 03 §depends_on): data → with: bindings ·
-            // provably-strict control → after: {d: succeeded} · every
-            // ambiguous case STOPS with its candidates (never guess).
-            Err(SchemaError::W2DependsOnField { .. }) => {
-                if !apply_w2_flow(&mut source, &mut repairs, &mut stop_notes) {
-                    break; // human decision — the diagnostics name each case
-                }
-            }
-            Err(_) => break, // not a rename-shaped parse error — check will tell
+            Err(e) => match apply_dead_form_arm(&e, &mut source, &mut repairs, &mut stop_notes) {
+                Some(true) => {}             // a migration applied — the round restarts
+                Some(false) | None => break, // STOP, or not rename-shaped — check will tell
+            },
             Ok(wf) => {
                 let report = nika_schema::check(&wf);
                 if let Some(stop_or_continue) =
@@ -232,6 +252,46 @@ fn apply_w2_flow(
     }
 }
 
+/// The VALUES-001 arm — the C2 E-split codemod. `true` = applied (the
+/// round restarts) · `false` = STOP diagnostics captured (or nothing to
+/// classify — the check teaching stands). The codemod's left-alone refs
+/// ride as advisory notes (the author decides).
+fn apply_esplit(
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+) -> bool {
+    match nika_migrate::esplit(source) {
+        nika_migrate::EsplitOutcome::Changed(migrated, notes) => {
+            *source = migrated;
+            for note in notes {
+                repairs.push(Repair {
+                    old: note,
+                    new: "advisory — the author decides".to_owned(),
+                    kind: "c2-esplit-note",
+                    applied: true,
+                });
+            }
+            repairs.push(Repair {
+                old: "the dead `vars:` block".to_owned(),
+                new: "`inputs:` / `const:` by classification · refs rewritten class-aware"
+                    .to_owned(),
+                kind: "c2-esplit",
+                applied: true,
+            });
+            true
+        }
+        nika_migrate::EsplitOutcome::Stop(notes) => {
+            stop_notes.0 = notes;
+            false
+        }
+        // Clean (nothing to classify — the check teaching stands) ·
+        // #[non_exhaustive] — a future outcome joins deliberately (the
+        // forward-compat wildcard · never a silent swallow of a new case).
+        _ => false,
+    }
+}
+
 /// The NIKA-VAR-021 hoist arm — `Some(true)` = applied (re-run the
 /// round) · `Some(false)` = STOP diagnostics captured (end the loop) ·
 /// `None` = no boundary finding this round.
@@ -311,34 +371,17 @@ fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
     out
 }
 
-/// Publish the healed source ATOMICALLY: write a temp sibling, then one
-/// `rename` (POSIX-atomic within a filesystem — the same contract the
-/// `nika-fs` effect crate documents for `nika:write`). A crash or ENOSPC
-/// mid-write leaves the ORIGINAL file untouched and at most a
-/// `.nika-fix-tmp.*` sibling to sweep — never a truncated workflow. The
-/// temp lands in the target's own directory (rename across filesystems
-/// is not atomic); any failure removes it best-effort at this one site.
+/// Publish the healed source ATOMICALLY — the shared
+/// [`nika_migrate::repair::write_atomic`] door (the contract lives with
+/// the migrations crate since the C2 wall).
 fn write_atomic(path: &str, contents: &str) -> std::io::Result<()> {
-    let target = std::path::Path::new(path);
-    let dir = target.parent().filter(|p| !p.as_os_str().is_empty());
-    let name = target
-        .file_name()
-        .ok_or_else(|| std::io::Error::other("write path has no file name"))?;
-    let tmp_name = format!(".nika-fix-tmp.{}", name.to_string_lossy());
-    let tmp = dir.map_or_else(
-        || std::path::PathBuf::from(&tmp_name),
-        |d| d.join(&tmp_name),
-    );
-    let publish = std::fs::write(&tmp, contents).and_then(|()| std::fs::rename(&tmp, target));
-    if publish.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    publish
+    nika_migrate::repair::write_atomic(path, contents)
 }
 
 /// Splice `old` → `new` when `old` occurs EXACTLY ONCE in `source` as a
-/// whole word (neighbors are non-word chars or the string edges). Records
-/// the outcome either way; returns whether it applied.
+/// whole word — the byte surgery rides the shared
+/// [`nika_migrate::repair`] door; this wrapper keeps the CLI's repair
+/// bookkeeping (retry-upgrade rows). Returns whether it applied.
 fn splice(
     source: &mut String,
     old: &str,
@@ -358,13 +401,7 @@ fn splice(
     {
         return false;
     }
-    let sites = word_sites(source, old);
-    let applied = if let [at] = sites[..] {
-        source.replace_range(at..at + old.len(), new);
-        true
-    } else {
-        false
-    };
+    let applied = nika_migrate::repair::splice_unique(source, old, new);
     // One log row per (old, kind): a retry that succeeds UPGRADES its
     // earlier skip row (the summary reports final outcomes, not rounds).
     if let Some(row) = repairs.iter_mut().find(|r| r.old == old && r.kind == kind) {
@@ -379,29 +416,6 @@ fn splice(
         });
     }
     applied
-}
-
-/// Byte offsets where `needle` occurs in `hay` bounded by non-word
-/// characters (or the ends) — `inpit` matches `inpit:` but never
-/// `originpit`. Word chars: `[A-Za-z0-9_]` (the identifier alphabet every
-/// spliceable token — field · arg key · `nika:` tool id — draws from;
-/// `:` in a tool id is a non-word char, so the FULL `nika:raed` needle
-/// still boundary-checks correctly at both ends).
-fn word_sites(hay: &str, needle: &str) -> Vec<usize> {
-    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
-    let mut sites = Vec::new();
-    let mut from = 0;
-    while let Some(pos) = hay[from..].find(needle) {
-        let at = from + pos;
-        let before_ok = at == 0 || !is_word(hay.as_bytes()[at - 1]);
-        let end = at + needle.len();
-        let after_ok = end >= hay.len() || !is_word(hay.as_bytes()[end]);
-        if before_ok && after_ok {
-            sites.push(at);
-        }
-        from = at + needle.len().max(1);
-    }
-    sites
 }
 
 /// The env-shaped refusals for `--fix` combinations the loop cannot
@@ -419,19 +433,6 @@ pub fn refuse(reason: &str) -> VerbOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn word_sites_respects_boundaries_and_counts() {
-        // whole-word only — substrings inside identifiers never match
-        assert_eq!(word_sites("inpit: 1", "inpit"), vec![0]);
-        assert_eq!(word_sites("originpit: 1", "inpit"), Vec::<usize>::new());
-        assert_eq!(word_sites("a inpit b inpit", "inpit").len(), 2);
-        // the full `nika:` tool id boundary-checks at both ends
-        assert_eq!(word_sites("tool: \"nika:raed\"", "nika:raed"), vec![7]);
-        // …and the `raed` HALF alone still bounds on the `:` (by design:
-        // the splice always receives the full typed token, never a half)
-        assert_eq!(word_sites("tool: \"nika:raed\"", "raed").len(), 1);
-    }
 
     #[test]
     fn splice_applies_unique_and_skips_ambiguous() {
@@ -532,7 +533,7 @@ mod tests {
         let path = dir.join("two-site.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nvars: { topic: \"x\" }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ vars.topik }}\" } }\n  ship:\n    after:\n      buidl: succeeded\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: succeeded\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
         )
         .expect("write fixture");
         let out = run(
@@ -551,8 +552,8 @@ mod tests {
             "ref healed: {healed}"
         );
         assert!(
-            healed.contains("vars.topic"),
-            "vars ref healed too: {healed}"
+            healed.contains("inputs.topic"),
+            "inputs ref healed too: {healed}"
         );
         assert!(!healed.contains("buidl") && !healed.contains("topik"));
         assert!(
@@ -562,7 +563,7 @@ mod tests {
         );
         assert!(out.text.contains("ref `buidl` → `build`"), "{}", out.text);
         assert!(
-            out.text.contains("ref `vars.topik` → `vars.topic`"),
+            out.text.contains("ref `inputs.topik` → `inputs.topic`"),
             "{}",
             out.text
         );
@@ -641,5 +642,71 @@ mod tests {
             .filter_map(Result::ok)
             .collect();
         assert!(residue.is_empty(), "no residue: {residue:?}");
+    }
+
+    #[test]
+    fn esplit_migrates_the_dead_vars_block_and_converges_green() {
+        // The C2 flag-day repair loop: a pre-C2 file (a `vars:` block +
+        // `${{ vars.X }}` reads) is refused NIKA-VALUES-001 at parse —
+        // --fix classifies the block into inputs:/const:, rewrites the
+        // refs class-aware, and the final audit is clean.
+        let dir = std::env::temp_dir().join(format!("nika-fix-esplit-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("prec2.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: \"${{ vars.topic }} · up to ${{ vars.retries }}\" }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains("inputs:\n  topic:\n    type: string\n    required: true"),
+            "{healed}"
+        );
+        assert!(healed.contains("const:\n  retries: 3"), "{healed}");
+        assert!(
+            healed.contains("${{ inputs.topic }}") && healed.contains("${{ const.retries }}"),
+            "{healed}"
+        );
+        assert!(
+            !healed.contains("vars:") && !healed.contains("vars."),
+            "{healed}"
+        );
+        assert!(out.text.contains("esplit"), "{}", out.text);
+        assert_eq!(out.code, exit::OK, "clean after the E-split: {}", out.text);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn esplit_stop_leaves_the_file_untouched_and_names_the_entry() {
+        // Atomic-or-nothing: a credential-shaped entry is outside the
+        // ratified rules — the file is NOT written and the diagnostic
+        // names the entry (never guess).
+        let dir = std::env::temp_dir().join(format!("nika-fix-estop-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("stop.nika.yaml");
+        let body = "nika: v1\nworkflow:\n  id: w\nvars:\n  api_token: abc123\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+        std::fs::write(&path, body).expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("re-read"),
+            body,
+            "atomic-or-nothing: a STOP writes nothing"
+        );
+        assert!(out.text.contains("STOP"), "{}", out.text);
+        assert!(out.text.contains("vars.api_token"), "{}", out.text);
+        assert_ne!(out.code, exit::OK, "the dead form still reds: {}", out.text);
+        let _ = std::fs::remove_file(&path);
     }
 }

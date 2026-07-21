@@ -3,7 +3,7 @@
 
 //! Declared-vs-used drift — the `NIKA-DRIFT-001` advisory family.
 //!
-//! A workflow's envelope DECLARES its contract (`vars:` · `env:` ·
+//! A workflow's envelope DECLARES its contract (`inputs:` · `config:` · `const:` ·
 //! `secrets:` · `permits:`); the body USES it. When the two drift apart
 //! the file lies about itself: a declared input nothing reads is smell
 //! (the author pruned the body but not the contract). This pass names
@@ -28,8 +28,10 @@
 //! The reverse direction — USED but UNDECLARED — is already a hard
 //! failure everywhere the check surface can see it:
 //!
-//! - `${{ vars./env./secrets./with.X }}` with no `X` declared →
-//!   `NIKA-VAR-001` (the analyzer's template scan, EVERY island surface);
+//! - `${{ inputs./config./const./secrets./with.X }}` with no `X` declared →
+//!   `NIKA-VAR-001` (the analyzer's template scan, EVERY island surface) ·
+//!   the dead `vars`/`env` reads refuse `NIKA-VALUES-001`/`NIKA-VALUES-002`
+//!   and a foreign root `NIKA-VALUES-003` (the C2 family is closed);
 //! - `tasks.X` with no task `X` → `NIKA-DAG-002`;
 //! - an effect outside the declared `permits:` → `NIKA-SEC-004`
 //!   (fires on the CATEGORY regardless of arg dynamism);
@@ -40,8 +42,8 @@
 //! no `NIKA-DRIFT-002` (an unemittable code would be dead weight). The
 //! no-duplication law is STRUCTURAL: the hard codes name REFERENCES,
 //! this pass names DECLARATIONS — the two never fire on the same yaml
-//! site. The honest adjacency is the typo pair: `vars.topik` declared +
-//! `${{ vars.topic }}` used fires VAR-001 on the reference AND DRIFT-001
+//! site. The honest adjacency is the typo pair: `inputs.topik` declared +
+//! `${{ inputs.topic }}` used fires VAR-001 on the reference AND DRIFT-001
 //! on the declaration — both true; the hint clears when the typo is
 //! fixed.
 //!
@@ -81,11 +83,12 @@ pub fn scan(wf: &RawWorkflow) -> Vec<String> {
     out
 }
 
-/// Every `vars./env./secrets.` name the body references (module-doc parity set).
+/// Every `inputs./config./const./secrets.` name the body references (module-doc parity set).
 #[derive(Default)]
 struct UsedNames {
-    vars: BTreeSet<String>,
-    env: BTreeSet<String>,
+    inputs: BTreeSet<String>,
+    config: BTreeSet<String>,
+    consts: BTreeSet<String>,
     secrets: BTreeSet<String>,
 }
 
@@ -141,11 +144,14 @@ impl UsedNames {
         for island in &islands {
             for r in expr_refs(&island.expr) {
                 match r {
-                    NamespaceRef::Vars(name) => {
-                        self.vars.insert(name);
+                    NamespaceRef::Inputs(name) => {
+                        self.inputs.insert(name);
                     }
-                    NamespaceRef::Env(name) => {
-                        self.env.insert(name);
+                    NamespaceRef::Config(name) => {
+                        self.config.insert(name);
+                    }
+                    NamespaceRef::Const(name) => {
+                        self.consts.insert(name);
                     }
                     NamespaceRef::Secrets(name) => {
                         self.secrets.insert(name);
@@ -216,20 +222,26 @@ impl UsedNames {
     }
 }
 
-/// Declared `vars:`/`env:`/`secrets:` names nothing references.
+/// Declared `inputs:`/`config:`/`const:`/`secrets:` names nothing references.
 fn push_unused_declarations(wf: &RawWorkflow, used: &UsedNames, out: &mut Vec<String>) {
-    let declared: [(&str, Vec<&str>, &BTreeSet<String>, &str); 3] = [
+    let declared: [(&str, Vec<&str>, &BTreeSet<String>, &str); 4] = [
         (
-            "vars",
-            wf.vars.iter().map(|(n, _)| n.value.as_str()).collect(),
-            &used.vars,
+            "inputs",
+            wf.inputs.iter().map(|(n, _)| n.value.as_str()).collect(),
+            &used.inputs,
             "a dead input drifts from the body it describes",
         ),
         (
-            "env",
-            wf.env.iter().map(|(n, _)| n.value.as_str()).collect(),
-            &used.env,
+            "config",
+            wf.config.iter().map(|(n, _)| n.value.as_str()).collect(),
+            &used.config,
             "a dead config entry drifts from the body it describes",
+        ),
+        (
+            "const",
+            wf.consts.iter().map(|(n, _)| n.value.as_str()).collect(),
+            &used.consts,
+            "a dead constant drifts from the body it describes",
         ),
         (
             "secrets",
@@ -555,15 +567,15 @@ mod tests {
     #[test]
     fn unused_var_env_and_secret_are_hinted() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  topic: \"x\"\nenv:\n  REGION: eu\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert_eq!(advice.len(), 3, "{advice:?}");
         assert!(
-            advice.iter().any(|a| a.contains("`vars.topic`")),
+            advice.iter().any(|a| a.contains("`const.topic`")),
             "{advice:?}"
         );
         assert!(
-            advice.iter().any(|a| a.contains("`env.REGION`")),
+            advice.iter().any(|a| a.contains("`config.REGION`")),
             "{advice:?}"
         );
         assert!(
@@ -578,7 +590,7 @@ mod tests {
         // each walker arm is pinned: prompt · exec env · with · outputs ·
         // the envelope model: · on_error.recover · when:.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nmodel: \"${{ vars.backend }}\"\nvars:\n  topic: \"x\"\n  backend: mock/echo\n  recovered: \"fallback\"\n  gate: \"yes\"\nenv:\n  REGION: eu\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    when: ${{ vars.gate == \"yes\" }}\n    with: { token: \"${{ secrets.k }}\" }\n    on_error: { recover: \"${{ vars.recovered }}\" }\n    exec:\n      command: [\"echo\", \"${{ vars.topic }}\"]\n      env: { R: \"${{ env.REGION }}\" }\noutputs:\n  out: \"${{ vars.topic }}\"\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: \"${{ inputs.backend }}\"\ninputs:\n  backend: { type: string, required: true }\n  gate: { type: string, required: true }\n  recovered: { type: string, required: true }\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    when: ${{ inputs.gate == \"yes\" }}\n    with: { token: \"${{ secrets.k }}\" }\n    on_error: { recover: \"${{ inputs.recovered }}\" }\n    exec:\n      command: [\"echo\", \"${{ const.topic }}\"]\n      env: { R: \"${{ config.REGION }}\" }\noutputs:\n  out: \"${{ const.topic }}\"\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
     }
@@ -589,7 +601,7 @@ mod tests {
         // cleanup command · infer vision endpoint — each pins its walker
         // arm (a blind arm would flag a USED name).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  items: { type: array, required: true }\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: \"${{ vars.items }}\"\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ vars.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ vars.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\ninputs:\n  items: { type: array, required: true }\nconst:\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: \"${{ inputs.items }}\"\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ const.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ const.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
     }
@@ -597,10 +609,10 @@ mod tests {
     #[test]
     fn hints_are_sorted_and_deterministic() {
         let first = drifted(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let second = drifted(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert_eq!(first, second, "same input → same order");
         let mut sorted = first.clone();
@@ -616,7 +628,7 @@ mod tests {
         // ladder owns it (NIKA-VAR-001) — the drift pass stays silent
         // (the two codes must never fire on the same reference).
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.ghost }}\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -641,7 +653,7 @@ mod tests {
         // (topik): both true, never the same site, and the hint clears
         // when the typo is fixed.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  topik: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.topic }}\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ninputs:\n  topik: { type: string, required: true }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.topic }}\"] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -651,13 +663,13 @@ mod tests {
             report
                 .conformance
                 .iter()
-                .any(|c| c.code == "NIKA-VAR-001" && c.message.contains("vars.topic")),
+                .any(|c| c.code == "NIKA-VAR-001" && c.message.contains("inputs.topic")),
             "{:?}",
             report.conformance
         );
         let drift = scan(&wf);
         assert_eq!(drift.len(), 1, "{drift:?}");
-        assert!(drift[0].contains("`vars.topik`"), "{drift:?}");
+        assert!(drift[0].contains("`inputs.topik`"), "{drift:?}");
     }
 
     // ─── permits: exec ───────────────────────────────────────────────
@@ -789,7 +801,7 @@ mod tests {
         // template-suppression arm — if the grammar ever loosens, this
         // test turns red and the suppression must be (re)added.
         let result = parse(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  t: \"nika:read\"\ntasks:\n  a:\n    invoke: { tool: \"${{ vars.t }}\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  t: \"nika:read\"\ntasks:\n  a:\n    invoke: { tool: \"${{ const.t }}\" }\n",
             FileId::new(0),
             ParseMode::Strict,
         );
@@ -834,7 +846,7 @@ mod tests {
     #[test]
     fn dynamic_url_suppresses_net_entry_flags() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  u: \"https://api.example.com/x\"\npermits:\n  net: { http: [\"other.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ vars.u }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  u: \"https://api.example.com/x\"\npermits:\n  net: { http: [\"other.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ const.u }}\" } }\n",
         );
         assert!(
             !advice
@@ -908,7 +920,7 @@ mod tests {
     #[test]
     fn dynamic_path_suppresses_fs_entry_flags() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  p: \"./in/data.txt\"\npermits:\n  fs: { read: [\"./other/**\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"${{ vars.p }}\" } }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  p: \"./in/data.txt\"\npermits:\n  fs: { read: [\"./other/**\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"${{ const.p }}\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),

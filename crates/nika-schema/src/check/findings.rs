@@ -325,7 +325,7 @@ mod tests {
             (
                 // composition: a templated child target (the PURE half of
                 // the spec-14 lane — fires in every check(), reader-less)
-                "nika: v1\nworkflow:\n  id: w\nvars:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ vars.v }}.nika.yaml\" }\n",
+                "nika: v1\nworkflow:\n  id: w\nconst:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ const.v }}.nika.yaml\" }\n",
                 "composition",
                 "COMPOSITION",
             ),

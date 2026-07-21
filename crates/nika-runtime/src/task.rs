@@ -155,6 +155,7 @@ type ValueBags<'a> = (
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
 );
 
 impl FailedOutcome {
@@ -251,8 +252,9 @@ where
         &self,
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
-        vars: &BTreeMap<String, Value>,
-        env: &BTreeMap<String, Value>,
+        inputs: &BTreeMap<String, Value>,
+        config: &BTreeMap<String, Value>,
+        consts: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
@@ -270,36 +272,38 @@ where
         //    materializes, then `when:` judges over LOCAL names.
         //    Boundary errors settle failure OUTSIDE on_error scope
         //    (the armor covers the verb, not the boundary). ───────────
-        let boundary_with = match render_boundary_with(task, records, vars, env, secrets) {
-            Ok(ns) => ns,
-            Err(err) => {
-                return Finish {
-                    id,
-                    settle: SettleAs::FailedBeforeStart {
-                        stage: "with",
-                        error: runtime_error_record(&err),
-                    },
-                    named: null_bindings(task),
-                    resume: None,
-                };
-            }
-        };
-        if let Some(finish) = when_finish(task, id.clone(), &boundary_with, vars, env, secrets) {
+        let boundary_with =
+            match render_boundary_with(task, records, inputs, config, consts, secrets) {
+                Ok(ns) => ns,
+                Err(err) => {
+                    return Finish {
+                        id,
+                        settle: SettleAs::FailedBeforeStart {
+                            stage: "with",
+                            error: runtime_error_record(&err),
+                        },
+                        named: null_bindings(task),
+                        resume: None,
+                    };
+                }
+            };
+        if let Some(finish) = when_finish(
+            task,
+            id.clone(),
+            &boundary_with,
+            inputs,
+            config,
+            consts,
+            secrets,
+        ) {
             return finish;
         }
 
-        // ── ADR-099 resume identity — computed from the task AS
-        //    AUTHORED (an `--answer` never re-keys: a prompt's answer is
-        //    output non-determinism, like an infer's — §4 replays it) ──
-        let resume = crate::resume::stamp(task, records, vars, env, resume_ctx);
-
-        // ── ADR-099 `--resume` skip — BOTH hashes must match a journaled
-        //    success (an edited task or a changed input re-runs · §1). A
-        //    freshly-supplied `--answer` FORCES the ask (operator intent
-        //    is explicit — never replay an old answer over a new one). ──
-        if !self.prompt_answers.contains_key(&id)
-            && let Some(finish) = self.cache_hit_finish(task, &id, resume.as_ref())
-        {
+        // ── ADR-099 resume identity + the skip verdict — extracted
+        //    (the 100-line fn ratchet · semantics unchanged) ──
+        let (resume, skip) =
+            self.resume_skip_finish(task, &id, records, inputs, config, consts, resume_ctx);
+        if let Some(finish) = skip {
             return finish;
         }
 
@@ -321,7 +325,7 @@ where
                 task,
                 boundary_with,
                 records,
-                (vars, env, secrets),
+                (inputs, config, consts, secrets),
                 permits,
                 types,
                 ledger,
@@ -344,6 +348,33 @@ where
         }
     }
 
+    /// The ADR-099 resume gate: the stamp (computed from the task AS
+    /// AUTHORED — an `--answer` never re-keys: a prompt's answer is
+    /// output non-determinism, like an infer's — §4 replays it) plus the
+    /// skip verdict when BOTH hashes match a journaled success (an
+    /// edited task or a changed input re-runs · §1 · a freshly-supplied
+    /// `--answer` FORCES the ask — operator intent is explicit, never
+    /// replay an old answer over a new one). The stamp returns for the
+    /// leak filter downstream.
+    fn resume_skip_finish(
+        &self,
+        task: &RawTask,
+        id: &String,
+        records: &BTreeMap<String, TaskRecord>,
+        inputs: &BTreeMap<String, Value>,
+        config: &BTreeMap<String, Value>,
+        consts: &BTreeMap<String, Value>,
+        resume_ctx: &crate::resume::ResumeContext,
+    ) -> (Option<crate::resume::ResumeStamp>, Option<Finish>) {
+        let resume = crate::resume::stamp(task, records, inputs, config, consts, resume_ctx);
+        let skip = if self.prompt_answers.contains_key(id) {
+            None
+        } else {
+            self.cache_hit_finish(task, id, resume.as_ref())
+        };
+        (resume, skip)
+    }
+
     /// The execution lane split: `for_each:` fan-out when declared ·
     /// the single lane otherwise (spec 03 §dispatch pipeline).
     // REASON: the same run-scoped seams as the pipeline.
@@ -353,7 +384,7 @@ where
         task: &RawTask,
         boundary_with: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        (vars, env, secrets): ValueBags<'_>,
+        (inputs, config, consts, secrets): ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -364,7 +395,7 @@ where
                     task,
                     boundary_with,
                     records,
-                    (vars, env, secrets),
+                    (inputs, config, consts, secrets),
                     permits,
                     types,
                     ledger,
@@ -377,7 +408,7 @@ where
                     &spanned.value,
                     &boundary_with,
                     records,
-                    (vars, env, secrets),
+                    (inputs, config, consts, secrets),
                     permits,
                     types,
                     ledger,
@@ -459,7 +490,7 @@ where
         task: &RawTask,
         with_ns: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        (vars, env, secrets): ValueBags<'_>,
+        (inputs, config, consts, secrets): ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -468,8 +499,9 @@ where
         // pipeline) — the single lane consumes it as rendered.
         let scope = Scope {
             records,
-            vars,
-            env,
+            inputs,
+            config,
+            consts,
             secrets,
             with_ns: Some(&with_ns),
             item: None,
@@ -494,18 +526,24 @@ where
         collection: &ForEachValue,
         boundary_with: &BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        (vars, env, secrets): ValueBags<'_>,
+        (inputs, config, consts, secrets): ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         // The collection resolves on the PRE-fan-out surface (the
         // item-free boundary bindings) · empty settles `skipped`.
-        let items =
-            match fan_out::resolve_fan_out_items(collection, boundary_with, vars, env, secrets) {
-                Ok(items) => items,
-                Err(settle) => return *settle,
-            };
+        let items = match fan_out::resolve_fan_out_items(
+            collection,
+            boundary_with,
+            inputs,
+            config,
+            consts,
+            secrets,
+        ) {
+            Ok(items) => items,
+            Err(settle) => return *settle,
+        };
 
         let started = self.clock.now();
         let fail_fast = task.fail_fast.as_ref().is_none_or(|f| f.value);
@@ -531,7 +569,7 @@ where
                     self.run_iteration(
                         task,
                         records,
-                        (vars, env, secrets),
+                        (inputs, config, consts, secrets),
                         locals,
                         permits,
                         types,
@@ -567,22 +605,34 @@ where
             result,
         };
         // `on_finally:` runs ONCE after all iterations (spec 03 ·
-        // `item`/`index` are NOT in scope there). `permits` MUST flow so a
-        // fan-out `on_finally` exec is enforced like every other (NIKA-SEC-004)
-        // — `Scope::workflow` would drop it to None (the cleanup-bypass gap).
-        let finally_scope = Scope {
+        // `item`/`index` are NOT in scope there).
+        let finally_scope =
+            Self::fan_out_finally_scope(records, (inputs, config, consts, secrets), permits);
+        self.run_finally(task, &finally_scope, &ran).await;
+        ran.duration_ms = self.since_ms(started);
+        SettleAs::Ran(ran)
+    }
+
+    /// The `on_finally:` scope for a fan-out — `item`/`index` out of
+    /// scope by law, and `permits` MUST flow so a fan-out `on_finally`
+    /// exec is enforced like every other (NIKA-SEC-004) —
+    /// `Scope::workflow` would drop it to None (the cleanup-bypass gap).
+    fn fan_out_finally_scope<'a>(
+        records: &'a BTreeMap<String, TaskRecord>,
+        (inputs, config, consts, secrets): ValueBags<'a>,
+        permits: Option<&'a Permits>,
+    ) -> Scope<'a> {
+        Scope {
             records,
-            vars,
-            env,
+            inputs,
+            config,
+            consts,
             secrets,
             with_ns: None,
             item: None,
             index: None,
             permits,
-        };
-        self.run_finally(task, &finally_scope, &ran).await;
-        ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(ran)
+        }
     }
 
     /// One `for_each` iteration · per-iteration `with:` + locals +
@@ -594,7 +644,7 @@ where
         &self,
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
-        (vars, env, secrets): ValueBags<'_>,
+        (inputs, config, consts, secrets): ValueBags<'_>,
         locals: IterationLocals<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
@@ -603,8 +653,9 @@ where
         let with_ns = match render_with(
             task,
             records,
-            vars,
-            env,
+            inputs,
+            config,
+            consts,
             secrets,
             Some(locals.item),
             Some(locals.index),
@@ -626,8 +677,9 @@ where
         };
         let scope = Scope {
             records,
-            vars,
-            env,
+            inputs,
+            config,
+            consts,
             secrets,
             with_ns: Some(&with_ns),
             item: Some(locals.item),
@@ -829,8 +881,9 @@ where
         records.insert(task.id.value.clone(), preview_record(ran));
         let cleanup_scope = Scope {
             records: &records,
-            vars: scope.vars,
-            env: scope.env,
+            inputs: scope.inputs,
+            config: scope.config,
+            consts: scope.consts,
             secrets: scope.secrets, // a cleanup may reference secrets.X too
             with_ns: scope.with_ns,
             item: None, // locals out of scope after the fan-out (spec 03)
@@ -1102,16 +1155,18 @@ fn when_finish(
     task: &RawTask,
     id: String,
     boundary_with: &BTreeMap<String, Value>,
-    vars: &BTreeMap<String, Value>,
-    env: &BTreeMap<String, Value>,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Option<Finish> {
     let gate = task.when.as_ref()?;
     let empty_records = BTreeMap::new();
     let scope = Scope {
         records: &empty_records,
-        vars,
-        env,
+        inputs,
+        config,
+        consts,
         secrets,
         with_ns: Some(boundary_with),
         item: None,
@@ -1148,14 +1203,16 @@ fn when_finish(
 fn render_boundary_with(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
-    vars: &BTreeMap<String, Value>,
-    env: &BTreeMap<String, Value>,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
     let scope = Scope {
         records,
-        vars,
-        env,
+        inputs,
+        config,
+        consts,
         secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
         with_ns: None,
         item: None,
@@ -1390,16 +1447,18 @@ pub(crate) fn on_error_applies(on_error: &OnError, error: &TaskErrorRecord) -> b
 fn render_with(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
-    vars: &BTreeMap<String, Value>,
-    env: &BTreeMap<String, Value>,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
     item: Option<&Value>,
     index: Option<usize>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
     let scope = Scope {
         records,
-        vars,
-        env,
+        inputs,
+        config,
+        consts,
         secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
         with_ns: None,
         item,

@@ -339,7 +339,7 @@ fn typed_call_defects(
         .and_then(serde_json::Value::as_object)
         .unwrap_or(&empty);
     let declared: BTreeMap<&str, &VarDecl> = child
-        .vars
+        .inputs
         .iter()
         .map(|(n, d)| (n.value.as_str(), d))
         .collect();
@@ -597,11 +597,11 @@ mod tests {
 nika: v1
 workflow:
   id: child
-vars:
+inputs:
   url: { type: string, required: true }
 tasks:
   fetch:
-    exec: { command: [\"echo\", \"${{ vars.url }}\"] }
+    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }
 outputs:
   report: { value: \"${{ tasks.fetch.output }}\", type: string }
 ";
@@ -697,7 +697,7 @@ tasks:
 nika: v1
 workflow:
   id: parent
-vars:
+const:
   u: \"x\"
 tasks:
   audit:
@@ -707,7 +707,7 @@ tasks:
   audit2:
     invoke:
       workflow: \"./child.nika.yaml\"
-      args: { url: \"${{ vars.u }}\" }
+      args: { url: \"${{ const.u }}\" }
 ";
         let wf = parse(yaml);
         let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(CHILD_OK.to_owned()));
@@ -800,13 +800,13 @@ tasks:
 nika: v1
 workflow:
   id: child
-vars:
+inputs:
   url: { type: string, required: true }
 permits:
   exec: [\"echo\"]
 tasks:
   fetch:
-    exec: { command: [\"echo\", \"${{ vars.url }}\"] }
+    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }
 ";
         let wf = parse(parent);
         let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(child.to_owned()));

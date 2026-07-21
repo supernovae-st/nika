@@ -43,8 +43,9 @@ pub(super) const RESERVED_RECORD_FIELDS: &[&str] = &[
 
 /// Name-resolution index over the whole workflow.
 pub(super) struct WorkflowIndex<'a> {
-    vars: BTreeSet<&'a str>,
-    env: BTreeSet<&'a str>,
+    inputs: BTreeSet<&'a str>,
+    config: BTreeSet<&'a str>,
+    consts: BTreeSet<&'a str>,
     secrets: BTreeSet<&'a str>,
     task_ids: BTreeSet<&'a str>,
     /// task id → declared `output:` binding names.
@@ -85,8 +86,9 @@ impl<'a> WorkflowIndex<'a> {
             }
         }
         Self {
-            vars: wf.vars.iter().map(|(k, _)| k.value.as_str()).collect(),
-            env: wf.env.iter().map(|(k, _)| k.value.as_str()).collect(),
+            inputs: wf.inputs.iter().map(|(k, _)| k.value.as_str()).collect(),
+            config: wf.config.iter().map(|(k, _)| k.value.as_str()).collect(),
+            consts: wf.consts.iter().map(|(k, _)| k.value.as_str()).collect(),
             secrets: wf.secrets.iter().map(|(k, _)| k.value.as_str()).collect(),
             task_ids: wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect(),
             bindings,
@@ -488,16 +490,33 @@ fn check_ref(
     errors: &mut Vec<SchemaError>,
 ) {
     match r {
-        NamespaceRef::Vars(name) => {
-            if !index.vars.contains(name.as_str()) {
-                let hint = suggest_in("vars", name, index.vars.iter().copied());
-                errors.push(unresolved(&format!("vars.{name}"), ctx, span, hint));
+        NamespaceRef::Vars(name) | NamespaceRef::Env(name) => {
+            let (form, reference) = match r {
+                NamespaceRef::Vars(_) => (crate::error::DeadForm::Vars, format!("vars.{name}")),
+                _ => (crate::error::DeadForm::Env, format!("env.{name}")),
+            };
+            errors.push(SchemaError::DeadValueForm {
+                form,
+                message: form.ref_teaching(&reference),
+                span: Some(span),
+            });
+        }
+        NamespaceRef::Inputs(name) => {
+            if !index.inputs.contains(name.as_str()) {
+                let hint = suggest_in("inputs", name, index.inputs.iter().copied());
+                errors.push(unresolved(&format!("inputs.{name}"), ctx, span, hint));
             }
         }
-        NamespaceRef::Env(name) => {
-            if !index.env.contains(name.as_str()) {
-                let hint = suggest_in("env", name, index.env.iter().copied());
-                errors.push(unresolved(&format!("env.{name}"), ctx, span, hint));
+        NamespaceRef::Config(name) => {
+            if !index.config.contains(name.as_str()) {
+                let hint = suggest_in("config", name, index.config.iter().copied());
+                errors.push(unresolved(&format!("config.{name}"), ctx, span, hint));
+            }
+        }
+        NamespaceRef::Const(name) => {
+            if !index.consts.contains(name.as_str()) {
+                let hint = suggest_in("const", name, index.consts.iter().copied());
+                errors.push(unresolved(&format!("const.{name}"), ctx, span, hint));
             }
         }
         NamespaceRef::Secrets(name) => {
@@ -538,10 +557,23 @@ fn check_ref(
             }
         }
         NamespaceRef::Unknown(root) => {
-            // a typo'd NAMESPACE root (`vrs.x`) — suggest among the roots
-            const ROOTS: [&str; 7] = ["env", "index", "item", "secrets", "tasks", "vars", "with"];
+            // a typo'd NAMESPACE root (`inpts.x`) — suggest among the
+            // living roots (the dead `vars`/`env` refuse above).
+            const ROOTS: [&str; 8] = [
+                "config", "const", "index", "inputs", "item", "secrets", "tasks", "with",
+            ];
             let hint = crate::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
             errors.push(unresolved(root, ctx, span, hint));
+            // LAYERED with the unresolved refusal above (the oracle's
+            // values layer emits BOTH): outside the four authorities +
+            // the runtime namespaces + the dead forms, the root is a
+            // foreign value namespace — NIKA-VALUES-003
+            // (LAW-SURFACE-0201 · the family is closed).
+            errors.push(SchemaError::ForeignValueNamespace {
+                root: root.clone(),
+                message: crate::error::foreign_namespace_teaching(root),
+                span: Some(span),
+            });
         }
     }
 }
@@ -633,8 +665,8 @@ fn unresolved(
 }
 
 /// The fully-qualified did-you-mean within ONE namespace's declared
-/// names (`vars.topic` for a typo'd `vars.topci`) — suggestions never
-/// cross namespaces (a `vars.` typo is not repaired with a secret).
+/// names (`inputs.topic` for a typo'd `inputs.topci`) — suggestions never
+/// cross namespaces (an `inputs.` typo is not repaired with a secret).
 fn suggest_in<'a>(
     namespace: &str,
     name: &str,
@@ -673,21 +705,21 @@ mod tests {
     fn scan_json_descends_into_an_array_value() {
         // Kills `scan_json::walk` 377 — delete the `Value::Array(items)` arm.
         // The `with:` value is a JSON ARRAY whose element is an
-        // `${{ vars.ghost }}` island referencing an UNDECLARED var. The walker
-        // MUST recurse into the array element to scan it → an
-        // `UnresolvedNamespaceRef` for `vars.ghost`. Deleting the Array arm
+        // `${{ inputs.ghost }}` island referencing an UNDECLARED input. The
+        // walker MUST recurse into the array element to scan it → an
+        // `UnresolvedNamespaceRef` for `inputs.ghost`. Deleting the Array arm
         // skips the nested string, so the unresolved ref goes silently
         // unreported and the workflow wrongly analyzes clean.
         let yaml = format!(
             "{HEADER}tasks:
   t:
-    with: {{ payload: [\"${{{{ vars.ghost }}}}\"] }}
+    with: {{ payload: [\"${{{{ inputs.ghost }}}}\"] }}
     exec: {{ command: [echo] }}
 "
         );
         assert_eq!(
             sole_unresolved(&yaml),
-            "vars.ghost",
+            "inputs.ghost",
             "a ref nested inside a `with:` ARRAY must still be resolved"
         );
     }
@@ -696,19 +728,19 @@ mod tests {
     fn scan_json_descends_into_an_object_value() {
         // Kills `scan_json::walk` 382 — delete the `Value::Object(map)` arm.
         // The `with:` value is a nested JSON OBJECT whose leaf is an
-        // `${{ vars.ghost }}` island. The walker MUST recurse through the
+        // `${{ inputs.ghost }}` island. The walker MUST recurse through the
         // object's values to scan it → an `UnresolvedNamespaceRef`. Deleting
         // the Object arm skips the nested string, hiding the unresolved ref.
         let yaml = format!(
             "{HEADER}tasks:
   t:
-    with: {{ payload: {{ inner: \"${{{{ vars.ghost }}}}\" }} }}
+    with: {{ payload: {{ inner: \"${{{{ inputs.ghost }}}}\" }} }}
     exec: {{ command: [echo] }}
 "
         );
         assert_eq!(
             sole_unresolved(&yaml),
-            "vars.ghost",
+            "inputs.ghost",
             "a ref nested inside a `with:` OBJECT must still be resolved"
         );
     }

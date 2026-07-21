@@ -427,7 +427,7 @@ mod tests {
         let present = dir.join("present.txt");
         std::fs::write(&present, "x").expect("fixture");
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  src: \"{missing}\"\ntasks:\n  a:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ vars.src }}}}\" }}\n  b:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  c:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  src: \"{missing}\"\ntasks:\n  a:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ const.src }}}}\" }}\n  b:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  c:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
             missing = dir.join("missing.txt").display(),
             present = present.display(),
         );
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn required_input_without_default_is_listed() {
         let wf = parse_wf(
-            "nika: v1\nworkflow:\n  id: needs-input\nmodel: mock/echo\nvars:\n  text:\n    type: string\n    required: true\ntasks:\n  a:\n    infer: { prompt: \"${{ vars.text }}\" }\n",
+            "nika: v1\nworkflow:\n  id: needs-input\nmodel: mock/echo\ninputs:\n  text:\n    type: string\n    required: true\ntasks:\n  a:\n    infer: { prompt: \"${{ inputs.text }}\" }\n",
         );
         assert_eq!(required_inputs(&wf), vec!["text"]);
     }
@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn defaulted_or_optional_inputs_are_not_listed() {
         let wf = parse_wf(
-            "nika: v1\nworkflow:\n  id: ok\nmodel: mock/echo\nvars:\n  a: \"has default\"\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\ntasks:\n  t:\n    infer: { prompt: \"${{ vars.a }} ${{ vars.b }} ${{ vars.c }}\" }\n",
+            "nika: v1\nworkflow:\n  id: ok\nmodel: mock/echo\ninputs:\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\nconst:\n  a: \"has default\"\ntasks:\n  t:\n    infer: { prompt: \"${{ const.a }} ${{ inputs.b }} ${{ inputs.c }}\" }\n",
         );
         assert!(
             required_inputs(&wf).is_empty(),
@@ -785,7 +785,7 @@ mod tests {
     fn cost_section_names_each_unbounded_reason() {
         let text = checked_text(
             "cost-reasons.nika.yaml",
-            "nika: v1\nworkflow:\n  id: cost-reasons\nvars:\n  items: { type: array, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: \"${{ vars.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
+            "nika: v1\nworkflow:\n  id: cost-reasons\ninputs:\n  items: { type: array, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: \"${{ inputs.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
             true,
         );
         assert!(text.contains("no max_tokens declared"), "{text}");
@@ -889,7 +889,7 @@ mod tests {
     fn unused_declaration_is_hinted_and_the_exit_stays_green() {
         let out = checked_output(
             "drift-unused.nika.yaml",
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             false,
         );
         assert_eq!(out.code, 0, "a drift hint never fails: {}", out.text);
@@ -898,7 +898,7 @@ mod tests {
             "code-first bracket voice: {}",
             out.text
         );
-        assert!(out.text.contains("`vars.ghost`"), "{}", out.text);
+        assert!(out.text.contains("`const.ghost`"), "{}", out.text);
         assert!(
             out.text.contains("audited") && out.text.contains("hint"),
             "the card line still renders: {}",
@@ -916,7 +916,7 @@ mod tests {
         let path = dir.join("drift-json.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nvars:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         )
         .expect("fixture body");
         let out = run(
@@ -939,7 +939,7 @@ mod tests {
             drift["advice"]
                 .as_str()
                 .expect("advice")
-                .contains("`vars.ghost`"),
+                .contains("`const.ghost`"),
             "{drift:#}"
         );
     }
@@ -951,7 +951,7 @@ mod tests {
     fn unresolved_reference_never_also_drifts() {
         let out = checked_output(
             "drift-no-dup.nika.yaml",
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.ghost }}\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
             false,
         );
         assert_eq!(out.code, 2, "the hard lane fails: {}", out.text);

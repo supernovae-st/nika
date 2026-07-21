@@ -152,12 +152,20 @@ impl RelOp {
 }
 
 /// A classified root reference found in an expression (spec
-/// `04-variables.md` §Resolution order · the 5 namespaces + the 2
-/// `for_each` loop-locals).
+/// `04-variables.md` §Resolution order · the four value authorities +
+/// `with`/`tasks` + the 2 `for_each` loop-locals · the dead `vars`/`env`
+/// roots stay CLASSIFIED at the C2 flag-day so the analyzer can teach
+/// their NIKA-VALUES-001/002 refusal instead of a generic unknown-root).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamespaceRef {
-    /// `vars.<name>` — workflow inputs.
+    /// `vars.<name>` — DEAD form (C2 · the E-split) · refuses NIKA-VALUES-001.
     Vars(String),
+    /// `inputs.<name>` — typed workflow inputs (caller-supplied).
+    Inputs(String),
+    /// `config.<name>` — non-sensitive runtime config (deployment-supplied).
+    Config(String),
+    /// `const.<name>` — named constants (author-fixed).
+    Const(String),
     /// `with.<name>` — task-scope injections.
     With(String),
     /// `tasks.<id>[.<field>]` — an upstream task's result record.
@@ -168,7 +176,7 @@ pub enum NamespaceRef {
         /// when one is named.
         field: Option<String>,
     },
-    /// `env.<name>` — environment variables.
+    /// `env.<name>` — DEAD form (C2 · the E-split) · refuses NIKA-VALUES-002.
     Env(String),
     /// `secrets.<name>` — secret references.
     Secrets(String),

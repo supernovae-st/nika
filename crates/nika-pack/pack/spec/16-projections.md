@@ -95,7 +95,7 @@ nika_inspect (MCP)              ┘  (the LSP additionally wraps editor spans)
   a `reason` and whatever spans it could recover — never an error. Judgment
   lives in `nika check` (05), never in the projection.
 - **Structure only.** The projection carries names, shapes, spans, and
-  derived structure — **never** an env value, a secret, or resolved
+  derived structure — **never** a `config` value, a secret, or resolved
   material ([10](./10-authority.md) flow laws hold here too). A projection
   that leaked a secret would be a sink; it is not one, by construction.
 - **A projection is a view over the frozen IR.** It never mutates, never

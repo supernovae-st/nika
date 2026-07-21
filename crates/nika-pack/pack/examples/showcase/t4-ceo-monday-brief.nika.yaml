@@ -27,7 +27,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
-vars:
+const:
   watch_query: "AI workflow engines"
   kpi_csv: "./finance/kpis.csv"
 
@@ -45,7 +45,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "https://hn.algolia.com/api/v1/search?query=${{ vars.watch_query }}"
+        url: "https://hn.algolia.com/api/v1/search?query=${{ const.watch_query }}"
         mode: jq
         jq: ".hits[:10] | map(.title)"
 
@@ -58,7 +58,7 @@ tasks:
   kpi_raw:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.kpi_csv }}" }
+      args: { path: "${{ const.kpi_csv }}" }
 
   kpis:
     with:

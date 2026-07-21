@@ -176,13 +176,13 @@ const CALL: &str = "\
 nika: v1
 workflow:
   id: parent
-vars:
+const:
   target_url: \"https://example.com\"
 tasks:
   audit:
     invoke:
       workflow: \"./child.nika.yaml\"
-      args: { url: \"${{ vars.target_url }}\", depth: 2 }
+      args: { url: \"${{ const.target_url }}\", depth: 2 }
 ";
 
 // ─── the battery ─────────────────────────────────────────────────────────
@@ -239,7 +239,7 @@ async fn args_render_and_outputs_become_the_task_value() {
     let (outcome, events) = drive(CALL, rt).await;
     assert!(outcome.ok, "{:?}", outcome.records["audit"].error);
 
-    // args rendered: ${{ vars.target_url }} → the literal
+    // args rendered: ${{ const.target_url }} → the literal
     let seen = calls.lock().expect("lock");
     assert_eq!(seen.len(), 1);
     assert_eq!(seen[0].target, "./child.nika.yaml");

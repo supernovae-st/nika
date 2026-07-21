@@ -193,7 +193,6 @@ impl SchemaError {
             Self::ReservedBindingName { .. } => parse(13, ValidationError),
             Self::BadSecretRef { .. } => parse(14, ValidationError),
             Self::BadTypedVar { .. } => parse(15, ValidationError),
-
             Self::DuplicateKey { .. } => parse(17, ValidationError),
             Self::MissingField { .. } => parse(18, ValidationError),
             Self::Validation { .. } => parse(19, ValidationError),
@@ -204,7 +203,6 @@ impl SchemaError {
             Self::W1TaskIdField { .. } => parse(23, ValidationError),
             // W2 « the flow » migration teaching (dead form · 0.104)
             Self::W2DependsOnField { .. } => parse(24, ValidationError),
-
             // Spec 05 registry · NIKA-VAR-005 = « static expression
             // violation — outside cel-subset/0.1 · chained relation ·
             // unknown function · non-boolean when: root · jq compile
@@ -252,7 +250,6 @@ impl SchemaError {
             // NIKA-VAR-021 · a tasks.* reference outside the boundary
             // (04 §the reference boundary · the hoist is machine-applicable).
             Self::RefOutsideBoundary { .. } => var(21, ValidationError),
-
             // ── NIKA-TYPE · the type core (spec 09 · W3) ────────────
             // TYPE-001 (grammar) or TYPE-006 (regex dialect) — the num
             // rides the payload, carried verbatim from the type core's
@@ -264,7 +261,25 @@ impl SchemaError {
             // NIKA-PARSE-025 · decode: with capture: structured (the
             // spec files it in the PARSE namespace · 05 §registry).
             Self::DecodeWithStructuredCapture { .. } => parse(25, ValidationError),
+
+            // ── NIKA-VALUES · the C2 dead value forms (the E-split) ──
+            Self::DeadValueForm { form, .. } => values_code(form.spec_num()),
+            // NIKA-VALUES-003 · a value-namespace read outside the
+            // four-authority family (LAW-SURFACE-0201 · rides alongside
+            // VAR-001 — the layered oracle emits both).
+            Self::ForeignValueNamespace { .. } => values_code(3),
         }
+    }
+}
+
+/// The NIKA-VALUES arm shape (the C2 E-split · the fn-length ratchet
+/// keeps [`SchemaError::spec_code`] at one line per variant).
+const fn values_code(num: u16) -> SpecCode {
+    SpecCode {
+        namespace: "VALUES",
+        num,
+        category: SpecCategory::ValidationError,
+        transient: false,
     }
 }
 
@@ -337,6 +352,43 @@ mod tests {
                  error_codes table — add the row to spec canon.yaml + \
                  spec/05-errors.md (the table is the SSOT · the engine derives), \
                  then re-run crates/nika-pack/scripts/sync-pack.sh"
+            );
+        }
+    }
+
+    #[test]
+    fn values_codes_map_and_register() {
+        // The C2 family — all three codes map to the VALUES namespace and
+        // every one is registered in the vendored canon (the
+        // `every_emittable_code_is_registered` ratchet's per-code pin ·
+        // the TYPE-006 precedent for payload-driven nums).
+        use crate::error::{DeadForm, SchemaError};
+        let vars = SchemaError::DeadValueForm {
+            form: DeadForm::Vars,
+            message: String::new(),
+            span: None,
+        };
+        assert_eq!(vars.spec_code().to_string(), "NIKA-VALUES-001");
+        let env = SchemaError::DeadValueForm {
+            form: DeadForm::Env,
+            message: String::new(),
+            span: None,
+        };
+        assert_eq!(env.spec_code().to_string(), "NIKA-VALUES-002");
+        let foreign = SchemaError::ForeignValueNamespace {
+            root: "params".to_owned(),
+            message: String::new(),
+            span: None,
+        };
+        assert_eq!(foreign.spec_code().to_string(), "NIKA-VALUES-003");
+        let registered: std::collections::BTreeSet<&str> = nika_pack::error_codes()
+            .into_iter()
+            .map(|row| row.code)
+            .collect();
+        for code in ["NIKA-VALUES-001", "NIKA-VALUES-002", "NIKA-VALUES-003"] {
+            assert!(
+                registered.contains(code),
+                "{code} must be registered in the canon error_codes table"
             );
         }
     }
@@ -432,14 +484,16 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 38 variants · 3 share VAR-001 · 2 share VAR-005 → 35
+        // 40 variants · 3 share VAR-001 · 2 share VAR-005 → 37
         // distinct codes (DAG-003 retired with its variant in W2 ·
         // PARSE-024 + DAG-005 + VAR-021 join · VAR-020 bare-envelope
         // joined 0.103 · the nika:done arm adds BUILTIN-DONE-001 only
         // when the tool matches — the enumerator carries the generic arm ·
         // the W3 type core adds TYPE-001/2/3/4 + PARSE-025; TYPE-006
-        // shares the TypeExprInvalid variant, enumerated once as num 1).
-        assert_eq!(seen.len(), 35, "{seen:?}");
+        // shares the TypeExprInvalid variant, enumerated once as num 1 ·
+        // the C2 dead value forms add VALUES-001 (002 rides the same
+        // variant by payload) + VALUES-003 (the foreign namespace).
+        assert_eq!(seen.len(), 37, "{seen:?}");
     }
 
     #[test]

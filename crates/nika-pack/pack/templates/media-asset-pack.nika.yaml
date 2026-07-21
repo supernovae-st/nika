@@ -13,7 +13,7 @@ workflow:
 
 model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 
-vars:
+const:
   subject: "a calm cosmic landing hero"   # SLOT: what the asset is about
   out_dir: "./out/assets"           # SLOT: where assets land
 
@@ -23,7 +23,7 @@ tasks:
       max_tokens: 600
       prompt: |
         # SLOT: the creative direction · style · constraints
-        Write one vivid, concrete image prompt for: ${{ vars.subject }}.
+        Write one vivid, concrete image prompt for: ${{ const.subject }}.
         No text in the image · no watermark · a calm central zone.
       schema:
         type: object
@@ -40,7 +40,7 @@ tasks:
       args:
         provider: mock              # SLOT: local | openai | gemini | xai (local/mock first)
         prompt: "${{ with.brief_image_prompt }}"
-        output_dir: "${{ vars.out_dir }}"
+        output_dir: "${{ const.out_dir }}"
         filename_prefix: "asset"    # SLOT: filename stem
 
   manifest:
@@ -61,7 +61,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "${{ vars.out_dir }}/manifest.json"
+        path: "${{ const.out_dir }}/manifest.json"
         create_dirs: true
         content: "${{ with.manifest }}"
 

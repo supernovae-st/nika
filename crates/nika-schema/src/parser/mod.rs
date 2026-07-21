@@ -19,11 +19,12 @@
 //! fields it sees.
 
 pub(crate) mod envelope;
+pub(crate) mod envelope_values;
 pub(crate) mod tasks;
 mod value;
 pub(crate) mod verbs;
 
-use marked_yaml::types::MarkedScalarNode;
+use marked_yaml::types::{MarkedMappingNode, MarkedScalarNode};
 use marked_yaml::{LoadError, LoaderOptions, Span as YamlSpan, parse_yaml_with_options};
 
 use crate::error::SchemaError;
@@ -48,10 +49,12 @@ pub enum ParseMode {
 }
 
 /// The canonical top-level envelope keys (spec `01-envelope.md` +
-/// `09-types.md` `types:` + `10-authority.md` `policy:`).
+/// `09-types.md` `types:` + `10-authority.md` `policy:` · post-C2 the
+/// four-authority family — `vars`/`env` are NOT here: they get their
+/// specific dead-form refusals (NIKA-VALUES-001/002) before this check).
 const TOP_LEVEL_KEYS: &[&str] = &[
-    "nika", "workflow", "model", "vars", "env", "secrets", "permits", "policy", "types", "tasks",
-    "outputs", "assert",
+    "nika", "workflow", "model", "inputs", "config", "const", "secrets", "permits", "policy",
+    "types", "tasks", "outputs", "assert",
 ];
 
 /// Parse a YAML string into a [`RawWorkflow`].
@@ -130,13 +133,10 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
         mode,
     };
 
-    // W1 « the map » dead forms get their SPECIFIC teachings before the
-    // generic unknown-field check — structural deaths, mode-independent.
-    if let Some(node) = mapping.get_node("description") {
-        return Err(SchemaError::W1TopLevelDescription {
-            span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
-        });
-    }
+    // W1 « the map » + C2 « the E-split » dead forms get their SPECIFIC
+    // teachings before the generic unknown-field check — structural
+    // deaths, mode-independent.
+    refuse_dead_envelope_forms(mapping, file_id, &char_to_byte)?;
     cx.check_unknown_keys(mapping, TOP_LEVEL_KEYS, "the workflow envelope")?;
 
     let mut workflow = RawWorkflow::new();
@@ -153,8 +153,9 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
         workflow.model = Some(s);
     }
 
-    workflow.vars = envelope::parse_vars(&cx, mapping)?;
-    workflow.env = envelope::parse_env(&cx, mapping)?;
+    workflow.inputs = envelope::parse_inputs(&cx, mapping)?;
+    workflow.config = envelope::parse_config(&cx, mapping)?;
+    workflow.consts = envelope::parse_const(&cx, mapping)?;
     workflow.secrets = envelope::parse_secrets(&cx, mapping)?;
     workflow.permits = envelope::parse_permits(&cx, mapping)?;
     workflow.policy = envelope::parse_policy(&cx, mapping)?;
@@ -196,6 +197,36 @@ const MAX_INDENT_BYTES: usize = 1024;
 /// 512 levels mirrors the indent budget with a 4×+ margin under the
 /// empirical abort point; a real workflow never chains `- ` on one line.
 const MAX_BLOCK_DASH_RUN: usize = 512;
+
+/// The dead envelope forms — W1 « the map » (a stray top-level
+/// `description:`) + C2 « the E-split » (the pre-C2 `vars:`/`env:`
+/// fields) — each refused with its SPECIFIC classification teaching
+/// (NIKA-VALUES-001/002 for the E-split · never the generic
+/// unknown-field error · structural deaths, mode-independent).
+fn refuse_dead_envelope_forms(
+    mapping: &MarkedMappingNode,
+    file_id: FileId,
+    char_to_byte: &CharToByte,
+) -> Result<(), SchemaError> {
+    if let Some(node) = mapping.get_node("description") {
+        return Err(SchemaError::W1TopLevelDescription {
+            span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+        });
+    }
+    for (key, form) in [
+        ("vars", crate::error::DeadForm::Vars),
+        ("env", crate::error::DeadForm::Env),
+    ] {
+        if let Some(node) = mapping.get_node(key) {
+            return Err(SchemaError::DeadValueForm {
+                form,
+                message: form.field_teaching(),
+                span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+            });
+        }
+    }
+    Ok(())
+}
 
 /// The pre-parse resource guards — byte size + indentation depth, both
 /// LOUD and both before marked-yaml allocates/recurses. One O(n) pass

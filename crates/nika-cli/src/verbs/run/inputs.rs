@@ -6,7 +6,7 @@
 //! Extracted from `run/mod.rs` (2026-07-11 · the input gauntlet's
 //! type-coercion fix pushed the file past the 1500-LOC ratchet): the
 //! run-time input surface is one coherent unit — the raw pairs in, the
-//! validated `BTreeMap<String, Value>` out, the declared `vars:` block
+//! validated `BTreeMap<String, Value>` out, the declared `inputs:` block
 //! the sole authority on both keys and types.
 
 use std::collections::BTreeMap;
@@ -19,7 +19,7 @@ use super::epilogue;
 use crate::verbs::exit;
 
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
-/// key against the workflow's declared `vars:` — an unknown key is
+/// key against the workflow's declared `inputs:` — an unknown key is
 /// refused with the declared set (a typo'd override silently doing
 /// nothing would be the worst outcome). A TYPED var's declared `type:`
 /// DRIVES the value parse (spec 01 §vars · « the engine validate
@@ -37,13 +37,13 @@ pub(super) fn parse_var_overrides(
             Some((k, v)) if !k.trim().is_empty() => (k.trim(), v),
             _ => return Err(format!("--var expects KEY=VALUE, got `{pair}`")),
         };
-        let Some((_, decl)) = wf.vars.iter().find(|(k, _)| k.value == key) else {
-            let declared: Vec<&str> = wf.vars.iter().map(|(k, _)| k.value.as_str()).collect();
+        let Some((_, decl)) = wf.inputs.iter().find(|(k, _)| k.value == key) else {
+            let declared: Vec<&str> = wf.inputs.iter().map(|(k, _)| k.value.as_str()).collect();
             return Err(if declared.is_empty() {
-                format!("--var {key}: this workflow declares no `vars:`")
+                format!("--var {key}: this workflow declares no `inputs:`")
             } else {
                 format!(
-                    "--var {key}: unknown var — the workflow declares: {}",
+                    "--var {key}: unknown input — the workflow declares: {}",
                     declared.join(" · ")
                 )
             });
@@ -97,10 +97,10 @@ mod tests {
     #[test]
     fn parse_var_overrides_types_json_else_string() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\nvars:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: [\"a\"]\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\ninputs:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: { type: array, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
 
-        // string verbatim · integer typed · untyped JSON-guess (array).
+        // string verbatim · integer typed · array typed (the JSON coercion).
         let overrides = parse_var_overrides(
             &[
                 "topic=quantum news".to_owned(),
@@ -117,7 +117,7 @@ mod tests {
         // The unknown-key refusal NAMES the declared set (actionable).
         let err = parse_var_overrides(&["ghost=1".to_owned()], &wf).expect_err("unknown key");
         assert!(err.contains("ghost"), "{err}");
-        assert!(err.contains("topic"), "lists the declared vars: {err}");
+        assert!(err.contains("topic"), "lists the declared inputs: {err}");
 
         // `=` in the VALUE is preserved (split_once · key=v=w).
         let eq = parse_var_overrides(&["topic=a=b".to_owned()], &wf).expect("value may carry '='");
@@ -130,7 +130,7 @@ mod tests {
         // CONTRACT — the CLI value must honor it, not be embedded
         // type-blind (`count=notanumber` used to ride through as a string).
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\nvars:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: boolean, default: false }\n  name: { type: string, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: boolean, default: false }\n  name: { type: string, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
 
         // The type DRIVES the parse — well-typed values land as their type.

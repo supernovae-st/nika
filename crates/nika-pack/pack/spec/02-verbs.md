@@ -128,7 +128,7 @@ test:
       cwd: "./engine"
       env:
         RUST_LOG: "debug"
-      stdin: "${{ vars.input_data }}"
+      stdin: "${{ inputs.input_data }}"
       capture: structured            # stdout | stderr | structured | combined
 ```
 
@@ -144,11 +144,12 @@ test:
 | `capture` | no | enum | `stdout` (default) · `stderr` · `combined` · `structured` (= `{ stdout, stderr, exit_code }`) — the **source** |
 | `decode` | no | enum | `text` (default) · `json` · `jsonl` · `bytes` — how the captured **string** becomes a value ([09 §decode](./09-types.md#decode--how-exec-bytes-become-a-value-normative)) · illegal with `capture: structured` (`NIKA-PARSE-025` — that capture already IS an object) · a non-parsing stream settles the task `failure` inside `on_error:` scope |
 
-> **`exec.env` ≠ the envelope `env:`**: different scopes, same word (the one
-> overlap to know). The envelope `env:` is *workflow config* read via
-> `${{ env.* }}`; `exec.env` is the *OS environment of this subprocess*. They
+> **`exec.env` ≠ the envelope `config:`**: different scopes, neighboring words
+> (the one overlap to know · the pre-flip envelope `env:` block is dead —
+> `NIKA-VALUES-002`). The envelope `config:` is *workflow config* read via
+> `${{ config.* }}`; `exec.env` is the *OS environment of this subprocess*. They
 > are NOT auto-connected. To pass a workflow value into the process, do it
-> explicitly: `env: { API_BASE: "${{ env.API_BASE }}" }`.
+> explicitly: `env: { API_BASE: "${{ config.API_BASE }}" }`.
 
 > `timeout` and `retry` are **task-level** fields (see [03-dag.md](./03-dag.md)): they apply uniformly to every verb, so they are not repeated inside `exec:`.
 
@@ -249,7 +250,7 @@ query_db:
       tool: "mcp:postgres/query"
       args:
         sql: "SELECT * FROM users WHERE id = $1"
-        params: ["${{ vars.user_id }}"]
+        params: ["${{ inputs.user_id }}"]
 ```
 
 The MCP server `postgres` must be configured in the engine's MCP server registry.
@@ -282,7 +283,7 @@ Run an agentic loop · the model + a set of tools · iterating until completion 
 research:
     agent:
       system: "You are a research assistant."
-      prompt: "Research the topic · ${{ vars.topic }}"
+      prompt: "Research the topic · ${{ inputs.topic }}"
       tools: ["nika:fetch"]             # default-deny · grant explicitly
 ```
 
@@ -292,7 +293,7 @@ research:
 research:
     agent:
       system: "You are a research assistant. Use tools to gather info."
-      prompt: "Research the topic · ${{ vars.topic }} · and produce a markdown brief"
+      prompt: "Research the topic · ${{ inputs.topic }} · and produce a markdown brief"
       model: mistral/mistral-large
       tools:                            # whitelist · default-deny (no tools if omitted)
         - "nika:fetch"

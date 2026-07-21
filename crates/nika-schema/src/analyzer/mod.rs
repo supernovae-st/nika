@@ -485,22 +485,111 @@ tasks:
 
     #[test]
     fn vars_undeclared_errors() {
-        // Conformance fixture variables/003-vars-undeclared.
+        // Conformance fixture variables/003-vars-undeclared (post-C2: the
+        // inputs authority).
         let yaml = "\
 nika: v1
 workflow:
   id: t
-vars:
-  topic: \"ai\"
+inputs:
+  topic: { type: string, required: true }
 tasks:
   go:
-    infer: { prompt: \"about ${{ vars.topik }}\" }
+    infer: { prompt: \"about ${{ inputs.topik }}\" }
 ";
-        let errors = analyze_yaml(yaml).expect_err("typo'd var");
+        let errors = analyze_yaml(yaml).expect_err("typo'd input");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "vars.topik"),
-            "vars.topik unresolved",
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "inputs.topik"),
+            "inputs.topik unresolved",
+        );
+    }
+
+    #[test]
+    fn dead_vars_ref_refuses_with_values_001() {
+        // C2 · a `${{ vars.X }}` read is the dead namespace's refusal,
+        // never the generic unresolved class (LAW-GRAMMAR-0201).
+        let yaml = "\
+nika: v1
+workflow:
+  id: t
+tasks:
+  go:
+    infer: { prompt: \"about ${{ vars.topic }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("dead vars read");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::DeadValueForm { form, .. } if matches!(form, crate::error::DeadForm::Vars)),
+            "NIKA-VALUES-001 for the dead vars read",
+        );
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered.iter().any(|m| m.contains("dead `vars` namespace")
+                && m.contains("inputs · config · const · secrets")),
+            "the classification teaching: {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn dead_env_ref_refuses_with_values_002() {
+        // C2 · a `${{ env.X }}` read (LAW-GRAMMAR-0202).
+        let yaml = "\
+nika: v1
+workflow:
+  id: t
+tasks:
+  go:
+    exec: { command: [\"echo\", \"${{ env.HOME }}\"] }
+";
+        let errors = analyze_yaml(yaml).expect_err("dead env read");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::DeadValueForm { form, .. } if matches!(form, crate::error::DeadForm::Env)),
+            "NIKA-VALUES-002 for the dead env read",
+        );
+    }
+
+    #[test]
+    fn foreign_value_namespace_refuses_with_values_003() {
+        // C2 · conformance fixture values/invalid/foreign-value-namespace ·
+        // `${{ params.region }}` — outside the four-authority family AND
+        // the runtime namespaces (LAW-SURFACE-0201). The refusal is
+        // LAYERED: VAR-001 carries the did-you-mean, VALUES-003 teaches
+        // the closed family (the oracle emits both · match-any protocol).
+        let yaml = "\
+nika: v1
+workflow:
+  id: t
+inputs:
+  region: { type: string, required: true }
+tasks:
+  go:
+    invoke:
+      tool: \"nika:log\"
+      args: { message: \"deploy to ${{ params.region }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("foreign namespace");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "params"),
+            "VAR-001 rides alongside (the unresolved class)",
+        );
+        assert_has(
+            &errors,
+            |e| {
+                matches!(e, SchemaError::ForeignValueNamespace { root, .. } if root == "params")
+                    && e.spec_code().to_string() == "NIKA-VALUES-003"
+            },
+            "NIKA-VALUES-003 for the foreign namespace",
+        );
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered
+                .iter()
+                .any(|m| m.contains("outside the four-authority family")
+                    && m.contains("inputs · config · const · secrets")),
+            "the closed-family teaching: {rendered:?}"
         );
     }
 
@@ -508,12 +597,53 @@ tasks:
     fn envelope_model_unresolved_var_is_flagged() {
         // deep/019 — the oracle false-green class: an envelope
         // `model: "${{ vars.nope }}"` was ACCEPTED and died at dispatch.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: \"${{ vars.nope }}\"\ntasks:\n  a:\n    infer: { prompt: hi }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: \"${{ inputs.nope }}\"\ntasks:\n  a:\n    infer: { prompt: hi }\n";
         let errors = analyze_yaml(yaml).expect_err("envelope model ref must flag");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "vars.nope"),
-            "vars.nope unresolved at the envelope",
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "inputs.nope"),
+            "inputs.nope unresolved at the envelope",
+        );
+    }
+
+    #[test]
+    fn foreign_value_namespace_refuses_with_values_003_layered_on_var_001() {
+        // The conformance `values/invalid/foreign-value-namespace` case:
+        // `params` is not one of the four authorities — the layered oracle
+        // emits BOTH the unresolved refusal (VAR-001, did-you-mean) AND the
+        // family refusal (VALUES-003 · LAW-SURFACE-0201).
+        let yaml = "\
+nika: v1
+workflow:
+  id: t
+inputs:
+  region: { type: string, required: true }
+tasks:
+  go:
+    invoke:
+      tool: \"nika:log\"
+      args: { message: \"deploy to ${{ params.region }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("foreign namespace");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "params"),
+            "the unresolved half (VAR-001)",
+        );
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::ForeignValueNamespace { root, .. } if root == "params"),
+            "the family half (VALUES-003)",
+        );
+        let foreign = errors
+            .iter()
+            .find(|e| matches!(e, SchemaError::ForeignValueNamespace { .. }))
+            .expect("the foreign-namespace finding");
+        assert_eq!(foreign.spec_code().to_string(), "NIKA-VALUES-003");
+        let rendered = foreign.to_string();
+        assert!(
+            rendered.contains("params") && rendered.contains("inputs · config · const · secrets"),
+            "the byte-mirrored teaching: {rendered}"
         );
     }
 
@@ -540,7 +670,7 @@ tasks:
 
     #[test]
     fn env_and_secrets_undeclared_error() {
-        // Conformance fixtures variables/005 + 006.
+        // Conformance fixtures variables/005 + 006 (post-C2: the config authority).
         let yaml = "\
 nika: v1
 workflow:
@@ -548,13 +678,13 @@ workflow:
 tasks:
   go:
     exec:
-      command: [\"echo\", \"${{ env.MISSING }}\", \"${{ secrets.api_key }}\"]
+      command: [\"echo\", \"${{ config.MISSING }}\", \"${{ secrets.api_key }}\"]
 ";
         let errors = analyze_yaml(yaml).expect_err("undeclared");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "env.MISSING"),
-            "env.MISSING",
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "config.MISSING"),
+            "config.MISSING",
         );
         assert_has(
             &errors,
@@ -630,11 +760,11 @@ tasks:
 nika: v1
 workflow:
   id: t
-vars:
+const:
   locales: [\"fr\", \"es\"]
 tasks:
   translate:
-    for_each: ${{ vars.locales }}
+    for_each: ${{ const.locales }}
     with:
       locale: ${{ item }}
       n: ${{ index }}
@@ -825,17 +955,17 @@ tasks:
 
     #[test]
     fn when_non_boolean_root_errors() {
-        // Spec 03 §when invalid · « ${{ vars.threshold }} ❌ returns
-        // integer · not bool ».
+        // Spec 03 §when invalid · a bare flag reference that is not
+        // boolean-shaped.
         let yaml = "\
 nika: v1
 workflow:
   id: t
-vars:
-  threshold: 5
+inputs:
+  threshold: { type: integer, required: true }
 tasks:
   go:
-    when: ${{ vars.threshold }}
+    when: ${{ inputs.threshold }}
     exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("non-bool when");
@@ -861,16 +991,16 @@ tasks:
 
     #[test]
     fn when_explicit_comparison_valid() {
-        // Spec 03 §when · « when: ${{ vars.threshold > 0 }} ».
+        // Spec 03 §when · « when: ${{ inputs.threshold > 0 }} ».
         let yaml = "\
 nika: v1
 workflow:
   id: t
-vars:
-  threshold: 5
+inputs:
+  threshold: { type: integer, required: true }
 tasks:
   go:
-    when: ${{ vars.threshold > 0 }}
+    when: ${{ inputs.threshold > 0 }}
     exec: { command: [echo] }
 ";
         analyze_yaml(yaml).expect("comparison is boolean-shaped");
@@ -884,7 +1014,7 @@ tasks:
 nika: v1
 workflow:
   id: t
-vars: { topic: \"x\" }
+inputs: { topic: { type: string, required: true } }
 tasks:
   extract:
     exec: { command: [echo] }
@@ -892,7 +1022,7 @@ tasks:
     after: { extarct: succeeded }
     with:
       data: ${{ tasks.extract.output }}
-    exec: { command: [\"echo\", \"${{ vars.topci }}\", \"${{ with.data }}\"] }
+    exec: { command: [\"echo\", \"${{ inputs.topci }}\", \"${{ with.data }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("typos");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
@@ -905,8 +1035,8 @@ tasks:
         assert!(
             rendered
                 .iter()
-                .any(|m| m.contains("vars.topci") && m.contains("did you mean `vars.topic`?")),
-            "vars typo repaired in-namespace: {rendered:?}"
+                .any(|m| m.contains("inputs.topci") && m.contains("did you mean `inputs.topic`?")),
+            "inputs typo repaired in-namespace: {rendered:?}"
         );
     }
 
@@ -916,15 +1046,17 @@ tasks:
 nika: v1
 workflow:
   id: t
-vars: { topic: \"x\" }
+inputs: { topic: { type: string, required: true } }
 tasks:
   a:
-    exec: { command: [\"echo\", \"${{ vrs.topic }}\"] }
+    exec: { command: [\"echo\", \"${{ inpts.topic }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("root typo");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
         assert!(
-            rendered.iter().any(|m| m.contains("did you mean `vars`?")),
+            rendered
+                .iter()
+                .any(|m| m.contains("did you mean `inputs`?")),
             "{rendered:?}"
         );
     }
@@ -935,15 +1067,15 @@ tasks:
 nika: v1
 workflow:
   id: t
-vars: { topic: \"x\" }
+inputs: { topic: { type: string, required: true } }
 tasks:
   a:
-    exec: { command: [\"echo\", \"${{ vars.zzzzzzzzz }}\"] }
+    exec: { command: [\"echo\", \"${{ inputs.zzzzzzzzz }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("far typo");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
         assert!(
-            rendered.iter().any(|m| m.contains("vars.zzzzzzzzz")),
+            rendered.iter().any(|m| m.contains("inputs.zzzzzzzzz")),
             "{rendered:?}"
         );
         assert!(

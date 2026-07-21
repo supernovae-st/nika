@@ -64,12 +64,12 @@ workflow:
   id: permits-deny
 permits:
   exec: ["git"]
-vars:
+const:
   prog: "rm"
 tasks:
   danger:
     exec:
-      command: ["${{ vars.prog }}", "-rf", "/tmp/x"]
+      command: ["${{ const.prog }}", "-rf", "/tmp/x"]
 "#;
     // The MockShell is EMPTY — the security gate must fire before any spawn
     // (an `enqueue`-less mock would panic if `run` were ever called).
@@ -92,12 +92,12 @@ workflow:
   id: permits-allow
 permits:
   exec: ["git"]
-vars:
+const:
   prog: "git"
 tasks:
   ok:
     exec:
-      command: ["${{ vars.prog }}", "status"]
+      command: ["${{ const.prog }}", "status"]
 "#;
     let outcome = run(yaml, MockShell::new().enqueue_ok("clean\n")).await;
     assert!(outcome.ok, "an allowed program runs to success");

@@ -17,6 +17,7 @@ unicase    = { workspace = true }
 thiserror  = { workspace = true }
 miette     = { workspace = true }
 serde      = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }  # codegen's JSON-Schema fragments (the serde feature)
 strsim     = { workspace = true }  # fuzzy "did you mean" suggestion
 
 [features]
@@ -25,7 +26,7 @@ default = ["full", "serde"]
 
 # serde Serialize/Deserialize on public types. Optional — most callers want it,
 # but zero-alloc extension crates can skip it.
-serde = ["dep:serde"]
+serde = ["dep:serde", "dep:serde_json"]
 
 # `full` turns on every content catalog. This is what `nika` the binary uses.
 full = ["mcp", "providers", "embeddings", "pricing", "capabilities", "builtins-transforms"]

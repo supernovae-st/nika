@@ -13,7 +13,7 @@ workflow:
 
 model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 
-vars:
+const:
   site_url: "https://example.com"   # SLOT: the site to understand
   out_path: "./out/brief.json"      # SLOT: where the brief lands
 
@@ -22,7 +22,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.site_url }}"
+        url: "${{ const.site_url }}"
         traverse: { max_pages: 5 }  # SLOT: crawl bound · 1..=25 (robots honored)
 
   brief:
@@ -53,7 +53,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "${{ vars.out_path }}"
+        path: "${{ const.out_path }}"
         create_dirs: true
         content: "${{ with.brief }}"   # ALWAYS pass content
 

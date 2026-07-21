@@ -22,14 +22,14 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large or any provider
 
-vars:
+const:
   post_path: "./blog/launch-post.md"
 
 tasks:
   post:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.post_path }}" }
+      args: { path: "${{ const.post_path }}" }
 
   # Three rewrites · no deps between them · they run concurrently.
   thread:

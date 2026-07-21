@@ -51,9 +51,9 @@ counts:
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 22
+  error_namespaces: 23
   error_categories: 12
-  error_codes: 83
+  error_codes: 86
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -224,7 +224,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 22
+  count: 23
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -241,6 +241,7 @@ error_namespaces:
     - NIKA-MCP
     - NIKA-DECIDE
     - NIKA-DRIFT
+    - NIKA-VALUES
     - NIKA-PARSE
     - NIKA-POLICY
     - NIKA-PORT
@@ -276,7 +277,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 83
+  count: 86
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -368,7 +369,10 @@ error_codes:
     - { code: NIKA-LOCK-001, category: validation_error, transient: "false", failure: "a dependency resolved that nika.lock does not pin, or a hand-edited lock digest does not match (pin-by-default · the lock's own hash catches the edit · spec 15)" }
     - { code: NIKA-BUILTIN-001, category: validation_error, transient: "false", failure: "builtin invoke violates its statically-checkable arg contract (e.g. nika:fetch without url: · nika:jq arg shape)" }
     - { code: NIKA-BUILTIN-DONE-001, category: validation_error, transient: "false", failure: "nika:done invoked outside an agent: loop" }
-    - { code: NIKA-DRIFT-001, category: validation_error, transient: "false", failure: "declared-but-unused — a vars:/env:/secrets: name or a permits: entry (exec program · tool glob · net host · fs path) that nothing in the body references (advisory check hint · never fails the audit — the reverse direction, used-but-undeclared, is the hard NIKA-VAR-001/NIKA-DAG-002/NIKA-SEC-004 surface)" }
+    - { code: NIKA-DRIFT-001, category: validation_error, transient: "false", failure: "declared-but-unused — an inputs:/config:/const:/secrets: name or a permits: entry (exec program · tool glob · net host · fs path) that nothing in the body references (advisory check hint · never fails the audit — the reverse direction, used-but-undeclared, is the hard NIKA-VAR-001/NIKA-DAG-002/NIKA-SEC-004 surface)" }
+    - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split) · a typed parameter is an `inputs:` declaration, a fixed value is a `const:` entry (classify-not-rename · equivalence-or-stop · never a bulk rename)" }
+    - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split) · non-sensitive runtime configuration is a `config:` declaration, a governed store reference is a `secrets:` entry" }
+    - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201) · the authorities are exactly inputs · config · const · secrets (rides alongside NIKA-VAR-001 — the layered oracle emits both)" }
 
 # ---------------------------------------------------------------- pillars
 # 5 immutable pillars forever (spec/00-overview · the language backbone).

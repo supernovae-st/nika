@@ -92,15 +92,17 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
     findings
 }
 
-/// A `for_each:` source that is a BARE `${{ vars.X }}` whose var is
-/// DECLARED a non-array type can never be an array — the runtime refuses
-/// it (NIKA-VAR-006 « `for_each` collection must be an array ») and the
-/// check must catch that BEFORE the run (audit-before-run), or a
-/// `for_each: ${{ vars.locales }}` with `locales: { type: string }`
-/// audits clean then dies at dispatch. Scoped for zero false positives:
-/// ONLY a bare `vars.X` reference to a `Typed` non-array var — an
-/// untyped var (a `--var` override could pass an array), a `tasks.*`
-/// source, or any transformed expression (`split()` etc.) is left alone.
+/// A `for_each:` source that is a BARE `${{ inputs.X }}`/`${{ config.X }}`/
+/// `${{ const.X }}` whose declaration is a non-array type can never be an
+/// array — the runtime refuses it (NIKA-VAR-006 « `for_each` collection
+/// must be an array ») and the check must catch that BEFORE the run
+/// (audit-before-run), or a `for_each: ${{ inputs.locales }}` with
+/// `locales: { type: string }` audits clean then dies at dispatch. Scoped
+/// for zero false positives:
+/// ONLY a bare `<authority>.X` reference (inputs · config · const) to a
+/// `Typed` non-array declaration — an untyped entry (a `--var` override
+/// could pass an array), a `tasks.*` source, or any transformed
+/// expression (`split()` etc.) is left alone.
 fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>) {
     for task in &wf.tasks {
         let Some(fe) = &task.value.for_each else {
@@ -109,19 +111,24 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
         let ForEachValue::Expression(src) = &fe.value else {
             continue; // an inline list literal is already an array
         };
-        let Some(var_name) = bare_vars_reference(src) else {
-            continue; // not a plain `vars.X` — could resolve to an array
+        let Some((authority, name)) = bare_authority_reference(src) else {
+            continue; // not a plain authority ref — could resolve to an array
         };
-        let declared = wf.vars.iter().find(|(n, _)| n.value == var_name);
+        let block = match authority.as_str() {
+            "inputs" => &wf.inputs,
+            "config" => &wf.config,
+            _ => &wf.consts,
+        };
+        let declared = block.iter().find(|(n, _)| n.value == name);
         if let Some((_, VarDecl::Typed { r#type, .. })) = declared
             && *r#type != VarType::Array
         {
             findings.push(SchemaTypeFinding {
                 site: task.value.id.value.clone(),
-                reference: format!("for_each: ${{{{ vars.{var_name} }}}}"),
-                target: format!("vars.{var_name}"),
+                reference: format!("for_each: ${{{{ {authority}.{name} }}}}"),
+                target: format!("{authority}.{name}"),
                 detail: format!(
-                    "`vars.{var_name}` is declared `type: {}` — `for_each` needs an array \
+                    "`{authority}.{name}` is declared `type: {}` — `for_each` needs an array \
                      (the run rejects it · NIKA-VAR-006)",
                     var_type_word(*r#type)
                 ),
@@ -130,11 +137,12 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
     }
 }
 
-/// The var name of a source that is EXACTLY `${{ vars.X }}` (one template
-/// island covering the whole value, a bare `Member { Ident("vars"), X }`
-/// with no further path), else `None`. `for_each` sources carry the raw
-/// `${{ … }}` wrapper, so the island's pre-parsed `expr` is the entry.
-fn bare_vars_reference(src: &str) -> Option<String> {
+/// The `(authority, name)` of a source that is EXACTLY `${{ inputs.X }}` /
+/// `${{ config.X }}` / `${{ const.X }}` (one template island covering the
+/// whole value, a bare `Member { Ident(authority), X }` with no further
+/// path), else `None`. `for_each` sources carry the raw `${{ … }}`
+/// wrapper, so the island's pre-parsed `expr` is the entry.
+fn bare_authority_reference(src: &str) -> Option<(String, String)> {
     let islands = scan_templates(src).ok()?;
     let [island] = islands.as_slice() else {
         return None; // zero, or more than one → not a bare reference
@@ -143,9 +151,10 @@ fn bare_vars_reference(src: &str) -> Option<String> {
     if src[..island.start].trim().is_empty()
         && src[island.end..].trim().is_empty()
         && let Expr::Member { base, field } = &island.expr
-        && matches!(**base, Expr::Ident(ref r) if r == "vars")
+        && let Expr::Ident(r) = base.as_ref()
+        && matches!(r.as_str(), "inputs" | "config" | "const")
     {
-        return Some(field.clone());
+        return Some((r.clone(), field.clone()));
     }
     None
 }
@@ -394,10 +403,10 @@ mod tests {
         scan_types(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
     }
 
-    fn for_each_wf(var_decl: &str) -> String {
+    fn for_each_wf(authority: &str, var_decl: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\nvars:\n  xs: {var_decl}\n\
-             tasks:\n  fan:\n    for_each: ${{{{ vars.xs }}}}\n    \
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\n{authority}:\n  xs: {var_decl}\n\
+             tasks:\n  fan:\n    for_each: ${{{{ {authority}.xs }}}}\n    \
              with: {{ it: \"${{{{ item }}}}\" }}\n    infer: {{ prompt: \"do ${{{{ with.it }}}}\" }}\n"
         )
     }
@@ -408,7 +417,10 @@ mod tests {
         // a var DECLARED type:string can NEVER be an array, so the check
         // must catch it BEFORE the run (audit-before-run).
         for t in ["string", "number", "integer", "boolean", "object"] {
-            let f = findings_of(&for_each_wf(&format!("{{ type: {t}, required: true }}")));
+            let f = findings_of(&for_each_wf(
+                "inputs",
+                &format!("{{ type: {t}, required: true }}"),
+            ));
             assert_eq!(f.len(), 1, "type {t} flagged: {f:?}");
             assert!(
                 f[0].detail.contains("for_each") && f[0].detail.contains(t),
@@ -423,10 +435,10 @@ mod tests {
         // Zero false positives: a typed ARRAY var, an UNTYPED var (a --var
         // override could pass an array), an inline list, and a `tasks.*`
         // source are all left alone.
-        assert!(findings_of(&for_each_wf("{ type: array, required: true }")).is_empty());
-        assert!(findings_of(&for_each_wf("[\"a\", \"b\"]")).is_empty()); // untyped literal array
-        assert!(findings_of(&for_each_wf("\"hello\"")).is_empty()); // untyped literal string (override-able)
-        // An inline list literal source never resolves to bare vars.X.
+        assert!(findings_of(&for_each_wf("inputs", "{ type: array, required: true }")).is_empty());
+        assert!(findings_of(&for_each_wf("const", "[\"a\", \"b\"]")).is_empty()); // untyped literal array
+        assert!(findings_of(&for_each_wf("const", "\"hello\"")).is_empty()); // untyped literal string
+        // An inline list literal source never resolves to a bare authority ref.
         let inline = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  fan:\n    \
                       for_each: [1, 2, 3]\n    with: { it: \"${{ item }}\" }\n    \
                       infer: { prompt: \"do ${{ with.it }}\" }\n";
@@ -434,12 +446,20 @@ mod tests {
     }
 
     #[test]
-    fn bare_vars_reference_matches_only_a_whole_value_vars_ref() {
-        assert_eq!(bare_vars_reference("${{ vars.x }}"), Some("x".to_owned()));
-        assert_eq!(bare_vars_reference("${{ vars.x.field }}"), None); // path → not bare
-        assert_eq!(bare_vars_reference("size(${{ vars.x }})"), None); // wrapped → not bare
-        assert_eq!(bare_vars_reference("${{ tasks.a.output }}"), None); // not vars
-        assert_eq!(bare_vars_reference("prefix ${{ vars.x }}"), None); // surrounding text
+    fn bare_authority_reference_matches_only_a_whole_value_authority_ref() {
+        assert_eq!(
+            bare_authority_reference("${{ inputs.x }}"),
+            Some(("inputs".to_owned(), "x".to_owned()))
+        );
+        assert_eq!(
+            bare_authority_reference("${{ const.x }}"),
+            Some(("const".to_owned(), "x".to_owned()))
+        );
+        assert_eq!(bare_authority_reference("${{ vars.x }}"), None); // dead root → not an authority
+        assert_eq!(bare_authority_reference("${{ inputs.x.field }}"), None); // path → not bare
+        assert_eq!(bare_authority_reference("size(${{ inputs.x }})"), None); // wrapped → not bare
+        assert_eq!(bare_authority_reference("${{ tasks.a.output }}"), None); // not an authority
+        assert_eq!(bare_authority_reference("prefix ${{ inputs.x }}"), None); // surrounding text
     }
 
     /// An infer task with a 2-field object schema, consumed by `use_it`

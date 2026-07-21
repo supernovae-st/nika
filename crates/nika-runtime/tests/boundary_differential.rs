@@ -172,12 +172,12 @@ proptest! {
 workflow:
   id: diff
 {permits}
-vars:
+const:
   prog: \"{program}\"
 tasks:
   t:
     exec:
-      command: [\"${{{{ vars.prog }}}}\", \"--version\"]
+      command: [\"${{{{ const.prog }}}}\", \"--version\"]
 ",
             permits = permits_block(exec.as_ref()),
         );

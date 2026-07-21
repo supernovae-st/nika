@@ -90,8 +90,8 @@ incompatibility under readable JSON, the
 
 ## What v1 deliberately does not do
 
-- **No new gate predicates.** `after:` keeps its four (succeeded ·
-  failed · skipped · terminal) — cause-level admission would couple
+- **No new gate predicates.** `after:` keeps its four (success ·
+  failure · skipped · terminal) — cause-level admission would couple
   scheduling to diagnostics (the separation this chapter exists to
   protect).
 - **No cause taxonomy growth without a wave.** The set is closed; a

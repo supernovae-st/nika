@@ -32,7 +32,7 @@
 //! This advisory is deliberately precise — it covers ONE shape: an
 //! interpolated value in a catalog binary's ARGV form before any `--`. It does
 //! NOT cover, by design:
-//! - **A dynamically-selected program** (`["${{ vars.tool }}", …]`) — the
+//! - **A dynamically-selected program** (`["${{ const.tool }}", …]`) — the
 //!   catalog cannot match an interpolated `argv[0]`; that is `permits.exec`'s
 //!   (the allowlist) concern.
 //! - **Dangerous ENV injection** (`env: { GIT_SSH_COMMAND: "${{ … }}" }`) —
@@ -293,7 +293,7 @@ mod tests {
 
     fn one_lint(prog: &str) -> Lint {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ai\nvars:\n  x: \"v\"\ntasks:\n  t:\n    exec:\n      command: [\"{prog}\", \"${{{{ vars.x }}}}\"]\n"
+            "nika: v1\nworkflow:\n  id: ai\nconst:\n  x: \"v\"\ntasks:\n  t:\n    exec:\n      command: [\"{prog}\", \"${{{{ const.x }}}}\"]\n"
         );
         let mut ls = lints_of(&yaml);
         assert_eq!(ls.len(), 1, "exactly one /001 for {prog}");
@@ -352,12 +352,12 @@ mod tests {
 nika: v1
 workflow:
   id: ai
-vars:
+const:
   host: \"example.com\"
 tasks:
   connect:
     exec:
-      command: [\"ssh\", \"${{ vars.host }}\", \"uptime\"]
+      command: [\"ssh\", \"${{ const.host }}\", \"uptime\"]
 ";
         let lints = lints_of(yaml);
         assert_eq!(lints.len(), 1);
@@ -378,12 +378,12 @@ tasks:
 nika: v1
 workflow:
   id: ai
-vars:
+const:
   file: \"data.tar\"
 tasks:
   extract:
     exec:
-      command: [\"tar\", \"-xf\", \"${{ vars.file }}\"]
+      command: [\"tar\", \"-xf\", \"${{ const.file }}\"]
 ";
         let lints = lints_of(yaml);
         assert_eq!(lints.len(), 1);
@@ -401,12 +401,12 @@ tasks:
 nika: v1
 workflow:
   id: ai
-vars:
+const:
   file: \"x\"
 tasks:
   extract:
     exec:
-      command: [\"tar\", \"-xf\", \"--\", \"${{ vars.file }}\"]
+      command: [\"tar\", \"-xf\", \"--\", \"${{ const.file }}\"]
 ";
         assert!(
             lints_of(yaml).is_empty(),
@@ -437,12 +437,12 @@ tasks:
 nika: v1
 workflow:
   id: ai
-vars:
+const:
   msg: \"hello\"
 tasks:
   say:
     exec:
-      command: [\"echo\", \"${{ vars.msg }}\"]
+      command: [\"echo\", \"${{ const.msg }}\"]
 ";
         assert!(
             lints_of(yaml).is_empty(),
@@ -457,12 +457,12 @@ tasks:
 nika: v1
 workflow:
   id: ai
-vars:
+const:
   host: \"h\"
 tasks:
   connect:
     exec:
-      shell: \"ssh ${{ vars.host }} uptime\"
+      shell: \"ssh ${{ const.host }} uptime\"
 ";
         assert!(
             lints_of(yaml).is_empty(),
@@ -476,12 +476,12 @@ tasks:
 nika: v1
 workflow:
   id: ai
-vars:
+const:
   url: \"https://x\"
 tasks:
   fetch:
     exec:
-      command: [\"/usr/bin/curl\", \"${{ vars.url }}\"]
+      command: [\"/usr/bin/curl\", \"${{ const.url }}\"]
 ";
         let lints = lints_of(yaml);
         assert_eq!(

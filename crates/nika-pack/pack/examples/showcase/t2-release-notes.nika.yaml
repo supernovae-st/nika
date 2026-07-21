@@ -23,7 +23,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large
 
-vars:
+const:
   since_tag: "v0.80.0"
 
 secrets:
@@ -37,7 +37,7 @@ secrets:
 tasks:
   history:
     exec:
-      command: ["git", "log", "${{ vars.since_tag }}..HEAD", "--oneline", "--no-merges"]
+      command: ["git", "log", "${{ const.since_tag }}..HEAD", "--oneline", "--no-merges"]
 
   notes:
     with:
@@ -67,7 +67,7 @@ tasks:
         replace: |
           # Changelog
 
-          ## ${{ vars.since_tag }}..HEAD · ${{ with.notes_headline }}
+          ## ${{ const.since_tag }}..HEAD · ${{ with.notes_headline }}
 
           ${{ with.notes_body }}
 

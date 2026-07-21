@@ -35,11 +35,11 @@ different backends disambiguates cleanly · `groq/qwen3.5-32b` vs
 against any backend ·
 
 ```yaml
-vars:
+inputs:
   model: { type: string, default: "ollama/qwen3.5:9b" }
 tasks:
   x:
-    infer: { model: "${{ vars.model }}", prompt: "..." }
+    infer: { model: "${{ inputs.model }}", prompt: "..." }
 # nika run flow.yaml --var model=mistral/mistral-large   ← same workflow, cloud
 ```
 

@@ -47,23 +47,7 @@ const TASK_KEYS: &[&str] = &[
     "on_finally",
 ];
 
-/// Keys allowed on an `on_finally:` mini-task (spec 03 §`on_finally` ·
-/// `when` + per-cleanup `timeout` + the verb).
-pub(crate) const FINALLY_KEYS: &[&str] = &["when", "timeout"];
-
-/// Keys of a `retry:` block (spec 05 §retry).
-pub(crate) const RETRY_KEYS: &[&str] = &[
-    "max_attempts",
-    "backoff_ms",
-    "backoff_strategy",
-    "backoff_max_ms",
-    "jitter",
-    "on_codes",
-];
-
-/// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
-/// ACTION + the optional `on_codes` filter).
-pub(crate) const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
+pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
 
 /// The `on_error:` ACTION keys (mutually exclusive · exactly one).
 const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];

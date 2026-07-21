@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Envelope block parsing — `vars:` · `env:` · `secrets:` · `permits:` ·
-//! `outputs:` (spec `01-envelope.md`).
+//! Envelope block parsing — `assert:` · `types:` · `outputs:` · `permits:`
+//! · `policy:` (spec `01-envelope.md` · the four value authorities parse in
+//! `envelope_values.rs`, re-exported below · `vars:`/`env:` are dead forms,
+//! refused at `parser/mod.rs` with NIKA-VALUES-001/002).
 
 use marked_yaml::Node;
 use marked_yaml::types::MarkedMappingNode;
@@ -10,267 +12,22 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    AssertProperty, EgressRule, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy,
-    SecretRef, SecretSource, VarDecl, VarType,
+    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy, VarType,
 };
 
 use super::{Cx, value::json_value};
 
-/// Keys of the typed `vars:` form (spec 01 §vars).
-pub(crate) const TYPED_VAR_KEYS: &[&str] = &["type", "required", "default", "description"];
+// The closed key vocabularies live in `nika_vocab::keys` (the C2 descent —
+// one vocabulary, one home); the parser reads them through this re-export.
+pub(crate) use nika_vocab::keys::{
+    CONFIG_KEYS, CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, PERMITS_FS_KEYS, PERMITS_KEYS,
+    PERMITS_NET_KEYS, SECRET_KEYS, TYPED_OUTPUT_KEYS,
+};
 
-/// Keys of a `secrets:` entry (spec 01 §secrets · `key` XOR `path` ·
-/// discriminated by `source` · plus the optional `egress:` declass list).
-pub(crate) const SECRET_KEYS: &[&str] = &["source", "key", "path", "egress"];
-
-/// Keys of one `secrets.<name>.egress[]` entry (spec 01 §secrets · the
-/// sanctioned-egress declaration · closed).
-const EGRESS_KEYS: &[&str] = &["to", "host", "host_from_self"];
-
-/// Keys of the typed `outputs:` form (spec 01 §outputs).
-const TYPED_OUTPUT_KEYS: &[&str] = &["value", "type", "description"];
-
-/// Keys of the `permits:` block (spec 01 §permits · closed).
-pub(crate) const PERMITS_KEYS: &[&str] = &["fs", "net", "exec", "tools"];
-
-/// Keys of `permits.fs` (closed).
-pub(crate) const PERMITS_FS_KEYS: &[&str] = &["read", "write"];
-
-/// Keys of `permits.net` (closed).
-pub(crate) const PERMITS_NET_KEYS: &[&str] = &["http"];
-
-/// Parse `vars:` — untyped (`name: value`) OR typed
-/// (`name: { type, required, default, description }`).
-///
-/// Discriminator · a mapping value carrying a `type` key is the typed
-/// form; everything else (scalar · sequence · type-less mapping) is an
-/// untyped default value.
-pub(super) fn parse_vars(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<Vec<(Spanned<String>, VarDecl)>, SchemaError> {
-    let Some(node) = workflow.get_node("vars") else {
-        return Ok(Vec::new());
-    };
-    let mapping = require_mapping(cx, node, "vars")?;
-    let mut out = Vec::with_capacity(mapping.len());
-    for (key, value) in mapping.iter() {
-        let name = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
-        let decl = if let Some(typed) = value.as_mapping().filter(|m| m.get_node("type").is_some())
-        {
-            parse_typed_var(cx, &name.value, typed)?
-        } else {
-            VarDecl::Untyped(json_value(cx, value)?)
-        };
-        out.push((name, decl));
-    }
-    Ok(out)
-}
-
-/// Parse the typed `vars:` form (spec 01 §vars · « type: string · number
-/// · integer · boolean · array · object » · `required` default false).
-fn parse_typed_var(
-    cx: &Cx<'_>,
-    name: &str,
-    mapping: &MarkedMappingNode,
-) -> Result<VarDecl, SchemaError> {
-    cx.check_unknown_keys(mapping, TYPED_VAR_KEYS, &format!("typed var `{name}`"))?;
-
-    let type_scalar = mapping
-        .get_scalar("type")
-        .ok_or_else(|| SchemaError::BadTypedVar {
-            name: name.to_owned(),
-            reason: "`type` must be a scalar".to_owned(),
-            span: cx.span(mapping.span()),
-        })?;
-    let r#type =
-        VarType::from_str_opt(type_scalar.as_str()).ok_or_else(|| SchemaError::BadTypedVar {
-            name: name.to_owned(),
-            reason: format!(
-                "unknown type `{}` (string·number·integer·boolean·array·object)",
-                type_scalar.as_str()
-            ),
-            span: cx.span(type_scalar.span()),
-        })?;
-
-    let required = match mapping.get_node("required") {
-        None => false,
-        Some(node) => node
-            .as_scalar()
-            .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
-            .ok_or_else(|| SchemaError::BadTypedVar {
-                name: name.to_owned(),
-                reason: "`required` must be a boolean".to_owned(),
-                span: cx.span(node.span()),
-            })?,
-    };
-
-    let default = mapping
-        .get_node("default")
-        .map(|n| json_value(cx, n))
-        .transpose()?;
-
-    let description = cx
-        .opt_scalar(mapping, "description")
-        .map_err(|_| SchemaError::BadTypedVar {
-            name: name.to_owned(),
-            reason: "`description` must be a scalar string".to_owned(),
-            span: cx.span(mapping.span()),
-        })?
-        .map(|s| s.value);
-
-    Ok(VarDecl::Typed {
-        r#type,
-        required,
-        default,
-        description,
-    })
-}
-
-/// Parse `env:` — a flat mapping of scalar → scalar (spec 01 §env ·
-/// non-sensitive runtime config).
-pub(super) fn parse_env(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<super::SpannedEntries<String>, SchemaError> {
-    let Some(node) = workflow.get_node("env") else {
-        return Ok(Vec::new());
-    };
-    parse_string_map(cx, node, "env")
-}
-
-/// Parse `secrets:` — each entry MUST be a reference to a store,
-/// **discriminated by `source`** · `vault`/`env` require `key:` ·
-/// `file` requires `path:` (spec 01 §secrets).
-///
-/// « A secret is always a **reference to a store** — never an inline
-/// literal. » A scalar value is therefore a parse error, and so is the
-/// wrong field for the source (`file` + `key:` · `vault` + `path:`).
-pub(super) fn parse_secrets(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<super::SpannedEntries<SecretRef>, SchemaError> {
-    let Some(node) = workflow.get_node("secrets") else {
-        return Ok(Vec::new());
-    };
-    let mapping = require_mapping(cx, node, "secrets")?;
-    let mut out = Vec::with_capacity(mapping.len());
-    for (key, value) in mapping.iter() {
-        let name = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
-        let Some(entry) = value.as_mapping() else {
-            return Err(SchemaError::BadSecretRef {
-                reason: format!(
-                    "secret `{}` is an inline literal — a secret is a reference to a store \
-                     (`{{ source, key }}`), never a value",
-                    name.value
-                ),
-                span: cx.span(value.span()),
-            });
-        };
-        cx.check_unknown_keys(entry, SECRET_KEYS, &format!("secret `{}`", name.value))?;
-
-        // `source` defaults to vault (the sovereign default).
-        let source = match entry.get_node("source") {
-            None => SecretSource::Vault,
-            Some(source_node) => {
-                let scalar = source_node
-                    .as_scalar()
-                    .ok_or_else(|| SchemaError::BadSecretRef {
-                        reason: format!("secret `{}` `source` must be a scalar", name.value),
-                        span: cx.span(source_node.span()),
-                    })?;
-                SecretSource::from_str_opt(scalar.as_str()).ok_or_else(|| {
-                    SchemaError::BadSecretRef {
-                        reason: format!(
-                            "secret `{}` has unknown source `{}` (vault·env·file)",
-                            name.value,
-                            scalar.as_str()
-                        ),
-                        span: cx.span(scalar.span()),
-                    }
-                })?
-            }
-        };
-
-        // The reference field is discriminated by `source` (spec 01) ·
-        // vault/env read `key:` · file reads `path:` · the OTHER field
-        // present is a shape error (never silently accepted).
-        let (want, reject) = match source {
-            SecretSource::File => ("path", "key"),
-            SecretSource::Vault | SecretSource::Env => ("key", "path"),
-        };
-        if entry.get_node(reject).is_some() {
-            return Err(SchemaError::BadSecretRef {
-                reason: format!(
-                    "secret `{}` with `source: {source}` takes `{want}:`, not `{reject}:` \
-                     (spec 01 §secrets · the shape is discriminated by source)",
-                    name.value
-                ),
-                span: cx.span(entry.span()),
-            });
-        }
-        let reference = entry
-            .get_scalar(want)
-            .ok_or_else(|| SchemaError::BadSecretRef {
-                reason: format!(
-                    "secret `{}` with `source: {source}` is missing its `{want}:`",
-                    name.value
-                ),
-                span: cx.span(entry.span()),
-            })?;
-
-        // Optional `egress:` declassification list (default-deny · absent
-        // = no sanctioned egress · the current blocking-leak behavior).
-        let egress = parse_egress(cx, entry, &name.value)?;
-
-        let span = cx.span_or_zero(entry.span());
-        out.push((
-            name,
-            Spanned::new(
-                SecretRef::new(source, reference.as_str()).with_egress(egress),
-                span,
-            ),
-        ));
-    }
-    Ok(out)
-}
-
-/// Parse one secret's optional `egress:` list (spec 01 §secrets ·
-/// declassification). Each entry sanctions ONE sink ·
-///
-/// ```yaml
-/// egress:
-///   - to: "nika:fetch"        # the SPECIFIC sink (tool id or "exec")
-///     host: "api.stripe.com"  # a static-literal destination host
-///   - to: "nika:notify"
-///     host_from_self: true    # the secret value IS the URL
-/// ```
-///
-/// `to:` is required. `host:` and `host_from_self:` are mutually exclusive
-/// (a host is either a literal OR the secret itself, never both). Both are
-/// optional — a sink with no addressable host (`exec`) carries neither.
-fn parse_egress(
-    cx: &Cx<'_>,
-    entry: &MarkedMappingNode,
-    secret_name: &str,
-) -> Result<Vec<EgressRule>, SchemaError> {
-    let Some(node) = entry.get_node("egress") else {
-        return Ok(Vec::new());
-    };
-    let Some(seq) = node.as_sequence() else {
-        return Err(SchemaError::BadSecretRef {
-            reason: format!(
-                "secret `{secret_name}` `egress:` must be a list of sanctioned destinations"
-            ),
-            span: cx.span(node.span()),
-        });
-    };
-    let mut rules = Vec::with_capacity(seq.len());
-    for item in seq.iter() {
-        rules.push(parse_egress_rule(cx, item, secret_name)?);
-    }
-    Ok(rules)
-}
+// The four value authorities parse in `envelope_values.rs` (the C2 file
+// split — ONE coherent unit); the parser's `envelope::parse_*` call paths
+// ride this re-export unchanged.
+pub(super) use super::envelope_values::{parse_config, parse_const, parse_inputs, parse_secrets};
 
 /// Parse the workflow-level `assert:` block (spec 15 §assert) — a list of the
 /// author's obligations, each parsed into the closed [`AssertProperty`]
@@ -306,104 +63,6 @@ pub(super) fn parse_assert(
         out.push(Spanned::new(property, cx.span_or_zero(item.span())));
     }
     Ok(out)
-}
-
-/// Parse one `egress[]` entry into an [`EgressRule`].
-fn parse_egress_rule(
-    cx: &Cx<'_>,
-    item: &Node,
-    secret_name: &str,
-) -> Result<EgressRule, SchemaError> {
-    let bad = |reason: String, span: &marked_yaml::Span| SchemaError::BadSecretRef {
-        reason,
-        span: cx.span(span),
-    };
-    let Some(mapping) = item.as_mapping() else {
-        return Err(bad(
-            format!(
-                "secret `{secret_name}` `egress:` entry must be a mapping \
-                 `{{ to, host, host_from_self }}`"
-            ),
-            item.span(),
-        ));
-    };
-    cx.check_unknown_keys_always(
-        mapping,
-        EGRESS_KEYS,
-        &format!("secret `{secret_name}` egress entry"),
-    )?;
-
-    // `to:` — REQUIRED · the SPECIFIC sink (tool id or "exec").
-    let to = mapping
-        .get_scalar("to")
-        .ok_or_else(|| {
-            bad(
-                format!(
-                    "secret `{secret_name}` egress entry is missing `to:` \
-                     (the sanctioned sink · a tool id like `nika:fetch` or `exec`)"
-                ),
-                mapping.span(),
-            )
-        })?
-        .as_str()
-        .to_owned();
-
-    // `to:` names a SINK — the vocabulary is closed (spec 01 §egress ①):
-    // a tool id (`nika:<tool>` · `mcp:<server>/<tool>`), `exec`, the
-    // provider sinks `infer` / `agent`, or the workflow boundary
-    // `outputs`. Anything else can never match, so the sanction would be
-    // silently DEAD — reading as declassified while nothing is. The classic
-    // slip is a destination HOST in `to:` (the use-case battery's own
-    // authoring error, 2026-07-11): `host:` is its own field.
-    let to_is_sink = matches!(to.as_str(), "exec" | "infer" | "agent" | "outputs")
-        || to.starts_with("nika:")
-        || to.starts_with("mcp:");
-    if !to_is_sink {
-        return Err(bad(
-            format!(
-                "secret `{secret_name}` egress `to: \"{to}\"` names no sink — the set: \
-                 a tool id (`nika:<tool>` · `mcp:<server>/<tool>`) · `exec` · `infer` · \
-                 `agent` · `outputs` (a destination host goes in `host:`, not `to:`)"
-            ),
-            mapping.span(),
-        ));
-    }
-
-    // `host_from_self:` — the secret value IS the URL.
-    let host_from_self = match mapping.get_node("host_from_self") {
-        None => false,
-        Some(n) => n
-            .as_scalar()
-            .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
-            .ok_or_else(|| {
-                bad(
-                    format!("secret `{secret_name}` egress `host_from_self:` must be a boolean"),
-                    n.span(),
-                )
-            })?,
-    };
-
-    // `host:` — a static-literal destination host.
-    let host = mapping.get_scalar("host").map(|s| s.as_str().to_owned());
-
-    // `host:` and `host_from_self:` are mutually exclusive — a host is
-    // either a literal we can check statically OR the secret itself, never
-    // both (the two clauses sanction by different rules · §L2).
-    if host.is_some() && host_from_self {
-        return Err(bad(
-            format!(
-                "secret `{secret_name}` egress entry sets BOTH `host:` and `host_from_self:` \
-                 — a host is a literal OR the secret itself, not both"
-            ),
-            mapping.span(),
-        ));
-    }
-
-    Ok(EgressRule {
-        to,
-        host,
-        host_from_self,
-    })
 }
 
 /// A parsed `types:` block — declaration name → raw expression, spans kept.
@@ -685,12 +344,13 @@ secrets:
         );
     }
 
+    // ── C2 · the four-authority family (accept) + the dead forms (refuse) ──
+
     #[test]
-    fn vars_untyped_and_typed() {
-        // Spec 01 §vars · both forms side-by-side.
+    fn inputs_typed_declarations() {
+        // Spec 01 §inputs · every entry typed (`type` required).
         let yaml = "\
-vars:
-  output_dir: \"./output\"
+inputs:
   topic:
     type: string
     required: true
@@ -698,19 +358,14 @@ vars:
     description: \"Subject to research\"
 ";
         let wf = parse_strict(yaml).expect("parse");
-        assert_eq!(wf.vars.len(), 2);
-        assert_eq!(wf.vars[0].0.value, "output_dir");
-        assert!(matches!(
-            &wf.vars[0].1,
-            VarDecl::Untyped(v) if v == "./output"
-        ));
-        assert_eq!(wf.vars[1].0.value, "topic");
+        assert_eq!(wf.inputs.len(), 1);
+        assert_eq!(wf.inputs[0].0.value, "topic");
         let VarDecl::Typed {
             r#type,
             required,
             default,
             description,
-        } = &wf.vars[1].1
+        } = &wf.inputs[0].1
         else {
             panic!("expected Typed");
         };
@@ -721,22 +376,100 @@ vars:
     }
 
     #[test]
-    fn vars_untyped_list_value() {
+    fn inputs_untyped_entry_is_refused() {
+        // Spec 01 §inputs · a bare literal is NOT an inputs entry (a fixed
+        // value is a `const:` entry).
         let yaml = "\
-vars:
-  locales: [\"fr\", \"es\"]
+inputs:
+  topic: \"hello\"
 ";
-        let wf = parse_strict(yaml).expect("parse");
-        assert!(matches!(
-            &wf.vars[0].1,
-            VarDecl::Untyped(v) if v.as_array().is_some_and(|a| a.len() == 2)
-        ));
+        let err = parse_strict(yaml).expect_err("untyped inputs entry");
+        assert!(matches!(err, SchemaError::BadTypedVar { .. }), "{err:?}");
+        assert!(err.to_string().contains("`type:` required"), "{err}");
     }
 
     #[test]
-    fn vars_typed_unknown_type_errors() {
+    fn config_typed_with_and_without_default() {
+        // Spec 01 §config · `type` required · `default:` optional (the
+        // deployment supplies when absent).
         let yaml = "\
-vars:
+config:
+  log_level: { type: string, default: \"info\" }
+  region: { type: string }
+";
+        let wf = parse_strict(yaml).expect("parse");
+        assert_eq!(wf.config.len(), 2);
+        assert_eq!(wf.config[0].0.value, "log_level");
+        let VarDecl::Typed { default, .. } = &wf.config[0].1 else {
+            panic!("expected Typed");
+        };
+        assert_eq!(default.as_ref().expect("default"), "info");
+        let VarDecl::Typed { default: none, .. } = &wf.config[1].1 else {
+            panic!("expected Typed");
+        };
+        assert!(none.is_none());
+    }
+
+    #[test]
+    fn config_rejects_the_required_key() {
+        // `required:` is inputs vocabulary — config is never caller-required.
+        let yaml = "\
+config:
+  region: { type: string, required: true }
+";
+        let err = parse_strict(yaml).expect_err("required in config");
+        assert!(matches!(err, SchemaError::UnknownField { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn const_bare_literals_and_typed_constant() {
+        // Spec 01 §const · bare literal (any YAML value) OR `{type, value}`.
+        let yaml = "\
+const:
+  greeting: \"hello\"
+  retries: 3
+  limits: { max: 10, min: 1 }
+  pi: { type: number, value: 3.5 }
+";
+        let wf = parse_strict(yaml).expect("parse");
+        assert_eq!(wf.consts.len(), 4);
+        assert!(matches!(&wf.consts[0].1, VarDecl::Untyped(v) if v == "hello"));
+        assert!(
+            matches!(&wf.consts[2].1, VarDecl::Untyped(v) if v.is_object()),
+            "a mapping without BOTH type+value is a bare literal object"
+        );
+        let VarDecl::Typed {
+            r#type,
+            default,
+            required,
+            ..
+        } = &wf.consts[3].1
+        else {
+            panic!("expected Typed");
+        };
+        assert_eq!(*r#type, VarType::Number);
+        assert!(!required, "a constant is never caller-required");
+        assert_eq!(
+            default.as_ref().expect("value rides default"),
+            &serde_json::json!(3.5)
+        );
+    }
+
+    #[test]
+    fn const_typed_extra_key_is_refused() {
+        // The typed constant's key set is closed ({type, value} exactly).
+        let yaml = "\
+const:
+  pi: { type: number, value: 3.5, default: 3.0 }
+";
+        let err = parse_strict(yaml).expect_err("extra key in typed const");
+        assert!(matches!(err, SchemaError::UnknownField { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn inputs_typed_unknown_type_errors() {
+        let yaml = "\
+inputs:
   x:
     type: str
 ";
@@ -745,9 +478,9 @@ vars:
     }
 
     #[test]
-    fn vars_typed_unknown_key_strict_errors() {
+    fn inputs_typed_unknown_key_strict_errors() {
         let yaml = "\
-vars:
+inputs:
   x:
     type: string
     requierd: true
@@ -757,21 +490,49 @@ vars:
     }
 
     #[test]
-    fn env_flat_map() {
+    fn vars_block_refuses_with_values_001() {
+        // C2 · LAW-GRAMMAR-0201 · the dead `vars:` field teaches the
+        // classification, never a generic unknown-field error.
+        let yaml = "\
+vars:
+  topic: \"hello\"
+";
+        let err = parse_strict(yaml).expect_err("vars: is dead");
+        let SchemaError::DeadValueForm { form, message, .. } = &err else {
+            panic!("expected DeadValueForm, got {err:?}");
+        };
+        assert!(matches!(form, crate::error::DeadForm::Vars));
+        assert_eq!(err.spec_code().to_string(), "NIKA-VALUES-001");
+        assert!(message.contains("dead envelope field"), "{message}");
+        assert!(
+            message.contains("`inputs:`") && message.contains("`const:`"),
+            "{message}"
+        );
+        assert!(message.contains("classify-not-rename"), "{message}");
+    }
+
+    #[test]
+    fn env_block_refuses_with_values_002() {
+        // C2 · LAW-GRAMMAR-0202 · the dead `env:` field.
         let yaml = "\
 env:
   LOG_LEVEL: info
-  REGION: eu-west
 ";
-        let wf = parse_strict(yaml).expect("parse");
-        assert_eq!(wf.env.len(), 2);
-        assert_eq!(wf.env[0].0.value, "LOG_LEVEL");
-        assert_eq!(wf.env[0].1.value, "info");
+        let err = parse_strict(yaml).expect_err("env: is dead");
+        let SchemaError::DeadValueForm { form, message, .. } = &err else {
+            panic!("expected DeadValueForm, got {err:?}");
+        };
+        assert!(matches!(form, crate::error::DeadForm::Env));
+        assert_eq!(err.spec_code().to_string(), "NIKA-VALUES-002");
+        assert!(
+            message.contains("`config:`") && message.contains("`secrets:`"),
+            "{message}"
+        );
     }
 
     #[test]
     fn secrets_full_forms() {
-        // Spec 01 §secrets · vault default + explicit env source.
+        // Spec 01 §secrets · the explicit provenances (source required · R8).
         let yaml = "\
 secrets:
   api_key:
@@ -780,16 +541,27 @@ secrets:
   github_token:
     source: env
     key: GITHUB_TOKEN
-  implicit:
-    key: some/path
 ";
         let wf = parse_strict(yaml).expect("parse");
-        assert_eq!(wf.secrets.len(), 3);
+        assert_eq!(wf.secrets.len(), 2);
         assert_eq!(wf.secrets[0].1.value.source, SecretSource::Vault);
         assert_eq!(wf.secrets[0].1.value.key, "prod/anthropic/api-key");
         assert_eq!(wf.secrets[1].1.value.source, SecretSource::Env);
-        // `source` defaults to vault (the sovereign default).
-        assert_eq!(wf.secrets[2].1.value.source, SecretSource::Vault);
+    }
+
+    #[test]
+    fn secret_without_source_is_refused() {
+        // R8 · the flipped dialect: the provenance is required explicitly
+        // (the conformance guard fixture · never a defaulted vault).
+        let yaml = "\
+secrets:
+  implicit:
+    key: some/path
+";
+        let err = parse_strict(yaml).expect_err("missing source");
+        assert!(matches!(err, SchemaError::BadSecretRef { .. }), "{err:?}");
+        assert!(err.to_string().contains("source:"), "{err}");
+        assert!(err.to_string().contains("implicit"), "{err}");
     }
 
     #[test]

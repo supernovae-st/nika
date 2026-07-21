@@ -30,7 +30,7 @@ workflow:
 
 model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
 
-vars:
+const:
   transcript: "./data/transcript.txt"
 
 permits:
@@ -44,7 +44,7 @@ tasks:
   raw:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.transcript }}" }
+      args: { path: "${{ const.transcript }}" }
 
   # ONE bounded model call · the schema is the contract, not a suggestion.
   notes:

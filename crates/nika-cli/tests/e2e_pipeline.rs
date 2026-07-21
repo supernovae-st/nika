@@ -28,7 +28,7 @@
 //! v0 limits (documented, not hidden): `${{ }}` resolution is the
 //! runtime's reference resolver (the CEL evaluator ships with the 03-dag
 //! engine behind the same seam) and `when:` evaluates the v0 subset —
-//! the fixture's gate (`vars.publish == 'yes'` · publish=no) evaluates
+//! the fixture's gate (`const.publish == 'yes'` · publish=no) evaluates
 //! closed, and the skip path is exactly what we assert.
 
 use std::collections::BTreeMap;
@@ -64,7 +64,7 @@ workflow:
 
 model: mock/echo
 
-vars:
+const:
   source: "./news.json"
   publish: "no"
 
@@ -72,7 +72,7 @@ tasks:
   gather:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.source }}" }
+      args: { path: "${{ const.source }}" }
 
   probe:
     exec:
@@ -112,7 +112,7 @@ tasks:
   notify:
     after:
       write_out: terminal
-    when: ${{ vars.publish == 'yes' }}
+    when: ${{ const.publish == 'yes' }}
     exec:
       command: ["echo", "done"]
 
@@ -146,18 +146,18 @@ impl Seams {
 /// Textual `${{ }}` substitution — the rehearsal stand-in for the W2
 /// boundary materialization (03-dag engine work). Replaces
 /// `${{ with.<binding> }}` (bindings keyed by their `with:` name) and
-/// `${{ vars.<key> }}` occurrences.
+/// `${{ const.<key> }}` occurrences.
 fn interpolate(
     text: &str,
     bindings: &BTreeMap<String, String>,
-    vars: &BTreeMap<String, String>,
+    consts: &BTreeMap<String, String>,
 ) -> String {
     let mut out = text.to_owned();
     for (name, value) in bindings {
         out = out.replace(&format!("${{{{ with.{name} }}}}"), value);
     }
-    for (key, value) in vars {
-        out = out.replace(&format!("${{{{ vars.{key} }}}}"), value);
+    for (key, value) in consts {
+        out = out.replace(&format!("${{{{ const.{key} }}}}"), value);
     }
     out
 }
@@ -309,7 +309,7 @@ async fn e2e_happy_path_full_pipeline() {
     assert_eq!(
         read.input.get("path").and_then(serde_json::Value::as_str),
         Some("./news.json"),
-        "vars.source resolved into the tool args"
+        "const.source resolved into the tool args"
     );
     let write = calls
         .iter()

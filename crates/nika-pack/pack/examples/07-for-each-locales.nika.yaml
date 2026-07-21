@@ -17,13 +17,13 @@ workflow:
   id: for-each-locales
 
 model: mock/echo
-vars:
+const:
   source: "Welcome to the launch."
   locales: ["fr", "es", "de", "ja", "pt"]
 
 tasks:
   translate:
-    for_each: ${{ vars.locales }}     # one iteration per locale
+    for_each: ${{ const.locales }}     # one iteration per locale
     max_parallel: 3                    # at most 3 concurrent translations
     fail_fast: false                   # keep going · a failed locale yields null at its index
     on_error:
@@ -32,7 +32,7 @@ tasks:
       locale: ${{ item }}              # current element
       n: ${{ index }}                  # 0-based position
     infer:
-      prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ vars.source }}"
+      prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ const.source }}"
 
   collect:
     with:

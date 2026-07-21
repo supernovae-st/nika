@@ -42,8 +42,8 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
     )
     .ok()?;
     let body = match root {
-        "vars" => {
-            let (_, decl) = wf.vars.iter().find(|(n, _)| n.value == name)?;
+        "inputs" => {
+            let (_, decl) = wf.inputs.iter().find(|(n, _)| n.value == name)?;
             match decl {
                 nika_schema::VarDecl::Typed {
                     r#type,
@@ -52,7 +52,7 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                     description,
                 } => {
                     use std::fmt::Write as _;
-                    let mut b = format!("**`vars.{name}`** — _{type}_");
+                    let mut b = format!("**`inputs.{name}`** — _{type}_");
                     if *required {
                         b.push_str(" · required");
                     }
@@ -64,9 +64,41 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                     }
                     b
                 }
-                // CLOSED vocabulary (nika-vocab) — both forms named.
                 nika_schema::VarDecl::Untyped(v) => {
-                    format!("**`vars.{name}`** — _var_\n\ndefault `{v}`")
+                    format!("**`inputs.{name}`** — _input_\n\n`{v}`")
+                }
+            }
+        }
+        "config" => {
+            let (_, decl) = wf.config.iter().find(|(n, _)| n.value == name)?;
+            match decl {
+                nika_schema::VarDecl::Typed {
+                    r#type, default, ..
+                } => {
+                    use std::fmt::Write as _;
+                    let mut b =
+                        format!("**`config.{name}`** — _{type}_ · non-sensitive runtime config");
+                    if let Some(d) = default {
+                        let _ = write!(b, " · default `{d}`");
+                    }
+                    b
+                }
+                nika_schema::VarDecl::Untyped(v) => {
+                    format!("**`config.{name}`** — _config_\n\n`{v}`")
+                }
+            }
+        }
+        "const" => {
+            let (_, decl) = wf.consts.iter().find(|(n, _)| n.value == name)?;
+            match decl {
+                nika_schema::VarDecl::Typed {
+                    r#type, default, ..
+                } => format!(
+                    "**`const.{name}`** — _{type}_ · constant `{v}`",
+                    v = default.as_ref()?
+                ),
+                nika_schema::VarDecl::Untyped(v) => {
+                    format!("**`const.{name}`** — _const_\n\n`{v}`")
                 }
             }
         }
@@ -84,13 +116,7 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                 value.value
             )
         }
-        _ => {
-            let (_, value) = wf.env.iter().find(|(n, _)| n.value == name)?;
-            format!(
-                "**`env.{name}`** — _env_\n\nnon-sensitive runtime config · `{}`",
-                value.value
-            )
-        }
+        _ => return None,
     };
     let range = word_at(text, offset).map(|(_, start, end)| {
         let index = LineIndex::new(text);
@@ -673,13 +699,13 @@ mod tests {
         assert!(hover(text, text.find("\n  a:").expect("a") + 3).is_none());
     }
 
-    /// Hover on island members — the declaration's card: typed var
+    /// Hover on island members — the declaration's card: typed input
     /// (type · required · default · description) · secret (masked line)
-    /// · env (its value).
+    /// · config (its declared default).
     #[test]
     fn hover_on_member_refs_shows_the_declaration_cards() {
-        let text = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\nenv:\n  REGION: eu\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.city }}\", \"${{ env.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
-        let h = hover(text, text.find("vars.city").expect("ref") + 6).expect("var card");
+        let text = "nika: v1\nworkflow:\n  id: w\ninputs:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.city }}\", \"${{ config.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
+        let h = hover(text, text.find("inputs.city").expect("ref") + 6).expect("input card");
         let b = body(&h);
         assert!(
             b.contains("string") && b.contains("required") && b.contains("target city"),
@@ -687,7 +713,11 @@ mod tests {
         );
         let h = hover(text, text.find("secrets.api_key").expect("ref") + 9).expect("secret card");
         assert!(body(&h).contains("never echoed"), "{}", body(&h));
-        let h = hover(text, text.find("env.REGION").expect("ref") + 5).expect("env card");
-        assert!(body(&h).contains("`eu`"), "{}", body(&h));
+        let h = hover(text, text.find("config.REGION").expect("ref") + 5).expect("config card");
+        assert!(
+            body(&h).contains("non-sensitive runtime config") && body(&h).contains("eu"),
+            "{}",
+            body(&h)
+        );
     }
 }

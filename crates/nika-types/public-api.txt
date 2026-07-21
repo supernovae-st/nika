@@ -4034,6 +4034,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::schema::TraceFormatVers
 pub mod nika_types::suggest
 pub fn nika_types::suggest::damerau_levenshtein(a: &str, b: &str) -> usize
 pub fn nika_types::suggest::did_you_mean<'a, I>(target: &str, candidates: I) -> core::option::Option<&'a str> where I: core::iter::traits::collect::IntoIterator<Item = &'a str>
+pub fn nika_types::suggest::suggestion_clause(suggestion: core::option::Option<&str>) -> alloc::string::String
 pub mod nika_types::timestamp
 #[non_exhaustive] pub struct nika_types::timestamp::Timestamp
 pub nika_types::timestamp::Timestamp::unix_ns: i64
@@ -4211,6 +4212,49 @@ impl<T> core::convert::From<T> for nika_types::token_usage::TokenUsage
 pub fn nika_types::token_usage::TokenUsage::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::token_usage::TokenUsage where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::trust
+#[non_exhaustive] pub enum nika_types::trust::InvocationSource
+pub nika_types::trust::InvocationSource::Cli
+pub nika_types::trust::InvocationSource::NestedRun
+pub nika_types::trust::InvocationSource::NestedRun::ceiling: nika_types::trust::TrustLevel
+pub nika_types::trust::InvocationSource::Serve
+pub nika_types::trust::InvocationSource::Test
+pub nika_types::trust::InvocationSource::Unknown
+impl nika_types::trust::InvocationSource
+pub fn nika_types::trust::InvocationSource::input_trust(&self) -> nika_types::trust::TrustLevel
+pub fn nika_types::trust::InvocationSource::new() -> Self
+impl core::clone::Clone for nika_types::trust::InvocationSource
+pub fn nika_types::trust::InvocationSource::clone(&self) -> nika_types::trust::InvocationSource
+impl core::cmp::Eq for nika_types::trust::InvocationSource
+impl core::cmp::PartialEq for nika_types::trust::InvocationSource
+pub fn nika_types::trust::InvocationSource::eq(&self, other: &nika_types::trust::InvocationSource) -> bool
+impl core::default::Default for nika_types::trust::InvocationSource
+pub fn nika_types::trust::InvocationSource::default() -> nika_types::trust::InvocationSource
+impl core::fmt::Debug for nika_types::trust::InvocationSource
+pub fn nika_types::trust::InvocationSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::trust::InvocationSource
+impl core::marker::StructuralPartialEq for nika_types::trust::InvocationSource
+impl<T, U> core::convert::Into<U> for nika_types::trust::InvocationSource where U: core::convert::From<T>
+pub fn nika_types::trust::InvocationSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::trust::InvocationSource where U: core::convert::Into<T>
+pub type nika_types::trust::InvocationSource::Error = core::convert::Infallible
+pub fn nika_types::trust::InvocationSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::trust::InvocationSource where U: core::convert::TryFrom<T>
+pub type nika_types::trust::InvocationSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::trust::InvocationSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::trust::InvocationSource where T: core::clone::Clone
+pub type nika_types::trust::InvocationSource::Owned = T
+pub fn nika_types::trust::InvocationSource::clone_into(&self, target: &mut T)
+pub fn nika_types::trust::InvocationSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::trust::InvocationSource where T: 'static + ?core::marker::Sized
+pub fn nika_types::trust::InvocationSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::trust::InvocationSource where T: ?core::marker::Sized
+pub fn nika_types::trust::InvocationSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::trust::InvocationSource where T: ?core::marker::Sized
+pub fn nika_types::trust::InvocationSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::trust::InvocationSource where T: core::clone::Clone
+pub unsafe fn nika_types::trust::InvocationSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::trust::InvocationSource
+pub fn nika_types::trust::InvocationSource::from(t: T) -> T
 #[non_exhaustive] pub struct nika_types::trust::ParseTrustError
 pub nika_types::trust::ParseTrustError::input: alloc::string::String
 impl core::clone::Clone for nika_types::trust::ParseTrustError
@@ -4309,6 +4353,8 @@ pub unsafe fn nika_types::trust::TrustLevel::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::trust::TrustLevel where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn nika_types::trust::builtin_output_trust(tool: &str, input_trust: nika_types::trust::TrustLevel) -> nika_types::trust::TrustLevel
+pub fn nika_types::trust::is_categorized_builtin(tool: &str) -> bool
 pub mod nika_types::types
 #[non_exhaustive] pub enum nika_types::types::NikaType
 pub nika_types::types::NikaType::Array(alloc::boxed::Box<nika_types::types::NikaType>)

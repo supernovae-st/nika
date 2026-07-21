@@ -63,8 +63,18 @@ Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 up
 | `NIKA-TYPE` | Type core · contracts · lowering ([09-types.md](./09-types.md)) | 001-199 (001-099 static · 101+ runtime) |
 | `NIKA-CANCEL` | Task or workflow cancellation | 001-099 |
 | `NIKA-IMPL` | Engine internal errors | 001-099 |
+| `NIKA-YAML` | YAML profile refusals (anchors · aliases · merge keys · tags · caps · encoding — the R11 law set · [01 §YAML profile](./01-envelope.md#yaml-profile-normative) · pedagogical upgrades of the `NIKA-PARSE` floor) | 001-099 |
+| `NIKA-COMP` | Composition (`invoke: workflow:` · [14-composition](./14-composition.md)) | 001-099 |
+| `NIKA-DECIDE` | Decision bundles + evidence (`nika:decide` · [11-decision](./11-decision.md)) | 001-099 |
+| `NIKA-PORT` | Gateway artifacts (deployment bundle · lowering · fidelity · [12-gateway](./12-gateway.md)) | 001-099 |
+| `NIKA-POLICY` | `policy:` hard-rule violations ([10-authority](./10-authority.md)) | 001-099 |
+| `NIKA-ASSERT` | `assert:` obligations ([15-proof](./15-proof.md)) | 001-099 |
+| `NIKA-LOCK` | `nika.lock` pin violations ([15-proof](./15-proof.md)) | 001-099 |
+| `NIKA-REG` | Registry client refusals (resolve · digest · advisory · [registry-v0.1](../registry/registry-v0.1.md) · allocated for the reference engine's `registry:` resolver — engine ADR-106) | 001-099 |
 
-A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
+This table allocates every namespace in use; the machine registry
+([`canon/diagnostics/registry.yaml`](../canon/diagnostics/registry.yaml))
+carries the per-code rows. A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
 
 ### Concrete v0.1 codes · the normative floor
 
@@ -89,7 +99,6 @@ these from this file alone.
 | `NIKA-PARSE-012` | `on_error:` block violates the spec shape (fields mutually exclusive) | `validation_error` | false |
 | `NIKA-PARSE-013` | `with:`/`output:` binding uses a reserved name (`output` · `status` · `error` · `started_at` · `ended_at` · `duration_ms`) | `validation_error` | false |
 | `NIKA-PARSE-014` | `secrets:` entry is not a store reference — inline literals forbidden ([01 §secrets](./01-envelope.md)) | `validation_error` | false |
-| `NIKA-PARSE-015` | typed `vars:` declaration malformed (type in string/number/integer/boolean/array/object) | `validation_error` | false |
 | `NIKA-PARSE-017` | duplicate mapping key — no silent last-wins | `validation_error` | false |
 | `NIKA-PARSE-018` | missing required field in a verb body (`infer.prompt` · `exec.command` · `invoke.tool`) | `validation_error` | false |
 | `NIKA-PARSE-019` | generic structural validation — wrong YAML shape for a field | `validation_error` | false |
@@ -106,7 +115,7 @@ these from this file alone.
 | `NIKA-DAG-001` | cycle in the precedence graph G_p = E_d ∪ E_c (incl. self-dependency · via `with:`/`after:`) | `validation_error` | false |
 | `NIKA-DAG-002` | `with:`/`after:` references an undeclared task | `validation_error` | false |
 | `NIKA-DAG-004` | `on_error.recover` references a task downstream of the declaring task (await would deadlock) | `validation_error` | false |
-| `NIKA-DAG-005` | `after:` predicate outside the closed set (`succeeded` · `failed` · `skipped` · `terminal`) | `validation_error` | false |
+| `NIKA-DAG-005` | `after:` predicate outside the closed set (`success` · `failure` · `skipped` · `terminal`) | `validation_error` | false |
 | `NIKA-DAG-006` | statically dead task — an incoming edge’s pass-set excludes every reachable producer state, or the `when:` gate is false under every reachable upstream combination ([03 §gate algebra](./03-dag.md#the-gate-algebra-v2-normative)) | `validation_error` | false |
 | `NIKA-DAG-007` | status compared against a literal outside the vocabulary (`success` · `failure` · `skipped` · `cancelled`) — `==` never matches, `!=` always holds | `validation_error` | false |
 | `NIKA-TYPE-001` | unknown type name (in `types:` · `returns:` · an `outputs:` type) — did-you-mean when close | `validation_error` | false |
@@ -116,7 +125,7 @@ these from this file alone.
 | `NIKA-TYPE-005` | a secret-carrying type in a lowered position (reserved with `secret<T>` · W4) | `security_error` | false |
 | `NIKA-TYPE-006` | regex pattern outside the locked dialect (backreference · lookaround · named group · inline flags · lazy/possessive · `\b` · `\p` — [09 §the regex dialect](./09-types.md#the-regex-dialect-normative--locked)) | `validation_error` | false |
 | `NIKA-TYPE-101` | run-time contract violation — the decoded value does not fit `returns:` (`exec:`/`invoke:` lane · `infer:`/`agent:` stay `NIKA-INFER-002`-class) | `validation_error` | false |
-| `NIKA-VAR-001` | unresolved reference (unknown namespace entry · undeclared `env`/`vars` key) | `variable_error` | false |
+| `NIKA-VAR-001` | unresolved reference (unknown namespace entry · undeclared `inputs`/`config`/`const`/`secrets`/`with` key) | `variable_error` | false |
 | `NIKA-VAR-002` | binding cardinality — a jq binding emitted zero or multiple values (evaluation-time · data-dependent) | `variable_error` | false |
 | `NIKA-VAR-003` | provably-invalid path into a declared `schema:` (static walk · [04](./04-variables.md)) | `validation_error` | false |
 | `NIKA-VAR-004` | jq runtime error while evaluating a binding | `variable_error` | false |
@@ -146,6 +155,7 @@ these from this file alone.
 | `NIKA-SEC-005` | SSRF block — a `nika:fetch`/`nika:notify` URL resolves to a loopback/private/link-local/metadata target (the always-on engine floor · independent of `permits:`, with ONE carve-out: an exact loopback literal in `permits.net.http` declassifies the floor for that host only · [01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary)) | `security_error` | false |
 | `NIKA-SEC-006` | secret flow — a `secrets.<name>` value reaches an unsanctioned sink (an `exec:` argument · an `invoke:` payload · an `infer:`/`agent:` prompt) · the diagnostic carries the **taint path** + the exact `egress:` clause that would sanction it ([10 §secret flow](./10-authority.md#secret-flow-refusals-carry-their-codes-normative) · rules in [01 §egress](./01-envelope.md#egress--optional--sanctioned-destinations-declassification)) | `security_error` | false |
 | `NIKA-SEC-007` | secret egress — a tainted value reaches the workflow boundary (`outputs:` · where a result leaves the run) · the diagnostic carries the taint path ([10 §secret flow](./10-authority.md#secret-flow-refusals-carry-their-codes-normative)) | `security_error` | false |
+| `NIKA-SEC-009` | lethal trifecta complete — the declared boundary grants private read (`fs.read` non-empty) + untrusted ingress (a `nika:fetch` builtin invoked · an `mcp:*` tool invoked · an `agent:` whose whitelist admits ingress) + external egress (`net.http` non-empty · an escaping `fs.write` glob · `exec` enabled), the untrusted content **reaches** an egress-capable task's effect surface (a realized flow), and no blocking `invoke: nika:prompt` (no `default:`) dominates it · one finding per ungated tainted egress task, witness-named `source → sink` ([NEP-0002](../governance/nep-0002-lethal-trifecta-human-gate.md) v2.0 · the Rule of Two as a static check · SEC-008 stays allocated to the AUTH plane) | `security_error` | false |
 | `NIKA-DECIDE-001` | the decision bundle is malformed or violates its own laws (float weight · undeclared evidence key in rules · identity key feeding a technical dimension · missing contradictory fixture · monotonicity violated by the bundle's own fixtures · [11 §nika:decide](./11-decision.md#nikadecide--the-deterministic-kernel-as-a-builtin)) | `validation_error` | false |
 | `NIKA-DECIDE-002` | the evidence snapshot does not satisfy the bundle's evidence schema (type misfit · unauthorized source · integrity below the declared floor · undeclared key · [11 §evidence IR](./11-decision.md#evidence-ir-normative--g14)) | `validation_error` | false |
 | `NIKA-PORT-001` | a gateway artifact (deployment bundle · capabilities report · lowering report · fidelity report · authority delta) is malformed or violates its laws (an unknown promoted · a `permissive_unsafe` row without refusal · the disclosure ⊆-chain violated · a child authority exceeding its parent · [12 §errors](./12-gateway.md#errors-the-nika-port-namespace--new-in-this-chapter)) | `validation_error` | false |
@@ -158,6 +168,13 @@ these from this file alone.
 | `NIKA-BUILTIN-001` | builtin `invoke:` violates its statically-checkable arg contract (e.g. `nika:fetch` without `url:` · `nika:jq` arg shape) | `validation_error` | false |
 | `NIKA-BUILTIN-DONE-001` | `nika:done` invoked outside an `agent:` loop | `validation_error` | false |
 
+
+`NIKA-PARSE-015` is **retired** (never reuse): the typed-`vars:` 6-enum class
+died with the E-split (R3b · LAW-GRAMMAR-0211) — the `type:` field of
+`inputs:`/`outputs:` declarations speaks the full TypeExpr of
+[09-types](./09-types.md), so what PARSE-015 refused (the rich forms) is
+admitted, and what stays outside the grammar refuses via `NIKA-TYPE-001`.
+The allocation hole is deliberate, per the additive-never-repurposed rule above.
 
 `NIKA-PARSE-016` is **retired** (never reuse): the jq-binding-contains-template
 class folded into `NIKA-VAR-005` at the deep-conformance registry remap: the
@@ -372,7 +389,7 @@ optional_step:
       skip: true
 
 next:
-    after: { optional_step: succeeded }     # strict gate · a skipped producer cancels this path
+    after: { optional_step: success }       # strict gate · a skipped producer cancels this path
     exec: { command: ["..."] }
 ```
 
@@ -390,7 +407,7 @@ engine-configurable: the SAME rule as [02 §infer conformance](./02-verbs.md#con
 ```yaml
 extract:
     infer:
-      prompt: "Extract entities from · ${{ vars.text }}"
+      prompt: "Extract entities from · ${{ inputs.text }}"
       schema:
         type: object
         required: [entities]
@@ -423,7 +440,7 @@ blanket kill** ·
   its edges checks the producer's settled state against that edge's
   pass-set. A value edge from the failed task does not admit → the consumer
   is `cancelled`, and the dead path propagates transitively.
-- A task whose edges DO admit on failure still runs · `after: {x: failed}`
+- A task whose edges DO admit on failure still runs · `after: {x: failure}`
   (the failure path) · `after: {x: terminal}` (the **always-pattern**: a
   final notify/report task runs even in a failing workflow) · a
   `.status`/`.error` observation binding.

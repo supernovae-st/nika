@@ -657,10 +657,10 @@ fn visit_json(value: &serde_json::Value, visit: &mut dyn FnMut(&str)) {
 }
 
 /// Resolve an invoke arg to a STATIC string when it is a plain literal
-/// or a single `${{ vars.X }}` whose declaration carries a literal
-/// default — the two shapes a scaffold ships. Anything dynamic (task
-/// refs · env · concatenations) resolves to `None`: analysis never
-/// guesses.
+/// or a single `${{ const.X }}` / `${{ inputs.X }}` / `${{ config.X }}`
+/// whose declaration carries a literal value — the shapes a scaffold
+/// ships. Anything dynamic (task refs · concatenations) resolves to
+/// `None`: analysis never guesses.
 fn static_string_arg(wf: &RawWorkflow, value: &serde_json::Value) -> Option<String> {
     let s = value.as_str()?;
     let trimmed = s.trim();
@@ -668,12 +668,19 @@ fn static_string_arg(wf: &RawWorkflow, value: &serde_json::Value) -> Option<Stri
         return Some(trimmed.to_owned());
     }
     let inner = trimmed.strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let var = inner.strip_prefix("vars.")?;
-    if var.contains(['.', '[']) {
+    let (authority, name) = ["const.", "inputs.", "config."]
+        .into_iter()
+        .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
+    if name.contains(['.', '[']) {
         return None;
     }
-    wf.vars.iter().find_map(|(name, decl)| {
-        if name.value != var {
+    let block = match authority {
+        "const." => &wf.consts,
+        "inputs." => &wf.inputs,
+        _ => &wf.config,
+    };
+    block.iter().find_map(|(decl_name, decl)| {
+        if decl_name.value != name {
             return None;
         }
         let default = match decl {

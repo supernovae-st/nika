@@ -51,7 +51,7 @@ A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->28<!-- /ca
 
 ### `nika:log`
 ```yaml
-invoke: { tool: "nika:log", args: { level: info, message: "Processing ${{ vars.user_id }}", data: { foo: "bar" } } }
+invoke: { tool: "nika:log", args: { level: info, message: "Processing ${{ inputs.user_id }}", data: { foo: "bar" } } }
 ```
 Emit a log entry (`debug`/`info`/`warn`/`error`) to the workflow event stream (human-readable diagnostic).
 

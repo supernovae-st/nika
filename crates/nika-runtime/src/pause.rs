@@ -72,8 +72,9 @@ pub(crate) fn prompt_block(
     finish: &Finish,
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
-    vars: &BTreeMap<String, Value>,
-    env: &BTreeMap<String, Value>,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
 ) -> Option<WorkflowPause> {
     let SettleAs::Ran(ran) = &finish.settle else {
@@ -109,8 +110,9 @@ pub(crate) fn prompt_block(
     // (`env:` is non-sensitive by construction — real values render.)
     let scope = Scope {
         records,
-        vars,
-        env,
+        inputs,
+        config,
+        consts,
         secrets: markers,
         with_ns: None,
         item: None,
@@ -192,7 +194,7 @@ mod tests {
         }
     }
 
-    const PROMPT_WF: &str = "nika: v1\nworkflow:\n  id: gate\nvars:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ vars.q }}\", choices: [\"yes\", \"no\"] }\n";
+    const PROMPT_WF: &str = "nika: v1\nworkflow:\n  id: gate\ninputs:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
 
     #[test]
     fn prompt_001_on_a_direct_invoke_pauses_with_the_rendered_payload() {
@@ -205,6 +207,7 @@ mod tests {
             &wf,
             &records,
             &vars,
+            &BTreeMap::new(),
             &BTreeMap::new(),
             &markers,
         )
@@ -227,6 +230,7 @@ mod tests {
                 &records,
                 &vars,
                 &BTreeMap::new(),
+                &BTreeMap::new(),
                 &markers
             )
             .is_none()
@@ -241,6 +245,7 @@ mod tests {
                 &exec_wf,
                 &records,
                 &vars,
+                &BTreeMap::new(),
                 &BTreeMap::new(),
                 &markers
             )
@@ -262,6 +267,7 @@ mod tests {
                 &wf,
                 &records,
                 &vars,
+                &BTreeMap::new(),
                 &BTreeMap::new(),
                 &markers
             )
@@ -486,6 +492,7 @@ mod tests {
             &wf,
             &records,
             &vars,
+            &BTreeMap::new(),
             &BTreeMap::new(),
             &markers,
         )

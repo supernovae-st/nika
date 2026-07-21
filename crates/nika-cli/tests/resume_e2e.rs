@@ -14,9 +14,9 @@
 //!   SIGKILL leaves); the resumed run cache-hits `a`, executes only the
 //!   remainder live, and ends `workflow_completed` with outputs
 //!   IDENTICAL to an uninterrupted run.
-//! - **(b) input-change-rehashes-and-reruns** — same trace, one `vars`
-//!   value changed: the consuming task re-runs (no cache hit) · an
-//!   untouched sibling branch still cache-hits.
+//! - **(b) input-change-rehashes-and-reruns** — same trace, one input
+//!   value changed (`--var` override): the consuming task re-runs (no
+//!   cache hit) · an untouched sibling branch still cache-hits.
 //! - **(c) paused-prompt-rearms** — a non-interactive run hits a
 //!   default-less `nika:prompt` → exits `paused` (code 4), the trace
 //!   carries `workflow_paused` + the prompt payload; resumed with an
@@ -173,11 +173,11 @@ const FORK: &str = r#"
 nika: v1
 workflow:
   id: resume-fork
-vars:
+inputs:
   topic: { type: string, default: "news" }
 tasks:
   uses_var:
-    exec: { command: ["echo", "about", "${{ vars.topic }}"] }
+    exec: { command: ["echo", "about", "${{ inputs.topic }}"] }
   sibling:
     exec: { command: ["echo", "steady"] }
 "#;

@@ -126,7 +126,7 @@ async fn cap_equivalence_byte_identical_streams() {
 nika: v1
 workflow:
   id: cap-eq
-vars: { publish: "no" }
+const: { publish: "no" }
 tasks:
   a:
     exec: { command: ["step", "a"] }
@@ -142,7 +142,7 @@ tasks:
     exec: { command: ["join", "${{ with.a }}", "${{ with.b }}", "${{ with.c }}"] }
   gated:
     after: { join: succeeded }
-    when: ${{ vars.publish == 'yes' }}
+    when: ${{ const.publish == 'yes' }}
     exec: { command: ["echo", "never"] }
 "#;
     let mut streams: Vec<Vec<Event>> = Vec::new();
@@ -341,11 +341,11 @@ nika: v1
 workflow:
   id: herd
 model: mock/echo
-vars:
+const:
   items: ["x", "y"]
 tasks:
   flaky_fan:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     max_parallel: 1
     retry: { max_attempts: 2, backoff_ms: 10000, backoff_strategy: fixed, jitter: true }
     agent:
@@ -767,11 +767,11 @@ async fn for_each_maps_items_in_order_with_locals() {
 nika: v1
 workflow:
   id: fan
-vars:
+const:
   urls: ["alpha", "beta", "gamma"]
 tasks:
   scrape:
-    for_each: ${{ vars.urls }}
+    for_each: ${{ const.urls }}
     max_parallel: 1
     with: { page: "${{ item }}" }
     exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
@@ -823,11 +823,11 @@ nika: v1
 workflow:
   id: fan-tokens
 model: mock/echo
-vars:
+const:
   prompts: ["alpha", "beta", "gamma"]
 tasks:
   think_all:
-    for_each: ${{ vars.prompts }}
+    for_each: ${{ const.prompts }}
     max_parallel: 1
     infer:
       prompt: "ponder ${{ item }}"
@@ -866,11 +866,11 @@ async fn for_each_fail_fast_false_nulls_at_index() {
 nika: v1
 workflow:
   id: fan-collect
-vars:
+const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     max_parallel: 1
     fail_fast: false
     exec: { command: ["do", "${{ item }}"] }
@@ -910,11 +910,11 @@ async fn for_each_on_error_skip_nulls_at_index_parent_succeeds() {
 nika: v1
 workflow:
   id: fan-skip
-vars:
+const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     max_parallel: 1
     on_error: { skip: true }
     exec: { command: ["do", "${{ item }}"] }
@@ -937,7 +937,7 @@ tasks:
     assert!(outcome.ok, "per-iteration skip keeps the parent successful");
     assert_eq!(outcome.records["work"].status, TaskStatus::Success);
     // `.output` is the positional array · null AT the skipped index ·
-    // the zip pattern stays sound (positions align with `vars.items`).
+    // the zip pattern stays sound (positions align with `const.items`).
     assert_eq!(
         outcome.records["work"].output,
         serde_json::json!(["ok-one", null, "ok-three"])
@@ -952,11 +952,11 @@ async fn for_each_fail_fast_true_stops_the_lane() {
 nika: v1
 workflow:
   id: fan-abort
-vars:
+const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     max_parallel: 1
     exec: { command: ["do", "${{ item }}"] }
 "#;
@@ -986,15 +986,15 @@ async fn for_each_empty_skips_and_non_array_fails() {
 nika: v1
 workflow:
   id: fan-edges
-vars:
+const:
   none: []
   scalar: "not a list"
 tasks:
   empty_lane:
-    for_each: ${{ vars.none }}
+    for_each: ${{ const.none }}
     exec: { command: ["never", "${{ item }}"] }
   bad_lane:
-    for_each: ${{ vars.scalar }}
+    for_each: ${{ const.scalar }}
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome, events) = run_to_events(
@@ -1032,11 +1032,11 @@ async fn for_each_iterations_run_concurrently_under_the_cap() {
 nika: v1
 workflow:
   id: fan-pair
-vars:
+const:
   items: ["x", "y"]
 tasks:
   pair:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     max_parallel: 2
     invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
 "#;
@@ -1160,10 +1160,10 @@ async fn status_gates_route_on_skipped_upstream() {
 nika: v1
 workflow:
   id: routing
-vars: { mode: "fast" }
+const: { mode: "fast" }
 tasks:
   slow_path:
-    when: ${{ vars.mode == 'slow' }}
+    when: ${{ const.mode == 'slow' }}
     exec: { command: ["slow", "work"] }
   report:
     with: { s: "${{ tasks.slow_path.status }}" }
@@ -1231,10 +1231,10 @@ tasks:
 nika: v1
 workflow:
   id: pin-var
-vars: { scalar: "not a list" }
+const: { scalar: "not a list" }
 tasks:
   bad:
-    for_each: ${{ vars.scalar }}
+    for_each: ${{ const.scalar }}
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome2, _) = run_to_events(
@@ -1280,11 +1280,11 @@ async fn for_each_when_gate_referencing_item_fails_loudly() {
 nika: v1
 workflow:
   id: gate-item
-vars:
+const:
   items: ["a", "b"]
 tasks:
   fan:
-    for_each: ${{ vars.items }}
+    for_each: ${{ const.items }}
     when: ${{ item != 'skip' }}
     exec: { command: ["do", "${{ item }}"] }
 "#;
