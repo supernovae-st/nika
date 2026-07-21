@@ -704,7 +704,11 @@ pub fn production_runtime(
     // with exec tasks but no backend on this platform = the exec child
     // runs unconfined; the builtin/fetch seams still enforce, said loudly.
     let sandbox = command_sandbox();
-    if caps.exec_tasks && caps.fs.is_declared() && sandbox.backend() == "noop" {
+    // The backend NAME rides into the journal (`workflow_started.sandbox`)
+    // so the evidence pack reads the run's confinement mode from journal
+    // bytes — captured before the sandbox moves into the shell.
+    let sandbox_backend = sandbox.backend();
+    if caps.exec_tasks && caps.fs.is_declared() && sandbox_backend == "noop" {
         eprintln!(
             "note: exec runs UNCONFINED (no OS sandbox backend on this platform) — the \
              declared boundary still gates fs/net at the builtin and fetch seams"
@@ -772,7 +776,9 @@ pub fn production_runtime(
             default_model,
         ),
         SystemClock,
-        RuntimeConfig::default().with_sandbox_root(std::env::current_dir().unwrap_or_default()),
+        RuntimeConfig::default()
+            .with_sandbox_root(std::env::current_dir().unwrap_or_default())
+            .with_sandbox_backend(sandbox_backend),
     )
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-

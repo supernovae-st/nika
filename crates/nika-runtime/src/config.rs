@@ -28,6 +28,13 @@ pub struct RuntimeConfig {
     /// `FsBoundary` canonicalizes against, so check≡run≡jail cannot drift).
     /// `None` = the process cwd at dispatch time.
     pub sandbox_root: Option<std::path::PathBuf>,
+    /// The OS command-sandbox backend the composer selected for this run
+    /// (`seatbelt` · `landlock` · `noop` — the `CommandSandbox::backend`
+    /// name). Journaled on `workflow_started` so the evidence pack reads
+    /// the run's confinement mode from the journal itself; `None` = the
+    /// composer did not say (older composers — the pack reports it as
+    /// unrecorded, never guessed).
+    pub sandbox_backend: Option<String>,
 }
 
 impl RuntimeConfig {
@@ -39,6 +46,7 @@ impl RuntimeConfig {
             jitter_seed,
             max_cost_usd: None,
             sandbox_root: None,
+            sandbox_backend: None,
         }
     }
 
@@ -54,6 +62,15 @@ impl RuntimeConfig {
     #[must_use]
     pub fn with_sandbox_root(mut self, root: std::path::PathBuf) -> Self {
         self.sandbox_root = Some(root);
+        self
+    }
+
+    /// Record the OS sandbox backend name for the journal (builder — the
+    /// composer names the `CommandSandbox::backend` it selected so the
+    /// evidence pack reads the run's confinement mode from the journal).
+    #[must_use]
+    pub fn with_sandbox_backend(mut self, backend: &str) -> Self {
+        self.sandbox_backend = Some(backend.to_owned());
         self
     }
 }

@@ -103,5 +103,14 @@ timeout boundary (spec 03 · catchable · never retryable).
    an L4 forensic-read error that never crosses into the
    workflow/verb plane — every consumer renders `Display` as its
    env-class message. Zero NIKA range owed.
+5. **`PackError`** (nika-dap `evidence.rs`) — born typed with the A5
+   evidence pack (2026-07-21 · the crate-size descent from `nika-cli`'s
+   `verbs::evidence`, which never carried an error enum at all — the
+   verb's env-class `VerbOutput` became a typed error at the descent).
+   Exempted `transport-surface` (allowlist row · the RecoverError
+   class): an L4 forensic-export error that never crosses into the
+   workflow/verb plane — its ONLY consumer (the `nika evidence` shell)
+   renders `Display` verbatim as the env-class message. Zero NIKA
+   range owed.
 
 🦋

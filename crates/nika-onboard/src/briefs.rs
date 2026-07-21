@@ -104,6 +104,8 @@ builtins. Copy, fill, check.
   sidecar · the workflow itself never changes) · `nika sign --check <file>`
   verifies · `nika run --require-signature <file>` refuses an unsigned or
   invalidly-signed workflow BEFORE anything executes (exit 2).
+- `nika evidence <run>` — export the evidence pack: journal + manifest
+  (hash · boundary · trifecta · sandbox · seal grade) + receipt + VERIFY.md.
 - `nika dap` — step a recorded run under a debugger UI, forward AND back.
 
 ## Servers (stdio · for editors and agent clients)

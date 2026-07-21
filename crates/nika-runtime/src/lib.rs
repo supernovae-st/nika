@@ -421,6 +421,7 @@ fn emit_prologue(
     workflow_name: &str,
     source_sha256: Option<&str>,
     source_sha256_lf: Option<&str>,
+    sandbox_backend: Option<&str>,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -443,6 +444,24 @@ fn emit_prologue(
     }
     if let Some(hex) = source_sha256_lf {
         opening.push(("workflow_sha256_lf", s(hex)));
+    }
+    // The evidence-pack fields (A5): the journal must let an auditor read
+    // the run's identity + boundary + confinement from the journal's OWN
+    // bytes — a claim the pack cannot trace to journal bytes is marketing.
+    // All three are deterministic projections of what the run already knew
+    // (no clock, no I/O), and additive: older readers ignore unknown fields
+    // (tolerant serde), newer readers find them absent on older journals
+    // and say "unrecorded", never a guess.
+    if let Some(hash) = crate::proof::ir::semantic_ir_hash(wf) {
+        opening.push(("semantic_hash", s(hash.as_hex())));
+    }
+    if let Some(permits) = wf.permits.as_ref()
+        && let Ok(json) = serde_json::to_string(&permits.value)
+    {
+        opening.push(("permits_json", s(&json)));
+    }
+    if let Some(backend) = sandbox_backend {
+        opening.push(("sandbox", s(backend)));
     }
     // The trace-format marker (spec 13 §trace · the graph_format: 2
     // precedent): format-2 lines carry `outcome: {class, cause}` on
@@ -560,6 +579,7 @@ where
             &workflow_name,
             self.source_sha256.as_deref(),
             self.source_sha256_lf.as_deref(),
+            self.config.sandbox_backend.as_deref(),
             stamper,
             sink,
         );
@@ -1459,6 +1479,8 @@ fn json_type_name(value: &Value) -> &'static str {
     }
 }
 
+#[cfg(test)]
+mod prologue;
 #[cfg(test)]
 mod tests;
 

@@ -168,11 +168,13 @@ pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::config::RuntimeConfig::max_cost_usd: core::option::Option<f64>
+pub nika_runtime::config::RuntimeConfig::sandbox_backend: core::option::Option<alloc::string::String>
 pub nika_runtime::config::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
 pub nika_runtime::config::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
 impl core::clone::Clone for nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::clone(&self) -> nika_runtime::config::RuntimeConfig
@@ -823,11 +825,13 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::as_any(&self) -> &(dyn core::any
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
+pub nika_runtime::RuntimeConfig::sandbox_backend: core::option::Option<alloc::string::String>
 pub nika_runtime::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
 pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
 impl core::clone::Clone for nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::clone(&self) -> nika_runtime::config::RuntimeConfig

@@ -44,7 +44,7 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace                   # the living DAG · the flight recorder\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
+    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace · evidence        # the living DAG · the flight recorder · the pack\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -209,9 +209,7 @@ enum Command {
         #[arg(long)]
         forecast: bool,
     },
-    /// The run-signing key lifecycle (S2 · verifiable runs): mint the
-    /// ed25519 key the journal seals with, print the TOFU fingerprint to
-    /// enroll elsewhere, rotate with the old public half kept verifiable.
+    /// The run-signing key lifecycle (mint · TOFU fingerprint · rotate — old pubs stay verifiable).
     #[command(display_order = 70)]
     Key {
         #[command(subcommand)]
@@ -314,6 +312,12 @@ enum Command {
     Trace {
         #[command(subcommand)]
         action: TraceAction,
+    },
+    /// Export the evidence pack for one run (journal + manifest + receipt + VERIFY.md).
+    #[command(display_order = 32)]
+    Evidence {
+        #[command(flatten)]
+        args: verbs::evidence::EvidenceArgs,
     },
     /// Debug Adapter Protocol server (stdio) — time-travel a recorded
     /// run under a debugger UI: breakpoints on task lines · step forward
@@ -830,6 +834,7 @@ fn main() -> std::process::ExitCode {
             0
         }
         Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
+        Command::Evidence { args } => evidence_run(args),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -880,6 +885,18 @@ fn announce_latest(path: &Path) {
 /// The bare form of a static trace reader: no path → the workspace's
 /// latest trace, named on stderr · zero traces → the teaching error,
 /// exit 3 (ADR-098 environment).
+fn evidence_run(args: verbs::evidence::EvidenceArgs) -> u8 {
+    match resolve_trace(args.trace) {
+        Ok(path) => emit(&verbs::evidence::export(
+            &path.to_string_lossy(),
+            args.out.as_deref(),
+            args.workflow.as_deref(),
+            args.json,
+        )),
+        Err(code) => code,
+    }
+}
+
 fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
     if let Some(path) = given {
         return Ok(verbs::trace::manage::resolve_store_handle(&path));
