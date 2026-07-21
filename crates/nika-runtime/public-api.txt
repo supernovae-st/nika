@@ -525,6 +525,9 @@ pub nika_runtime::RuntimeError::ContractViolation::message: alloc::string::Strin
 pub nika_runtime::RuntimeError::Decode
 pub nika_runtime::RuntimeError::Decode::message: alloc::string::String
 pub nika_runtime::RuntimeError::DirtyReport
+pub nika_runtime::RuntimeError::MissingRequiredInputs
+pub nika_runtime::RuntimeError::MissingRequiredInputs::declared: alloc::vec::Vec<alloc::string::String>
+pub nika_runtime::RuntimeError::MissingRequiredInputs::missing: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::RuntimeError::OutputBinding
 pub nika_runtime::RuntimeError::OutputBinding::code: &'static str
 pub nika_runtime::RuntimeError::OutputBinding::message: alloc::string::String
@@ -1088,4 +1091,5 @@ pub fn nika_runtime::WorkflowSecretResolver::resolve(&self, name: &str, referenc
 impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
 pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
+pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool

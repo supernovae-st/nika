@@ -64,7 +64,7 @@ use std::io::Write as _;
 use serde_json::Value;
 
 use nika_runtime::resume::ResumePlan;
-use nika_runtime::{EventSink, RunOutcome, Runtime, Stamper};
+use nika_runtime::{EventSink, RunOutcome, Runtime, RuntimeError, Stamper};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
@@ -974,9 +974,8 @@ fn shared_fold(
 
 /// Run the workflow through a sink + map the outcome to an exit code.
 ///
-/// A `RuntimeError` on a CLEAN report is a SYSTEM contract breach (the
-/// checker proved it clean · the runtime should never reject it) — exit
-/// 3 with the wire code, never a panic (the zero-unwrap policy).
+/// A `RuntimeError` out of `run` is exit 3, never a panic: NIKA-1708 (the
+/// admission refusal · an OPERATOR miss) prints its text — any other class is a SYSTEM breach and says so.
 async fn drive<S, T, H, P, D, C>(
     runtime: &Runtime<S, T, H, P, D, C>,
     wf: &RawWorkflow,
@@ -1009,13 +1008,18 @@ where
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
             let mut stderr = std::io::stderr().lock();
-            let _ = writeln!(
-                stderr,
-                "nika run: system: the checked workflow was rejected at run \
-                 time ({} · {err}) — this is an engine contract breach, \
-                 please report it",
-                err.nika_code()
-            );
+            if let RuntimeError::MissingRequiredInputs { .. } = err {
+                // The admission refusal (#603): an OPERATOR miss, its text names the fix.
+                let _ = writeln!(stderr, "nika run: {err}");
+            } else {
+                let _ = writeln!(
+                    stderr,
+                    "nika run: system: the checked workflow was rejected at run \
+                     time ({} · {err}) — this is an engine contract breach, \
+                     please report it",
+                    err.nika_code()
+                );
+            }
             (
                 exit::ENV,
                 RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
@@ -1202,12 +1206,13 @@ mod tests {
 
     #[test]
     fn var_flag_satisfies_a_required_var() {
-        // Without the flag the first `${{ vars.topic }}` reference fails
-        // the task (NIKA-VAR-001) → workflow failed.
+        // Without the flag the run refuses at ADMISSION (issue #603 ·
+        // NIKA-1708 · exit 3) — before the DAG spends a task; the mid-DAG
+        // NIKA-VAR-001 at the first `${{ inputs.topic }}` read was the bug.
         assert_eq!(
             run_with_vars("var-missing.nika.yaml", &[]),
-            exit::WORKFLOW,
-            "an unbound required var still fails the run"
+            exit::ENV,
+            "an unsatisfied required input refuses at admission (#603)"
         );
         // With `--var topic=rust` the SAME workflow runs green.
         assert_eq!(

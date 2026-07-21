@@ -343,6 +343,9 @@ fn run_code_help(num: u16) -> &'static str {
         1707 => {
             "The CheckReport does not match the workflow bytes — the run-start boundary re-derivation (permits-fit · trifecta) found something a clean report was credited with not having. Re-run `nika check` on THIS file; a clean report over different bytes is not clean."
         }
+        1708 => {
+            "A `required: true` input has neither a declared `default:` nor a `--var` override — the run refuses at admission, before any task spends. Supply each named input with `nika run <file> --var <name>=<value>` (or declare a `default:`)."
+        }
         _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }
 }

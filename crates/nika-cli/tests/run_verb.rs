@@ -263,3 +263,100 @@ fn examples_run_unknown_slug_is_a_finding() {
         "points at the set: {stderr}"
     );
 }
+
+/// The #603 admission repro (the 2026-07-21 four-authority translation):
+/// `needle` is `required: true` with no `default:` — without `--var` the
+/// run must refuse at ADMISSION, before wave 1 spends a task.
+fn required_input_wf(out_path: &std::path::Path) -> String {
+    r#"nika: v1
+workflow:
+  id: req-input-admission
+inputs:
+  needle: { type: string, required: true }
+permits:
+  fs: { write: ["OUT"] }
+  tools: ["nika:write"]
+tasks:
+  first:
+    invoke: { tool: "nika:write", args: { path: "OUT", content: "spends before the crash" } }
+  use:
+    after:
+      first: succeeded
+    invoke: { tool: "nika:write", args: { path: "OUT", content: "${{ inputs.needle }}" } }
+"#
+    .replace("OUT", &out_path.display().to_string())
+}
+
+#[test]
+fn a_missing_required_input_is_refused_before_any_task_event() {
+    let out_file = std::env::temp_dir()
+        .join("nika-run-verb")
+        .join("req-input-missing-out.txt");
+    let _ = std::fs::remove_file(&out_file);
+    let wf = fixture("req-input-missing.nika.yaml", &required_input_wf(&out_file));
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--json")
+        .args(["--color", "never"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(3),
+        "the admission refusal is the ENV class · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        stdout.trim().is_empty(),
+        "refused BEFORE any event — not even the prologue on the journal stream: {stdout}"
+    );
+    let stderr = String::from_utf8(out.stderr).expect("utf8");
+    assert!(stderr.contains("NIKA-1708"), "the launch class: {stderr}");
+    assert!(stderr.contains("`needle`"), "the input is named: {stderr}");
+    assert!(
+        stderr.contains("--var needle=<value>"),
+        "the satisfaction is taught: {stderr}"
+    );
+    assert!(
+        !out_file.exists(),
+        "wave 1 never spent — `first` never wrote the file"
+    );
+}
+
+#[test]
+fn a_var_override_satisfies_the_required_input() {
+    // The control: `--var needle=…` IS the input's value (F4) — the SAME
+    // workflow completes.
+    let out_file = std::env::temp_dir()
+        .join("nika-run-verb")
+        .join("req-input-satisfied-out.txt");
+    let _ = std::fs::remove_file(&out_file);
+    let wf = fixture(
+        "req-input-satisfied.nika.yaml",
+        &required_input_wf(&out_file),
+    );
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--json")
+        .args(["--color", "never"])
+        .arg("--var")
+        .arg("needle=ok")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the override satisfies admission · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(stdout.contains("workflow_completed"), "the run completes");
+    let written = std::fs::read_to_string(&out_file).expect("the use task wrote");
+    assert!(
+        written.contains("ok"),
+        "the override reached the read: {written}"
+    );
+}

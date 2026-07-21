@@ -4,7 +4,8 @@
 //! `nika-runtime` errors — the NIKA-1700 range (`Category::Runtime`).
 //!
 //! These are RUN-ABORT classes only (contract breaches between the
-//! checker and the runtime · template/gate static failures). A verb
+//! checker and the runtime · template/gate static failures · launch
+//! refusals like the admission preflight's NIKA-1708). A verb
 //! failing inside a task is NOT a runtime error — it becomes a
 //! `TaskFailed` event carrying the verb's own `nika_code()` and the run
 //! continues per the cascade semantics (spec §3).
@@ -12,7 +13,7 @@
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::prelude::codes;
 
-/// Run-abort errors · `NIKA-1700..1703` (spec §4).
+/// Run-abort errors · the `NIKA-170x` range (spec §4).
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum RuntimeError {
@@ -48,6 +49,23 @@ pub enum RuntimeError {
         index: usize,
         /// The workflow's task count.
         task_count: usize,
+    },
+
+    /// NIKA-1708 · a `required: true` input reached `run` with neither a
+    /// declared `default:` nor a `--var` override — the ADMISSION
+    /// preflight (issue #603) refuses the launch BEFORE the prologue
+    /// (zero events · zero spend); the mid-DAG NIKA-VAR-001 at the first
+    /// `${{ inputs.x }}` read was the bug. The launch-refusal family
+    /// with [`Self::DirtyReport`]/[`Self::ReportMismatch`]: it aborts
+    /// before the task pipeline, so the engine-internal code IS the
+    /// wire form (never a `tasks.X.error` record).
+    #[error("NIKA-1708 · {}", missing_required_message(.missing, .declared))]
+    #[diagnostic(code(nika::runtime::missing_required_input))]
+    MissingRequiredInputs {
+        /// Each unsatisfied `required: true` input (declaration order).
+        missing: Vec<String>,
+        /// The full declared `inputs:` set (the satisfaction vocabulary).
+        declared: Vec<String>,
     },
 
     /// A `${{ }}` reference did not resolve (unknown task id / var key ·
@@ -159,6 +177,31 @@ fn var_cli_hint(reference: &str) -> &'static str {
     }
 }
 
+/// The teaching text of [`RuntimeError::MissingRequiredInputs`] — names
+/// EACH unsatisfied input, the `--var` satisfaction (the operator fix,
+/// no workflow edit), the `default:` alternative, and the declared set
+/// (the same vocabulary the CLI's unknown-`--var`-key refusal lists).
+fn missing_required_message(missing: &[String], declared: &[String]) -> String {
+    let names = missing
+        .iter()
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(" · ");
+    let fix = match missing.first() {
+        Some(first) => format!("`--var {first}=<value>` satisfies it"),
+        None => "`--var <name>=<value>` satisfies it".to_owned(),
+    };
+    let vocabulary = if declared.is_empty() {
+        String::new()
+    } else {
+        format!(" · the workflow declares: {}", declared.join(" · "))
+    };
+    format!(
+        "missing required inputs: {names} — a `required: true` input with no `default:` \
+         must be supplied at launch ({fix}){vocabulary}"
+    )
+}
+
 impl RuntimeError {
     /// The WIRE code a consumer filters on (`on_codes:` · the user-
     /// visible code). Defaults to the engine-internal `nika_code()` for
@@ -182,10 +225,11 @@ impl RuntimeError {
             // An out-of-subset expression reaching the runtime is NIKA-VAR-005
             // (validation_error · the checker is the primary site).
             Self::WhenUnsupported { .. } => "NIKA-VAR-005".to_owned(),
-            // DirtyReport · ReportMismatch · WaveOutOfBounds are engine
-            // invariant breaches that abort the run before the task pipeline
-            // (never a workflow-visible record) · their engine-internal code
-            // is the only wire form.
+            // DirtyReport · ReportMismatch · WaveOutOfBounds ·
+            // MissingRequiredInputs are launch refusals / invariant
+            // breaches that abort the run before the task pipeline
+            // (never a workflow-visible record) · their engine-internal
+            // code is the only wire form.
             other => other.nika_code().to_string(),
         }
     }
@@ -244,6 +288,7 @@ impl NikaErrorCode for RuntimeError {
             Self::DirtyReport => codes::NIKA_1700,
             Self::ReportMismatch { .. } => codes::NIKA_1707,
             Self::WaveOutOfBounds { .. } => codes::NIKA_1701,
+            Self::MissingRequiredInputs { .. } => codes::NIKA_1708,
             Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
             // CelEval + OutputBinding are spec-plane evaluation classes ·
             // at the engine-internal layer they share the "expression
@@ -269,7 +314,7 @@ impl NikaErrorCode for RuntimeError {
 mod tests {
     use super::*;
 
-    fn all() -> [RuntimeError; 7] {
+    fn all() -> [RuntimeError; 8] {
         [
             RuntimeError::DirtyReport,
             RuntimeError::ReportMismatch {
@@ -278,6 +323,10 @@ mod tests {
             RuntimeError::WaveOutOfBounds {
                 index: 9,
                 task_count: 3,
+            },
+            RuntimeError::MissingRequiredInputs {
+                missing: vec!["needle".into()],
+                declared: vec!["needle".into(), "limit".into()],
             },
             RuntimeError::UnresolvedTemplate {
                 reference: "tasks.ghost.output".into(),
@@ -299,7 +348,7 @@ mod tests {
         let mut nums: Vec<u16> = all().iter().map(|e| e.nika_code().num).collect();
         nums.sort_unstable();
         nums.dedup();
-        assert_eq!(nums.len(), 7, "duplicate code in the 1700 range");
+        assert_eq!(nums.len(), 8, "duplicate code in the 1700 range");
         assert!(nums.iter().all(|n| (1700..1800).contains(n)));
     }
 
@@ -320,6 +369,37 @@ mod tests {
         assert!(msg.contains("re-check the file"), "{msg}");
         assert!(msg.contains("task `leak`"), "the finding is named: {msg}");
         assert!(!err.is_transient(), "a forged report never retries");
+    }
+
+    #[test]
+    fn missing_required_inputs_is_the_launch_refusal_class() {
+        // Issue #603: the admission preflight's refusal TEACHES — every
+        // unsatisfied input named, the `--var` satisfaction (the operator
+        // fix, no workflow edit), the declared vocabulary. The wire form
+        // is the engine-internal code (a launch refusal, never a
+        // `tasks.X.error` record — the 1700/1707 posture).
+        let err = RuntimeError::MissingRequiredInputs {
+            missing: vec!["needle".into(), "region".into()],
+            declared: vec!["needle".into(), "region".into(), "limit".into()],
+        };
+        assert_eq!(err.spec_code(), "NIKA-1708");
+        assert_eq!(err.nika_code(), codes::NIKA_1708);
+        let msg = err.to_string();
+        assert!(msg.starts_with("NIKA-1708 · "), "{msg}");
+        assert!(
+            msg.contains("`needle`") && msg.contains("`region`"),
+            "{msg}"
+        );
+        assert!(
+            msg.contains("--var needle=<value>"),
+            "the fix is named: {msg}"
+        );
+        assert!(msg.contains("default:"), "the author alternative: {msg}");
+        assert!(
+            msg.contains("the workflow declares: needle · region · limit"),
+            "the declared set rides: {msg}"
+        );
+        assert!(!err.is_transient(), "an unsatisfied input never retries");
     }
 
     #[test]
