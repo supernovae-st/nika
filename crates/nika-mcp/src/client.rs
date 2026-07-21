@@ -25,6 +25,8 @@
 //!   "mcp_servers_format": 1,
 //!   "servers": {
 //!     "postgres": { "command": "npx", "args": ["-y", "@mcp/postgres"] },
+//!     "github":   { "command": "gh-mcp", "network": "allow" },
+//!     "web":      { "command": "web-mcp", "network": { "allowlist": ["api.example.com"] } },
 //!     "remote":   { "url": "https://mcp.example.com/mcp" }
 //!   }
 //! }
@@ -32,9 +34,18 @@
 //!
 //! A `url` server is an HONEST refusal today ([`PinError::Unsupported`] —
 //! the remote transport is not wired; claiming "nothing to pin" would lie).
+//!
+//! The `network` field is the per-server network arm for the spawned child
+//! (see [`crate::sandbox`]): ABSENT is deny (a local MCP server needs no
+//! network — fail-closed), `"allow"` is the explicit escape hatch, and
+//! `{ "allowlist": [hosts…] }` reserves the host-granular arm. It is an
+//! ADDITIVE registry extension — `mcp_servers_format` stays 1 because old
+//! files parse unchanged (the field defaults to deny) and older engines
+//! ignore unknown entry fields (serde's posture), so no envelope bump is
+//! honest.
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 // The `std::process` / `std::thread::spawn` exemption below is deliberate and
 // scoped: an MCP stdio session is a PERSISTENT bidirectional pipe — a shape
 // the one-shot kernel `ShellRunDyn` seam cannot express — and tokio is
@@ -43,9 +54,12 @@ use std::path::Path;
 // mechanism for a BOUNDED pipe read. INV-011 is honored by `KillOnDrop`.
 #[allow(clippy::disallowed_types)]
 use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;
 
+use nika_kernel::command_sandbox::CommandSandbox;
+use nika_kernel::process::{EgressAllowlist, NetPolicy, ShellCommand};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -77,6 +91,10 @@ pub struct McpServerConfig {
     pub args: Vec<String>,
     /// The remote URL (refused honestly until the transport lands).
     pub url: Option<String>,
+    /// The network arm for the spawned child (the registry's additive
+    /// `network` field) — [`NetPolicy::Deny`] unless the operator opted in
+    /// (fail-closed: a local MCP server needs no network).
+    pub network: NetPolicy,
 }
 
 impl McpServerConfig {
@@ -88,6 +106,7 @@ impl McpServerConfig {
             command: Some(command.into()),
             args,
             url: None,
+            network: NetPolicy::Deny,
         }
     }
 
@@ -99,10 +118,21 @@ impl McpServerConfig {
             command: None,
             args: Vec::new(),
             url: Some(url.into()),
+            network: NetPolicy::Deny,
         }
     }
 
-    /// The lockfile identity (what a re-point changes).
+    /// Set the network arm (the registry `network` field's in-memory form —
+    /// see [`crate::sandbox`] for the confinement semantics).
+    #[must_use]
+    pub fn with_network(mut self, network: NetPolicy) -> Self {
+        self.network = network;
+        self
+    }
+
+    /// The lockfile identity (what a re-point changes). The `network` arm is
+    /// NOT identity: it is the operator's local grant, not a property of the
+    /// server — changing it re-points nothing and needs no re-pin.
     pub(crate) fn identity(&self) -> ServerIdentity {
         ServerIdentity {
             command: self.command.clone(),
@@ -128,6 +158,70 @@ struct ServerEntry {
     args: Vec<String>,
     #[serde(default)]
     url: Option<String>,
+    /// The additive per-server network arm (the format-1 extension — see the
+    /// module doc): ABSENT is deny (fail-closed).
+    #[serde(default)]
+    network: Option<NetEntry>,
+}
+
+/// The `network` field's wire shape: a bare arm string (`"deny"` ·
+/// `"allow"`), or the allowlist object reserving the host-granular arm.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum NetEntry {
+    /// The bare arm string.
+    Arm(NetArm),
+    /// The host-granular arm (`{ "allowlist": [hosts…] }`).
+    Allowlist {
+        /// The declared egress hosts (exact names or leading-`*.` globs).
+        allowlist: Vec<String>,
+    },
+}
+
+/// The bare-string network arms.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum NetArm {
+    /// No outbound network (the default — written explicitly for emphasis).
+    Deny,
+    /// Unrestricted outbound network — the explicit escape hatch.
+    Allow,
+}
+
+impl NetEntry {
+    /// Map the wire form onto the kernel's [`NetPolicy`] tri-state —
+    /// strict-and-teaching ([`PinError::Corrupt`]): an empty allowlist is an
+    /// authoring error (it denies everything — write `"deny"`), a bare `*`
+    /// inside it subsumes the list (write `"allow"`), an empty host names
+    /// nothing.
+    fn into_policy(self, path: &Path, name: &str) -> Result<NetPolicy, PinError> {
+        let corrupt = |why: String| PinError::Corrupt {
+            path: path.to_path_buf(),
+            why,
+        };
+        match self {
+            Self::Arm(NetArm::Deny) => Ok(NetPolicy::Deny),
+            Self::Arm(NetArm::Allow) => Ok(NetPolicy::Allow),
+            Self::Allowlist { allowlist } => {
+                if allowlist.is_empty() {
+                    return Err(corrupt(format!(
+                        "server `{name}` declares an empty network allowlist — an empty list denies everything; write \"network\": \"deny\""
+                    )));
+                }
+                if allowlist.iter().any(|h| h == "*") {
+                    return Err(corrupt(format!(
+                        "server `{name}` puts a bare `*` in the network allowlist — it subsumes every host; write \"network\": \"allow\""
+                    )));
+                }
+                if allowlist.iter().any(|h| h.trim().is_empty()) {
+                    return Err(corrupt(format!(
+                        "server `{name}` declares an empty host in the network allowlist"
+                    )));
+                }
+                Ok(NetPolicy::Allowlist(EgressAllowlist::new(allowlist)))
+            }
+        }
+    }
 }
 
 /// Load the configured servers under `project_dir`. A MISSING registry is
@@ -169,11 +263,16 @@ pub fn load_server_configs(project_dir: &Path) -> Result<Vec<McpServerConfig>, P
     let mut out = Vec::with_capacity(file.servers.len());
     for (name, entry) in file.servers {
         validate_entry(&path, &name, &entry)?;
+        let network = match entry.network {
+            Some(net) => net.into_policy(&path, &name)?,
+            None => NetPolicy::Deny,
+        };
         out.push(McpServerConfig {
             name,
             command: entry.command,
             args: entry.args,
             url: entry.url,
+            network,
         });
     }
     Ok(out)
@@ -204,6 +303,9 @@ fn validate_entry(path: &Path, name: &str, entry: &ServerEntry) -> Result<(), Pi
         ))),
         (None, Some(_)) if !entry.args.is_empty() => Err(corrupt(format!(
             "server `{name}` sets `args` without `command` (a url entry takes no argv)"
+        ))),
+        (None, Some(_)) if entry.network.is_some() => Err(corrupt(format!(
+            "server `{name}` sets `network` without `command` (the sandbox arms a spawned stdio server — a url entry has no child to confine)"
         ))),
         _ => Ok(()),
     }
@@ -283,7 +385,8 @@ pub struct ApproveReport {
 /// [`PinError::Drift`] on any served-vs-pinned difference (fail closed — no
 /// tools ride the error) · [`PinError::Transport`] /
 /// [`PinError::Malformed`] when the server cannot be vetted ·
-/// [`PinError::Unsupported`] for a remote-only entry ·
+/// [`PinError::Sandbox`] when the OS sandbox refuses the spawn (no process
+/// is started) · [`PinError::Unsupported`] for a remote-only entry ·
 /// [`PinError::Corrupt`] / [`PinError::Io`] on the lockfile.
 pub fn connect_verified<C: ToolsListDyn + ?Sized>(
     config: &McpServerConfig,
@@ -320,8 +423,9 @@ pub fn connect_verified<C: ToolsListDyn + ?Sized>(
 /// # Errors
 ///
 /// [`PinError::Transport`] / [`PinError::Malformed`] when the server cannot
-/// be vetted · [`PinError::Unsupported`] for a remote-only entry ·
-/// [`PinError::Corrupt`] / [`PinError::Io`] on the lockfile.
+/// be vetted · [`PinError::Sandbox`] when the OS sandbox refuses the spawn
+/// (no process is started) · [`PinError::Unsupported`] for a remote-only
+/// entry · [`PinError::Corrupt`] / [`PinError::Io`] on the lockfile.
 pub fn approve_server<C: ToolsListDyn + ?Sized>(
     config: &McpServerConfig,
     client: &C,
@@ -382,22 +486,37 @@ impl Drop for KillOnDrop {
     }
 }
 
-/// The production seam: spawn the configured command, handshake, one
-/// bounded `tools/list`. Synchronous (this crate is tokio-free by
-/// dependency law) — a single reader thread drains the child's stdout into
-/// a channel so every reply wait carries a timeout.
+/// The production seam: spawn the configured command — CONFINED by the OS
+/// sandbox (the `CommandSandbox` seam · see [`crate::sandbox`]), with a
+/// scrubbed environment — handshake, one bounded `tools/list`. Synchronous
+/// (this crate is tokio-free by dependency law) — a single reader thread
+/// drains the child's stdout into a channel so every reply wait carries a
+/// timeout.
 pub struct StdioMcpClient {
     config: McpServerConfig,
     timeout: Duration,
+    /// The OS-confinement backend — ALWAYS present: there is no unsandboxed
+    /// construction, so the unconfined fallback cannot exist as an accident
+    /// (the deliberate `NoopSandbox` case is named loudly by
+    /// [`Self::sandbox_note`]). Injected by [`crate::sandbox::platform_sandbox`]
+    /// at [`Self::new`]; [`Self::with_sandbox`] overrides (tests · a wiring
+    /// layer carrying its own backend).
+    sandbox: Arc<dyn CommandSandbox>,
+    /// The fs-boundary anchor — the project dir the registry belongs to.
+    project_dir: PathBuf,
 }
 
 impl StdioMcpClient {
-    /// A client over the config's stdio transport.
+    /// A client over the config's stdio transport — confined by the
+    /// platform's OS sandbox ([`crate::sandbox::platform_sandbox`]) anchored
+    /// at the current directory (the `.nika/` convention's project root).
     #[must_use]
     pub fn new(config: &McpServerConfig) -> Self {
         Self {
             config: config.clone(),
             timeout: DEFAULT_TIMEOUT,
+            sandbox: crate::sandbox::platform_sandbox(),
+            project_dir: PathBuf::from("."),
         }
     }
 
@@ -408,9 +527,36 @@ impl StdioMcpClient {
         self
     }
 
-    /// Spawn the child + reader thread. The child rides a [`KillOnDrop`]
-    /// guard (INV-011): dropping the session SIGKILLs the server, and the
-    /// reader thread ends itself on the resulting pipe EOF.
+    /// Override the confinement backend — the seam for tests and for a
+    /// wiring layer carrying its own `CommandSandbox`.
+    #[must_use]
+    pub fn with_sandbox(mut self, sandbox: Arc<dyn CommandSandbox>) -> Self {
+        self.sandbox = sandbox;
+        self
+    }
+
+    /// Re-anchor the filesystem boundary at the project dir the registry was
+    /// loaded from (when it is not the process cwd).
+    #[must_use]
+    pub fn with_project_dir(mut self, project_dir: impl Into<PathBuf>) -> Self {
+        self.project_dir = project_dir.into();
+        self
+    }
+
+    /// The one-line sandbox mode note — `sandboxed (seatbelt · net deny)`
+    /// style — printed on every connect/verify (see [`crate::sandbox`]).
+    #[must_use]
+    pub fn sandbox_note(&self) -> String {
+        crate::sandbox::sandbox_note(self.sandbox.backend(), &self.config.network)
+    }
+
+    /// Spawn the child + reader thread — through the OS sandbox FIRST
+    /// (fail-closed): the configured command is confined to the derived
+    /// boundary ([`McpServerConfig::sandbox_spec`]) and a confine refusal is
+    /// [`PinError::Sandbox`] with NO process started (never a silent
+    /// unconfined fallback). The child rides a [`KillOnDrop`] guard
+    /// (INV-011): dropping the session SIGKILLs the server, and the reader
+    /// thread ends itself on the resulting pipe EOF.
     #[allow(clippy::disallowed_types, clippy::disallowed_methods)] // import-site note: persistent pipe · tokio unavailable here
     fn spawn(&self) -> Result<(KillOnDrop, mpsc::Receiver<Line>), PinError> {
         let transport = |why: String| PinError::Transport {
@@ -420,13 +566,34 @@ impl StdioMcpClient {
         let command = self.config.command.as_deref().ok_or_else(|| {
             transport("no `command` configured (a url entry is refused upstream)".to_owned())
         })?;
-        let mut child = Command::new(command)
-            .args(&self.config.args)
+        // OS confinement (ADR-095 Layer 6): the SAME seam the exec runner
+        // uses — the confine transform is pure; a refusal is terminal.
+        let mut inner = ShellCommand::new(command);
+        inner.args.clone_from(&self.config.args);
+        inner.cwd = Some(self.project_dir.clone());
+        let spec = self.config.sandbox_spec(&self.project_dir);
+        let confined = self
+            .sandbox
+            .confine(&spec, inner)
+            .map_err(|e| PinError::Sandbox {
+                server: self.config.name.clone(),
+                why: e.to_string(),
+            })?;
+        let mut cmd = Command::new(&confined.program);
+        cmd.args(&confined.args);
+        apply_env_scrub(&mut cmd);
+        if let Some(cwd) = &confined.cwd {
+            cmd.current_dir(cwd);
+        }
+        let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
             .map_err(|e| transport(format!("cannot spawn `{command}`: {e}")))?;
+        // The receipt line rides every LIVE confined server (printed only
+        // once the spawn succeeded — a failed spawn reports its own error).
+        print_sandbox_note(&self.config.name, &self.sandbox_note());
         let stdout = child
             .stdout
             .take()
@@ -537,6 +704,37 @@ impl ToolsListDyn for StdioMcpClient {
             &result.get("tools").cloned().unwrap_or(Value::Null),
         )
     }
+}
+
+/// Scrub the child's environment: `env_clear` drops EVERY ambient value the
+/// engine holds (provider API keys, session tokens, the whole
+/// env-var-injection class), then ONLY the curated passthrough names a
+/// server legitimately needs are re-admitted
+/// ([`crate::sandbox::PASSTHROUGH_ENV_VARS`]) — with the exec path's
+/// [`DANGEROUS_ENV_VARS`](nika_kernel::process::DANGEROUS_ENV_VARS) floor
+/// winning even over those. MCP config values reach the server via argv,
+/// never via ambient env inheritance.
+#[allow(clippy::disallowed_types, clippy::disallowed_methods)] // import-site exemption note · reading the operator's ambient env to re-admit a curated subset to the child is the spawn site's duty, not a secret lookup
+fn apply_env_scrub(cmd: &mut Command) {
+    cmd.env_clear();
+    for &name in crate::sandbox::PASSTHROUGH_ENV_VARS {
+        if crate::sandbox::env_passthrough(name)
+            && let Some(value) = std::env::var_os(name)
+        {
+            cmd.env(name, value);
+        }
+    }
+}
+
+/// Print the one-line sandbox receipt on the connect/verify stream (the
+/// `sandboxed (seatbelt · net deny)` note — see
+/// [`StdioMcpClient::sandbox_note`]). `eprintln!` is clippy-banned
+/// workspace-wide in favor of tracing, but this crate carries no tracing
+/// dep — the direct print is the nika-cli `main.rs` `print_stderr`
+/// precedent for operator-facing output, scoped to this one call.
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+fn print_sandbox_note(server: &str, note: &str) {
+    eprintln!("mcp `{server}`: {note}");
 }
 
 /// Drain the child's stdout into the channel, one bounded line at a time
@@ -832,6 +1030,95 @@ mod tests {
             std::fs::write(&path, body).unwrap();
             let err = load_server_configs(&dir).expect_err(tag);
             assert!(matches!(err, PinError::Corrupt { .. }), "{tag}: {err}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_network_field_is_additive_and_defaults_to_deny() {
+        let dir = tmp("net-additive");
+        let path = dir.join(SERVERS_PATH);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        // The OLD shape (no `network` field) parses unchanged — and the arm
+        // defaults to Deny (fail-closed).
+        std::fs::write(
+            &path,
+            r#"{"mcp_servers_format": 1, "servers": {"postgres": {"command": "npx", "args": ["-y", "@mcp/pg"]}}}"#,
+        )
+        .unwrap();
+        let cfgs = load_server_configs(&dir).expect("an old registry parses");
+        assert_eq!(cfgs.len(), 1);
+        assert_eq!(
+            cfgs[0].network,
+            nika_kernel::process::NetPolicy::Deny,
+            "absent `network` = deny"
+        );
+
+        // The new arms parse: the escape hatch, the explicit deny, and the
+        // reserved allowlist (the declared set verbatim, proxy port `None`).
+        std::fs::write(
+            &path,
+            r#"{"mcp_servers_format": 1, "servers": {
+                "a": {"command": "x", "network": "allow"},
+                "b": {"command": "x", "network": "deny"},
+                "c": {"command": "x", "network": {"allowlist": ["api.example.com", "*.github.com"]}}
+            }}"#,
+        )
+        .unwrap();
+        let cfgs = load_server_configs(&dir).expect("the network arms parse");
+        assert_eq!(cfgs[0].network, nika_kernel::process::NetPolicy::Allow);
+        assert_eq!(cfgs[1].network, nika_kernel::process::NetPolicy::Deny);
+        assert_eq!(
+            cfgs[2].network,
+            nika_kernel::process::NetPolicy::Allowlist(nika_kernel::process::EgressAllowlist::new(
+                vec!["api.example.com".to_owned(), "*.github.com".to_owned(),]
+            )),
+            "the allowlist reserves the host set verbatim"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_network_field_is_strict_and_teaching() {
+        let dir = tmp("net-strict");
+        let path = dir.join(SERVERS_PATH);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        for (tag, body, hint) in [
+            (
+                "empty-allowlist",
+                r#"{"mcp_servers_format": 1, "servers": {"a": {"command": "x", "network": {"allowlist": []}}}}"#,
+                "\"deny\"",
+            ),
+            (
+                "star-in-allowlist",
+                r#"{"mcp_servers_format": 1, "servers": {"a": {"command": "x", "network": {"allowlist": ["api.example.com", "*"]}}}}"#,
+                "\"allow\"",
+            ),
+            (
+                "empty-host",
+                r#"{"mcp_servers_format": 1, "servers": {"a": {"command": "x", "network": {"allowlist": [""]}}}}"#,
+                "empty host",
+            ),
+            (
+                "unknown-arm",
+                r#"{"mcp_servers_format": 1, "servers": {"a": {"command": "x", "network": "sometimes"}}}"#,
+                "",
+            ),
+            (
+                "network-on-a-url-entry",
+                r#"{"mcp_servers_format": 1, "servers": {"a": {"url": "https://y", "network": "allow"}}}"#,
+                "no child to confine",
+            ),
+        ] {
+            std::fs::write(&path, body).unwrap();
+            let err = load_server_configs(&dir).expect_err(tag);
+            assert!(matches!(err, PinError::Corrupt { .. }), "{tag}: {err}");
+            if !hint.is_empty() {
+                let PinError::Corrupt { why, .. } = &err else {
+                    panic!("{tag}: corrupt, not another failure: {err}");
+                };
+                assert!(why.contains(hint), "{tag} teaches `{hint}`: {why}");
+            }
         }
         let _ = std::fs::remove_dir_all(&dir);
     }

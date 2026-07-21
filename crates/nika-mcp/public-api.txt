@@ -64,10 +64,14 @@ pub type nika_mcp::client::ApproveReport::Output = T
 pub nika_mcp::client::McpServerConfig::args: alloc::vec::Vec<alloc::string::String>
 pub nika_mcp::client::McpServerConfig::command: core::option::Option<alloc::string::String>
 pub nika_mcp::client::McpServerConfig::name: alloc::string::String
+pub nika_mcp::client::McpServerConfig::network: nika_kernel_core::io::process::NetPolicy
 pub nika_mcp::client::McpServerConfig::url: core::option::Option<alloc::string::String>
 impl nika_mcp::client::McpServerConfig
 pub fn nika_mcp::client::McpServerConfig::remote(name: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_mcp::client::McpServerConfig::stdio(name: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_mcp::client::McpServerConfig::with_network(self, network: nika_kernel_core::io::process::NetPolicy) -> Self
+impl nika_mcp::client::McpServerConfig
+pub fn nika_mcp::client::McpServerConfig::sandbox_spec(&self, project_dir: &std::path::Path) -> nika_kernel_core::io::process::SandboxSpec
 impl core::clone::Clone for nika_mcp::client::McpServerConfig
 pub fn nika_mcp::client::McpServerConfig::clone(&self) -> nika_mcp::client::McpServerConfig
 impl core::cmp::Eq for nika_mcp::client::McpServerConfig
@@ -114,6 +118,9 @@ pub type nika_mcp::client::McpServerConfig::Output = T
 pub struct nika_mcp::client::StdioMcpClient
 impl nika_mcp::client::StdioMcpClient
 pub fn nika_mcp::client::StdioMcpClient::new(config: &nika_mcp::client::McpServerConfig) -> Self
+pub fn nika_mcp::client::StdioMcpClient::sandbox_note(&self) -> alloc::string::String
+pub fn nika_mcp::client::StdioMcpClient::with_project_dir(self, project_dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_mcp::client::StdioMcpClient::with_sandbox(self, sandbox: alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>) -> Self
 pub fn nika_mcp::client::StdioMcpClient::with_timeout(self, timeout: core::time::Duration) -> Self
 impl nika_mcp::client::ToolsListDyn for nika_mcp::client::StdioMcpClient
 pub fn nika_mcp::client::StdioMcpClient::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
@@ -159,6 +166,9 @@ pub nika_mcp::pin::PinError::Io::why: alloc::string::String
 pub nika_mcp::pin::PinError::Malformed
 pub nika_mcp::pin::PinError::Malformed::server: alloc::string::String
 pub nika_mcp::pin::PinError::Malformed::why: alloc::string::String
+pub nika_mcp::pin::PinError::Sandbox
+pub nika_mcp::pin::PinError::Sandbox::server: alloc::string::String
+pub nika_mcp::pin::PinError::Sandbox::why: alloc::string::String
 pub nika_mcp::pin::PinError::Transport
 pub nika_mcp::pin::PinError::Transport::server: alloc::string::String
 pub nika_mcp::pin::PinError::Transport::why: alloc::string::String
@@ -360,6 +370,8 @@ impl<T> typenum::type_operators::Same for nika_mcp::pin::ToolDrift
 pub type nika_mcp::pin::ToolDrift::Output = T
 pub const nika_mcp::pin::PINS_FORMAT: u32
 pub const nika_mcp::pin::PINS_PATH: &str
+pub mod nika_mcp::sandbox
+pub fn nika_mcp::sandbox::platform_sandbox() -> alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>
 #[non_exhaustive] pub enum nika_mcp::McpError
 pub nika_mcp::McpError::Transport(core::io::error::Error)
 impl core::convert::From<core::io::error::Error> for nika_mcp::McpError

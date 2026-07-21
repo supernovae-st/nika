@@ -267,6 +267,16 @@ pub enum PinError {
         /// What is missing.
         why: String,
     },
+    /// The OS sandbox refused the spawn (NIKA-MCP-005 · fail closed — a
+    /// server that cannot be confined is NEVER run unconfined as a fallback;
+    /// no process was started).
+    Sandbox {
+        /// The configured server name.
+        server: String,
+        /// What the sandbox refused (an unavailable mechanism · an
+        /// un-expressible profile).
+        why: String,
+    },
     /// Local I/O on the lockfile failed (environment class — no spec code,
     /// the same posture as the registry client's `Env`).
     Io {
@@ -286,6 +296,7 @@ impl PinError {
             Self::Malformed { .. } => Some("NIKA-MCP-002"),
             Self::Drift(_) => Some("NIKA-MCP-003"),
             Self::Corrupt { .. } => Some("NIKA-MCP-004"),
+            Self::Sandbox { .. } => Some("NIKA-MCP-005"),
             Self::Io { .. } => None,
         }
     }
@@ -316,6 +327,13 @@ impl std::fmt::Display for PinError {
             Self::Unsupported { server, why } => write!(
                 f,
                 "[NIKA-MCP-001] MCP server `{server}` cannot be pinned: {why}"
+            ),
+            Self::Sandbox { server, why } => write!(
+                f,
+                "[NIKA-MCP-005] MCP server `{server}` could not be confined by the OS sandbox: {why}\n  \
+                 the server was NOT started — running an MCP server unconfined is never the fallback.\n  \
+                 check that the platform sandbox is present (sandbox-exec on macOS · bwrap on Linux) \
+                 and that the project path can be confined, then retry"
             ),
             Self::Io { path, why } => {
                 write!(f, "cannot use {}: {why}", path.display())

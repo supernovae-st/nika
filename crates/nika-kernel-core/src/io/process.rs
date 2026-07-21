@@ -106,6 +106,61 @@ impl EgressAllowlist {
     }
 }
 
+/// Environment variables ALWAYS stripped from a spawned child's environment —
+/// the injection vectors that grant code execution or library injection with no
+/// dangerous flag in the command itself (the "env-var injection" class). An
+/// ambient `LD_PRELOAD` inherited from the engine's own environment is not
+/// something a policy vouched for, so the strip is independent of any
+/// pre-validation and wins even over an explicit `env` set (the floor wins — a
+/// workflow does not pass these).
+///
+/// The ONE canonical list (ADR-095 Layer 3): every subprocess-spawn site
+/// scrubs against it — the `exec` verb's runner (`nika-exec-runner`, which
+/// strips it after applying the declared `env` map) and the MCP stdio client
+/// (`nika-mcp`, which goes further: `env_clear` + a curated passthrough, so
+/// these names are structurally absent). The stronger clean-slate posture
+/// (drop ALL inherited env + a curated `PATH`) belongs to the sandbox layer,
+/// which knows the confined process's declared needs.
+pub const DANGEROUS_ENV_VARS: &[&str] = &[
+    // Dynamic-linker library injection (run attacker code in any dynamically
+    // linked child) — Linux + macOS (incl. the macOS fallback paths · P2).
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "GCONV_PATH", // glibc iconv module load → code execution (P2)
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "DYLD_FRAMEWORK_PATH",
+    "DYLD_FALLBACK_LIBRARY_PATH",
+    "DYLD_FALLBACK_FRAMEWORK_PATH",
+    // Shell startup-file sourcing on non-interactive `sh`/bash.
+    "BASH_ENV",
+    "ENV",
+    // Tool-specific command hooks (RCE with no flags).
+    "GIT_SSH_COMMAND",
+    "GIT_SSH",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_PAGER",
+    "GIT_PROXY_COMMAND", // config-driven git RCE (P2)
+    "GIT_CONFIG_GLOBAL", // point git at an attacker config (core.pager/fsmonitor)
+    "GIT_CONFIG_SYSTEM",
+    "GIT_TEMPLATE_DIR", // attacker hooks copied into a new repo
+    "LESSOPEN",         // pager-input-preprocess command injection (P2)
+    "HOSTALIASES",      // attacker file read during hostname resolution (P2)
+    "TERMINFO",         // load a crafted terminfo entry (P2)
+    "TERMINFO_DIRS",    // terminfo search-path override (P2)
+    "TERMCAP",          // crafted termcap string executed by some pagers (P2)
+    // Interpreter pre-exec hooks.
+    "PYTHONSTARTUP",
+    "PYTHONPATH", // inject a module into any python that imports (P2)
+    "PERL5OPT",
+    "PERL5LIB",
+    "RUBYOPT",
+    "NODE_OPTIONS",
+    // Field-splitting injection for shell-mode commands.
+    "IFS",
+];
+
 /// A shell command to execute.
 #[derive(Debug, Clone)]
 #[non_exhaustive]

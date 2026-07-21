@@ -73,7 +73,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
-use nika_kernel::process::{ShellCancelDyn, ShellRunDyn};
+use nika_kernel::process::{DANGEROUS_ENV_VARS, ShellCancelDyn, ShellRunDyn};
 use nika_kernel::{ShellCommand, ShellError, ShellResult};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
@@ -468,54 +468,14 @@ impl ShellCancelDyn for TokioShell {
     }
 }
 
-/// Environment variables ALWAYS stripped from the child's environment — the
-/// injection vectors that grant code execution or library injection with no
-/// dangerous flag in the command itself (the "env-var injection" class). An
-/// ambient `LD_PRELOAD` inherited from the engine's own environment is not
-/// something a policy vouched for, so the strip is independent of
-/// `pre_validated` and runs AFTER the explicit `env` map (the floor wins — a
-/// workflow does not pass these). The stronger clean-slate posture (drop ALL
-/// inherited env + a curated `PATH`) belongs to the sandbox, which knows the
-/// confined workflow's declared needs.
-const DANGEROUS_ENV_VARS: &[&str] = &[
-    // Dynamic-linker library injection (run attacker code in any dynamically
-    // linked child) — Linux + macOS (incl. the macOS fallback paths · P2).
-    "LD_PRELOAD",
-    "LD_LIBRARY_PATH",
-    "LD_AUDIT",
-    "GCONV_PATH", // glibc iconv module load → code execution (P2)
-    "DYLD_INSERT_LIBRARIES",
-    "DYLD_LIBRARY_PATH",
-    "DYLD_FRAMEWORK_PATH",
-    "DYLD_FALLBACK_LIBRARY_PATH",
-    "DYLD_FALLBACK_FRAMEWORK_PATH",
-    // Shell startup-file sourcing on non-interactive `sh`/bash.
-    "BASH_ENV",
-    "ENV",
-    // Tool-specific command hooks (RCE with no flags).
-    "GIT_SSH_COMMAND",
-    "GIT_SSH",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_PAGER",
-    "GIT_PROXY_COMMAND", // config-driven git RCE (P2)
-    "GIT_CONFIG_GLOBAL", // point git at an attacker config (core.pager/fsmonitor)
-    "GIT_CONFIG_SYSTEM",
-    "GIT_TEMPLATE_DIR", // attacker hooks copied into a new repo
-    "LESSOPEN",         // pager-input-preprocess command injection (P2)
-    "HOSTALIASES",      // attacker file read during hostname resolution (P2)
-    "TERMINFO",         // load a crafted terminfo entry (P2)
-    "TERMINFO_DIRS",    // terminfo search-path override (P2)
-    "TERMCAP",          // crafted termcap string executed by some pagers (P2)
-    // Interpreter pre-exec hooks.
-    "PYTHONSTARTUP",
-    "PYTHONPATH", // inject a module into any python that imports (P2)
-    "PERL5OPT",
-    "PERL5LIB",
-    "RUBYOPT",
-    "NODE_OPTIONS",
-    // Field-splitting injection for shell-mode commands.
-    "IFS",
-];
+// The dangerous-env floor lives in the ONE canonical list,
+// `nika_kernel::process::DANGEROUS_ENV_VARS` (imported above): the injection
+// vectors that grant code execution or library injection with no dangerous
+// flag in the command itself (the "env-var injection" class). The strip here
+// is independent of `pre_validated` and runs AFTER the explicit `env` map
+// (the floor wins — a workflow does not pass these). The stronger
+// clean-slate posture (drop ALL inherited env + a curated `PATH`) belongs to
+// the sandbox layer (the MCP stdio client already runs it).
 
 /// Build the `tokio::process::Command` (program/args or `sh -c`, env, cwd).
 fn build_command(command: &ShellCommand) -> Command {

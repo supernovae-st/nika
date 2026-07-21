@@ -21,6 +21,12 @@ nika-pack   = { path = "../nika-pack", version = "0.105.0" }    # embedded canon
 # owning crate · zero duplication). L4→L0 / L4→L1.5, strictly downward.
 nika-catalog = { path = "../nika-catalog", version = "0.105.0", default-features = false, features = ["serde", "capabilities"] }
 nika-builtin = { path = "../nika-builtin", version = "0.105.0" }
+# The exec verb's OS sandbox (ADR-095 Layer 6) — a spawned MCP server rides
+# the SAME confinement (never a bespoke second sandbox). L4→L0.5/L1, strictly
+# downward (the nika-cli precedent).
+nika-kernel = { path = "../nika-kernel", version = "0.105.0" }              # the CommandSandbox seam · SandboxSpec · the NetPolicy tri-state · DANGEROUS_ENV_VARS
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.105.0" }  # the macOS jail (sandbox-exec)
+nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.105.0" }  # the Linux jail (bwrap)
 
 serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire format · no SDK)
 serde       = { workspace = true }   # the lockfile/registry envelopes (pin.rs · client.rs)

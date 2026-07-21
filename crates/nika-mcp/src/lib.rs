@@ -27,12 +27,16 @@
 //! `{name, description, inputSchema}` in `.nika/mcp_pins.json`, enrolled on
 //! first contact (TOFU), re-verified on EVERY connect, and failed closed
 //! with a human-readable diff on any drift (`nika mcp approve <server>`
-//! re-pins after human review).
+//! re-pins after human review). Every spawned server rides the OS sandbox
+//! ([`sandbox`] — the same Seatbelt/bwrap confinement the `exec` verb uses):
+//! confined to the project tree, network denied unless the registry opts in,
+//! environment scrubbed, and never a silent unconfined fallback.
 
 pub mod client;
 mod http;
 pub mod pin;
 mod protocol;
+pub mod sandbox;
 mod tools;
 
 pub use http::HttpServer;
