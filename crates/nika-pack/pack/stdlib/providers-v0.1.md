@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Providers
 
-> The canonical <!-- canon:providers -->16<!-- /canon --> providers shipped with v0.1-compliant engines. Each
+> The canonical <!-- canon:providers -->17<!-- /canon --> providers shipped with v0.1-compliant engines. Each
 > provider implements the same interface (LLM chat completion + optional
 > streaming + vision + structured output) against a different backend.
 > You select one with a single `model: <provider>/<name>` field.
@@ -45,7 +45,7 @@ tasks:
 
 ---
 
-## The 16 canonical providers
+## The 17 canonical providers
 
 | Provider | Backend | Local? | Auth |
 |---|---|---|---|
@@ -60,13 +60,14 @@ tasks:
 | `openrouter` | OpenRouter gateway (one key · every major model · cross-vendor fallback) | cloud | `${{ secrets.* }}` |
 | `huggingface` | HF Inference Providers router (100+ open-weights · 18 backends · zero markup) | cloud | `${{ secrets.* }}` |
 | `nvidia` | NVIDIA API (Nemotron 3 · Open Model License · NIM self-hostable) | cloud | `${{ secrets.* }}` |
+| `moonshot` | Moonshot AI API (Kimi K3 · frontier open-weight · thinking model · CN) | cloud | `${{ secrets.* }}` |
 | `groq` | Groq Cloud (fastest open-weight) | cloud | `${{ secrets.* }}` |
 | `deepseek` | DeepSeek API (reasoning · cost-efficient) | cloud | `${{ secrets.* }}` |
 | `gemini` | Google Gemini API (long context · multimodal) | cloud | `${{ secrets.* }}` |
 | `xai` | xAI Grok API | cloud | `${{ secrets.* }}` |
 | `mock` | deterministic test fixture · no LLM call | test | none |
 
-A Stdlib v0.1-compliant engine MUST ship all **16** (5 local · 10 cloud · 1 test).
+A Stdlib v0.1-compliant engine MUST ship all **17** (5 local · 11 cloud · 1 test).
 Any *other* OpenAI-compatible local server (Jan · llamafile · KoboldCpp ·
 text-generation-webui · a custom one) routes through the **`openai` escape
 hatch** below (no new provider name needed).
@@ -86,7 +87,7 @@ no hidden config to read):
 ```
 ollama/…  lmstudio/…  llamacpp/…  localai/…  vllm/…   → LOCAL · localhost · no key · sovereign
 anthropic/…  openai/…  groq/…  mistral/…  deepseek/…   → CLOUD · remote API · key via ${{ secrets.* }}
-  …  gemini/…  xai/…  openrouter/…
+  …  gemini/…  xai/…  openrouter/…  huggingface/…  nvidia/…  moonshot/…
 mock/…                                                 → TEST  · deterministic fixture
 ```
 
@@ -113,8 +114,8 @@ When NO `timeout:` is declared, the default deadline is per provider
 
 ```
 LOCAL  (ollama · lmstudio · llamacpp · localai · vllm)               ≥ 300s
-CLOUD  (mistral · anthropic · openai · openrouter · groq ·             30s
-        deepseek · gemini · xai)
+CLOUD  (mistral · anthropic · openai · openrouter · huggingface ·      30s
+        nvidia · groq · deepseek · gemini · xai · moonshot)
 ```
 
 A local model routinely needs minutes for ONE completion on consumer
@@ -149,9 +150,20 @@ name for every one, the `openai` provider accepts a `base_url` override in
 **engine config** (never in the workflow) and routes there:
 
 ```
-model: openai/<model-name>          # workflow · unchanged · selects the model
-OPENAI_BASE_URL=http://localhost:1337/v1   # engine config · points at Jan
+model: openai/<model-name>                                       # workflow · unchanged · selects the model
+NIKA_OPENAI_BASE_URL=http://localhost:1337/v1/chat/completions   # engine config · the COMPLETE endpoint, verbatim (points at Jan)
+NIKA_OPENAI_API_KEY=<key>                                        # engine config · the scoped key (omit for keyless local)
 ```
+
+The override is `NIKA_<ID>_BASE_URL` · the canonical provider id upper-cased
+(here `NIKA_OPENAI_BASE_URL`), and its value is the **complete endpoint,
+verbatim** · the engine calls exactly the URL you write and appends nothing.
+A cloud endpoint carries its full path (`https://api.moonshot.ai/v1/chat/completions`
+is the shape moonshot's own adapter targets · a custom OpenAI-compatible host
+reads the same way), and a local one keeps its `/v1/chat/completions` too. It
+pairs with the scoped `NIKA_<ID>_API_KEY`. This explicit per-provider pair is
+the minimal trust surface by design · no implicit base-plus-suffix assembly,
+no bare `OPENAI_BASE_URL` silently shared across providers.
 
 This is the LiteLLM pattern: **named providers for the popular backends ·
 `openai`+base_url for everything else.** It is how Jan · llamafile ·
@@ -337,7 +349,7 @@ infer:
 
 **Features** · tool use · vision · structured output (JSON mode).
 
-**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider (**Jan · llamafile · KoboldCpp · text-generation-webui**) plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
+**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `NIKA_OPENAI_BASE_URL` engine-config override (the complete endpoint, verbatim · paired with `NIKA_OPENAI_API_KEY` · see « The `openai` escape hatch » above). Covers the local servers without their own named provider (**Jan · llamafile · KoboldCpp · text-generation-webui**) plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
 
 ---
 
@@ -437,6 +449,50 @@ JSON mode · NVFP4-served flagships.
 serving with a self-host path (NIM) that keeps workflows byte-identical
 between cloud and sovereign deployments. Nemotron Nano GGUFs also run
 fully local via `ollama/…`.
+
+---
+
+### `moonshot`
+
+```yaml
+infer:
+  model: moonshot/kimi-k3
+  prompt: "..."
+```
+
+The **Moonshot AI API** (`api.moonshot.ai/v1`) · the Kimi family (Kimi K3 ·
+frontier · 1M-token context · a THINKING model · plus `kimi-k2.7-code` ·
+`kimi-k2.7-code-highspeed` · `kimi-k2.6`). OpenAI-compatible chat
+completions. The weights open on the same J+10 window (frontier open-weight ·
+a self-host path is first-class · see the sovereignty note below). Added
+2026-07-17 (ADR-105 · the frontier open-weight access category · the
+openrouter and ADR-104 precedent applied).
+
+**Models** · `moonshot/kimi-k3` (default · thinking · frontier) ·
+`moonshot/kimi-k2.6` (the cheaper seat) · `moonshot/kimi-k2.7-code` /
+`moonshot/kimi-k2.7-code-highspeed` (coding) · the model name passes through
+verbatim.
+
+**Auth** · `MOONSHOT_API_KEY` env var (`sk-…`).
+
+**Features** · OpenAI-compatible chat completions · streaming · tool use ·
+vision (base64 image parts · never a public URL) · structured output.
+
+**Caveats · thinking model** ·
+- **Reasoning spends tokens** · `kimi-k3` reasons before it answers and the
+  reasoning draws from the SAME `max_tokens` budget · a tight `max_tokens: 64`
+  can return an EMPTY completion (the whole budget went to thinking). Give it
+  room · 512 is the practical floor for a real answer.
+- **Temperature is server-fixed at 1.0** for `kimi-k3` · a workflow
+  `temperature:` is accepted but the k3 seat overrides it server-side (the
+  engine does not fight the server) · the non-thinking Kimi seats honor it.
+
+**When to prefer it** · a frontier open-weight reasoning model with a long
+context and a same-window self-host path. For a fully sovereign run, serve the
+open weights yourself (vLLM · MXFP4) and reach them via `vllm/…` or the
+`openai` escape hatch · the API-hosted seat is the convenience rung, not the
+sovereign one (the hosted endpoint is a third-country surface · see the
+sovereignty posture in ADR-105).
 
 ---
 
@@ -570,4 +626,4 @@ The reference engine implements `provider_options:` as best-effort pass-through.
 
 ---
 
-🦋 *<!-- canon:providers -->16<!-- /canon --> providers · 1 contract · sovereignty preserved.*
+🦋 *<!-- canon:providers -->17<!-- /canon --> providers · 1 contract · sovereignty preserved.*

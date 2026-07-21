@@ -116,3 +116,9 @@ envelope	NIKA-SEC	secrets-fetch-sink	EMPTY (sec27 dropped for budget; v0.2)
 errors	NIKA-BUILTIN-ASSERT	recovered	EMPTY (w06 dropped for budget; BUILTIN-recovered covered via JQ)
 variables	NIKA-VAR	recovered	partial (errors/error-field-canonical-code.nika.yaml recovers a VAR-006 args error)
 variables	NIKA-VAR	index-out-of-range	EMPTY (c12/c14 fire VAR-001 "unresolved reference"; spec code ambiguous — FINDINGS.md F-2; v0.2 after spec call)
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/secrets-leak-outputs-boundary.nika.yaml
+envelope	(positive)	positive-run	conformance/envelope/secrets-outputs-egress-sanctioned.nika.yaml
+envelope	NIKA-SEC-009	check-fail	conformance/envelope/trifecta-realized-flow-ungated.nika.yaml
+envelope	(positive)	positive-check	conformance/envelope/trifecta-human-gate-dominates.nika.yaml
+composition	NIKA-COMP-003	check-fail	conformance/composition/self-launch-cycle.nika.yaml
+composition	(positive)	positive-run	conformance/composition/parent-child-acyclic.nika.yaml

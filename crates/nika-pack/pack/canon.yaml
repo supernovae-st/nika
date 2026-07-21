@@ -1,3 +1,15 @@
+# GENERATED · canon.yaml is a generated projection since the C0 flip — manual
+# edits of a generated surface make CI red (ssot-compiler --check-canon · rc=5:
+# the gate re-emits from the registries and byte-compares this file).
+# generated-by: ssot-compiler 0.2.0-sandbox (scripts/ssot-compiler.py)
+# sources: canon/surface.yaml · canon/builtins.yaml · canon/templates/registry.yaml ·
+#   canon/diagnostics/ · canon/features.yaml · schemas/registries.schema.json (the
+#   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
+#   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
+# regenerate: python3 scripts/ssot-compiler.py --emit-canon
+# body-sha256: 9712579d0e39af1ff1bba032e29f810b7174183b636abe48c4c0fad3bed9b197
+#   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
+# ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
 # License · Apache-2.0 (part of the Nika spec)
 #
@@ -46,14 +58,14 @@ schema_version: 1
 # fast grep-based projection checks (the projector reads `count:` lines).
 counts:
   verbs: 4
-  namespaces: 5
+  namespaces: 6
   builtins: 28
-  providers: 16
+  providers: 17
   extract_modes: 9
   templates: 10
   error_namespaces: 24
   error_categories: 12
-  error_codes: 86
+  error_codes: 87
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -99,18 +111,22 @@ verbs:
     - { name: agent,  semantic: "Multi-turn agentic loop · tool calling · guardrails" }
 
 # ---------------------------------------------------------------- namespaces
-# The 5 substitution namespaces · LOCKED at v1 (spec/04-variables.md ·
-# loop-locals item/index are for_each-scoped locals · NOT a 6th namespace).
+# The 6 substitution namespaces · LOCKED at v1 (spec/04-variables.md · the
+# four value authorities inputs/config/const/secrets — the E-split family
+# (R3a · LAW-SURFACE-0201) that succeeded the dead vars/env spellings at C2 —
+# plus the runtime namespaces with/tasks · loop-locals item/index are
+# for_each-scoped locals · NOT a 7th namespace).
 namespaces:
-  count: 5
+  count: 6
   immutable: true
   reference: spec/04-variables.md
   items:
-    - vars
+    - inputs
+    - config
+    - const
+    - secrets
     - with
     - tasks
-    - env
-    - secrets
 
 # ---------------------------------------------------------------- builtins
 # Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first) → 26 (image_fx added 2026-07-09 · §Media graduate #3 · the `image editing` deferred row · deterministic artistic effects · byte-identical artifacts · recipe-in-chunk · zero-dep) → 27 (chart added 2026-07-09 · §Media graduate #4 · deterministic zero-dep renderer · byte-identical SVG · sha256 → trace chain).
@@ -151,10 +167,10 @@ builtins:
     - write
 
 # ---------------------------------------------------------------- providers
-# 10 cloud + 5 local + 1 test = 16 (openrouter promoted D-2026-06-10-N2 · huggingface + nvidia promoted 2026-07-05 per the same precedent · ADR-104). stdlib/providers-v0.1.md is the prose home.
+# 11 cloud + 5 local + 1 test = 17 (openrouter promoted D-2026-06-10-N2 · huggingface + nvidia promoted 2026-07-05 per the same precedent · ADR-104 · moonshot promoted 2026-07-17 · frontier open-weight · ADR-105). stdlib/providers-v0.1.md is the prose home.
 # Sovereignty · 5 local providers (sovereignty Rule 1 · zero-cloud default path).
 providers:
-  count: 16
+  count: 17
   reference: stdlib/providers-v0.1.md
   # Presentation order (operator lock 2026-06-12 · supernovae-alignment Rule 3) ·
   # local/open-weight FIRST (sovereignty default) · then cloud with mistral (EU ·
@@ -178,6 +194,7 @@ providers:
       - openrouter
       - huggingface
       - nvidia
+      - moonshot
     test:
       - mock
 
@@ -278,7 +295,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 86
+  count: 87
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -333,7 +350,7 @@ error_codes:
     - { code: NIKA-TYPE-005, category: security_error, transient: "false", failure: "a secret-carrying type in a lowered position (reserved with secret<T> · W4)" }
     - { code: NIKA-TYPE-006, category: validation_error, transient: "false", failure: "regex pattern outside the locked dialect (backreference · lookaround · named group · inline flags · lazy/possessive · word-boundary · unicode-class — spec 09 §the regex dialect)" }
     - { code: NIKA-TYPE-101, category: validation_error, transient: "false", failure: "run-time contract violation — the decoded value does not fit returns: (exec:/invoke: lane)" }
-    - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared env/vars key)" }
+    - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared inputs/config/const/secrets/with key)" }
     - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
     - { code: NIKA-VAR-003, category: validation_error, transient: "false", failure: "provably-invalid path into a declared schema (static walk)" }
     - { code: NIKA-VAR-004, category: variable_error, transient: "false", failure: "jq runtime error while evaluating a binding" }
@@ -368,6 +385,7 @@ error_codes:
     - { code: NIKA-SEC-005, category: security_error, transient: "false", failure: "SSRF block — a nika:fetch/nika:notify URL resolves to a loopback/private/link-local/metadata target (always-on engine floor · independent of permits:)" }
     - { code: NIKA-SEC-006, category: security_error, transient: "false", failure: "secret flow — a secrets.<name> value reaches an unsanctioned sink (exec argument · invoke payload · infer/agent prompt) · the diagnostic carries the taint path + the egress clause that would sanction it (spec 10 · flow rules in 01 §egress)" }
     - { code: NIKA-SEC-007, category: security_error, transient: "false", failure: "secret egress — a tainted value reaches the workflow boundary (outputs:) · the diagnostic carries the taint path (spec 10 · the to: outputs sanction in 01 §egress)" }
+    - { code: NIKA-SEC-009, category: security_error, transient: "false", failure: "lethal trifecta complete — the declared boundary grants private read (fs.read non-empty) + untrusted ingress (a nika:fetch builtin invoked · an mcp:* tool invoked · an agent: whose whitelist admits ingress) + external egress (net.http non-empty · an escaping fs.write glob · exec enabled), the untrusted content REACHES an egress-capable task's effect surface (a realized flow), and no blocking invoke: nika:prompt (no default:) dominates it (NEP-0002 v2.0 · the Rule of Two as a static check)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-ASSERT-001, category: validation_error, transient: "false", failure: "an assert: claims a level the evidence does not support (a StaticProof the IR cannot decide · a mis-leveled obligation · spec 15)" }

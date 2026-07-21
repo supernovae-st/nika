@@ -11,7 +11,7 @@
 #   - same source, three voices · prompts are where the craft lives
 #   - `with:` aliasing · short local names keep the merge prompt readable
 #
-# Needs · ./blog/launch-post.md (your post · or point vars.post_path).
+# Needs · ./blog/launch-post.md (your post · or point const.post_path).
 #
 # Run · nika run examples/showcase/t1-social-repurpose.nika.yaml
 

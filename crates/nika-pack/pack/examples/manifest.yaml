@@ -47,7 +47,7 @@ showcase:
     tier: T1
     description: ""
     constructs: [for_each, max_parallel, outputs, with]
-    sha256_16: 490dc3b3fe3bf970
+    sha256_16: 1a90d63675079d91
   - file: examples/showcase/t1-meeting-actions.nika.yaml
     workflow: {'id': 'meeting-actions', 'description': 'Transcript → typed action items {owner, task, due}'}
     tier: T1

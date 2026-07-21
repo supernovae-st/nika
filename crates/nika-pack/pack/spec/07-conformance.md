@@ -212,6 +212,9 @@ conformance/
 │                              # proof · projection) + their `*_selftest.py` sweeps
 ├── yaml-profile/              # R11 profile fixtures (valid/ + invalid/)
 ├── type-corpus/               # the generated type corpus (gen-type-corpus.py)
+├── values/                    # the four-authority family (C2 · R3a · valid/ + invalid/)
+├── types/                     # io-declaration predicate vocabulary (C2 · R3b · valid/ + invalid/)
+├── gates/                     # the after: predicate vocabulary (C2 · R5 · valid/ + invalid/)
 └── runner-protocol.md         # how to run the suite against any engine
 ```
 
