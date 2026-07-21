@@ -141,7 +141,7 @@ tasks:
       c: "${{ tasks.c.output }}"
     exec: { command: ["join", "${{ with.a }}", "${{ with.b }}", "${{ with.c }}"] }
   gated:
-    after: { join: succeeded }
+    after: { join: success }
     when: ${{ const.publish == 'yes' }}
     exec: { command: ["echo", "never"] }
 "#;
@@ -296,7 +296,7 @@ tasks:
   build:
     exec: { command: ["make"] }
   deploy:
-    after: { build: succeeded }
+    after: { build: success }
     exec: { command: ["deploy"] }
   notify:
     after: { build: terminal }
@@ -582,7 +582,7 @@ tasks:
   cached:
     exec: { command: ["cat", "cache.json"] }
   live:
-    after: { cached: succeeded }
+    after: { cached: success }
     on_error: { recover: "${{ tasks.cached.output }}" }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/a" } }
   optional:
@@ -1084,7 +1084,7 @@ tasks:
         exec: { command: ["alert", "on-call"] }
       - exec: { command: ["rm", "-f", "scratch-b"] }
   never_ran:
-    after: { breaks: succeeded }
+    after: { breaks: success }
     exec: { command: ["downstream"] }
     on_finally:
       - exec: { command: ["must", "not", "run"] }

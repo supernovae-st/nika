@@ -268,7 +268,7 @@ mod tests {
     with: {{ page: \"${{{{ tasks.fetch.output }}}}\" }}
     exec: {{ command: [echo] }}
   report:
-    after: {{ mid: succeeded }}
+    after: {{ mid: success }}
     exec: {{ command: [echo] }}
 "
         );
@@ -295,7 +295,7 @@ mod tests {
       recover:
         - \"${{{{ tasks.report.output }}}}\"
   mid:
-    after: {{ fetch: succeeded }}
+    after: {{ fetch: success }}
     exec: {{ command: [echo] }}
   report:
     with: {{ notes: \"${{{{ tasks.mid.output }}}}\" }}
@@ -322,7 +322,7 @@ mod tests {
   base:
     exec: {{ command: [echo] }}
   other:
-    after: {{ base: succeeded }}
+    after: {{ base: success }}
     exec: {{ command: [echo] }}
   fetch:
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
@@ -358,10 +358,10 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   a:
-    after: {{ b: succeeded }}
+    after: {{ b: success }}
     exec: {{ command: [echo] }}
   b:
-    after: {{ a: succeeded }}
+    after: {{ a: success }}
     exec: {{ command: [echo] }}
 "
         );
@@ -384,7 +384,7 @@ mod tests {
     with: {{ b_out: \"${{{{ tasks.b.output }}}}\" }}
     exec: {{ command: [echo] }}
   b:
-    after: {{ a: succeeded }}
+    after: {{ a: success }}
     exec: {{ command: [echo] }}
 "
         );
@@ -404,10 +404,10 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   a:
-    after: {{ b: succeeded }}
+    after: {{ b: success }}
     exec: {{ command: [echo] }}
   b:
-    after: {{ a: succeeded }}
+    after: {{ a: success }}
     exec: {{ command: [echo] }}
 "
         );
@@ -433,7 +433,7 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   a:
-    after: {{ a: succeeded }}
+    after: {{ a: success }}
     exec: {{ command: [echo] }}
 "
         );
@@ -452,7 +452,7 @@ mod tests {
         let yaml = format!(
             "{HEADER}tasks:
   a:
-    after: {{ ghost: succeeded }}
+    after: {{ ghost: success }}
     exec: {{ command: [echo] }}
 "
         );
@@ -494,10 +494,10 @@ mod tests {
   a:
     exec: {{ command: [echo] }}
   b:
-    after: {{ a: succeeded }}
+    after: {{ a: success }}
     exec: {{ command: [echo] }}
   c:
-    after: {{ a: succeeded }}
+    after: {{ a: success }}
     exec: {{ command: [echo] }}
   d:
     with:

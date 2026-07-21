@@ -17,13 +17,13 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://api.example.com/index.json" }
   extract:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { page: "${{ tasks.fetch_page.output }}" }
     invoke:
       tool: "nika:jq"
       args: { expression: "fromjson | .next", input: "${{ with.page }}" }
   follow:
-    after: { extract: succeeded }
+    after: { extract: success }
     with: { next: "${{ tasks.extract.output }}" }
     invoke:
       tool: "nika:fetch"

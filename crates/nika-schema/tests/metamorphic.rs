@@ -105,7 +105,7 @@ fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
         if !control.is_empty() {
             let _ = writeln!(y, "    after:");
             for d in control {
-                let _ = writeln!(y, "      {prefix}{d}: succeeded");
+                let _ = writeln!(y, "      {prefix}{d}: success");
             }
         }
         if t.attempts > 1 {

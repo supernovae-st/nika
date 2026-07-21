@@ -78,10 +78,7 @@ fn workflow(topology: &str, n: usize) -> String {
         };
         s.push_str(&format!("  t{i}:\n"));
         if !deps.is_empty() {
-            let rest: Vec<String> = deps[1..]
-                .iter()
-                .map(|d| format!("t{d}: succeeded"))
-                .collect();
+            let rest: Vec<String> = deps[1..].iter().map(|d| format!("t{d}: success")).collect();
             if !rest.is_empty() {
                 s.push_str(&format!("    after: {{ {} }}\n", rest.join(", ")));
             }

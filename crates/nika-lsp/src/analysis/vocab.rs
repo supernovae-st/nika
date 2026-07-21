@@ -113,7 +113,7 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
     Entry {
         name: "after",
         doc: "The CONTROL boundary — `{producer: predicate}` map; each \
-              entry is one control edge (succeeded · failed · skipped · \
+              entry is one control edge (success · failure · skipped · \
               terminal).",
     },
     Entry {

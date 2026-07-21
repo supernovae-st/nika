@@ -184,7 +184,7 @@ mod tests {
         // `when:` as a bare string = a conformance finding.
         std::fs::write(
             dir.join("flows/bad.nika.yaml"),
-            "nika: v1\nworkflow:\n  id: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: succeeded\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+            "nika: v1\nworkflow:\n  id: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         )
         .expect("write");
         // Hidden from the walk: dependency tree.

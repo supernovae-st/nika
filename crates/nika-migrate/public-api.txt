@@ -45,5 +45,6 @@ pub fn nika_migrate::W2Outcome::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_migrate::W2Outcome
 pub fn nika_migrate::W2Outcome::from(t: T) -> T
 pub fn nika_migrate::esplit(source: &str) -> nika_migrate::EsplitOutcome
+pub fn nika_migrate::predicates(source: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_migrate::w1(source: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_migrate::w2(source: &str) -> nika_migrate::W2Outcome

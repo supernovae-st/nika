@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn exec_after_reads_control_edges_too() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  forbid:\n    exec_after: [net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n  act:\n    after: { fetch_page: succeeded }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  forbid:\n    exec_after: [net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n  act:\n    after: { fetch_page: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert_eq!(r.policy_findings.len(), 1, "{:?}", r.policy_findings);
     }
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn broken_dag_skips_the_policy_lane() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\ntasks:\n  act:\n    after: { ghost: succeeded }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\ntasks:\n  act:\n    after: { ghost: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(!r.conformance.is_empty());
         assert!(

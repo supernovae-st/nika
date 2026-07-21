@@ -283,7 +283,7 @@ tasks:
   test:
     exec: { command: [\"./test.sh\"] }
   deploy:
-    after: { test: succeeded }
+    after: { test: success }
     when: ${{ tasks.test.status == 'success' }}
     exec: { command: [\"./deploy.sh\"] }
 ";
@@ -427,7 +427,7 @@ tasks:
     #[test]
     fn tightened_value_edge_is_valid() {
         // Conformance fixture dag-topology/009-valid-tightened-value-edge ·
-        // `after: {fetch: succeeded}` BESIDE the value edge is a meaningful
+        // `after: {fetch: success}` BESIDE the value edge is a meaningful
         // tightening (edges compose by intersection · spec 03 §after).
         let yaml = "\
 nika: v1
@@ -437,7 +437,7 @@ tasks:
   fetch:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://x.io\" } }
   use:
-    after: { fetch: succeeded }
+    after: { fetch: success }
     with:
       data: ${{ tasks.fetch.output }}
     infer: { prompt: \"use ${{ with.data }}\" }
@@ -1022,7 +1022,7 @@ tasks:
   extract:
     exec: { command: [echo] }
   report:
-    after: { extarct: succeeded }
+    after: { extarct: success }
     with:
       data: ${{ tasks.extract.output }}
     exec: { command: [\"echo\", \"${{ inputs.topci }}\", \"${{ with.data }}\"] }
@@ -1096,7 +1096,7 @@ workflow:
   id: t
 tasks:
   a:
-    after: { ghost: succeeded }
+    after: { ghost: success }
     when: ${{ vars.nope }}
     exec: { command: [echo] }
 ";

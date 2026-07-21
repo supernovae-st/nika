@@ -394,7 +394,7 @@ mod tests {
         let wf = dir.path().join("w.nika.yaml");
         std::fs::write(
             &wf,
-            "nika: v1\nworkflow:\n  id: journey\ntasks:\n  alpha:\n    exec:\n      command: [\"true\"]\n  beta:\n    after:\n      alpha: succeeded\n    exec:\n      command: [\"true\"]\n",
+            "nika: v1\nworkflow:\n  id: journey\ntasks:\n  alpha:\n    exec:\n      command: [\"true\"]\n  beta:\n    after:\n      alpha: success\n    exec:\n      command: [\"true\"]\n",
         )
         .expect("write wf");
         let journal = dir.path().join("run.ndjson");

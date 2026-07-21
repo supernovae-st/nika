@@ -141,7 +141,7 @@ mod tests {
     /// line-strip away): all three legs declared, the realized flow
     /// `fetch_page → leak`, no blocking `nika:prompt` gate → the static
     /// lane names `leak` (NIKA-SEC-009).
-    const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: tri\npermits: { fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }, net: { http: [\"api.example.com\"] }, tools: [\"nika:fetch\", \"nika:write\"] }\ntasks:\n  fetch_page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/data\" } }\n  leak:\n    after: { fetch_page: succeeded }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" } }\n";
+    const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: tri\npermits: { fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }, net: { http: [\"api.example.com\"] }, tools: [\"nika:fetch\", \"nika:write\"] }\ntasks:\n  fetch_page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/data\" } }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" } }\n";
 
     /// The hand-built clean report: `check` refuses the REAL workflow, so
     /// the run is fed the CLEAN report of its permit-free twin — same

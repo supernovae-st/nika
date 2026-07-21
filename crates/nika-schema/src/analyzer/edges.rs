@@ -73,8 +73,8 @@ impl EdgeKind {
             Self::TerminalObservation => true,
             Self::FailureObservation => matches!(s, Failure | Skipped),
             Self::Control(p) => match p {
-                AfterPredicate::Succeeded => matches!(s, Success),
-                AfterPredicate::Failed => matches!(s, Failure),
+                AfterPredicate::Success => matches!(s, Success),
+                AfterPredicate::Failure => matches!(s, Failure),
                 AfterPredicate::Skipped => matches!(s, Skipped),
                 AfterPredicate::Terminal => {
                     matches!(s, Success | Failure | Skipped | Cancelled)
@@ -372,9 +372,9 @@ mod tests {
         assert_eq!(admit(EdgeKind::FailureObservation), 2);
         assert!(EdgeKind::FailureObservation.admits(Skipped));
         assert!(EdgeKind::Control(AfterPredicate::Terminal).admits(Cancelled));
-        assert!(!EdgeKind::Control(AfterPredicate::Succeeded).admits(Skipped));
+        assert!(!EdgeKind::Control(AfterPredicate::Success).admits(Skipped));
         assert!(EdgeKind::Control(AfterPredicate::Skipped).admits(Skipped));
-        assert!(EdgeKind::Control(AfterPredicate::Failed).admits(Failure));
+        assert!(EdgeKind::Control(AfterPredicate::Failure).admits(Failure));
     }
 
     #[test]

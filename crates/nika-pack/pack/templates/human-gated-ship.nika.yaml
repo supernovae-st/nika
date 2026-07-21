@@ -47,7 +47,7 @@ tasks:
 
   human:
     after:
-      gates: succeeded              # state, no data · no question until the board is green
+      gates: success              # state, no data · no question until the board is green
     invoke:
       # the prompt PAUSES the run (exit 4 · not a failure) — answer and resume:
       #   nika run --resume <trace> --answer human=yes

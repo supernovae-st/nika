@@ -73,7 +73,7 @@ tasks:
 
   write_out:
     with: { summary: "${{ tasks.think.output }}" }
-    after: { extract: succeeded }
+    after: { extract: success }
     invoke:
       tool: "nika:write"
       args:
@@ -358,10 +358,10 @@ workflow:
   id: cycle
 tasks:
   a:
-    after: { b: succeeded }
+    after: { b: success }
     exec: { command: ['true'] }
   b:
-    after: { a: succeeded }
+    after: { a: success }
     exec: { command: ['true'] }
 ";
     let wf = parse(dirty, FileId::new(0), ParseMode::Strict).expect("parses");

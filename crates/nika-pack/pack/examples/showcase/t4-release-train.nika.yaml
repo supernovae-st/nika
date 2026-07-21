@@ -81,7 +81,7 @@ tasks:
     with:
       t0: ${{ tasks.t0.output }}
     after:
-      gates_green: succeeded           # state, no data · the timing is only worth taking on a green board
+      gates_green: success           # state, no data · the timing is only worth taking on a green board
     invoke:
       tool: "nika:date"
       args:
@@ -112,7 +112,7 @@ tasks:
   # ── hold until the window · absolute time, not a sleep ──
   hold:
     after:
-      approved: succeeded
+      approved: success
     invoke:
       tool: "nika:wait"
       args:
@@ -121,7 +121,7 @@ tasks:
 
   ship:
     after:
-      hold: succeeded
+      hold: success
     exec:
       command: ["./scripts/release.sh", "${{ inputs.version }}"]   # argv: the interpolation cannot break out
       capture: structured
@@ -129,7 +129,7 @@ tasks:
 
   verify:
     after:
-      ship: succeeded
+      ship: success
     invoke:
       tool: "nika:fetch"
       args:

@@ -11,7 +11,7 @@
 #   - sovereignty · `model: ollama/qwen3.5:4b`: sensitive docs stay local
 #   - `nika:validate` · re-check the extraction against a stricter schema
 #   - `nika:assert` · the fail-fast guard (vs `when:` · the skip-guard)
-#   - `after: succeeded` · the memo is control-gated on the assert
+#   - `after: success` · the memo is control-gated on the assert
 #   - belt-and-braces · schema at infer time + validate + assert downstream
 #
 # Run · nika run examples/showcase/t2-contract-guard.nika.yaml --var contract_path=./contract.md
@@ -86,7 +86,7 @@ tasks:
     with:
       clauses: ${{ tasks.clauses.output.clauses }}
     after:
-      gate: succeeded              # state, no data · the assert passed or the memo is cancelled
+      gate: success              # state, no data · the assert passed or the memo is cancelled
     infer:
       prompt: |
         Write a one-page risk memo from these clauses ·

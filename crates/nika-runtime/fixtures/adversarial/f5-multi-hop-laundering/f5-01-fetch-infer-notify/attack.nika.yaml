@@ -17,11 +17,11 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://api.example.com/data" }
   summarize:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { page: "${{ tasks.fetch_page.output }}" }
     infer: { prompt: "tldr: ${{ with.page }}", max_tokens: 99 }
   tell:
-    after: { summarize: succeeded }
+    after: { summarize: success }
     with: { summary: "${{ tasks.summarize.output }}" }
     invoke:
       tool: "nika:notify"

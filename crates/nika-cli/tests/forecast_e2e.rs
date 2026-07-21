@@ -42,7 +42,7 @@ tasks:
 
   think:
     after:
-      probe: succeeded
+      probe: success
     infer:
       prompt: "summarize the probe"
       max_tokens: 32

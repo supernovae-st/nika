@@ -33,13 +33,10 @@ use common::{fixture_dirs, fixture_verdict, skip_in_mutants_sandbox, spec_dir};
 /// The core-tier gap ledger · fixture-name prefix → why the engine does
 /// not hold the verdict yet. Closing a gap = implement + DELETE the row.
 const CORE_GAPS: &[(&str, &str)] = &[
-    // ── The R5 predicates wave (spec #118 · pc-light · `after:` speaks
-    // the outcome-class spellings success·failure·skipped·terminal — the
-    // engine's closed set is still succeeded·failed·skipped·terminal, so
-    // every after:-carrying fixture refuses NIKA-DAG-005 before reaching
-    // its expected verdict). The wave is its own epic (display · dap ·
-    // lints · lsp · runtime all speak the participial spellings); each
-    // row deletes itself when the rename lands.
+    // ── The R5 predicates wave CLOSED (spec #118 · the engine speaks
+    // the outcome-class spellings success·failure·skipped·terminal —
+    // the 8 after:-carrying rows deleted the day the rename landed, per
+    // the ratchet « a landed wave forces removing its row »).
     // ── R3b · a STALE FIXTURE at the pin (spec-side, not an engine
     // gap): envelope/010 declares `type: text` and still expects the
     // NIKA-PARSE namespace, but NIKA-PARSE-015 is retired-never-reuse
@@ -51,35 +48,6 @@ const CORE_GAPS: &[(&str, &str)] = &[
     (
         "envelope/010-typed-var-bad-type",
         "spec fixture stale for R3b (expects NIKA-PARSE · law: NIKA-TYPE-001)",
-    ),
-    ("dag-topology/001-cycle", "R5 predicates (success·failure)"),
-    (
-        "dag-topology/002-unresolved-after-target",
-        "R5 predicates (success·failure)",
-    ),
-    (
-        "dag-topology/003-when-task-ref-illegal",
-        "R5 predicates (success·failure)",
-    ),
-    (
-        "dag-topology/004-self-dependency",
-        "R5 predicates (success·failure)",
-    ),
-    (
-        "dag-topology/008-valid-diamond",
-        "R5 predicates (success·failure)",
-    ),
-    (
-        "dag-topology/009-valid-tightened-value-edge",
-        "R5 predicates (success·failure)",
-    ),
-    (
-        "dag-topology/012-recover-downstream-deadlock",
-        "R5 predicates (success·failure)",
-    ),
-    (
-        "dag-topology/015-cycle-mixed-with-after",
-        "R5 predicates (success·failure)",
     ),
 ];
 

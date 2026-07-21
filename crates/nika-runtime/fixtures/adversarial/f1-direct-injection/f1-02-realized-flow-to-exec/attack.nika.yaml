@@ -15,6 +15,6 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://news.example/install.sh" }
   run_it:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { page: "${{ tasks.fetch_page.output }}" }
     exec: { command: ["sh", "-c", "${{ with.page }}"] }

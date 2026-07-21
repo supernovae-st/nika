@@ -359,7 +359,7 @@ mod tests {
     /// protocols: this pin is the MCP leg of the LSP's parity law).
     #[test]
     fn inspect_serves_the_canonical_projection_verbatim() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("clean");
         let got: Value = serde_json::from_str(&out).expect("json");
         let wf = nika_schema::parse(
@@ -378,7 +378,7 @@ mod tests {
     /// MCP leg) — never a projection of an unproven DAG.
     #[test]
     fn inspect_refuses_findings_with_a_reason() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after:\n      b: succeeded\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after:\n      b: success\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("answers");
         let got: Value = serde_json::from_str(&out).expect("json");
         assert_eq!(got["graph"], Value::Null);
@@ -477,7 +477,7 @@ mod tests {
         // Dirty is an `Err` (→ isError:true) so a wired agent's repair
         // loop triggers, mirroring the CLI's exit-2-on-dirty; the full
         // report still rides the text so the model repairs from it.
-        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    after:\n      ghost: succeeded\n    exec: { command: [\"x\"] }\n";
+        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    after:\n      ghost: success\n    exec: { command: [\"x\"] }\n";
         let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
         assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }

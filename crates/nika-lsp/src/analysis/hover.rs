@@ -499,7 +499,7 @@ mod tests {
 
     #[test]
     fn hover_on_after_target_shows_target_task_and_verb() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    after: { greet: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use_it:\n    after: { greet: success }\n    exec: { command: [\"x\"] }\n";
         // the LAST `greet` is the after: target (the first is the id)
         let at = yaml.rfind("greet").expect("after target") + 1;
         let h = hover(yaml, at).expect("hover on the reference");
@@ -663,7 +663,7 @@ mod tests {
     /// producer WITH its role.
     #[test]
     fn hover_on_task_decl_shows_the_dag_card() {
-        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      data: \"${{ tasks.a.output }}\"\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: succeeded, c: terminal }\n    exec: { command: [\"x\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      data: \"${{ tasks.a.output }}\"\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: success, c: terminal }\n    exec: { command: [\"x\"] }\n";
         let a = hover(text, text.find("\n  a:").expect("a") + 3).expect("card for a");
         let ab = body(&a);
         assert!(ab.contains("wave 1/3"), "{ab}");
@@ -688,7 +688,7 @@ mod tests {
         let db = body(&d);
         assert!(db.contains("wave 3/3"), "{db}");
         assert!(
-            db.contains("waits on: `b` (control · succeeded), `c` (control · terminal)"),
+            db.contains("waits on: `b` (control · success), `c` (control · terminal)"),
             "control edges carry their predicate: {db}"
         );
         assert!(db.contains("terminal task"), "{db}");
@@ -698,7 +698,7 @@ mod tests {
     /// lane already tells that story with a span and a code.
     #[test]
     fn hover_on_task_decl_in_a_cycle_stays_silent() {
-        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: succeeded }\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: success }\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n";
         assert!(hover(text, text.find("\n  a:").expect("a") + 3).is_none());
     }
 

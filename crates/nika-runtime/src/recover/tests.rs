@@ -177,7 +177,7 @@ tasks:
   base:
     exec: { command: ["echo", "base"] }
   c:
-    after: { base: succeeded }
+    after: { base: success }
     exec: { command: ["echo", "42"] }
 "#;
     let shell = MockShell::new()
@@ -219,7 +219,7 @@ tasks:
   base:
     exec: { command: ["echo", "base"] }
   source:
-    after: { base: succeeded }
+    after: { base: success }
     when: false
     exec: { command: ["echo", "never"] }
 "#;
@@ -293,7 +293,7 @@ tasks:
   done:
     exec: { command: ["echo", "ok"] }
   risky:
-    after: { done: succeeded }
+    after: { done: success }
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.done.output.missing }}

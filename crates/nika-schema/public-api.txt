@@ -2315,6 +2315,7 @@ pub nika_schema::error::SchemaError::TypeUndecodable::decode: alloc::string::Str
 pub nika_schema::error::SchemaError::TypeUndecodable::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::TypeUndecodable::task: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownAfterPredicate
+pub nika_schema::error::SchemaError::UnknownAfterPredicate::message: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownAfterPredicate::predicate: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnknownAfterPredicate::target: alloc::string::String
@@ -4112,6 +4113,7 @@ pub nika_schema::SchemaError::TypeUndecodable::decode: alloc::string::String
 pub nika_schema::SchemaError::TypeUndecodable::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::TypeUndecodable::task: alloc::string::String
 pub nika_schema::SchemaError::UnknownAfterPredicate
+pub nika_schema::SchemaError::UnknownAfterPredicate::message: alloc::string::String
 pub nika_schema::SchemaError::UnknownAfterPredicate::predicate: alloc::string::String
 pub nika_schema::SchemaError::UnknownAfterPredicate::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnknownAfterPredicate::target: alloc::string::String

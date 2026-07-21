@@ -80,7 +80,7 @@ mod tests {
     use super::*;
 
     const YAML: &str =
-        "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    after:\n      ghost: succeeded\n";
+        "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    after:\n      ghost: success\n";
 
     fn span_of(needle: &str) -> ByteSpan {
         let start = YAML.find(needle).expect("needle present");
@@ -103,7 +103,7 @@ mod tests {
             "origin carries path:line:col:\n{out}"
         );
         assert!(
-            out.contains("ghost: succeeded"),
+            out.contains("ghost: success"),
             "offending line shown:\n{out}"
         );
         assert!(

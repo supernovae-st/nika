@@ -31,7 +31,7 @@ and the schema crate remains the unit's only front door. No consumer names
 ## 2 · Public API (module-per-field)
 
 ```rust
-pub mod after;           // AfterPredicate — the closed after: predicate set
+pub mod after;           // AfterPredicate — the closed after: set + the R5 dead-spelling teachings
 pub mod capture;         // CaptureMode — stdout/stderr/combined/structured
 pub mod decode;          // DecodeMode — text/json/jsonl/bytes
 pub mod duration;        // parse_go_duration + GoDurationError

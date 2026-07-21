@@ -94,14 +94,14 @@ tasks:
   # ── settle, then confirm recovery before claiming it ──
   settle:
     after:
-      timeline: succeeded
+      timeline: success
     invoke:
       tool: "nika:wait"
       args: { duration: "60s" }
 
   recheck:
     after:
-      settle: succeeded
+      settle: success
     invoke:
       tool: "nika:fetch"
       args:
@@ -123,7 +123,7 @@ tasks:
     with:
       events: ${{ tasks.timeline.output.events }}
     after:
-      confirmed: succeeded             # state, no data · recovery proven or no draft
+      confirmed: success             # state, no data · recovery proven or no draft
     infer:
       model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
       prompt: |

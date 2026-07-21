@@ -253,7 +253,7 @@ mod tests {
     /// The W2 fixture — `fetch` is spoken at FIVE sites: its key, two
     /// `after:` entries (digest's + save's) and two `${{ tasks.fetch }}`
     /// islands (both inside `with:` binding values, the boundary form).
-    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    after: { fetch: succeeded }\n    with:\n      article: \"${{ tasks.fetch.output }}\"\n    infer: { prompt: \"sum ${{ with.article }}\", max_tokens: 10 }\n  save:\n    after: { digest: succeeded, fetch: terminal }\n    with:\n      doc: \"${{ tasks.digest.output }}\"\n      raw: \"${{ tasks.fetch.output }}\"\n    exec: { command: [\"tee\", \"${{ with.doc }}\", \"${{ with.raw }}\"] }\n";
+    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    after: { fetch: success }\n    with:\n      article: \"${{ tasks.fetch.output }}\"\n    infer: { prompt: \"sum ${{ with.article }}\", max_tokens: 10 }\n  save:\n    after: { digest: success, fetch: terminal }\n    with:\n      doc: \"${{ tasks.digest.output }}\"\n      raw: \"${{ tasks.fetch.output }}\"\n    exec: { command: [\"tee\", \"${{ with.doc }}\", \"${{ with.raw }}\"] }\n";
 
     fn uri() -> Uri {
         Uri::from_str("file:///w.nika.yaml").expect("uri")
@@ -298,11 +298,11 @@ mod tests {
         assert!(!after.contains("fetch"), "no site left behind: {after}");
         assert!(after.contains("\n  pull:"), "the key moved");
         assert!(
-            after.contains("after: { pull: succeeded }"),
+            after.contains("after: { pull: success }"),
             "digest's control entry moved"
         );
         assert!(
-            after.contains("after: { digest: succeeded, pull: terminal }"),
+            after.contains("after: { digest: success, pull: terminal }"),
             "save's control entry moved (the predicate untouched)"
         );
         assert!(
@@ -323,7 +323,7 @@ mod tests {
             apply(DOC, edits(&rename(&uri(), DOC, at, "pull").expect("ok")))
         };
         let from_after = {
-            let at = DOC.find("{ fetch: succeeded }").expect("after entry") + 2;
+            let at = DOC.find("{ fetch: success }").expect("after entry") + 2;
             apply(DOC, edits(&rename(&uri(), DOC, at, "pull").expect("ok")))
         };
         let from_ref = {
@@ -351,7 +351,7 @@ mod tests {
         );
         // a ghost after: site — rename refuses (rename the definition,
         // not a ghost)
-        let ghost_doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let ghost_doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         let at = ghost_doc.find("ghost").expect("ghost") + 1;
         assert!(
             rename(&uri(), ghost_doc, at, "real")
@@ -375,7 +375,7 @@ mod tests {
         );
         // after: entry site
         let dep_at = DOC
-            .find("{ digest: succeeded, fetch: terminal }")
+            .find("{ digest: success, fetch: terminal }")
             .expect("after")
             + 2;
         assert_eq!(prepare(DOC, dep_at).expect("after prepares").1, "digest");
@@ -394,13 +394,13 @@ mod tests {
     fn verb_named_task_renames_only_identity_sites() {
         // a task NAMED `invoke` (the census trap): the verb KEY of another
         // task must not be touched — only identity sites move.
-        let doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  invoke:\n    exec: { command: [\"x\"] }\n  b:\n    after: { invoke: succeeded }\n    with:\n      path: \"${{ tasks.invoke.output }}\"\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ with.path }}\" }\n";
+        let doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  invoke:\n    exec: { command: [\"x\"] }\n  b:\n    after: { invoke: success }\n    with:\n      path: \"${{ tasks.invoke.output }}\"\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ with.path }}\" }\n";
         let at = doc.find("\n  invoke:").expect("key") + 3;
         let we = rename(&uri(), doc, at, "caller").expect("renames");
         let after = apply(doc, edits(&we));
         assert!(after.contains("\n  caller:"), "identity key moved");
         assert!(
-            after.contains("after: { caller: succeeded }"),
+            after.contains("after: { caller: success }"),
             "control entry moved"
         );
         assert!(after.contains("tasks.caller.output"), "ref moved");
