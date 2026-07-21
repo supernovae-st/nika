@@ -6,10 +6,14 @@
 > [releases page](https://github.com/supernovae-st/nika/releases)
 > (release-candidate grade); `main` advances to the
 > next `-dev` version immediately after release → design-partner `1.0.0-rc.N` → first public
-> launch **1.0.0** → 1.x minors add the remaining crates additively → **2.0** is
-> reserved for the Connectome era (memory + cognition). The `nika: v1` LANGUAGE
+> launch **1.0.0** → 1.x minors add the remaining crates additively → the
+> Connectome era (memory + cognition) opens as the next major, **un-numbered
+> until declared** (D-2026-07-10-N4). The `nika: v1` LANGUAGE
 > envelope is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
 > is SUPERSEDED (kept for history). See ADR-002 amendment + §Tag scheme.
+> The dated history and the forward gates live in the machine-verified
+> [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml)
+> (every provable claim re-proven by the spec's CI · conditions, never dates).
 >
 > **🦋 ADR-037 — Bottom-up diamond progression (Accepted 2026-04-17, SUPREME)**
 >
@@ -109,42 +113,6 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | lib tests        | 4431 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
-| field            | value                                          |
-|------------------|------------------------------------------------|
-| branch           | `chore/release-0.105.0`                                      |
-| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
-| workspace        | v0.105.0                                  |
-| crates (workspace)| 42                                              |
-| crates (admitted)| 42 / 42                                   |
-| crates (WIP)     | 0 —                                   |
-| L0               | 11                                              |
-| L0.5             | 6                                              |
-| L1               | 12                                              |
-| L1.5             | 4                                              |
-| L2               | 4                                              |
-| L3               | 1                                              |
-| L4               | 4                                              |
-| lib tests        | 3545 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
-
-| field            | value                                          |
-|------------------|------------------------------------------------|
-| branch           | `chore/release-0.105.0`                                      |
-| HEAD             | `05cdaab1e` (`05cdaab1ec68217f3a7fb03841dbe5f7720767d4`)             |
-| workspace        | v0.105.0                                  |
-| crates (workspace)| 40                                              |
-| crates (admitted)| 40 / 42                                   |
-| crates (WIP)     | 0 —                                   |
-| L0               | 9                                              |
-| L0.5             | 6                                              |
-| L1               | 12                                              |
-| L1.5             | 4                                              |
-| L2               | 4                                              |
-| L3               | 1                                              |
-| L4               | 4                                              |
-| lib tests        | 3362 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
-
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the
 hand-typed "8 crates admitted" this paragraph carried rotted to 30+ ·
@@ -226,12 +194,10 @@ Next phases (~35 commits across B-H):
 - Phase H: SOTA patterns adoption (bon, Arc<str>, camino, public-api,
   release-plz, doc examples ratchet)
 
-**Next steps (priority order · refreshed 2026-05-12 post BLUEPRINT_2036 v1.1)** ·
-
-1. **W3 · `nika-bm25` admission** — first L1 memory satellite per ADR-038 prep · 12-gate ceremony (Gate 1 spec → Gate 2 TDD → Gate 3 scaffold → Gate 4 clippy → Gate 12 atomic commit). Pre-W3 stabilization SHIPPED 2026-05-12 (workspace lints rustdoc · CI semver baseline · CLAUDE.md refresh · dead pointer fix).
-2. **W4 · `nika-rrf` + `nika-autodesc-minimal`** — RRF fusion + autodesc moat foundation (300 LOC subset per ADR-042 split) · streaming `MemoryRecall::recall_stream()` lands here per ADR-039.
-3. **W5-W8 · L1 satellite cascade** — `nika-fsrs` · `nika-temporal` · `nika-hnsw` (trigger-gated per ADR-005) · `nika-rdfs-reasoner` + `nika-graph-algos` (parallel) per BLUEPRINT_2036 admission DAG.
-4. **W9-W10 · `nika-autodesc-full` + `nika-memory` L2 orchestrator** — type-state `NikaStore<Building→Ready>` per ADR-041 · closes Phase 1.5 waypoint (2026-08-30).
+**Next steps** · the admission order is the tag scheme below plus the
+forward gates of the machine-verified timeline; the 2026-05-12 waypoint list
+that stood here is superseded (git keeps it) — its memory-subsystem naming
+predates the Connectome canon.
 
 The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test (D-2026-05-22-N18 · `fetch` is the `nika:fetch` builtin via `invoke`, not a verb) · candidates `fetch/embed/evaluate/train/serve/stream/transform` all collapse cleanly into the 4-verb taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
 
@@ -256,7 +222,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
 | `1.1 · 1.2 · …` | additive minors — new builtins, new providers, polish            |
-| `2.0.0`    | **the Connectome era** — memory + cognition (ADR-004) · the next epoch |
+| next major | **the Connectome era** — memory + cognition (ADR-004) · un-numbered until declared (D-2026-07-10-N4) |
 
 > **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
 > D-2026-06-20-N1 the tags climbed per layer-phase (`v0.81`=L0 complete …
@@ -278,7 +244,7 @@ Sub-field maturity is annotated inline via `x-nika-alpha` / `x-nika-beta` /
 The kernel schema registry gains promotion paths for these annotations
 (alpha → beta → stable → deprecated) without breaking any workflow.
 
-A workflow that validates on `v0.81.0` must still validate on `v0.99.17`.
+A workflow that validates on an early tag must still validate on every later one.
 Removed fields become `x-nika-deprecated` with a 12-month sunset window; they
 continue to parse — they just warn.
 
@@ -392,7 +358,7 @@ pub struct MemoryFrame { /* … */ pub tenant: TenantId, /* … */ }
 pub struct RecallQuery { /* … */ pub tenant: TenantId, /* … */ }
 ```
 
-Reserved at v0.81 for v0.95 multi-tenant. Every satellite partitions its
+Reserved since the early schema for post-1.0 multi-tenant. Every satellite partitions its
 keyspace by `tenant`; cross-tenant reads are structurally unexpressable
 through the sealed recall path.
 
@@ -670,6 +636,7 @@ Per D-2026-05-22-N18.)
 - `/` landing + hero demo + manifesto link
 - `/method` — the craft manifesto (public)
 - `/changelog` — per-admission entries, RSS feed
+- `/timeline` — the one verifiable record (renders the spec timeline SSOT)
 - `/blog` — monthly deep dives
 - `/errors/[NIKA-XXX]` — per-code lookup pages (prerendered)
 - `/architecture` — 3D diamond view (R3F, P1 post-launch)
@@ -797,11 +764,11 @@ the allowed I/O axes per layer, and the enforcement anti-patterns.
 
 ## L1 memory phase (1e + 1f) — Hybrid ontology + auto-descriptive memory
 
-**Theme**: build the memory subsystem as 14 dedicated L1 satellites, exposed
-through `nika-memory` L2. Each satellite is admitted through the 12 gates and
+**Theme**: build the memory subsystem as dedicated L1 satellites, exposed
+through the `nika-connectome` L2 orchestrator (10 satellites · ADR-004). Each satellite is admitted through the 12 gates and
 composable through a pluggable trait set in `nika-kernel`.
 
-See the §Memory subsystem detail table above for the full 8-core + 6-reserved
+See the §Memory subsystem detail table above for the satellite
 list, the 4 shipped storage backends, the hybrid trust model, and the
 compile-time tenant isolation contract.
 
@@ -847,7 +814,7 @@ compile-time tenant isolation contract.
 - **Keys subsystem**: macOS Keychain + Linux keyring + OAuth device flow
 - **Public launch**: `nika.sh`, community registry promotion, blog launch
 
-## Polish forever — v0.93+ (no layer climbs, no marketing events)
+## Polish forever — post-1.0 (no layer climbs, no marketing events)
 
 Incremental quality additions forever. Order determined by community pull +
 Nika team priorities. Possible directions include (no commitment):
@@ -879,8 +846,8 @@ outright or reclassified as a future layer-phase deliverable (no version tag).
 | The Connectome (1 orchestrator + 10 satellites) | **Built during L1 phases 1e-1f-1g** | ontology-graph + auto-descriptive, see §Memory subsystem detail |
 | WASM host (wasmtime + extism) | **Built during L3** | Sandbox-3 triplet ships alongside |
 | Keys subsystem (Keychain/OAuth) | **Built during L1 phases 1a-1b** | `nika-keys-env` + `nika-keys-keychain` |
-| Hosted cloud runner | Polish forever (v0.93+) | Self-host is primary; SaaS optional |
-| Commercial relicense (AGPL → commercial) | Polish forever (v0.93+) | Only when enterprise pull warrants legal setup |
+| Hosted cloud runner | Polish forever (post-1.0) | Self-host is primary; SaaS optional |
+| Commercial relicense (AGPL → commercial) | Polish forever (post-1.0) | Only when enterprise pull warrants legal setup |
 
 ## What this roadmap deliberately excludes (never)
 
@@ -932,6 +899,6 @@ the historical `v0.8X.Y` layer-phase scheme is retired).
 
 See `docs/architecture/forward-compat-invariants.md` for the full list of
 patterns, decisions, and rules that ensure every admitted crate accommodates
-L1 → L5 layers and `v0.93+` polish **without breaking changes**.
+L1 → L5 layers and post-1.0 polish **without breaking changes**.
 
 🦋
