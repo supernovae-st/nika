@@ -69,7 +69,7 @@ use nika_schema::types::{ExecPermit, FsPermits, OnErrorAction, Permits, WhenGate
 /// The family's wire code — registered in the canon (`nika explain` teaches it).
 pub const DRIFT_CODE: &str = "NIKA-DRIFT-001";
 
-/// The declared-but-unused advices for a workflow, sorted. Every row is
+/// The declared-but-unused advice rows for a workflow, sorted. Every row is
 /// the same class (`drift` · [`DRIFT_CODE`] · workflow-level), so both
 /// projections shape the constant fields around the advice texts.
 #[must_use]
