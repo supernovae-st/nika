@@ -34,6 +34,7 @@ pub fn hover(text: &str, offset: usize) -> Option<Hover> {
 /// declaration's card, without leaving the line. Same resolver as
 /// go-to-definition; same prose the completion detail teaches.
 fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
+    use std::fmt::Write as _;
     let (root, name) = super::definition::template_member_at(text, offset)?;
     let wf = nika_schema::parse(
         text,
@@ -41,6 +42,9 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
         nika_schema::ParseMode::Lenient,
     )
     .ok()?;
+    let ty = |t: &nika_schema::Spanned<serde_json::Value>| {
+        nika_schema::types::type_expr_display(&t.value)
+    };
     let body = match root {
         "inputs" => {
             let (_, decl) = wf.inputs.iter().find(|(n, _)| n.value == name)?;
@@ -51,8 +55,7 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                     default,
                     description,
                 } => {
-                    use std::fmt::Write as _;
-                    let mut b = format!("**`inputs.{name}`** — _{type}_");
+                    let mut b = format!("**`inputs.{name}`** — _{}_", ty(r#type));
                     if *required {
                         b.push_str(" · required");
                     }
@@ -75,9 +78,8 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                 nika_schema::VarDecl::Typed {
                     r#type, default, ..
                 } => {
-                    use std::fmt::Write as _;
-                    let mut b =
-                        format!("**`config.{name}`** — _{type}_ · non-sensitive runtime config");
+                    let mut b = format!("**`config.{name}`** — _{}_", ty(r#type));
+                    b.push_str(" · non-sensitive runtime config");
                     if let Some(d) = default {
                         let _ = write!(b, " · default `{d}`");
                     }
@@ -94,7 +96,8 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                 nika_schema::VarDecl::Typed {
                     r#type, default, ..
                 } => format!(
-                    "**`const.{name}`** — _{type}_ · constant `{v}`",
+                    "**`const.{name}`** — _{}_ · constant `{v}`",
+                    ty(r#type),
                     v = default.as_ref()?
                 ),
                 nika_schema::VarDecl::Untyped(v) => {

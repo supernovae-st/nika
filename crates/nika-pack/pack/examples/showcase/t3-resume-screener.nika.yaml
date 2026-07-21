@@ -133,5 +133,4 @@ tasks:
 outputs:
   shortlist:
     value: ${{ tasks.shortlist.output }}
-    type: array
     description: "Ranked candidates · strong first, then by relevant years"

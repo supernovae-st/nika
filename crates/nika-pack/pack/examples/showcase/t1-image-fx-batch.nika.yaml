@@ -65,5 +65,4 @@ outputs:
     # an empty ./photos skips the fan-out (its output is null) — the guard
     # keeps the typed contract honest on the very first exploratory run
     value: "${{ tasks.stylize.output != null ? tasks.stylize.output : [] }}"
-    type: array
     description: "The stylized artifact receipts · one per input photo"

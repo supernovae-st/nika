@@ -10,6 +10,7 @@
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::{FileId, ParseMode, parse};
+use nika_types::types::{NikaType, assignable, parse_type};
 
 use super::{graph, scope};
 
@@ -46,26 +47,37 @@ fn doc_view(text: &str, offset: usize) -> DocView {
     if let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient)
         && !wf.tasks.is_empty()
     {
+        // A declaration is array-shaped when its TypeExpr ADMITS an array
+        // (R3b · the one type core: `{ array: T }`, a union with an array
+        // member, a named alias — a broken expr is the check's, not ours).
         fn authority_ref(
             root: &str,
             name: &nika_schema::source::Spanned<String>,
             decl: &nika_schema::VarDecl,
+            named: &std::collections::BTreeMap<String, NikaType>,
+            type_names: &std::collections::BTreeSet<String>,
         ) -> (String, bool) {
             let is_array = match decl {
-                nika_schema::VarDecl::Typed {
-                    r#type: nika_schema::VarType::Array,
-                    ..
-                } => true,
+                nika_schema::VarDecl::Typed { r#type, .. } => {
+                    parse_type(&r#type.value, type_names, root).is_ok_and(|t| {
+                        assignable(&NikaType::Array(Box::new(NikaType::Unknown)), &t, named)
+                    })
+                }
                 nika_schema::VarDecl::Untyped(v) => v.is_array(),
-                nika_schema::VarDecl::Typed { .. } => false,
             };
             (format!("{root}.{name}", name = name.value), is_array)
         }
+        let named = nika_schema::named_types(&wf);
+        let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
         let vars: Vec<(String, bool)> = wf
             .inputs
             .iter()
-            .map(|(n, d)| authority_ref("inputs", n, d))
-            .chain(wf.consts.iter().map(|(n, d)| authority_ref("const", n, d)))
+            .map(|(n, d)| authority_ref("inputs", n, d, &named, &type_names))
+            .chain(
+                wf.consts
+                    .iter()
+                    .map(|(n, d)| authority_ref("const", n, d, &named, &type_names)),
+            )
             .collect();
         let illegal: std::collections::BTreeSet<&str> = current
             .as_deref()

@@ -785,7 +785,7 @@ mod tests {
     fn cost_section_names_each_unbounded_reason() {
         let text = checked_text(
             "cost-reasons.nika.yaml",
-            "nika: v1\nworkflow:\n  id: cost-reasons\ninputs:\n  items: { type: array, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: \"${{ inputs.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
+            "nika: v1\nworkflow:\n  id: cost-reasons\ninputs:\n  items: { type: { array: string }, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: \"${{ inputs.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
             true,
         );
         assert!(text.contains("no max_tokens declared"), "{text}");

@@ -39,7 +39,7 @@ pub(super) fn check_edge_targets_resolve(
                 errors.push(SchemaError::UnknownDependency {
                     from: task.value.id.value.clone(),
                     to: target.value.clone(),
-                    suggestion: crate::suggest::did_you_mean(
+                    suggestion: nika_types::suggest::did_you_mean(
                         &target.value,
                         ids.keys().map(String::as_str),
                     )
@@ -58,7 +58,7 @@ pub(super) fn check_edge_targets_resolve(
                     errors.push(SchemaError::UnknownDependency {
                         from: task.value.id.value.clone(),
                         to: id.clone(),
-                        suggestion: crate::suggest::did_you_mean(
+                        suggestion: nika_types::suggest::did_you_mean(
                             &id,
                             ids.keys().map(String::as_str),
                         )

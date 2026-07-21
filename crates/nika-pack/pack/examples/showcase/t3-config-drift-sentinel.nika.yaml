@@ -32,7 +32,7 @@ const:
   config_url: "https://api.internal.example.com/v1/config"
   baseline_path: "./ops/config-baseline.json"
   approved_overrides:
-    type: object
+    type: { object: {}, additional: true }
     value: {}                      # zero approved drifts until you say otherwise
     # Sanctioned config overrides (RFC 7396 merge-patch shape) — the pre-C2 `description:` (a typed constant carries {type, value} exactly)
 
@@ -131,5 +131,4 @@ tasks:
 outputs:
   drift:
     value: ${{ tasks.drift.output }}
-    type: array
     description: "RFC 6902 operations · empty when prod matches the sanctioned state"

@@ -23,7 +23,7 @@ use serde_json::Value;
 
 use crate::raw::{RawAction, RawWorkflow};
 
-use crate::suggest::{did_you_mean, suggestion_clause};
+use nika_types::suggest::{did_you_mean, suggestion_clause};
 
 /// The 7 JSON-Schema type names (draft 2020-12 · what the runtime
 /// validator compiles).

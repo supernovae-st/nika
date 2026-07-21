@@ -62,5 +62,4 @@ tasks:
 outputs:
   findings:
     value: ${{ tasks.review.output.findings }}
-    type: array
     description: "Structured code-review findings"

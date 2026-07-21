@@ -172,6 +172,5 @@ tasks:
 outputs:
   events:
     value: ${{ tasks.timeline.output.events }}
-    type: array
     description: "The reconstructed, typed incident timeline"
   postmortem: ${{ tasks.postmortem.output }}

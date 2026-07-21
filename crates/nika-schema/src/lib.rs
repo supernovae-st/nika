@@ -38,19 +38,15 @@
 
 pub mod analyzer;
 pub mod check;
-pub mod codegen;
 pub mod error;
 /// The `${{ }}` expression language — DESCENDED to `nika-tmpl` (2026-07-10 ·
 /// the 15k crate-size wall · the trace→dap precedent). Re-exported verbatim:
 /// every `nika_schema::expression::…` path resolves unchanged.
 pub use nika_tmpl::expression;
-pub mod keysets;
 pub mod parser;
 pub mod raw;
 pub mod skill;
 pub mod source;
-mod suggest;
-pub mod trust;
 pub mod types;
 
 // Re-exports for convenience.
@@ -62,8 +58,8 @@ pub use check::{
     SchemaLintFinding, SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check, check_composed,
     infer_permits,
 };
-pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::{SchemaError, SpecCategory, SpecCode};
+pub use nika_catalog::codegen::nika_builtin_tool_enum_schema;
 pub use parser::{ParseMode, parse};
 pub use skill::{
     ResolvedSkills, SkillDefect, SkillDoc, SkillFinding, parse_skill, resolve_skills, skill_refs,
@@ -73,6 +69,6 @@ pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, 
 // Type re-exports (§3.16 of crate spec).
 pub use types::{
     BackoffStrategy, CaptureMode, DecodeMode, ExtractMode, GoDurationError, OnError, OutputDecl,
-    ResponseMode, RetryConfig, SchemaVersion, SecretRef, SecretSource, VarDecl, VarType,
+    ResponseMode, RetryConfig, SchemaVersion, SecretRef, SecretSource, VarDecl,
     is_valid_error_code, parse_go_duration,
 };

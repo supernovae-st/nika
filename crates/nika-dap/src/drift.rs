@@ -601,7 +601,7 @@ mod tests {
         // cleanup command · infer vision endpoint — each pins its walker
         // arm (a blind arm would flag a USED name).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\ninputs:\n  items: { type: array, required: true }\nconst:\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: \"${{ inputs.items }}\"\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ const.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ const.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\ninputs:\n  items: { type: { array: string }, required: true }\nconst:\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: \"${{ inputs.items }}\"\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ const.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ const.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
     }

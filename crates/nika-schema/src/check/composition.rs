@@ -25,16 +25,16 @@
 //! walked for acyclicity; a child's OWN direct calls are that child's
 //! check's to judge (each file answers for its own contract).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nika_cap::{ExecPermit, Permits};
-use nika_types::types::{Field, NikaType, Primitive, assignable};
+use nika_types::types::{Field, NikaType, assignable, fits, parse_type};
 
 use super::ByteSpan;
 use crate::analyzer;
 use crate::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use crate::source::Span;
-use crate::types::{OutputDecl, VarDecl, VarType};
+use crate::types::{OutputDecl, VarDecl, type_expr_display};
 
 /// The static call-graph walk refuses to draw past this many distinct
 /// files — acyclicity that cannot be verified is acyclicity refused
@@ -351,6 +351,10 @@ fn typed_call_defects(
             ));
         }
     }
+    // The declared TypeExpr renders for the findings; the fit itself is
+    // judged by the one type core against the CHILD's named env.
+    let child_named = analyzer::named_types(child);
+    let child_type_names: BTreeSet<String> = child_named.keys().cloned().collect();
     for (name, decl) in &declared {
         let VarDecl::Typed {
             r#type,
@@ -361,16 +365,22 @@ fn typed_call_defects(
         else {
             continue;
         };
-        let t = *r#type; // `r#` idents cannot appear inline in format strings
+        let display = type_expr_display(&r#type.value);
         match arg_map.get(*name) {
             None if *required && default.is_none() => out.push(format!(
-                "required child input `{name}` ({t}) is not supplied by `args:` \
+                "required child input `{name}` ({display}) is not supplied by `args:` \
                  (spec 14 law 2)"
             )),
-            Some(v) if is_literal(v) && !literal_fits(v, t) => out.push(format!(
-                "arg `{name}` does not fit the child's declared `{t}` input \
-                 (spec 14 law 2 · args ⋢ inputs)"
-            )),
+            Some(v) if is_literal(v) => {
+                if let Ok(ty) = parse_type(&r#type.value, &child_type_names, name)
+                    && !fits(v, &ty, &child_named)
+                {
+                    out.push(format!(
+                        "arg `{name}` does not fit the child's declared `{display}` input \
+                         (spec 14 law 2 · args ⋢ inputs)"
+                    ));
+                }
+            }
             _ => {}
         }
     }
@@ -392,8 +402,13 @@ fn typed_call_defects(
 /// The child's composed output type — an OBJECT of its `outputs:`
 /// entries (`{name: declared-or-Unknown}` · closed). This IS the value
 /// shape the runtime hands the parent task (the child `RunOutcome`
-/// outputs map), so the static judgment and the run agree.
+/// outputs map), so the static judgment and the run agree. A declared
+/// `type:` is parsed against the child's own named env (R3b · the full
+/// `TypeExpr`) — a broken expression degrades to `Unknown` (gradual · its
+/// refusal is the child's own check).
 fn child_outputs_type(child: &RawWorkflow) -> NikaType {
+    let child_named = analyzer::named_types(child);
+    let child_type_names: BTreeSet<String> = child_named.keys().cloned().collect();
     let fields: BTreeMap<String, Field> = child
         .outputs
         .iter()
@@ -401,7 +416,8 @@ fn child_outputs_type(child: &RawWorkflow) -> NikaType {
             let ty = match decl {
                 OutputDecl::Typed {
                     r#type: Some(t), ..
-                } => vartype_to_nikatype(*t),
+                } => parse_type(&t.value, &child_type_names, &name.value)
+                    .unwrap_or(NikaType::Unknown),
                 OutputDecl::Typed { r#type: None, .. } | OutputDecl::Untyped(_) => {
                     NikaType::Unknown
                 }
@@ -415,36 +431,10 @@ fn child_outputs_type(child: &RawWorkflow) -> NikaType {
     }
 }
 
-/// The closed 6-value `vars:`/`outputs:` vocabulary, lowered to the one
-/// type core (spec 09).
-fn vartype_to_nikatype(t: VarType) -> NikaType {
-    match t {
-        VarType::String => NikaType::Prim(Primitive::String),
-        VarType::Number => NikaType::Prim(Primitive::Number),
-        VarType::Integer => NikaType::Prim(Primitive::Integer),
-        VarType::Boolean => NikaType::Prim(Primitive::Bool),
-        VarType::Array => NikaType::Array(Box::new(NikaType::Unknown)),
-        VarType::Object => NikaType::Map(Box::new(NikaType::Unknown)),
-    }
-}
-
 /// A JSON arg value with no `${{ }}` island anywhere — statically
 /// judgeable. A templated value is the run's to render (gradual).
 fn is_literal(v: &serde_json::Value) -> bool {
     !serde_json::to_string(v).unwrap_or_default().contains("${{")
-}
-
-/// Whether a LITERAL arg value fits a declared [`VarType`] — the static
-/// twin of the runtime's input validation (same closed vocabulary).
-fn literal_fits(v: &serde_json::Value, t: VarType) -> bool {
-    match t {
-        VarType::String => v.is_string(),
-        VarType::Number => v.is_number(),
-        VarType::Integer => v.is_i64() || v.is_u64(),
-        VarType::Boolean => v.is_boolean(),
-        VarType::Array => v.is_array(),
-        VarType::Object => v.is_object(),
-    }
 }
 
 /// Laws 3/4 — every concrete child-boundary entry the parent's declared

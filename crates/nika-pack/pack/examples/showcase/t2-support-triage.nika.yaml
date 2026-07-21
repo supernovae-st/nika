@@ -104,5 +104,4 @@ tasks:
 outputs:
   tickets:
     value: ${{ tasks.triage.output.tickets }}
-    type: array
     description: "The classified queue with drafted first replies"

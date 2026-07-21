@@ -4,15 +4,15 @@
 //! Workflow return declarations — the envelope `outputs:` block.
 //!
 //! Per spec `01-envelope.md` §outputs · « `outputs:` declares **what the
-//! workflow returns** — the symmetric twin of `vars:` … in the **untyped
-//! form** (bare reference) or the **typed form**
-//! (`{ value, type, description }`) ».
+//! workflow returns** » — in the **untyped form** (a bare `${{ }}`
+//! reference) or the **typed form** (`{ value, type, description }`).
+//! Post-R3b (LAW-GRAMMAR-0211) the typed form's `type:` speaks the full
+//! `TypeExpr` of `09-types.md`, exactly like the `inputs:` half — the
+//! callable contract never speaks two type languages at once.
 //!
 //! `outputs:` (envelope · plural) ≠ `output:` (task · singular jq bindings).
 
 use nika_source::Spanned;
-
-use super::var_decl::VarType;
 
 /// One envelope `outputs:` entry.
 #[derive(Debug, Clone, PartialEq)]
@@ -25,8 +25,9 @@ pub enum OutputDecl {
     Typed {
         /// The `${{ }}` reference (required in the typed form).
         value: Spanned<String>,
-        /// Declared return type.
-        r#type: Option<VarType>,
+        /// Declared return type — the RAW `TypeExpr` of spec 09
+        /// (shape-only · the grammar judgment is the analyzer's).
+        r#type: Option<Spanned<serde_json::Value>>,
         /// Human-readable description.
         description: Option<String>,
     },
@@ -61,7 +62,7 @@ mod tests {
     fn typed_value_accessor() {
         let d = OutputDecl::Typed {
             value: spanned("${{ tasks.report.output }}"),
-            r#type: Some(VarType::String),
+            r#type: Some(Spanned::new(serde_json::json!("string"), Span::default())),
             description: Some("The final markdown brief".into()),
         };
         assert_eq!(d.value().value, "${{ tasks.report.output }}");

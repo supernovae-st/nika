@@ -74,5 +74,4 @@ tasks:
 outputs:
   changes:
     value: ${{ tasks.delta.output }}
-    type: array
     description: "RFC 6902 ops since last run · empty = no-op run"

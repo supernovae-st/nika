@@ -388,7 +388,7 @@ impl Cx<'_> {
                             .to_owned(),
                     )
                 } else {
-                    crate::suggest::did_you_mean(key.as_str(), known.iter().copied())
+                    nika_types::suggest::did_you_mean(key.as_str(), known.iter().copied())
                         .map(str::to_owned)
                         // No near-miss to assert: for a small closed set,
                         // teach the set itself — `env` in a secret is

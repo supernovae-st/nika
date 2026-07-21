@@ -169,6 +169,12 @@ impl SchemaError {
     /// Map to the spec-facing code (spec `05-errors.md`).
     ///
     /// Exhaustive — a new variant fails compilation until mapped.
+    ///
+    /// NIKA-PARSE-015 is RETIRED (never reuse · canon.yaml — the
+    /// allocation hole is deliberate): the typed-vars 6-enum class died
+    /// with the R3b `TypeExpr` widen (the rich forms are admitted ·
+    /// out-of-grammar refuses NIKA-TYPE-001 · the surviving shape
+    /// refusals ride NIKA-PARSE-019).
     #[must_use]
     pub fn spec_code(&self) -> SpecCode {
         use SpecCategory::{ParseError, ValidationError, VariableError};
@@ -192,7 +198,6 @@ impl SchemaError {
             // because the rule is schema-checkable structure ».
             Self::ReservedBindingName { .. } => parse(13, ValidationError),
             Self::BadSecretRef { .. } => parse(14, ValidationError),
-            Self::BadTypedVar { .. } => parse(15, ValidationError),
             Self::DuplicateKey { .. } => parse(17, ValidationError),
             Self::MissingField { .. } => parse(18, ValidationError),
             Self::Validation { .. } => parse(19, ValidationError),
@@ -258,16 +263,17 @@ impl SchemaError {
             Self::TypeRecursive { .. } => typ(2),
             Self::TypeContractDuplicated { .. } => typ(3),
             Self::TypeUndecodable { .. } => typ(4),
-            // NIKA-PARSE-025 · decode: with capture: structured (the
-            // spec files it in the PARSE namespace · 05 §registry).
+            // NIKA-PARSE-025 · decode: with capture: structured (05 §registry).
             Self::DecodeWithStructuredCapture { .. } => parse(25, ValidationError),
 
             // ── NIKA-VALUES · the C2 dead value forms (the E-split) ──
             Self::DeadValueForm { form, .. } => values_code(form.spec_num()),
-            // NIKA-VALUES-003 · a value-namespace read outside the
-            // four-authority family (LAW-SURFACE-0201 · rides alongside
-            // VAR-001 — the layered oracle emits both).
+            // NIKA-VALUES-003 · outside the four-authority family (LAW-SURFACE-0201 ·
+            // rides alongside VAR-001 — the layered oracle emits both).
             Self::ForeignValueNamespace { .. } => values_code(3),
+            // ── NIKA-DEFAULT · the R3b default-conformance law (LAW-TYPE-0211 ·
+            // c0-proposed — the vendored pack canon carries the row pending the mint).
+            Self::DefaultNotConforming { .. } => default_code(1),
         }
     }
 }
@@ -277,6 +283,16 @@ impl SchemaError {
 const fn values_code(num: u16) -> SpecCode {
     SpecCode {
         namespace: "VALUES",
+        num,
+        category: SpecCategory::ValidationError,
+        transient: false,
+    }
+}
+
+/// The NIKA-DEFAULT arm shape (R3b · LAW-TYPE-0211).
+const fn default_code(num: u16) -> SpecCode {
+    SpecCode {
+        namespace: "DEFAULT",
         num,
         category: SpecCategory::ValidationError,
         transient: false,
@@ -484,7 +500,7 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 40 variants · 3 share VAR-001 · 2 share VAR-005 → 37
+        // 39 variants · 3 share VAR-001 · 2 share VAR-005 → 37
         // distinct codes (DAG-003 retired with its variant in W2 ·
         // PARSE-024 + DAG-005 + VAR-021 join · VAR-020 bare-envelope
         // joined 0.103 · the nika:done arm adds BUILTIN-DONE-001 only
@@ -492,8 +508,41 @@ mod tests {
         // the W3 type core adds TYPE-001/2/3/4 + PARSE-025; TYPE-006
         // shares the TypeExprInvalid variant, enumerated once as num 1 ·
         // the C2 dead value forms add VALUES-001 (002 rides the same
-        // variant by payload) + VALUES-003 (the foreign namespace).
+        // variant by payload) + VALUES-003 (the foreign namespace) ·
+        // R3b retires BadTypedVar/PARSE-015 with the TypeExpr widen and
+        // adds DEFAULT-001 — the census holds at 37).
         assert_eq!(seen.len(), 37, "{seen:?}");
+    }
+
+    #[test]
+    fn default_001_maps_and_registers() {
+        // R3b · LAW-TYPE-0211 — the DEFAULT namespace's one code maps
+        // exact (the TYPE-006 precedent for the registration pin: the
+        // enumerator covers the emittance, the vendored canon covers the
+        // registry — the spec canon mint is PENDING, c0-proposed).
+        let err = SchemaError::DefaultNotConforming {
+            where_: "inputs.count.default".to_owned(),
+            message: String::new(),
+            span: None,
+        };
+        let code = err.spec_code();
+        assert_eq!(code.to_string(), "NIKA-DEFAULT-001");
+        assert_eq!(code.namespace, "DEFAULT");
+        assert_eq!(code.category.as_str(), "validation_error");
+        let registered: std::collections::BTreeSet<&str> = nika_pack::error_codes()
+            .into_iter()
+            .map(|row| row.code)
+            .collect();
+        assert!(
+            registered.contains("NIKA-DEFAULT-001"),
+            "DEFAULT-001 must be registered in the vendored canon error_codes table"
+        );
+        // NIKA-PARSE-015 is the deliberate allocation hole — the retired
+        // class is never emitted again (the registry row is a tombstone).
+        assert!(
+            !registered.contains("NIKA-PARSE-015"),
+            "PARSE-015 stays retired (never reuse)"
+        );
     }
 
     #[test]

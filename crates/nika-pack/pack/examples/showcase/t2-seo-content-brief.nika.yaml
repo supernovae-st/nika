@@ -89,5 +89,4 @@ tasks:
 outputs:
   brief:
     value: ${{ tasks.brief.output }}
-    type: object
     description: "The typed content brief"

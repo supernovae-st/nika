@@ -200,7 +200,7 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         "NIKA-VAR-006" => Some(
             "the expression mixes types — `when:` must be boolean-shaped, \
              `for_each:` must reference an ARRAY (a `.output` of a `schema:` \
-             task with `type: array`, or a literal list), and comparisons \
+             task typed `{ array: … }`, or a literal list), and comparisons \
              need both sides the same type",
         ),
         "NIKA-DECIDE-001" => Some(

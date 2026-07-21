@@ -27,22 +27,17 @@ use common::{fixture_dirs, fixture_verdict, skip_in_mutants_sandbox, spec_dir};
 /// does not hold the verdict yet. Closing a gap = implement + DELETE the
 /// row.
 const VALUES_GAPS: &[(&str, &str)] = &[
-    // ── The R3b TypeExpr wave (spec 01 §inputs · the `type:` of a typed
-    // declaration speaks the FULL TypeExpr — enum maps · named types ·
-    // the flat 6-enum is dead — and every declared default / typed
-    // constant value conforms to it, NIKA-DEFAULT-001 · the P0 soundness
-    // hole). The engine's typed-declaration grammar is still the 6-enum
-    // scalar with no default-conformance check; the wave owns both
-    // fixtures below (the valid one needs the full grammar · the invalid
-    // one needs the conformance check).
-    (
-        "valid/default-conforms-to-type",
-        "R3b TypeExpr widen (full grammar)",
-    ),
-    (
-        "invalid/default-type-mismatch",
-        "R3b NIKA-DEFAULT-001 (default conforms)",
-    ),
+    // valid/default-conforms-to-type + invalid/default-type-mismatch
+    // CLOSED 2026-07-21 (the R3b wave) — the declaration `type:` speaks
+    // the FULL TypeExpr of 09-types (LAW-GRAMMAR-0211 · the parser is
+    // shape-only, the analyzer's `check_io_declarations` judges the
+    // grammar `NIKA-TYPE-001/006` — `bool` the one boolean spelling,
+    // NIKA-PARSE-015 retired-never-reused), and every declared
+    // `default:` / typed `const:` `value:` conforms to its declared
+    // type (`NIKA-DEFAULT-001` · LAW-TYPE-0211 · the P0 soundness hole
+    // closed · the one type core's `fits`, one code for const too).
+    // Rows deleted per the ratchet (« the suite fails on a stale row by
+    // design »).
 ];
 
 #[test]

@@ -5,8 +5,8 @@
 //!
 //! Descended from `nika-schema` (C2 flag-day · the 15k wall — this module
 //! derives from [`all_builtins`], so the catalog IS
-//! its natural home). `nika_schema::codegen` re-exports this door, so the
-//! public path is unchanged.
+//! its natural home). `nika_schema` re-exports this door at the crate
+//! root, so the public path is unchanged.
 //!
 //! **Today** · pure-Rust helpers that emit JSON-Schema fragments derived
 //! from `nika-catalog` (single source of truth · the canonical 28 builtins

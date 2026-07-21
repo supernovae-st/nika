@@ -284,7 +284,7 @@ workflow:
   id: fe-typed
 model: anthropic/claude-sonnet-4-6
 inputs:
-  items: { type: array, required: true }
+  items: { type: { array: string }, required: true }
 tasks:
   fan:
     for_each: ${{ inputs.items }}
@@ -308,7 +308,7 @@ workflow:
   id: fe-typed-default
 model: anthropic/claude-sonnet-4-6
 inputs:
-  items: { type: array, default: [\"a\", \"b\"] }
+  items: { type: { array: string }, default: [\"a\", \"b\"] }
 tasks:
   fan:
     for_each: ${{ inputs.items }}

@@ -51,7 +51,7 @@ counts:
   providers: 16
   extract_modes: 9
   templates: 10
-  error_namespaces: 23
+  error_namespaces: 24
   error_categories: 12
   error_codes: 86
   pillars: 5
@@ -224,7 +224,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 23
+  count: 24
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -240,6 +240,7 @@ error_namespaces:
     - NIKA-LOCK
     - NIKA-MCP
     - NIKA-DECIDE
+    - NIKA-DEFAULT
     - NIKA-DRIFT
     - NIKA-VALUES
     - NIKA-PARSE
@@ -294,7 +295,11 @@ error_codes:
     - { code: NIKA-PARSE-012, category: validation_error, transient: "false", failure: "on_error: block violates the spec shape (fields mutually exclusive)" }
     - { code: NIKA-PARSE-013, category: validation_error, transient: "false", failure: "with:/output: binding uses a reserved name (output · status · error · started_at · ended_at · duration_ms)" }
     - { code: NIKA-PARSE-014, category: validation_error, transient: "false", failure: "secrets: entry is not a store reference — inline literals forbidden" }
-    - { code: NIKA-PARSE-015, category: validation_error, transient: "false", failure: "typed vars: declaration malformed (type in string/number/integer/boolean/array/object)" }
+    # NIKA-PARSE-015 · RETIRED (never reuse) — the typed-vars 6-enum class died
+    # with the E-split (R3b · LAW-GRAMMAR-0211): the type: field of inputs/
+    # outputs declarations speaks the full TypeExpr of 09-types · what PARSE-015
+    # refused is admitted · what stays outside TypeExpr refuses via NIKA-TYPE-001.
+    # The allocation hole is deliberate.
     # NIKA-PARSE-016 · RETIRED (never reuse) — the jq-binding-contains-template
     # class folded into NIKA-VAR-005 (static expression violation) at the
     # deep-conformance registry remap · the allocation hole is deliberate.
@@ -373,6 +378,7 @@ error_codes:
     - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split) · a typed parameter is an `inputs:` declaration, a fixed value is a `const:` entry (classify-not-rename · equivalence-or-stop · never a bulk rename)" }
     - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split) · non-sensitive runtime configuration is a `config:` declaration, a governed store reference is a `secrets:` entry" }
     - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201) · the authorities are exactly inputs · config · const · secrets (rides alongside NIKA-VAR-001 — the layered oracle emits both)" }
+    - { code: NIKA-DEFAULT-001, category: validation_error, transient: "false", failure: "a declared default (inputs · config) or typed const value does not conform to its declared type (R3b · LAW-TYPE-0211 · the P0 soundness hole — a value that passed check and failed at run — is closed at check · same code covers const, no second mint)" }
 
 # ---------------------------------------------------------------- pillars
 # 5 immutable pillars forever (spec/00-overview · the language backbone).

@@ -134,7 +134,10 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
                         ..
                     } => {
                         use std::fmt::Write as _;
-                        let mut d = format!("input · {type}");
+                        let mut d = format!(
+                            "input · {}",
+                            nika_schema::types::type_expr_display(&r#type.value)
+                        );
                         if *required {
                             d.push_str(" · required");
                         }
@@ -158,7 +161,10 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
             for (name, decl) in &wf.config {
                 let detail = match decl {
                     nika_schema::VarDecl::Typed { r#type, .. } => {
-                        format!("config · {type} · non-sensitive runtime config")
+                        format!(
+                            "config · {} · non-sensitive runtime config",
+                            nika_schema::types::type_expr_display(&r#type.value)
+                        )
                     }
                     nika_schema::VarDecl::Untyped(v) => format!("config · {v}"),
                 };
@@ -168,7 +174,12 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
         "const" => {
             for (name, decl) in &wf.consts {
                 let detail = match decl {
-                    nika_schema::VarDecl::Typed { r#type, .. } => format!("const · {type}"),
+                    nika_schema::VarDecl::Typed { r#type, .. } => {
+                        format!(
+                            "const · {}",
+                            nika_schema::types::type_expr_display(&r#type.value)
+                        )
+                    }
                     nika_schema::VarDecl::Untyped(v) => format!("const · {v}"),
                 };
                 items.push(member_item(&name.value, detail));

@@ -29,8 +29,9 @@ pub struct RawTask {
     /// each entry is one control edge (spec 03 §after · W2).
     pub after: Vec<(Spanned<String>, Spanned<AfterPredicate>)>,
     /// `when:` — the LOCAL business condition · evaluated POST-gate ·
-    /// a single boolean CEL island over `{vars · env · with · item ·
-    /// index}` OR the YAML boolean literal (spec 03 §when).
+    /// a single boolean CEL island over the value authorities + loop
+    /// locals `{inputs · config · const · secrets · with · item · index}`
+    /// OR the YAML boolean literal (spec 03 §when).
     pub when: Option<Spanned<WhenGate>>,
     /// `for_each:` — map this task over a collection (spec `03-dag.md`
     /// · « The collection is either a literal list or a reference to

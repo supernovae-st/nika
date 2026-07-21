@@ -18,6 +18,8 @@
 //!   `item`/`index` loop-locals · spec `04-variables.md`)
 //! - `when:` boolean shape (`NIKA-VAR-005` class)
 //! - `output:` binding rules · reserved names + pure-jq
+//! - R3b · io `type:` speaks the full `TypeExpr` (NIKA-TYPE-001/006)
+//!   · declared defaults conform (`NIKA-DEFAULT-001`)
 //! - topological waves over the derived edges (spec `03-dag.md`)
 
 mod builtin_shape;
@@ -88,6 +90,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     jq_lint::scan_jq(wf, &mut errors);
     schema_lint::scan_schemas(wf, &mut errors);
     types_contract::check_types_contract(wf, &mut errors);
+    types_contract::check_io_declarations(wf, &mut errors);
 
     if errors.is_empty() {
         let waves = dag::topo_waves(wf.tasks.len(), &derived);

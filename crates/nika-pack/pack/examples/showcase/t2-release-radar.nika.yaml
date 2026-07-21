@@ -89,5 +89,4 @@ tasks:
 outputs:
   new_entries:
     value: ${{ tasks.fresh.output }}
-    type: array
     description: "RFC 6902 ops · empty = nothing new since last run"

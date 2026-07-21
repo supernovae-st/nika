@@ -21,7 +21,7 @@ use nika_catalog::{all_builtins, find_builtin};
 
 use crate::raw::{RawAction, RawWorkflow};
 
-use crate::suggest::did_you_mean;
+use nika_types::suggest::did_you_mean;
 
 /// An invoke/agent tool naming a `nika:` builtin that does not exist.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]

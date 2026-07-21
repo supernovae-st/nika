@@ -982,7 +982,7 @@ fn task_fields_survive_outside_schema() {
 /// (so the doc PARSES and the island lanes ride the parse path; the
 /// cursor sits just after `for_each: ` where the typed prefix is still
 /// the empty-value position).
-const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\ninputs:\n  urls:\n    type: array\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: succeeded }\n    for_each: \"${{ inputs.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: succeeded }\n    exec:\n      command: [\"true\"]\n";
+const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: succeeded }\n    for_each: \"${{ inputs.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: succeeded }\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
@@ -1106,7 +1106,7 @@ fn skills_positions_route_to_the_walk_and_pure_callers_lose_only_that_lane() {
 fn retry_block_offers_exactly_the_parser_keyset() {
     let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n    retry:\n      ";
     let items = completion(text, text.len());
-    let expected = nika_schema::keysets::known_child_keys("retry", None).expect("keyset");
+    let expected = nika_schema::types::keys::known_child_keys("retry", None).expect("keyset");
     assert_eq!(items.len(), expected.len());
     let got = labels(&items);
     assert!(got.contains(&"max_attempts:".to_owned()), "{got:?}");
