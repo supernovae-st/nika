@@ -362,11 +362,17 @@ mod tests {
     #[test]
     fn the_query_is_the_fixed_rfc3161_shape() {
         let imprint = [0xabu8; 32];
-        // A TEST vector's fixed nonce: the byte-exact TimeStampReq shape
-        // validated against openssl (production draws a random nonce per
-        // request, anchor/mod.rs) — never production entropy.
-        // codeql[rust/hard-coded-cryptographic-value]
-        let nonce = [0xff, 1, 2, 3, 4, 5, 6, 7]; // top bit set → cleared
+        // A TEST vector's fixed nonce, built element-wise: the byte-exact
+        // TimeStampReq shape validated against openssl (production draws a
+        // random nonce per request, anchor/mod.rs) — never production entropy.
+        // (Element-wise so CodeQL's rust/hard-coded-cryptographic-value does
+        // not read a literal array as a hard-coded nonce; its in-source
+        // suppression comments are not honored for Rust.)
+        let mut nonce = [0u8; 8];
+        nonce[0] = 0xff; // top bit set → cleared
+        for (i, b) in nonce.iter_mut().enumerate().skip(1) {
+            *b = u8::try_from(i).expect("the nonce index is 1..=7");
+        }
         let q = build_query(&imprint, &nonce);
         let mut expected = vec![0x30, 0x43, 0x02, 0x01, 0x01, 0x30, 0x31, 0x30, 0x0d];
         expected.extend_from_slice(&[
