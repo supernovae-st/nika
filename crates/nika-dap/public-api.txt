@@ -45,6 +45,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::rekor::Checkpoint where T: cor
 pub fn nika_dap::anchor::rekor::Checkpoint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::rekor::Checkpoint where T: 'static
 pub fn nika_dap::anchor::rekor::Checkpoint::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::rekor::Checkpoint
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::rekor::Checkpoint
 impl<T> typenum::type_operators::Same for nika_dap::anchor::rekor::Checkpoint
 pub type nika_dap::anchor::rekor::Checkpoint::Output = T
 pub struct nika_dap::anchor::rekor::SubmittedEntry
@@ -95,6 +97,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::rekor::SubmittedEntry where T:
 pub fn nika_dap::anchor::rekor::SubmittedEntry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::rekor::SubmittedEntry where T: 'static
 pub fn nika_dap::anchor::rekor::SubmittedEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::rekor::SubmittedEntry
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::rekor::SubmittedEntry
 impl<T> typenum::type_operators::Same for nika_dap::anchor::rekor::SubmittedEntry
 pub type nika_dap::anchor::rekor::SubmittedEntry::Output = T
 pub const nika_dap::anchor::rekor::DEFAULT_REKOR_URL: &str
@@ -153,6 +157,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::rfc3161::VerifiedToken where T
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::rfc3161::VerifiedToken where T: 'static
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::rfc3161::VerifiedToken
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::rfc3161::VerifiedToken
 impl<T> typenum::type_operators::Same for nika_dap::anchor::rfc3161::VerifiedToken
 pub type nika_dap::anchor::rfc3161::VerifiedToken::Output = T
 pub const nika_dap::anchor::rfc3161::DEFAULT_TSA_URL: &str
@@ -212,6 +218,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::run::AnchorFailure where T: co
 pub fn nika_dap::anchor::run::AnchorFailure::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::run::AnchorFailure where T: 'static
 pub fn nika_dap::anchor::run::AnchorFailure::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::run::AnchorFailure
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::run::AnchorFailure
 impl<T> typenum::type_operators::Same for nika_dap::anchor::run::AnchorFailure
 pub type nika_dap::anchor::run::AnchorFailure::Output = T
 pub struct nika_dap::anchor::run::AnchoredReport
@@ -261,6 +269,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::run::AnchoredReport where T: c
 pub fn nika_dap::anchor::run::AnchoredReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::run::AnchoredReport where T: 'static
 pub fn nika_dap::anchor::run::AnchoredReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::run::AnchoredReport
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::run::AnchoredReport
 impl<T> typenum::type_operators::Same for nika_dap::anchor::run::AnchoredReport
 pub type nika_dap::anchor::run::AnchoredReport::Output = T
 pub async fn nika_dap::anchor::run::anchor_journal(http: &impl nika_kernel_core::io::http::HttpPostDyn, trace: &str, rekor_url: &str, tsa_url: &str) -> core::result::Result<nika_dap::anchor::run::AnchoredReport, nika_dap::anchor::run::AnchorFailure>
@@ -311,6 +321,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::AnchorTier where T: core
 pub fn nika_dap::anchor::tier::AnchorTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::AnchorTier where T: 'static
 pub fn nika_dap::anchor::tier::AnchorTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::AnchorTier
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::AnchorTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::AnchorTier
 pub type nika_dap::anchor::tier::AnchorTier::Output = T
 #[non_exhaustive] pub enum nika_dap::anchor::tier::AttainedTier
@@ -362,6 +374,8 @@ impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::AttainedTier where
 pub fn nika_dap::anchor::tier::AttainedTier::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::anchor::tier::AttainedTier where T: core::marker::Copy
 pub fn nika_dap::anchor::tier::AttainedTier::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::AttainedTier
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::AttainedTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::AttainedTier
 pub type nika_dap::anchor::tier::AttainedTier::Output = T
 #[non_exhaustive] pub enum nika_dap::anchor::tier::ReplayCompare
@@ -409,6 +423,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::ReplayCompare where T: c
 pub fn nika_dap::anchor::tier::ReplayCompare::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::ReplayCompare where T: 'static
 pub fn nika_dap::anchor::tier::ReplayCompare::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::ReplayCompare
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::ReplayCompare
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::ReplayCompare
 pub type nika_dap::anchor::tier::ReplayCompare::Output = T
 #[non_exhaustive] pub enum nika_dap::anchor::tier::ReplayTier
@@ -457,6 +473,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::ReplayTier where T: core
 pub fn nika_dap::anchor::tier::ReplayTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::ReplayTier where T: 'static
 pub fn nika_dap::anchor::tier::ReplayTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::ReplayTier
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::ReplayTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::ReplayTier
 pub type nika_dap::anchor::tier::ReplayTier::Output = T
 pub enum nika_dap::anchor::tier::SealTier
@@ -504,6 +522,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::SealTier where T: core::
 pub fn nika_dap::anchor::tier::SealTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::SealTier where T: 'static
 pub fn nika_dap::anchor::tier::SealTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::SealTier
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::SealTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::SealTier
 pub type nika_dap::anchor::tier::SealTier::Output = T
 #[non_exhaustive] pub enum nika_dap::anchor::tier::TierExit
@@ -554,6 +574,8 @@ impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::TierExit where T: 
 pub fn nika_dap::anchor::tier::TierExit::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::anchor::tier::TierExit where T: core::marker::Copy
 pub fn nika_dap::anchor::tier::TierExit::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::TierExit
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::TierExit
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::TierExit
 pub type nika_dap::anchor::tier::TierExit::Output = T
 pub struct nika_dap::anchor::tier::SealVerdict
@@ -601,6 +623,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::SealVerdict where T: cor
 pub fn nika_dap::anchor::tier::SealVerdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::SealVerdict where T: 'static
 pub fn nika_dap::anchor::tier::SealVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::SealVerdict
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::SealVerdict
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::SealVerdict
 pub type nika_dap::anchor::tier::SealVerdict::Output = T
 pub struct nika_dap::anchor::tier::TierReport
@@ -651,6 +675,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::TierReport where T: core
 pub fn nika_dap::anchor::tier::TierReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::TierReport where T: 'static
 pub fn nika_dap::anchor::tier::TierReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::TierReport
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::TierReport
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::TierReport
 pub type nika_dap::anchor::tier::TierReport::Output = T
 pub fn nika_dap::anchor::tier::anchor_tier(trace: &str, head32: core::option::Option<[u8; 32]>, seal: &nika_dap::anchor::tier::SealVerdict, required: bool) -> nika_dap::anchor::tier::AnchorTier
@@ -708,6 +734,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::HeadRefusal where T: core::clo
 pub fn nika_dap::anchor::HeadRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::HeadRefusal where T: 'static
 pub fn nika_dap::anchor::HeadRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::HeadRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::HeadRefusal
 impl<T> typenum::type_operators::Same for nika_dap::anchor::HeadRefusal
 pub type nika_dap::anchor::HeadRefusal::Output = T
 pub struct nika_dap::anchor::AnchorSidecar
@@ -763,6 +791,8 @@ pub fn nika_dap::anchor::AnchorSidecar::__clone_box(&self, _: dyn_clone::sealed:
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::AnchorSidecar where T: 'static
 pub fn nika_dap::anchor::AnchorSidecar::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::AnchorSidecar where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::AnchorSidecar
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::AnchorSidecar
 impl<T> typenum::type_operators::Same for nika_dap::anchor::AnchorSidecar
 pub type nika_dap::anchor::AnchorSidecar::Output = T
 pub struct nika_dap::anchor::RekorAnchor
@@ -821,6 +851,8 @@ pub fn nika_dap::anchor::RekorAnchor::__clone_box(&self, _: dyn_clone::sealed::P
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::RekorAnchor where T: 'static
 pub fn nika_dap::anchor::RekorAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::RekorAnchor where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::RekorAnchor
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::RekorAnchor
 impl<T> typenum::type_operators::Same for nika_dap::anchor::RekorAnchor
 pub type nika_dap::anchor::RekorAnchor::Output = T
 pub struct nika_dap::anchor::RunKeyMaterial
@@ -847,6 +879,8 @@ impl<T> core::convert::From<T> for nika_dap::anchor::RunKeyMaterial
 pub fn nika_dap::anchor::RunKeyMaterial::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::RunKeyMaterial where T: 'static
 pub fn nika_dap::anchor::RunKeyMaterial::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::RunKeyMaterial
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::RunKeyMaterial
 impl<T> typenum::type_operators::Same for nika_dap::anchor::RunKeyMaterial
 pub type nika_dap::anchor::RunKeyMaterial::Output = T
 pub struct nika_dap::anchor::TsaAnchor
@@ -899,6 +933,8 @@ pub fn nika_dap::anchor::TsaAnchor::__clone_box(&self, _: dyn_clone::sealed::Pri
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::TsaAnchor where T: 'static
 pub fn nika_dap::anchor::TsaAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::TsaAnchor where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::TsaAnchor
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::TsaAnchor
 impl<T> typenum::type_operators::Same for nika_dap::anchor::TsaAnchor
 pub type nika_dap::anchor::TsaAnchor::Output = T
 pub struct nika_dap::anchor::VerifiedAnchor
@@ -946,6 +982,8 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::VerifiedAnchor where T: core::
 pub fn nika_dap::anchor::VerifiedAnchor::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::VerifiedAnchor where T: 'static
 pub fn nika_dap::anchor::VerifiedAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::anchor::VerifiedAnchor
+impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::VerifiedAnchor
 impl<T> typenum::type_operators::Same for nika_dap::anchor::VerifiedAnchor
 pub type nika_dap::anchor::VerifiedAnchor::Output = T
 pub const nika_dap::anchor::DEFAULT_REKOR_URL: &str
@@ -995,6 +1033,8 @@ impl<T> core::convert::From<T> for nika_dap::chain::Verdict
 pub fn nika_dap::chain::Verdict::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::chain::Verdict where T: 'static
 pub fn nika_dap::chain::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::chain::Verdict
+impl<T> tracing::instrument::WithSubscriber for nika_dap::chain::Verdict
 impl<T> typenum::type_operators::Same for nika_dap::chain::Verdict
 pub type nika_dap::chain::Verdict::Output = T
 pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
@@ -1054,6 +1094,8 @@ impl<T> dyn_clone::DynClone for nika_dap::evidence::PackError where T: core::clo
 pub fn nika_dap::evidence::PackError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::evidence::PackError where T: 'static
 pub fn nika_dap::evidence::PackError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::evidence::PackError
+impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::PackError
 impl<T> typenum::type_operators::Same for nika_dap::evidence::PackError
 pub type nika_dap::evidence::PackError::Output = T
 #[non_exhaustive] pub struct nika_dap::evidence::EvidencePack
@@ -1082,6 +1124,8 @@ impl<T> core::convert::From<T> for nika_dap::evidence::EvidencePack
 pub fn nika_dap::evidence::EvidencePack::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::evidence::EvidencePack where T: 'static
 pub fn nika_dap::evidence::EvidencePack::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::evidence::EvidencePack
+impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::EvidencePack
 impl<T> typenum::type_operators::Same for nika_dap::evidence::EvidencePack
 pub type nika_dap::evidence::EvidencePack::Output = T
 pub fn nika_dap::evidence::build(trace: &std::path::Path, workflow: core::option::Option<&std::path::Path>, keys: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<nika_dap::evidence::EvidencePack, nika_dap::evidence::PackError>
@@ -1134,6 +1178,8 @@ impl<T> dyn_clone::DynClone for nika_dap::flow::FlowEdge where T: core::clone::C
 pub fn nika_dap::flow::FlowEdge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::flow::FlowEdge where T: 'static
 pub fn nika_dap::flow::FlowEdge::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::flow::FlowEdge
+impl<T> tracing::instrument::WithSubscriber for nika_dap::flow::FlowEdge
 impl<T> typenum::type_operators::Same for nika_dap::flow::FlowEdge
 pub type nika_dap::flow::FlowEdge::Output = T
 pub fn nika_dap::flow::flow_edges(wf: &nika_schema::raw::workflow::RawWorkflow, size_of: &mut dyn core::ops::function::FnMut(&str) -> core::option::Option<usize>) -> alloc::vec::Vec<nika_dap::flow::FlowEdge>
@@ -1171,6 +1217,8 @@ impl<T> core::convert::From<T> for nika_dap::inventory::Rollups
 pub fn nika_dap::inventory::Rollups::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::inventory::Rollups where T: 'static
 pub fn nika_dap::inventory::Rollups::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::inventory::Rollups
+impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::Rollups
 impl<T> typenum::type_operators::Same for nika_dap::inventory::Rollups
 pub type nika_dap::inventory::Rollups::Output = T
 pub struct nika_dap::inventory::WorkflowFact
@@ -1218,6 +1266,8 @@ impl<T> dyn_clone::DynClone for nika_dap::inventory::WorkflowFact where T: core:
 pub fn nika_dap::inventory::WorkflowFact::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::inventory::WorkflowFact where T: 'static
 pub fn nika_dap::inventory::WorkflowFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::inventory::WorkflowFact
+impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::WorkflowFact
 impl<T> typenum::type_operators::Same for nika_dap::inventory::WorkflowFact
 pub type nika_dap::inventory::WorkflowFact::Output = T
 pub struct nika_dap::inventory::Workspace
@@ -1252,6 +1302,8 @@ impl<T> core::convert::From<T> for nika_dap::inventory::Workspace
 pub fn nika_dap::inventory::Workspace::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::inventory::Workspace where T: 'static
 pub fn nika_dap::inventory::Workspace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::inventory::Workspace
+impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::Workspace
 impl<T> typenum::type_operators::Same for nika_dap::inventory::Workspace
 pub type nika_dap::inventory::Workspace::Output = T
 pub const nika_dap::inventory::MAX_WORKFLOWS: usize
@@ -1305,6 +1357,8 @@ impl<T> dyn_clone::DynClone for nika_dap::otel::ExportOutcome where T: core::clo
 pub fn nika_dap::otel::ExportOutcome::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::otel::ExportOutcome where T: 'static
 pub fn nika_dap::otel::ExportOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::otel::ExportOutcome
+impl<T> tracing::instrument::WithSubscriber for nika_dap::otel::ExportOutcome
 impl<T> typenum::type_operators::Same for nika_dap::otel::ExportOutcome
 pub type nika_dap::otel::ExportOutcome::Output = T
 pub fn nika_dap::otel::default_out_path(trace: &str) -> alloc::string::String
@@ -1345,6 +1399,8 @@ impl<T> core::convert::From<T> for nika_dap::recover::RecoverError
 pub fn nika_dap::recover::RecoverError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoverError where T: 'static
 pub fn nika_dap::recover::RecoverError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::recover::RecoverError
+impl<T> tracing::instrument::WithSubscriber for nika_dap::recover::RecoverError
 impl<T> typenum::type_operators::Same for nika_dap::recover::RecoverError
 pub type nika_dap::recover::RecoverError::Output = T
 #[non_exhaustive] pub struct nika_dap::recover::RecoveredTrace
@@ -1373,6 +1429,8 @@ impl<T> core::convert::From<T> for nika_dap::recover::RecoveredTrace
 pub fn nika_dap::recover::RecoveredTrace::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoveredTrace where T: 'static
 pub fn nika_dap::recover::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::recover::RecoveredTrace
+impl<T> tracing::instrument::WithSubscriber for nika_dap::recover::RecoveredTrace
 impl<T> typenum::type_operators::Same for nika_dap::recover::RecoveredTrace
 pub type nika_dap::recover::RecoveredTrace::Output = T
 pub fn nika_dap::recover::first_wire_code(detail: &str) -> core::option::Option<&str>
@@ -1425,6 +1483,8 @@ impl<T> dyn_clone::DynClone for nika_dap::reproduce::CompareRefusal where T: cor
 pub fn nika_dap::reproduce::CompareRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::CompareRefusal where T: 'static
 pub fn nika_dap::reproduce::CompareRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::reproduce::CompareRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::CompareRefusal
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::CompareRefusal
 pub type nika_dap::reproduce::CompareRefusal::Output = T
 #[non_exhaustive] pub enum nika_dap::reproduce::Verdict
@@ -1479,6 +1539,8 @@ impl<T> dyn_clone::DynClone for nika_dap::reproduce::Verdict where T: core::clon
 pub fn nika_dap::reproduce::Verdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Verdict where T: 'static
 pub fn nika_dap::reproduce::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::reproduce::Verdict
+impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::Verdict
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::Verdict
 pub type nika_dap::reproduce::Verdict::Output = T
 pub struct nika_dap::reproduce::JournalComparison
@@ -1505,6 +1567,8 @@ impl<T> core::convert::From<T> for nika_dap::reproduce::JournalComparison
 pub fn nika_dap::reproduce::JournalComparison::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::JournalComparison where T: 'static
 pub fn nika_dap::reproduce::JournalComparison::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::reproduce::JournalComparison
+impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::JournalComparison
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::JournalComparison
 pub type nika_dap::reproduce::JournalComparison::Output = T
 #[non_exhaustive] pub struct nika_dap::reproduce::Report
@@ -1536,6 +1600,8 @@ impl<T> core::convert::From<T> for nika_dap::reproduce::Report
 pub fn nika_dap::reproduce::Report::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Report where T: 'static
 pub fn nika_dap::reproduce::Report::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::reproduce::Report
+impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::Report
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::Report
 pub type nika_dap::reproduce::Report::Output = T
 #[non_exhaustive] pub struct nika_dap::reproduce::Row
@@ -1564,6 +1630,8 @@ impl<T> core::convert::From<T> for nika_dap::reproduce::Row
 pub fn nika_dap::reproduce::Row::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Row where T: 'static
 pub fn nika_dap::reproduce::Row::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::reproduce::Row
+impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::Row
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::Row
 pub type nika_dap::reproduce::Row::Output = T
 pub fn nika_dap::reproduce::compare(recorded: &[nika_event::event::Event], fresh: &[nika_event::event::Event]) -> nika_dap::reproduce::Report
@@ -1626,6 +1694,8 @@ impl<T> nika_error::traits::AsAny for nika_dap::retention::Reason where T: 'stat
 pub fn nika_dap::retention::Reason::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::retention::Reason where T: core::marker::Copy
 pub fn nika_dap::retention::Reason::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tracing::instrument::Instrument for nika_dap::retention::Reason
+impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::Reason
 impl<T> typenum::type_operators::Same for nika_dap::retention::Reason
 pub type nika_dap::retention::Reason::Output = T
 #[non_exhaustive] pub struct nika_dap::retention::GcReport
@@ -1667,6 +1737,8 @@ impl<T> core::convert::From<T> for nika_dap::retention::GcReport
 pub fn nika_dap::retention::GcReport::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::retention::GcReport where T: 'static
 pub fn nika_dap::retention::GcReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::retention::GcReport
+impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::GcReport
 impl<T> typenum::type_operators::Same for nika_dap::retention::GcReport
 pub type nika_dap::retention::GcReport::Output = T
 #[non_exhaustive] pub struct nika_dap::retention::RetentionConfig
@@ -1721,8 +1793,13 @@ impl<T> dyn_clone::DynClone for nika_dap::retention::RetentionConfig where T: co
 pub fn nika_dap::retention::RetentionConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::retention::RetentionConfig where T: 'static
 pub fn nika_dap::retention::RetentionConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::retention::RetentionConfig
+impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::RetentionConfig
 impl<T> typenum::type_operators::Same for nika_dap::retention::RetentionConfig
 pub type nika_dap::retention::RetentionConfig::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::retention::RetentionConfig where T: core::default::Default
+pub type nika_dap::retention::RetentionConfig::NoneType = T
+pub fn nika_dap::retention::RetentionConfig::null_value() -> T
 pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<nika_dap::retention::GcReport>
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
@@ -1760,6 +1837,8 @@ impl<T> core::convert::From<T> for nika_dap::sign::WorkflowSig
 pub fn nika_dap::sign::WorkflowSig::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::sign::WorkflowSig where T: 'static
 pub fn nika_dap::sign::WorkflowSig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::sign::WorkflowSig
+impl<T> tracing::instrument::WithSubscriber for nika_dap::sign::WorkflowSig
 impl<T> typenum::type_operators::Same for nika_dap::sign::WorkflowSig
 pub type nika_dap::sign::WorkflowSig::Output = T
 pub fn nika_dap::sign::check_workflow(path: &std::path::Path) -> nika_dap::sign::WorkflowSig
@@ -1825,6 +1904,8 @@ impl<T> nika_error::traits::AsAny for nika_dap::stats::Prior where T: 'static
 pub fn nika_dap::stats::Prior::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::stats::Prior where T: core::marker::Copy
 pub fn nika_dap::stats::Prior::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tracing::instrument::Instrument for nika_dap::stats::Prior
+impl<T> tracing::instrument::WithSubscriber for nika_dap::stats::Prior
 impl<T> typenum::type_operators::Same for nika_dap::stats::Prior
 pub type nika_dap::stats::Prior::Output = T
 #[non_exhaustive] pub struct nika_dap::stats::ConformalUpper
@@ -1872,6 +1953,8 @@ impl<T> nika_error::traits::AsAny for nika_dap::stats::ConformalUpper where T: '
 pub fn nika_dap::stats::ConformalUpper::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::stats::ConformalUpper where T: core::marker::Copy
 pub fn nika_dap::stats::ConformalUpper::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tracing::instrument::Instrument for nika_dap::stats::ConformalUpper
+impl<T> tracing::instrument::WithSubscriber for nika_dap::stats::ConformalUpper
 impl<T> typenum::type_operators::Same for nika_dap::stats::ConformalUpper
 pub type nika_dap::stats::ConformalUpper::Output = T
 pub const nika_dap::stats::BANDS_MIN_N: usize
@@ -1931,6 +2014,8 @@ impl<T> nika_error::traits::AsAny for nika_dap::store::TraceState where T: 'stat
 pub fn nika_dap::store::TraceState::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::store::TraceState where T: core::marker::Copy
 pub fn nika_dap::store::TraceState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tracing::instrument::Instrument for nika_dap::store::TraceState
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::TraceState
 impl<T> typenum::type_operators::Same for nika_dap::store::TraceState
 pub type nika_dap::store::TraceState::Output = T
 #[non_exhaustive] pub struct nika_dap::store::TraceMeta
@@ -1974,6 +2059,8 @@ impl<T> dyn_clone::DynClone for nika_dap::store::TraceMeta where T: core::clone:
 pub fn nika_dap::store::TraceMeta::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::store::TraceMeta where T: 'static
 pub fn nika_dap::store::TraceMeta::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tracing::instrument::Instrument for nika_dap::store::TraceMeta
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::TraceMeta
 impl<T> typenum::type_operators::Same for nika_dap::store::TraceMeta
 pub type nika_dap::store::TraceMeta::Output = T
 pub const nika_dap::store::TRACE_DIR: &str
