@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **PLANNED** — Gate 1 (this document) authored 2026-07-03, prior to TDD. Target tag `v0.93.0` per `ROADMAP.md` (40/42). |
+| Status | **PLANNED** — Gate 1 (this document) authored 2026-07-03, prior to TDD. Target tag `v0.93.0` per `ROADMAP.md`. |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | A pure vocabulary + set-algebra crate: the declared capability boundary (`permits:`, spec `01-envelope.md` §permits) as data + the "fits" predicate over it. No AST types, no workflow coupling. |
 | LOC budget | ≤600 src (target ~480), ≤800 hard cap — sized against the closest L0 sibling, `nika-event` (~462 LOC), not against `nika-schema` (a monolith by different design constraints, see §2) |

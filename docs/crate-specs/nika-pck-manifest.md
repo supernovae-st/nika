@@ -15,7 +15,7 @@
 The pck suite (registry L1 · git L1 · orchestrator L2 · CLI verbs L4) is
 post-1.0, but its **data contract** is L0 and admission-ready NOW: pure
 types every future pck crate deserializes against. Landing the types first
-(a) completes the 42-crate architecture target, (b) freezes the wire shapes
+(a) lands under the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate), (b) freezes the wire shapes
 under `#[non_exhaustive]` + INV#19 before any I/O code exists (additive
 forever), (c) encodes the D4 taxonomy the operator just ratified as the ONE
 closed-but-extensible enum every registry surface shares.

@@ -101,7 +101,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | HEAD             | `f6755b019` (`f6755b01914925b01a5776178939f73e5a68d5d9`)             |
 | workspace        | v0.105.0                                  |
 | crates (workspace)| 55                                              |
-| crates (admitted)| 53 / 42                                   |
+| crates (admitted)| 53                                             |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
 | L0               | 17                                              |
 | L0.5             | 6                                              |
@@ -227,8 +227,9 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 > **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
 > D-2026-06-20-N1 the tags climbed per layer-phase (`v0.81`=L0 complete …
 > `v0.90`=L3 complete … `v0.92`=L5 binary, "forever-v0.x"). That scheme is
-> retired · the engine re-versions `0.80.0 → 0.90.0` and the 42-crate target
-> moves to post-1.0 minors. Original table preserved in git history.
+> retired · the engine re-versions `0.80.0 → 0.90.0` and the crate count
+> moves to post-1.0 minors (ADR-037 horizon 50-90 · cap 100 · projected,
+> never a gate · ruled D-2026-07-21-N1). Original table preserved in git history.
 
 ## Schema envelope — forever v1 (Q-R5 · per nika-spec)
 
@@ -884,7 +885,7 @@ the historical `v0.8X.Y` layer-phase scheme is retired).
 - [`DIAMOND.md`](DIAMOND.md) — strategy overview · 7 shadow zones
 - [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
   — **10-year horizon canon (v1.3) · LAYER 1 DECENNIAL anchor** ·
-  42-crate target · 4-verb 2036 stress-test · 11/10 amplifiers ·
+  ADR-037 count horizon (50-90 · cap 100) · 4-verb 2036 stress-test · 11/10 amplifiers ·
   ADR queue 050-056 + 060/062/064/066/070/071/072/073
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — 12-gate admission · contributor process
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure · 11-row defense layers + NIKA-390 queued

@@ -17,7 +17,8 @@ the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
 "forever-v0.x") — the CHANGELOG top names the latest tagged release, `main` on the next
 dev version → 1.0.0 → 1.x adds the remaining crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
 **10-year architectural horizon
-(2026 → 2036)** with refined 42-crate target, 4-verb stress test
+(2026 → 2036)** with the ADR-037 count horizon (50-90 · cap 100 ·
+projected, never a gate · ruled D-2026-07-21-N1), 4-verb stress test
 through 2036, 7-ADR queue (050-056) and per-crate detail, see
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
 (proposal-grade · annual decennial review 2027-04+ · version lives in
@@ -76,9 +77,10 @@ servers via `rmcp`.
 
 ## Crate architecture
 
-42-crate architecture target (reached additively across the 1.x minors ·
-amended D-2026-06-20-N1), expanding to ~75 in later minors, hard cap
-100 ever. Strict downward-only layering (L0 → L5):
+Crate count: ADR-037 horizon **50-90** (reached additively across the 1.x
+minors), hard cap 100 ever — the count is projected
+(`scripts/crate-metrics.sh`), never a gate (ruled D-2026-07-21-N1).
+Strict downward-only layering (L0 → L5):
 
 ```
 L5   nika                         binary, <500 LOC composition root
@@ -159,7 +161,7 @@ Version ladder (no per-tag dates · quality > speed):
 - **release-candidate grade reached at 0.91.0**: usable vertical slice (4 verbs, 16 providers per canon.yaml, effects, static-check, MCP/LSP, CLI), headless workspace build — the CHANGELOG top names the current release.
 - **1.0.0-rc.N** — design-partner hardening, 7 shadow zones green.
 - **1.0.0** — **first public launch**: language + installable binary, validated.
-- **1.x minors** — add the remaining crates additively toward the 42-crate architecture target (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).
+- **1.x minors** — add the remaining crates additively under the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate) (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).
 - **2.0** — **the Connectome era**: memory + cognition (1 L2 orchestrator + 10 L1 satellites, agent-v2). The next epoch.
 
 Full breakdown: [`ROADMAP.md`](ROADMAP.md).

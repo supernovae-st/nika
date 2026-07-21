@@ -1,8 +1,9 @@
 # Contributing to Nika
 
 Welcome. Nika is a Rust workflow engine for AI, built as a **diamond
-rewrite toward a 1.0 launch** (amended D-2026-06-20-N1): 42 crates,
-each passing a 12-gate admission checklist before joining the workspace.
+rewrite toward a 1.0 launch** (amended D-2026-06-20-N1): layered crates
+(the count is projected, never a gate — ADR-037 horizon 50-90 · cap 100 ·
+ruled D-2026-07-21-N1), each passing a 12-gate admission checklist before joining the workspace.
 This document explains how to contribute.
 
 See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
@@ -10,7 +11,7 @@ See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
 [`DIAMOND.md`](DIAMOND.md) (strategy overview),
 [`ROADMAP.md`](ROADMAP.md) (real-semver plan toward 1.0),
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
-(10-year horizon canon · v1.3 · 42-crate target · 11/10 amplifiers).
+(10-year horizon canon · v1.3 · ADR-037 count horizon 50-90 · cap 100 · 11/10 amplifiers).
 
 ---
 
@@ -33,7 +34,7 @@ If you are unsure whether something is in scope, open an issue first.
 
 ## Philosophy
 
-- **Real semver toward 1.0** (amended D-2026-06-20-N1). The engine is at 0.91.0 (latest release · main on 0.92.0-dev · release-candidate grade); the first public launch ships as 1.0.0, then 1.x minors add the remaining crates additively toward the 42-crate target. Each version is diamond-grade for its declared scope.
+- **Real semver toward 1.0** (amended D-2026-06-20-N1). The engine is at 0.91.0 (latest release · main on 0.92.0-dev · release-candidate grade); the first public launch ships as 1.0.0, then 1.x minors add the remaining crates additively toward the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). Each version is diamond-grade for its declared scope.
 - **Quality over speed.** No deadline pressure. A PR lands when it is ready.
 - **Perfect diamond.** Zero band-aid, zero residue, zero ghost reference. Every leftover gets fixed or flagged — never ignored.
 - **Craft, not extraction.** Legacy code at `main` (v0.79.3) is a read-only reference. Diamond rewrites each crate from scratch, guided by the legacy.
