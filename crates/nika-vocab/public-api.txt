@@ -890,7 +890,7 @@ pub fn nika_vocab::secret::missing_source_teaching(name: &str) -> alloc::string:
 pub fn nika_vocab::secret::unknown_source_teaching(name: &str, source: &str) -> alloc::string::String
 pub fn nika_vocab::secret::wrong_field_teaching(name: &str, source: nika_vocab::secret::SecretSource, want: &str, reject: &str) -> alloc::string::String
 pub mod nika_vocab::type_expr
-pub fn nika_vocab::type_expr::coerce_declared(type_expr: &serde_json::value::Value, names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
+pub fn nika_vocab::type_expr::coerce_declared(type_expr: &serde_json::value::Value, type_names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_vocab::type_expr::default_not_conforming_teaching(where_: &str, value: &serde_json::value::Value, type_expr: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_vocab::type_expr::type_expr_display(expr: &serde_json::value::Value) -> alloc::string::String
 pub mod nika_vocab::var_decl
@@ -1870,7 +1870,7 @@ impl<T> core::convert::From<T> for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::secret::SecretRef where T: for<'de> serde_core::de::Deserialize<'de>
 pub const nika_vocab::NIKA_ASSERT_001: &str
-pub fn nika_vocab::coerce_declared(type_expr: &serde_json::value::Value, names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
+pub fn nika_vocab::coerce_declared(type_expr: &serde_json::value::Value, type_names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_vocab::default_not_conforming_teaching(where_: &str, value: &serde_json::value::Value, type_expr: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_vocab::is_valid_error_code(code: &str) -> bool
 pub fn nika_vocab::parse_go_duration(input: &str) -> core::result::Result<core::time::Duration, nika_vocab::duration::GoDurationError>
