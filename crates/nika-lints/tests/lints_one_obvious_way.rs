@@ -134,7 +134,10 @@ tasks:
     assert_eq!(l.rule, "one-obvious-way/010");
     assert!(!l.message.is_empty());
     assert!(!l.suggestion.is_empty());
-    assert!(l.suggestion.contains("success"), "{}", l.suggestion);
+    assert!(
+        l.suggestion.contains("success"),
+        "the /010 suggestion names the respelling"
+    );
 }
 
 // ── rule 008 · interpolated string command → use the array form ──────────

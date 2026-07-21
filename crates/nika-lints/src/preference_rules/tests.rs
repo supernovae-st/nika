@@ -599,8 +599,7 @@ tasks:
     assert!(ten[0].message.contains("terminal"), "{}", ten[0].message);
     assert!(
         ten[0].suggestion.contains("success"),
-        "{}",
-        ten[0].suggestion
+        "the /010 suggestion names the respelling"
     );
 }
 
