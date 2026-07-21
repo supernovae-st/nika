@@ -181,7 +181,8 @@ Full rules: [`.claude/rules/commit-granularity.md`](.claude/rules/commit-granula
 ## Reporting issues
 
 - **Bug**: GitHub Issues, include minimal repro and `nika --version`.
-- **Feature request**: GitHub Issues, describe the use case before the solution.
+- **Feature request** (engine behavior): GitHub Issues, describe the use case before the solution.
+- **Language change** (anything normative: syntax, verbs, permits, envelope): the spec's [NEP door](https://github.com/supernovae-st/nika-spec/blob/main/governance/nep-0000-the-nep-process.md) — nobody amends the standard directly, maintainers included. Engine issues cannot change the language.
 - **Security vulnerability**: see [`SECURITY.md`](SECURITY.md). Email `nika@supernovae.studio`, **not** a public issue.
 
 ---
