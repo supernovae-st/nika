@@ -64,6 +64,8 @@ pub mod otel       { project (journal + chain Verdict → one OTLP/JSON line) }
 pub mod reproduce  { Verdict · Row · Report · compare · workflow_of }
 pub mod store      { TRACE_DIR · TraceState · TraceMeta · scan · fold_facts }
 pub mod retention  { RetentionConfig · Reason · GcReport · plan · newest_per_workflow · collect }
+pub mod journal    { TraceFileSink · JsonSink · Tee · seal_journal }   // the WRITE half (descended 2026-07-22)
+pub mod resume     { ResumeRequest · PlanFold · fold_plan · apply_from · parse_answers · summary_line }   // ADR-099 (descended 2026-07-22)
 ```
 
 Consumers: `nika-cli` (the bin's `Command::Dap` arm + the re-exported

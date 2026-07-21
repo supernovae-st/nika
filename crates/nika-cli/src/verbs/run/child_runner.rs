@@ -39,8 +39,8 @@ use nika_schema::{FileId, ParseMode};
 use nika_event::source_id::sha256_hex;
 
 use super::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits};
-use super::sink::{TRACE_DIR, TraceFileSink};
 use super::stamp::SystemStamper;
+use nika_dap::journal::TraceFileSink;
 
 /// The production runner — one per composed runtime, rooted at the file
 /// whose tasks it serves.
@@ -207,7 +207,7 @@ impl ChildRunner for ProdChildRunner {
                 .with_child_runner(Arc::new(ProdChildRunner::new(&path, self.trace)));
             let mut stamper = SystemStamper;
             let mut sink = if self.trace {
-                TraceFileSink::new(TRACE_DIR)
+                TraceFileSink::new(nika_dap::store::TRACE_DIR)
             } else {
                 TraceFileSink::disabled()
             };

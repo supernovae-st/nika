@@ -801,11 +801,14 @@ fn run_verb(
     plain: bool,
     ascii: bool,
 ) -> u8 {
-    let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
-        trace: trace.clone(),
-        from: args.from.clone(),
-        answers: args.answer.clone(),
-    });
+    let resume = args
+        .resume
+        .as_ref()
+        .map(|trace| nika_dap::resume::ResumeRequest {
+            trace: trace.clone(),
+            from: args.from.clone(),
+            answers: args.answer.clone(),
+        });
     let mode = resolve_run_mode(args.quiet, args.no_progress || plain);
     let mut theme = term_theme(color.with_no_color(false), ascii || plain, link_when);
     // The duration accents ride the interactive surface ONLY — the

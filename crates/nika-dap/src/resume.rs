@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika run --resume <trace>` — the fold (ADR-099).
+//! `nika run --resume <trace>` — the fold (ADR-099). Descended from
+//! `nika-cli`'s run verb 2026-07-22 (compute descends, render stays):
+//! a READER of the run journal beside [`crate::recover`] — the same
+//! NDJSON bytes, one home.
 //!
 //! The trace is the run's own NDJSON journal (`nika run --json > t.ndjson`)
 //! — no second store, no daemon: `--resume` is a READER of a file. The
@@ -45,7 +48,7 @@ pub struct ResumeRequest {
 /// # Errors
 ///
 /// A human-readable refusal (environment class).
-pub(crate) fn parse_answers(
+pub fn parse_answers(
     pairs: &[String],
     wf: &RawWorkflow,
 ) -> Result<BTreeMap<String, serde_json::Value>, String> {
@@ -81,7 +84,7 @@ pub(crate) fn parse_answers(
 
 /// The fold's yield — the skip plan plus the honesty counters the
 /// notices are built from.
-pub(crate) struct PlanFold {
+pub struct PlanFold {
     /// task id → its journaled success identity (last record wins).
     pub plan: ResumePlan,
     /// Successes journaled WITHOUT a resume identity (an older engine ·
@@ -96,7 +99,8 @@ pub(crate) struct PlanFold {
 /// `task_cache_hit` records count (a resumed run's own trace is itself
 /// resumable); the LAST record per task wins (one terminal per run —
 /// last-wins also covers a file carrying run + resume appended).
-pub(crate) fn fold_plan(events: &[Event]) -> PlanFold {
+#[must_use]
+pub fn fold_plan(events: &[Event]) -> PlanFold {
     let mut fold = PlanFold {
         plan: ResumePlan::new(),
         keyless: 0,
@@ -141,11 +145,7 @@ pub(crate) fn fold_plan(events: &[Event]) -> PlanFold {
 /// # Errors
 ///
 /// A human-readable refusal naming the declared task ids.
-pub(crate) fn apply_from(
-    plan: &mut ResumePlan,
-    wf: &RawWorkflow,
-    from: &str,
-) -> Result<(), String> {
+pub fn apply_from(plan: &mut ResumePlan, wf: &RawWorkflow, from: &str) -> Result<(), String> {
     let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
     if !ids.contains(&from) {
         return Err(format!(
@@ -181,7 +181,8 @@ pub(crate) fn apply_from(
 }
 
 /// The post-run summary line (`--resume` only): what skipped, what ran.
-pub(crate) fn summary_line(cache_hits: usize, ran_live: usize) -> String {
+#[must_use]
+pub fn summary_line(cache_hits: usize, ran_live: usize) -> String {
     format!("resumed · {cache_hits} skipped (cache hit) · {ran_live} ran live")
 }
 
@@ -196,7 +197,6 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
     use nika_types::id::EventId;

@@ -25,7 +25,6 @@ mod child_runner;
 mod compose;
 mod inputs;
 pub(crate) use compose::config_from_env;
-mod resume;
 mod sink;
 mod stamp;
 
@@ -34,8 +33,7 @@ pub use compose::{
     production_runtime,
 };
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
-pub use resume::ResumeRequest;
-pub use sink::{FoldSink, JsonSink, RenderMode};
+pub use sink::{FoldSink, RenderMode};
 
 mod example;
 pub use example::example;
@@ -49,7 +47,8 @@ mod scope;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use scope::scope_to_task;
 
-use sink::{TRACE_DIR, Tee, TraceFileSink};
+use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
+use nika_dap::resume::ResumeRequest;
 
 /// The workflow's semantic hash for the run seal (the proof layer's
 /// Merkle commitment over the task leaves — `None` when any task is
@@ -342,12 +341,13 @@ fn resume_setup(
         None => None,
         Some(req) => Some(load_resume_plan(req, wf, output_json)?),
     };
-    let answers = resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
-        .map_err(|message| {
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            exit::ENV
-        })?;
+    let answers =
+        nika_dap::resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
+            .map_err(|message| {
+                eprintln!("nika run: {message}");
+                epilogue::emit_error_envelope(&message, output_json);
+                exit::ENV
+            })?;
     Ok(ResumeSetup { plan, answers })
 }
 
@@ -377,7 +377,7 @@ fn load_resume_plan(
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
-    let fold = resume::fold_plan(&recovered.events);
+    let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
         // journaled successes. The run proceeds fully live (never an error).
@@ -390,7 +390,7 @@ fn load_resume_plan(
     }
     let mut plan = fold.plan;
     if let Some(from) = &req.from {
-        resume::apply_from(&mut plan, wf, from)
+        nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
     Ok(plan)
@@ -1022,12 +1022,13 @@ where
 }
 
 /// The run journal (spec §3.3) — composed like the other seams;
-/// `execute` receives the sink, never a flag.
+/// `execute` receives the sink, never a flag. The directory constant
+/// is the store scan's (one constant, one home).
 fn trace_sink(no_trace_file: bool) -> TraceFileSink {
     if no_trace_file {
         TraceFileSink::disabled()
     } else {
-        TraceFileSink::new(TRACE_DIR)
+        TraceFileSink::new(nika_dap::store::TRACE_DIR)
     }
 }
 
