@@ -12,7 +12,7 @@ publish                = false  # Foundation crate — never on crates.io. See f
 
 [dependencies]
 toml        = "1.1"
-phf_codegen = "0.13"
+phf_codegen = "0.14"
 phf_shared  = { version = "0.13", features = ["unicase"] }
 serde       = { workspace = true, features = ["derive"] }
 unicase     = { workspace = true }
