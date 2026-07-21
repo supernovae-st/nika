@@ -27,17 +27,17 @@ const WORKFLOW: &str = r#"
 nika: v1
 workflow:
   id: var-override
-vars:
+inputs:
   topic:
     type: string
     required: true
   lang: { type: string, default: "en" }
 tasks:
   say:
-    exec: { command: ["echo", "${{ vars.topic }}"] }
+    exec: { command: ["echo", "${{ inputs.topic }}"] }
 outputs:
-  topic_out: ${{ vars.topic }}
-  lang_out: ${{ vars.lang }}
+  topic_out: ${{ inputs.topic }}
+  lang_out: ${{ inputs.lang }}
 "#;
 
 async fn run_with(overrides: BTreeMap<String, Value>) -> RunOutcome {
@@ -92,7 +92,7 @@ async fn override_satisfies_a_required_var_and_beats_the_default() {
 #[tokio::test]
 async fn missing_required_var_still_fails_var001_at_reference() {
     // No override → the pre-F4 behavior is intact: the task's
-    // `${{ vars.topic }}` fails NIKA-VAR-001 (with the --var hint).
+    // `${{ inputs.topic }}` fails NIKA-VAR-001 (with the --var hint).
     let outcome = run_with(BTreeMap::new()).await;
     assert!(!outcome.ok, "unbound required var fails the task");
     let record = &outcome.records["say"];

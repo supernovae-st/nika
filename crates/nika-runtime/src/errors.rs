@@ -58,6 +58,7 @@ pub enum RuntimeError {
     /// `tasks.X.error.code` exposes — never the 1702 (spec 05 §142).
     /// A `vars.*` reference carries the CLI fix (`--var key=value` · F4)
     /// — the first thing a user with an unbound required var needs.
+    /// Post-C2: the hint follows the overridable authority (`inputs.*`).
     #[error(
         "NIKA-VAR-001 · unresolved template reference `{reference}`{}",
         var_cli_hint(.reference)
@@ -146,12 +147,12 @@ pub enum RuntimeError {
     },
 }
 
-/// The actionable suffix for an unresolved `vars.*` reference — the CLI
+/// The actionable suffix for an unresolved `inputs.*` reference — the CLI
 /// is the fix a user can apply WITHOUT editing the workflow (`--var` ·
-/// F4). Non-`vars` references (tasks · secrets · env) get no suffix:
-/// their fixes are different classes.
+/// F4). Non-`inputs` references (tasks · secrets · config · const) get no
+/// suffix: their fixes are different classes.
 fn var_cli_hint(reference: &str) -> &'static str {
-    if reference.trim_start().starts_with("vars.") {
+    if reference.trim_start().starts_with("inputs.") {
         " — supply it with `nika run <file> --var <key>=<value>` or declare a `default:`"
     } else {
         ""
@@ -385,16 +386,16 @@ mod tests {
     }
 
     #[test]
-    fn vars_reference_carries_the_cli_fix_hint() {
-        // F4: an unbound `vars.*` reference must TEACH the fix the user
+    fn inputs_reference_carries_the_cli_fix_hint() {
+        // F4: an unbound `inputs.*` reference must TEACH the fix the user
         // can apply without editing the workflow (`--var key=value`).
         let err = RuntimeError::UnresolvedTemplate {
-            reference: "vars.topic".into(),
+            reference: "inputs.topic".into(),
         };
         let msg = err.to_string();
         assert!(msg.starts_with("NIKA-VAR-001"), "{msg}");
         assert!(msg.contains("--var"), "the CLI fix is named: {msg}");
-        // Non-vars references get no suffix — their fixes are different
+        // Non-inputs references get no suffix — their fixes are different
         // classes (a ghost task id is a workflow bug, not a CLI miss).
         let task = RuntimeError::UnresolvedTemplate {
             reference: "tasks.ghost.output".into(),

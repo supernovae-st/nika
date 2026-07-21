@@ -441,7 +441,7 @@ async fn row_failure_retry_exhausted() {
 /// decision, not a defect; the payload carries NO error (defined-null).
 #[tokio::test]
 async fn row_skipped_gate() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\nvars: { go: \"no\" }\ntasks:\n  a:\n    when: ${{ vars.go == 'yes' }}\n    exec: { command: [\"echo\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\nconst: { go: \"no\" }\ntasks:\n  a:\n    when: ${{ const.go == 'yes' }}\n    exec: { command: [\"echo\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new()).await;
     assert!(outcome.ok, "a decision-skip keeps the run green");
     assert_eq!(outcome.records["a"].status, TaskStatus::Skipped);
@@ -558,12 +558,12 @@ async fn trace_format_2_and_outcome_on_every_terminal() {
 nika: v1
 workflow:
   id: mixed
-vars: { go: "no" }
+const: { go: "no" }
 tasks:
   ok:
     exec: { command: ["echo", "fine"] }
   gated:
-    when: ${{ vars.go == 'yes' }}
+    when: ${{ const.go == 'yes' }}
     exec: { command: ["echo", "never"] }
   dies:
     exec: { command: ["boom"] }

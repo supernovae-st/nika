@@ -239,11 +239,11 @@ async fn output_binding_of_skipped_task_is_defined_null() {
 nika: v1
 workflow:
   id: out-bind-skip
-vars:
+const:
   run: "no"
 tasks:
   maybe:
-    when: ${{ vars.run == 'yes' }}
+    when: ${{ const.run == 'yes' }}
     invoke: { tool: "nika:jq", args: { input: { count: 5 }, expression: "." } }
     output: { c: ".count" }
   join:

@@ -22,14 +22,14 @@ workflow:
 
 model: mock/echo
 
-vars:
+const:
   source: "./news.json"
 
 tasks:
   gather:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.source }}" }
+      args: { path: "${{ const.source }}" }
 
   probe:
     exec:
@@ -55,7 +55,7 @@ tasks:
   notify:
     after:
       think: succeeded
-    when: ${{ vars.source != '' }}
+    when: ${{ const.source != '' }}
     exec:
       command: ["echo", "done"]
 "#;
@@ -114,7 +114,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     );
     // The gate is the author's verbatim text — the projector never
     // rewrites (`${{ }}` wrapper included).
-    assert_eq!(node("notify")["when"], "${{ vars.source != '' }}");
+    assert_eq!(node("notify")["when"], "${{ const.source != '' }}");
     assert_eq!(node("fan")["fan_out"]["kind"], "list");
     assert_eq!(node("fan")["fan_out"]["count"], 3);
     // mock/echo has no catalog price — the honest interval is null.
@@ -230,7 +230,7 @@ fn inspect_draws_the_wave_groups_with_static_facts() {
     assert!(out.text.contains("invoke · nika:read"), "{}", out.text);
     assert!(out.text.contains("for_each ×3"), "{}", out.text);
     assert!(
-        out.text.contains("when: ${{ vars.source != '' }}"),
+        out.text.contains("when: ${{ const.source != '' }}"),
         "{}",
         out.text
     );

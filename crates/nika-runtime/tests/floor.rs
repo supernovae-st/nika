@@ -38,7 +38,7 @@ workflow:
 
 model: mock/echo
 
-vars:
+const:
   source: "./news.json"
   publish: "no"
 
@@ -46,7 +46,7 @@ tasks:
   gather:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.source }}" }
+      args: { path: "${{ const.source }}" }
 
   probe:
     exec:
@@ -82,7 +82,7 @@ tasks:
 
   notify:
     after: { write_out: terminal }
-    when: ${{ vars.publish == 'yes' }}
+    when: ${{ const.publish == 'yes' }}
     exec:
       command: ["echo", "done"]
 
@@ -487,13 +487,13 @@ async fn floor_typed_var_default_and_typed_output_resolve() {
 nika: v1
 workflow:
   id: typed-forms
-vars:
+const:
   greeting:
     type: string
-    default: 'bonjour'
+    value: 'bonjour'
 tasks:
   say:
-    exec: { shell: 'echo ${{ vars.greeting }}' }
+    exec: { shell: 'echo ${{ const.greeting }}' }
 outputs:
   said:
     value: ${{ tasks.say.output }}

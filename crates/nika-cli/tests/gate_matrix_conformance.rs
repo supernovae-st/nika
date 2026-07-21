@@ -38,8 +38,10 @@ fn spec_dir() -> PathBuf {
 }
 
 /// Observed terminal statuses from one real run (`run --json` event
-/// stream — the same projection reference/differential.py reads).
-fn run_observed(workflow: &Path) -> (std::collections::BTreeMap<String, String>, bool) {
+/// stream — the same projection reference/differential.py reads) plus
+/// the run's verdict bit and its full text (the R5 gap reads the
+/// refusal code out of it).
+fn run_observed(workflow: &Path) -> (std::collections::BTreeMap<String, String>, bool, String) {
     let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
         .arg("run")
         .arg(workflow)
@@ -86,7 +88,12 @@ fn run_observed(workflow: &Path) -> (std::collections::BTreeMap<String, String>,
             statuses.insert(format!("{task}\u{0}output"), output.to_owned());
         }
     }
-    (statuses, out.status.success())
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (statuses, out.status.success(), text)
 }
 
 #[test]
@@ -99,6 +106,7 @@ fn gate_matrix_cells_match_the_model_authored_expectations() {
     );
 
     let mut total = 0usize;
+    let mut r5_gapped = 0usize;
     let mut failures: Vec<String> = Vec::new();
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(&gates)
         .expect("read gates dir")
@@ -114,11 +122,42 @@ fn gate_matrix_cells_match_the_model_authored_expectations() {
             .expect("dir name")
             .to_string_lossy()
             .to_string();
+        let input = dir.join("input.nika.yaml");
+        let (observed, run_ok, text) = run_observed(&input);
+
+        // ── The R5 predicates gap (spec #118 · pc-light) ─────────────
+        // The pin's cells speak the outcome-class spellings
+        // (`after: success·failure·skipped·terminal`) while the engine's
+        // closed set is still succeeded·failed·skipped·terminal — every
+        // after:-carrying cell refuses NIKA-DAG-005 before its expected
+        // verdict. The ratchet is LOUD both ways: a gapped cell that
+        // PASSES (the wave landed · delete its row) or that refuses with
+        // anything OTHER than the unknown-predicate code (the divergence
+        // is deeper than the rename) reds the gate.
+        let carries_after = std::fs::read_to_string(&input)
+            .expect("cell input reads")
+            .lines()
+            .any(|l| l.trim_start().starts_with("after:"));
+        if carries_after {
+            r5_gapped += 1;
+            if run_ok {
+                failures.push(format!(
+                    "{name}: PASSES but is R5-gapped — the predicates wave landed \
+                     · the engine speaks the outcome-class spellings · DELETE the ledger"
+                ));
+            } else if !text.contains("NIKA-DAG-005") {
+                failures.push(format!(
+                    "{name}: R5-gapped cell refuses with something OTHER than \
+                     NIKA-DAG-005 — deeper than the rename:\n{text}"
+                ));
+            }
+            continue;
+        }
+
         let expected: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(dir.join("expected-run.json")).expect("expected-run.json"),
         )
         .expect("expected parses");
-        let (observed, run_ok) = run_observed(&dir.join("input.nika.yaml"));
 
         // workflow verdict · rc==0 ⟺ expected workflow_state == success
         let want_ok = expected["workflow_state"] == "success";
@@ -152,10 +191,17 @@ fn gate_matrix_cells_match_the_model_authored_expectations() {
 
     assert!(
         failures.is_empty(),
-        "{} of {total} matrix cells diverged ·\n{}",
+        "{} of {total} matrix cells diverged ({r5_gapped} R5-gapped) ·\n{}",
         failures.len(),
         failures.join("\n")
     );
     // The matrix floor: 35 cells + the always-pattern fixture.
     assert!(total >= 36, "only {total} cells walked — layout drift?");
+    // The R5 ledger can't silently shrink: every cell the pin spells
+    // with an `after:` must hit it (a renamed/removed cell is a layout
+    // drift, and a landed wave flips its cell to the loud row above).
+    assert_eq!(
+        r5_gapped, 36,
+        "R5 ledger drift — {r5_gapped} after:-carrying cells gapped vs 36 at the pin"
+    );
 }

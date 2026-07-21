@@ -84,7 +84,7 @@ fn dag_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
 fn yaml_of(specs: &[TaskSpec]) -> String {
     use std::fmt::Write as _;
     let mut y = String::from(
-        "nika: v1\nworkflow:\n  id: prop\nmodel: mock/echo\nvars:\n  publish: \"no\"\n  scalar: \"not a list\"\ntasks:\n",
+        "nika: v1\nworkflow:\n  id: prop\nmodel: mock/echo\nconst:\n  publish: \"no\"\n  scalar: \"not a list\"\ntasks:\n",
     );
     for (i, spec) in specs.iter().enumerate() {
         let _ = writeln!(y, "  t{i}:");
@@ -107,11 +107,11 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
         }
         match spec.kind {
             Kind::Gated => {
-                let _ = writeln!(y, "    when: ${{{{ vars.publish == 'yes' }}}}");
+                let _ = writeln!(y, "    when: ${{{{ const.publish == 'yes' }}}}");
                 let _ = writeln!(y, "    infer: {{ prompt: \"gated {i}\" }}");
             }
             Kind::Fails => {
-                let _ = writeln!(y, "    for_each: ${{{{ vars.scalar }}}}");
+                let _ = writeln!(y, "    for_each: ${{{{ const.scalar }}}}");
                 let _ = writeln!(y, "    infer: {{ prompt: \"iter ${{{{ item }}}}\" }}");
             }
             Kind::Normal => {
