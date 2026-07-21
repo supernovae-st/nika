@@ -29,7 +29,6 @@ pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::The
 pub mod nika_cli::verbs::doctor
 pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::evidence
-pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli::verbs::VerbOutput
 pub struct nika_cli::verbs::evidence::EvidenceArgs
 pub nika_cli::verbs::evidence::EvidenceArgs::json: bool
 pub nika_cli::verbs::evidence::EvidenceArgs::out: core::option::Option<std::path::PathBuf>
@@ -70,9 +69,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::evidence::EvidenceA
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::evidence::EvidenceArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::evidence::EvidenceArgs
 pub type nika_cli::verbs::evidence::EvidenceArgs::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli::verbs::evidence::EvidenceArgs where T: core::default::Default
-pub type nika_cli::verbs::evidence::EvidenceArgs::NoneType = T
-pub fn nika_cli::verbs::evidence::EvidenceArgs::null_value() -> T
+pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
