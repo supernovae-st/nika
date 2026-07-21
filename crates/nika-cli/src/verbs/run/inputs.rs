@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `--var KEY=VALUE` input seam — parse, key-validate, type-honor.
-//!
-//! Extracted from `run/mod.rs` (2026-07-11 · the input gauntlet's
-//! type-coercion fix pushed the file past the 1500-LOC ratchet): the
-//! run-time input surface is one coherent unit — the raw pairs in, the
-//! validated `BTreeMap<String, Value>` out, the declared `inputs:` block
-//! the sole authority on keys, types — and (#603) required-satisfaction.
+//! The `--var KEY=VALUE` input seam — parse, key-validate, type-honor
+//! (extracted from `run/mod.rs` 2026-07-11 · the 1500-LOC ratchet): one
+//! unit — the raw pairs in, the validated `BTreeMap<String, Value>` out,
+//! the declared `inputs:` the sole authority (keys · types · #603 required).
 
 use std::collections::BTreeMap;
 
@@ -16,18 +13,15 @@ use nika_schema::types::VarDecl;
 use serde_json::Value;
 
 use super::epilogue;
-use crate::verbs::exit;
 
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
 /// key against the workflow's declared `inputs:` — an unknown key is
 /// refused with the declared set (a typo'd override silently doing
 /// nothing would be the worst outcome). A TYPED input's declared `type:`
-/// DRIVES the value parse (spec 01 §inputs · « the engine validate
-/// inputs » · R3b: the full `TypeExpr`, the one fit): `--var
-/// count=notanumber` on an `integer` input is refused up front, and a
-/// `string` input takes the raw text verbatim (`--var name=5` is the
-/// string `"5"`). An UNTYPED constant keeps the JSON-or-string guess:
-/// `--var limit=5` the number `5`, `--var topic=news` the string.
+/// DRIVES the value parse (spec 01 §inputs · R3b: the full `TypeExpr`,
+/// the one fit): `--var count=notanumber` on an `integer` refuses up
+/// front · a `string` takes the raw text (`--var name=5` is `"5"`).
+/// An UNTYPED constant keeps the JSON-or-string guess (`limit=5` → `5`).
 pub(super) fn parse_var_overrides(
     pairs: &[String],
     wf: &RawWorkflow,
@@ -52,15 +46,13 @@ pub(super) fn parse_var_overrides(
             });
         };
         let value = match decl {
-            // The declared TypeExpr drives the parse (spec-mandated input
-            // validation · the one type core, never a second fit) — a
-            // mismatch is refused with the declared form + the value.
+            // The declared TypeExpr drives the parse (the one type core,
+            // never a second fit) — a mismatch names the form + the value.
             VarDecl::Typed { r#type, .. } => {
                 nika_schema::types::coerce_declared(&r#type.value, &type_names, &named, raw)
                     .map_err(|why| format!("--var {key}: {why}"))?
             }
-            // Untyped constant: the JSON-or-string guess — no declared
-            // type to honor.
+            // Untyped constant: the JSON-or-string guess (no declared type).
             VarDecl::Untyped(_) => {
                 serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()))
             }
@@ -70,24 +62,17 @@ pub(super) fn parse_var_overrides(
     Ok(overrides)
 }
 
-/// [`parse_var_overrides`] + the admission preflight (#603 — the runtime's
-/// ONE constructor), both mapped to the ENV-class refusal the caller
-/// returns — the message rides stderr + the machine error envelope.
+/// [`parse_var_overrides`] + the admission preflight (#603 · the runtime's
+/// ONE constructor) — both ENV-class refusals (stderr + the envelope).
 pub(super) fn validated_var_overrides(
     vars: &[String],
     wf: &RawWorkflow,
     output_json: bool,
 ) -> Result<BTreeMap<String, Value>, u8> {
-    let overrides = parse_var_overrides(vars, wf).map_err(|message| {
-        eprintln!("nika run: {message}");
-        epilogue::emit_error_envelope(&message, output_json);
-        exit::ENV
-    })?;
+    let overrides = parse_var_overrides(vars, wf)
+        .map_err(|message| epilogue::env_refusal(&message, output_json))?;
     if let Some(err) = nika_runtime::required_inputs_refusal(wf, &overrides) {
-        let message = err.to_string();
-        eprintln!("nika run: {message}");
-        epilogue::emit_error_envelope(&message, output_json);
-        return Err(exit::ENV);
+        return Err(epilogue::env_refusal(&err.to_string(), output_json));
     }
     Ok(overrides)
 }
