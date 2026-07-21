@@ -31,7 +31,10 @@
 // Collapsing to two public paths avoids the drift an architect review
 // flagged: callers could otherwise write `nika_catalog::data::generated::*`
 // and our `cargo public-api` diff would churn on every data edit.
-#[cfg(feature = "serde")]
+// JSON-Schema codegen derives from the builtins data (`all_builtins`),
+// so its feature gate INCLUDES the data gate: `serde` alone (without
+// `builtins-transforms`) configures the fragments' source out.
+#[cfg(all(feature = "serde", feature = "builtins-transforms"))]
 pub mod codegen;
 pub(crate) mod data;
 pub mod error;

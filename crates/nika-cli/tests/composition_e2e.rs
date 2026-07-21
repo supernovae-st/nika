@@ -72,11 +72,11 @@ const CHILD: &str = r#"
 nika: v1
 workflow:
   id: greet-child
-vars:
+inputs:
   name: { type: string, required: true }
 tasks:
   greet:
-    exec: { command: ["echo", "hello ${{ vars.name }}"] }
+    exec: { command: ["echo", "hello ${{ inputs.name }}"] }
 outputs:
   greeting: { value: "${{ tasks.greet.output }}", type: string }
 "#;
@@ -293,11 +293,11 @@ fn templated_target_is_refused_at_check() {
 nika: v1
 workflow:
   id: t
-vars:
+const:
   which: "a"
 tasks:
   call:
-    invoke: { workflow: "./sub-${{ vars.which }}.nika.yaml" }
+    invoke: { workflow: "./sub-${{ const.which }}.nika.yaml" }
 "#;
     let pp = write_fixture(&dir, "parent.nika.yaml", parent);
     let (code, text) = run_in(&dir, &["check", pp.to_str().expect("utf8")]);
