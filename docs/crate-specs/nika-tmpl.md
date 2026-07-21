@@ -109,7 +109,7 @@ Design notes:
   where they are. This crate is *below* the body language.
 - **No taint / label rules** — those are checker-internal (`flow.rs`); the runtime
   does no taint. Sharing them requires the (deferred) expression-frontend unification
-  — a separate ADR (the real `nika-binding` engine · see the 42/42 master plan §3.5).
+  — a separate ADR (the real `nika-binding` engine · see the master plan §3.5).
 - **No transforms / resolver** — that is the `nika-binding` engine, later.
 
 ## 6 · Coherence

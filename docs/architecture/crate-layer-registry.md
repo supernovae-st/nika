@@ -14,7 +14,7 @@ into nika-binding, nika-event scoped sub-enums, nika-kernel prelude hub).
 
 ## Why this document exists
 
-42 crates without a layer contract converge on a kitchen-sink dependency
+A crate workspace without a layer contract converges on a kitchen-sink dependency
 graph: everything imports everything, every crate pulls in tokio, every
 change ripples through the workspace. Diamond discipline defines six
 layers (L0 → L5, with an L0.5 for trait-only crates) and makes upward

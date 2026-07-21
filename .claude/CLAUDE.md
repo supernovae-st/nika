@@ -25,9 +25,9 @@ If any doc contradicts another, **POST_AUDIT_REVISIONS wins**.
 
 ## 🎯 What we're doing
 
-Nika Diamond = 42 crates architecture (cap 100). Building on fresh
-orphan branch. Each crate passes 12 gates before admission to workspace.
-Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
+Nika Diamond = layered crate architecture (L0→L5 · the count is
+projected, never a gate — ADR-037 horizon 50-90 · cap 100 · ruled
+D-2026-07-21-N1). Building on fresh orphan branch. Each crate passes 12 gates before admission to workspace.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
 Current: Phase 2 M2 (L1 computer-use effect crates) in progress — the M2
@@ -133,7 +133,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | HEAD             | `f6755b019` (`f6755b01914925b01a5776178939f73e5a68d5d9`)             |
 | workspace        | v0.105.0                                  |
 | crates (workspace)| 55                                              |
-| crates (admitted)| 53 / 42                                   |
+| crates (admitted)| 53                                             |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
 | L0               | 17                                              |
 | L0.5             | 6                                              |
@@ -151,7 +151,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
 | workspace        | v0.105.0                                  |
 | crates (workspace)| 42                                              |
-| crates (admitted)| 42 / 42                                   |
+| crates (admitted)| 42                                              |
 | crates (WIP)     | 0 —                                   |
 | L0               | 11                                              |
 | L0.5             | 6                                              |
@@ -188,7 +188,7 @@ Narrative context (manually maintained):
   slice is now CLOSED · nika-cli (operator surface) + nika-builtin (s16 · the
   23 stdlib tools) + nika-infer-local (candle · ADR-091) + nika-extract (the 9
   fetch extract modes) are ALL admitted (2026-06-21) — **the wip array is empty**
-  (39/42 · all existing crates admitted).
+  (39 admitted at the time · all existing crates admitted).
 - **Last stabilization — 2026-06-16** (origin/main `0b558f7f8`) · the static-check
   layer hardened to runtime-parity. **DEEP_GAPS conformance ledger EMPTIED** ·
   jq compile-check (jaq) + schema meta-check (jsonschema), both in L0 calling the
@@ -198,11 +198,10 @@ Narrative context (manually maintained):
   stream-binding lint. CF-1 for_each positional-null verified spec-correct (not a
   bug · test + spec clarification). Full battery green · 2687 lib + e2e + 503-wf
   corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
-- **Next** · the wip array is EMPTY (40/42 · every workspace crate admitted) ·
-  the remaining 2 toward the 42-target are the L0-completion crates
-  (nika-pck-manifest · nika-binding) · then design-partner `1.0.0-rc.N` → the **1.0.0**
+- **Next** · design-partner `1.0.0-rc.N` → the **1.0.0**
   launch (amended D-2026-06-20-N1). Latest tagged release is 0.91.0; `main`
   carries the next dev version so contributor binaries cannot masquerade as the
-  Homebrew asset. 42-crate target reached additively across the 1.x minors.
+  Homebrew asset. The crate count follows the ADR-037 horizon (50-90 · cap 100 ·
+  projected, never a gate · ruled D-2026-07-21-N1).
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

@@ -13,7 +13,7 @@
 With **6 crates admitted** (types, error, catalog, catalog-verify, kernel, kernel-mock)
 + **1 WIP** (nika-schema parser) and 33-35 remaining, this document locks the L0 + L0.5
 layer architecture. All decisions account for v0.100 forward-compatibility and are
-designed to avoid breaking changes as the workspace scales to 42 crates.
+designed to avoid breaking changes as the workspace scales (ADR-037 count horizon 50-90 · cap 100).
 
 ---
 

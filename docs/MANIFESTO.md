@@ -19,7 +19,9 @@ quarter we sit down and narrate the journey. The commits are public.
 The mutation scores are public. The architecture diagram is a living
 anatomy.
 
-We are crafting 40 to 42 crates over however long it takes. No deadline.
+We are crafting the crates the doctrine asks for (ADR-037 horizon 50-90 ·
+cap 100 · the count is projected, never a gate · ruled D-2026-07-21-N1)
+over however long it takes. No deadline.
 No hack week. Each crate passes 12 gates before it enters the body. If it
 fails mutation testing, it doesn't ship. If it leaks an `.unwrap()` into
 production, it doesn't ship. If it can't explain itself in under 1,500

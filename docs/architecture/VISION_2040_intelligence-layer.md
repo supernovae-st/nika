@@ -45,12 +45,13 @@ not a fork of the atelier.
    │  L0.5 kernel · sealed traits                          (the contract) │
    │  L0 primitives · types · error · schema              (the floor)     │
    └───────────────────────────────────────────────────────────────────┘
-                          the Diamond engine (BLUEPRINT_2036 · 42 crates)
+                          the Diamond engine (BLUEPRINT_2036 · the ladder)
 ```
 
 The Diamond crate-ladder (L0→L5) is the **engine**. The intelligence layer is
 the **experience** — it's how a human or an agent *meets* the engine. Today the
-engine is ~18/42 crates; the intelligence layer is mostly design + seams.
+engine is 55 crates (projected — the count is never hand-typed · ADR-037
+horizon 50-90 · cap 100); the intelligence layer is mostly design + seams.
 
 ---
 
@@ -296,7 +297,7 @@ promise.
 ## §9 · Related (canonical sources)
 
 - `ROADMAP.md` — what ships when (the phases, the tag scheme)
-- `docs/architecture/BLUEPRINT_2036.md` — the 42-crate ladder + 7 future ADRs + SOTA-2030
+- `docs/architecture/BLUEPRINT_2036.md` — the crate ladder (ADR-037 horizon 50-90 · cap 100) + 7 future ADRs + SOTA-2030
 - `docs/architecture/forward-compat-invariants.md` — the 8 patterns / 10 rules (Gate 12)
 - `docs/adr/adr-085-spec-schema-oneof-bridge-to-schemars-codegen.md` — the LSP + schema-codegen seam
 - `docs/adr/adr-090-structural-doctrine-enforcement.md` — the SSOT-projection discipline (this doc's through-line)

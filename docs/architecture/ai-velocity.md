@@ -85,8 +85,8 @@ product was complete AT EACH RELEASE for what it claimed to do. We follow
 the same arc: ship 1.0 complete for what it claims, then grow it.
 
 **1.0.0** ships when the 7 shadow zones are green — the first public launch.
-The remaining crates toward the 42-crate architecture land additively across
-the **1.x minors**. The Connectome and agent-v2 are the **2.0** era. Each
+The remaining crates (ADR-037 horizon 50-90 · cap 100 · projected, never a
+gate · ruled D-2026-07-21-N1) land additively across the **1.x minors**. The Connectome and agent-v2 are the **2.0** era. Each
 release is a complete chrysalis stage, not an intermediate build.
 
 ## Cost
@@ -95,7 +95,8 @@ release is a complete chrysalis stage, not an intermediate build.
 docs. ~30 min for canary + parity + review swarm. ~10 min for atomic commit
 and MEMORY update.
 
-Call it 4 hours per crate, 42 crates, 168 hours of craft work. Against an
+Call it 4 hours per crate; at the ADR-037 horizon (50-90 · cap 100 ·
+projected, never a gate) that's 200-360 hours of craft work. Against an
 11-12 month self-paced schedule, that's 15 hours of craft per week — well
 under the 70/20/10 rhythm (craft / docs / social) we committed to.
 

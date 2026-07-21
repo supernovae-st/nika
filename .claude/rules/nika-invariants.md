@@ -2,7 +2,7 @@
 
 ## Crate structure
 
-- Total target : **42-crate diamond architecture** (cap 100 · reached additively across the 1.x minors · amended D-2026-06-20-N1 · was "v0.90") + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` + **10 L1 satellite crates** · autodesc split per ADR-042) — separate count, the **2.0** Connectome era. Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · cognition in the 2.0 era · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
+- Crate count : **not the invariant** (ruled D-2026-07-21-N1). ADR-037 (accepted 2026-04-17) revised the stale 40-42 target to **50-90 · cap 100 unchanged** — a planning horizon, never a gate. The count invariants are **collapse-vs-publish** (below), the **layer contract** (`docs/architecture/crate-layer-registry.md`), and the **15k prod-LOC wall**; the live count is PROJECTED (`scripts/crate-metrics.sh` · hygiene vector 2), never hand-typed. + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` + **10 L1 satellite crates** · autodesc split per ADR-042) — separate count, the **2.0** Connectome era. Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · cognition in the 2.0 era · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
 
 ## Collapse-vs-publish principle (decision RULE locked · cluster collapses = QUEUED proposals)
 
@@ -64,7 +64,7 @@
   (D-2026-05-22-N17)
 - `nika-infer-local` — native in-process backend (candle sidecar · ADR-091)
 
-## Added in POST_AUDIT 2026-04-14 expansion (8 new crates · toward the 42-crate target)
+## Added in POST_AUDIT 2026-04-14 expansion (8 new crates · per the ADR-037 count horizon)
 
 **Builtin bundles × 3** (native API adapters):
 - `nika-builtin-github` — octocrab wrapper (~800 LOC)
@@ -78,7 +78,7 @@
 - `nika-pck` — L2, orchestrator (~3k LOC)
 - `nika-git` — L1, gix wrapper for pck (~1.5k LOC)
 
-Total architecture target confirmed: **42 crates** (including these 8 · amended D-2026-06-20-N1 · was "v0.90").
+Count note (D-2026-07-21-N1): these 8 landed under the ADR-037 horizon (**50-90 · cap 100**) — the count is projected, never a gate.
 
 ## Kernel hooks Phase 0 (mandatory)
 
@@ -131,8 +131,8 @@ And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 Real semver toward a **1.0** public launch (amended D-2026-06-20-N1 · was
 "forever-v0.x — no v1.0 target"). The engine is at **0.91.0** (latest release · main on
 0.92.0-dev · release-candidate grade); the **1.0.0** launch ships when the 7 shadow zones are green, and
-the remaining crates land additively across the 1.x minors toward the 42-crate
-architecture target. The `nika: v1` LANGUAGE envelope is frozen forever
+the remaining crates land additively across the 1.x minors under the ADR-037
+count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). The `nika: v1` LANGUAGE envelope is frozen forever
 (orthogonal to the engine version).
 
 No hard per-phase deadlines — quality > speed. The pace is self-paced, not a

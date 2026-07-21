@@ -19,6 +19,15 @@ sources:
 
 # Nika Diamond · Blueprint final v0.x · 10-year horizon (2026 → 2036)
 
+> **v1.8 amendment (D-2026-07-21-N1)** · the « 42-crate target » throughout
+> this doc is SUPERSEDED. ADR-037 (accepted 2026-04-17) had already revised
+> the count target 40-42 → **50-90 (cap 100 unchanged)**; the operator ruled
+> 2026-07-21 that **the count is not the invariant** — collapse-vs-publish
+> (§1.5), the layer contract (`crate-layer-registry.md`), and the 15k-LOC
+> wall are. The live count is projected (`scripts/crate-metrics.sh`), never
+> hand-typed. Prior prose preserved below as audit trail per
+> `cross-source-validation.md` §2.7.
+
 > **v1.7 stack-pin note (2026-06-11)** · the dependency pins of this doc's
 > date are SUPERSEDED where the Connectome stack ratification + shipped
 > crates differ: `oxigraph@0.5.8` (not 0.5.6) · embeddings via **candle**

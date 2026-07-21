@@ -5,7 +5,7 @@
 >
 > Last updated: 2026-04-14. Produced by 4-agent legacy audit.
 
-## Migrated (admitted crates, 5/42)
+## Migrated (admitted crates, 5 at the time)
 
 | Legacy source | Diamond crate | Status |
 |---|---|---|
