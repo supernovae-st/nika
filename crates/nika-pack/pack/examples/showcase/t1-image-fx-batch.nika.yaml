@@ -30,7 +30,7 @@ permits:
   exec: false
   fs:
     # a RELATIVE glob walks from `.` (the engine gates the walk root), so
-    # the read boundary is the cwd subtree — and `vars.photos` is caller-
+    # the read boundary is the cwd subtree — and `const.photos` is caller-
     # overridable, so no narrower literal glob can be proven to cover it.
     # Fixing the folder? Tighten this to `photos/**`. The write stays tight
     read: ["**"]

@@ -167,6 +167,7 @@ these from this file alone.
 | `NIKA-LOCK-001` | a dependency resolved that `nika.lock` does not pin, or a hand-edited lock digest does not match ([15 §lock](./15-proof.md#nikalock--the-single-lock-normative--f7)) | `validation_error` | false |
 | `NIKA-BUILTIN-001` | builtin `invoke:` violates its statically-checkable arg contract (e.g. `nika:fetch` without `url:` · `nika:jq` arg shape) | `validation_error` | false |
 | `NIKA-BUILTIN-DONE-001` | `nika:done` invoked outside an `agent:` loop | `validation_error` | false |
+| `NIKA-DRIFT-001` | declared-but-unused — a `vars:`/`env:`/`secrets:` name or a `permits:` entry (exec program · tool glob · net host · fs path) that nothing in the body references · **advisory check hint — never fails the audit** (the report's `is_clean` ignores hints; dead declarations are smell, not failure) · the reverse direction (used-but-undeclared) is the hard `NIKA-VAR-001`/`NIKA-DAG-002`/`NIKA-SEC-004` surface, so **no `NIKA-DRIFT-002` exists** (an unemittable code would be dead weight — the no-duplication law is structural: hard codes name references, drift names declarations, never the same yaml site) · a dynamic consumer POISONS the used set (a shell-form exec · a dynamic URL/path · an `agent:` whitelist — glob ⊆ glob is undecidable) and the category stays silent rather than risk a false positive · reference implementation nika#661 | `validation_error` | false |
 
 
 `NIKA-PARSE-015` is **retired** (never reuse): the typed-`vars:` 6-enum class
