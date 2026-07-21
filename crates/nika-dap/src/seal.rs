@@ -144,27 +144,65 @@ fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, Stri
     Some((sk, pk_box.trim().to_owned()))
 }
 
-/// The PUBLIC half of the run-key, when one exists on this machine —
-/// read WITHOUT touching the secret box (least-privilege: `key trust`,
-/// the clobber check and the rotation ledger never decrypt anything).
-/// Same precedence as [`load_signing_key`]: env override, keychain,
-/// 0600 fallback.
+/// The PUBLIC half of the run-key, when a usable PAIR exists on this
+/// machine — the same precedence as [`load_signing_key`] (env override,
+/// keychain, 0600 fallback) and the same pair honesty, WITHOUT ever
+/// decrypting: the secret half is probed parse-only
+/// (`secret_box_parses` — envelope shape + the crate's own structural
+/// parse; no password, no prompt, no `into_secret_key`). `key trust`,
+/// the init clobber check and the rotation ledger stay off the secret
+/// path, and an orphaned `.pub` (secret half gone or corrupt) is never
+/// announced as a key this machine can seal with.
 #[must_use]
 pub fn load_public_box() -> Option<String> {
-    if let Ok(pf) = key_file_env("NIKA_RUN_PUB_FILE") {
-        return std::fs::read_to_string(pf)
-            .ok()
-            .map(|s| s.trim().to_owned());
+    // The explicit file override IS the custody when both vars are set
+    // (init writes there, load reads there) — a broken pair under it
+    // answers "no usable key", never a silent fall-through to another
+    // tier.
+    if let (Ok(kf), Ok(pf)) = (
+        key_file_env("NIKA_RUN_KEY_FILE"),
+        key_file_env("NIKA_RUN_PUB_FILE"),
+    ) {
+        return public_from_files(Path::new(&kf), Path::new(&pf));
     }
-    if let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+        && let Ok(text) = entry.get_password()
+        && secret_box_parses(&text)
+        && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
         && let Ok(pk_box) = pub_entry.get_password()
     {
         return Some(pk_box.trim().to_owned());
     }
-    let path = fallback_key_path()?.with_extension("pub");
-    std::fs::read_to_string(path)
-        .ok()
-        .map(|s| s.trim().to_owned())
+    let path = fallback_key_path()?;
+    public_from_files(&path, &path.with_extension("pub"))
+}
+
+/// Parse-only pair probe: the text has a minisign secret box's shape —
+/// the comment line + a base64 payload the crate's own
+/// [`minisign::SecretKey::from_bytes`] accepts structurally (the same
+/// two-line split `SecretKey::from_box` performs BEFORE any password
+/// work; `SecretKeyBox::from_string` validates nothing — it wraps).
+/// Never decrypts (no password, no kdf, no checksum): the sealing path
+/// ([`load_signing_key`]) is the only reader that pays that cost, and
+/// the only place secret material may flow.
+fn secret_box_parses(text: &str) -> bool {
+    let mut lines = text.lines();
+    let (Some(_comment), Some(payload)) = (lines.next(), lines.next()) else {
+        return false;
+    };
+    base64_decode(payload).is_some_and(|bytes| minisign::SecretKey::from_bytes(&bytes).is_ok())
+}
+
+/// The public box of a (key, pub) file pair — `None` on any miss
+/// (absent or unparseable secret half · absent pub), mirroring
+/// [`load_from_files`] minus the decrypt.
+fn public_from_files(key: &Path, pub_: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(key).ok()?;
+    if !secret_box_parses(&text) {
+        return None;
+    }
+    let pk_box = std::fs::read_to_string(pub_).ok()?;
+    Some(pk_box.trim().to_owned())
 }
 
 /// `nika key init` — generate + store a run-key (idempotent: refuses to
@@ -325,6 +363,44 @@ pub fn seal_event(
     Some(Event::new(run_id, at, EventKind::RunSealed).with_fields(fields))
 }
 
+/// Strict standard-alphabet base64 → bytes (`None` on any
+/// non-canonical shape). Hand-rolled beside [`hex_lower`] for the same
+/// reason: one wire idiom does not buy a codec dependency.
+fn base64_decode(s: &str) -> Option<Vec<u8>> {
+    fn sextet(b: u8) -> Option<u32> {
+        match b {
+            b'A'..=b'Z' => Some(u32::from(b - b'A')),
+            b'a'..=b'z' => Some(26 + u32::from(b - b'a')),
+            b'0'..=b'9' => Some(52 + u32::from(b - b'0')),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let raw = s.as_bytes();
+    if raw.is_empty() || !raw.len().is_multiple_of(4) {
+        return None;
+    }
+    let pad = raw.iter().rev().take_while(|&&b| b == b'=').count();
+    if pad > 2 {
+        return None;
+    }
+    let body = raw.get(..raw.len() - pad)?;
+    let mut out = Vec::with_capacity(raw.len() / 4 * 3);
+    let mut acc: u32 = 0;
+    let mut bits: u32 = 0;
+    for &b in body {
+        acc = (acc << 6) | sextet(b)?;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(u8::try_from((acc >> bits) & 0xff).ok()?);
+            acc &= (1_u32 << bits) - 1;
+        }
+    }
+    Some(out)
+}
+
 /// sha256 → lowercase hex (the registry client's idiom, mirrored).
 fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::Digest as _;
@@ -412,6 +488,62 @@ mod tests {
             false,
         )
         .expect("the seal verifies");
+    }
+
+    /// (a) The pair probe hands back the public box + a 16-hex
+    /// fingerprint WITHOUT decrypting: the secret box is
+    /// password-locked and no password reaches this path —
+    /// `into_secret_key` would refuse it, the parse-only probe does
+    /// not care. Reintroduce a decrypt on the trust path and this test
+    /// goes red.
+    #[test]
+    fn the_public_probe_reads_the_pair_without_decrypting() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pair = minisign::KeyPair::generate_encrypted_keypair(Some("locked-away".to_owned()))
+            .expect("keypair");
+        let key_path = dir.path().join("run-signing.key");
+        let pub_path = dir.path().join("run-signing.pub");
+        std::fs::write(&key_path, pair.sk.to_box(None).expect("sk box").to_string())
+            .expect("write key");
+        let pk = pair.pk.to_box().expect("pk box").to_string();
+        std::fs::write(&pub_path, &pk).expect("write pub");
+
+        let pub_box = public_from_files(&key_path, &pub_path).expect("the pair answers");
+        assert_eq!(pub_box, pk.trim(), "the public box comes back verbatim");
+        let fp = fingerprint(&pub_box);
+        assert_eq!(fp.len(), 16);
+        assert!(fp.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+
+    /// (b) An orphaned pub is NOT a key: secret half absent → `None` ·
+    /// secret half unparseable → `None` — `nika key trust` keeps
+    /// saying « no run-signing key » instead of announcing a pub
+    /// nothing can seal with (the honesty `load_signing_key` always
+    /// had).
+    #[test]
+    fn an_orphaned_pub_is_not_a_key() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (pk, _) = keypair();
+        let key_path = dir.path().join("run-signing.key");
+        let pub_path = dir.path().join("run-signing.pub");
+        std::fs::write(&pub_path, &pk).expect("write pub");
+
+        assert!(
+            public_from_files(&key_path, &pub_path).is_none(),
+            "absent secret half → no announcement"
+        );
+        std::fs::write(&key_path, "not a minisign box").expect("write junk");
+        assert!(
+            public_from_files(&key_path, &pub_path).is_none(),
+            "unparseable secret half → no announcement"
+        );
+        // Shaped like a box (comment + valid base64) but structurally
+        // truncated — the crate-parse arm of the probe rejects it too.
+        std::fs::write(&key_path, "untrusted comment: stub\nAAAA\n").expect("write stub");
+        assert!(
+            public_from_files(&key_path, &pub_path).is_none(),
+            "truncated secret half → no announcement"
+        );
     }
 
     #[test]
