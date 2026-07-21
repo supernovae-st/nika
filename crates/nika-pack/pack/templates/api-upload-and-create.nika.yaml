@@ -13,7 +13,7 @@ workflow:
 
 model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 
-vars:
+const:
   api_base: "https://api.example.com"     # SLOT: the product API base
   asset_path: "./out/assets/asset-1.png"  # SLOT: the file to upload
 
@@ -30,12 +30,12 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.api_base }}/upload"   # SLOT: the upload endpoint
+        url: "${{ const.api_base }}/upload"   # SLOT: the upload endpoint
         method: POST
         headers:
           x-api-key: "${{ secrets.API_KEY }}"  # SLOT: the auth header name
         multipart:
-          - { name: file, path: "${{ vars.asset_path }}" }
+          - { name: file, path: "${{ const.asset_path }}" }
           # SLOT: extra text fields · { name: directory, value: "assets" }
         mode: jq
         jq: ".url"                  # SLOT: where the response carries the asset URL
@@ -46,7 +46,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.api_base }}/create"   # SLOT: the create endpoint
+        url: "${{ const.api_base }}/create"   # SLOT: the create endpoint
         method: POST
         headers:
           x-api-key: "${{ secrets.API_KEY }}"

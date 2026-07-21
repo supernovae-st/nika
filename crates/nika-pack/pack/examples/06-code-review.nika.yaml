@@ -23,7 +23,7 @@ nika: v1
 workflow:
   id: code-review
 
-vars:
+inputs:
   pr_path:
     type: string
     required: true
@@ -37,7 +37,7 @@ tasks:
       # API-constrained like infer) — so the prompt carries the WHOLE
       # contract, enums included, or a live model invents its own words.
       system: "You are a senior Rust reviewer. Read the diff, then finish with ONLY your findings as the schema'd object: a `findings` array of {severity, message} where severity is exactly one of blocker|high|med|low. Then call nika:done."
-      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
+      prompt: "Review the code under · ${{ inputs.pr_path }} · and report bugs + style issues."
       tools:                       # default-deny · these are the ONLY tools the agent may call
         - "nika:read"              # read source files
         - "mcp:git/*"              # any tool from the `git` MCP server (diff, blame, log)
@@ -62,5 +62,4 @@ tasks:
 outputs:
   findings:
     value: ${{ tasks.review.output.findings }}
-    type: array
     description: "Structured code-review findings"

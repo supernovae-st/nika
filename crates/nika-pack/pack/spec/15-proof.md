@@ -69,7 +69,6 @@ providers:                      # every model pinned by content digest
 tools:                          # builtin + MCP surface versions
 registry:                       # every registry: ref pinned owner/name@version + digest
 policy:                         # the resolved policy decisions (10)
-model_select:                   # `model: { select: {require, prefer} }` materialized
 ```
 
 - **Pin by default**: a run resolves ONLY what the lock pins; an

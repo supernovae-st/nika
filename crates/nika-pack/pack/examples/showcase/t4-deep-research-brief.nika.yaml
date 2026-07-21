@@ -24,7 +24,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local default · per-task overrides below pick stronger models
 
-vars:
+inputs:
   topic:
     type: string
     required: true
@@ -34,7 +34,7 @@ tasks:
   plan:
     infer:
       model: anthropic/claude-haiku-4-5    # planning is a fast-model job
-      prompt: "Break '${{ vars.topic }}' into 4 sharp research queries · no overlap."
+      prompt: "Break '${{ inputs.topic }}' into 4 sharp research queries · no overlap."
       schema:
         type: object
         required: [queries]
@@ -89,7 +89,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./research/${{ vars.topic }}.md"
+        path: "./research/${{ inputs.topic }}.md"
         content: "${{ with.brief }}"
         create_dirs: true
 
@@ -97,5 +97,4 @@ outputs:
   brief: ${{ tasks.brief.output }}
   sources:
     value: ${{ tasks.investigate.output.sources }}
-    type: array
     description: "Every source the agent actually used"

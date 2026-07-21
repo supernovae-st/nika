@@ -44,7 +44,7 @@ Three reasons ·
 
 The stdlib has **independent versioning** ·
 
-- `stdlib/providers-v0.1.md`, the <!-- canon:providers -->16<!-- /canon --> canonical providers for v0.1
+- `stdlib/providers-v0.1.md`, the <!-- canon:providers -->17<!-- /canon --> canonical providers for v0.1
 - `stdlib/extract-modes-v0.1.md`, the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
 - `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->28<!-- /canon --> canonical builtins for v0.1
 
@@ -69,9 +69,9 @@ The reference engine provides these elements behind strict quality gates. Other 
 
 ## What's IN stdlib v0.1
 
-### Providers (16)
+### Providers (17)
 
-`ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm` (5 local) · `mistral` · `anthropic` · `openai` · `openrouter` · `groq` · `deepseek` · `gemini` · `xai` · `huggingface` · `nvidia` (10 cloud) · `mock` (test)
+`ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm` (5 local) · `mistral` · `anthropic` · `openai` · `openrouter` · `groq` · `deepseek` · `gemini` · `xai` · `huggingface` · `nvidia` · `moonshot` (11 cloud) · `mock` (test)
 
 Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compatible local/remote server routes through the `openai` + `base_url` escape hatch (no new provider name). See [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md).
 
@@ -188,7 +188,7 @@ See [07-conformance.md](./07-conformance.md). In summary ·
 |---|---|
 | Core | None · only parse + DAG + variable + error · no execution needed |
 | Runtime | Must execute the 4 verbs · provider/tool implementations engine's choice |
-| Stdlib v0.1 | Must ship the <!-- canon:providers -->16<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->28<!-- /canon --> builtins |
+| Stdlib v0.1 | Must ship the <!-- canon:providers -->17<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->28<!-- /canon --> builtins |
 | Stdlib v0.1+media | RESERVED · enumerated when the media set publishes (stdlib v0.x · the 24 names are not yet normative) |
 
 A v0.1-compliant engine for a workflow author depends on which level they need.

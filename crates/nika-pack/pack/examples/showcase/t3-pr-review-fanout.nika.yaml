@@ -14,7 +14,7 @@
 #   - `nika:grep` · deterministic TODO sweep beside the LLM pass
 #   - the fan-in · jq flattens [[findings]] → [findings] · sorts by severity
 #
-# Needs · a git repo with a `${{ vars.base_ref }}` base to diff against
+# Needs · a git repo with a `${{ const.base_ref }}` base to diff against
 # (a clean diff is green: the swarm skips, the report says so).
 #
 # Run · nika run examples/showcase/t3-pr-review-fanout.nika.yaml
@@ -26,13 +26,13 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
 
-vars:
+const:
   base_ref: "main"
 
 tasks:
   changed:
     exec:
-      command: ["git", "diff", "--name-only", "${{ vars.base_ref }}...HEAD"]
+      command: ["git", "diff", "--name-only", "${{ const.base_ref }}...HEAD"]
 
   files:
     with:
@@ -116,6 +116,5 @@ tasks:
 outputs:
   findings:
     value: ${{ tasks.merged.output }}
-    type: array
     description: "All findings, severity-sorted, with file attribution"
   review: ${{ tasks.summary.output }}

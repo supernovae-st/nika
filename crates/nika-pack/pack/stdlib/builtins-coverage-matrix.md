@@ -4,7 +4,7 @@
 > overlap boundaries · naming grammar · deliberate absences. Per-builtin
 > specs live in [builtins-v0.1.md](./builtins-v0.1.md); this file answers
 > the set-level questions · « can it do everything? » and « is anything
-> duplicated? ». SPDX-License-Identifier: Apache-2.0.
+> duplicated? ». SPDX-License-Identifier: Apache-2.0
 
 ---
 

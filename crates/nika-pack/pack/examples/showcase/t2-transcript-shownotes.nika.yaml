@@ -20,7 +20,7 @@
 #
 # Needs · ./data/transcript.txt (your episode transcript).
 #
-# Run · point `vars.transcript` at your file, then
+# Run · point `const.transcript` at your file, then
 #   nika run examples/showcase/t2-transcript-shownotes.nika.yaml
 
 nika: v1
@@ -30,7 +30,7 @@ workflow:
 
 model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
 
-vars:
+const:
   transcript: "./data/transcript.txt"
 
 permits:
@@ -44,7 +44,7 @@ tasks:
   raw:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.transcript }}" }
+      args: { path: "${{ const.transcript }}" }
 
   # ONE bounded model call · the schema is the contract, not a suggestion.
   notes:
@@ -118,5 +118,4 @@ tasks:
 outputs:
   notes:
     value: ${{ tasks.notes.output }}
-    type: object
     description: "The typed show-notes · summary + chapters + quotes"

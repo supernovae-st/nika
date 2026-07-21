@@ -7,7 +7,7 @@
 # as typed JSON your task tracker can actually import.
 #
 # Demonstrates ·
-#   - typed `vars:` · `transcript_path` is required · the engine validates inputs
+#   - typed `inputs:` · `transcript_path` is required · the engine validates inputs
 #   - `infer.schema:` · structured output: the model MUST return this shape
 #   - `${{ tasks.X.output.actions }}` · indexing into a schema-validated object
 #   - `nika:log` · human-readable diagnostics on the event stream
@@ -21,7 +21,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for openai/gpt-5.2 or any provider in the catalog
 
-vars:
+inputs:
   transcript_path:
     type: string
     required: true
@@ -31,7 +31,7 @@ tasks:
   transcript:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.transcript_path }}" }
+      args: { path: "${{ inputs.transcript_path }}" }
 
   extract:
     with:
@@ -65,7 +65,7 @@ tasks:
 
   trace:
     after:
-      extract: succeeded
+      extract: success
     invoke:
       tool: "nika:log"
       args:
@@ -75,5 +75,4 @@ tasks:
 outputs:
   actions:
     value: ${{ tasks.extract.output.actions }}
-    type: array
     description: "Typed action items, tracker-ready"

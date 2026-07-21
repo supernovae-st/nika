@@ -37,7 +37,7 @@ tasks:
 > `ollama/qwen3.5:4b` · zero key, nothing leaves your machine
 > (`ollama pull qwen3.5:4b` first · or `lmstudio/…` · `llamacpp/…` ·
 > `vllm/…`). Prefer cloud? Swap the one `model:` line for any of the
-> <!-- canon:providers -->16<!-- /canon --> providers ·
+> <!-- canon:providers -->17<!-- /canon --> providers ·
 > `mistral/mistral-small` · `anthropic/claude-haiku-4-5` ·
 > `openai/gpt-5.2` · the rest of the file doesn't change.
 
@@ -72,9 +72,9 @@ the order from the `with:`/`after:` edges.
 
 ---
 
-## 3 · Parameterize with variables
+## 3 · Parameterize with inputs
 
-Declare inputs once in `vars:` · reference them anywhere with `${{ vars.X }}`
+Declare inputs once in `inputs:` · reference them anywhere with `${{ inputs.X }}`
 (the same `${{ }}` syntax as GitHub Actions · it's [CEL](https://cel.dev)
 inside) ·
 
@@ -83,16 +83,20 @@ nika: v1
 workflow:
   id: translate-anything
 
-vars:
-  text: "Hello, world"
-  target_lang: "French"
+inputs:
+  text:
+    type: string
+    default: "Hello, world"
+  target_lang:
+    type: string
+    default: "French"
 
 model: ollama/qwen3.5:4b
 
 tasks:
   translate:
     infer:
-      prompt: "Translate to ${{ vars.target_lang }}: ${{ vars.text }}"
+      prompt: "Translate to ${{ inputs.target_lang }}: ${{ inputs.text }}"
 ```
 
 Override any input at launch · `--var key=value` is repeatable ·
@@ -102,12 +106,15 @@ nika run translate-anything.nika.yaml --var target_lang="Japanese"
 ```
 
 A `--var` value overrides the declared default · satisfies a
-`required: true` input (the typed form · see
-[spec/01-envelope.md](./spec/01-envelope.md#vars--optional--workflow-inputs--untyped-or-typed)) ·
-and an unknown key is refused before anything runs.
+`required: true` input (see
+[spec/01-envelope.md](./spec/01-envelope.md#inputs--optional--typed-workflow-inputs)) ·
+and an unknown key is refused before anything runs. A fixed value the
+caller never overrides is a `const:` entry instead (a bare literal ·
+`${{ const.X }}`).
 
-There are 5 variable namespaces · `vars` · `with` · `tasks` · `env` ·
-`secrets`. See [spec/04-variables.md](./spec/04-variables.md).
+There are 6 variable namespaces · the four value authorities `inputs` ·
+`config` · `const` · `secrets` plus the runtime `with` · `tasks`.
+See [spec/04-variables.md](./spec/04-variables.md).
 
 ---
 
@@ -149,7 +156,7 @@ tasks:
         path: "./summary.md"
         content: "${{ with.summarize }}"
 
-outputs:                        # what the workflow RETURNS · symmetric to vars:
+outputs:                        # what the workflow RETURNS · symmetric to inputs:
   summary: ${{ tasks.summarize.output }}
 ```
 
@@ -164,7 +171,7 @@ Tools are `<namespace>:<path>` · `nika:*` are stdlib builtins ·
 ### The 4 verbs at a glance
 
 ```yaml
-infer:  { prompt: "Summarize ${{ vars.text }}" }              # call a model
+infer:  { prompt: "Summarize ${{ inputs.text }}" }            # call a model
 exec:   { command: "cargo test --workspace --lib" }           # run a process
 invoke: { tool: "nika:fetch", args: { url: "https://..." } }  # call a tool
 agent:                                                         # agentic loop
@@ -204,7 +211,7 @@ contract, the runtime is an implementation detail.
 
 You touched all 5 pillars · the **envelope** (`nika: v1` + `workflow:`) · the
 **4 verbs** · the **DAG** (`with:`/`after:` edges + task outputs) · **variables**
-(`${{ }}` · <!-- canon:namespaces -->5<!-- /canon --> namespaces) · and the start of the **error model** (engines
+(`${{ }}` · <!-- canon:namespaces -->6<!-- /canon --> namespaces) · and the start of the **error model** (engines
 return `NIKA-<NS>-<NNN>` codes · see [spec/05-errors.md](./spec/05-errors.md)) ·
 plus the workflow's **`outputs:`** return contract (what `nika run` prints + what
 a caller receives).
@@ -215,7 +222,7 @@ a caller receives).
 - **[templates/](./templates/)**: writing your own? Instantiate a
   skeleton (6 valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
-- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->16<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->28<!-- /canon --> builtins
+- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->17<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->28<!-- /canon --> builtins
 - **[examples/](./examples/)**: 7 foundation + 20 showcase workflows, all shipped and CI-gated
 - **[README.md](./README.md)**: why a language · repo layout · governance
 

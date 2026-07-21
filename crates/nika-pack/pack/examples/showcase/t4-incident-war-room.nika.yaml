@@ -26,7 +26,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
-vars:
+const:
   service: "checkout-api"
   status_url: "https://status.internal.example.com/v1/services/checkout-api"
   log_window: "90 minutes ago"
@@ -43,14 +43,14 @@ tasks:
   # ── the gather wave · all three run in parallel ──
   logs:
     exec:
-      command: ["journalctl", "-u", "${{ vars.service }}", "--since", "${{ vars.log_window }}", "--no-pager"]
+      command: ["journalctl", "-u", "${{ const.service }}", "--since", "${{ const.log_window }}", "--no-pager"]
       capture: structured
 
   status_history:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.status_url }}"
+        url: "${{ const.status_url }}"
         mode: jq
         jq: ".history"
     retry:
@@ -61,7 +61,7 @@ tasks:
   runbook:
     invoke:
       tool: "nika:read"
-      args: { path: "./runbooks/${{ vars.service }}.md" }
+      args: { path: "./runbooks/${{ const.service }}.md" }
 
   # ── reconstruct · typed timeline ──
   timeline:
@@ -94,18 +94,18 @@ tasks:
   # ── settle, then confirm recovery before claiming it ──
   settle:
     after:
-      timeline: succeeded
+      timeline: success
     invoke:
       tool: "nika:wait"
       args: { duration: "60s" }
 
   recheck:
     after:
-      settle: succeeded
+      settle: success
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.status_url }}"
+        url: "${{ const.status_url }}"
         mode: jq
         jq: ".current.state"
 
@@ -123,7 +123,7 @@ tasks:
     with:
       events: ${{ tasks.timeline.output.events }}
     after:
-      confirmed: succeeded             # state, no data · recovery proven or no draft
+      confirmed: success             # state, no data · recovery proven or no draft
     infer:
       model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
       prompt: |
@@ -140,7 +140,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./incidents/${{ vars.service }}-postmortem.md"
+        path: "./incidents/${{ const.service }}-postmortem.md"
         content: "${{ with.postmortem }}"
         create_dirs: true
 
@@ -158,7 +158,7 @@ tasks:
       args:
         event_type: "incident.postmortem.drafted"
         payload:
-          service: "${{ vars.service }}"
+          service: "${{ const.service }}"
           status: "${{ with.outcome }}"
     on_finally:
       - invoke:
@@ -166,12 +166,11 @@ tasks:
           args:
             channel: webhook
             target: "${{ secrets.oncall_webhook }}"
-            message: "Postmortem draft run finished for ${{ vars.service }} · ${{ with.outcome }}"
+            message: "Postmortem draft run finished for ${{ const.service }} · ${{ with.outcome }}"
             severity: info
 
 outputs:
   events:
     value: ${{ tasks.timeline.output.events }}
-    type: array
     description: "The reconstructed, typed incident timeline"
   postmortem: ${{ tasks.postmortem.output }}

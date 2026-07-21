@@ -23,7 +23,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
 
-vars:
+const:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"
   state_path: "./state/release-radar.json"
 
@@ -37,7 +37,7 @@ tasks:
   previous:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.state_path }}" }
+      args: { path: "${{ const.state_path }}" }
     on_error:
       on_codes: [NIKA-BUILTIN-READ-001]   # not-found ONLY · a permission error still fails loudly
       recover: ${{ tasks.no_state.output }}
@@ -46,7 +46,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.releases_feed }}"
+        url: "${{ const.releases_feed }}"
         mode: feed
     output:
       entries: "[.items[] | {title, url, published}]"
@@ -81,7 +81,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "${{ vars.state_path }}"
+        path: "${{ const.state_path }}"
         content: "${{ with.entries }}"
         create_dirs: true
         overwrite: true
@@ -89,5 +89,4 @@ tasks:
 outputs:
   new_entries:
     value: ${{ tasks.fresh.output }}
-    type: array
     description: "RFC 6902 ops · empty = nothing new since last run"

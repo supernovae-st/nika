@@ -27,19 +27,20 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for openai/gpt-5.2
 
-vars:
-  competitor_sitemap: "https://competitor.example.com/sitemap.xml"
+inputs:
   topic:
     type: string
     required: true
     description: "The keyword/topic you want to rank for"
+const:
+  competitor_sitemap: "https://competitor.example.com/sitemap.xml"
 
 tasks:
   map:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.competitor_sitemap }}"
+        url: "${{ const.competitor_sitemap }}"
         mode: sitemap
     output:
       top: ".[:5] | map(.loc)"
@@ -59,7 +60,7 @@ tasks:
       top_page: ${{ tasks.top_page.output }}
     infer:
       prompt: |
-        Topic to rank for · ${{ vars.topic }}
+        Topic to rank for · ${{ inputs.topic }}
         Competitor's top URLs · ${{ with.map_top }}
         Their best page on it ·
         ${{ with.top_page }}
@@ -81,12 +82,11 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./briefs/${{ vars.topic }}.json"
+        path: "./briefs/${{ inputs.topic }}.json"
         content: "${{ with.brief }}"
         create_dirs: true
 
 outputs:
   brief:
     value: ${{ tasks.brief.output }}
-    type: object
     description: "The typed content brief"

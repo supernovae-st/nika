@@ -24,7 +24,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
 
-vars:
+const:
   queue_path: "./support/overnight-queue.json"
 
 secrets:
@@ -44,7 +44,7 @@ tasks:
   queue:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.queue_path }}" }
+      args: { path: "${{ const.queue_path }}" }
 
   triage:
     with:
@@ -104,5 +104,4 @@ tasks:
 outputs:
   tickets:
     value: ${{ tasks.triage.output.tickets }}
-    type: array
     description: "The classified queue with drafted first replies"

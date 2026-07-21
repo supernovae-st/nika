@@ -11,7 +11,7 @@ workflow:
   id: etl-state-template        # SLOT: kebab-case workflow id
   description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT
 
-vars:
+const:
   source_url: "https://api.example.com/v1/records"   # SLOT: the data source
   state_path: "./state/etl-state.json"               # SLOT: the cursor file
 
@@ -25,7 +25,7 @@ tasks:
   previous:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.state_path }}" }
+      args: { path: "${{ const.state_path }}" }
     on_error:
       on_codes: [NIKA-BUILTIN-READ-001]   # not-found ONLY · a permission error still fails loudly
       recover: ${{ tasks.empty.output }}
@@ -34,7 +34,7 @@ tasks:
     invoke:
       tool: "nika:fetch"            # SLOT: fetch / read / exec · the fresh data
       args:
-        url: "${{ vars.source_url }}"
+        url: "${{ const.source_url }}"
         mode: jq
         jq: ".records"
     on_error:
@@ -66,7 +66,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "${{ vars.state_path }}"
+        path: "${{ const.state_path }}"
         content: "${{ with.fresh }}"
         create_dirs: true
         overwrite: true
@@ -74,5 +74,4 @@ tasks:
 outputs:
   changes:
     value: ${{ tasks.delta.output }}
-    type: array
     description: "RFC 6902 ops since last run · empty = no-op run"

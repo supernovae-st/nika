@@ -13,7 +13,7 @@ workflow:
 
 model: ollama/qwen3.5:4b           # SLOT: a tool-calling model · local by default
 
-vars:
+inputs:
   goal:
     type: string
     required: true
@@ -22,7 +22,7 @@ vars:
 tasks:
   plan:
     infer:
-      prompt: "Break '${{ vars.goal }}' into at most 4 concrete steps."   # SLOT
+      prompt: "Break '${{ inputs.goal }}' into at most 4 concrete steps."   # SLOT
       schema:
         type: object
         required: [steps]
@@ -61,5 +61,4 @@ tasks:
 outputs:
   findings:
     value: ${{ tasks.execute.output.findings }}
-    type: array
     description: "The agent's typed findings"   # SLOT

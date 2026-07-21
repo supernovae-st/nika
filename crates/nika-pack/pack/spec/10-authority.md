@@ -180,7 +180,7 @@ projection: the judge is the check ladder, never the JSON.
   re-spells a permits grant (providers is the one allow rule, because
   permits has no provider category).
 - A human gate is `invoke: { tool: "nika:prompt" }` — the pause IS the
-  consent mechanism; a `when:` on an env flag is not a gate.
+  consent mechanism; a `when:` on a `config` flag is not a gate.
 - Soft families record intent (`prefer` · `optimize`) — an engine that
   cannot honor them MUST still accept them (they are never judged, so
   they can never refuse).

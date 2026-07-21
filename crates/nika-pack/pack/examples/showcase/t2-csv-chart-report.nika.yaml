@@ -19,7 +19,7 @@
 #   - a declared `permits.fs.write` tree · the report + the chart land
 #     under `out/**` and nowhere else
 #
-# Run · point `vars.sales_csv` at your file, then
+# Run · point `const.sales_csv` at your file, then
 # Needs · ./data/sales.csv (columns · region,revenue).
 #
 #   nika run examples/showcase/t2-csv-chart-report.nika.yaml
@@ -29,7 +29,7 @@ workflow:
   id: csv-chart-report
   description: "CSV → aggregate → rendered bar chart + markdown report · offline · deterministic"
 
-vars:
+const:
   sales_csv: "./data/sales.csv" # columns · region,revenue (revenue a plain number)
 
 permits:
@@ -43,7 +43,7 @@ tasks:
   raw:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.sales_csv }}" }
+      args: { path: "${{ const.sales_csv }}" }
 
   rows:
     with:
@@ -96,7 +96,7 @@ tasks:
     with:
       rows_md: ${{ tasks.rows_md.output }}
     after:
-      chart: succeeded
+      chart: success
     invoke:
       tool: "nika:write"
       args:
@@ -115,5 +115,4 @@ tasks:
 outputs:
   by_region:
     value: ${{ tasks.by_region.output }}
-    type: array
     description: "Per-region revenue totals · the chart + report render from this"

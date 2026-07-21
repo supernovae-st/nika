@@ -65,15 +65,20 @@ A **type expression** is one of ·
 | `{ integer: { min?, max? } }` · `{ number: { min?, max? } }` | bounded numerics (inclusive bounds) |
 | `{ string: { pattern?, min_len?, max_len? } }` | refined string (`pattern` is a regular expression **without backreferences or lookaround** — linear-time matchable) |
 
-Three constructors are **declared and reserved** — they parse nowhere in
-v1 and their semantics land with their owning wave ·
+One constructor is **declared and reserved** — it parses nowhere in v1;
+writing it in a type position refuses with an honest diagnostic
+(reserved, not implemented — never a delivery claim) ·
 
-| Reserved | Owner | Why it is named now |
-|---|---|---|
-| `result<T>` | Outcome IR (W5) | a task outcome is a *contract*, not a convention — the slot is reserved so no user type squats the name |
-| `artifact<mime>` | artifact lanes (W5) | `outputs:` already speak it informally; the typed form needs runtime identity first |
-| `secret<T>` | authority wave (W4) | a secret is a *confidentiality*, not a shape — see §secrets never lower |
-| `money` | decision core (W-DEC) | an amount is **fixed-point + ISO-4217 currency, never a binary float** — a `money` that is semantically an empty string would be a lie; the name is reserved until the decision core brings the real representation |
+| Reserved | Owner | Status | Why it is named now |
+|---|---|---|---|
+| `artifact<mime>` | `spec` | **reserved-not-implemented** — activation sits behind a future gate: content digest · canonical media type · size · provenance · storage reference · integrity · lifecycle · composition · receipt projection must ALL be defined before it becomes authorable | `outputs:` already speak it informally; the typed form needs runtime identity first |
+
+`result` · `secret` · bare `money` are **withdrawn** from the public
+grammar and the reserved list (R6): in a type position each refuses as
+an unknown type name — the bare name and any parameterized form alike.
+The ideas survive in the research registry only — outside the public
+surface, never in the grammar. No alias, no runtime placeholder, no
+stub type stands in for them.
 
 ### Closed objects (normative)
 
@@ -223,7 +228,6 @@ schema, the editor's completion source. It is total on the v1 grammar ·
 | `path` | `{ "type": "string" }` (the path meaning is Nika-side · no portable format) |
 | `duration` | `{ "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h)([0-9]+(\\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))*$" }` (the quoted Go-duration of [01](./01-envelope.md)) |
 | `timestamp` | `{ "type": "string", "format": "date-time" }` |
-| `money` | `{ "type": "string" }` (decimal + currency refinements land with the decision core) |
 | `{ enum: E }` | `{ "type": "string", "enum": E }` |
 | `{ integer: {min,max} }` | `{ "type": "integer", "minimum": min, "maximum": max }` (absent bound omitted) · same shape for `number` |
 | `{ string: {pattern,min_len,max_len} }` | `{ "type": "string", "pattern": …, "minLength": …, "maxLength": … }` |
@@ -362,12 +366,16 @@ A `with:` binding's type is **derived, never declared** ·
   record of [05](./05-errors.md) (an `object`, `additional: true`).
 - Producer without `returns:` → the binding is `Unknown` (gradual).
 
-The **workflow-contract halves stay flat for now** · typed `vars:` and
-typed `outputs:` keep their flat closed enum (`string · number · integer
-· boolean · array · object` · [01](./01-envelope.md)) until the
-input-authority window (G9) widens BOTH halves to this grammar in one
-deliberate break — the callable contract never speaks two type languages
-at once. This chapter's grammar binds `types:` and `returns:` today.
+The **workflow-contract halves speak this grammar too** · the `type:` field
+of typed `inputs:` and typed `outputs:` is the full TypeExpr above (R3b ·
+LAW-GRAMMAR-0211 · the input-authority window landed: BOTH halves widened in
+one deliberate break — the callable contract never speaks two type languages
+at once). The flat 6-enum (`string` · `number` · `integer` · `boolean` ·
+`array` · `object`) is dead, and `bool` is the one boolean spelling (the
+JSON-Schema `{ "type": "boolean" }` lowering is a machine projection, never
+an authorable spelling). Every declared `default:` and every typed `const:`
+value MUST conform to its declared type — checked, never warnings
+(`NIKA-DEFAULT-001`).
 
 ## Errors (the `NIKA-TYPE` namespace · new in this chapter)
 
@@ -390,9 +398,8 @@ at once. This chapter's grammar binds `types:` and `returns:` today.
 ## What v1 deliberately does not do
 
 - **No recursion** in named types (undecidable walks — `NIKA-TYPE-002`).
-- **No generics / type parameters** (the reserved `result<T>` ·
-  `artifact<mime>` · `secret<T>` are engine-owned constructors, not a
-  user-parameterizable surface).
+- **No generics / type parameters** (the reserved `artifact<mime>` is an
+  engine-owned constructor, not a user-parameterizable surface).
 - **No regex inclusion** judgments (syntactic equality only — honest).
 - **No implicit coercions** — `integer ⊑ number` is the single numeric
   widening; a string is never silently a number.
@@ -403,7 +410,7 @@ at once. This chapter's grammar binds `types:` and `returns:` today.
 
 ## Related
 
-- [01 · Envelope](./01-envelope.md) — typed `vars:` (the callable-input
+- [01 · Envelope](./01-envelope.md) — typed `inputs:` (the callable-input
   half) · `outputs:` (the return half)
 - [02 · Verbs](./02-verbs.md) — `returns:`/`decode:` rows per verb ·
   `schema:` the hatch

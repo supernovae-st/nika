@@ -24,7 +24,7 @@ Three nested levels · increasing scope ·
 |---|---|---|
 | **Core** | Parse + validate · DAG semantics · variable resolution · error structure | Linters · spec editors · static analyzers |
 | **Runtime** | Core + verb execution | Working engine (with own provider/tool impls) |
-| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->16<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->28<!-- /canon --> builtins | Full reference-impl-equivalent engine |
+| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->17<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->28<!-- /canon --> builtins | Full reference-impl-equivalent engine |
 
 A higher level **includes** the lower levels.
 
@@ -35,9 +35,9 @@ A higher level **includes** the lower levels.
 An engine claims « Core v0.1-compliant » if it ·
 
 1. **Parses** any valid v0.1 workflow YAML correctly
-   - Accepts exactly `nika: v1` · `workflow: <id>` · rejects any other `nika:` value
+   - Accepts exactly `nika: v1` · a `workflow:` object carrying a kebab-case `id` · rejects any other `nika:` value (a scalar `workflow:` is the dead W1 form · `NIKA-PARSE-020`)
    - Validates the `workflow` identifier kebab-case
-   - Validates typed `vars` (type + required) · validates `env` / `secrets` shape
+   - Validates typed `inputs` (type + required) · validates `config` / `const` / `secrets` shape
    - Recognizes the 4 verbs (`infer` · `exec` · `invoke` · `agent`)
    - Rejects unknown top-level fields with a clear error OR ignores with warning (engine's choice · documented behavior)
 
@@ -51,10 +51,10 @@ An engine claims « Core v0.1-compliant » if it ·
    - Computes topological waves for parallel execution
 
 3. **Resolves variable references** correctly (static · reference-resolution · NOT runtime evaluation)
-   - `${{ vars.x }}` resolves to a declared envelope `vars:` entry
+   - `${{ inputs.x }}` · `${{ const.x }}` resolve to declared envelope `inputs:` / `const:` entries
    - `${{ with.x }}` resolves to a declared task `with:` key
    - `${{ tasks.X.field }}` resolves to a declared upstream task + a valid field name
-   - `${{ env.X }}` · `${{ secrets.X }}` resolve to declared namespaces
+   - `${{ config.X }}` · `${{ secrets.X }}` resolve to declared namespaces
    - `when:` and `for_each:` expressions are valid **CEL** (the v0.1 subset · see 03-dag) and their references **resolve to known namespaces**: Core parses but does NOT *evaluate* them (no execution = no `tasks.X.status` to compare against · that is Runtime's job)
    - `output:` bindings are valid **jq** expressions (the one data language · see 04-variables) · `${{ }}` never appears inside a binding
    - Reports undefined references with `NIKA-VAR-001` · static expression violations with `NIKA-VAR-005` (the deep-static layer · CEL subset parse · jq compile · `when:` boolean shape)
@@ -83,7 +83,7 @@ guarantees below) ·
 | **Cost ceiling** | the worst-case spend · `Σ (max_tokens × provider price)` across `infer:`/`agent:` tasks · before one token is spent | the `nika:inspect view: cost` model, run statically |
 | **Secret leak** | every `secrets.X` that flows into an `exec` capture or a tool whose output is bound (the masking boundary · [04 §secrets](./04-variables.md)) | reference graph |
 | **Capability escape** | any effect outside a declared `permits:` block: a write outside `fs.write`, a fetch to an unlisted host, an `exec` under `exec: false`, an unlisted tool | `permits:` ([01](./01-envelope.md)) |
-| **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all <!-- canon:providers -->16<!-- /canon --> providers (incl. the 5 local) | the closed verb-field set |
+| **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all <!-- canon:providers -->17<!-- /canon --> providers (incl. the 5 local) | the closed verb-field set |
 
 This is the property no other AI workflow runner gives: **GitHub Actions,
 Temporal, and LangGraph tell you nothing (and charge you nothing back)
@@ -162,7 +162,7 @@ Runtime-compliant engines may bring **their own** provider implementations · to
 
 An engine claims « Stdlib v0.1-compliant » if it satisfies Runtime conformance PLUS ·
 
-1. **Ships all 16 canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
+1. **Ships all <!-- canon:providers -->17<!-- /canon --> canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
 2. **Ships all 9 canonical extract modes** (per [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md))
 3. **Ships at least all <!-- canon:builtins -->28<!-- /canon --> canonical builtins** (core 6 + file 5 + data 9 + network 2 + introspection 2 + media 4 · the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx` and `nika:chart` are part of the bar — an engine that cannot honor them is not conformant, no waiver)
 4. **Passes** all tests in `conformance/tests/stdlib/`
@@ -199,31 +199,28 @@ behavioral halves when the behavioral fixtures publish.
 ```
 conformance/
 ├── tests/
-│   ├── core/                  # parsing · validation · DAG · variables · errors
-│   │   ├── envelope/
-│   │   ├── verbs-shape/
-│   │   ├── dag-topology/
-│   │   ├── variables/
-│   │   └── errors/
-│   │
+│   ├── core/                  # Level-1 fixtures · parse · validate · DAG · variables · errors
 │   ├── deep/                  # deep-static layer · CEL subset parse · jq compile ·
 │   │                          # durations · schema-meta · when shape · binding purity
-│   ├── runtime/               # verb execution · task fields · events
-│   │   ├── infer/
-│   │   ├── exec/
-│   │   ├── invoke/
-│   │   ├── agent/
-│   │   └── workflow-lifecycle/
-│   │
-│   └── stdlib/                # provider/extract/builtin canonical behavior
-│       ├── providers/
-│       ├── extract-modes/
-│       └── builtins/
+│   ├── lints/                 # advisory-lint fixtures
+│   ├── runtime/               # verb execution · task fields · events (behavioral half)
+│   └── stdlib/                # provider/extract/builtin canonical surface
 │
-└── runner-protocol.md          # how to run the suite against any engine
+├── runner.py                  # the static oracle · `all` is the CI gate
+├── *_core.py                  # per-domain reference evaluators (type · decision ·
+│                              # gateway · outcome · composition · yaml-profile ·
+│                              # proof · projection) + their `*_selftest.py` sweeps
+├── yaml-profile/              # R11 profile fixtures (valid/ + invalid/)
+├── type-corpus/               # the generated type corpus (gen-type-corpus.py)
+├── values/                    # the four-authority family (C2 · R3a · valid/ + invalid/)
+├── types/                     # io-declaration predicate vocabulary (C2 · R3b · valid/ + invalid/)
+├── gates/                     # the after: predicate vocabulary (C2 · R5 · valid/ + invalid/)
+└── runner-protocol.md         # how to run the suite against any engine
 ```
 
-Each test is a pair · `input.yaml` (the workflow to feed) + `expected.json` (the expected output or error structure).
+**The directory is the source** — this sketch is a map, not the inventory
+(`python3 conformance/runner.py all` prints the live fixture counts).
+Each fixture is a pair · `input.yaml` (the workflow to feed) + `expected.json` (the expected output or error structure).
 
 For tests that require executing against real LLMs / networks · the suite uses the `mock` provider and HTTP mocks to keep tests deterministic.
 
@@ -245,12 +242,20 @@ See `conformance/runner-protocol.md` for the exact JSON wire format.
 
 ## Claiming conformance
 
-To claim « v0.1-compliant » publicly · an engine ·
+The public claim string is **« Nika v1 Conformant — <Level> (spec <commit>) »**
+· Level ∈ `Core` · `Runtime` · `Stdlib v0.1` · the spec commit is the pin
+the suite ran against. One form everywhere — badges · READMEs · listings ·
+release notes. (In normative sentences, « v0.1-compliant » names the level
+*bar* an engine satisfies; the string above is the one public *claim*.)
+
+To make the claim · an engine ·
 
 1. MUST pass the conformance suite at the claimed level
-2. SHOULD document the level (Core · Runtime · or Stdlib v0.1)
+2. MUST name the level and the spec commit in the claim (the format above)
 3. MAY open a PR on [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec) to be listed in `CONFORMANT_IMPLEMENTATIONS.md`
 
+The claim is earned by passing the suite, never by declaration
+([NEP-0000 §Relationship to conformance](../governance/nep-0000-the-nep-process.md)).
 The reference implementation [supernovae-st/nika](https://github.com/supernovae-st/nika) targets Stdlib v0.1 conformance.
 
 ---

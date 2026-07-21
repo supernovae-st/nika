@@ -1,0 +1,1652 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nika:design-pack-pre1:law:1",
+  "title": "Structured law entry — R2 (PAA-002): id-prefix↔domain↔payload discriminated 1:1, exact arity per operator and per derivation function, $comment declared documentary (PAA-001), every free-text field routed through the DECLARED documentary channel ($defs/documentaryText), independent_judgment const",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "status",
+    "owner",
+    "domain",
+    "title",
+    "inputs",
+    "premises",
+    "conclusion",
+    "canonicalization",
+    "judgment",
+    "diagnostics",
+    "fixtures",
+    "projections",
+    "implementation_surfaces",
+    "introduced_in",
+    "proof_obligations",
+    "closure_gates",
+    "domain_payload"
+  ],
+  "properties": {
+    "$comment": {
+      "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^LAW-(SURFACE|GRAMMAR|TYPE|GRAPH|OUTCOME|AUTH|COMPOSE|TEMPORAL|ASSERT|GUAR|HASH|DIAG|CONF|PROJ|MIGR)-[0-9]{4}$"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9/-]+$"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "reserved",
+        "retired"
+      ]
+    },
+    "owner": {
+      "enum": [
+        "spec",
+        "engine",
+        "conformance",
+        "release",
+        "tooling"
+      ]
+    },
+    "domain": {
+      "enum": [
+        "SURFACE",
+        "GRAMMAR",
+        "TYPE",
+        "GRAPH",
+        "OUTCOME",
+        "AUTH",
+        "COMPOSE",
+        "TEMPORAL",
+        "ASSERT",
+        "GUAR",
+        "HASH",
+        "DIAG",
+        "CONF",
+        "PROJ",
+        "MIGR"
+      ]
+    },
+    "title": {
+      "$ref": "#/$defs/documentaryText"
+    },
+    "prose_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chapters",
+        "text"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "chapters": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]{2}-[a-z-]+$"
+          }
+        },
+        "text": {
+          "$ref": "#/$defs/documentaryText"
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/typedRef"
+      }
+    },
+    "premises": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/condition"
+      }
+    },
+    "conclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "verdict": {
+          "enum": [
+            "refuse",
+            "admit",
+            "derive",
+            "record",
+            "warn"
+          ]
+        },
+        "derives": {
+          "$ref": "#/$defs/typedRef"
+        },
+        "diagnostics_on_refuse": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagCode"
+          }
+        }
+      }
+    },
+    "canonicalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order_sensitive",
+        "normalization"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "order_sensitive": {
+          "type": "boolean"
+        },
+        "normalization": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "nfc",
+              "lf",
+              "sorted-keys",
+              "jcs",
+              "none"
+            ]
+          }
+        }
+      }
+    },
+    "judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_facts",
+        "independent_judgment"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "generated_facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typedRef"
+          },
+          "description": "registry tables evaluators may CONSUME — typed refs, never free strings (R2)"
+        },
+        "independent_judgment": {
+          "const": true,
+          "description": "R2 (PAA-002): every evaluator implements the decision procedure itself — no valid law exists whose judgment is not independent, so the field admits no false state"
+        }
+      }
+    },
+    "domain_payload": {
+      "$ref": "#/$defs/anyPayload"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagCode"
+      }
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fixturePath"
+      }
+    },
+    "negative_fixtures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fixturePath"
+      }
+    },
+    "projections": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      }
+    },
+    "implementation_surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^(engine|reference|cli|lsp|mcp|conformance):[a-zA-Z0-9_./-]+$"
+      }
+    },
+    "introduced_in": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9.-]+$"
+    },
+    "deprecated": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-zA-Z0-9.-]+$"
+    },
+    "replaced_by": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^LAW-[A-Z]+-[0-9]{4}$"
+    },
+    "proof_obligations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/documentaryText"
+      },
+      "description": "DOCUMENTARY (PAA-002): human phrasing of what must be proven — the EXECUTABLE proof lives in fixtures + closure_gates; evaluators never parse these strings"
+    },
+    "closure_gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "SURFACE"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-SURFACE-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/surfacePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "GRAMMAR"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-GRAMMAR-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/grammarPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "TYPE"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-TYPE-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/typePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "GRAPH"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-GRAPH-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/graphPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "OUTCOME"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-OUTCOME-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/outcomePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "AUTH"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-AUTH-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/authorityPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "COMPOSE"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-COMPOSE-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/compositionPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "TEMPORAL"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-TEMPORAL-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/temporalPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "ASSERT"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-ASSERT-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/assertionPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "GUAR"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-GUAR-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/guaranteePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "HASH"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-HASH-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/hashPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "DIAG"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-DIAG-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/diagnosticPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "CONF"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-CONF-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/conformancePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "PROJ"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-PROJ-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/projectionPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "domain": {
+            "const": "MIGR"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^LAW-MIGR-[0-9]{4}$"
+          },
+          "domain_payload": {
+            "$ref": "#/$defs/migrationPayload"
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "PAA-002 identity law: the id prefix and the domain are ONE fact spelled twice — each domain branch above pins BOTH the payload variant AND the id pattern, so `LAW-GRAPH-*` with domain AUTH (and every other cross pairing) is schema-refused. The branches are total: `domain` is required and enum-closed, so exactly one branch fires for every instance.",
+  "$defs": {
+    "commentMeta": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "PAA-001 policy: $comment is DECLARED documentary metadata — string only, zero normative semantics, ignored by every evaluator"
+    },
+    "documentaryText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "PAA-002 documentary channel: DECLARED prose-for-humans — zero normative semantics, ignored by every evaluator, never parsed. Every free-text field in this schema is routed HERE; any inline string schema without enum/const/pattern outside this channel is a violation the runner's free-string walker refuses (tests/validate_design_pack.py)"
+    },
+    "diagCode": {
+      "type": "string",
+      "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
+    },
+    "fixturePath": {
+      "type": "string",
+      "pattern": "^[a-z0-9_./-]+$"
+    },
+    "machineId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$"
+    },
+    "typedRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry",
+        "id"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "registry": {
+          "enum": [
+            "surface",
+            "grammar",
+            "types",
+            "laws",
+            "diagnostics",
+            "builtins",
+            "features",
+            "templates",
+            "snippets",
+            "conformance",
+            "tombstones",
+            "projections",
+            "migrations",
+            "ir"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9:_./-]+$"
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "derivation": {
+          "$ref": "#/$defs/derivation"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "registry": {
+                "const": "laws"
+              }
+            },
+            "required": [
+              "registry"
+            ]
+          },
+          "then": {
+            "properties": {
+              "id": {
+                "pattern": "^LAW-[A-Z]+-[0-9]{4}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "registry": {
+                "const": "diagnostics"
+              }
+            },
+            "required": [
+              "registry"
+            ]
+          },
+          "then": {
+            "properties": {
+              "id": {
+                "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "registry": {
+                "const": "builtins"
+              }
+            },
+            "required": [
+              "registry"
+            ]
+          },
+          "then": {
+            "properties": {
+              "id": {
+                "pattern": "^nika:[a-z][a-z0-9_]*$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": {
+                "registry": {
+                  "enum": [
+                    "laws",
+                    "diagnostics",
+                    "builtins"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "id": {
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "computed sets are STRUCTURED, never spelled as expression strings (R2 kills the free-form ref)",
+      "required": [
+        "function",
+        "args"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "function": {
+          "enum": [
+            "union",
+            "intersection",
+            "difference",
+            "complement",
+            "reflexive_transitive_downstream",
+            "transitive_downstream",
+            "reachable_from"
+          ]
+        },
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/typedRef"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "PAA-002 arity law for derivation functions. N-ary associative-commutative set functions over ≥2 args (a unary union/intersection is the identity — refused):",
+          "if": {
+            "properties": {
+              "function": {
+                "enum": [
+                  "union",
+                  "intersection"
+                ]
+              }
+            },
+            "required": [
+              "function"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "minItems": 2
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Binary — arg ORDER is semantic (difference(A,B) = A∖B · *_downstream(G,seed) / reachable_from(G,seed) = closure over graph G from seed):",
+          "if": {
+            "properties": {
+              "function": {
+                "enum": [
+                  "difference",
+                  "reflexive_transitive_downstream",
+                  "transitive_downstream",
+                  "reachable_from"
+                ]
+              }
+            },
+            "required": [
+              "function"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Unary — complement(X) w.r.t. the registry domain of X:",
+          "if": {
+            "properties": {
+              "function": {
+                "const": "complement"
+              }
+            },
+            "required": [
+              "function"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operands",
+        "operator",
+        "quantifier"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "operator": {
+          "enum": [
+            "subset_of",
+            "superset_of",
+            "intersect_empty",
+            "intersect_nonempty",
+            "equals",
+            "not_equals",
+            "acyclic",
+            "reachable",
+            "unreachable",
+            "present",
+            "absent",
+            "matches",
+            "derived_from",
+            "min_of",
+            "meet",
+            "member_of",
+            "conforms_to"
+          ]
+        },
+        "operands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/typedRef"
+          }
+        },
+        "quantifier": {
+          "enum": [
+            "forall",
+            "exists",
+            "exactly_one"
+          ],
+          "$comment": "PAA-002 R9: REQUIRED — the former optional+default made two schema-valid instances (omitted vs explicit) with DIFFERENT canonical bytes, i.e. an ambiguous identity before hashing. No default: the quantifier is always spelled."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "PAA-002 arity law — every operator carries an EXACT arity constraint; the blanket minItems:1 decides nothing alone. Unary relations:",
+          "if": {
+            "properties": {
+              "operator": {
+                "enum": [
+                  "acyclic",
+                  "present",
+                  "absent"
+                ]
+              }
+            },
+            "required": [
+              "operator"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operands": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Binary relations — operand ORDER is semantic (subset_of(A,B) = A⊆B · reachable(A,B) = B reachable from A · matches(X,P) = X matches pattern P · derived_from(X,Y) = X derived from Y · member_of(X,S) = X ∈ S · conforms_to(X,S) = X conforms to shape S):",
+          "if": {
+            "properties": {
+              "operator": {
+                "enum": [
+                  "subset_of",
+                  "superset_of",
+                  "equals",
+                  "not_equals",
+                  "reachable",
+                  "unreachable",
+                  "matches",
+                  "derived_from",
+                  "member_of",
+                  "conforms_to"
+                ]
+              }
+            },
+            "required": [
+              "operator"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operands": {
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        {
+          "$comment": "N-ary associative-commutative emptiness relations over ≥2 sets (⋂ᵢAᵢ = ∅ / ≠ ∅ — a unary form is degenerate and refused):",
+          "if": {
+            "properties": {
+              "operator": {
+                "enum": [
+                  "intersect_empty",
+                  "intersect_nonempty"
+                ]
+              }
+            },
+            "required": [
+              "operator"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operands": {
+                "minItems": 2
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Target-first aggregations — operand[0] is the TARGET, operands[1..] the ≥2 sources (min_of(x,a,b,…) = x is min of a,b,… · meet(x,a,b,…) = x is the lattice meet of a,b,…); the 2-operand form is a second spelling of `equals` and is refused (one spelling per meaning):",
+          "if": {
+            "properties": {
+              "operator": {
+                "enum": [
+                  "min_of",
+                  "meet"
+                ]
+              }
+            },
+            "required": [
+              "operator"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operands": {
+                "minItems": 3
+              }
+            }
+          }
+        }
+      ]
+    },
+    "anyPayload": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/surfacePayload"
+        },
+        {
+          "$ref": "#/$defs/grammarPayload"
+        },
+        {
+          "$ref": "#/$defs/typePayload"
+        },
+        {
+          "$ref": "#/$defs/graphPayload"
+        },
+        {
+          "$ref": "#/$defs/outcomePayload"
+        },
+        {
+          "$ref": "#/$defs/authorityPayload"
+        },
+        {
+          "$ref": "#/$defs/compositionPayload"
+        },
+        {
+          "$ref": "#/$defs/temporalPayload"
+        },
+        {
+          "$ref": "#/$defs/assertionPayload"
+        },
+        {
+          "$ref": "#/$defs/guaranteePayload"
+        },
+        {
+          "$ref": "#/$defs/hashPayload"
+        },
+        {
+          "$ref": "#/$defs/diagnosticPayload"
+        },
+        {
+          "$ref": "#/$defs/conformancePayload"
+        },
+        {
+          "$ref": "#/$defs/projectionPayload"
+        },
+        {
+          "$ref": "#/$defs/migrationPayload"
+        }
+      ]
+    },
+    "surfacePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "constraint",
+        "subject"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "surface"
+        },
+        "constraint": {
+          "enum": [
+            "spelling_unique",
+            "family_membership",
+            "exposure_rule",
+            "reservation",
+            "one_spelling_per_meaning"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/typedRef"
+        }
+      }
+    },
+    "grammarPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "position",
+        "field_rules"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "grammar"
+        },
+        "position": {
+          "$ref": "#/$defs/machineId"
+        },
+        "field_rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "cardinality"
+            ],
+            "properties": {
+              "$comment": {
+                "$ref": "#/$defs/commentMeta"
+              },
+              "field": {
+                "$ref": "#/$defs/machineId"
+              },
+              "cardinality": {
+                "enum": [
+                  "required",
+                  "optional",
+                  "forbidden"
+                ]
+              },
+              "value_shape": {
+                "$ref": "#/$defs/typedRef"
+              }
+            }
+          }
+        }
+      }
+    },
+    "typePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "relation",
+        "operands"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "type"
+        },
+        "relation": {
+          "enum": [
+            "subtype",
+            "assignable",
+            "normalizes_to",
+            "lowering",
+            "validates_default",
+            "reserved_not_parsed"
+          ]
+        },
+        "operands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/typedRef"
+          }
+        }
+      }
+    },
+    "graphPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "graph",
+        "edge_sets",
+        "property"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "graph"
+        },
+        "graph": {
+          "$ref": "#/$defs/machineId"
+        },
+        "edge_sets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/machineId"
+          }
+        },
+        "property": {
+          "enum": [
+            "acyclic",
+            "reflexive_transitive_downstream",
+            "reachability",
+            "single_root"
+          ]
+        }
+      }
+    },
+    "outcomePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "transition_table",
+        "constraint"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "outcome"
+        },
+        "transition_table": {
+          "$ref": "#/$defs/typedRef"
+        },
+        "constraint": {
+          "enum": [
+            "legal_pairs_closed",
+            "new_fact_new_cause",
+            "cause_never_gates"
+          ]
+        }
+      }
+    },
+    "authorityPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sets",
+        "relation",
+        "pipeline_stage"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "authority"
+        },
+        "sets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "RequiredCapabilities",
+              "DeclaredPermits",
+              "AvailableAuthority",
+              "PolicyCeiling",
+              "EffectiveAuthority"
+            ]
+          }
+        },
+        "relation": {
+          "enum": [
+            "subset",
+            "intersection",
+            "equality"
+          ]
+        },
+        "pipeline_stage": {
+          "enum": [
+            "infer",
+            "permits_check",
+            "policy_check",
+            "deployment_check",
+            "effective",
+            "runtime_revalidation"
+          ]
+        }
+      }
+    },
+    "compositionPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "relation",
+        "operands"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "composition"
+        },
+        "relation": {
+          "enum": [
+            "acyclic_call_graph",
+            "arg_fits_input",
+            "output_fits_returns",
+            "authority_containment",
+            "resource_containment",
+            "deadline_containment",
+            "cache_by_semantic_identity"
+          ]
+        },
+        "operands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/typedRef"
+          }
+        }
+      }
+    },
+    "temporalPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "measure",
+        "composition"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "temporal"
+        },
+        "measure": {
+          "enum": [
+            "attempt_timeout",
+            "workflow_deadline",
+            "resource_budget",
+            "deployment_lease",
+            "durable_suspension",
+            "external_wait"
+          ]
+        },
+        "composition": {
+          "enum": [
+            "min",
+            "sum",
+            "independent"
+          ]
+        }
+      }
+    },
+    "assertionPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "obligation_property",
+        "judgment_time"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "assertion"
+        },
+        "obligation_property": {
+          "enum": [
+            "before",
+            "bounded",
+            "eventually",
+            "no_secret_egress"
+          ]
+        },
+        "judgment_time": {
+          "enum": [
+            "check",
+            "run",
+            "both"
+          ]
+        }
+      }
+    },
+    "guaranteePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "dimension",
+        "operator_rules"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "guarantee"
+        },
+        "dimension": {
+          "enum": [
+            "determinism",
+            "idempotence",
+            "replayability",
+            "boundedness"
+          ]
+        },
+        "operator_rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "operator",
+              "combine"
+            ],
+            "properties": {
+              "$comment": {
+                "$ref": "#/$defs/commentMeta"
+              },
+              "operator": {
+                "enum": [
+                  "sequential",
+                  "concurrent",
+                  "retry",
+                  "recovery",
+                  "nesting"
+                ]
+              },
+              "combine": {
+                "enum": [
+                  "meet",
+                  "meet_then_cap"
+                ]
+              },
+              "cap": {
+                "$ref": "#/$defs/guaranteeClaim"
+              },
+              "unless_assumption": {
+                "$ref": "#/$defs/guaranteeAssumption"
+              },
+              "assumptions_recorded": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/guaranteeAssumption"
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "combine": {
+                  "const": "meet_then_cap"
+                }
+              },
+              "required": [
+                "combine"
+              ]
+            },
+            "then": {
+              "required": [
+                "operator",
+                "combine",
+                "cap"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "guaranteeClaim": {
+      "enum": [
+        "deterministic",
+        "seeded_deterministic",
+        "nondeterministic",
+        "idempotent",
+        "conditionally_idempotent",
+        "non_idempotent",
+        "replayable",
+        "replayable_with_snapshot",
+        "non_replayable",
+        "statically_bounded",
+        "declared_bounded",
+        "unbounded",
+        "unknown"
+      ]
+    },
+    "guaranteeAssumption": {
+      "enum": [
+        "absorption",
+        "child_deterministic_and_idempotent",
+        "commutation",
+        "effect_disjunction",
+        "identity",
+        "order_insensitive_join",
+        "retries_observable_false",
+        "snapshot_available",
+        "static_attempt_bound",
+        "validated_specific_rule"
+      ],
+      "$comment": "PAA-014 R9: this enum IS machine/guarantee-algebra.json assumption_vocabulary — one vocabulary, set-equal (validate_models asserts it). A law citing a proof assumption the algebra does not know, or vice-versa, is refused."
+    },
+    "hashPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "hash_domain",
+        "preimage"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "hash"
+        },
+        "hash_domain": {
+          "$ref": "#/$defs/machineId"
+        },
+        "preimage": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "domain_tag",
+              "format_version",
+              "jcs_semantic_ir",
+              "merkle_task_subtrees",
+              "previous_line_bytes",
+              "covered_block"
+            ]
+          }
+        }
+      }
+    },
+    "diagnosticPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "constraint",
+        "subject"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "diagnostic"
+        },
+        "constraint": {
+          "enum": [
+            "code_grammar",
+            "namespace_scope",
+            "global_uniqueness",
+            "tombstone_no_reuse",
+            "payload_contract",
+            "teaching_required",
+            "span_required"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/typedRef"
+        }
+      }
+    },
+    "conformancePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "constraint",
+        "subject"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "conformance"
+        },
+        "constraint": {
+          "enum": [
+            "fixture_classification",
+            "engine_reference_parity",
+            "polarity_declared",
+            "profile_membership",
+            "mutation_adequacy"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/typedRef"
+        }
+      }
+    },
+    "projectionPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "constraint",
+        "subject"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "projection"
+        },
+        "constraint": {
+          "enum": [
+            "byte_identical",
+            "deterministic_regeneration",
+            "completeness",
+            "manual_edit_refused",
+            "provenance_stamped",
+            "downward_digest_only"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/typedRef"
+        }
+      }
+    },
+    "migrationPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "constraint",
+        "subject"
+      ],
+      "properties": {
+        "$comment": {
+          "$ref": "#/$defs/commentMeta"
+        },
+        "kind": {
+          "const": "migration"
+        },
+        "constraint": {
+          "enum": [
+            "equivalence_or_stop",
+            "old_form_census_zero",
+            "tombstone_minted",
+            "atomic_cascade",
+            "single_window"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/typedRef"
+        }
+      }
+    }
+  }
+}

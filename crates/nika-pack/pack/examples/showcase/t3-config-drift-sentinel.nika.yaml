@@ -28,7 +28,7 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (explain is cheap)
 
-vars:
+const:
   config_url: "https://api.internal.example.com/v1/config"
   baseline_path: "./ops/config-baseline.json"
   approved_overrides:
@@ -49,7 +49,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.config_url }}"
+        url: "${{ const.config_url }}"
         mode: jq
         jq: "."
     retry:
@@ -59,7 +59,7 @@ tasks:
   baseline:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.baseline_path }}" }
+      args: { path: "${{ const.baseline_path }}" }
 
   expected:
     with:
@@ -68,7 +68,7 @@ tasks:
       tool: "nika:json_merge_patch"
       args:
         target: "${{ with.baseline }}"
-        patch: "${{ vars.approved_overrides }}"
+        patch: "${{ const.approved_overrides }}"
 
   drift:
     with:
@@ -131,5 +131,4 @@ tasks:
 outputs:
   drift:
     value: ${{ tasks.drift.output }}
-    type: array
     description: "RFC 6902 operations · empty when prod matches the sanctioned state"

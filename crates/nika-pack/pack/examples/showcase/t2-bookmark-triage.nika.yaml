@@ -24,7 +24,7 @@ workflow:
   id: bookmark-triage
   description: "URL list → per-page metadata fan-out (dead links survive) → one markdown triage table"
 
-vars:
+const:
   bookmarks:
     type: array
     default:
@@ -45,7 +45,7 @@ tasks:
   # The fan-out · one metadata fetch per URL · a dead link recovers to a
   # marker object (the batch NEVER dies at bookmark 14).
   pages:
-    for_each: ${{ vars.bookmarks }}
+    for_each: ${{ const.bookmarks }}
     max_parallel: 3
     fail_fast: false
     retry: { max_attempts: 2, backoff_ms: 500 } # a transient blip retries BEFORE the dead verdict
@@ -65,7 +65,7 @@ tasks:
       tool: "nika:jq"
       args:
         input:
-          urls: ${{ vars.bookmarks }}
+          urls: ${{ const.bookmarks }}
           pages: ${{ with.pages }}
         expression: >-
           def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
@@ -98,5 +98,4 @@ tasks:
 outputs:
   table:
     value: ${{ tasks.table.output }}
-    type: object
     description: "Live rows + dead rows · the triage split"

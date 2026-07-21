@@ -25,7 +25,7 @@ workflow:
   id: price-watch
   description: "Watch a product price, ping me when it drops below my target"
 
-vars:
+const:
   product_api: "https://api.shop.example.com/v1/products/macbook-air"
   alert_below: 899
 
@@ -42,7 +42,7 @@ tasks:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ vars.product_api }}"
+        url: "${{ const.product_api }}"
         mode: jq
         jq: "."
     output:                           # named jq bindings over the raw response
@@ -57,13 +57,13 @@ tasks:
     with:
       price: ${{ tasks.check.price }}     # value edges · the named bindings cross the boundary here
       name: ${{ tasks.check.name }}
-    when: ${{ with.price < vars.alert_below }}
+    when: ${{ with.price < const.alert_below }}
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.alerts_webhook }}"
-        message: "Price drop · ${{ with.name }} is now ${{ with.price }} (target ${{ vars.alert_below }})"
+        message: "Price drop · ${{ with.name }} is now ${{ with.price }} (target ${{ const.alert_below }})"
         severity: info
 
 outputs:

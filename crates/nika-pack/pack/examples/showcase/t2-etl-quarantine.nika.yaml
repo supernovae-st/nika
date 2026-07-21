@@ -22,7 +22,7 @@ workflow:
   id: etl-quarantine
   description: "CSV batch → schema gate → quarantine the bad · aggregate the good"
 
-vars:
+const:
   batch_csv: "./data/incoming/orders.csv"
 
 tasks:
@@ -35,7 +35,7 @@ tasks:
   raw:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.batch_csv }}" }
+      args: { path: "${{ const.batch_csv }}" }
 
   rows:
     with:

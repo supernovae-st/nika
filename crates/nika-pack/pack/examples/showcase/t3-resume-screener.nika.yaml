@@ -30,7 +30,7 @@ permits:                    # the file IS the blast radius · no net category at
     write: ["./hiring/out/**", "./hiring/shortlist-brief.md"]
   tools: ["nika:glob", "nika:read", "nika:jq", "nika:write"]
 
-vars:
+const:
   role: "Senior Rust engineer"
   cv_glob: "./hiring/inbox/*.md"
   shortlist_size: 5
@@ -39,7 +39,7 @@ tasks:
   pool:
     invoke:
       tool: "nika:glob"
-      args: { pattern: "${{ vars.cv_glob }}" }
+      args: { pattern: "${{ const.cv_glob }}" }
 
   cvs:
     with:
@@ -74,7 +74,7 @@ tasks:
       recover: null
     infer:
       prompt: |
-        Role · ${{ vars.role }}
+        Role · ${{ const.role }}
         Candidate file · ${{ with.cv_path }}
         CV ·
         ${{ item.text }}
@@ -106,7 +106,7 @@ tasks:
       tool: "nika:jq"
       args:
         input: "${{ with.ranked }}"
-        expression: ".[:${{ vars.shortlist_size }}]"
+        expression: ".[:${{ const.shortlist_size }}]"
 
   brief:
     with:
@@ -133,5 +133,4 @@ tasks:
 outputs:
   shortlist:
     value: ${{ tasks.shortlist.output }}
-    type: array
     description: "Ranked candidates · strong first, then by relevant years"

@@ -42,7 +42,7 @@ workflow:
 
 model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
 
-vars:
+const:
   question:
     type: string
     default: "Explain, in five lines, why a workflow should be audited before it runs."
@@ -51,19 +51,19 @@ tasks:
   ask_incumbent:
     infer:
       model: ollama/qwen2.5:14b # the quality bar · the seat to beat
-      prompt: "${{ vars.question }}"
+      prompt: "${{ const.question }}"
       max_tokens: 600
 
   ask_challenger:
     infer:
       model: ollama/llama3.2:3b # another family · same size class
-      prompt: "${{ vars.question }}"
+      prompt: "${{ const.question }}"
       max_tokens: 600
 
   ask_tiny:
     infer:
       model: ollama/qwen2.5:0.5b # the "is small enough?" probe
-      prompt: "${{ vars.question }}"
+      prompt: "${{ const.question }}"
       max_tokens: 600
 
   tabulate:

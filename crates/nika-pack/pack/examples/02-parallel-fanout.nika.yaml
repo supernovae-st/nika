@@ -20,22 +20,22 @@ workflow:
   id: parallel-fanout
 
 model: mock/echo
-vars:
+const:
   topic: "adopting Rust for a backend rewrite"
 
 tasks:
   # These three have no dependency on each other → the engine runs them in parallel.
   angle:
     infer:
-      prompt: "Give the strategic angle on · ${{ vars.topic }}"
+      prompt: "Give the strategic angle on · ${{ const.topic }}"
 
   cost:
     infer:
-      prompt: "Give the cost angle on · ${{ vars.topic }}"
+      prompt: "Give the cost angle on · ${{ const.topic }}"
 
   risk:
     infer:
-      prompt: "Give the risk angle on · ${{ vars.topic }}"
+      prompt: "Give the risk angle on · ${{ const.topic }}"
 
   # Merge · runs only after all three complete.
   synthesize:

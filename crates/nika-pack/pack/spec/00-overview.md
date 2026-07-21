@@ -45,8 +45,8 @@ Standards work · SQL · GraphQL · OpenAPI · Dockerfile · GitHub Actions YAML
 
 3.  DAG SHAPE       tasks · with (data edges) · after (control) · when · for_each
 
-4.  VARIABLES       ${{ ... }} = CEL · ONE syntax · 5 namespaces
-                    vars · with · tasks · env · secrets
+4.  VARIABLES       ${{ ... }} = CEL · ONE syntax · 6 namespaces
+                    inputs · config · const · secrets · with · tasks
 
 5.  ERROR MODEL     NIKA-<NS>-<NNN> codes · retry semantics · structured output
 ```
@@ -140,7 +140,7 @@ tasks:
         path: "summary.md"
         content: "${{ with.summary }}"
 
-outputs:                              # what the workflow returns · symmetric to vars:
+outputs:                              # what the workflow returns · symmetric to inputs:
   summary: ${{ tasks.summarize.output }}
 ```
 
@@ -152,10 +152,10 @@ outputs:                              # what the workflow returns · symmetric t
 
 | Section | What it covers |
 |---|---|
-| [01 envelope](./01-envelope.md) | The header · `nika: v1` · `workflow:` · typed `vars` · `env` · `secrets` |
+| [01 envelope](./01-envelope.md) | The header · `nika: v1` · `workflow:` · typed `inputs` · `config` · `const` · `secrets` |
 | [02 verbs](./02-verbs.md) | The 4 verbs · signatures · semantics |
 | [03 DAG](./03-dag.md) | Tasks · `with:` data edges · `after:` control · `when` · `for_each` · the four graphs |
-| [04 variables](./04-variables.md) | `${{ vars · with · tasks · env · secrets }}` · <!-- canon:namespaces -->5<!-- /canon --> namespaces |
+| [04 variables](./04-variables.md) | `${{ inputs · config · const · secrets · with · tasks }}` · <!-- canon:namespaces -->6<!-- /canon --> namespaces |
 | [05 errors](./05-errors.md) | Error codes · retry · structured output schemas |
 | [06 stdlib contract](./06-stdlib-contract.md) | How the stdlib versions independently |
 | [07 conformance](./07-conformance.md) | What « v0.1-compliant » means |
@@ -169,7 +169,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [15 proof](./15-proof.md) | The proof layer · the semantic hash (H = H(domain ‖ version ‖ JCS(IR))) · `nika.lock` (pin by default) · `assert:` (StaticProof · TraceVerified · Unknown) · the one receipt |
 | [16 projections](./16-projections.md) | The oracle surface · one canonical projection (graph_format:2) served byte-identical across CLI · LSP · MCP · the LSP semantic document (`semantic_document_format: 1`) wraps it with spans + one-word `reason` · the additive arc (holes · actions · capabilities over the frozen IR) |
 
-**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->16<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->28<!-- /canon --> builtins** (6 core · 5 file · 8 data · 2 network · 2 introspection · 4 media).
+**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->17<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->28<!-- /canon --> builtins** (6 core · 5 file · 8 data · 2 network · 2 introspection · 4 media).
 
 ---
 
