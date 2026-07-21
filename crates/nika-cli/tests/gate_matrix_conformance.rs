@@ -126,19 +126,24 @@ fn gate_matrix_cells_match_the_model_authored_expectations() {
         let (observed, run_ok, text) = run_observed(&input);
 
         // ── The R5 predicates gap (spec #118 · pc-light) ─────────────
-        // The pin's cells speak the outcome-class spellings
-        // (`after: success·failure·skipped·terminal`) while the engine's
-        // closed set is still succeeded·failed·skipped·terminal — every
-        // after:-carrying cell refuses NIKA-DAG-005 before its expected
-        // verdict. The ratchet is LOUD both ways: a gapped cell that
-        // PASSES (the wave landed · delete its row) or that refuses with
-        // anything OTHER than the unknown-predicate code (the divergence
-        // is deeper than the rename) reds the gate.
-        let carries_after = std::fs::read_to_string(&input)
-            .expect("cell input reads")
-            .lines()
-            .any(|l| l.trim_start().starts_with("after:"));
-        if carries_after {
+        // The pin's cells speak the RENAMED outcome-class spellings
+        // (`after: success·failure`) while the engine's closed set is
+        // still succeeded·failed (skipped·terminal are unchanged and
+        // parse today — they ride the normal verdict path). The ratchet
+        // is keyed on the RENAMED spellings exactly (never a bare
+        // `after:` sniff): a gapped cell that PASSES (the wave landed ·
+        // delete its row) or that refuses with anything OTHER than the
+        // unknown-predicate code (the divergence is deeper than the
+        // rename) reds the gate.
+        let cell = std::fs::read_to_string(&input).expect("cell input reads");
+        let carries_r5_spelling = cell.lines().any(|l| {
+            let t = l.trim_start();
+            !t.starts_with('#')
+                && (t.contains(": success") || t.contains(": failure"))
+                && !t.contains(": succeeded")
+                && !t.contains(": failed")
+        });
+        if carries_r5_spelling {
             r5_gapped += 1;
             if run_ok {
                 failures.push(format!(
