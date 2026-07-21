@@ -39,8 +39,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::expression::{Expr, Literal, RelOp, scan_templates};
 use crate::raw::RawWorkflow;
-use crate::suggest::damerau_levenshtein;
 use crate::types::{OnErrorAction, WhenGate};
+use nika_types::suggest::damerau_levenshtein;
 
 use super::ByteSpan;
 

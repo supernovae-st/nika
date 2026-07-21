@@ -25,11 +25,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use nika_types::types::{NikaType, Primitive, lower, parse_type, type_name_refs};
+use nika_types::types::{NikaType, Primitive, fits, lower, parse_type, type_name_refs};
 
 use crate::error::SchemaError;
 use crate::raw::{RawAction, RawTask, RawWorkflow};
-use crate::types::{CaptureMode, DecodeMode};
+use crate::source::Spanned;
+use crate::types::{CaptureMode, DecodeMode, OutputDecl, VarDecl, default_not_conforming_teaching};
 
 /// The wire number a [`nika_types::types::ParseTypeError`] rides —
 /// `NIKA-TYPE-001` (grammar) or `NIKA-TYPE-006` (regex dialect).
@@ -254,6 +255,84 @@ fn check_task_contract(task: &RawTask, names: &BTreeSet<String>, errors: &mut Ve
             task: id.to_owned(),
             span: Some(decode.span),
         });
+    }
+}
+
+/// The io-declaration contract (R3b · LAW-GRAMMAR-0211 + LAW-TYPE-0211 —
+/// the engine twin of `values_core.py::_default_errors`), ONE walk per
+/// declaration emitting both arms: `NIKA-TYPE-001/006` for every `type:`
+/// of `inputs:`/`config:`/`const:`/`outputs:` outside the FULL `TypeExpr`
+/// (the flat 6-enum is dead · `bool` is the one boolean spelling), and
+/// `NIKA-DEFAULT-001` for a declared `default:` / typed `const:` `value:`
+/// misfit (an unparseable type skips the fit · « reported elsewhere »).
+pub(super) fn check_io_declarations(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
+    let type_names = declared_names(wf);
+    let named = named_types(wf);
+    let authorities = [
+        ("inputs", &wf.inputs),
+        ("config", &wf.config),
+        ("const", &wf.consts),
+    ];
+    for (authority, block) in authorities {
+        for (name, decl) in block {
+            let VarDecl::Typed {
+                r#type, default, ..
+            } = decl
+            else {
+                continue;
+            };
+            let where_ = format!("{authority}.{}", name.value);
+            let Some(ty) = io_type(&type_names, &where_, r#type, errors) else {
+                continue;
+            };
+            let Some(value) = default else { continue };
+            if !fits(value, &ty, &named) {
+                // The typed constant's value rides `default` in the AST —
+                // the wire place names the YAML key the author wrote.
+                let slot = if authority == "const" {
+                    "value"
+                } else {
+                    "default"
+                };
+                let place = format!("{where_}.{slot}");
+                errors.push(SchemaError::DefaultNotConforming {
+                    message: default_not_conforming_teaching(&place, value, &r#type.value),
+                    where_: place,
+                    span: Some(r#type.span),
+                });
+            }
+        }
+    }
+    for (name, decl) in &wf.outputs {
+        if let OutputDecl::Typed {
+            r#type: Some(t), ..
+        } = decl
+        {
+            // Outputs carry no default — the grammar arm only.
+            io_type(&type_names, &format!("outputs.{}", name.value), t, errors);
+        }
+    }
+}
+
+/// The grammar arm of one io declaration (`NIKA-TYPE-001/006`) — `Some`
+/// when the expression parses; the refusal is pushed, `None` returned
+/// otherwise (the conformance arm then skips).
+fn io_type(
+    names: &BTreeSet<String>,
+    where_: &str,
+    type_expr: &Spanned<serde_json::Value>,
+    errors: &mut Vec<SchemaError>,
+) -> Option<NikaType> {
+    match parse_type(&type_expr.value, names, where_) {
+        Ok(ty) => Some(ty),
+        Err(e) => {
+            errors.push(SchemaError::TypeExprInvalid {
+                num: wire_num(e.code),
+                detail: e.detail,
+                span: Some(type_expr.span),
+            });
+            None
+        }
     }
 }
 
@@ -526,5 +605,142 @@ tasks:
             returns_type(task, &wf),
             Some(NikaType::Ref("Summary".to_owned()))
         );
+    }
+
+    // ── R3b · the io-declaration contract (LAW-GRAMMAR-0211 +
+    // LAW-TYPE-0211 · the engine twin of values_core.py::_default_errors) ──
+
+    fn io_errors_of(yaml: &str) -> Vec<SchemaError> {
+        let wf = wf(yaml);
+        let mut errors = Vec::new();
+        check_io_declarations(&wf, &mut errors);
+        errors
+    }
+
+    const TASKS_TAIL: &str = "tasks:\n  a:\n    infer: { prompt: hi }\n";
+
+    #[test]
+    fn conforming_defaults_and_typed_consts_are_clean() {
+        // The valid conformance fixture's shape (values/valid/
+        // default-conforms-to-type): primitives · an enum composite ·
+        // config · a typed constant — every value conforms, zero findings.
+        let yaml = format!(
+            "nika: v1\nworkflow:\n  id: t\n\
+             inputs:\n  count: {{ type: integer, default: 5 }}\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, default: \"fast\" }}\n\
+             config:\n  timeout_s: {{ type: number, default: 30 }}\n\
+             const:\n  label: {{ type: string, value: \"prod\" }}\n{TASKS_TAIL}"
+        );
+        assert!(io_errors_of(&yaml).is_empty());
+    }
+
+    #[test]
+    fn the_flat_6_enum_spellings_die_with_type_001() {
+        // LAW-GRAMMAR-0211 · `boolean` (no alias — `bool` is the one
+        // spelling) and the bare `array`/`object` constructor names are
+        // OUT of the grammar; NIKA-PARSE-015 is never reused.
+        for dead in ["boolean", "array", "object"] {
+            let yaml = format!(
+                "nika: v1\nworkflow:\n  id: t\ninputs:\n  x: {{ type: {dead} }}\n{TASKS_TAIL}"
+            );
+            let errors = io_errors_of(&yaml);
+            assert_eq!(codes_of(&errors), ["NIKA-TYPE-001"], "`{dead}`");
+            let msg = errors[0].to_string();
+            assert!(msg.contains("inputs.x"), "the place is named: {msg}");
+            assert!(errors[0].span().is_some(), "span lands on the type:");
+        }
+        // …and the live spellings parse clean.
+        for live in [
+            "bool",
+            "string",
+            "{ array: string }",
+            "{ object: { x: string } }",
+        ] {
+            let yaml = format!(
+                "nika: v1\nworkflow:\n  id: t\ninputs:\n  x: {{ type: {live} }}\n{TASKS_TAIL}"
+            );
+            assert!(io_errors_of(&yaml).is_empty(), "`{live}`");
+        }
+    }
+
+    #[test]
+    fn outputs_type_also_speaks_the_full_typeexpr() {
+        // LAW-GRAMMAR-0211 names inputs AND outputs — the callable
+        // contract never speaks two type languages at once.
+        let ok = format!(
+            "nika: v1\nworkflow:\n  id: t\noutputs:\n  report: {{ value: \"${{ tasks.a.output }}\", type: {{ enum: [\"md\", \"html\"] }} }}\n{TASKS_TAIL}"
+        );
+        assert!(io_errors_of(&ok).is_empty());
+        let bad = format!(
+            "nika: v1\nworkflow:\n  id: t\noutputs:\n  report: {{ value: \"${{ tasks.a.output }}\", type: boolean }}\n{TASKS_TAIL}"
+        );
+        assert_eq!(codes_of(&io_errors_of(&bad)), ["NIKA-TYPE-001"]);
+    }
+
+    #[test]
+    fn default_mismatch_is_default_001_with_the_teaching() {
+        // The P0 witness of the ruling — `{ type: integer, default:
+        // "abc" }` passed check AND run before (values/invalid/
+        // default-type-mismatch).
+        let yaml = format!(
+            "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: {{ type: integer, default: \"abc\" }}\n{TASKS_TAIL}"
+        );
+        let errors = io_errors_of(&yaml);
+        assert_eq!(codes_of(&errors), ["NIKA-DEFAULT-001"]);
+        let msg = errors[0].to_string();
+        for needle in [
+            "inputs.count.default",
+            "\"abc\"",
+            "`integer`",
+            "P0 soundness hole",
+            "LAW-TYPE-0211",
+        ] {
+            assert!(msg.contains(needle), "missing {needle}: {msg}");
+        }
+        let code = errors[0].spec_code();
+        assert_eq!(code.namespace, "DEFAULT");
+        assert_eq!(code.category.as_str(), "validation_error");
+    }
+
+    #[test]
+    fn config_and_const_ride_the_same_code() {
+        // config's default: and the typed constant's value: are the SAME
+        // class — no second code minted for the const variant (the law).
+        let yaml = format!(
+            "nika: v1\nworkflow:\n  id: t\n\
+             config:\n  timeout_s: {{ type: number, default: \"soon\" }}\n\
+             const:\n  retries: {{ type: integer, value: \"many\" }}\n{TASKS_TAIL}"
+        );
+        let errors = io_errors_of(&yaml);
+        assert_eq!(codes_of(&errors), ["NIKA-DEFAULT-001", "NIKA-DEFAULT-001"]);
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered[0].contains("config.timeout_s.default"),
+            "{rendered:?}"
+        );
+        assert!(rendered[1].contains("const.retries.value"), "{rendered:?}");
+    }
+
+    #[test]
+    fn a_broken_declared_type_skips_the_conformance_arm() {
+        // The oracle's « reported elsewhere »: an out-of-grammar type
+        // refuses ONCE (the grammar arm) — never a doubled DEFAULT-001.
+        let yaml = format!(
+            "nika: v1\nworkflow:\n  id: t\ninputs:\n  x: {{ type: frobnicate, default: 5 }}\n{TASKS_TAIL}"
+        );
+        assert_eq!(codes_of(&io_errors_of(&yaml)), ["NIKA-TYPE-001"]);
+    }
+
+    #[test]
+    fn named_type_defaults_fit_through_the_env() {
+        let ok = format!(
+            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Mode: {{ enum: [\"fast\", \"slow\"] }}\n\
+             inputs:\n  mode: {{ type: Mode, default: \"fast\" }}\n{TASKS_TAIL}"
+        );
+        assert!(io_errors_of(&ok).is_empty());
+        let bad = format!(
+            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Mode: {{ enum: [\"fast\", \"slow\"] }}\n\
+             inputs:\n  mode: {{ type: Mode, default: \"ludicrous\" }}\n{TASKS_TAIL}"
+        );
+        assert_eq!(codes_of(&io_errors_of(&bad)), ["NIKA-DEFAULT-001"]);
     }
 }

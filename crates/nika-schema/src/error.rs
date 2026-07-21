@@ -74,7 +74,7 @@ pub enum SchemaError {
     /// error (strict mode · default for tests) ».
     #[error(
         "unknown field `{field}` in {location} (strict mode){}",
-        crate::suggest::suggestion_clause(suggestion.as_deref())
+        nika_types::suggest::suggestion_clause(suggestion.as_deref())
     )]
     UnknownField {
         /// The unknown key.
@@ -289,18 +289,6 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// A typed `vars:` declaration is malformed (spec `01-envelope.md`
-    /// §vars · type ∈ string·number·integer·boolean·array·object).
-    #[error("invalid typed var `{name}` — {reason}")]
-    BadTypedVar {
-        /// The var name.
-        name: String,
-        /// Why it was rejected.
-        reason: String,
-        /// Source span.
-        span: Option<Span>,
-    },
-
     /// `${{ … }}` template syntax error — strictly an UNTERMINATED island
     /// (a `${{` with no closing `}}`) · spec `05-errors.md` `NIKA-VAR-008`
     /// (« unclosed `${{` opener »). A CLOSED island whose CEL is invalid is
@@ -440,7 +428,7 @@ pub enum SchemaError {
     /// (`NIKA-DAG-002`).
     #[error(
         "unknown dependency: task `{from}` depends on `{to}`, which does not exist{}",
-        crate::suggest::suggestion_clause(.suggestion.as_deref())
+        nika_types::suggest::suggestion_clause(.suggestion.as_deref())
     )]
     UnknownDependency {
         /// The task that has the dependency.
@@ -459,7 +447,7 @@ pub enum SchemaError {
     /// (`NIKA-VAR-001` · spec `04-variables.md` §resolution order).
     #[error(
         "unresolved reference `{reference}` in {location}{}",
-        crate::suggest::suggestion_clause(.suggestion.as_deref())
+        nika_types::suggest::suggestion_clause(.suggestion.as_deref())
     )]
     UnresolvedNamespaceRef {
         /// The unresolved reference (e.g. `vars.ghost` · `tasks.ghost`).
@@ -641,6 +629,25 @@ pub enum SchemaError {
         /// Source span.
         span: Option<Span>,
     },
+
+    /// A declared `default:` (`inputs:` · `config:`) or a typed-const
+    /// `value:` does not conform to its declared `type:`
+    /// (`NIKA-DEFAULT-001` · R3b · LAW-TYPE-0211 — the P0 soundness
+    /// hole, a value that passed check and failed at run, is closed;
+    /// the one type core judges, `values_core.py::_default_errors` is
+    /// the oracle twin). The teaching text descends to nika-vocab (the
+    /// dead-form teachings precedent).
+    #[error("{message}")]
+    DefaultNotConforming {
+        /// The dotted place (`inputs.count.default` · `config.timeout_s.default` ·
+        /// `const.label.value`).
+        where_: String,
+        /// The byte-mirrored teaching (what was declared · what does not
+        /// fit · why the hole is closed).
+        message: String,
+        /// Span of the declared `type:` (the declaration is the defect site).
+        span: Option<Span>,
+    },
 }
 
 // The dead-form vocabulary + the teaching texts DESCENDED to
@@ -703,7 +710,6 @@ impl SchemaError {
             | Self::BadOnError { span, .. }
             | Self::ReservedBindingName { span, .. }
             | Self::BadSecretRef { span, .. }
-            | Self::BadTypedVar { span, .. }
             | Self::TemplateSyntax { span, .. }
             | Self::ExpressionViolation { span, .. }
             | Self::JqBindingContainsTemplate { span, .. }
@@ -728,7 +734,8 @@ impl SchemaError {
             | Self::TypeUndecodable { span, .. }
             | Self::DecodeWithStructuredCapture { span, .. }
             | Self::DeadValueForm { span, .. }
-            | Self::ForeignValueNamespace { span, .. } => *span,
+            | Self::ForeignValueNamespace { span, .. }
+            | Self::DefaultNotConforming { span, .. } => *span,
             Self::Cycle { .. } => None,
         }
     }
@@ -779,7 +786,10 @@ schema_code!(SCHEMA_290, 290, "bad-retry");
 schema_code!(SCHEMA_291, 291, "bad-on-error");
 schema_code!(SCHEMA_292, 292, "reserved-binding-name");
 schema_code!(SCHEMA_293, 293, "bad-secret-ref");
-schema_code!(SCHEMA_294, 294, "bad-typed-var");
+// SCHEMA_294 « bad-typed-var » RETIRED (never reuse) — the R3b TypeExpr
+// widen killed the variant: the declaration `type:` grammar is the type
+// core's (SCHEMA_319 / NIKA-TYPE-001), the surviving shape refusals ride
+// SCHEMA_299 / NIKA-PARSE-019.
 schema_code!(SCHEMA_295, 295, "template-syntax");
 schema_code!(SCHEMA_296, 296, "jq-binding-contains-template");
 schema_code!(SCHEMA_297, 297, "duplicate-key");
@@ -813,6 +823,7 @@ schema_code!(SCHEMA_322, 322, "type-undecodable");
 schema_code!(SCHEMA_323, 323, "decode-with-structured-capture");
 schema_code!(SCHEMA_324, 324, "dead-value-form");
 schema_code!(SCHEMA_325, 325, "foreign-value-namespace");
+schema_code!(SCHEMA_326, 326, "default-not-conforming");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -838,7 +849,6 @@ impl NikaErrorCode for SchemaError {
             Self::BadOnError { .. } => SCHEMA_291,
             Self::ReservedBindingName { .. } => SCHEMA_292,
             Self::BadSecretRef { .. } => SCHEMA_293,
-            Self::BadTypedVar { .. } => SCHEMA_294,
             Self::TemplateSyntax { .. } => SCHEMA_295,
             Self::ExpressionViolation { .. } => SCHEMA_310,
             Self::JqBindingContainsTemplate { .. } => SCHEMA_296,
@@ -862,6 +872,7 @@ impl NikaErrorCode for SchemaError {
             Self::DecodeWithStructuredCapture { .. } => SCHEMA_323,
             Self::DeadValueForm { .. } => SCHEMA_324,
             Self::ForeignValueNamespace { .. } => SCHEMA_325,
+            Self::DefaultNotConforming { .. } => SCHEMA_326,
         }
     }
 
@@ -942,11 +953,6 @@ fn parse_level_variants() -> Vec<SchemaError> {
             reason: String::new(),
             span: None,
         },
-        SchemaError::BadTypedVar {
-            name: String::new(),
-            reason: String::new(),
-            span: None,
-        },
         SchemaError::TemplateSyntax {
             reason: String::new(),
             span: None,
@@ -988,6 +994,11 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         },
         SchemaError::ForeignValueNamespace {
             root: String::new(),
+            message: String::new(),
+            span: None,
+        },
+        SchemaError::DefaultNotConforming {
+            where_: String::new(),
             message: String::new(),
             span: None,
         },

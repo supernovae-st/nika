@@ -106,6 +106,5 @@ tasks:
 outputs:
   clauses:
     value: ${{ tasks.clauses.output.clauses }}
-    type: array
     description: "Typed risk-bearing clauses, verbatim quotes"
   memo: ${{ tasks.memo.output }}

@@ -92,5 +92,4 @@ tasks:
 outputs:
   files:
     value: ${{ tasks.files.output }}
-    type: array
     description: "Every source file that was mirrored"

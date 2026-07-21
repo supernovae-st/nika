@@ -41,13 +41,20 @@ pub mod output_decl;     // OutputDecl — untyped | typed outputs: entry
 pub mod permits;         // re-export of nika-cap (the original module path)
 pub mod retry;           // RetryConfig + BackoffStrategy + is_valid_error_code
 pub mod schema_version;  // SchemaVersion — the `nika: v1` marker
-pub mod secret;          // SecretSource + SecretRef + EgressRule
-pub mod var_decl;        // VarDecl + VarType — the vars: declaration forms
+pub mod secret;          // SecretSource + SecretRef + EgressRule (+ the refusal teachings)
+pub mod type_expr;       // the io-decl TypeExpr helpers — display · coerce · DEFAULT-001 teaching
+pub mod var_decl;        // VarDecl — the inputs:/config:/const: declaration forms
 pub mod when_gate;       // WhenGate — literal | expression when:
 ```
 
+(`keys` — the parser's closed key vocabularies · `dead_form` — the C2
+dead `vars:`/`env:` forms + their teachings · `assert` — the spec-15
+obligation vocabulary — joined at the C2 flag-day; `type_expr` joins at
+R3b: the declaration `type:` speaks the full TypeExpr of 09-types, the
+flat 6-enum `VarType` is DEAD — `bool` the one boolean spelling.)
+
 `#[non_exhaustive]` note: the CLOSED spec vocabularies the unit matches
-exhaustively (`AfterPredicate` · `DecodeMode` · `VarType` · `VarDecl` ·
+exhaustively (`AfterPredicate` · `DecodeMode` · `VarDecl` ·
 `OutputDecl` · `SecretSource` · `WhenGate` · `EgressRule`) dropped the
 attribute at the split — a new variant in a closed vocabulary IS a spec
 change and MUST force every match site to update (the checker's

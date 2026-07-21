@@ -173,6 +173,91 @@ impl SecretRef {
     }
 }
 
+// ── The refusal teachings (message vocabulary — the `dead_form`
+// precedent: the texts live in the vocabulary crate, the parser's
+// `SchemaError::BadSecretRef` carries them verbatim) ────────────────
+
+/// A scalar `secrets:` entry — never an inline literal.
+#[must_use]
+pub fn inline_literal_teaching(name: &str) -> String {
+    format!(
+        "secret `{name}` is an inline literal — a secret is a reference to a store \
+         (`{{ source, key }}`), never a value"
+    )
+}
+
+/// No `source:` — the provenance is explicit, never defaulted (R8).
+#[must_use]
+pub fn missing_source_teaching(name: &str) -> String {
+    format!(
+        "secret `{name}` has no `source:` — the provenance is required explicitly \
+         (vault · env · file · R8)"
+    )
+}
+
+/// A `source:` outside the closed enum.
+#[must_use]
+pub fn unknown_source_teaching(name: &str, source: &str) -> String {
+    format!("secret `{name}` has unknown source `{source}` (vault·env·file)")
+}
+
+/// The wrong reference field for the declared source (`file` + `key:` ·
+/// `vault` + `path:`).
+#[must_use]
+pub fn wrong_field_teaching(name: &str, source: SecretSource, want: &str, reject: &str) -> String {
+    format!(
+        "secret `{name}` with `source: {source}` takes `{want}:`, not `{reject}:` \
+         (spec 01 §secrets · the shape is discriminated by source)"
+    )
+}
+
+/// The reference field the declared source requires, absent.
+#[must_use]
+pub fn missing_reference_teaching(name: &str, source: SecretSource, want: &str) -> String {
+    format!("secret `{name}` with `source: {source}` is missing its `{want}:`")
+}
+
+/// An `egress:` that is not a list.
+#[must_use]
+pub fn egress_not_a_list_teaching(name: &str) -> String {
+    format!("secret `{name}` `egress:` must be a list of sanctioned destinations")
+}
+
+/// An `egress[]` entry that is not a mapping.
+#[must_use]
+pub fn egress_entry_shape_teaching(name: &str) -> String {
+    format!("secret `{name}` `egress:` entry must be a mapping `{{ to, host, host_from_self }}`")
+}
+
+/// An `egress[]` entry without `to:` (the sanctioned sink).
+#[must_use]
+pub fn egress_missing_to_teaching(name: &str) -> String {
+    format!(
+        "secret `{name}` egress entry is missing `to:` \
+         (the sanctioned sink · a tool id like `nika:fetch` or `exec`)"
+    )
+}
+
+/// A `to:` outside the sink vocabulary — a DEAD sanction (it can never
+/// match; the classic slip is a destination HOST in `to:`).
+#[must_use]
+pub fn egress_not_a_sink_teaching(name: &str, to: &str) -> String {
+    format!(
+        "secret `{name}` egress `to: \"{to}\"` names no sink — the set: \
+         a tool id (`nika:<tool>` · `mcp:<server>/<tool>`) · `exec` · `infer` · \
+         `agent` · `outputs` (a destination host goes in `host:`, not `to:`)"
+    )
+}
+
+/// `host:` and `host_from_self:` on one entry — mutually exclusive.
+#[must_use]
+pub fn egress_host_and_self_teaching(name: &str) -> String {
+    format!(
+        "secret `{name}` egress entry sets BOTH `host:` and `host_from_self:` \
+         — a host is a literal OR the secret itself, not both"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

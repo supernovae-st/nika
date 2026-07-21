@@ -80,7 +80,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::types::{OutputDecl, VarDecl, VarType};
+use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
 use nika_types::resource::{KeyValue, Value as FieldValue};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
@@ -1085,15 +1085,23 @@ struct OutputTypeViolation {
     actual: &'static str,
 }
 
-/// The FIRST typed `outputs:` value whose resolved JSON type does not match
-/// its declared `type:` (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 · the
-/// output half of the callable contract). An output whose `${{ }}` reference
-/// no longer resolves is OMITTED by [`resolve_outputs`] (spec §3 · not a type
-/// error). `None` ⇒ every typed output honours its declared type.
+/// The FIRST typed `outputs:` value whose resolved JSON value does not
+/// inhabit its declared `type:` (spec 01 §engine-MUST rule 6 · NIKA-VAR-009
+/// · the output half of the callable contract). Post-R3b the declared
+/// type speaks the full `TypeExpr` and the judgment is the ONE type core's
+/// `fits` (lenient exactly where the core is: a whole float like `42.0`
+/// inhabits `integer` · a genuine cross-type mismatch refuses). An output
+/// whose `${{ }}` reference no longer resolves is OMITTED by
+/// [`resolve_outputs`] (spec §3 · not a type error); a `type:` that does
+/// not parse is the check's refusal (`NIKA-TYPE-001` · audit-before-run
+/// keeps it out of the run), never the run's. `None` ⇒ every typed output
+/// honours its declared type.
 fn first_output_type_violation(
     wf: &RawWorkflow,
     resolved: &BTreeMap<String, Value>,
 ) -> Option<OutputTypeViolation> {
+    let named = nika_schema::named_types(wf);
+    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
     for (key, decl) in &wf.outputs {
         let OutputDecl::Typed {
             r#type: Some(ty), ..
@@ -1104,35 +1112,18 @@ fn first_output_type_violation(
         let Some(value) = resolved.get(key.value.as_str()) else {
             continue; // unresolved → omitted upstream, not a type error
         };
-        if !value_matches_vartype(value, *ty) {
+        let Ok(declared) = nika_types::types::parse_type(&ty.value, &type_names, "outputs") else {
+            continue; // the check owns this refusal (NIKA-TYPE-001)
+        };
+        if !nika_types::types::fits(value, &declared, &named) {
             return Some(OutputTypeViolation {
                 name: key.value.clone(),
-                expected: ty.to_string(),
+                expected: type_expr_display(&ty.value),
                 actual: json_type_name(value),
             });
         }
     }
     None
-}
-
-/// Whether a resolved JSON value satisfies a declared [`VarType`]. Lenient
-/// where the spec is silent: any JSON number satisfies `number`, and an
-/// integer-valued number (incl. a whole float like `42.0`) satisfies
-/// `integer` — only a genuine cross-type mismatch (a string where a number
-/// is declared, an object where an array is, …) is a NIKA-VAR-009.
-fn value_matches_vartype(value: &Value, ty: VarType) -> bool {
-    match ty {
-        VarType::String => value.is_string(),
-        VarType::Number => value.is_number(),
-        VarType::Integer => {
-            value.is_i64() || value.is_u64() || value.as_f64().is_some_and(|f| f.fract() == 0.0)
-        }
-        VarType::Boolean => value.is_boolean(),
-        VarType::Array => value.is_array(),
-        // CLOSED vocabulary (nika-vocab) — a new type is a spec change
-        // that must land HERE explicitly (never leniently waved through).
-        VarType::Object => value.is_object(),
-    }
 }
 
 /// The JSON type name for a NIKA-VAR-009 diagnostic.

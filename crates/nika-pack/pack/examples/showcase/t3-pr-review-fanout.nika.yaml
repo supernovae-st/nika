@@ -116,6 +116,5 @@ tasks:
 outputs:
   findings:
     value: ${{ tasks.merged.output }}
-    type: array
     description: "All findings, severity-sorted, with file attribution"
   review: ${{ tasks.summary.output }}

@@ -189,7 +189,7 @@ fn member_root_items(text: &str, offset: usize, prefix: &str) -> Option<Vec<Comp
 /// Free-form maps (`args:` · `with:` · `env:`) miss the door → `None`.
 fn block_keyset_items(text: &str, offset: usize) -> Option<Vec<CompletionItem>> {
     let (block, parent) = scope::enclosing_block_key(text, offset)?;
-    let keys = nika_schema::keysets::known_child_keys(&block, parent.as_deref())?;
+    let keys = nika_schema::types::keys::known_child_keys(&block, parent.as_deref())?;
     Some(
         keys.iter()
             .map(|k| CompletionItem {

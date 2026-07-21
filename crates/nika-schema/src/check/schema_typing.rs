@@ -23,11 +23,14 @@
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+use nika_types::types::{NikaType, assignable, parse_type};
+
+use crate::analyzer::named_types;
 use crate::expression::{Expr, scan_templates, task_output_paths};
 use crate::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
-use crate::types::{VarDecl, VarType};
+use crate::types::{VarDecl, type_expr_display};
 
-use crate::suggest::{did_you_mean, suggestion_clause};
+use nika_types::suggest::{did_you_mean, suggestion_clause};
 
 /// A deep output reference the declared shape proves invalid.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -102,8 +105,12 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
 /// ONLY a bare `<authority>.X` reference (inputs · config · const) to a
 /// `Typed` non-array declaration — an untyped entry (a `--var` override
 /// could pass an array), a `tasks.*` source, or any transformed
-/// expression (`split()` etc.) is left alone.
+/// expression (`split()` etc.) is left alone. Post-R3b the judgment
+/// rides the one type core (`assignable` answers « admits an array » ·
+/// a broken expression skips, its refusal is the analyzer's).
 fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>) {
+    let named = named_types(wf);
+    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
     for task in &wf.tasks {
         let Some(fe) = &task.value.for_each else {
             continue;
@@ -120,9 +127,14 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
             _ => &wf.consts,
         };
         let declared = block.iter().find(|(n, _)| n.value == name);
-        if let Some((_, VarDecl::Typed { r#type, .. })) = declared
-            && *r#type != VarType::Array
-        {
+        let Some((_, VarDecl::Typed { r#type, .. })) = declared else {
+            continue;
+        };
+        let Ok(declared_type) = parse_type(&r#type.value, &type_names, &name) else {
+            continue; // the analyzer's grammar arm owns this refusal
+        };
+        let any_array = NikaType::Array(Box::new(NikaType::Unknown));
+        if !assignable(&any_array, &declared_type, &named) {
             findings.push(SchemaTypeFinding {
                 site: task.value.id.value.clone(),
                 reference: format!("for_each: ${{{{ {authority}.{name} }}}}"),
@@ -130,7 +142,7 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
                 detail: format!(
                     "`{authority}.{name}` is declared `type: {}` — `for_each` needs an array \
                      (the run rejects it · NIKA-VAR-006)",
-                    var_type_word(*r#type)
+                    type_expr_display(&r#type.value)
                 ),
             });
         }
@@ -157,17 +169,6 @@ fn bare_authority_reference(src: &str) -> Option<(String, String)> {
         return Some((r.clone(), field.clone()));
     }
     None
-}
-
-fn var_type_word(t: VarType) -> &'static str {
-    match t {
-        VarType::String => "string",
-        VarType::Number => "number",
-        VarType::Integer => "integer",
-        VarType::Boolean => "boolean",
-        VarType::Object => "object",
-        VarType::Array => "array",
-    }
 }
 
 /// Collect each task's declared output address space. `output:` bindings
@@ -415,19 +416,37 @@ mod tests {
     fn for_each_over_a_typed_non_array_var_is_caught_before_run() {
         // The runtime refuses a non-array for_each collection (NIKA-VAR-006);
         // a var DECLARED type:string can NEVER be an array, so the check
-        // must catch it BEFORE the run (audit-before-run).
-        for t in ["string", "number", "integer", "boolean", "object"] {
+        // must catch it BEFORE the run (audit-before-run). Post-R3b the
+        // declared type speaks the full TypeExpr — primitives AND
+        // composites are judged by the one type core.
+        for t in [
+            "string",
+            "number",
+            "integer",
+            "bool",
+            "{ enum: [\"a\", \"b\"] }",
+            "{ object: { x: string } }",
+        ] {
             let f = findings_of(&for_each_wf(
                 "inputs",
                 &format!("{{ type: {t}, required: true }}"),
             ));
             assert_eq!(f.len(), 1, "type {t} flagged: {f:?}");
             assert!(
-                f[0].detail.contains("for_each") && f[0].detail.contains(t),
+                f[0].detail.contains("for_each") && f[0].detail.contains("type:"),
                 "{:?}",
                 f[0]
             );
         }
+        // A union WITH an array member admits an array — never flagged.
+        assert!(
+            findings_of(&for_each_wf(
+                "inputs",
+                "{ type: { union: [{ array: string }, string] }, required: true }"
+            ))
+            .is_empty(),
+            "a union admitting an array is not provably non-array"
+        );
     }
 
     #[test]
@@ -435,7 +454,13 @@ mod tests {
         // Zero false positives: a typed ARRAY var, an UNTYPED var (a --var
         // override could pass an array), an inline list, and a `tasks.*`
         // source are all left alone.
-        assert!(findings_of(&for_each_wf("inputs", "{ type: array, required: true }")).is_empty());
+        assert!(
+            findings_of(&for_each_wf(
+                "inputs",
+                "{ type: { array: string }, required: true }"
+            ))
+            .is_empty()
+        );
         assert!(findings_of(&for_each_wf("const", "[\"a\", \"b\"]")).is_empty()); // untyped literal array
         assert!(findings_of(&for_each_wf("const", "\"hello\"")).is_empty()); // untyped literal string
         // An inline list literal source never resolves to a bare authority ref.

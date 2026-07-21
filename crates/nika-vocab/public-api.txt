@@ -559,7 +559,7 @@ pub mod nika_vocab::output_decl
 pub enum nika_vocab::output_decl::OutputDecl
 pub nika_vocab::output_decl::OutputDecl::Typed
 pub nika_vocab::output_decl::OutputDecl::Typed::description: core::option::Option<alloc::string::String>
-pub nika_vocab::output_decl::OutputDecl::Typed::type: core::option::Option<nika_vocab::var_decl::VarType>
+pub nika_vocab::output_decl::OutputDecl::Typed::type: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
 pub nika_vocab::output_decl::OutputDecl::Typed::value: nika_source::span::Spanned<alloc::string::String>
 pub nika_vocab::output_decl::OutputDecl::Untyped(nika_source::span::Spanned<alloc::string::String>)
 impl nika_vocab::output_decl::OutputDecl
@@ -879,13 +879,27 @@ pub unsafe fn nika_vocab::secret::SecretRef::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::secret::SecretRef where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn nika_vocab::secret::egress_entry_shape_teaching(name: &str) -> alloc::string::String
+pub fn nika_vocab::secret::egress_host_and_self_teaching(name: &str) -> alloc::string::String
+pub fn nika_vocab::secret::egress_missing_to_teaching(name: &str) -> alloc::string::String
+pub fn nika_vocab::secret::egress_not_a_list_teaching(name: &str) -> alloc::string::String
+pub fn nika_vocab::secret::egress_not_a_sink_teaching(name: &str, to: &str) -> alloc::string::String
+pub fn nika_vocab::secret::inline_literal_teaching(name: &str) -> alloc::string::String
+pub fn nika_vocab::secret::missing_reference_teaching(name: &str, source: nika_vocab::secret::SecretSource, want: &str) -> alloc::string::String
+pub fn nika_vocab::secret::missing_source_teaching(name: &str) -> alloc::string::String
+pub fn nika_vocab::secret::unknown_source_teaching(name: &str, source: &str) -> alloc::string::String
+pub fn nika_vocab::secret::wrong_field_teaching(name: &str, source: nika_vocab::secret::SecretSource, want: &str, reject: &str) -> alloc::string::String
+pub mod nika_vocab::type_expr
+pub fn nika_vocab::type_expr::coerce_declared(type_expr: &serde_json::value::Value, names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
+pub fn nika_vocab::type_expr::default_not_conforming_teaching(where_: &str, value: &serde_json::value::Value, type_expr: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_vocab::type_expr::type_expr_display(expr: &serde_json::value::Value) -> alloc::string::String
 pub mod nika_vocab::var_decl
 pub enum nika_vocab::var_decl::VarDecl
 pub nika_vocab::var_decl::VarDecl::Typed
 pub nika_vocab::var_decl::VarDecl::Typed::default: core::option::Option<serde_json::value::Value>
 pub nika_vocab::var_decl::VarDecl::Typed::description: core::option::Option<alloc::string::String>
 pub nika_vocab::var_decl::VarDecl::Typed::required: bool
-pub nika_vocab::var_decl::VarDecl::Typed::type: nika_vocab::var_decl::VarType
+pub nika_vocab::var_decl::VarDecl::Typed::type: nika_source::span::Spanned<serde_json::value::Value>
 pub nika_vocab::var_decl::VarDecl::Untyped(serde_json::value::Value)
 impl core::clone::Clone for nika_vocab::var_decl::VarDecl
 pub fn nika_vocab::var_decl::VarDecl::clone(&self) -> nika_vocab::var_decl::VarDecl
@@ -916,58 +930,6 @@ impl<T> core::clone::CloneToUninit for nika_vocab::var_decl::VarDecl where T: co
 pub unsafe fn nika_vocab::var_decl::VarDecl::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::var_decl::VarDecl
 pub fn nika_vocab::var_decl::VarDecl::from(t: T) -> T
-pub enum nika_vocab::var_decl::VarType
-pub nika_vocab::var_decl::VarType::Array
-pub nika_vocab::var_decl::VarType::Boolean
-pub nika_vocab::var_decl::VarType::Integer
-pub nika_vocab::var_decl::VarType::Number
-pub nika_vocab::var_decl::VarType::Object
-pub nika_vocab::var_decl::VarType::String
-impl nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::coerce_cli(self, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
-pub fn nika_vocab::var_decl::VarType::from_str_opt(s: &str) -> core::option::Option<Self>
-impl core::clone::Clone for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::clone(&self) -> nika_vocab::var_decl::VarType
-impl core::cmp::Eq for nika_vocab::var_decl::VarType
-impl core::cmp::PartialEq for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::eq(&self, other: &nika_vocab::var_decl::VarType) -> bool
-impl core::fmt::Debug for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_vocab::var_decl::VarType
-impl core::marker::StructuralPartialEq for nika_vocab::var_decl::VarType
-impl serde_core::ser::Serialize for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<T, U> core::convert::Into<U> for nika_vocab::var_decl::VarType where U: core::convert::From<T>
-pub fn nika_vocab::var_decl::VarType::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::var_decl::VarType where U: core::convert::Into<T>
-pub type nika_vocab::var_decl::VarType::Error = core::convert::Infallible
-pub fn nika_vocab::var_decl::VarType::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::var_decl::VarType where U: core::convert::TryFrom<T>
-pub type nika_vocab::var_decl::VarType::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::var_decl::VarType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::var_decl::VarType where T: core::clone::Clone
-pub type nika_vocab::var_decl::VarType::Owned = T
-pub fn nika_vocab::var_decl::VarType::clone_into(&self, target: &mut T)
-pub fn nika_vocab::var_decl::VarType::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_vocab::var_decl::VarType where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_vocab::var_decl::VarType where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::var_decl::VarType where T: ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::var_decl::VarType where T: ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::var_decl::VarType where T: core::clone::Clone
-pub unsafe fn nika_vocab::var_decl::VarType::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::from(t: T) -> T
-impl<T> serde_core::de::DeserializeOwned for nika_vocab::var_decl::VarType where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_vocab::when_gate
 pub enum nika_vocab::when_gate::WhenGate
 pub nika_vocab::when_gate::WhenGate::Expr(alloc::string::String)
@@ -1456,7 +1418,7 @@ pub fn nika_vocab::on_error::OnErrorAction::from(t: T) -> T
 pub enum nika_vocab::OutputDecl
 pub nika_vocab::OutputDecl::Typed
 pub nika_vocab::OutputDecl::Typed::description: core::option::Option<alloc::string::String>
-pub nika_vocab::OutputDecl::Typed::type: core::option::Option<nika_vocab::var_decl::VarType>
+pub nika_vocab::OutputDecl::Typed::type: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
 pub nika_vocab::OutputDecl::Typed::value: nika_source::span::Spanned<alloc::string::String>
 pub nika_vocab::OutputDecl::Untyped(nika_source::span::Spanned<alloc::string::String>)
 impl nika_vocab::output_decl::OutputDecl
@@ -1641,7 +1603,7 @@ pub nika_vocab::VarDecl::Typed
 pub nika_vocab::VarDecl::Typed::default: core::option::Option<serde_json::value::Value>
 pub nika_vocab::VarDecl::Typed::description: core::option::Option<alloc::string::String>
 pub nika_vocab::VarDecl::Typed::required: bool
-pub nika_vocab::VarDecl::Typed::type: nika_vocab::var_decl::VarType
+pub nika_vocab::VarDecl::Typed::type: nika_source::span::Spanned<serde_json::value::Value>
 pub nika_vocab::VarDecl::Untyped(serde_json::value::Value)
 impl core::clone::Clone for nika_vocab::var_decl::VarDecl
 pub fn nika_vocab::var_decl::VarDecl::clone(&self) -> nika_vocab::var_decl::VarDecl
@@ -1672,58 +1634,6 @@ impl<T> core::clone::CloneToUninit for nika_vocab::var_decl::VarDecl where T: co
 pub unsafe fn nika_vocab::var_decl::VarDecl::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::var_decl::VarDecl
 pub fn nika_vocab::var_decl::VarDecl::from(t: T) -> T
-pub enum nika_vocab::VarType
-pub nika_vocab::VarType::Array
-pub nika_vocab::VarType::Boolean
-pub nika_vocab::VarType::Integer
-pub nika_vocab::VarType::Number
-pub nika_vocab::VarType::Object
-pub nika_vocab::VarType::String
-impl nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::coerce_cli(self, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
-pub fn nika_vocab::var_decl::VarType::from_str_opt(s: &str) -> core::option::Option<Self>
-impl core::clone::Clone for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::clone(&self) -> nika_vocab::var_decl::VarType
-impl core::cmp::Eq for nika_vocab::var_decl::VarType
-impl core::cmp::PartialEq for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::eq(&self, other: &nika_vocab::var_decl::VarType) -> bool
-impl core::fmt::Debug for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_vocab::var_decl::VarType
-impl core::marker::StructuralPartialEq for nika_vocab::var_decl::VarType
-impl serde_core::ser::Serialize for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<T, U> core::convert::Into<U> for nika_vocab::var_decl::VarType where U: core::convert::From<T>
-pub fn nika_vocab::var_decl::VarType::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::var_decl::VarType where U: core::convert::Into<T>
-pub type nika_vocab::var_decl::VarType::Error = core::convert::Infallible
-pub fn nika_vocab::var_decl::VarType::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::var_decl::VarType where U: core::convert::TryFrom<T>
-pub type nika_vocab::var_decl::VarType::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::var_decl::VarType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::var_decl::VarType where T: core::clone::Clone
-pub type nika_vocab::var_decl::VarType::Owned = T
-pub fn nika_vocab::var_decl::VarType::clone_into(&self, target: &mut T)
-pub fn nika_vocab::var_decl::VarType::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_vocab::var_decl::VarType where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_vocab::var_decl::VarType where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::var_decl::VarType where T: ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::var_decl::VarType where T: ?core::marker::Sized
-pub fn nika_vocab::var_decl::VarType::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::var_decl::VarType where T: core::clone::Clone
-pub unsafe fn nika_vocab::var_decl::VarType::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::var_decl::VarType
-pub fn nika_vocab::var_decl::VarType::from(t: T) -> T
-impl<T> serde_core::de::DeserializeOwned for nika_vocab::var_decl::VarType where T: for<'de> serde_core::de::Deserialize<'de>
 pub enum nika_vocab::WhenGate
 pub nika_vocab::WhenGate::Expr(alloc::string::String)
 pub nika_vocab::WhenGate::Literal(bool)
@@ -1960,5 +1870,8 @@ impl<T> core::convert::From<T> for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::secret::SecretRef where T: for<'de> serde_core::de::Deserialize<'de>
 pub const nika_vocab::NIKA_ASSERT_001: &str
+pub fn nika_vocab::coerce_declared(type_expr: &serde_json::value::Value, names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
+pub fn nika_vocab::default_not_conforming_teaching(where_: &str, value: &serde_json::value::Value, type_expr: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_vocab::is_valid_error_code(code: &str) -> bool
 pub fn nika_vocab::parse_go_duration(input: &str) -> core::result::Result<core::time::Duration, nika_vocab::duration::GoDurationError>
+pub fn nika_vocab::type_expr_display(expr: &serde_json::value::Value) -> alloc::string::String

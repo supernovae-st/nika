@@ -21,16 +21,19 @@ use crate::verbs::exit;
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
 /// key against the workflow's declared `inputs:` — an unknown key is
 /// refused with the declared set (a typo'd override silently doing
-/// nothing would be the worst outcome). A TYPED var's declared `type:`
-/// DRIVES the value parse (spec 01 §vars · « the engine validate
-/// inputs »): `--var count=notanumber` on an `integer` input is refused
-/// up front, and a `string` var takes the raw text verbatim (`--var
-/// name=5` is the string `"5"`). An UNTYPED var keeps the JSON-or-string
-/// guess: `--var limit=5` the number `5`, `--var topic=news` the string.
+/// nothing would be the worst outcome). A TYPED input's declared `type:`
+/// DRIVES the value parse (spec 01 §inputs · « the engine validate
+/// inputs » · R3b: the full `TypeExpr`, the one fit): `--var
+/// count=notanumber` on an `integer` input is refused up front, and a
+/// `string` input takes the raw text verbatim (`--var name=5` is the
+/// string `"5"`). An UNTYPED constant keeps the JSON-or-string guess:
+/// `--var limit=5` the number `5`, `--var topic=news` the string.
 pub(super) fn parse_var_overrides(
     pairs: &[String],
     wf: &RawWorkflow,
 ) -> Result<BTreeMap<String, Value>, String> {
+    let named = nika_schema::named_types(wf);
+    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
     let mut overrides = BTreeMap::new();
     for pair in pairs {
         let (key, raw) = match pair.split_once('=') {
@@ -49,13 +52,15 @@ pub(super) fn parse_var_overrides(
             });
         };
         let value = match decl {
-            // The declared type drives the parse (spec-mandated input
-            // validation) — a mismatch is refused with the type + value.
-            VarDecl::Typed { r#type, .. } => r#type
-                .coerce_cli(raw)
-                .map_err(|why| format!("--var {key}: {why}"))?,
-            // Untyped var: the JSON-or-string guess — no declared type
-            // to honor (CLOSED vocabulary · nika-vocab).
+            // The declared TypeExpr drives the parse (spec-mandated input
+            // validation · the one type core, never a second fit) — a
+            // mismatch is refused with the declared form + the value.
+            VarDecl::Typed { r#type, .. } => {
+                nika_schema::types::coerce_declared(&r#type.value, &type_names, &named, raw)
+                    .map_err(|why| format!("--var {key}: {why}"))?
+            }
+            // Untyped constant: the JSON-or-string guess — no declared
+            // type to honor.
             VarDecl::Untyped(_) => {
                 serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()))
             }
@@ -97,7 +102,7 @@ mod tests {
     #[test]
     fn parse_var_overrides_types_json_else_string() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ninputs:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: { type: array, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\ninputs:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: { type: { array: string }, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
 
         // string verbatim · integer typed · array typed (the JSON coercion).
@@ -129,8 +134,10 @@ mod tests {
         // Input gauntlet (2026-07-11): a declared `type:` is the input
         // CONTRACT — the CLI value must honor it, not be embedded
         // type-blind (`count=notanumber` used to ride through as a string).
+        // Post-R3b the type speaks the full TypeExpr (`bool` is the one
+        // boolean spelling).
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: boolean, default: false }\n  name: { type: string, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: bool, default: false }\n  name: { type: string, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
 
         // The type DRIVES the parse — well-typed values land as their type.
@@ -151,9 +158,9 @@ mod tests {
 
         // A mismatch is refused UP FRONT, naming the type + the value.
         for (bad, want) in [
-            ("count=notanumber", "an integer"),
-            ("ratio=lots", "a number"),
-            ("on=maybe", "a boolean"),
+            ("count=notanumber", "integer"),
+            ("ratio=lots", "number"),
+            ("on=maybe", "bool"),
         ] {
             let err = parse_var_overrides(&[bad.to_owned()], &wf).expect_err("type mismatch");
             assert!(

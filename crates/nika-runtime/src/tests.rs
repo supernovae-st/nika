@@ -430,21 +430,34 @@ outputs:
 }
 
 #[test]
-fn value_matches_vartype_lenient_floats_strict_cross_type() {
+fn declared_output_types_fit_lenient_floats_strict_cross_type() {
+    use nika_types::types::{fits, parse_type};
     use serde_json::json;
-    // integer: whole floats OK, fractional rejected, numeric STRING rejected.
-    assert!(value_matches_vartype(&json!(42), VarType::Integer));
-    assert!(value_matches_vartype(&json!(42.0), VarType::Integer));
-    assert!(!value_matches_vartype(&json!(42.5), VarType::Integer));
+    // The one type core owns the judgment (R3b): a whole float inhabits
+    // `integer` (the lenient half), a genuine cross-type mismatch refuses.
+    let type_names = std::collections::BTreeSet::new();
+    let named = std::collections::BTreeMap::new();
+    let ty = |expr: serde_json::Value| parse_type(&expr, &type_names, "t").expect("in-grammar");
+    let int = ty(json!("integer"));
+    assert!(fits(&json!(42), &int, &named));
+    assert!(fits(&json!(42.0), &int, &named));
+    assert!(!fits(&json!(42.5), &int, &named));
     // number: any JSON number, but NOT a numeric string.
-    assert!(value_matches_vartype(&json!(42), VarType::Number));
-    assert!(!value_matches_vartype(&json!("42"), VarType::Number));
-    // array vs object are distinct.
-    assert!(value_matches_vartype(&json!([1, 2]), VarType::Array));
-    assert!(!value_matches_vartype(&json!({}), VarType::Array));
-    assert!(value_matches_vartype(&json!({ "k": 1 }), VarType::Object));
-    assert!(value_matches_vartype(&json!("x"), VarType::String));
-    assert!(value_matches_vartype(&json!(true), VarType::Boolean));
+    let num = ty(json!("number"));
+    assert!(fits(&json!(42), &num, &named));
+    assert!(!fits(&json!("42"), &num, &named));
+    // array vs object are distinct · bool is the one boolean spelling.
+    let arr = ty(json!({ "array": "number" }));
+    assert!(fits(&json!([1, 2]), &arr, &named));
+    assert!(!fits(&json!({}), &arr, &named));
+    assert!(!fits(&json!(["x"]), &arr, &named), "element misfit");
+    let obj = ty(json!({ "object": { "k": "number" }, "additional": true }));
+    assert!(fits(&json!({ "k": 1 }), &obj, &named));
+    assert!(fits(&json!("x"), &ty(json!("string")), &named));
+    assert!(fits(&json!(true), &ty(json!("bool")), &named));
+    // `boolean` / bare `array` are out of the grammar (LAW-GRAMMAR-0211).
+    assert!(parse_type(&json!("boolean"), &type_names, "t").is_err());
+    assert!(parse_type(&json!("array"), &type_names, "t").is_err());
 }
 
 /// A recovered success emits `task_recovered` BEFORE the terminal

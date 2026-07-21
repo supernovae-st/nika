@@ -75,5 +75,4 @@ tasks:
 outputs:
   actions:
     value: ${{ tasks.extract.output.actions }}
-    type: array
     description: "Typed action items, tracker-ready"

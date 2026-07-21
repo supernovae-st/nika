@@ -17,6 +17,7 @@
 
 use lsp_types::{DocumentSymbol, Range, SymbolKind};
 use nika_schema::raw::RawWorkflow;
+use nika_schema::types::type_expr_display;
 use nika_schema::{FileId, ParseMode, Span, parse};
 
 use super::position::LineIndex;
@@ -43,7 +44,9 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
     let mut children: Vec<DocumentSymbol> = Vec::new();
     for (name, decl) in &wf.inputs {
         let detail = match decl {
-            nika_schema::VarDecl::Typed { r#type, .. } => format!("input · {type}"),
+            nika_schema::VarDecl::Typed { r#type, .. } => {
+                format!("input · {}", type_expr_display(&r#type.value))
+            }
             nika_schema::VarDecl::Untyped(_) => "input".to_owned(),
         };
         children.push(decl_symbol(
@@ -56,7 +59,9 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
     }
     for (name, decl) in &wf.config {
         let detail = match decl {
-            nika_schema::VarDecl::Typed { r#type, .. } => format!("config · {type}"),
+            nika_schema::VarDecl::Typed { r#type, .. } => {
+                format!("config · {}", type_expr_display(&r#type.value))
+            }
             nika_schema::VarDecl::Untyped(_) => "config".to_owned(),
         };
         children.push(decl_symbol(
@@ -69,7 +74,9 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
     }
     for (name, decl) in &wf.consts {
         let detail = match decl {
-            nika_schema::VarDecl::Typed { r#type, .. } => format!("const · {type}"),
+            nika_schema::VarDecl::Typed { r#type, .. } => {
+                format!("const · {}", type_expr_display(&r#type.value))
+            }
             nika_schema::VarDecl::Untyped(_) => "const".to_owned(),
         };
         children.push(decl_symbol(

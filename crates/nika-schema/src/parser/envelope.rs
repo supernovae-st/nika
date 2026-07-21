@@ -12,7 +12,7 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy, VarType,
+    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy,
 };
 
 use super::{Cx, value::json_value};
@@ -139,20 +139,13 @@ pub(super) fn parse_outputs(
                     &format!("typed output `{}`", name.value),
                 )?;
                 let value_scalar = cx.require_scalar(typed, "value", "outputs")?;
-                let r#type = match typed.get_scalar("type") {
-                    None => None,
-                    Some(t) => Some(VarType::from_str_opt(t.as_str()).ok_or_else(|| {
-                        SchemaError::Validation {
-                            message: format!(
-                                "output `{}` has unknown type `{}` \
-                                 (string·number·integer·boolean·array·object)",
-                                name.value,
-                                t.as_str()
-                            ),
-                            span: cx.span(t.span()),
-                        }
-                    })?),
-                };
+                // The `type:` speaks the full TypeExpr (R3b ·
+                // LAW-GRAMMAR-0211) — read shape-only; the grammar
+                // judgment (`NIKA-TYPE-001/006`) is the analyzer's.
+                let r#type = typed
+                    .get_node("type")
+                    .map(|n| json_value(cx, n).map(|v| Spanned::new(v, cx.span_or_zero(n.span()))))
+                    .transpose()?;
                 let description = cx.opt_scalar(typed, "description")?.map(|s| s.value);
                 OutputDecl::Typed {
                     value: value_scalar,
@@ -190,7 +183,8 @@ pub(super) fn require_mapping<'n>(
     })
 }
 
-/// Parse a flat scalar→scalar mapping (envelope `env:` · `exec.env:`).
+/// Parse a flat scalar→scalar mapping (`exec.env:` — the envelope
+/// `env:` block is dead since C2, refused `NIKA-VALUES-002`).
 pub(super) fn parse_string_map(
     cx: &Cx<'_>,
     node: &Node,
@@ -218,7 +212,7 @@ mod tests {
     use crate::error::SchemaError;
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
-    use crate::types::{OutputDecl, SecretSource, VarDecl, VarType};
+    use crate::types::{OutputDecl, SecretSource, VarDecl};
 
     fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)
@@ -369,10 +363,31 @@ inputs:
         else {
             panic!("expected Typed");
         };
-        assert_eq!(*r#type, VarType::String);
+        assert_eq!(r#type.value, serde_json::json!("string"));
         assert!(required);
         assert_eq!(default.as_ref().expect("default"), "Rust async 2026");
         assert_eq!(description.as_deref(), Some("Subject to research"));
+    }
+
+    #[test]
+    fn inputs_type_expr_composite_form_parses_shape_only() {
+        // R3b · LAW-GRAMMAR-0211 · the `type:` speaks the full TypeExpr —
+        // a constructor map rides raw (the grammar judgment is the
+        // analyzer's, never the parser's).
+        let yaml = "\
+inputs:
+  mode:
+    type: { enum: [\"fast\", \"slow\"] }
+    default: \"fast\"
+";
+        let wf = parse_strict(yaml).expect("a composite TypeExpr parses");
+        let VarDecl::Typed { r#type, .. } = &wf.inputs[0].1 else {
+            panic!("expected Typed");
+        };
+        assert_eq!(
+            r#type.value,
+            serde_json::json!({ "enum": ["fast", "slow"] })
+        );
     }
 
     #[test]
@@ -384,7 +399,7 @@ inputs:
   topic: \"hello\"
 ";
         let err = parse_strict(yaml).expect_err("untyped inputs entry");
-        assert!(matches!(err, SchemaError::BadTypedVar { .. }), "{err:?}");
+        assert!(matches!(err, SchemaError::Validation { .. }), "{err:?}");
         assert!(err.to_string().contains("`type:` required"), "{err}");
     }
 
@@ -447,7 +462,7 @@ const:
         else {
             panic!("expected Typed");
         };
-        assert_eq!(*r#type, VarType::Number);
+        assert_eq!(r#type.value, serde_json::json!("number"));
         assert!(!required, "a constant is never caller-required");
         assert_eq!(
             default.as_ref().expect("value rides default"),
@@ -467,14 +482,20 @@ const:
     }
 
     #[test]
-    fn inputs_typed_unknown_type_errors() {
+    fn inputs_out_of_grammar_type_parses_for_the_analyzer() {
+        // R3b · the parser is shape-only: an out-of-grammar `type:` is
+        // NOT a parse error — the analyzer refuses it `NIKA-TYPE-001`
+        // (the NIKA-PARSE-015 class is retired, never reused).
         let yaml = "\
 inputs:
   x:
     type: str
 ";
-        let err = parse_strict(yaml).expect_err("bad type");
-        assert!(matches!(err, SchemaError::BadTypedVar { .. }), "{err:?}");
+        let wf = parse_strict(yaml).expect("shape-only parse admits the raw expr");
+        let VarDecl::Typed { r#type, .. } = &wf.inputs[0].1 else {
+            panic!("expected Typed");
+        };
+        assert_eq!(r#type.value, serde_json::json!("str"));
     }
 
     #[test]
@@ -785,7 +806,10 @@ outputs:
             panic!("expected Typed");
         };
         assert_eq!(value.value, "${{ tasks.write_report.output }}");
-        assert_eq!(*r#type, Some(VarType::String));
+        assert_eq!(
+            r#type.as_ref().map(|t| &t.value),
+            Some(&serde_json::json!("string"))
+        );
     }
 
     #[test]

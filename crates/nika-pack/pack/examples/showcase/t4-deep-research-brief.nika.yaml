@@ -97,5 +97,4 @@ outputs:
   brief: ${{ tasks.brief.output }}
   sources:
     value: ${{ tasks.investigate.output.sources }}
-    type: array
     description: "Every source the agent actually used"

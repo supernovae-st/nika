@@ -115,5 +115,4 @@ tasks:
 outputs:
   by_region:
     value: ${{ tasks.by_region.output }}
-    type: array
     description: "Per-region revenue totals · the chart + report render from this"

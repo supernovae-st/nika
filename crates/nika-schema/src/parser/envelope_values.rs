@@ -15,7 +15,8 @@ use marked_yaml::types::MarkedMappingNode;
 
 use crate::error::SchemaError;
 use crate::source::Spanned;
-use crate::types::{EgressRule, SecretRef, SecretSource, VarDecl, VarType};
+use crate::types::secret;
+use crate::types::{EgressRule, SecretRef, SecretSource, VarDecl};
 
 use super::envelope::{
     CONFIG_KEYS, CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, SECRET_KEYS, require_mapping,
@@ -57,10 +58,11 @@ fn parse_typed_block(
     for (k, value) in mapping.iter() {
         let name = Spanned::new(k.as_str().to_owned(), cx.span_or_zero(k.span()));
         let Some(typed) = value.as_mapping().filter(|m| m.get_node("type").is_some()) else {
-            return Err(SchemaError::BadTypedVar {
-                name: name.value.clone(),
-                reason: format!(
-                    "`{key}` entries are typed declarations — `type:` required (a fixed value is a `const:` entry)"
+            return Err(SchemaError::Validation {
+                message: format!(
+                    "`{key}` entry `{}` is not a typed declaration — `type:` required \
+                     (a fixed value is a `const:` entry)",
+                    name.value
                 ),
                 span: cx.span(value.span()),
             });
@@ -99,7 +101,7 @@ pub(super) fn parse_const(
                     &format!("typed const `{}`", name.value),
                 )?;
                 VarDecl::Typed {
-                    r#type: parse_var_type(cx, &name.value, t)?,
+                    r#type: parse_type_expr(cx, &name.value, t)?,
                     required: false,
                     default: Some(json_value(cx, value_node)?),
                     description: None,
@@ -112,28 +114,27 @@ pub(super) fn parse_const(
     Ok(out)
 }
 
-/// The `type:` scalar of a typed declaration, parsed into the closed
-/// vocabulary (spec 01 · string·number·integer·boolean·array·object).
-fn parse_var_type(
+/// The `type:` of a typed declaration, read SHAPE-ONLY into the raw
+/// `TypeExpr` (spec 09 §grammar · R3b — the field speaks the full
+/// `TypeExpr`: primitives · named references · constructors). The grammar
+/// judgment (`NIKA-TYPE-001/006`) and the default-conformance judgment
+/// (`NIKA-DEFAULT-001`) are the analyzer's via the one type core — the
+/// `types:` block precedent: one truth, never re-implemented here.
+fn parse_type_expr(
     cx: &Cx<'_>,
     name: &str,
     mapping: &MarkedMappingNode,
-) -> Result<VarType, SchemaError> {
-    let type_scalar = mapping
-        .get_scalar("type")
-        .ok_or_else(|| SchemaError::BadTypedVar {
-            name: name.to_owned(),
-            reason: "`type` must be a scalar".to_owned(),
+) -> Result<Spanned<serde_json::Value>, SchemaError> {
+    let node = mapping
+        .get_node("type")
+        .ok_or_else(|| SchemaError::Validation {
+            message: format!("typed declaration `{name}` — `type:` required"),
             span: cx.span(mapping.span()),
         })?;
-    VarType::from_str_opt(type_scalar.as_str()).ok_or_else(|| SchemaError::BadTypedVar {
-        name: name.to_owned(),
-        reason: format!(
-            "unknown type `{}` (string·number·integer·boolean·array·object)",
-            type_scalar.as_str()
-        ),
-        span: cx.span(type_scalar.span()),
-    })
+    Ok(Spanned::new(
+        json_value(cx, node)?,
+        cx.span_or_zero(node.span()),
+    ))
 }
 
 /// Parse the typed-declaration form (`{ type, required?, default?,
@@ -147,16 +148,15 @@ fn parse_typed_var(
 ) -> Result<VarDecl, SchemaError> {
     cx.check_unknown_keys(mapping, keys, &format!("typed declaration `{name}`"))?;
 
-    let r#type = parse_var_type(cx, name, mapping)?;
+    let r#type = parse_type_expr(cx, name, mapping)?;
 
     let required = match mapping.get_node("required") {
         None => false,
         Some(node) => node
             .as_scalar()
             .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
-            .ok_or_else(|| SchemaError::BadTypedVar {
-                name: name.to_owned(),
-                reason: "`required` must be a boolean".to_owned(),
+            .ok_or_else(|| SchemaError::Validation {
+                message: format!("typed declaration `{name}` — `required` must be a boolean"),
                 span: cx.span(node.span()),
             })?,
     };
@@ -168,9 +168,8 @@ fn parse_typed_var(
 
     let description = cx
         .opt_scalar(mapping, "description")
-        .map_err(|_| SchemaError::BadTypedVar {
-            name: name.to_owned(),
-            reason: "`description` must be a scalar string".to_owned(),
+        .map_err(|_| SchemaError::Validation {
+            message: format!("typed declaration `{name}` — `description` must be a scalar string"),
             span: cx.span(mapping.span()),
         })?
         .map(|s| s.value);
@@ -203,11 +202,7 @@ pub(super) fn parse_secrets(
         let name = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
         let Some(entry) = value.as_mapping() else {
             return Err(SchemaError::BadSecretRef {
-                reason: format!(
-                    "secret `{}` is an inline literal — a secret is a reference to a store \
-                     (`{{ source, key }}`), never a value",
-                    name.value
-                ),
+                reason: secret::inline_literal_teaching(&name.value),
                 span: cx.span(value.span()),
             });
         };
@@ -218,11 +213,7 @@ pub(super) fn parse_secrets(
         let source = match entry.get_node("source") {
             None => {
                 return Err(SchemaError::BadSecretRef {
-                    reason: format!(
-                        "secret `{}` has no `source:` — the provenance is required explicitly \
-                         (vault · env · file · R8)",
-                        name.value
-                    ),
+                    reason: secret::missing_source_teaching(&name.value),
                     span: cx.span(value.span()),
                 });
             }
@@ -235,11 +226,7 @@ pub(super) fn parse_secrets(
                     })?;
                 SecretSource::from_str_opt(scalar.as_str()).ok_or_else(|| {
                     SchemaError::BadSecretRef {
-                        reason: format!(
-                            "secret `{}` has unknown source `{}` (vault·env·file)",
-                            name.value,
-                            scalar.as_str()
-                        ),
+                        reason: secret::unknown_source_teaching(&name.value, scalar.as_str()),
                         span: cx.span(scalar.span()),
                     }
                 })?
@@ -255,21 +242,14 @@ pub(super) fn parse_secrets(
         };
         if entry.get_node(reject).is_some() {
             return Err(SchemaError::BadSecretRef {
-                reason: format!(
-                    "secret `{}` with `source: {source}` takes `{want}:`, not `{reject}:` \
-                     (spec 01 §secrets · the shape is discriminated by source)",
-                    name.value
-                ),
+                reason: secret::wrong_field_teaching(&name.value, source, want, reject),
                 span: cx.span(entry.span()),
             });
         }
         let reference = entry
             .get_scalar(want)
             .ok_or_else(|| SchemaError::BadSecretRef {
-                reason: format!(
-                    "secret `{}` with `source: {source}` is missing its `{want}:`",
-                    name.value
-                ),
+                reason: secret::missing_reference_teaching(&name.value, source, want),
                 span: cx.span(entry.span()),
             })?;
 
@@ -313,9 +293,7 @@ fn parse_egress(
     };
     let Some(seq) = node.as_sequence() else {
         return Err(SchemaError::BadSecretRef {
-            reason: format!(
-                "secret `{secret_name}` `egress:` must be a list of sanctioned destinations"
-            ),
+            reason: secret::egress_not_a_list_teaching(secret_name),
             span: cx.span(node.span()),
         });
     };
@@ -338,10 +316,7 @@ fn parse_egress_rule(
     };
     let Some(mapping) = item.as_mapping() else {
         return Err(bad(
-            format!(
-                "secret `{secret_name}` `egress:` entry must be a mapping \
-                 `{{ to, host, host_from_self }}`"
-            ),
+            secret::egress_entry_shape_teaching(secret_name),
             item.span(),
         ));
     };
@@ -356,10 +331,7 @@ fn parse_egress_rule(
         .get_scalar("to")
         .ok_or_else(|| {
             bad(
-                format!(
-                    "secret `{secret_name}` egress entry is missing `to:` \
-                     (the sanctioned sink · a tool id like `nika:fetch` or `exec`)"
-                ),
+                secret::egress_missing_to_teaching(secret_name),
                 mapping.span(),
             )
         })?
@@ -378,11 +350,7 @@ fn parse_egress_rule(
         || to.starts_with("mcp:");
     if !to_is_sink {
         return Err(bad(
-            format!(
-                "secret `{secret_name}` egress `to: \"{to}\"` names no sink — the set: \
-                 a tool id (`nika:<tool>` · `mcp:<server>/<tool>`) · `exec` · `infer` · \
-                 `agent` · `outputs` (a destination host goes in `host:`, not `to:`)"
-            ),
+            secret::egress_not_a_sink_teaching(secret_name, &to),
             mapping.span(),
         ));
     }
@@ -409,10 +377,7 @@ fn parse_egress_rule(
     // both (the two clauses sanction by different rules · §L2).
     if host.is_some() && host_from_self {
         return Err(bad(
-            format!(
-                "secret `{secret_name}` egress entry sets BOTH `host:` and `host_from_self:` \
-                 — a host is a literal OR the secret itself, not both"
-            ),
+            secret::egress_host_and_self_teaching(secret_name),
             mapping.span(),
         ));
     }

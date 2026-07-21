@@ -118,5 +118,4 @@ tasks:
 outputs:
   notes:
     value: ${{ tasks.notes.output }}
-    type: object
     description: "The typed show-notes · summary + chapters + quotes"

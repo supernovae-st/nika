@@ -61,5 +61,4 @@ tasks:
 outputs:
   findings:
     value: ${{ tasks.execute.output.findings }}
-    type: array
     description: "The agent's typed findings"   # SLOT

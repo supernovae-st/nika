@@ -40,6 +40,18 @@ const CORE_GAPS: &[(&str, &str)] = &[
     // its expected verdict). The wave is its own epic (display · dap ·
     // lints · lsp · runtime all speak the participial spellings); each
     // row deletes itself when the rename lands.
+    // ── R3b · a STALE FIXTURE at the pin (spec-side, not an engine
+    // gap): envelope/010 declares `type: text` and still expects the
+    // NIKA-PARSE namespace, but NIKA-PARSE-015 is retired-never-reuse
+    // (canon.yaml:312-316 · LAW-GRAMMAR-0211 — « what stays outside
+    // TypeExpr refuses via NIKA-TYPE-001 »). The engine emits the
+    // lawful NIKA-TYPE-001; the fixture's own note is R3b-aware, its
+    // namespace line is not. Row deletes the day the spec re-points the
+    // fixture at NIKA-TYPE.
+    (
+        "envelope/010-typed-var-bad-type",
+        "spec fixture stale for R3b (expects NIKA-PARSE · law: NIKA-TYPE-001)",
+    ),
     ("dag-topology/001-cycle", "R5 predicates (success·failure)"),
     (
         "dag-topology/002-unresolved-after-target",

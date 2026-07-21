@@ -26,7 +26,7 @@ workflow:
 
 const:
   bookmarks:
-    type: array
+    type: { array: string }
     value:
       - "https://example.com"
       - "https://github.com/supernovae-st/nika"
@@ -98,5 +98,4 @@ tasks:
 outputs:
   table:
     value: ${{ tasks.table.output }}
-    type: object
     description: "Live rows + dead rows · the triage split"

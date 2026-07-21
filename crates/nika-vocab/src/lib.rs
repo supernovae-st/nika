@@ -46,6 +46,7 @@ pub mod permits;
 pub mod retry;
 pub mod schema_version;
 pub mod secret;
+pub mod type_expr;
 pub mod var_decl;
 pub mod when_gate;
 
@@ -65,5 +66,6 @@ pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
 pub use retry::{BackoffStrategy, RetryConfig, is_valid_error_code};
 pub use schema_version::SchemaVersion;
 pub use secret::{EgressRule, SecretRef, SecretSource};
-pub use var_decl::{VarDecl, VarType};
+pub use type_expr::{coerce_declared, default_not_conforming_teaching, type_expr_display};
+pub use var_decl::VarDecl;
 pub use when_gate::WhenGate;

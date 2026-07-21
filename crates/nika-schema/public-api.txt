@@ -19,7 +19,6 @@ pub use nika_schema::SourceRegistry
 pub use nika_schema::Span
 pub use nika_schema::Spanned
 pub use nika_schema::VarDecl
-pub use nika_schema::VarType
 pub use nika_schema::expression
 pub use nika_schema::is_valid_error_code
 pub use nika_schema::nika_builtin_tool_enum_schema
@@ -2086,8 +2085,6 @@ pub fn nika_schema::check::check_composed(wf: &nika_schema::raw::workflow::RawWo
 pub fn nika_schema::check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_schema::InferredPermits
 pub fn nika_schema::check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_schema::check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
-pub mod nika_schema::codegen
-pub use nika_schema::codegen::nika_builtin_tool_enum_schema
 pub mod nika_schema::error
 pub use nika_schema::error::DeadForm
 pub mod nika_schema::error::spec_code
@@ -2227,10 +2224,6 @@ pub nika_schema::error::SchemaError::BadTaskId::span: core::option::Option<nika_
 pub nika_schema::error::SchemaError::BadTimeout
 pub nika_schema::error::SchemaError::BadTimeout::reason: alloc::string::String
 pub nika_schema::error::SchemaError::BadTimeout::span: core::option::Option<nika_source::span::Span>
-pub nika_schema::error::SchemaError::BadTypedVar
-pub nika_schema::error::SchemaError::BadTypedVar::name: alloc::string::String
-pub nika_schema::error::SchemaError::BadTypedVar::reason: alloc::string::String
-pub nika_schema::error::SchemaError::BadTypedVar::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::BadWorkflowId
 pub nika_schema::error::SchemaError::BadWorkflowId::id: alloc::string::String
 pub nika_schema::error::SchemaError::BadWorkflowId::span: core::option::Option<nika_source::span::Span>
@@ -2247,6 +2240,10 @@ pub nika_schema::error::SchemaError::DeadValueForm::span: core::option::Option<n
 pub nika_schema::error::SchemaError::DecodeWithStructuredCapture
 pub nika_schema::error::SchemaError::DecodeWithStructuredCapture::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::DecodeWithStructuredCapture::task: alloc::string::String
+pub nika_schema::error::SchemaError::DefaultNotConforming
+pub nika_schema::error::SchemaError::DefaultNotConforming::message: alloc::string::String
+pub nika_schema::error::SchemaError::DefaultNotConforming::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::DefaultNotConforming::where_: alloc::string::String
 pub nika_schema::error::SchemaError::DuplicateKey
 pub nika_schema::error::SchemaError::DuplicateKey::message: alloc::string::String
 pub nika_schema::error::SchemaError::DuplicateKey::span: core::option::Option<nika_source::span::Span>
@@ -2515,8 +2512,6 @@ impl<T> nika_error::traits::AsAny for nika_schema::error::spec_code::SpecCode wh
 pub fn nika_schema::error::spec_code::SpecCode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_schema::error::spec_code::SpecCode where T: core::marker::Copy
 pub fn nika_schema::error::spec_code::SpecCode::as_out(&mut self) -> outref::Out<'_, T>
-pub mod nika_schema::keysets
-pub use nika_schema::keysets::known_child_keys
 pub mod nika_schema::parser
 #[non_exhaustive] pub enum nika_schema::parser::ParseMode
 pub nika_schema::parser::ParseMode::Lenient
@@ -3850,11 +3845,6 @@ pub use nika_schema::source::SourceFile
 pub use nika_schema::source::SourceRegistry
 pub use nika_schema::source::Span
 pub use nika_schema::source::Spanned
-pub mod nika_schema::trust
-pub use nika_schema::trust::InvocationSource
-pub use nika_schema::trust::TrustLevel
-pub use nika_schema::trust::builtin_output_trust
-pub use nika_schema::trust::is_categorized_builtin
 pub mod nika_schema::types
 pub use nika_schema::types::<<nika_vocab::*>>
 #[non_exhaustive] pub enum nika_schema::FindingSeverity
@@ -4031,10 +4021,6 @@ pub nika_schema::SchemaError::BadTaskId::span: core::option::Option<nika_source:
 pub nika_schema::SchemaError::BadTimeout
 pub nika_schema::SchemaError::BadTimeout::reason: alloc::string::String
 pub nika_schema::SchemaError::BadTimeout::span: core::option::Option<nika_source::span::Span>
-pub nika_schema::SchemaError::BadTypedVar
-pub nika_schema::SchemaError::BadTypedVar::name: alloc::string::String
-pub nika_schema::SchemaError::BadTypedVar::reason: alloc::string::String
-pub nika_schema::SchemaError::BadTypedVar::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::BadWorkflowId
 pub nika_schema::SchemaError::BadWorkflowId::id: alloc::string::String
 pub nika_schema::SchemaError::BadWorkflowId::span: core::option::Option<nika_source::span::Span>
@@ -4051,6 +4037,10 @@ pub nika_schema::SchemaError::DeadValueForm::span: core::option::Option<nika_sou
 pub nika_schema::SchemaError::DecodeWithStructuredCapture
 pub nika_schema::SchemaError::DecodeWithStructuredCapture::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::DecodeWithStructuredCapture::task: alloc::string::String
+pub nika_schema::SchemaError::DefaultNotConforming
+pub nika_schema::SchemaError::DefaultNotConforming::message: alloc::string::String
+pub nika_schema::SchemaError::DefaultNotConforming::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::DefaultNotConforming::where_: alloc::string::String
 pub nika_schema::SchemaError::DuplicateKey
 pub nika_schema::SchemaError::DuplicateKey::message: alloc::string::String
 pub nika_schema::SchemaError::DuplicateKey::span: core::option::Option<nika_source::span::Span>

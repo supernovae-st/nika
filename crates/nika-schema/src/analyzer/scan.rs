@@ -562,7 +562,7 @@ fn check_ref(
             const ROOTS: [&str; 8] = [
                 "config", "const", "index", "inputs", "item", "secrets", "tasks", "with",
             ];
-            let hint = crate::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
+            let hint = nika_types::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
             errors.push(unresolved(root, ctx, span, hint));
             // LAYERED with the unresolved refusal above (the oracle's
             // values layer emits BOTH): outside the four authorities +
@@ -672,7 +672,7 @@ fn suggest_in<'a>(
     name: &str,
     candidates: impl IntoIterator<Item = &'a str>,
 ) -> Option<String> {
-    crate::suggest::did_you_mean(name, candidates).map(|s| format!("{namespace}.{s}"))
+    nika_types::suggest::did_you_mean(name, candidates).map(|s| format!("{namespace}.{s}"))
 }
 
 #[cfg(test)]

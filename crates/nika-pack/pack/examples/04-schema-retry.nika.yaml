@@ -55,7 +55,6 @@ tasks:
 outputs:
   entities:
     value: ${{ tasks.extract.output.entities }}
-    type: array
     description: "The extracted named entities"
   summary:
     value: ${{ tasks.report.output }}
