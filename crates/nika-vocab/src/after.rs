@@ -6,8 +6,17 @@
 //! An `after:` entry is a map `{producer-task: predicate}`; each entry
 //! is one CONTROL edge whose predicate names the producer states that
 //! admit the consumer. The predicate set is CLOSED (`NIKA-DAG-005`
-//! otherwise) and `terminal` includes `cancelled` (the resolved W2-Q2
-//! witness — « run once X is settled, whatever happened »).
+//! otherwise) and speaks the R5 outcome-class spellings (spec #118 ·
+//! LAW-GRAMMAR-0231): `success` · `failure` · `skipped` · `terminal`,
+//! where `terminal` includes `cancelled` (the resolved W2-Q2 witness —
+//! « run once X is settled, whatever happened »). The pre-R5 participial
+//! spellings (`succeeded` · `failed`) are DEAD FORMS: they refuse
+//! TEACHING (the respelling + the `nika check --fix` repair), never a
+//! bare unknown-predicate message — the C2 flag-day precedent
+//! (`NIKA-VALUES-001/002`), and the teaching text lives here because the
+//! message vocabulary's home is the vocabulary crate (the `dead_form.rs`
+//! · `keys.rs` pattern — the 15k wall funds no message strings in
+//! `nika-schema`).
 
 use std::fmt;
 
@@ -15,9 +24,9 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AfterPredicate {
     /// Admits when the producer settles `success`.
-    Succeeded,
+    Success,
     /// Admits when the producer settles `failure`.
-    Failed,
+    Failure,
     /// Admits when the producer settles `skipped`.
     Skipped,
     /// Admits on ANY settled state — `success` · `failure` · `skipped`
@@ -31,8 +40,8 @@ impl AfterPredicate {
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         match s {
-            "succeeded" => Some(Self::Succeeded),
-            "failed" => Some(Self::Failed),
+            "success" => Some(Self::Success),
+            "failure" => Some(Self::Failure),
             "skipped" => Some(Self::Skipped),
             "terminal" => Some(Self::Terminal),
             _ => None,
@@ -43,8 +52,8 @@ impl AfterPredicate {
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Succeeded => "succeeded",
-            Self::Failed => "failed",
+            Self::Success => "success",
+            Self::Failure => "failure",
             Self::Skipped => "skipped",
             Self::Terminal => "terminal",
         }
@@ -54,7 +63,41 @@ impl AfterPredicate {
     /// completion · the DAG-005 message).
     #[must_use]
     pub fn all() -> &'static [&'static str] {
-        &["succeeded", "failed", "skipped", "terminal"]
+        &["success", "failure", "skipped", "terminal"]
+    }
+}
+
+/// The R5 dead spellings — the participial forms the flag-day killed
+/// (spec #118 · LAW-GRAMMAR-0231 · `succeeded`→`success` ·
+/// `failed`→`failure` · `skipped`/`terminal` unchanged). `Some(respelling)`
+/// when `s` is a dead spelling, `None` otherwise — the caller teaches
+/// only what it can name.
+#[must_use]
+pub fn dead_spelling_respelling(s: &str) -> Option<&'static str> {
+    match s {
+        "succeeded" => Some("success"),
+        "failed" => Some("failure"),
+        _ => None,
+    }
+}
+
+/// The `NIKA-DAG-005` refusal text for an out-of-set `after:` predicate.
+/// A dead spelling refuses TEACHING — the respelling and the
+/// `nika check --fix` repair (mode-independent, decided before the
+/// generic check, the dead-form doctrine); any other out-of-set spelling
+/// names the closed set.
+#[must_use]
+pub fn predicate_refusal(task: &str, target: &str, spelling: &str) -> String {
+    match dead_spelling_respelling(spelling) {
+        Some(to) => format!(
+            "task `{task}` after.{target}: `{spelling}` is a dead predicate spelling \
+             (R5 · spec #118 — the outcome-class rename) — respell as `{to}` \
+             (`nika check --fix` applies it)"
+        ),
+        None => format!(
+            "task `{task}` after.{target}: `{spelling}` is not a predicate — \
+             the set is closed: success · failure · skipped · terminal"
+        ),
     }
 }
 
@@ -78,9 +121,39 @@ mod tests {
 
     #[test]
     fn parse_refuses_outside_the_set() {
-        // The DAG-005 class — near-misses never coerce.
-        for bad in ["passed", "success", "SUCCEEDED", "done", ""] {
+        // The DAG-005 class — near-misses AND the R5 dead spellings
+        // never coerce.
+        for bad in ["passed", "succeeded", "failed", "SUCCESS", "done", ""] {
             assert!(AfterPredicate::parse(bad).is_none(), "{bad}");
         }
+    }
+
+    #[test]
+    fn dead_spellings_respell_one_to_one() {
+        assert_eq!(dead_spelling_respelling("succeeded"), Some("success"));
+        assert_eq!(dead_spelling_respelling("failed"), Some("failure"));
+        // The unchanged pair is NOT a dead form — it parses today.
+        assert_eq!(dead_spelling_respelling("skipped"), None);
+        assert_eq!(dead_spelling_respelling("terminal"), None);
+        assert_eq!(dead_spelling_respelling("passed"), None);
+    }
+
+    #[test]
+    fn dead_spelling_refusal_teaches_the_respelling_and_the_repair() {
+        let m = predicate_refusal("deploy", "tests", "succeeded");
+        assert!(m.contains("task `deploy` after.tests"), "{m}");
+        assert!(m.contains("dead predicate spelling"), "{m}");
+        assert!(m.contains("respell as `success`"), "{m}");
+        assert!(m.contains("nika check --fix"), "{m}");
+        let m = predicate_refusal("deploy", "tests", "failed");
+        assert!(m.contains("respell as `failure`"), "{m}");
+    }
+
+    #[test]
+    fn unknown_spelling_refusal_names_the_closed_set() {
+        let m = predicate_refusal("deploy", "tests", "passed");
+        assert!(m.contains("is not a predicate"), "{m}");
+        assert!(m.contains("success · failure · skipped · terminal"), "{m}");
+        assert!(!m.contains("dead predicate spelling"), "{m}");
     }
 }

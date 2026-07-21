@@ -75,7 +75,7 @@ tasks:
     with:
       notes_headline: ${{ tasks.notes.output.headline }}
     after:
-      changelog: succeeded
+      changelog: success
     invoke:
       tool: "nika:notify"
       args:

@@ -3,30 +3,20 @@
 
 //! `nika check --fix` — apply the machine-applicable renames and converge.
 //!
-//! The check ladder was DESIGNED for a repair loop: every rename finding
-//! carries a typed `suggestion` (the deterministic did-you-mean — never a
-//! guess past the threshold), and the code comments promise « the agent
-//! repair loop pattern-matches once and converges ». This verb is that
-//! loop, in-binary (the `cargo clippy --fix` / `eslint --fix` shape):
+//! The check ladder was DESIGNED for a repair loop (`cargo clippy --fix`
+//! shape): parse aborts at the first defect, so parse-level repairs land
+//! one per round; check-level typed suggestions (`nika:raed` → `nika:read`
+//! · `inpit` → `input`) splice in the same pass; re-parse + re-check
+//! until a round applies nothing (capped). The DEAD-FORM arm carries the
+//! flag-day migrations — W1 « the map » · W2 « the flow » · C2 « the
+//! E-split » · R5 « the predicates » (the old form is repairable, never
+//! executable).
 //!
-//! 1. parse — an [`UnknownField`](nika_schema::SchemaError) with a typed
-//!    suggestion (`promt:` → `prompt:`) is spliced and the round restarts
-//!    (parse aborts at the first defect, so parse-level repairs land one
-//!    per round);
-//! 2. check — every `unknown_tools[]` / `unknown_args[]` finding with a
-//!    typed suggestion (`nika:raed` → `nika:read` · `inpit` → `input` ·
-//!    `expr` → `expression`) is spliced in the same pass;
-//! 3. re-parse + re-check until a round applies nothing (capped).
-//!
-//! SAFETY over reach — a repair is applied ONLY when:
-//! - the suggestion is TYPED (never regex-scraped from a human message);
-//! - the old token occurs EXACTLY ONCE in the source as a whole word
-//!   (word-boundary guarded — ambiguity or a second occurrence skips the
-//!   repair with an honest note, the file is never guessed at);
-//! - the file re-parses/re-checks after (the loop converging IS the
-//!   proof; a repair that made things worse cannot survive the rounds).
-//!
-//! The file is rewritten only when at least one repair applied; the verb
+//! SAFETY over reach — a repair is applied ONLY when the suggestion is
+//! TYPED (never regex-scraped from a human message), the old token
+//! occurs EXACTLY ONCE as a whole word (ambiguity skips with an honest
+//! note), and the file re-parses after (convergence IS the proof). The
+//! file is rewritten only when at least one repair applied; the verb
 //! then renders the NORMAL check report of the final state — `--fix` is
 //! check plus a converging pen, not a different audit.
 
@@ -45,19 +35,16 @@ struct Repair {
     applied: bool,
 }
 
-/// Equivalence-or-stop diagnostics from the W2 migration (spec 03
-/// §`depends_on`) — rendered verbatim; the file is left untouched.
+/// Equivalence-or-stop diagnostics (W2) — rendered verbatim; untouched.
 struct StopNotes(Vec<String>);
 
-/// Rounds cap — each parse-level repair costs one round (parse aborts at
-/// the first defect), so this bounds pathological inputs, not real files.
+/// Rounds cap — parse aborts at the first defect, so each parse-level
+/// repair costs one round; this bounds pathological inputs.
 const MAX_ROUNDS: usize = 16;
 
-/// One round's DEAD-FORM arm — W1 « the map » · W2 « the flow » · C2
-/// « the E-split ». `Some(true)` = a migration applied (the round
-/// restarts, the re-parse is the proof) · `Some(false)` = STOP (the
-/// diagnostics name each case · never guess) · `None` = not a dead-form
-/// error (the caller's remaining path judges).
+/// One round's DEAD-FORM arm — W1 · W2 · C2 · R5. `Some(true)` =
+/// applied (the round restarts — the re-parse is the proof) ·
+/// `Some(false)` = STOP or nothing mechanical · `None` = not dead-form.
 fn apply_dead_form_arm(
     err: &SchemaError,
     source: &mut String,
@@ -74,7 +61,7 @@ fn apply_dead_form_arm(
         | SchemaError::W1TaskIdField { .. } => Some(apply_w1_map(source, repairs)),
         // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
         // stop migration (spec 03 §depends_on): data → with: bindings ·
-        // provably-strict control → after: {d: succeeded} · every
+        // provably-strict control → after: {d: success} · every
         // ambiguous case STOPS with its candidates.
         SchemaError::W2DependsOnField { .. } => Some(apply_w2_flow(source, repairs, stop_notes)),
         // C2 « the E-split » dead forms (VALUES-001/002): the `vars:`
@@ -89,6 +76,10 @@ fn apply_dead_form_arm(
             ..
         } => Some(apply_esplit(source, repairs, stop_notes)),
         SchemaError::DeadValueForm { .. } => Some(false),
+        // R5 « the predicates » (DAG-005): the 1:1 respelling — a
+        // genuinely-unknown predicate (`passed`) has no mechanical
+        // repair (the codemod returns Clean · the teaching stands).
+        SchemaError::UnknownAfterPredicate { .. } => Some(apply_predicates(source, repairs)),
         _ => None,
     }
 }
@@ -147,7 +138,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
 
     let applied = repairs.iter().filter(|r| r.applied).count();
     if applied > 0
-        && let Err(e) = write_atomic(path, &source)
+        && let Err(e) = nika_migrate::repair::write_atomic(path, &source)
     {
         return VerbOutput::env(format!("cannot write {path}: {e}"));
     }
@@ -166,8 +157,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     }
 }
 
-/// This round's typed renames from the check report (tools · args ·
-/// conformance refs) — sorted + deduped.
+/// This round's typed renames (tools · args · conformance refs), deduped.
 fn collect_typed_renames(
     report: &nika_schema::check::CheckReport,
 ) -> Vec<(String, String, &'static str)> {
@@ -292,6 +282,22 @@ fn apply_esplit(
     }
 }
 
+/// The R5 arm — the predicate respelling codemod. `true` = applied ·
+/// `false` = nothing to respell (the check teaching stands).
+fn apply_predicates(source: &mut String, repairs: &mut Vec<Repair>) -> bool {
+    let Some(migrated) = nika_migrate::predicates(source) else {
+        return false;
+    };
+    *source = migrated;
+    repairs.push(Repair {
+        old: "the dead predicate spellings (succeeded · failed)".to_owned(),
+        new: "success · failure in after: blocks".to_owned(),
+        kind: "r5-predicates",
+        applied: true,
+    });
+    true
+}
+
 /// The NIKA-VAR-021 hoist arm — `Some(true)` = applied (re-run the
 /// round) · `Some(false)` = STOP diagnostics captured (end the loop) ·
 /// `None` = no boundary finding this round.
@@ -322,8 +328,7 @@ fn try_w2_hoist(
     }
 }
 
-/// Render the per-repair lines + the closing verdict line (applied count
-/// or the honest nothing-applicable note).
+/// Per-repair lines + the closing verdict (count or the honest note).
 fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
     let mut out = String::new();
     for r in repairs {
@@ -371,13 +376,6 @@ fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
     out
 }
 
-/// Publish the healed source ATOMICALLY — the shared
-/// [`nika_migrate::repair::write_atomic`] door (the contract lives with
-/// the migrations crate since the C2 wall).
-fn write_atomic(path: &str, contents: &str) -> std::io::Result<()> {
-    nika_migrate::repair::write_atomic(path, contents)
-}
-
 /// Splice `old` → `new` when `old` occurs EXACTLY ONCE in `source` as a
 /// whole word — the byte surgery rides the shared
 /// [`nika_migrate::repair`] door; this wrapper keeps the CLI's repair
@@ -419,9 +417,7 @@ fn splice(
 }
 
 /// The env-shaped refusals for `--fix` combinations the loop cannot
-/// honor: stdin has no file to rewrite, `--json`'s `report_version`
-/// contract is a single immutable audit, several files would interleave
-/// rewrites with one summary.
+/// honor (stdin · `--json`'s immutable audit · multi-file).
 #[must_use]
 pub fn refuse(reason: &str) -> VerbOutput {
     VerbOutput {
@@ -533,7 +529,7 @@ mod tests {
         let path = dir.join("two-site.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: succeeded\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: success\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
         )
         .expect("write fixture");
         let out = run(
@@ -544,7 +540,7 @@ mod tests {
         );
         let healed = std::fs::read_to_string(&path).expect("re-read");
         assert!(
-            healed.contains("build: succeeded"),
+            healed.contains("build: success"),
             "control edge healed: {healed}"
         );
         assert!(
@@ -620,28 +616,60 @@ mod tests {
     }
 
     #[test]
-    fn write_atomic_error_path_cleans_its_temp() {
-        // The failure half of the atomic contract: renaming onto a path
-        // whose parent DIRECTORY vanished fails — the original (absent)
-        // target stays absent and the temp is swept, never leaked.
-        let dir = std::env::temp_dir().join(format!("nika-fix-atomic-{}", std::process::id()));
+    fn r5_dead_predicates_respell_and_converge_green() {
+        // The R5 flag-day repair loop: a pre-R5 file (after: succeeded ·
+        // after: failed across flow + block forms) is refused NIKA-DAG-005
+        // at parse — --fix respells both spellings in ONE pass and the
+        // final audit is clean (the codemod is whole-document, not
+        // one-per-round).
+        let dir = std::env::temp_dir().join(format!("nika-fix-r5-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let gone = dir.join("gone");
-        std::fs::create_dir_all(&gone).expect("subdir");
-        let target = gone.join("wf.nika.yaml");
-        let target_str = target.to_str().expect("utf8").to_owned();
-        std::fs::remove_dir_all(&gone).expect("vanish parent");
-        assert!(
-            write_atomic(&target_str, "nika: v1\n").is_err(),
-            "no parent = publish fails"
+        let path = dir.join("prer5.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  build:\n    exec: { command: [\"true\"] }\n  test:\n    after: { build: succeeded }\n    exec: { command: [\"true\"] }\n  notify:\n    after:\n      test: failed\n    exec: { command: [\"true\"] }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
         );
-        // the temp would have lived in `gone/` — the whole dir is absent,
-        // and the sweep must not have recreated anything under `dir`.
-        let residue: Vec<_> = std::fs::read_dir(&dir)
-            .expect("readdir")
-            .filter_map(Result::ok)
-            .collect();
-        assert!(residue.is_empty(), "no residue: {residue:?}");
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(healed.contains("after: { build: success }"), "{healed}");
+        assert!(healed.contains("test: failure"), "{healed}");
+        assert!(
+            !healed.contains("succeeded") && !healed.contains(": failed"),
+            "{healed}"
+        );
+        assert!(out.text.contains("r5-predicates"), "{}", out.text);
+        assert_eq!(out.code, exit::OK, "clean after the respell: {}", out.text);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn unknown_predicate_has_no_mechanical_repair() {
+        // `passed` is NOT a dead spelling — the codemod stays out and the
+        // closed-set teaching renders; the file is never guessed at.
+        let dir = std::env::temp_dir().join(format!("nika-fix-r5noop-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("unknown.nika.yaml");
+        let body = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n  d:\n    after: { t: passed }\n    exec: { command: [\"true\"] }\n";
+        std::fs::write(&path, body).expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("re-read"),
+            body,
+            "no rewrite without an applicable repair"
+        );
+        assert_ne!(out.code, exit::OK, "the unknown predicate still reds");
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

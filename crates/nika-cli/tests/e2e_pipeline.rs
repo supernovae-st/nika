@@ -102,7 +102,7 @@ tasks:
     with:
       summary: ${{ tasks.think.output }}
     after:
-      extract: succeeded
+      extract: success
     invoke:
       tool: "nika:write"
       args:

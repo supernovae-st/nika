@@ -18,7 +18,7 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://news.example/brief.txt", mode: "raw" }
   assistant:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { brief: "${{ tasks.fetch_page.output }}" }
     agent:
       prompt: "Follow the brief exactly: ${{ with.brief }}"

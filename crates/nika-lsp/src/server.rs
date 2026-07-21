@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn diagnose_broken_workflow_yields_an_error() {
         let doc = Document::new(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n",
         );
         let diags = diagnose(&doc);
         assert!(
@@ -628,7 +628,7 @@ mod tests {
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n",
         );
         // change to a BROKEN workflow (waits on a ghost) → an error diag.
-        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         handle_notification(&server, change_note(broken), &mut docs).expect("handled");
         assert_eq!(
             docs.get(uri_key(&uri())).map(Document::text),
@@ -986,12 +986,12 @@ mod canary {
             .expect("initialized");
 
         // 1) A broken workflow → a NIKA-* error diagnostic published.
-        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         did_open(&client, broken);
 
         // 2) A clean workflow with a verb, an `after:` entry and a
         //    template ref riding a `with:` binding (the W2 doors).
-        let hello = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    after: { greet: succeeded }\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
+        let hello = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    after: { greet: success }\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
         let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);

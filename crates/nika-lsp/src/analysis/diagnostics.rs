@@ -427,7 +427,7 @@ mod tests {
     fn unknown_dep_yields_dag002_error_with_span() {
         // an `after:` entry naming a ghost task — NIKA-DAG-002, carries
         // a span on the target token.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         let diags = diags_of(yaml);
         let dag = diags
             .iter()

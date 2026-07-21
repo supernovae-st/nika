@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn when_false_literal_is_the_documented_never_pattern_not_a_finding() {
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    when: false\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    when: false\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -956,7 +956,7 @@ mod tests {
         // c gated on b == 'skipped' is ALIVE: the never-pattern makes
         // skipped a real status downstream
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    when: false\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    when: false\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'skipped' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -1084,7 +1084,7 @@ mod tests {
         // the |= S_SUCCESS paths must really add SUCCESS (a &= mutant
         // kills the chain and the downstream gates go dead)
         let f = gates(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    when: true\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'success' }}\n    exec: { command: [\"true\"] }\n  d:\n    with: { c_status: \"${{ tasks.c.status }}\" }\n    when: ${{ with.c_status == 'success' }}\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    when: true\n    exec: { command: [\"true\"] }\n  c:\n    with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'success' }}\n    exec: { command: [\"true\"] }\n  d:\n    with: { c_status: \"${{ tasks.c.status }}\" }\n    when: ${{ with.c_status == 'success' }}\n    exec: { command: [\"true\"] }\n",
         ));
         assert!(f.is_empty(), "{f:?}");
     }
@@ -1135,7 +1135,7 @@ mod tests {
         // Asserting `c` is alive pins the default-gate path through a
         // downstream status observation.
         let f = gates(&wf("  a:\n    exec: { command: [\"true\"] }\n  b:\n    \
-             after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    \
+             after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    \
              with: { b_status: \"${{ tasks.b.status }}\" }\n    when: ${{ with.b_status == 'success' }}\n    \
              exec: { command: [\"true\"] }\n"));
         assert!(f.is_empty(), "{f:?}");

@@ -30,7 +30,7 @@
 //! - **non-tightening after** (`redundant-gate`) — `after: {x:
 //!   terminal}` beside a value edge to `x` changes nothing (edges
 //!   compose by intersection · spec 03 §one obvious way /008): tighten
-//!   to `succeeded` or drop the entry.
+//!   to `success` or drop the entry.
 //! - **retry on uncontracted effects** (`retry-effects`) — see
 //!   [`push_retry_effects_hint`].
 //! - **concurrent same-path writers** (`parallel-writers`) — emitted by
@@ -171,7 +171,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
 /// The `redundant-gate` hint (6. non-tightening after) — `after:
 /// {x: terminal}` beside a value edge changes nothing (edges compose by
 /// intersection: {success, skipped} ∩ terminal = the value edge alone ·
-/// one-obvious-way/008); tighten to `succeeded` or drop it.
+/// one-obvious-way/008); tighten to `success` or drop it.
 fn push_redundant_gate_hints(hints: &mut Vec<Hint>, t: &RawTask, id: &str) {
     for (target, pred) in &t.after {
         if !matches!(pred.value, crate::types::AfterPredicate::Terminal) {
@@ -193,7 +193,7 @@ fn push_redundant_gate_hints(hints: &mut Vec<Hint>, t: &RawTask, id: &str) {
                 kind: "redundant-gate",
                 task: id.to_owned(),
                 advice: format!(
-                    "`after: {{{t}: terminal}}` beside a value edge to `{t}` is a non-tightening restatement \u{2014} the composed gate is the value edge's {{success, skipped}} either way (spec 03 \u{a7}one obvious way /010); drop the entry or tighten to `succeeded`",
+                    "`after: {{{t}: terminal}}` beside a value edge to `{t}` is a non-tightening restatement \u{2014} the composed gate is the value edge's {{success, skipped}} either way (spec 03 \u{a7}one obvious way /010); drop the entry or tighten to `success`",
                     t = target.value
                 ),
             });
@@ -747,17 +747,17 @@ mod tests {
             .iter()
             .find(|x| x.kind == "redundant-gate" && x.task == "b")
             .expect("the /008 hint fires");
-        assert!(hit.advice.contains("succeeded"), "{hit:?}");
+        assert!(hit.advice.contains("tighten to `success`"), "{hit:?}");
     }
 
     #[test]
-    fn tightening_after_succeeded_beside_value_edge_is_meaningful() {
-        // `succeeded` NARROWS the composed gate ({success, skipped} ∩
+    fn tightening_after_success_beside_value_edge_is_meaningful() {
+        // `success` NARROWS the composed gate ({success, skipped} ∩
         // {success} = {success} — the skipped-null case is excluded), so
         // the restatement is meaningful; the spec's own tightened form
         // (conformance dag-topology/009) must never be flagged.
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    after: { a: succeeded }\n    with: { data: \"${{ tasks.a.output }}\" }\n    exec: { shell: \"true\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { shell: \"true\" }\n  b:\n    after: { a: success }\n    with: { data: \"${{ tasks.a.output }}\" }\n    exec: { shell: \"true\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "redundant-gate"), "{h:?}");
     }
@@ -1057,7 +1057,7 @@ mod tests {
         // builtins carry documented idempotent semantics · max_attempts
         // 1 is no retry at all — none of these hint.
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  ask:\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  save:\n    retry: { max_attempts: 3 }\n    with: { content: \"${{ tasks.ask.output }}\" }\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ with.content }}\" }\n  once:\n    retry: { max_attempts: 1 }\n    after: { save: succeeded }\n    exec: { shell: \"true\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  ask:\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  save:\n    retry: { max_attempts: 3 }\n    with: { content: \"${{ tasks.ask.output }}\" }\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ with.content }}\" }\n  once:\n    retry: { max_attempts: 1 }\n    after: { save: success }\n    exec: { shell: \"true\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "retry-effects"), "{h:?}");
     }

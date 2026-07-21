@@ -86,7 +86,7 @@ tasks:
 
   ping:
     after:
-      save: succeeded
+      save: success
     invoke:
       tool: "nika:notify"
       args:

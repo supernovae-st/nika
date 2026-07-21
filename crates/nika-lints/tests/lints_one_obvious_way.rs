@@ -53,7 +53,6 @@ fn lint_fixture_corpus() {
 
     let mut failures: Vec<String> = Vec::new();
     let mut total = 0_usize;
-    let mut r5_gapped = 0_usize;
 
     for dir in fixture_dirs(&root) {
         total += 1;
@@ -64,17 +63,10 @@ fn lint_fixture_corpus() {
             .to_string();
         let yaml = std::fs::read_to_string(dir.join("input.yaml")).expect("read input.yaml");
 
-        // ── The R5 predicates gap (spec #118 · pc-light) ─────────────
-        // The pin's corpus carries the RENAMED outcome-class spellings
-        // (`after: success·failure`) while the engine's closed set is
-        // still succeeded·failed (skipped·terminal are unchanged and
-        // parse today). Same loud ratchet as the gate-matrix ledger,
-        // keyed on the refusal's own payload — exact, never a sniff:
-        // a fixture refusing `success`/`failure` with the
-        // unknown-predicate class is the rename and nothing deeper; any
-        // other refusal reds the gate. When the wave lands the fixtures
-        // rejoin the normal verdict path and the pinned count drops
-        // (the assert below fires — delete the ledger).
+        // The R5 predicates gap CLOSED (spec #118 · the engine speaks
+        // the outcome-class spellings) — the 12 success/failure-spelled
+        // fixtures rejoined this normal verdict path the day the rename
+        // landed, and the ledger deleted itself per the ratchet.
         let expected: ExpectedLints = serde_json::from_str(
             &std::fs::read_to_string(dir.join("expected-lints.json"))
                 .expect("read expected-lints.json"),
@@ -83,17 +75,8 @@ fn lint_fixture_corpus() {
 
         let got = match try_lint(&yaml) {
             Ok(lints) => lints,
-            Err(nika_schema::SchemaError::UnknownAfterPredicate { predicate, .. })
-                if predicate == "success" || predicate == "failure" =>
-            {
-                r5_gapped += 1;
-                continue;
-            }
             Err(e) => {
-                failures.push(format!(
-                    "{label} · refuses with something OTHER than the R5 rename — \
-                     deeper than the spelling: {e}"
-                ));
+                failures.push(format!("{label} · refuses to parse: {e}"));
                 continue;
             }
         };
@@ -118,18 +101,11 @@ fn lint_fixture_corpus() {
 
     assert!(
         failures.is_empty(),
-        "{} of {total} lint fixtures FAILED ({r5_gapped} R5-gapped) ·\n\n{}",
+        "{} of {total} lint fixtures FAILED ·\n\n{}",
         failures.len(),
         failures.join("\n\n")
     );
     assert!(total >= 24, "only {total} lint fixtures — corpus drift?");
-    // The R5 ledger can't silently shrink: every success/failure-spelled
-    // fixture at the pin must hit it (a landed wave drops the count to
-    // zero — this assert then demands the ledger's deletion).
-    assert_eq!(
-        r5_gapped, 12,
-        "R5 ledger drift — {r5_gapped} success/failure-spelled lint fixtures gapped vs 12 at the pin"
-    );
 }
 
 #[test]
@@ -158,7 +134,7 @@ tasks:
     assert_eq!(l.rule, "one-obvious-way/010");
     assert!(!l.message.is_empty());
     assert!(!l.suggestion.is_empty());
-    assert!(l.suggestion.contains("succeeded"), "{}", l.suggestion);
+    assert!(l.suggestion.contains("success"), "{}", l.suggestion);
 }
 
 // ── rule 008 · interpolated string command → use the array form ──────────

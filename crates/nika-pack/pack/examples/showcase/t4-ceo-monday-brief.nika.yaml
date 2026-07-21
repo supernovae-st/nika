@@ -122,7 +122,7 @@ tasks:
   # ── the run reports its own bill ──
   bill:
     after:
-      save: succeeded                # state, no data · read the meter once the brief landed
+      save: success                # state, no data · read the meter once the brief landed
     invoke:
       tool: "nika:inspect"
       args: { view: cost }

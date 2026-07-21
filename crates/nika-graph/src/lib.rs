@@ -111,7 +111,7 @@ pub struct Edge {
     /// `failure-observation` · `control` · `recovery` (· `finally`
     /// reserved).
     pub kind: &'static str,
-    /// The `after:` predicate (`succeeded` · `failed` · `skipped` ·
+    /// The `after:` predicate (`success` · `failure` · `skipped` ·
     /// `terminal`) — control edges only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub predicate: Option<&'static str>,
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn nodes_are_wave_ordered_regardless_of_authoring_order() {
         let g = doc(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  d:\n    with:\n      b: \"${{ tasks.b.output }}\"\n      c: \"${{ tasks.c.output }}\"\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  d:\n    with:\n      b: \"${{ tasks.b.output }}\"\n      c: \"${{ tasks.c.output }}\"\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n",
         );
         assert_eq!(g.graph_format, 2);
         let ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();

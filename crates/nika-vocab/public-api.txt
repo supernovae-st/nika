@@ -9,9 +9,9 @@ pub use nika_vocab::Policy
 pub use nika_vocab::PolicyViolation
 pub mod nika_vocab::after
 pub enum nika_vocab::after::AfterPredicate
-pub nika_vocab::after::AfterPredicate::Failed
+pub nika_vocab::after::AfterPredicate::Failure
 pub nika_vocab::after::AfterPredicate::Skipped
-pub nika_vocab::after::AfterPredicate::Succeeded
+pub nika_vocab::after::AfterPredicate::Success
 pub nika_vocab::after::AfterPredicate::Terminal
 impl nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::all() -> &'static [&'static str]
@@ -52,6 +52,8 @@ impl<T> core::clone::CloneToUninit for nika_vocab::after::AfterPredicate where T
 pub unsafe fn nika_vocab::after::AfterPredicate::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::from(t: T) -> T
+pub fn nika_vocab::after::dead_spelling_respelling(s: &str) -> core::option::Option<&'static str>
+pub fn nika_vocab::after::predicate_refusal(task: &str, target: &str, spelling: &str) -> alloc::string::String
 pub mod nika_vocab::assert
 #[non_exhaustive] pub enum nika_vocab::assert::AssertLevel
 pub nika_vocab::assert::AssertLevel::StaticProof
@@ -967,9 +969,9 @@ pub unsafe fn nika_vocab::when_gate::WhenGate::clone_to_uninit(&self, dest: *mut
 impl<T> core::convert::From<T> for nika_vocab::when_gate::WhenGate
 pub fn nika_vocab::when_gate::WhenGate::from(t: T) -> T
 pub enum nika_vocab::AfterPredicate
-pub nika_vocab::AfterPredicate::Failed
+pub nika_vocab::AfterPredicate::Failure
 pub nika_vocab::AfterPredicate::Skipped
-pub nika_vocab::AfterPredicate::Succeeded
+pub nika_vocab::AfterPredicate::Success
 pub nika_vocab::AfterPredicate::Terminal
 impl nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::all() -> &'static [&'static str]

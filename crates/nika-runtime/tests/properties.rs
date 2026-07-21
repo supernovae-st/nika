@@ -97,11 +97,8 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
                     let _ = writeln!(y, "      b{d}: \"${{{{ tasks.t{d}.output }}}}\"");
                 }
             } else {
-                let entries: Vec<String> = spec
-                    .deps
-                    .iter()
-                    .map(|d| format!("t{d}: succeeded"))
-                    .collect();
+                let entries: Vec<String> =
+                    spec.deps.iter().map(|d| format!("t{d}: success")).collect();
                 let _ = writeln!(y, "    after: {{ {} }}", entries.join(", "));
             }
         }
@@ -249,7 +246,7 @@ proptest! {
         // ── 4 · cascade soundness (GATE-v2 · spec 03 §gate algebra):
         // per-edge pass-sets judge admission — a Normal consumer's value
         // edges pass {success, skipped}; every other kind's `after:
-        // succeeded` edges pass {success} only. Any producer outside a
+        // success` edges pass {success} only. Any producer outside a
         // pass-set cancels the consumer (dead-path elimination,
         // transitive). Admitted: Gated skips (publish=no · POST-gate) ·
         // Fails fails (for_each over a scalar) · Normal/Agent succeed.

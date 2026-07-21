@@ -323,7 +323,7 @@ error_codes:
     # edge (derived, never restated) and a reference outside the boundary is
     # NIKA-VAR-021. The allocation hole is deliberate.
     - { code: NIKA-DAG-004, category: validation_error, transient: "false", failure: "on_error.recover references a task downstream of the declaring task (await would deadlock)" }
-    - { code: NIKA-DAG-005, category: validation_error, transient: "false", failure: "after: predicate outside the closed set (succeeded · failed · skipped · terminal)" }
+    - { code: NIKA-DAG-005, category: validation_error, transient: "false", failure: "after: predicate outside the closed set (success · failure · skipped · terminal)" }
     - { code: NIKA-DAG-006, category: validation_error, transient: "false", failure: "statically dead task — an incoming edge's pass-set excludes every reachable producer state, or the when: gate is false under every reachable upstream combination (gate algebra v2)" }
     - { code: NIKA-DAG-007, category: validation_error, transient: "false", failure: "status compared against a literal outside the vocabulary (success · failure · skipped · cancelled) — == never matches, != always holds" }
     - { code: NIKA-TYPE-001, category: validation_error, transient: "false", failure: "unknown type name (in types: · returns: · an outputs: type) — did-you-mean when close" }

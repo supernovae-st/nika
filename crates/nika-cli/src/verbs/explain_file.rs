@@ -592,7 +592,7 @@ mod tests {
         path
     }
 
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: brief-factory\n  description: fetch, summarize twice, join\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    after:\n      root: succeeded\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    after:\n      root: succeeded\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    after:\n      left: succeeded\n      right: succeeded\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
+    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: brief-factory\n  description: fetch, summarize twice, join\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    after:\n      root: success\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    after:\n      root: success\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    after:\n      left: success\n      right: success\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
 
     #[test]
     fn narrates_the_diamond_with_cost_and_handoff() {
@@ -682,7 +682,7 @@ mod tests {
         // must refuse to narrate and hand over to check (exit 2).
         let path = tmp(
             "dirty",
-            "nika: v1\nworkflow:\n  id: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: succeeded\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+            "nika: v1\nworkflow:\n  id: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         );
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
@@ -767,7 +767,7 @@ mod tests {
     use nika_types::resource::Value;
     use std::time::Duration;
 
-    const FC: &str = "nika: v1\nworkflow:\n  id: fc-fix\n  description: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: succeeded\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
+    const FC: &str = "nika: v1\nworkflow:\n  id: fc-fix\n  description: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
 
     /// One completed fc-fix run body: fetch (exec) + think (infer),
     /// distinct durations, optional sha/model/extras.

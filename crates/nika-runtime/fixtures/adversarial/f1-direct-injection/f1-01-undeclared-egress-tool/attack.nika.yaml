@@ -15,7 +15,7 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://news.example/rss" }
   assistant:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { page: "${{ tasks.fetch_page.output }}" }
     agent:
       prompt: "Summarize this page for me: ${{ with.page }}"

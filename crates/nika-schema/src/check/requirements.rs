@@ -237,11 +237,11 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://api.example.com/${{ config.GITHUB_ORG }}" }
   digest:
-    after: { fetch: succeeded }
+    after: { fetch: success }
     infer:
       prompt: "Summarize for ${{ config.REGION }}"
   local_pass:
-    after: { fetch: succeeded }
+    after: { fetch: success }
     for_each: "${{ config.SHARDS }}"
     on_finally:
       - exec: { command: ["echo", "${{ config.CLEANUP_FLAG }}"] }

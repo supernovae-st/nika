@@ -96,7 +96,7 @@ tasks:
     with:
       rows_md: ${{ tasks.rows_md.output }}
     after:
-      chart: succeeded
+      chart: success
     invoke:
       tool: "nika:write"
       args:

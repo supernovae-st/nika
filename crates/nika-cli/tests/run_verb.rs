@@ -36,7 +36,7 @@ tasks:
     exec: { command: ["echo", "hello"] }
   after:
     after:
-      greet: succeeded
+      greet: success
     exec: { command: ["echo", "done"] }
 "#;
 
@@ -56,11 +56,11 @@ workflow:
 tasks:
   a:
     after:
-      b: succeeded
+      b: success
     exec: { command: ["true"] }
   b:
     after:
-      a: succeeded
+      a: success
     exec: { command: ["true"] }
 "#;
 
@@ -281,7 +281,7 @@ tasks:
     invoke: { tool: "nika:write", args: { path: "OUT", content: "spends before the crash" } }
   use:
     after:
-      first: succeeded
+      first: success
     invoke: { tool: "nika:write", args: { path: "OUT", content: "${{ inputs.needle }}" } }
 "#
     .replace("OUT", &out_path.display().to_string())

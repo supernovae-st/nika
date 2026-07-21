@@ -11,6 +11,7 @@
 use std::time::Duration;
 
 use marked_yaml::types::MarkedMappingNode;
+use nika_vocab::after::predicate_refusal;
 
 use crate::error::SchemaError;
 use crate::raw::{ForEachValue, RawFinallyTask, RawTask};
@@ -201,12 +202,10 @@ fn parse_returns(
     )))
 }
 
-/// One parsed `after:` map — `(producer, predicate)` entries in source order.
 type AfterEntries = Vec<(Spanned<String>, Spanned<AfterPredicate>)>;
 
-/// `after:` — the CONTROL boundary · a map `{producer: predicate}`
-/// over the CLOSED predicate set (spec 03 §after · `NIKA-DAG-005`
-/// outside it · target resolution is the analyzer's DAG-002).
+/// `after:` — the CONTROL boundary · a map `{producer: predicate}` over the
+/// CLOSED outcome-class set (03 §after · R5 · `NIKA-DAG-005` · targets: DAG-002).
 fn parse_after(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
@@ -229,6 +228,7 @@ fn parse_after(
         let target = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
         let Some(scalar) = value.as_scalar() else {
             return Err(SchemaError::UnknownAfterPredicate {
+                message: predicate_refusal(task, &target.value, "(not a string)"),
                 task: task.to_owned(),
                 target: target.value,
                 predicate: "(not a string)".to_owned(),
@@ -238,6 +238,7 @@ fn parse_after(
         let raw = scalar.as_str();
         let Some(predicate) = AfterPredicate::parse(raw) else {
             return Err(SchemaError::UnknownAfterPredicate {
+                message: predicate_refusal(task, &target.value, raw),
                 task: task.to_owned(),
                 target: target.value,
                 predicate: raw.to_owned(),
@@ -943,7 +944,7 @@ tasks:
   a:
     exec: { shell: echo a }
   b:
-    after: { a: succeeded }
+    after: { a: success }
     when: ${{ vars.flag == true }}
     for_each: ${{ vars.items }}
     exec: { shell: echo b }
@@ -952,7 +953,7 @@ tasks:
         let b = &wf.tasks[1].value;
         assert_eq!(b.after.len(), 1);
         assert_eq!(b.after[0].0.value, "a");
-        assert_eq!(b.after[0].1.value, AfterPredicate::Succeeded);
+        assert_eq!(b.after[0].1.value, AfterPredicate::Success);
         assert_eq!(
             b.when.as_ref().expect("when").value,
             WhenGate::Expr("${{ vars.flag == true }}".into())
@@ -961,6 +962,52 @@ tasks:
             b.for_each.as_ref().expect("for_each").value,
             crate::raw::ForEachValue::Expression("${{ vars.items }}".into())
         );
+    }
+
+    #[test]
+    fn r5_dead_predicate_spellings_refuse_teaching_in_both_modes() {
+        // The R5 flag-day (spec #118 · LAW-GRAMMAR-0231): `succeeded` /
+        // `failed` are DEAD spellings — the refusal TEACHES the respelling
+        // and the `nika check --fix` repair (mode-independent, the C2
+        // dead-form doctrine), and it rides NIKA-DAG-005 (the spec
+        // registers no separate code for out-of-set spellings).
+        for dead in ["succeeded", "failed"] {
+            let yaml = format!(
+                "tasks:\n  tests:\n    exec: {{ shell: echo t }}\n  deploy:\n    after: {{ tests: {dead} }}\n    exec: {{ shell: echo d }}\n"
+            );
+            for mode in [ParseMode::Strict, ParseMode::Lenient] {
+                let err = parse(&yaml, FileId::new(0), mode).expect_err("dead spelling");
+                let SchemaError::UnknownAfterPredicate {
+                    message, predicate, ..
+                } = &err
+                else {
+                    panic!("expected UnknownAfterPredicate, got {err:?}");
+                };
+                let to = nika_vocab::after::dead_spelling_respelling(dead).expect("dead");
+                assert_eq!(predicate, dead);
+                assert!(message.contains("dead predicate spelling"), "{message}");
+                assert!(message.contains(&format!("respell as `{to}`")), "{message}");
+                assert!(message.contains("nika check --fix"), "{message}");
+                assert_eq!(err.spec_code().to_string(), "NIKA-DAG-005");
+            }
+        }
+    }
+
+    #[test]
+    fn unknown_after_predicate_names_the_closed_outcome_class_set() {
+        // A genuinely-unknown predicate gets the closed-set text (never
+        // the dead-spelling teaching) — conformance dag-topology/016.
+        let yaml = "tasks:\n  t:\n    exec: { shell: echo t }\n  d:\n    after: { t: passed }\n    exec: { shell: echo d }\n";
+        let err = parse_strict(yaml).expect_err("unknown predicate");
+        let SchemaError::UnknownAfterPredicate { message, .. } = &err else {
+            panic!("expected UnknownAfterPredicate, got {err:?}");
+        };
+        assert!(message.contains("is not a predicate"), "{message}");
+        assert!(
+            message.contains("success · failure · skipped · terminal"),
+            "{message}"
+        );
+        assert_eq!(err.spec_code().to_string(), "NIKA-DAG-005");
     }
 
     #[test]

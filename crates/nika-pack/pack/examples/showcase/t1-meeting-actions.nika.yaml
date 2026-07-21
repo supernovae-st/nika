@@ -65,7 +65,7 @@ tasks:
 
   trace:
     after:
-      extract: succeeded
+      extract: success
     invoke:
       tool: "nika:log"
       args:

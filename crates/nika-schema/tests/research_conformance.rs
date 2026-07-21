@@ -36,7 +36,7 @@ fn aara_substitution_lemma_holds() {
     for n in [1usize, 2, 5, 9] {
         let items: Vec<String> = (0..n).map(|i| format!("\"f{i}\"")).collect();
         let concrete = run(&wf(&format!(
-            "  src:\n    exec: {{ command: [\"ls\"] }}\n  fan:\n    after: {{ src: succeeded }}\n    for_each: [{}]\n    retry: {{ max_attempts: 2 }}\n    infer: {{ prompt: \"x ${{{{ item }}}}\", max_tokens: 200 }}\n",
+            "  src:\n    exec: {{ command: [\"ls\"] }}\n  fan:\n    after: {{ src: success }}\n    for_each: [{}]\n    retry: {{ max_attempts: 2 }}\n    infer: {{ prompt: \"x ${{{{ item }}}}\", max_tokens: 200 }}\n",
             items.join(", ")
         )));
         let n64 = n as u64;
@@ -67,14 +67,14 @@ fn aara_substitution_lemma_holds() {
 fn brent_envelope_span_versus_work() {
     // chain: span == work
     let chain = run(&wf(
-        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    retry: { max_attempts: 4 }\n    exec: { command: [\"true\"] }\n",
+        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    retry: { max_attempts: 4 }\n    exec: { command: [\"true\"] }\n",
     ));
     assert_eq!(chain.certificate.span_attempts, 5);
     assert_eq!(chain.certificate.task_attempts.constant, 5);
 
     // wide DAG: span < work (the parallelism IS the gap)
     let wide = run(&wf(
-        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  d:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
+        "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  d:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n",
     ));
     assert_eq!(wide.certificate.span_attempts, 2);
     assert_eq!(wide.certificate.task_attempts.constant, 4);
@@ -83,7 +83,7 @@ fn brent_envelope_span_versus_work() {
     for tasks in [
         "  a:\n    exec: { command: [\"true\"] }\n",
         "  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { xs: \"${{ tasks.a.output.xs }}\" }\n    for_each: ${{ with.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 10 }\n",
-        "  a:\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  c:\n    after: { b: succeeded }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
+        "  a:\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    after: { b: success }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
     ] {
         let r = run(&wf(tasks));
         assert!(
@@ -142,7 +142,7 @@ fn reach_dead_claims_agree_with_a_brute_force_oracle() {
 #[test]
 fn certifying_audit_rejects_every_systematic_tamper() {
     let yaml = wf(
-        "  a:\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n  fan:\n    with: { xs: \"${{ tasks.a.output.xs }}\" }\n    for_each: ${{ with.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 100 }\n  save:\n    after: { fan: succeeded }\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"y\" } }\n",
+        "  a:\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n  fan:\n    with: { xs: \"${{ tasks.a.output.xs }}\" }\n    for_each: ${{ with.xs }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 100 }\n  save:\n    after: { fan: success }\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"y\" } }\n",
     );
     let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
     let honest = check(&parsed).certificate;

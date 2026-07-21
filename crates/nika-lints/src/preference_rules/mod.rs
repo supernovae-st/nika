@@ -137,7 +137,7 @@ fn rule_008_interpolated_string_command(tasks: &[&RawTask], lints: &mut Vec<Lint
 /// `one-obvious-way/010` — an `after: {a: terminal}` beside a VALUE
 /// edge to the same producer is a non-tightening restatement: edges
 /// compose by intersection, and {success, skipped} ∩ terminal is the
-/// value edge alone (spec 03 §one obvious way). Tighten to `succeeded`
+/// value edge alone (spec 03 §one obvious way). Tighten to `success`
 /// or drop the entry.
 fn rule_010_non_tightening_after(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
     use nika_schema::analyzer::edges::{EdgeKind, role_of_field, task_refs_in_value};
@@ -166,7 +166,7 @@ fn rule_010_non_tightening_after(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
                         t = target.value
                     ),
                     format!(
-                        "drop the entry or tighten to `after: {{{t}: succeeded}}`",
+                        "drop the entry or tighten to `after: {{{t}: success}}`",
                         t = target.value
                     ),
                 ));
@@ -321,7 +321,7 @@ fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
         }
         let id = task.id.value.as_str();
         // A dependent ACKNOWLEDGES the possible skip when it tightens
-        // the gate (`after: {id: succeeded}` — skip cancels it) or its
+        // the gate (`after: {id: success}` — skip cancels it) or its
         // `when:` reads a binding bound to this producer (the null test
         // being the canonical form · spec 03 §gate algebra).
         let mut unguarded: Vec<&str> = Vec::new();
@@ -349,7 +349,7 @@ fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
                 p == id
                     && matches!(
                         kind,
-                        EdgeKind::Control(nika_schema::types::AfterPredicate::Succeeded)
+                        EdgeKind::Control(nika_schema::types::AfterPredicate::Success)
                     )
             });
             let when_reads_binding = when_expr(t).is_some_and(|expr| {
@@ -375,16 +375,16 @@ fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
                 unguarded.join(", ")
             ),
             format!(
-                "tighten the dependent's gate (`after: {{{id}: succeeded}}`) or test the \
+                "tighten the dependent's gate (`after: {{{id}: success}}`) or test the \
                  binding in its `when:` (`${{{{ with.<name> != null }}}}`)"
             ),
         ));
     }
 }
 
-/// 003 + 004 — failure-path tasks (`after: {a: failed}` · W2).
+/// 003 + 004 — failure-path tasks (`after: {a: failure}` · W2).
 ///
-/// 003 · an `after: {a: failed}` task whose body is STRUCTURALLY
+/// 003 · an `after: {a: failure}` task whose body is STRUCTURALLY
 /// IDENTICAL to `a` re-implements `retry:`.
 ///
 /// 004 · the same failure path around a pure value-producer
@@ -400,7 +400,7 @@ fn rule_003_004_failure_guarded_tasks(
         let checked: Vec<String> = task
             .after
             .iter()
-            .filter(|(_t, pred)| matches!(pred.value, nika_schema::types::AfterPredicate::Failed))
+            .filter(|(_t, pred)| matches!(pred.value, nika_schema::types::AfterPredicate::Failure))
             .map(|(t, _)| t.value.clone())
             .collect();
         let mut fired_003 = false;
@@ -414,7 +414,7 @@ fn rule_003_004_failure_guarded_tasks(
                     task.id.value.clone(),
                     task.id.span,
                     format!(
-                        "failure-path duplicate of `{dep}` — an `after: {{{dep}: failed}}` \
+                        "failure-path duplicate of `{dep}` — an `after: {{{dep}: failure}}` \
                          copy re-implements retry"
                     ),
                     format!("put `retry:` on `{dep}` — the ONE retry shape"),

@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn each_task_is_a_child_detailed_with_its_verb() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch_it:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n  think:\n    after: { fetch_it: succeeded }\n    infer: { prompt: \"hi\", max_tokens: 10 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch_it:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n  think:\n    after: { fetch_it: success }\n    infer: { prompt: \"hi\", max_tokens: 10 }\n";
         let syms = document_symbols(yaml);
         let children = syms[0].children.as_ref().expect("children present");
         assert_eq!(children.len(), 2, "two tasks");

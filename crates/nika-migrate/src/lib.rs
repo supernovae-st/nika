@@ -21,13 +21,15 @@
 //! handled — the parser's teaching names the file and a human decides
 //! (never guess; the conformance suite pins the refusal).
 //!
-//! The crate carries three waves — `w1` (the map), `w2` (equivalence-or-stop
-//! flow migration) and [`esplit()`](fn@esplit) (the C2 four-authority
-//! flag-day). Split out
+//! The crate carries four waves — `w1` (the map), `w2` (equivalence-or-stop
+//! flow migration), [`esplit()`](fn@esplit) (the C2 four-authority
+//! flag-day) and [`predicates()`](fn@predicates) (the R5 outcome-class
+//! respelling). Split out
 //! of `nika-cli` per the size-cap discipline
 //! (D-2026-07-09-N1 · one architectural unit, N workspace members · the
 //! `nika-source` / `nika-vocab` precedent): the CLI's `fix` verb calls
-//! `nika_migrate::w1` / `w2` / `esplit` unchanged. The migrations are
+//! `nika_migrate::w1` / `w2` / `esplit` / `predicates` unchanged. The
+//! migrations are
 //! pure transforms; the `repair` module carries the byte-level mechanics
 //! of applying them (whole-word splice · atomic publish · `std` only).
 //! Zero deps.
@@ -44,9 +46,11 @@
 )]
 
 mod esplit;
+mod predicates;
 pub mod repair;
 
 pub use esplit::{EsplitOutcome, esplit};
+pub use predicates::predicates;
 
 /// Apply the W1 migration. `Some(new)` when the document changed,
 /// `None` when it is already in the new form (idempotence by contract).
@@ -170,7 +174,7 @@ fn task_item_to_key(line: &str) -> Option<String> {
 //       path moves its eval outside `on_error:` armor → GO only without
 //       armor.
 //   R2  a bare (unreferenced) dep whose producer provably CANNOT skip
-//       (no when: · no on_error.skip · no for_each) → `after: {d: succeeded}`.
+//       (no when: · no on_error.skip · no for_each) → `after: {d: success}`.
 //   R3  a dep already read through `with:` (value-role) simply leaves.
 //
 //   STOP classes: S1 skippable producer on a bare dep · S2 `when:`
@@ -700,7 +704,7 @@ fn scan_task_body(
         if is_when {
             stops.push(format!(
                 "[S2] task `{id}`: when: references tasks.* — pre-W2 it REPLACED \
-                 the gate; candidates: after: {{x: succeeded}} (strict) · \
+                 the gate; candidates: after: {{x: success}} (strict) · \
                  after: {{x: terminal}} + a .status binding (always/branch) · \
                  hoist the value into with: — each changes skipped-vs-cancelled \
                  observability differently; a human picks"
@@ -781,7 +785,7 @@ fn decide_deps(
             stops.push(format!(
                 "[S3] task `{id}`: dep `{d}` is backed only by an observation \
                  reference — the observation edge admits on MORE states than the \
-                 old gate; keep tightness via after: {{{d}: succeeded}} or accept \
+                 old gate; keep tightness via after: {{{d}: success}} or accept \
                  the wider admission by hand"
             ));
             continue;
@@ -789,13 +793,13 @@ fn decide_deps(
         if can_skip.get(d).copied().unwrap_or(false) {
             stops.push(format!(
                 "[S1] task `{id}`: bare dep `{d}` on a producer that may SKIP — \
-                 the old gate ran on skipped; after: {{{d}: succeeded}} cancels \
+                 the old gate ran on skipped; after: {{{d}: success}} cancels \
                  there · after: {{{d}: terminal}} also runs on failure · a value \
                  binding keeps {{success, skipped}} but imports data (W2-Q1)"
             ));
             continue;
         }
-        after_entries.push(format!("      {d}: succeeded"));
+        after_entries.push(format!("      {d}: success"));
     }
     after_entries
 }
@@ -978,5 +982,17 @@ mod tests {
         let old = "nika: v1\nworkflow: t\ntasks:\n  - depends_on: []\n    id: probe\n";
         let new = w1(old).expect("workflow line still migrates");
         assert!(new.contains("    id: probe"), "ambiguous item untouched");
+    }
+
+    #[test]
+    fn w2_emits_the_r5_predicate_spelling() {
+        // The codemod never emits a spelling its own parser refuses —
+        // post-R5 the provably-strict control edge is `after: {d: success}`.
+        let old = "nika: v1\nworkflow: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n  b:\n    depends_on: [a]\n    exec:\n      command: [\"true\"]\n";
+        let W2Outcome::Changed(new) = w2(old) else {
+            panic!("provably-strict control migrates");
+        };
+        assert!(new.contains("    after:\n      a: success\n"), "{new}");
+        assert!(!new.contains("succeeded"), "{new}");
     }
 }

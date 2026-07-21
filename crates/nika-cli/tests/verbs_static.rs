@@ -37,7 +37,7 @@ tasks:
 
   fan:
     after:
-      gather: succeeded
+      gather: success
     for_each: ["a", "b", "c"]
     infer:
       prompt: "Classify · ${{ item }}"
@@ -47,14 +47,14 @@ tasks:
     with:
       gathered: ${{ tasks.gather.output }}
     after:
-      probe: succeeded
+      probe: success
     infer:
       prompt: "Summarize · ${{ with.gathered }}"
       max_tokens: 800
 
   notify:
     after:
-      think: succeeded
+      think: success
     when: ${{ const.source != '' }}
     exec:
       command: ["echo", "done"]
@@ -187,7 +187,7 @@ fn graph_mermaid_and_dot_derive_from_the_projection() {
 #[test]
 fn graph_refuses_a_dag_broken_file_with_exit_2() {
     // think depends on a task that doesn't exist → conformance fails.
-    let broken = WORKFLOW.replace("probe: succeeded", "ghost: succeeded");
+    let broken = WORKFLOW.replace("probe: success", "ghost: success");
     let path = fixture_path("graph-broken.nika.yaml", &broken);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::FILE);
@@ -303,7 +303,7 @@ fn check_json_conformance_carries_severity_and_docs_url() {
     // The agent-loop wire: every conformance finding stamps its own
     // severity + per-code docs page (the rustc --explain move, machine
     // form). Consumers link the code without re-deriving anything.
-    let broken = WORKFLOW.replace("probe: succeeded", "ghost: succeeded");
+    let broken = WORKFLOW.replace("probe: success", "ghost: success");
     let path = fixture_path("check-severity.nika.yaml", &broken);
     let out = check::run(&path, true, false, None, PLAIN);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");

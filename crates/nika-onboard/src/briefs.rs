@@ -68,7 +68,7 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 - One verb per task · the verb IS the task key (never a `verb:` field).
 - `tasks.X` crosses a task boundary only through `with:` (the binding IS the
   data edge — the body reads `${{ with.<name> }}`, never `tasks.*` directly)
-  or `after: {X: succeeded}` (control · predicates `succeeded` · `failed` ·
+  or `after: {X: success}` (control · predicates `success` · `failure` ·
   `skipped` · `terminal`). `depends_on` is dead (`check --fix` migrates).
 - Quote any YAML scalar that STARTS with `${{` (an unquoted leading `${{`
   breaks the parse).
@@ -145,7 +145,7 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
 - Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
-- Edges are declared, never restated: a `with:` binding reading `${{ tasks.id.output }}` IS the data edge · `after: { task_id: succeeded }` is the control edge (predicates: `succeeded` · `failed` · `skipped` · `terminal`). `depends_on` is dead — `nika check --fix` migrates it.
+- Edges are declared, never restated: a `with:` binding reading `${{ tasks.id.output }}` IS the data edge · `after: { task_id: success }` is the control edge (predicates: `success` · `failure` · `skipped` · `terminal`). `depends_on` is dead — `nika check --fix` migrates it.
 - Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
 - After every edit, run `nika check <file>` — `--fix` heals the mechanical
   renames, the diagnostics teach the rest.
@@ -174,7 +174,7 @@ Rules the validator enforces:
 - Envelope `nika: v1` · one verb per task (`infer` · `exec` · `invoke` ·
   `agent`) · the verb IS the task key.
 - `tasks.X` is read at the boundary only: `with: { alias: ${{ tasks.X.output }} }`
-  is the data edge · `after: { X: succeeded }` orders without data · the
+  is the data edge · `after: { X: success }` orders without data · the
   body reads `${{ with.alias }}`.
 - `invoke` arguments live under `args:` · secrets come from the
   environment (`${{ secrets.X }}`) — never inline.

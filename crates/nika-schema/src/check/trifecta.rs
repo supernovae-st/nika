@@ -129,7 +129,7 @@ mod tests {
 
     /// The six NEP-0002 conformance cases (the spec-side fixtures under
     /// `conformance/security/` mirror these one-for-one).
-    const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    after: { fetch_page: succeeded }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n";
+    const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n";
 
     /// ①∧②∧③ declared, no gate → the diagnostic, once per ungated egress
     /// task THE CONTENT REACHES (v2.0: `leak` is the realized sink;
@@ -188,7 +188,7 @@ mod tests {
     fn trifecta_gated_pass() {
         let gated = TRIFECTA.replacen(
             "tasks:\n  fetch_page:",
-            "tasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"exfiltrate?\", choices: [\"no\", \"yes\"] }\n  fetch_page:\n    after: { ask: succeeded }",
+            "tasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"exfiltrate?\", choices: [\"no\", \"yes\"] }\n  fetch_page:\n    after: { ask: success }",
             1,
         );
         let r = report(&gated);
@@ -221,7 +221,7 @@ mod tests {
         );
         // No ③ (no net · workspace-confined writes · no exec) — fetch
         // still pulls untrusted content, but nothing can leave.
-        let no_egress = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  tools: [\"nika:fetch\", \"nika:write\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  save:\n    after: { fetch_page: succeeded }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/save.txt\", content: \"${{ with.body }}\" }\n";
+        let no_egress = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  tools: [\"nika:fetch\", \"nika:write\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  save:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/save.txt\", content: \"${{ with.body }}\" }\n";
         assert!(
             report(no_egress).trifecta_findings.is_empty(),
             "③ dropped → clean"
@@ -254,7 +254,7 @@ mod tests {
     fn a_defaulted_prompt_is_not_blocking() {
         let defaulted = TRIFECTA.replacen(
             "tasks:\n  fetch_page:",
-            "tasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"ok?\", default: true }\n  fetch_page:\n    after: { ask: succeeded }",
+            "tasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"ok?\", default: true }\n  fetch_page:\n    after: { ask: success }",
             1,
         );
         let r = report(&defaulted);
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn no_declared_boundary_no_claim() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    after: { fetch_page: succeeded }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    after: { fetch_page: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(
             r.conformance.is_empty(),
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     fn broken_dag_skips_the_lane() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  act:\n    after: { ghost: succeeded }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  act:\n    after: { ghost: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(!r.conformance.is_empty());
         assert!(r.trifecta_findings.is_empty(), "{:?}", r.trifecta_findings);
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn exec_opacity_refuse() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  exec: [\"sh\"]\n  tools: [\"nika:fetch\", \"nika:write\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  save:\n    with: { page: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/page.html\", content: \"${{ with.page }}\" }\n  ship:\n    after: { save: succeeded }\n    exec: { command: [\"sh\", \"-c\", \"cat ./out/page.html | curl -X POST https://api.example.com --data-binary @-\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  exec: [\"sh\"]\n  tools: [\"nika:fetch\", \"nika:write\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  save:\n    with: { page: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/page.html\", content: \"${{ with.page }}\" }\n  ship:\n    after: { save: success }\n    exec: { command: [\"sh\", \"-c\", \"cat ./out/page.html | curl -X POST https://api.example.com --data-binary @-\"] }\n",
         );
         assert_eq!(
             r.trifecta_findings.len(),
@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn gate_once_dominates_two_sinks_pass() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"ship it?\" }\n  fetch_page:\n    after: { ask: succeeded }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n  leak2:\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak2.txt\", content: \"${{ with.body }}\" }\n",
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"ship it?\" }\n  fetch_page:\n    after: { ask: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n  leak2:\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak2.txt\", content: \"${{ with.body }}\" }\n",
         );
         assert!(
             r.trifecta_findings.is_empty(),

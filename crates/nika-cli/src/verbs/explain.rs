@@ -23,9 +23,8 @@ const DOCS_ERRORS_URL: &str = "https://docs.nika.sh/errors";
 const DOCS_ERRORS_TEXT: &str = "docs.nika.sh/errors";
 
 /// The `nika explain <code>` verb. Accepts `NIKA-440`, `NIKA-DAG-002`,
-/// or the bare forms (`440` · `DAG-002`). The theme comes from the global
-/// `--color`/`--hyperlink` chain: on a TTY the doc-site reference rides an
-/// OSC-8 hyperlink; a piped explain keeps its exact bytes.
+/// or the bare forms (`440` · `DAG-002`). On a TTY the doc-site
+/// reference rides an OSC-8 hyperlink; a piped explain keeps its bytes.
 #[must_use]
 pub fn run(wire: &str, theme: Theme) -> VerbOutput {
     // The seam (`Theme::link` → `format::osc8`): text unchanged, escapes
@@ -124,8 +123,8 @@ fn retired_row(code: &str) -> Option<String> {
 }
 
 /// The ENGINE-side actionable fix for a spec code, when this binary
-/// ships one (the canon row states the FAILURE — the SSOT never carries
-/// per-CLI affordances, so the flag lives here with the flag itself).
+/// ships one (the canon row states the FAILURE — per-CLI affordances
+/// live here, never in the SSOT).
 fn cli_fix_hint(code: &str) -> Option<&'static str> {
     match code {
         // F4: the unresolved-vars class is fixable from the CLI.
@@ -152,12 +151,13 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
             "`depends_on` is dead since W2 — a data read becomes a `with:` \
              binding (the binding IS the edge · the body reads \
              `${{ with.<name> }}`), a pure ordering becomes `after: \
-             {<task>: succeeded}` (or `terminal` for the always-pattern); \
+             {<task>: success}` (or `terminal` for the always-pattern); \
              `nika check --fix` migrates the provable cases",
         ),
         "NIKA-DAG-005" => Some(
-            "the `after:` predicate set is closed — pick one of \
-             `succeeded` · `failed` · `skipped` · `terminal`",
+            "the `after:` predicate set is closed — pick one of `success` · \
+             `failure` · `skipped` · `terminal` (`nika check --fix` respells \
+             the dead R5 spellings)",
         ),
         "NIKA-DAG-006" => Some(
             "the task is statically dead — an incoming edge's pass-set \

@@ -575,10 +575,10 @@ tasks:
     when: "${{ with.s == 'failure' }}"
     invoke: { tool: "nika:jq", args: { input: { x: 2 }, expression: ".x" } }
   doomed:
-    after: { seed: succeeded }
+    after: { seed: success }
     exec: { command: ["false"] }
   downstream:
-    after: { doomed: succeeded }
+    after: { doomed: success }
     invoke: { tool: "nika:jq", args: { input: { x: 3 }, expression: ".x" } }
 "#;
     let wf = nika_schema::parse(

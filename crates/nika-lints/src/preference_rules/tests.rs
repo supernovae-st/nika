@@ -6,7 +6,7 @@ use nika_schema::{FileId, ParseMode, parse};
 use serde_json::{Value, json};
 
 // Fixtures speak W2 « the flow » — `depends_on:` is a dead form
-// (NIKA-SCHEMA parse error): a bare dep is `after: {x: succeeded}` ·
+// (NIKA-SCHEMA parse error): a bare dep is `after: {x: success}` ·
 // a data read is a `with:` binding consumed as `${{ with.<name> }}` ·
 // `when:` never references `tasks.*` (NIKA-VAR-021). The yaml scenarios
 // mirror the spec conformance corpus (`conformance/tests/lints/`).
@@ -180,7 +180,7 @@ fn rule_002_fires_for_an_unguarded_dependent() {
     // body→() and the on_error-skip match guard both silence the
     // expected single /002. `b` reads `a`'s VALUE through a `with:`
     // binding and acknowledges the possible skip neither way (no
-    // `after: {a: succeeded}` tightening · no `when:` over the binding).
+    // `after: {a: success}` tightening · no `when:` over the binding).
     let yaml = "\
 nika: v1
 workflow:
@@ -206,7 +206,7 @@ tasks:
 
 #[test]
 fn rule_002_silent_when_the_dependent_tightens_the_gate() {
-    // Acknowledgement arm 1 — `after: {a: succeeded}` cancels the
+    // Acknowledgement arm 1 — `after: {a: success}` cancels the
     // dependent on skip, so the changed contract is decided. The
     // tightened-check mutant (dropping the Control(Succeeded) match)
     // turns this into a spurious /002.
@@ -221,7 +221,7 @@ tasks:
   b:
     with:
       data: \"${{ tasks.a.output }}\"
-    after: { a: succeeded }
+    after: { a: success }
     exec: { command: [\"./b.sh\", \"${{ with.data }}\"] }
 ";
     assert!(
@@ -284,7 +284,7 @@ tasks:
 #[test]
 fn rule_003_fires_on_a_structural_duplicate() {
     // `==`→`!=` on the fingerprint compare: /003 fires when the
-    // `after: {build: failed}` task's action fingerprint EQUALS the
+    // `after: {build: failure}` task's action fingerprint EQUALS the
     // guarded producer's. The mutant inverts it: identical actions ⇒ no
     // /003 (and the exec body is not a value-producer ⇒ no /004 either).
     let yaml = "\
@@ -295,7 +295,7 @@ tasks:
   build:
     exec: { command: [\"./build.sh\"] }
   rebuild:
-    after: { build: failed }
+    after: { build: failure }
     exec: { command: [\"./build.sh\"] }
 ";
     let three = lints_for(yaml, "one-obvious-way/003");
@@ -317,7 +317,7 @@ tasks:
       tool: \"nika:fetch\"
       args: { url: \"https://example.com/data\" }
   a_retry:
-    after: { a: failed }
+    after: { a: failure }
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://example.com/data\" }
@@ -334,7 +334,7 @@ tasks:
 #[test]
 fn rule_003_silent_when_bodies_differ() {
     // Real failure-path WORK (a notification · a different tool) is the
-    // legitimate use of `after: {a: failed}` — neither /003 (bodies
+    // legitimate use of `after: {a: failure}` — neither /003 (bodies
     // differ) nor /004 (not a mere value) may fire.
     let yaml = "\
 nika: v1
@@ -346,7 +346,7 @@ tasks:
       tool: \"nika:fetch\"
       args: { url: \"https://example.com/data\" }
   report:
-    after: { a: failed }
+    after: { a: failure }
     invoke:
       tool: \"nika:notify\"
       args: { channel: webhook, target: \"https://hooks.example.com\", message: \"a failed\" }
@@ -363,7 +363,7 @@ tasks:
 
 #[test]
 fn rule_004_fires_on_an_echo_fallback_task() {
-    // A template-free argv `echo` behind `after: {a: failed}` is a mere
+    // A template-free argv `echo` behind `after: {a: failure}` is a mere
     // fallback VALUE — the route belongs in `a`'s `on_error: recover:`.
     let yaml = "\
 nika: v1
@@ -373,7 +373,7 @@ tasks:
   a:
     exec: { command: [\"./a.sh\"] }
   fallback:
-    after: { a: failed }
+    after: { a: failure }
     exec: { command: [\"echo\", \"default-value\"] }
 ";
     let four = lints_for(yaml, "one-obvious-way/004");
@@ -395,7 +395,7 @@ tasks:
       tool: \"nika:fetch\"
       args: { url: \"https://example.com/data\" }
   fallback:
-    after: { a: failed }
+    after: { a: failure }
     invoke:
       tool: \"nika:jq\"
       args: { input: { count: 0 }, expression: \".\" }
@@ -424,7 +424,7 @@ tasks:
       tool: \"nika:fetch\"
       args: { url: \"https://primary.example.com\" }
   mirror:
-    after: { a: failed }
+    after: { a: failure }
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://mirror.example.com\" }
@@ -453,7 +453,7 @@ tasks:
   a:
     exec: { command: [\"echo\", \"hi\"] }
   b:
-    after: { a: succeeded }
+    after: { a: success }
     invoke: { tool: \"nika:jq\", args: { filter: \".x\" } }
 ";
     assert!(
@@ -598,7 +598,7 @@ tasks:
     assert_eq!(ten[0].task_id, "b");
     assert!(ten[0].message.contains("terminal"), "{}", ten[0].message);
     assert!(
-        ten[0].suggestion.contains("succeeded"),
+        ten[0].suggestion.contains("success"),
         "{}",
         ten[0].suggestion
     );
@@ -631,7 +631,7 @@ tasks:
 
 #[test]
 fn rule_010_silent_on_a_tightening_after() {
-    // `after: {a: succeeded}` beside the value edge TIGHTENS the gate
+    // `after: {a: success}` beside the value edge TIGHTENS the gate
     // (skip no longer admits) — the canonical acknowledgement, never
     // flagged. Kills a would-be any-predicate mutant of the Terminal
     // match.
@@ -645,7 +645,7 @@ tasks:
   b:
     with:
       data: \"${{ tasks.a.output }}\"
-    after: { a: succeeded }
+    after: { a: success }
     exec: { command: [\"./b.sh\", \"${{ with.data }}\"] }
 ";
     assert!(
@@ -771,7 +771,7 @@ tasks:
 fn rule_007_fires_on_three_sequential_exec_shards() {
     // body→(), deleting the `Some(&[j])` arm of `next` (no chain edges ⇒
     // every chain is length 1 ⇒ never fires), and the `chain.len() < 3`
-    // swaps: three single-producer exec shards (`after: {…: succeeded}`
+    // swaps: three single-producer exec shards (`after: {…: success}`
     // links) differing in one token fire exactly one /007 on the head.
     let yaml = "\
 nika: v1
@@ -781,10 +781,10 @@ tasks:
   shard1:
     exec: { command: [\"./process.sh\", \"part1\"] }
   shard2:
-    after: { shard1: succeeded }
+    after: { shard1: success }
     exec: { command: [\"./process.sh\", \"part2\"] }
   shard3:
-    after: { shard2: succeeded }
+    after: { shard2: success }
     exec: { command: [\"./process.sh\", \"part3\"] }
 ";
     let seven = lints_for(yaml, "one-obvious-way/007");
@@ -805,10 +805,10 @@ tasks:
   page1:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/1\" } }
   page2:
-    after: { page1: succeeded }
+    after: { page1: success }
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/2\" } }
   page3:
-    after: { page2: succeeded }
+    after: { page2: success }
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/3\" } }
 ";
     let seven = lints_for(yaml, "one-obvious-way/007");
@@ -830,7 +830,7 @@ tasks:
   shard1:
     exec: { command: [\"./process.sh\", \"part1\"] }
   shard2:
-    after: { shard1: succeeded }
+    after: { shard1: success }
     exec: { command: [\"./process.sh\", \"part2\"] }
 ";
     assert!(
@@ -852,10 +852,10 @@ tasks:
   fetch:
     exec: { command: [\"./fetch.sh\"] }
   parse:
-    after: { fetch: succeeded }
+    after: { fetch: success }
     exec: { command: [\"./parse.sh\", \"--strict\", \"input.json\"] }
   report:
-    after: { parse: succeeded }
+    after: { parse: success }
     exec: { command: [\"./report.sh\"] }
 ";
     assert!(

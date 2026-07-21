@@ -9,7 +9,7 @@
 //!
 //! ```text
 //!     ┌─ demo.nika.yaml:9:19
-//!     │   after: { extarct: succeeded }
+//!     │   after: { extarct: success }
 //!     │                ^^^^^^^
 //! ```
 //!
@@ -102,8 +102,7 @@ pub(crate) fn render_snippet(
 mod tests {
     use super::*;
 
-    const SRC: &str =
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n";
+    const SRC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n";
 
     fn snip(span: ByteSpan, unicode: bool) -> String {
         let mut out = String::new();
@@ -124,7 +123,7 @@ mod tests {
         let s = snip(ByteSpan::new(ghost as u32, (ghost + 5) as u32), true);
         let expected = concat!(
             "          ┌─ w.nika.yaml:6:14\n",
-            "          │       after: { ghost: succeeded }\n",
+            "          │       after: { ghost: success }\n",
             "          │                ^^^^^\n",
         );
         assert_eq!(s, expected);

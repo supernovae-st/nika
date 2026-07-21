@@ -538,7 +538,7 @@ workflow:
   id: t
 tasks:
   a:
-    after: { ghost: succeeded }
+    after: { ghost: success }
     exec: { command: [\"echo\", \"hi\"] }
 ",
         );
@@ -602,7 +602,7 @@ tasks:
     with: { content: "${{ tasks.extract.output.sumarry }}" }
     invoke: { tool: "nika:wrte", args: { path: "./out.md", content: "${{ with.content }}" } }
   push:
-    after: { save: succeeded }
+    after: { save: success }
     exec: { command: ["cargo", "publish"] }
 "#;
         let wf = parse(broken, FileId::new(0), ParseMode::Strict).expect("parse");
@@ -664,10 +664,10 @@ workflow:
   id: cyclic
 tasks:
   a:
-    after: { b: succeeded }
+    after: { b: success }
     exec: { command: [\"x\"] }
   b:
-    after: { a: succeeded }
+    after: { a: success }
     exec: { command: [\"y\"] }
 ",
             FileId::new(0),
@@ -690,7 +690,7 @@ tasks:
     fn broken_dag_still_yields_every_dag_independent_finding() {
         // ONE round-trip: the agent gets the conformance violation AND
         // the tool typo AND the schema defect AND the hints, together.
-        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: succeeded }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
+        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: success }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
         let r = check_yaml(src);
         assert!(
             r.conformance.iter().any(|c| c.code == "NIKA-DAG-002"),
@@ -732,7 +732,7 @@ tasks:
         // Two independent check() runs over the same input must render
         // byte-identical JSON — pins the BTree-everywhere discipline (a
         // stray HashMap would randomize field/finding order run-to-run).
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: success }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let first = serde_json::to_string(&check(&wf)).expect("serialize");
         let second = serde_json::to_string(&check(&wf)).expect("serialize");

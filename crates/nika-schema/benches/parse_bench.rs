@@ -45,7 +45,7 @@ tasks:
             items: { type: string }
           count: { type: integer }
   report:
-    after: { extract: succeeded }
+    after: { extract: success }
     exec:
       shell: "report ${{ tasks.extract.output.entities }} (${{ tasks.extract.output.count }})"
 "#;
@@ -64,7 +64,7 @@ fn large_workflow(n: usize) -> String {
         s.push_str("  report_");
         s.push_str(&i.to_string());
         s.push_str(
-            ":\n    after: { extract: succeeded }\n    exec:\n      \
+            ":\n    after: { extract: success }\n    exec:\n      \
              command: [\"report\", \"${{ tasks.extract.output.entities }}\"]\n",
         );
     }

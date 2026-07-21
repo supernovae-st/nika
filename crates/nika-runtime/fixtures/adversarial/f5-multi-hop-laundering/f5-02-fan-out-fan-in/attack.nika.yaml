@@ -15,17 +15,17 @@ tasks:
       tool: "nika:fetch"
       args: { url: "https://api.example.com/data" }
   extract:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { page: "${{ tasks.fetch_page.output }}" }
     invoke:
       tool: "nika:jq"
       args: { expression: "fromjson | .headline", input: "${{ with.page }}" }
   summarize:
-    after: { fetch_page: succeeded }
+    after: { fetch_page: success }
     with: { page: "${{ tasks.fetch_page.output }}" }
     infer: { prompt: "tldr: ${{ with.page }}", max_tokens: 99 }
   broadcast:
-    after: { extract: succeeded, summarize: succeeded }
+    after: { extract: success, summarize: success }
     with:
       headline: "${{ tasks.extract.output }}"
       summary: "${{ tasks.summarize.output }}"

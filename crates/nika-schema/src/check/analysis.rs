@@ -459,7 +459,7 @@ mod tests {
         let dep_line = if deps.is_empty() {
             String::new()
         } else {
-            let entries: Vec<String> = deps.iter().map(|d| format!("{d}: succeeded")).collect();
+            let entries: Vec<String> = deps.iter().map(|d| format!("{d}: success")).collect();
             format!("    after: {{ {} }}\n", entries.join(", "))
         };
         format!("  {id}:\n{dep_line}    infer:\n      prompt: \"x\"\n")
@@ -613,7 +613,7 @@ mod tests {
     #[test]
     fn ordered_writers_are_not_a_race() {
         let yaml = format!(
-            "{HEADER}  first:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  second:\n    after: {{ first: succeeded }}\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
+            "{HEADER}  first:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  second:\n    after: {{ first: success }}\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
         );
         assert!(read(&yaml).conflicts.is_empty());
     }

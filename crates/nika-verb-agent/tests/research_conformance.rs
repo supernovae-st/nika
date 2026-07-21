@@ -332,7 +332,7 @@ workflow:
 tasks:
   a:
     after:
-      ghost: succeeded
+      ghost: success
     exec:
       command: ["echo", "x"]
 "#;

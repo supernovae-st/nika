@@ -4,7 +4,7 @@
 |---|---|
 | Status | **ADMITTED 2026-07-15** — a size-cap descent of `nika-cli`. W-COMP « the composition » added CLI surface that pushed `nika-cli` past the 15 000 prod-LOC hard cap; per the unit-target discipline (D-2026-07-09-N1, one architectural unit may span N workspace members — `nika-cli` stays the operator front door) the widest self-contained leaf descends. The `nika-source` / `nika-vocab` descents are the exact precedent. |
 | Layer | **L0** — pure `std`, zero I/O, zero async, zero deps. |
-| Design | The machine-applicable envelope migrations for `.nika.yaml` files, in two waves: `w1` (the map — `workflow: <scalar>` + `tasks:` sequence → `workflow:` object + task map, hoisting a stray top-level `description:`) and `w2` (equivalence-or-stop flow migration — `depends_on` + body `tasks.*` reads → `with:` bindings + `after:` predicates, stopping honestly with named diagnostics when the shape is ambiguous). These are the repairs `nika check --fix` applies when the parser refuses a dead-form document; the old form is repairable, never executable (there is no legacy parser path). Line-based and structure-aware: comments, blank lines and source order are preserved byte-for-byte outside the transformed shapes, and `w1` is idempotent by contract (a migrated document returns `None`). |
+| Design | The machine-applicable envelope migrations for `.nika.yaml` files, in four waves: `w1` (the map — `workflow: <scalar>` + `tasks:` sequence → `workflow:` object + task map, hoisting a stray top-level `description:`), `w2` (equivalence-or-stop flow migration — `depends_on` + body `tasks.*` reads → `with:` bindings + `after:` predicates, stopping honestly with named diagnostics when the shape is ambiguous), `esplit` (the C2 four-authority flag-day — `vars:` classified into `inputs:`/`const:`) and `predicates` (the R5 outcome-class respelling — `succeeded`→`success` · `failed`→`failure` in `after:` blocks, 1:1 mechanical). These are the repairs `nika check --fix` applies when the parser refuses a dead-form document; the old form is repairable, never executable (there is no legacy parser path). Line-based and structure-aware: comments, blank lines and source order are preserved byte-for-byte outside the transformed shapes, and every wave is idempotent by contract (a migrated document returns `None`/`Clean`). |
 | Name | `nika-migrate` (honest: the *migrations* the fix verb applies, not the fix verb itself). |
 | LOC budget | ≤15000 src (admitted at ~900 prod LOC). ≤1500/file, ≤100/fn. |
 | Deps | none — pure `std` string transforms (`std::collections::BTreeSet` for the W2 binding-name allocator). |
@@ -44,11 +44,22 @@ pub enum W2Outcome {
 
 /// Apply the W2 (equivalence-or-stop) migration.
 pub fn w2(source: &str) -> W2Outcome;
+
+/// The E-split verdict (changed-or-stop, plus the idempotence class).
+pub enum EsplitOutcome { /* Changed(String, Vec<String>) · Clean · Stop(Vec<String>) */ }
+
+/// Apply the C2 E-split codemod (`vars:` → `inputs:`/`const:`).
+pub fn esplit(source: &str) -> EsplitOutcome;
+
+/// Apply the R5 predicate codemod (`succeeded`→`success` ·
+/// `failed`→`failure` in `after:` blocks). `None` = idempotent-clean.
+pub fn predicates(source: &str) -> Option<String>;
 ```
 
 Everything else in the crate (the line scanners, the surgery planner, the
-island/deps/with analysis) is private — the two functions and the one enum
-are the whole surface the `fix` verb names.
+island/deps/with analysis, the flow/block value flippers) is private — the
+functions and the two verdict enums are the whole surface the `fix` verb
+names.
 
 ## 3 · Gates
 

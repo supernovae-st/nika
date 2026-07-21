@@ -825,7 +825,7 @@ mod tests {
     /// ASCII parity (`ok audited` · `>=`).
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
-        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: succeeded\n    exec: { command: [\"echo\", \"bye\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains("✔ audited · 2 tasks · 2 waves · permits none · est ≥$0.0000 · 1 hint"),
@@ -854,7 +854,7 @@ mod tests {
     fn plan_prints_wave_membership_with_verbs_and_targets() {
         let text = checked_text(
             "plan-membership.nika.yaml",
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: succeeded\n    exec:\n      command: [\"echo\", \"x\"]\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: success\n    exec:\n      command: [\"echo\", \"x\"]\n",
             true,
         );
         assert!(text.contains("wave 1"), "membership renders: {text}");

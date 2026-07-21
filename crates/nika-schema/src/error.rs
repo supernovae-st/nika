@@ -157,7 +157,7 @@ pub enum SchemaError {
     /// control through `after:` predicates (spec `03-dag.md`
     /// §`depends_on` · `check --fix` migrates the provable cases).
     #[error(
-        "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: succeeded}}` (`nika check --fix` migrates the provable cases)"
+        "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` migrates the provable cases)"
     )]
     W2DependsOnField {
         /// The task (named by its map key).
@@ -168,12 +168,11 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// W2 · an `after:` predicate outside the closed set (spec
-    /// `03-dag.md` §after · `NIKA-DAG-005`).
-    #[error(
-        "task `{task}` after.{target}: `{predicate}` is not a predicate — the set is closed: succeeded · failed · skipped · terminal"
-    )]
+    /// W2 · an out-of-set `after:` predicate (03 §after · `NIKA-DAG-005` · R5 dead spellings teach).
+    #[error("{message}")]
     UnknownAfterPredicate {
+        /// The refusal text (dead-spelling teaching or the closed set).
+        message: String,
         /// The declaring task.
         task: String,
         /// The producer entry carrying the bad predicate.
@@ -1015,6 +1014,7 @@ fn analysis_level_variants() -> Vec<SchemaError> {
             span: None,
         },
         SchemaError::UnknownAfterPredicate {
+            message: String::new(),
             task: String::new(),
             target: String::new(),
             predicate: String::new(),

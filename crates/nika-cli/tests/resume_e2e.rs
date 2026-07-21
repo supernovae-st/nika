@@ -265,7 +265,7 @@ tasks:
     exec: { command: ["echo", "staged"] }
   approve:
     after:
-      prep: succeeded
+      prep: success
     invoke:
       tool: "nika:prompt"
       args: { mode: "input", message: "ship it?" }

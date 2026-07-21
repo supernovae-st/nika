@@ -6,7 +6,7 @@
 //! When the cursor sits on a task REFERENCE, jump to the task DEFINITION
 //! (its `id`). Two reference shapes are resolved in v0.1 ·
 //!
-//! 1. an `after:` target (`after: { extract: succeeded }` → the `extract`
+//! 1. an `after:` target (`after: { extract: success }` → the `extract`
 //!    task's id), resolved from the parser's own item spans.
 //! 2. a `tasks.<id>` chain inside a `${{ … }}` island (`${{
 //!    tasks.extract.output.summary }}` → the `extract` task's id),
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn after_target_resolves_to_the_exact_full_id_range() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: succeeded }\n    exec: { command: [\"y\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: success }\n    exec: { command: [\"y\"] }\n";
         // cursor on the `extract` target inside the after: map
         let dep_offset = yaml.rfind("extract").expect("after target") + 1;
         let loc = definition(&uri(), yaml, dep_offset).expect("resolves");
@@ -500,7 +500,7 @@ mod tests {
         // cursor resolves on the FIRST byte through the LAST byte of
         // `extract`, but NOT on the space one byte before nor the `:` one
         // byte after.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: succeeded }\n    exec: { command: [\"y\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: success }\n    exec: { command: [\"y\"] }\n";
         let tok = yaml.rfind("extract").expect("after target");
         // one byte BEFORE the token (the space after `{`): no resolution.
         assert!(
@@ -647,7 +647,7 @@ mod tests {
     #[test]
     fn ref_to_undefined_task_returns_none() {
         // an `after:` entry naming a ghost — no id span to jump to
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: succeeded }\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         let ghost_at = yaml.find("ghost").expect("ref") + 1;
         assert!(definition(&uri(), yaml, ghost_at).is_none());
     }

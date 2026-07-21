@@ -58,11 +58,11 @@ workflow:
 tasks:
   a:
     after:
-      b: succeeded
+      b: success
     exec: { command: ["true"] }
   b:
     after:
-      a: succeeded
+      a: success
     exec: { command: ["true"] }
 "#;
 
@@ -182,7 +182,7 @@ tasks:
     exec: { command: ["echo", "data"] }
   render_page:
     after:
-      fetch_data: succeeded
+      fetch_data: success
     exec: { command: ["echo", "page"] }
   compress:
     exec: { command: ["tar", "--version"] }
@@ -225,7 +225,7 @@ tasks:
     exec: { command: ["echo", "data"] }
   render_page:
     after:
-      fetch_data: succeeded
+      fetch_data: success
     exec: { command: ["echo", "page"] }
   compress:
     exec: { command: ["echo", "z"] }
@@ -1053,7 +1053,7 @@ fn explain_narrates_a_file_and_still_teaches_codes() {
     let wf = write_fixture(
         &dir,
         "story.nika.yaml",
-        "nika: v1\nworkflow:\n  id: smoke-story\n  description: a two-step story\n\nmodel: mock/echo\n\ntasks:\n  draft:\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  polish:\n    after:\n      draft: succeeded\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
+        "nika: v1\nworkflow:\n  id: smoke-story\n  description: a two-step story\n\nmodel: mock/echo\n\ntasks:\n  draft:\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  polish:\n    after:\n      draft: success\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
     );
     let out = bin()
         .arg("explain")
@@ -1269,7 +1269,7 @@ fn the_dag_draws_in_the_terminal() {
     let wf = write_fixture(
         &dir,
         "diamond.nika.yaml",
-        "nika: v1\nworkflow:\n  id: smoke-diamond\nmodel: mock/echo\ntasks:\n  fetch:\n    infer: { prompt: \"g\", max_tokens: 10 }\n  sum:\n    after:\n      fetch: succeeded\n    infer: { prompt: \"s\", max_tokens: 10 }\n  crit:\n    after:\n      fetch: succeeded\n    infer: { prompt: \"c\", max_tokens: 10 }\n  publish:\n    after:\n      sum: succeeded\n      crit: succeeded\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
+        "nika: v1\nworkflow:\n  id: smoke-diamond\nmodel: mock/echo\ntasks:\n  fetch:\n    infer: { prompt: \"g\", max_tokens: 10 }\n  sum:\n    after:\n      fetch: success\n    infer: { prompt: \"s\", max_tokens: 10 }\n  crit:\n    after:\n      fetch: success\n    infer: { prompt: \"c\", max_tokens: 10 }\n  publish:\n    after:\n      sum: success\n      crit: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
     );
     let out = bin()
         .arg("inspect")
@@ -1318,7 +1318,7 @@ fn context_aggregates_the_workspace_value_free() {
     write_fixture(
         &dir.join("flows"),
         "bad.nika.yaml",
-        "nika: v1\nworkflow:\n  id: smoke-bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: succeeded\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+        "nika: v1\nworkflow:\n  id: smoke-bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
     );
     let out = bin()
         .args(["welcome", "--deep"])

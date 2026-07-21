@@ -259,7 +259,7 @@ fn a_parseable_doc_carries_the_verb_detail_in_task_refs() {
     // so each id carries its verb in the detail (`task (exec)`) — the
     // `!wf.tasks.is_empty()` guard + the label/kind/detail fields of the
     // parse-path CompletionItem.
-    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"y\"] }\noutputs:\n  first: \"${{ tasks.a.output }}\"\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"y\"] }\noutputs:\n  first: \"${{ tasks.a.output }}\"\n";
     let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
     let items = completion(text, cursor);
     assert_eq!(
@@ -306,7 +306,7 @@ fn after_value_offers_the_closed_predicate_set() {
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
-        vec!["succeeded", "failed", "skipped", "terminal"],
+        vec!["success", "failure", "skipped", "terminal"],
         "the closed predicate set, spec order"
     );
     assert!(
@@ -802,7 +802,7 @@ fn island_secrets_and_env_offer_declared_names() {
 /// island offers the PARENT alone (the only readable task there).
 #[test]
 fn with_and_on_finally_islands_offer_the_boundary_sets() {
-    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      article: \"${{ tasks.a.output }}\"\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: succeeded, c: succeeded }\n    exec: { command: [\"x\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      article: \"${{ tasks.a.output }}\"\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"x\"] }\n";
     // cursor mid-island inside task b's `with:` value (document parses)
     let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
     let got = labels(&completion(text, cursor));
@@ -824,7 +824,7 @@ fn with_and_on_finally_islands_offer_the_boundary_sets() {
 /// whole, so the parse path carries the verb detail.
 #[test]
 fn recover_island_offers_the_dag004_legal_set() {
-    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  cached:\n    exec: { command: [\"echo\", \"fallback\"] }\n  live:\n    exec:\n      command: [\"false\"]\n    on_error:\n      recover: \"${{ tasks.cached.output }}\"\n  downstream:\n    after: { live: succeeded }\n    exec: { command: [\"x\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  cached:\n    exec: { command: [\"echo\", \"fallback\"] }\n  live:\n    exec:\n      command: [\"false\"]\n    on_error:\n      recover: \"${{ tasks.cached.output }}\"\n  downstream:\n    after: { live: success }\n    exec: { command: [\"x\"] }\n";
     let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
     let items = completion(text, cursor);
     assert_eq!(
@@ -844,7 +844,7 @@ fn recover_island_offers_the_dag004_legal_set() {
 /// task is legal there (probed green at the binary).
 #[test]
 fn outputs_island_offers_every_task() {
-    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"y\"] }\noutputs:\n  first: \"${{ tasks.";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"y\"] }\noutputs:\n  first: \"${{ tasks.";
     let got = labels(&completion(text, text.len()));
     assert_eq!(got, vec!["a", "b"], "outside a task, all ids: {got:?}");
 }
@@ -982,7 +982,7 @@ fn task_fields_survive_outside_schema() {
 /// (so the doc PARSES and the island lanes ride the parse path; the
 /// cursor sits just after `for_each: ` where the typed prefix is still
 /// the empty-value position).
-const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: succeeded }\n    for_each: \"${{ inputs.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: succeeded }\n    exec:\n      command: [\"true\"]\n";
+const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: success }\n    for_each: \"${{ inputs.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: success }\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
@@ -1019,7 +1019,7 @@ fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
     // Once the task DECLARES the binding, the same label rides as the
     // binding itself (the boundary import), not the teaching.
     let bound = FLOW_DOC.replace(
-        "    after: { gather: succeeded }\n",
+        "    after: { gather: success }\n",
         "    with:\n      items: \"${{ tasks.gather.output }}\"\n",
     );
     let at2 = bound.find("for_each: ").expect("key") + "for_each: ".len();
@@ -1042,7 +1042,7 @@ fn when_composes_the_cel_shapes_from_the_document() {
     // No tasks.* form appears (status gating lives in `after:`).
     let doc = FLOW_DOC
         .replace(
-            "    after: { gather: succeeded }\n",
+            "    after: { gather: success }\n",
             "    with:\n      items: \"${{ tasks.gather.output }}\"\n",
         )
         .replace(
@@ -1162,7 +1162,7 @@ fn free_form_maps_stay_free() {
 /// `with` is task-local, another task's aliases are out of scope.
 #[test]
 fn with_island_offers_the_enclosing_tasks_aliases() {
-    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    with:\n      other: 1\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: succeeded }\n    with:\n      article: \"${{ tasks.a.output }}\"\n      limit: 5\n    exec: { command: [\"echo\", \"${{ with.article }}\", \"${{ with.\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    with:\n      other: 1\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: success }\n    with:\n      article: \"${{ tasks.a.output }}\"\n      limit: 5\n    exec: { command: [\"echo\", \"${{ with.article }}\", \"${{ with.\"] }\n";
     let cursor = text.rfind("${{ with.").expect("island") + "${{ with.".len();
     let got = labels(&completion(text, cursor));
     assert_eq!(

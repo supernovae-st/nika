@@ -274,8 +274,8 @@ fn after_lane_items(
                     label: (*p).to_owned(),
                     kind: Some(CompletionItemKind::ENUM_MEMBER),
                     detail: Some(match *p {
-                        "succeeded" => "admits on success".to_owned(),
-                        "failed" => "admits on failure".to_owned(),
+                        "success" => "admits on success".to_owned(),
+                        "failure" => "admits on failure".to_owned(),
                         "skipped" => "admits on skipped".to_owned(),
                         _ => "admits on any settled state — incl. cancelled".to_owned(),
                     }),

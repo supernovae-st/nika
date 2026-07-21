@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn plain_pipeline_has_exact_constant_bounds() {
         let c = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
         ));
         assert_eq!(c.task_attempts, konst(2));
         assert_eq!(c.llm_calls, konst(0));
@@ -738,14 +738,14 @@ mod tests {
     fn span_is_the_longest_dependency_chain_in_attempts() {
         // chain a→b→c with retries: span = 1 + 3 + 2 = 6 = work
         let chain = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    after: { b: succeeded }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    after: { b: success }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(chain.span_attempts, 6);
         assert_eq!(chain.task_attempts, konst(6), "a pure chain: span == work");
 
         // diamond a→{b,c}→d: span = longest branch (1+3+1), work = sum
         let diamond = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: succeeded, c: succeeded }\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    retry: { max_attempts: 3 }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(diamond.span_attempts, 5, "longest branch: 1+3+1");
         assert_eq!(diamond.task_attempts, konst(6), "work: 1+3+1+1");
@@ -756,7 +756,7 @@ mod tests {
         // a for_each over 4 elements: work ×4, span unchanged (the
         // elements run in parallel — Brent: parallelism = work/span)
         let c = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: succeeded }\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: success }\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(c.task_attempts, konst(5), "work: 1 + 4");
         assert_eq!(c.span_attempts, 2, "span: 1 + 1 (elements parallel)");
@@ -765,7 +765,7 @@ mod tests {
     #[test]
     fn audit_catches_span_and_dep_tampering() {
         let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -826,7 +826,7 @@ mod tests {
         // boundary declares all three trifecta legs (fs.read · tools ·
         // exec), so the exec sits behind a blocking `nika:prompt` gate —
         // otherwise NIKA-SEC-009 flags it and the fixture is not clean.
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    after: { ask: succeeded }\n    exec: { command: [\"git\", \"status\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    after: { ask: success }\n    exec: { command: [\"git\", \"status\"] }\n";
         let parsed = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = crate::check(&parsed);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -1081,7 +1081,7 @@ mod tests {
     fn span_traverses_deps_declared_after_their_dependents() {
         // c → b → a, written c first: forces the push branch to matter
         let c = cert(&wf(
-            "  c:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n",
+            "  c:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n",
         ));
         // chain of 3 single-attempt tasks → span = 1+1+1 = 3
         assert_eq!(
@@ -1101,7 +1101,7 @@ mod tests {
         // a depends on b, b depends on a — a cycle (conformance rejects it
         // elsewhere; span must still TERMINATE with a finite value)
         let c = cert(&wf(
-            "  a:\n    after: { b: succeeded }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: succeeded }\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n",
         ));
         // with the cut, each node's chain stops at the visiting mark:
         // span = 1 + 1 = 2 (one hop before the back-edge is cut). The key
