@@ -914,7 +914,6 @@ dependencies = [
  "nika-tmpl",
  "nika-types",
  "nika-vocab",
- "serde",
  "serde-saphyr",
  "serde_json",
  "thiserror",
