@@ -3927,6 +3927,7 @@ name = "nika-exec-runner"
 version = "0.105.0"
 dependencies = [
  "nika-kernel",
+ "nika-types",
  "nix 0.30.1",
  "proptest",
  "tokio",

@@ -35,6 +35,17 @@
 //! is a TRIPWIRE, not a boundary — `permits.exec` + the sandbox are the real
 //! gates (a glob/symlink in `$PATH` resolution is theirs to contain).
 //!
+//! # Egress proxy (the sandbox `allowlist` arm · ADR-095 Layer 6)
+//!
+//! The `egress` module is the per-run loopback proxy that gives the
+//! sandbox's network tri-state its host granularity (the Anthropic
+//! sandbox-runtime model): when a confined command carries
+//! `NetPolicy::Allowlist`, the runner starts (or reuses) the ONE proxy,
+//! injects the srt-mirrored env contract (`HTTP(S)_PROXY` / `ALL_PROXY` /
+//! `NO_PROXY` … on the muxed CONNECT+SOCKS5 port), and lets the OS fence
+//! admit loopback only. Every target is evaluated against the ONE host
+//! matcher and every decision journalised (see the `egress` module doc).
+//!
 //! # Process safety (kernel CANCEL SAFETY contract)
 //!
 //! - **`kill_on_drop(true)`** (INV-011) — dropping the `run()` future SIGKILLs
@@ -52,6 +63,9 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod blocklist;
+mod egress;
+
+pub use egress::{EgressDecision, EgressObserver};
 
 use std::collections::BTreeMap;
 use std::process::Stdio;
@@ -97,7 +111,9 @@ type Registry = Arc<Mutex<BTreeMap<u32, Arc<Notify>>>>;
 /// the safe-by-default floor; `kill_on_drop` + the registry give cancellation.
 /// An optional injected [`CommandSandbox`] (the `nika-sandbox-{seatbelt,
 /// landlock}` backends) confines a command that carries a `SandboxSpec`.
-#[derive(Clone, Default)]
+/// Clones of one `TokioShell` share ONE loopback egress proxy (started lazily
+/// on the first allowlisted exec, dying with the last clone — per-run).
+#[derive(Clone)]
 pub struct TokioShell {
     registry: Registry,
     /// The OS-confinement backend (injected by the wiring layer · `None` =
@@ -111,6 +127,15 @@ pub struct TokioShell {
     /// `env:` (explicit intent wins over the ambient scrub · see `run`). Empty
     /// = today's behavior (inherit all). `Arc<[…]>` for a cheap `Clone`.
     ambient_secret_env: Arc<[String]>,
+    /// The per-run loopback egress proxy (the `NetPolicy::Allowlist` arm's
+    /// enforcement half) — `Arc`-shared so every clone of this shell serves
+    /// the SAME boundary on the SAME port; started lazily, stopped when the
+    /// last clone drops (no orphan listener outlives the run).
+    egress_proxy: Arc<Mutex<Option<egress::EgressProxy>>>,
+    /// The egress-decision journal sink (every proxy verdict — a refused
+    /// host is a security event). Default: the namespaced stderr line (see
+    /// the `egress` module doc for the FCI-009 seam rationale).
+    egress_observer: EgressObserver,
 }
 
 impl std::fmt::Debug for TokioShell {
@@ -118,6 +143,18 @@ impl std::fmt::Debug for TokioShell {
         f.debug_struct("TokioShell")
             .field("sandbox", &self.sandbox.as_ref().map(|s| s.backend()))
             .finish_non_exhaustive()
+    }
+}
+
+impl Default for TokioShell {
+    fn default() -> Self {
+        Self {
+            registry: Registry::default(),
+            sandbox: None,
+            ambient_secret_env: Arc::default(),
+            egress_proxy: Arc::new(Mutex::new(None)),
+            egress_observer: egress::stderr_journal(),
+        }
     }
 }
 
@@ -139,6 +176,16 @@ impl TokioShell {
             sandbox: Some(sandbox),
             ..Self::default()
         }
+    }
+
+    /// Replace the egress-decision journal sink (the allowlist arm's
+    /// allow/refuse verdicts). The default is the namespaced stderr line —
+    /// the honest out-of-band channel (FCI-009 · see the `egress` module
+    /// doc); tests and embedders wire a collecting probe here. Chainable.
+    #[must_use]
+    pub fn with_egress_observer(mut self, observer: EgressObserver) -> Self {
+        self.egress_observer = observer;
+        self
     }
 
     /// Scrub the ENGINE's ambient provider API keys from every child's
@@ -169,26 +216,6 @@ impl TokioShell {
     fn deregister(&self, pid: u32) {
         if let Ok(mut reg) = self.registry.lock() {
             reg.remove(&pid);
-        }
-    }
-
-    /// Apply the injected OS sandbox to a command that requests one. No spec =
-    /// unchanged (today's behavior); spec + backend = confined; spec but NO
-    /// backend = fail-closed (refuse rather than run an asked-for-confined
-    /// command unconfined).
-    fn apply_sandbox(&self, command: ShellCommand) -> Result<ShellCommand, ShellError> {
-        let Some(spec) = command.sandbox.clone() else {
-            return Ok(command);
-        };
-        match &self.sandbox {
-            Some(backend) => backend
-                .confine(&spec, command)
-                .map_err(|e| map_sandbox_error(&e)),
-            None => Err(ShellError::Blocked {
-                reason: "command requires an OS sandbox but no backend is wired \
-                         (refusing to run unconfined)"
-                    .to_string(),
-            }),
         }
     }
 }

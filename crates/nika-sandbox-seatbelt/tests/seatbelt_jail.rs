@@ -148,3 +148,72 @@ fn ordinary_command_still_runs_under_the_sandbox() {
     );
     assert!(String::from_utf8_lossy(&out.stdout).contains("SCRATCH-OK"));
 }
+
+/// THE EGRESS FENCE (the sandbox-runtime seatbelt model, live): under the
+/// `allowlist` arm with the proxy port filled, a confined child CAN reach
+/// loopback on exactly the proxy's port and is EPERM-refused on every other
+/// port — the channel is fenced, so the loopback proxy (which lives OUTSIDE
+/// the jail) is the child's only way out. And under `deny`, loopback is
+/// reachable but nothing beyond it (the mission's carve-out).
+#[test]
+fn allowlist_fences_loopback_to_the_proxy_port() {
+    use std::net::{Ipv4Addr, TcpListener};
+
+    if !SeatbeltSandbox::available() {
+        return;
+    }
+    // The "proxy" listener and an "other service" listener, both loopback.
+    let proxy = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind proxy");
+    let proxy_port = proxy.local_addr().expect("addr").port();
+    let other = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind other");
+    let other_port = other.local_addr().expect("addr").port();
+    // drain both so a successful connect never hangs nc
+    for l in [proxy, other] {
+        std::thread::spawn(move || {
+            while let Ok((s, _)) = l.accept() {
+                drop(s);
+            }
+        });
+    }
+
+    let mut spec = SandboxSpec::new();
+    let mut allowlist = nika_kernel::process::EgressAllowlist::new(vec!["api.example.com".into()]);
+    allowlist.proxy_port = Some(proxy_port);
+    spec.net = nika_kernel::process::NetPolicy::Allowlist(allowlist);
+
+    // 1. loopback on the PROXY port: reachable from inside the jail.
+    let out = run(
+        &spec,
+        "/usr/bin/nc",
+        &["-w", "2", "127.0.0.1", &proxy_port.to_string()],
+    );
+    assert!(
+        out.status.success(),
+        "the proxy port must be reachable under allowlist: {out:?}"
+    );
+
+    // 2. loopback on any OTHER port: EPERM (the fence) — not a TCP-level
+    //    "Connection refused" (a listener is present), the sandbox verdict.
+    let out = run(
+        &spec,
+        "/usr/bin/nc",
+        &["-w", "2", "127.0.0.1", &other_port.to_string()],
+    );
+    assert!(!out.status.success(), "another port must be fenced");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("Operation not permitted"),
+        "the refusal is the seatbelt EPERM, not a refused TCP: {out:?}"
+    );
+
+    // 3. the DENY arm: loopback outbound is allowed (the carve-out) — the
+    //    same connect succeeds where pre-tri-state deny admitted nothing.
+    let out = run(
+        &SandboxSpec::new(),
+        "/usr/bin/nc",
+        &["-w", "2", "127.0.0.1", &other_port.to_string()],
+    );
+    assert!(
+        out.status.success(),
+        "deny admits loopback outbound (the srt posture): {out:?}"
+    );
+}

@@ -17,14 +17,20 @@
 //! ## What the jail enforces (deny-default)
 //!
 //! - **Network** — the [`NetPolicy`] tri-state: `Deny` keeps the network
-//!   namespace unshared (`--unshare-all`); `Allow` re-shares it
-//!   (`--share-net`). `Allowlist` — host-granular egress — confines EXACTLY
-//!   as `Allow` until the per-run loopback egress proxy lands (the
-//!   pre-tri-state behavior, zero regression · matching the macOS sibling).
-//!   The proxy then serves the declared host set over the shared namespace +
-//!   the env contract; scoping the namespace itself to loopback needs the
-//!   socat/unix-socket bridge of the sandbox-runtime model (named follow-on,
-//!   honestly — bwrap cannot express a loopback-only fence alone).
+//!   namespace unshared (`--unshare-all` — loopback included, the stricter
+//!   reading of the loopback-only floor: bwrap cannot bring `lo` up alone);
+//!   `Allow` re-shares it (`--share-net`, the explicit escape hatch);
+//!   `Allowlist` re-shares it too and the child gets the egress proxy's env
+//!   contract (the Anthropic sandbox-runtime model — the proxy in
+//!   `nika-exec-runner` serves exactly the declared `permits.net.http` set).
+//!   HONEST LIMIT, stated loudly: bwrap cannot express a loopback-only
+//!   fence, so on Linux the allowlist arm's OS floor is the env contract —
+//!   an env-honoring client (curl · wget · node · python) is confined to
+//!   the allowlist, while a client that strips its proxy env reaches
+//!   anything (unlike macOS, where the Seatbelt port fence closes that).
+//!   srt's own answer — `--unshare-net` + a socat bridge over a
+//!   bind-mounted unix socket pair — is the named follow-on that brings
+//!   Linux to the same strength.
 //! - **Writes** — allowed ONLY under the declared `fs_write` prefixes plus
 //!   scratch (`--bind`). Everything else is read-only or absent.
 //! - **Reads** — the system paths every binary + the dynamic linker need are
@@ -169,13 +175,12 @@ fn build_jail_args(spec: &SandboxSpec) -> Result<Vec<String>, CommandSandboxErro
 
     // Network: `--unshare-all` already dropped the net namespace. The ALLOW
     // arms re-share it and bind the resolver config read-only — Allow (the
-    // explicit escape hatch) and Allowlist, which rides the same shared
-    // namespace until the egress proxy lands (the pre-tri-state behavior ·
-    // module doc); the proxy then serves the declared hosts over it and a
-    // loopback-only namespace fence needs the socat/unix-socket bridge
-    // (named follow-on). Every other arm — Deny and, by the
-    // #[non_exhaustive] law, any future variant — fails CLOSED: the
-    // namespace stays unshared, no network physically.
+    // explicit escape hatch) and Allowlist, which shares the namespace so
+    // the loopback egress proxy is reachable and serves the declared hosts
+    // via the env contract (the srt model · bwrap cannot fence loopback-only
+    // — the socat bridge is the named follow-on · module doc). Every other
+    // arm — Deny and, by the #[non_exhaustive] law, any future variant —
+    // fails CLOSED: the namespace stays unshared, no network physically.
     if matches!(spec.net, NetPolicy::Allow | NetPolicy::Allowlist(_)) {
         a.push("--share-net".to_owned());
         if Path::new("/etc/resolv.conf").exists() {
@@ -390,11 +395,12 @@ mod tests {
         );
     }
 
-    /// The allowlist arm rides the shared namespace until the egress proxy
-    /// lands (the pre-tri-state behavior · module doc) — then the proxy
-    /// serves the declared hosts over it.
+    /// The allowlist arm rides the shared namespace + the proxy's env
+    /// contract (the srt model — bwrap cannot fence loopback-only, so the
+    /// env contract IS the Linux floor; the socat bridge is the named
+    /// follow-on · module doc).
     #[test]
-    fn allowlist_rides_the_shared_namespace_pre_proxy() {
+    fn allowlist_rides_the_shared_namespace_and_the_env_contract() {
         let mut spec = SandboxSpec::new();
         spec.net = NetPolicy::Allowlist(nika_kernel::process::EgressAllowlist::new(vec![
             "api.example.com".to_owned(),
@@ -402,7 +408,7 @@ mod tests {
         let args = build_jail_args(&spec).unwrap();
         assert!(
             args.iter().any(|a| a == "--share-net"),
-            "allowlist confines as allow pre-proxy"
+            "the allowlist arm shares the namespace so the loopback proxy is reachable"
         );
     }
 
