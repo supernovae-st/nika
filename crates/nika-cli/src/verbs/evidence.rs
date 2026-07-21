@@ -7,11 +7,29 @@
 //! this shell owns the verb seam: the enrolled-key read, the `--json`
 //! projection, and the one-line human summary (render stays).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
 use super::VerbOutput;
+
+/// The clap surface of `nika evidence` — lives here so main.rs stays
+/// under the 1500-line file cap (the `verbs::key::KeyAction` precedent).
+#[derive(clap::Args)]
+pub struct EvidenceArgs {
+    /// Trace NDJSON path or a name from `trace ls` (default: latest).
+    pub trace: Option<PathBuf>,
+    /// Output directory (default: `<trace-stem>.evidence/` · never clobbered).
+    #[arg(short, long)]
+    pub out: Option<PathBuf>,
+    /// The workflow file that ran — hash-checked; unlocks the
+    /// boundary, the trifecta verdict and the receipt.
+    #[arg(long)]
+    pub workflow: Option<String>,
+    /// Print the pack manifest to stdout (no directory written).
+    #[arg(long)]
+    pub json: bool,
+}
 
 /// `nika evidence <trace>` — export the pack. The enrolled-key set is
 /// the machine's own custody ([`nika_dap::evidence::candidate_pubkeys`]).

@@ -30,6 +30,49 @@ pub mod nika_cli::verbs::doctor
 pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::evidence
 pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli::verbs::VerbOutput
+pub struct nika_cli::verbs::evidence::EvidenceArgs
+pub nika_cli::verbs::evidence::EvidenceArgs::json: bool
+pub nika_cli::verbs::evidence::EvidenceArgs::out: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::evidence::EvidenceArgs::trace: core::option::Option<std::path::PathBuf>
+pub nika_cli::verbs::evidence::EvidenceArgs::workflow: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for nika_cli::verbs::evidence::EvidenceArgs
+pub fn nika_cli::verbs::evidence::EvidenceArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::evidence::EvidenceArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::evidence::EvidenceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::evidence::EvidenceArgs
+pub fn nika_cli::verbs::evidence::EvidenceArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::evidence::EvidenceArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::evidence::EvidenceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::evidence::EvidenceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::evidence::EvidenceArgs
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::evidence::EvidenceArgs where U: core::convert::From<T>
+pub fn nika_cli::verbs::evidence::EvidenceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::evidence::EvidenceArgs where U: core::convert::Into<T>
+pub type nika_cli::verbs::evidence::EvidenceArgs::Error = core::convert::Infallible
+pub fn nika_cli::verbs::evidence::EvidenceArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::evidence::EvidenceArgs where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::evidence::EvidenceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::evidence::EvidenceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::evidence::EvidenceArgs where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::evidence::EvidenceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::evidence::EvidenceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::evidence::EvidenceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::evidence::EvidenceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::evidence::EvidenceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::evidence::EvidenceArgs
+pub fn nika_cli::verbs::evidence::EvidenceArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::evidence::EvidenceArgs where T: 'static
+pub fn nika_cli::verbs::evidence::EvidenceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::evidence::EvidenceArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::evidence::EvidenceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::evidence::EvidenceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::evidence::EvidenceArgs
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::evidence::EvidenceArgs
+impl<T> typenum::type_operators::Same for nika_cli::verbs::evidence::EvidenceArgs
+pub type nika_cli::verbs::evidence::EvidenceArgs::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::evidence::EvidenceArgs where T: core::default::Default
+pub type nika_cli::verbs::evidence::EvidenceArgs::NoneType = T
+pub fn nika_cli::verbs::evidence::EvidenceArgs::null_value() -> T
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput

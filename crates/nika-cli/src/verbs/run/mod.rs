@@ -1297,7 +1297,16 @@ mod tests {
     /// injected system BYTES are pinned at the runtime's provider seam).
     #[test]
     fn capture_mock_outputs_carries_the_resolved_skills() {
-        let dir = std::env::temp_dir().join(format!("nika-run-skills-{}", std::process::id()));
+        // Uniqueness: pid + an atomic discriminator — a pid-only dir is
+        // shared by EVERY test in the process and parallel tests collide
+        // (one's cleanup wiped the other's fixture under gate load — the
+        // 2026-07-21 NIKA-AGENT-003 flake).
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "nika-run-skills-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let skill = dir.join("SKILL.md");
         std::fs::write(&skill, "---\nname: s\ndescription: d\n---\nBe careful.\n")
