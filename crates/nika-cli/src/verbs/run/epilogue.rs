@@ -20,6 +20,7 @@ use nika_runtime::{RunOutcome, WorkflowPause};
 
 use super::resume;
 use crate::Theme;
+use crate::verbs::exit;
 
 /// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
 /// printed ONLY when a resume was requested (a fresh run's surfaces stay
@@ -135,6 +136,14 @@ pub(super) fn emit_error_envelope(message: &str, output_json: bool) {
     if output_json {
         println!("{}", error_envelope_line(message));
     }
+}
+
+/// The ENV-class refusal surface — the message rides stderr + the machine
+/// error envelope (one voice for every pre-run refusal).
+pub(super) fn env_refusal(message: &str, output_json: bool) -> u8 {
+    eprintln!("nika run: {message}");
+    emit_error_envelope(message, output_json);
+    exit::ENV
 }
 
 /// ONE `{"paused":{…}}` line — the machine pause contract (ADR-099 rider

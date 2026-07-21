@@ -39,8 +39,7 @@ pub(crate) enum ExamplesAction {
         /// `--model mock/echo` to preview offline (zero key · zero network).
         #[arg(long, value_name = "PROVIDER/NAME")]
         model: Option<String>,
-        /// Set a workflow `vars:` input (repeatable) — several examples
-        /// declare required vars and say so in their header.
+        /// Set a workflow `inputs:` value (repeatable) — required examples name theirs in the header.
         #[arg(long, value_name = "KEY=VALUE")]
         var: Vec<String>,
         /// Verdict line only (suppress the storyboard).

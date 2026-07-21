@@ -599,11 +599,10 @@ fn composed_runtime(
                 None => rt,
             })
         }
-        Err(e) => {
-            eprintln!("nika run: environment: {e}");
-            epilogue::emit_error_envelope(&e.to_string(), output_json);
-            Err(exit::ENV)
-        }
+        Err(e) => Err(epilogue::env_refusal(
+            &format!("environment: {e}"),
+            output_json,
+        )),
     }
 }
 
@@ -615,11 +614,6 @@ fn composed_runtime(
 /// the caller owns stdout for its own verdict/diff surface. `skills` =
 /// the composer-resolved SKILL.md texts (#473 · the caller gates their
 /// findings first, same as `run`).
-///
-/// # Errors
-///
-/// A composition/executor failure (environment class) as a human-readable
-/// message — the caller maps it to `exit::ENV`.
 pub(crate) fn capture_mock_outputs(
     wf: &RawWorkflow,
     report: &CheckReport,
@@ -1009,7 +1003,6 @@ where
             use nika_error::traits::NikaErrorCode as _;
             let mut stderr = std::io::stderr().lock();
             if let RuntimeError::MissingRequiredInputs { .. } = err {
-                // The admission refusal (#603): an OPERATOR miss, its text names the fix.
                 let _ = writeln!(stderr, "nika run: {err}");
             } else {
                 let _ = writeln!(

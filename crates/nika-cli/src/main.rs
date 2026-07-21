@@ -7,8 +7,7 @@
 //! over production seams). Exit codes per the locked contract (spec §4):
 //! `0` ok · `1` workflow failed · `2` file findings · `3` environment.
 
-// A terminal binary's whole job is printing — the same exemption as the
-// nika-catalog-verify binary and the nika-schema check example.
+// A terminal binary's whole job is printing (the nika-catalog-verify precedent).
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 use std::io::{IsTerminal, Write};
@@ -394,10 +393,9 @@ struct RunArgs {
     /// mock/echo` previews any workflow offline (zero key · zero network).
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
-    /// Set a workflow `vars:` value (repeatable). Overrides a declared
-    /// `default:` and satisfies a `required: true` var. The value is
-    /// parsed as JSON when it parses (numbers · booleans · arrays),
-    /// else taken as a string. Unknown keys are refused.
+    /// Set a workflow `inputs:` value (repeatable). Overrides a declared
+    /// `default:` and satisfies a `required: true` input. JSON when it
+    /// parses (numbers · booleans · arrays), else a string. Unknown keys refused.
     #[arg(long = "var", value_name = "KEY=VALUE")]
     var: Vec<String>,
     /// Resume from a prior run's NDJSON trace (`nika run … --json >
