@@ -9,14 +9,14 @@ workflow:
 
 model: mock/echo            # offline demo path · swap for any provider
 
-vars:
+const:
   transcript_path: "scripts/media/fixtures/sample-transcript.txt"
 
 tasks:
   transcript:
     invoke:
       tool: "nika:read"
-      args: { path: "${{ vars.transcript_path }}" }
+      args: { path: "${{ const.transcript_path }}" }
 
   extract:
     with:
@@ -54,5 +54,4 @@ tasks:
 outputs:
   actions:
     value: ${{ tasks.extract.output.actions }}
-    type: array
     description: "Typed action items, tracker-ready"
