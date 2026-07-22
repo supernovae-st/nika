@@ -2092,6 +2092,9 @@ impl<T> tracing::instrument::Instrument for nika_dap::retention::RetentionConfig
 impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::RetentionConfig
 impl<T> typenum::type_operators::Same for nika_dap::retention::RetentionConfig
 pub type nika_dap::retention::RetentionConfig::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::retention::RetentionConfig where T: core::default::Default
+pub type nika_dap::retention::RetentionConfig::NoneType = T
+pub fn nika_dap::retention::RetentionConfig::null_value() -> T
 pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<nika_dap::retention::GcReport>
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>

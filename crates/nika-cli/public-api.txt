@@ -964,6 +964,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace_verify::Verif
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace_verify::VerifyOptions
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace_verify::VerifyOptions
 pub type nika_cli::verbs::trace_verify::VerifyOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::trace_verify::VerifyOptions where T: core::default::Default
+pub type nika_cli::verbs::trace_verify::VerifyOptions::NoneType = T
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::null_value() -> T
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli::verbs::VerbOutput
