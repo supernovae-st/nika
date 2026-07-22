@@ -36,8 +36,9 @@
 //! out-param: identical precision (the extractor is static on both
 //! sides — a dynamic CEL path is out of the subset for BOTH), zero
 //! `Scope`/`render` call-site churn, and parity by import instead of
-//! parity by convention. The render-time reporting remains available to
-//! PR-2's per-element re-gate if it wants it.
+//! parity by convention. PR-2 consumes the SAME walk per template
+//! through [`ValueTaint`] — the dispatch re-gate's per-element oracle
+//! (an argv element · an invoke arg leaf · the exec `cwd`).
 
 use std::collections::BTreeMap;
 
@@ -58,32 +59,9 @@ use crate::record::TaskRecord;
 /// each other — checker law), so every `tasks.X` read resolves against
 /// a FINAL label.
 pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> Integrity {
-    // 1. `with:` slot taints, progressive (a with-value may reference an
-    //    EARLIER with key — declaration order, the content-flow walk).
-    let mut with_taint: BTreeMap<&str, Integrity> = BTreeMap::new();
-    for (key, value) in &task.with {
-        let taint = join_refs(&refs_in_json(&value.value), &with_taint, None, records);
-        if taint.is_untrusted() {
-            with_taint.insert(key.value.as_str(), taint);
-        }
-    }
+    let taint = ValueTaint::of_task(task, records);
 
-    // 2. `for_each` item taint: the collection's refs taint the loop-local
-    //    `item` within the task (a literal list is authored — clean).
-    let item_taint: Option<Integrity> = task.for_each.as_ref().and_then(|f| match &f.value {
-        ForEachValue::Expression(src) => {
-            let taint = join_refs(&refs_in_str(src), &with_taint, None, records);
-            taint.is_untrusted().then_some(taint)
-        }
-        ForEachValue::List(_) => None,
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown for_each form: {other:?}"),
-    });
-
-    // 3. Effect taint: the verb's effect-carrying fields (exec argv/shell
+    // Effect taint: the verb's effect-carrying fields (exec argv/shell
     //    · invoke args · infer/agent prompt+system — the infer/agent
     //    prompt-taint inversion falls out of THIS walk).
     let effect = join_refs(
@@ -91,12 +69,12 @@ pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskReco
             .into_iter()
             .flat_map(refs_in_str)
             .collect::<Vec<_>>(),
-        &with_taint,
-        item_taint.as_ref(),
+        &taint.with_taint,
+        taint.item_taint.as_ref(),
         records,
     );
 
-    // 4. Born-source wins the witness; else the effect flows out; else the
+    // Born-source wins the witness; else the effect flows out; else the
     //    recover reads (the content-flow output priority).
     if born_untrusted(&task.action) {
         return Integrity::untrusted(task.id.value.clone());
@@ -104,7 +82,84 @@ pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskReco
     if effect.is_untrusted() {
         return effect;
     }
-    recover_taint(task, &with_taint, item_taint.as_ref(), records)
+    recover_taint(task, &taint.with_taint, taint.item_taint.as_ref(), records)
+}
+
+/// The per-template taint oracle (F-O1 PR-2 · the dispatch re-gate's
+/// lookup). Precomputes the task-local taints ONCE per task — the
+/// progressive `with:` walk and the `for_each` item taint, exactly the
+/// steps [`task_integrity`] opens with, so a per-element verdict and the
+/// task's own label can never drift — then labels ANY template string
+/// the dispatch is about to render (an argv element · an invoke arg
+/// leaf · the exec `cwd`) against the wave-frozen records.
+///
+/// The oracle is iteration-agnostic: a fan-out's `with:` is re-rendered
+/// per item but its TAINT is a static function of the templates (an
+/// `item` read joins the collection's taint, not the item's value).
+pub(crate) struct ValueTaint<'a> {
+    /// `with:` slot taints, progressive (a with-value may reference an
+    /// EARLIER with key — declaration order, the content-flow walk).
+    with_taint: BTreeMap<&'a str, Integrity>,
+    /// `for_each` item taint: the collection's refs taint the loop-local
+    /// `item` within the task (a literal list is authored — clean).
+    item_taint: Option<Integrity>,
+}
+
+impl<'a> ValueTaint<'a> {
+    /// The task-local taints (the first two steps of the integrity
+    /// walk), borrowed from the task's own templates.
+    pub(crate) fn of_task(task: &'a RawTask, records: &BTreeMap<String, TaskRecord>) -> Self {
+        let mut with_taint: BTreeMap<&str, Integrity> = BTreeMap::new();
+        for (key, value) in &task.with {
+            let taint = join_refs(&refs_in_json(&value.value), &with_taint, None, records);
+            if taint.is_untrusted() {
+                with_taint.insert(key.value.as_str(), taint);
+            }
+        }
+        let item_taint: Option<Integrity> = task.for_each.as_ref().and_then(|f| match &f.value {
+            ForEachValue::Expression(src) => {
+                let taint = join_refs(&refs_in_str(src), &with_taint, None, records);
+                taint.is_untrusted().then_some(taint)
+            }
+            ForEachValue::List(_) => None,
+            #[allow(
+                clippy::unreachable,
+                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+            )]
+            other => unreachable!("unknown for_each form: {other:?}"),
+        });
+        Self {
+            with_taint,
+            item_taint,
+        }
+    }
+
+    /// No task-local taints — the `on_finally:` mini-task shape (no
+    /// `with:` · no `for_each`); the records/inputs lookups of
+    /// [`ValueTaint::label`] still apply.
+    pub(crate) fn bare() -> ValueTaint<'static> {
+        ValueTaint {
+            with_taint: BTreeMap::new(),
+            item_taint: None,
+        }
+    }
+
+    /// The label of ONE template's rendered value: the join of every
+    /// reference the template reads (the SAME `join_refs` + `source_of`
+    /// law as the task-level walk — `inputs.X` is the caller boundary,
+    /// `tasks.X` reads the settled record's label).
+    pub(crate) fn label(
+        &self,
+        template: &str,
+        records: &BTreeMap<String, TaskRecord>,
+    ) -> Integrity {
+        join_refs(
+            &refs_in_str(template),
+            &self.with_taint,
+            self.item_taint.as_ref(),
+            records,
+        )
+    }
 }
 
 /// Is the task's verb a born untrusted-ingress source (v1 · the shared
@@ -400,5 +455,82 @@ mod tests {
         ));
         let recs = records(vec![settled("dl1", Integrity::untrusted("dl1"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl2"));
+    }
+
+    #[test]
+    fn value_taint_labels_one_template_with_the_same_law() {
+        // The re-gate's per-element oracle: a with-chain, a literal, an
+        // inputs read, and a mixed template — the walk is the task's own.
+        let task = parse_task(&format!(
+            "{HEAD}  use:\n    with: {{ page: \"${{{{ tasks.dl.output }}}}\" }}\n    exec: {{ command: [\"echo\", \"${{{{ with.page }}}}\"] }}\n"
+        ));
+        let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
+        let oracle = ValueTaint::of_task(&task, &recs);
+        assert_eq!(
+            oracle.label("${{ with.page }}", &recs),
+            Integrity::untrusted("dl"),
+            "a with-slot tainted by an upstream fetch"
+        );
+        assert_eq!(
+            oracle.label("prefix-${{ with.page }}-suffix", &recs),
+            Integrity::untrusted("dl"),
+            "a mixed template joins every island it reads"
+        );
+        assert_eq!(
+            oracle.label("${{ inputs.q }}", &recs),
+            Integrity::untrusted("inputs.q"),
+            "the caller boundary"
+        );
+        assert_eq!(
+            oracle.label("a literal element", &recs),
+            Integrity::trusted()
+        );
+        assert_eq!(
+            oracle.label("${{ const.home }}", &recs),
+            Integrity::trusted(),
+            "the authored constant stays trusted"
+        );
+    }
+
+    #[test]
+    fn value_taint_item_reads_the_collections_taint() {
+        let task = parse_task(&format!(
+            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
+        ));
+        let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
+        let oracle = ValueTaint::of_task(&task, &recs);
+        assert_eq!(
+            oracle.label("${{ item }}", &recs),
+            Integrity::untrusted("dl")
+        );
+        // A literal list is authored — the item stays clean.
+        let literal = parse_task(&format!(
+            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
+        ));
+        assert_eq!(
+            ValueTaint::of_task(&literal, &recs).label("${{ item }}", &recs),
+            Integrity::trusted()
+        );
+    }
+
+    #[test]
+    fn value_taint_bare_keeps_the_records_and_inputs_lookups() {
+        // The `on_finally:` mini-task shape: no with/for_each, but a
+        // `tasks.X` or `inputs.X` read still taints (the cleanup re-gate).
+        let oracle = ValueTaint::bare();
+        let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
+        assert_eq!(
+            oracle.label("${{ tasks.dl.output }}", &recs),
+            Integrity::untrusted("dl")
+        );
+        assert_eq!(
+            oracle.label("${{ inputs.q }}", &recs),
+            Integrity::untrusted("inputs.q")
+        );
+        assert_eq!(
+            oracle.label("${{ with.page }}", &recs),
+            Integrity::trusted(),
+            "a mini-task has no with: to taint"
+        );
     }
 }

@@ -24,7 +24,7 @@
     "http_url_contains": "api.example.com/collect?d=SESSION-abc123"
   },
   "residual": {
-    "summary": "model-chosen arguments ride INSIDE the declared net.http boundary: the query string carries content lifted from the untrusted page (its own session-shaped value) and the fetch executes because the host is permitted — runtime taint enforcement through tool args does not exist yet",
-    "owner": "ADR-095 shadow zone l1-taint-runtime"
+    "summary": "model-chosen arguments ride INSIDE the declared net.http boundary: the query string carries content lifted from the untrusted page (its own session-shaped value) and the fetch executes because the permit COVERS the resolved host — F-O1 PR-2 re-gates task-level arguments (a re-gate matches, it cannot judge), and the agent loop's model-chosen args stay outside its seam; in-boundary exfiltration is the confidentiality axis, not the integrity one",
+    "owner": "F-O10 / the lethal-trifecta lane (confidentiality) — the F-O1 re-gate law closes the escape class, never the in-boundary class"
   }
 }

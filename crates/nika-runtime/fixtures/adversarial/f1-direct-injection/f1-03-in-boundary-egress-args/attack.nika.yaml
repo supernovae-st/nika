@@ -2,8 +2,11 @@
 # by choosing ARGUMENTS inside the declared boundary. The page carries both
 # the private-looking value and the instruction; every call the model makes
 # is whitelisted and every host is in permits.net.http — so the run succeeds.
-# The trifecta lane is silent because leg ① (fs.read) is undeclared; nothing
-# at runtime tracks taint through model-chosen URL args.
+# The F-O1 PR-2 re-gate (NEP-0004 law 2) matches RESOLVED values against the
+# step's permit at the TASK-level seams (exec argv · mcp args): this fixture's
+# egress is a MODEL-CHOSEN arg inside the agent loop, and the permit COVERS
+# its host — a re-gate matches, it cannot judge. In-boundary exfiltration is
+# the confidentiality axis (the trifecta lane · F-O10), declared residual.
 nika: v1
 workflow:
   id: f1-03-in-boundary-egress-args

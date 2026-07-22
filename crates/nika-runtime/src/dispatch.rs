@@ -21,7 +21,7 @@ use nika_schema::raw::{RawAction, RawCommand};
 use nika_schema::types::CaptureMode as SpecCaptureMode;
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentInput, AgentValue};
-use nika_verb_exec::{CaptureMode, ExecInput, ExecValue};
+use nika_verb_exec::{CaptureMode, ExecCommand, ExecInput, ExecValue};
 use nika_verb_infer::{InferInput, InferValue};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
@@ -30,6 +30,7 @@ use crate::Runtime;
 use crate::errors::RuntimeError;
 
 mod permits;
+mod regate;
 mod sandbox;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
@@ -318,10 +319,15 @@ where
     /// `child_budget` — the run ledger's remaining USD at call time
     /// (spec 14 law 6): an `invoke: workflow:` child runs under
     /// `min(this, its declared budget)`. `None` = no budget to inherit.
+    ///
+    /// `taint` — the F-O1 PR-2 per-template oracle: the exec/mcp re-gates
+    /// label each RAW template against it and match the RENDERED value
+    /// against the step's permit (NEP-0004 law 2 · `dispatch/regate.rs`).
     pub(crate) async fn dispatch(
         &self,
         action: &RawAction,
         scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
         deadline: Option<std::time::Duration>,
         contract: Option<&crate::contract::TaskContract<'_>>,
@@ -329,10 +335,10 @@ where
     ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => {
-                self.dispatch_invoke(inner, scope, (deadline, child_budget), contract)
+                self.dispatch_invoke(inner, scope, taint, (deadline, child_budget), contract)
                     .await
             }
-            RawAction::Exec(inner) => self.dispatch_shell(inner, scope, contract).await,
+            RawAction::Exec(inner) => self.dispatch_shell(inner, scope, taint, contract).await,
             RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline, contract).await,
             RawAction::Agent(inner) => {
                 self.dispatch_agent(inner, scope, agent_buffer, contract)
@@ -351,6 +357,7 @@ where
         &self,
         action: &nika_schema::raw::RawInvokeAction,
         scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
         (deadline, child_budget): (Option<std::time::Duration>, Option<f64>),
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
@@ -381,6 +388,26 @@ where
                 Err(err) => return Dispatched::template_err(&note, &err),
             },
         };
+        // F-O1 PR-2 · the mcp border re-gate (NEP-0004 law 2): the grant
+        // of the tool IS the boundary, and a tainted path/host in its args
+        // slipped through — the resolved value is canonicalized then
+        // matched against the step's fs/net permit. First-party builtins
+        // are already re-gated at their own boundary (`boundary.enforce` ·
+        // the one-hop net enforce) — never duplicated here.
+        if tool.starts_with("mcp:")
+            && let (Some(boundary), Some(raw)) = (scope.permits, &action.args)
+            && let Some(denial) = regate::regate_mcp_args(
+                boundary,
+                &note,
+                &tool,
+                &raw.value,
+                &args,
+                taint,
+                scope.records,
+            )
+        {
+            return denial;
+        }
         let mut input = InvokeInput::new(tool);
         input.args = args;
         match self.invoke.run(input).await {
@@ -443,6 +470,7 @@ where
         &self,
         action: &nika_schema::raw::RawExecAction,
         scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let (mut input, program, is_argv) = match build_exec_input(action, scope) {
@@ -479,6 +507,35 @@ where
 
         if let Some(denial) = permits::check_exec_permits(scope.permits, &note, &program, is_argv) {
             return denial;
+        }
+
+        // F-O1 PR-2 · the argv/cwd re-gate (NEP-0004 law 2): an untrusted
+        // value reaching the PERMITTED verb's argument is matched against
+        // the step's permit on its RESOLVED, canonical form — argv[1..]
+        // (option-injection · traversal · host), then cwd. `argv[0]` is
+        // the program, already matched on its resolved value above; the
+        // shell form has no per-token canonical form (the OS jail owns
+        // its fs — `dispatch/regate.rs` module docs).
+        if let Some(boundary) = scope.permits {
+            if let (RawCommand::Argv(elements), ExecCommand::Argv(argv)) =
+                (&action.command, &input.command)
+                && let Some(denial) =
+                    regate::regate_exec_argv(boundary, &note, elements, argv, taint, scope.records)
+            {
+                return denial;
+            }
+            if let (Some(template), Some(cwd)) = (&action.cwd, &input.cwd)
+                && let Some(denial) = regate::regate_exec_cwd(
+                    boundary,
+                    &note,
+                    &template.value,
+                    &cwd.to_string_lossy(),
+                    taint,
+                    scope.records,
+                )
+            {
+                return denial;
+            }
         }
 
         // ADR-095 Layer 6 · the OS jail rides the SAME declared boundary

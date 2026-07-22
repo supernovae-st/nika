@@ -754,6 +754,10 @@ where
             let budget = task.timeout.as_ref().map(|t| t.value);
             // The `returns:` contract, resolved ONCE (spec 09 · W3) — `None` = gradual.
             let contract = crate::contract::TaskContract::of(task, types);
+            // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE
+            // (a static walk over the task's own templates + the wave-frozen
+            // records; iteration-agnostic), consumed per dispatch attempt.
+            let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -764,6 +768,7 @@ where
                         .dispatch(
                             &task.action,
                             scope,
+                            &value_taint,
                             &agent_buffer,
                             budget,
                             contract.as_ref(),
@@ -942,9 +947,14 @@ where
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
         // Mini-tasks carry no `returns:` (closed shape) — no contract.
+        // The re-gate oracle is the BARE one (a mini-task has no
+        // `with:`/`for_each` — the records + inputs lookups still label
+        // a tainted cleanup argv/arg · F-O1 PR-2).
+        let value_taint = crate::integrity::ValueTaint::bare();
         let attempt = std::pin::pin!(self.dispatch(
             &mini.action,
             scope,
+            &value_taint,
             &cleanup_buffer,
             Some(limit),
             None,
