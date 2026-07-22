@@ -204,6 +204,7 @@ fn try_park(
         settle: settled_as,
         named,
         resume,
+        integrity,
     } = finish;
     let ran = match settled_as {
         SettleAs::Ran(ran) => ran,
@@ -213,6 +214,7 @@ fn try_park(
                 settle: other,
                 named,
                 resume,
+                integrity,
             });
         }
     };
@@ -238,6 +240,7 @@ fn try_park(
                 settle: SettleAs::Ran(ran),
                 named,
                 resume,
+                integrity,
             });
         }
     };
@@ -283,6 +286,7 @@ fn try_park(
         settle: SettleAs::Ran(ran),
         named,
         resume,
+        integrity,
     })
 }
 
@@ -481,11 +485,21 @@ fn resolve_parked(
             .and_then(|v| serde_json::to_string(v).ok())
             .is_none_or(|text| !scope.resume_ctx.leaks_secret(&text))
     });
+    // F-O1 — recomputed against the FINAL view: the recover template's
+    // own reads propagate (the recovered output embeds what it saw).
+    let integrity = scope
+        .wf
+        .tasks
+        .get(task_index)
+        .map_or_else(nika_cap::Integrity::trusted, |task| {
+            crate::integrity::task_integrity(&task.value, view)
+        });
     Finish {
         id,
         settle: settled_as,
         named,
         resume,
+        integrity,
     }
 }
 

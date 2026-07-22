@@ -185,6 +185,13 @@ pub struct TaskRecord {
     /// The verb's output (`Null` on skipped/cancelled/failure ·
     /// defined-null per spec 04).
     pub output: Value,
+    /// The coarse runtime integrity label of the output (F-O1 PR-1 ·
+    /// RS-06's `Integ` axis — [`Integrity::Trusted`] by default, so
+    /// records settled before the label existed read clean). ADDITIVE:
+    /// no gate consumes it yet (PR-2 is the re-gate), and it is NOT part
+    /// of the `tasks.<id>` expression namespace (the closed field set in
+    /// [`Self::field`] is unchanged — a spec amendment would name it).
+    pub integrity: nika_cap::Integrity,
     /// Present iff `status == failure` — PLUS the `on_error: skip`
     /// state where status is `skipped` AND the original error stays
     /// readable (spec 05 · the one coexist state).
@@ -230,6 +237,7 @@ impl TaskRecord {
             status,
             cause,
             output: Value::Null,
+            integrity: nika_cap::Integrity::trusted(),
             error: None,
             attempts: None,
             recovered_from: None,

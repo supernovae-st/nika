@@ -38,6 +38,10 @@ pub(crate) fn settle(
     // non-success (defined-null reads · empty when no `output:`).
     let named = finish.named;
     let resume = finish.resume;
+    // F-O1 — the coarse integrity label the pipeline computed (trusted
+    // for a never-started task); stamped on the record + rides the
+    // terminal frame when untrusted. Additive — no gate reads it (PR-2).
+    let integrity = finish.integrity;
     match finish.settle {
         SettleAs::Cancelled { note, blocked_by } => {
             // The WHY rides along: which upstream kept the gate closed —
@@ -95,12 +99,20 @@ pub(crate) fn settle(
             *ok = false;
         }
         SettleAs::CacheHit { output } => {
-            let record = settle_cache_hit(&id, output, named, resume.as_ref(), stamper, sink);
+            let record = settle_cache_hit(
+                &id,
+                output,
+                named,
+                resume.as_ref(),
+                &integrity,
+                stamper,
+                sink,
+            );
             records.insert(id.clone(), record);
             cache_hits.push(id);
         }
         SettleAs::Ran(run) => {
-            let mut record = settle_ran(&id, run, resume.as_ref(), ok, stamper, sink);
+            let mut record = settle_ran(&id, run, resume.as_ref(), &integrity, ok, stamper, sink);
             record.named = named;
             records.insert(id, record);
         }
@@ -118,6 +130,7 @@ fn settle_cache_hit(
     output: Value,
     named: BTreeMap<String, Value>,
     resume: Option<&resume::ResumeStamp>,
+    integrity: &nika_cap::Integrity,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) -> TaskRecord {
@@ -125,6 +138,8 @@ fn settle_cache_hit(
     record.attempts = Some(1);
     record.output = output;
     record.named = named;
+    // The rehydrated output carries the task's provenance (F-O1).
+    record.integrity = integrity.clone();
     let mut fields = vec![("task", s(id)), ("note", s("cache hit"))];
     let output_text = serde_json::to_string(&record.output).unwrap_or_else(|_| "null".to_owned());
     if let Some(stamp) = resume {
@@ -133,6 +148,7 @@ fn settle_cache_hit(
         fields.push((resume::fields::OUTPUT, s(&output_text)));
     }
     fields.push(("outcome", s(&record::outcome_json(&record))));
+    emit_task::push_integrity_fields(&mut fields, &record);
     let ended = emit(stamper, sink, EventKind::TaskCacheHit, &fields);
     record.ended_at = Some(ended);
     record
@@ -177,6 +193,7 @@ pub(crate) fn settle_ran(
     id: &str,
     run: task::RanTask,
     resume: Option<&resume::ResumeStamp>,
+    integrity: &nika_cap::Integrity,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -199,6 +216,9 @@ pub(crate) fn settle_ran(
     let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
     record.started_at = Some(started_at);
     record.duration_ms = Some(run.duration_ms);
+    // F-O1 — the pipeline's computed label, set BEFORE any terminal frame
+    // so the frame's additive fields read the settled truth.
+    record.integrity = integrity.clone();
     match run.result {
         task::RunResult::Success {
             value,
@@ -356,6 +376,7 @@ fn settle_failed_terminal(
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
     fields.push(("outcome", s(&record::outcome_json(record))));
+    emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
     record.ended_at = Some(ended);
     *ok = false;
@@ -385,6 +406,7 @@ fn settle_skip_with_error(
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
     fields.push(("outcome", s(&record::outcome_json(record))));
+    emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskSkipped, &fields);
     record.ended_at = Some(ended);
 }

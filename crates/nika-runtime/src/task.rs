@@ -65,6 +65,14 @@ pub(crate) struct Finish {
     /// run (future form · render miss · secret leak) — the task records
     /// no key and simply never skips (honest degradation).
     pub resume: Option<crate::resume::ResumeStamp>,
+    /// The coarse runtime integrity label (F-O1 PR-1 · additive) —
+    /// computed from the task's static reference surface + the settled
+    /// upstream records ([`crate::integrity::task_integrity`]) for a task
+    /// that RAN or cache-hit; [`nika_cap::Integrity::Trusted`] for a
+    /// task that never started (its output is `Null` — no content
+    /// flowed). The settle spine stamps it on the record; no gate
+    /// consumes it yet (PR-2).
+    pub integrity: nika_cap::Integrity,
 }
 
 /// How the task settles (spec 03 §task states).
@@ -284,6 +292,9 @@ where
                         },
                         named: null_bindings(task),
                         resume: None,
+                        // Never started — no content flowed (the F-O1
+                        // label is trusted by default).
+                        integrity: nika_cap::Integrity::trusted(),
                     };
                 }
             };
@@ -299,10 +310,17 @@ where
             return finish;
         }
 
+        // F-O1 · the coarse integrity label — computed from the task AS
+        // AUTHORED (an `--answer` binding below is the operator's act,
+        // never an ingress) over the wave-frozen records. Carried on the
+        // Finish; the settle spine stamps it.
+        let integrity = crate::integrity::task_integrity(task, records);
+
         // ── ADR-099 resume identity + the skip verdict — extracted
         //    (the 100-line fn ratchet · semantics unchanged) ──
-        let (resume, skip) =
-            self.resume_skip_finish(task, &id, records, inputs, config, consts, resume_ctx);
+        let (resume, skip) = self.resume_skip_finish(
+            task, &id, records, inputs, config, consts, resume_ctx, &integrity,
+        );
         if let Some(finish) = skip {
             return finish;
         }
@@ -345,6 +363,7 @@ where
             settle,
             named,
             resume,
+            integrity,
         }
     }
 
@@ -355,7 +374,9 @@ where
     /// edited task or a changed input re-runs · §1 · a freshly-supplied
     /// `--answer` FORCES the ask — operator intent is explicit, never
     /// replay an old answer over a new one). The stamp returns for the
-    /// leak filter downstream.
+    /// leak filter downstream. A cache hit keeps the pipeline's computed
+    /// `integrity` (the rehydrated output carries the task's provenance).
+    #[allow(clippy::too_many_arguments)] // the run-scoped reads + the F-O1 label
     fn resume_skip_finish(
         &self,
         task: &RawTask,
@@ -365,13 +386,18 @@ where
         config: &BTreeMap<String, Value>,
         consts: &BTreeMap<String, Value>,
         resume_ctx: &crate::resume::ResumeContext,
+        integrity: &nika_cap::Integrity,
     ) -> (Option<crate::resume::ResumeStamp>, Option<Finish>) {
         let resume = crate::resume::stamp(task, records, inputs, config, consts, resume_ctx);
         let skip = if self.prompt_answers.contains_key(id) {
             None
         } else {
             self.cache_hit_finish(task, id, resume.as_ref())
-        };
+        }
+        .map(|mut finish| {
+            finish.integrity = integrity.clone();
+            finish
+        });
         (resume, skip)
     }
 
@@ -444,6 +470,10 @@ where
             settle,
             named,
             resume: Some(stamp.clone()),
+            // Stamped by the caller (`resume_skip_finish`) with the
+            // pipeline's computed label — the rehydrated output carries
+            // the task's provenance.
+            integrity: nika_cap::Integrity::trusted(),
         })
     }
 
@@ -1139,6 +1169,8 @@ fn gate_finish(
                 },
                 named: null_bindings(task),
                 resume: None,
+                // Never ran — the output is `Null`, no content flowed.
+                integrity: nika_cap::Integrity::trusted(),
             });
         }
     }
@@ -1194,6 +1226,9 @@ fn when_finish(
         settle,
         named: null_bindings(task),
         resume: None,
+        // Never started (the gate closed · the boundary refused) — the
+        // output is `Null`, no content flowed.
+        integrity: nika_cap::Integrity::trusted(),
     })
 }
 

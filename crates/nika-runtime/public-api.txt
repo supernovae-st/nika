@@ -1313,6 +1313,7 @@ pub nika_runtime::TaskRecord::cause: nika_runtime::TerminalCause
 pub nika_runtime::TaskRecord::duration_ms: core::option::Option<u64>
 pub nika_runtime::TaskRecord::ended_at: core::option::Option<nika_types::timestamp::Timestamp>
 pub nika_runtime::TaskRecord::error: core::option::Option<nika_runtime::TaskErrorRecord>
+pub nika_runtime::TaskRecord::integrity: nika_cap::integrity::Integrity
 pub nika_runtime::TaskRecord::named: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_runtime::TaskRecord::output: serde_json::value::Value
 pub nika_runtime::TaskRecord::recovered_from: core::option::Option<nika_runtime::TaskErrorRecord>
