@@ -21,8 +21,10 @@
 //! refused with the boundary's [`BuiltinFailure`] before any I/O.
 //!
 //! An UNSET boundary ([`FsBoundary::unbounded`]) enforces nothing — the
-//! pre-permits behaviour (« absent `permits:` = today's behaviour, the
-//! engine floor is the only gate » · spec §permits).
+//! pre-F-O8 behaviour. Post-F-O8 « absent = zero authority » the compose
+//! layer never DERIVES it from a workflow (an absent `permits:` block
+//! maps to the empty declared boundary); it remains only as an explicit
+//! embedder construction.
 
 use std::path::{Component, Path, PathBuf};
 

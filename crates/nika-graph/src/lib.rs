@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn nodes_are_wave_ordered_regardless_of_authoring_order() {
         let g = doc(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  d:\n    with:\n      b: \"${{ tasks.b.output }}\"\n      c: \"${{ tasks.c.output }}\"\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  d:\n    with:\n      b: \"${{ tasks.b.output }}\"\n      c: \"${{ tasks.c.output }}\"\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n",
         );
         assert_eq!(g.graph_format, 2);
         let ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn edges_carry_kind_predicate_and_binding() {
         let g = doc(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: terminal }\n    with:\n      st: \"${{ tasks.a.status }}\"\n    exec: { command: [\"true\"] }\n  c:\n    exec: { command: [\"true\"] }\n    on_error:\n      recover: \"${{ tasks.a.output }}\"\n",
+            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: terminal }\n    with:\n      st: \"${{ tasks.a.status }}\"\n    exec: { command: [\"true\"] }\n  c:\n    exec: { command: [\"true\"] }\n    on_error:\n      recover: \"${{ tasks.a.output }}\"\n",
         );
         let rows: Vec<Row<'_>> = g
             .edges
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn edges_are_sorted_and_deduped() {
         let g = doc(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with:\n      x: \"${{ tasks.a.output }} and ${{ tasks.a.output }}\"\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with:\n      x: \"${{ tasks.a.output }} and ${{ tasks.a.output }}\"\n    exec: { command: [\"true\"] }\n",
         );
         let pairs: Vec<(&str, &str)> = g
             .edges

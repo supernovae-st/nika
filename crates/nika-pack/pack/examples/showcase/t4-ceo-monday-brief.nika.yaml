@@ -38,6 +38,9 @@ secrets:
     egress:                       # sanction the one send · the secret IS the URL
       - to: "nika:notify"
         host_from_self: true
+permits:
+  tools: ["nika:convert", "nika:date", "nika:fetch", "nika:inspect", "nika:jq", "nika:notify", "nika:read", "nika:write"]
+  exec: ["git"]
 
 tasks:
   # ── branch 1 · market signal ──

@@ -28,6 +28,10 @@ model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/clau
 
 const:
   base_ref: "main"
+permits:
+  tools: ["nika:done", "nika:grep", "nika:jq", "nika:read", "nika:write"]
+  exec: ["git"]
+  fs: { read: ["./src"], write: ["./REVIEW.md"] }
 
 tasks:
   changed:

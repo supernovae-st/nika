@@ -31,6 +31,7 @@ const OK_EXEC: &str = r#"
 nika: v1
 workflow:
   id: run-ok
+permits: { exec: ["echo"] }
 tasks:
   greet:
     exec: { command: ["echo", "hello"] }
@@ -44,6 +45,7 @@ const FAILING: &str = r#"
 nika: v1
 workflow:
   id: run-fail
+permits: { exec: ["false"] }
 tasks:
   boom:
     exec: { command: ["false"] }
@@ -53,6 +55,7 @@ const CYCLE: &str = r#"
 nika: v1
 workflow:
   id: run-cycle
+permits: { exec: ["true"] }
 tasks:
   a:
     after:

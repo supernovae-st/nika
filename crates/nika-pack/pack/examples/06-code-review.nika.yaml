@@ -28,6 +28,8 @@ inputs:
     type: string
     required: true
     description: "Path to the changed files to review"
+permits:
+  tools: ["mcp:git/*", "nika:done", "nika:read"]
 
 tasks:
   review:

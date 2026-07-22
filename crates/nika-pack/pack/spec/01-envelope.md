@@ -422,9 +422,19 @@ permits:                          # the workflow's entire blast radius, declared
 ```
 
 `permits:` makes the **file itself the security boundary**: an auditable
-property of the workflow, not a runtime flag. It is **optional and
-non-breaking**: a workflow with no `permits:` block runs exactly as today
-(bounded only by the engine's own SSRF + blocklist floor).
+property of the workflow, not a runtime flag. The key stays **optional in
+the grammar** (LAW-AUTH-0320 · no new field, no version marker); an absent
+block is not a free pass: **an absent `permits:` block declares zero
+authority** (NEP-0003 · LAW-AUTH-0324 · fail-closed). DeclaredPermits :=
+∅, so every effect the body requires is refused at `check`
+(`NIKA-AUTH-006` · before any token · the diagnostic carries the inferred
+block inline, ready to paste), and any effect attempted at run time fails
+the task (`NIKA-SEC-004` · defense in depth for the dynamic cases a static
+judge cannot see). A workflow whose required set is empty (pure compute)
+passes, with an informational hint naming the explicit form; `permits: {}`
+is the authored spelling of "I touch nothing". Under composition the
+absence is a wall, the zero wall: a parent's grants never flow down to a
+child implicitly (`NIKA-COMP-002`).
 
 **Semantics (normative) · once `permits:` is present, every category is
 DEFAULT-DENY unless listed** ·

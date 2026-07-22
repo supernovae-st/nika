@@ -15,6 +15,10 @@ model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
 const:
   source: "./README.md"             # SLOT: your input — README.md exists in ANY repo, so the
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs: { read: ["./README.md"], write: ["./output.md"] }
+
                                     # skeleton runs green BEFORE you point it at real data
 
 tasks:

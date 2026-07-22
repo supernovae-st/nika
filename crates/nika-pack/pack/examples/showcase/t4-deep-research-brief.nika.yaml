@@ -29,6 +29,8 @@ inputs:
     type: string
     required: true
     description: "What to research"
+permits:
+  tools: ["nika:done", "nika:fetch", "nika:write"]
 
 tasks:
   plan:

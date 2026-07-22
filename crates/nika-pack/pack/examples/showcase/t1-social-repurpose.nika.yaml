@@ -24,6 +24,9 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large
 
 const:
   post_path: "./blog/launch-post.md"
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs: { write: ["./social-bundle.md"] }
 
 tasks:
   post:

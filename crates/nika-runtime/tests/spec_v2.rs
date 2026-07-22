@@ -127,6 +127,7 @@ async fn cap_equivalence_byte_identical_streams() {
 nika: v1
 workflow:
   id: cap-eq
+permits: { exec: true }
 const: { publish: "no" }
 tasks:
   a:
@@ -222,6 +223,7 @@ async fn same_wave_tasks_truly_run_concurrently() {
 nika: v1
 workflow:
   id: handshake
+permits: { tools: ["nika:read"], fs: { read: ["left.txt", "right.txt"] } }
 tasks:
   left:
     invoke: { tool: "nika:read", args: { path: "left.txt" } }
@@ -259,6 +261,7 @@ async fn sibling_failure_drains_the_wave() {
 nika: v1
 workflow:
   id: drain
+permits: { exec: true }
 tasks:
   dies:
     exec: { command: ["boom"] }
@@ -293,6 +296,7 @@ async fn always_pattern_runs_after_upstream_failure() {
 nika: v1
 workflow:
   id: always
+permits: { exec: true }
 tasks:
   build:
     exec: { command: ["make"] }
@@ -465,6 +469,7 @@ async fn terminal_error_never_retries() {
 nika: v1
 workflow:
   id: terminal
+permits: { tools: ["nika:fetch"], net: { http: ["example.com"] } }
 tasks:
   fetch:
     retry: { max_attempts: 5 }
@@ -511,6 +516,7 @@ async fn timeout_kills_a_hanging_task_with_the_spec_code() {
 nika: v1
 workflow:
   id: hung
+permits: { tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   stuck:
     timeout: "50ms"
@@ -579,6 +585,7 @@ async fn on_error_recover_skip_and_filter() {
 nika: v1
 workflow:
   id: recovery
+permits: { exec: true, tools: ["nika:fetch"], net: { http: ["example.com"] } }
 tasks:
   cached:
     exec: { command: ["cat", "cache.json"] }
@@ -646,6 +653,7 @@ async fn on_codes_matches_the_user_facing_spec_code() {
 nika: v1
 workflow:
   id: oncodes-catch
+permits: { exec: true }
 tasks:
   boom:
     exec: { shell: "exit 7" }
@@ -672,6 +680,7 @@ tasks:
 nika: v1
 workflow:
   id: oncodes-skip
+permits: { exec: true }
 tasks:
   boom:
     exec: { shell: "exit 7" }
@@ -707,6 +716,7 @@ async fn on_codes_retry_filter_and_selectivity_use_the_spec_code() {
 nika: v1
 workflow:
   id: oncodes-retry
+permits: { exec: true }
 tasks:
   boom:
     retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-EXEC-001] }
@@ -738,6 +748,7 @@ tasks:
 nika: v1
 workflow:
   id: oncodes-miss
+permits: { exec: true }
 tasks:
   boom:
     exec: { shell: "exit 7" }
@@ -768,6 +779,7 @@ async fn for_each_maps_items_in_order_with_locals() {
 nika: v1
 workflow:
   id: fan
+permits: { exec: true }
 const:
   urls: ["alpha", "beta", "gamma"]
 tasks:
@@ -867,6 +879,7 @@ async fn for_each_fail_fast_false_nulls_at_index() {
 nika: v1
 workflow:
   id: fan-collect
+permits: { exec: true }
 const:
   items: ["one", "two", "three"]
 tasks:
@@ -911,6 +924,7 @@ async fn for_each_on_error_skip_nulls_at_index_parent_succeeds() {
 nika: v1
 workflow:
   id: fan-skip
+permits: { exec: true }
 const:
   items: ["one", "two", "three"]
 tasks:
@@ -953,6 +967,7 @@ async fn for_each_fail_fast_true_stops_the_lane() {
 nika: v1
 workflow:
   id: fan-abort
+permits: { exec: true }
 const:
   items: ["one", "two", "three"]
 tasks:
@@ -987,6 +1002,7 @@ async fn for_each_empty_skips_and_non_array_fails() {
 nika: v1
 workflow:
   id: fan-edges
+permits: { exec: true }
 const:
   none: []
   scalar: "not a list"
@@ -1033,6 +1049,7 @@ async fn for_each_iterations_run_concurrently_under_the_cap() {
 nika: v1
 workflow:
   id: fan-pair
+permits: { tools: ["nika:read"] }
 const:
   items: ["x", "y"]
 tasks:
@@ -1073,6 +1090,7 @@ async fn on_finally_runs_on_success_and_failure_and_routes_on_status() {
 nika: v1
 workflow:
   id: cleanup
+permits: { exec: true }
 tasks:
   works:
     exec: { command: ["make", "thing"] }
@@ -1125,6 +1143,7 @@ async fn on_finally_errors_are_swallowed() {
 nika: v1
 workflow:
   id: cleanup-err
+permits: { exec: true }
 tasks:
   main:
     exec: { command: ["work"] }
@@ -1161,6 +1180,7 @@ async fn status_gates_route_on_skipped_upstream() {
 nika: v1
 workflow:
   id: routing
+permits: { exec: true }
 const: { mode: "fast" }
 tasks:
   slow_path:
@@ -1199,6 +1219,7 @@ async fn emitted_spec_codes_resolve_in_the_embedded_canon() {
 nika: v1
 workflow:
   id: pin-timeout
+permits: { tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   stuck:
     timeout: "10ms"
@@ -1232,6 +1253,7 @@ tasks:
 nika: v1
 workflow:
   id: pin-var
+permits: { exec: true }
 const: { scalar: "not a list" }
 tasks:
   bad:
@@ -1281,6 +1303,7 @@ async fn for_each_when_gate_referencing_item_fails_loudly() {
 nika: v1
 workflow:
   id: gate-item
+permits: { exec: true }
 const:
   items: ["a", "b"]
 tasks:
@@ -1336,6 +1359,7 @@ async fn builtin_invoke_array_output_lets_for_each_iterate() {
 nika: v1
 workflow:
   id: glob-fanout
+permits: { tools: ["nika:glob", "nika:read"] }
 tasks:
   files:
     invoke:
@@ -1393,6 +1417,7 @@ async fn structured_object_tool_output_navigates() {
 nika: v1
 workflow:
   id: object-nav
+permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   api:
     invoke:
@@ -1437,6 +1462,7 @@ async fn text_only_tool_output_stays_a_string() {
 nika: v1
 workflow:
   id: text-output
+permits: { tools: ["mcp:server/echo"] }
 tasks:
   tool:
     invoke: { tool: "mcp:server/echo", args: {} }

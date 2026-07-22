@@ -239,7 +239,10 @@ pub struct CheckReport {
     /// return value (the literal exfiltration · IFC egress · ADR-092).
     pub secret_egresses: Vec<SecretEgress>,
     /// Every statically-detectable effect outside the declared `permits:`
-    /// boundary (empty when no `permits:` block is present).
+    /// boundary. F-O8 « absent = zero authority »: with NO `permits:`
+    /// block every effect escapes against the zero boundary (flagged
+    /// `undeclared` → `NIKA-AUTH-006`) — only a pure-compute body stays
+    /// empty here (and gets the « declare `permits: {}` » hint instead).
     pub capability_escapes: Vec<CapabilityEscape>,
     /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` —
     /// judged on the derived graph, so empty when `conformance` has
@@ -353,12 +356,16 @@ impl CheckReport {
         let mut codes = Vec::new();
         codes.extend(self.capability_escapes.iter().map(|e| {
             // Floor escapes carry the code the run would emit (SEC-005 ·
-            // the always-on SSRF floor); boundary escapes stay SEC-004.
-            SpecCode::new(
-                "SEC",
-                if e.floor { 5 } else { 4 },
-                SpecCategory::SecurityError,
-            )
+            // the always-on SSRF floor); an effect judged against the
+            // F-O8 zero boundary (no `permits:` declared) is AUTH-006;
+            // declared-boundary escapes stay SEC-004.
+            if e.floor {
+                SpecCode::new("SEC", 5, SpecCategory::SecurityError)
+            } else if e.undeclared {
+                SpecCode::new("AUTH", 6, SpecCategory::SecurityError)
+            } else {
+                SpecCode::new("SEC", 4, SpecCategory::SecurityError)
+            }
         }));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001.
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
@@ -400,6 +407,23 @@ impl CheckReport {
 /// ONE round-trip. The plan (`waves`) and the IFC secret analysis need
 /// a valid topological order and are skipped when conformance fails
 /// (empty · documented on the fields).
+/// F-O8 « absent = zero authority »: a MISSING `permits:` block whose
+/// body escapes NOTHING (pure compute) is the LEGAL zero — stated, not
+/// punished: the hint teaches the explicit `permits: {}` form (the
+/// only legal spelling of « I touch nothing »).
+fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, hints: &mut Vec<Hint>) {
+    if wf.permits.is_none() && escapes_empty {
+        hints.push(Hint {
+            kind: "permits",
+            task: "-".to_owned(),
+            advice: "no `permits:` block declared · zero authority (F-O8) — the body is \
+                     pure compute so nothing escapes; declare `permits: {}` to state the \
+                     zero explicitly"
+                .to_owned(),
+        });
+    }
+}
+
 #[must_use]
 pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
@@ -460,6 +484,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     } else {
         Vec::new()
     };
+    let capability_escapes = permits_fit::scan_escapes(wf);
+    legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -469,7 +495,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         permits: effective::collect(wf),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
-        capability_escapes: permits_fit::scan_escapes(wf),
+        capability_escapes,
         policy_findings,
         trifecta_findings,
         schema_findings: schema_typing::scan_types(wf),
@@ -592,6 +618,7 @@ tasks:
 nika: v1
 workflow:
   id: clean
+permits: { exec: [\"echo\"] }
 tasks:
   a:
     exec: { command: [\"echo\", \"hi\"] }
@@ -599,6 +626,76 @@ tasks:
         );
         assert!(r.is_clean());
         assert_eq!(r.waves, vec![vec![0]]);
+    }
+
+    /// F-O8 « absent = zero authority » — the ERROR half: no `permits:`
+    /// block + an effect ⇒ the report is dirty, every escape is stamped
+    /// `undeclared`, and the code maps to NIKA-AUTH-006 on BOTH surfaces
+    /// (the extra-conformance list AND the unified findings) — the
+    /// refusal is proven, not supposed (EPERM-style).
+    #[test]
+    fn absent_permits_with_effects_is_auth_006() {
+        let r = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        );
+        assert!(!r.is_clean(), "absent + an effect is dirty (F-O8)");
+        assert!(
+            r.capability_escapes
+                .iter()
+                .all(|e| e.undeclared && !e.floor),
+            "the zero-boundary class: {:?}",
+            r.capability_escapes
+        );
+        let codes: Vec<String> = r
+            .extra_conformance_codes()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert!(
+            codes.iter().any(|c| c == "NIKA-AUTH-006"),
+            "the AUTH-006 code maps: {codes:?}"
+        );
+        assert!(
+            r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-AUTH-006")),
+            "the unified finding stamps the code: {:?}",
+            r.findings
+        );
+        // …and NO advisory hint double-teaches (the error owns the repair).
+        assert!(
+            !r.hints.iter().any(|h| h.kind == "permits"),
+            "{:?}",
+            r.hints
+        );
+    }
+
+    /// F-O8 « absent = zero authority » — the LEGAL-zero half: no
+    /// `permits:` block + a pure-compute body ⇒ clean, with ONE advisory
+    /// hint teaching the explicit `permits: {}` form.
+    #[test]
+    fn pure_compute_absent_permits_gets_the_legal_zero_hint() {
+        let r = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        assert!(r.is_clean(), "pure compute stays clean: {r:?}");
+        let h = r
+            .hints
+            .iter()
+            .find(|h| h.kind == "permits")
+            .expect("the legal-zero hint rides");
+        assert!(h.advice.contains("permits: {}"), "{h:?}");
+        // …and `permits: {}` EXPLICIT is silent (the declared zero is
+        // assumed, nothing to teach).
+        let declared = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: {}\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        assert!(declared.is_clean(), "{declared:?}");
+        assert!(
+            !declared.hints.iter().any(|h| h.kind == "permits"),
+            "{:?}",
+            declared.hints
+        );
     }
 
     #[test]
@@ -785,6 +882,7 @@ tasks:
 nika: v1
 workflow:
   id: clean
+permits: { exec: [\"echo\"] }
 tasks:
   a:
     exec: { command: [\"echo\", \"hi\"] }

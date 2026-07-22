@@ -22,6 +22,12 @@ workflow:
 
 model: mock/echo
 
+permits:
+  tools: ["nika:read"]
+  exec: ["wc", "echo"]
+  fs:
+    read: ["./news.json"]
+
 const:
   source: "./news.json"
 

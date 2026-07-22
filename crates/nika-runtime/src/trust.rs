@@ -82,7 +82,6 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
 mod tests {
     use std::sync::Arc;
 
-    use nika_kernel::tool_executor::ToolResult;
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -144,8 +143,10 @@ mod tests {
     const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: tri\npermits: { fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }, net: { http: [\"api.example.com\"] }, tools: [\"nika:fetch\", \"nika:write\"] }\ntasks:\n  fetch_page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/data\" } }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" } }\n";
 
     /// The hand-built clean report: `check` refuses the REAL workflow, so
-    /// the run is fed the CLEAN report of its permit-free twin — same
-    /// tasks, same waves (the `permits:` line strips away).
+    /// the run is fed the CLEAN report of its wide-boundary twin — same
+    /// tasks, same waves (the `permits:` line swaps away). F-O8: the twin
+    /// is WIDE, not permit-free (absent = zero authority now) — and it
+    /// drops the private-read leg so the trifecta never completes.
     fn forged_clean_report(yaml: &str) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
         let wf = parse(yaml);
         assert!(
@@ -154,13 +155,19 @@ mod tests {
         );
         let twin_yaml = yaml
             .lines()
-            .filter(|line| !line.starts_with("permits:"))
+            .map(|line| {
+                if line.starts_with("permits:") {
+                    "permits: { fs: { write: [\"./out/**\"] }, net: { http: [\"api.example.com\"] }, tools: [\"nika:fetch\", \"nika:write\"] }"
+                } else {
+                    line
+                }
+            })
             .collect::<Vec<_>>()
             .join("\n");
         let report = nika_check::check(&parse(&twin_yaml));
         assert!(
             report.is_clean(),
-            "the permit-free twin checks clean (same tasks → same waves)"
+            "the wide-boundary twin checks clean (same tasks → same waves)"
         );
         (wf, report)
     }
@@ -278,34 +285,44 @@ mod tests {
         assert_eq!(probe.executed_commands().len(), 1, "the exec ran");
     }
 
-    /// (c) No `permits:` block → the gate is skipped WHOLESALE. The proof
-    /// is behavioral: a literal loopback fetch is a FLOOR escape
-    /// (NIKA-SEC-005) the static lane flags even with no boundary
-    /// declared, so the honest report is dirty and the run is fed the
-    /// clean report of its public-host twin. Were the gate to run, the
-    /// re-derivation would flag the floor escape and abort NIKA-1707 —
-    /// instead the run proceeds (today's posture unchanged: the floor's
-    /// LIVE enforcement in the effect path owns that world, never the
-    /// report).
+    /// (c) No `permits:` block → the 1707 re-derivation is skipped (that
+    /// gate is the declared-block twin), and F-O8's ZERO-AUTHORITY seam
+    /// speaks instead: a forged clean report over an effect workflow
+    /// still dies at dispatch — the tool gate refuses NIKA-SEC-004
+    /// before any call (the defense-in-depth filet under the check).
+    /// The honest report is dirty the same way (NIKA-AUTH-006 · a floor
+    /// escape OR an undeclared one), so both refusal classes hold.
     #[tokio::test]
-    async fn no_declared_boundary_skips_the_gate_wholesale() {
-        let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1/x\" } }\n";
+    async fn no_declared_boundary_skips_the_gate_but_the_seam_refuses() {
+        let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n";
         let wf = parse(yaml);
         assert!(
             !nika_check::check(&wf).is_clean(),
-            "the floor escape dirties the honest report even without permits"
+            "F-O8: absent + an effect dirties the honest report (NIKA-AUTH-006)"
         );
-        let twin = parse(&yaml.replace("http://127.0.0.1/x", "https://api.example.com/x"));
+        // The forged clean report: a pure-compute twin (no effects →
+        // the LEGAL zero · clean) — the hand-built-report shape an
+        // embedder feeds the run.
+        let twin = parse(
+            "nika: v1\nworkflow:\n  id: floor\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
         let report = nika_check::check(&twin);
-        assert!(report.is_clean(), "the public-host twin checks clean");
-        let executor = MockToolExecutor::new().enqueue_ok(ToolResult::success("t1", "page"));
+        assert!(report.is_clean(), "the pure-compute twin checks clean");
+        let executor = MockToolExecutor::new(); // EMPTY — any call is a bug
         let probe = executor.clone();
         let runtime = runtime_with(MockShell::new(), executor, MockProvider::new("mock"));
         let outcome = run(&runtime, &wf, &report).await;
+        assert!(!outcome.ok, "the seam refuses the zero-authority fetch");
+        let err = outcome.records["t"].error.as_ref().expect("recorded");
+        assert_eq!(err.code, "NIKA-SEC-004", "the dispatch seam speaks (F-O8)");
         assert!(
-            outcome.ok,
-            "no permits → the gate never runs (the re-derivation costs nothing here)"
+            err.message.contains("zero authority"),
+            "the refusal names the law: {}",
+            err.message
         );
-        assert_eq!(probe.captured_calls().len(), 1, "the fetch executed");
+        assert!(
+            probe.captured_calls().is_empty(),
+            "the refused tool NEVER executed"
+        );
     }
 }

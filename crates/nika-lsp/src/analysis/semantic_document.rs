@@ -110,7 +110,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
 mod tests {
     use super::*;
 
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"true\"] }\n";
+    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"true\"] }\n";
 
     fn as_value(doc: &SemanticDocument) -> serde_json::Value {
         serde_json::to_value(doc).expect("payload serializes")
@@ -164,9 +164,10 @@ mod tests {
         let spans = doc["spans"].as_object().expect("spans object");
         assert_eq!(spans.len(), 4);
         let a = &spans["a"];
-        // task `a`'s declaring KEY sits on line 4 (0-based · the
-        // workflow object added a line) — the span points there.
-        assert_eq!(a["start"]["line"], 4, "{a}");
+        // task `a`'s declaring KEY sits on line 5 (0-based · the
+        // workflow object + the permits line add two lines) — the span
+        // points there.
+        assert_eq!(a["start"]["line"], 5, "{a}");
     }
 
     /// A document with findings projects NO graph (the CLI skips PLAN

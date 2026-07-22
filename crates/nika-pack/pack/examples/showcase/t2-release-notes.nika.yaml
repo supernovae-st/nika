@@ -33,6 +33,10 @@ secrets:
     egress:                       # sanction the one send · the secret IS the URL
       - to: "nika:notify"
         host_from_self: true
+permits:
+  tools: ["nika:edit", "nika:notify"]
+  exec: ["git"]
+  fs: { write: ["./CHANGELOG.md"] }
 
 tasks:
   history:

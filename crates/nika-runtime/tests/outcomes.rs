@@ -315,8 +315,7 @@ fn the_thirty_pair_complement_refuses() {
 /// attempts = 1 · NO `recovered_from`.
 #[tokio::test]
 async fn row_success_normal() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new().enqueue_ok("hi\n")).await;
     assert!(outcome.ok);
     assert_eq!(outcome.records["a"].cause, TerminalCause::Normal);
@@ -334,7 +333,7 @@ async fn row_success_normal() {
 /// the record keeps the ORIGINAL error as `recovered_from`.
 #[tokio::test]
 async fn row_success_recovered() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    on_error: { recover: \"fallback\" }\n    exec: { command: [\"boom\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    on_error: { recover: \"fallback\" }\n    exec: { command: [\"boom\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new().enqueue_fail(9, "kaboom")).await;
     assert!(outcome.ok, "the recovery settles the run green");
     let record = &outcome.records["a"];
@@ -363,7 +362,7 @@ async fn row_success_recovered() {
 /// remained (attempts = 1 when no `retry:`).
 #[tokio::test]
 async fn row_failure_verb_error() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"boom\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    exec: { command: [\"boom\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new().enqueue_fail(9, "kaboom")).await;
     assert!(!outcome.ok);
     assert_eq!(outcome.records["a"].cause, TerminalCause::VerbError);
@@ -390,7 +389,7 @@ impl ToolExecuteDyn for HangingTools {
 /// the budget RACE settles, not the verb).
 #[tokio::test]
 async fn row_failure_timeout() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    timeout: \"50ms\"\n    invoke: { tool: \"nika:read\", args: { path: \"slow.txt\" } }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:read\"], fs: { read: [\"slow.txt\"] } }\ntasks:\n  a:\n    timeout: \"50ms\"\n    invoke: { tool: \"nika:read\", args: { path: \"slow.txt\" } }\n";
     let (outcome, events) = run_yaml(
         yaml,
         MockShell::new(),
@@ -441,7 +440,7 @@ async fn row_failure_retry_exhausted() {
 /// decision, not a defect; the payload carries NO error (defined-null).
 #[tokio::test]
 async fn row_skipped_gate() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\nconst: { go: \"no\" }\ntasks:\n  a:\n    when: ${{ const.go == 'yes' }}\n    exec: { command: [\"echo\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\nconst: { go: \"no\" }\ntasks:\n  a:\n    when: ${{ const.go == 'yes' }}\n    exec: { command: [\"echo\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new()).await;
     assert!(outcome.ok, "a decision-skip keeps the run green");
     assert_eq!(outcome.records["a"].status, TaskStatus::Skipped);
@@ -460,7 +459,7 @@ async fn row_skipped_gate() {
 /// error rides the payload (it already rides `.error` — same record).
 #[tokio::test]
 async fn row_skipped_error_skip() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    on_error: { skip: true }\n    exec: { command: [\"boom\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    on_error: { skip: true }\n    exec: { command: [\"boom\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new().enqueue_fail(9, "kaboom")).await;
     assert!(outcome.ok, "a skip absorbs the failure");
     let record = &outcome.records["a"];
@@ -481,7 +480,7 @@ async fn row_skipped_error_skip() {
 /// (an upstream failure propagated) · reason spells the cause.
 #[tokio::test]
 async fn row_cancelled_upstream() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"boom\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.prev }}\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    exec: { command: [\"boom\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.prev }}\"] }\n";
     let (outcome, events) = run_simple(yaml, MockShell::new().enqueue_fail(9, "kaboom")).await;
     assert!(!outcome.ok);
     assert_eq!(outcome.records["b"].status, TaskStatus::Cancelled);
@@ -497,7 +496,7 @@ async fn row_cancelled_upstream() {
 /// task was UNSTARTED when the cap hit (NIKA-RUN-1704 semantics).
 #[tokio::test]
 async fn row_cancelled_budget() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.prev }}\", expression: \".\" } }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.prev }}\", expression: \".\" } }\n";
     let tools = MockToolExecutor::new().enqueue_ok(
         ToolResult::success("c1", "done")
             .with_structured(serde_json::json!({ "cost_usd": 0.06, "ok": true })),
@@ -558,6 +557,7 @@ async fn trace_format_2_and_outcome_on_every_terminal() {
 nika: v1
 workflow:
   id: mixed
+permits: { exec: true }
 const: { go: "no" }
 tasks:
   ok:
@@ -625,7 +625,7 @@ tasks:
 /// two identical runs give byte-identical streams (the W2 law holds).
 #[tokio::test]
 async fn outcome_fields_are_replay_stable() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    on_error: { recover: \"fallback\" }\n    exec: { command: [\"boom\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    on_error: { recover: \"fallback\" }\n    exec: { command: [\"boom\"] }\n";
     let (_, first) = run_simple(yaml, MockShell::new().enqueue_fail(9, "kaboom")).await;
     let (_, again) = run_simple(yaml, MockShell::new().enqueue_fail(9, "kaboom")).await;
     assert_eq!(first, again, "outcome fields must not break determinism");
@@ -643,6 +643,7 @@ async fn cause_reads_both_sides_when_branches_on_timeout() {
 nika: v1
 workflow:
   id: triage
+permits: { exec: true, tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   flaky:
     timeout: "50ms"
@@ -679,7 +680,7 @@ tasks:
 /// the wire word, exactly (spec 13 · never a string match on a message).
 #[tokio::test]
 async fn cause_renders_the_wire_word_in_templates() {
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    on_error: { skip: true }\n    exec: { command: [\"boom\"] }\n  b:\n    with: { why: \"${{ tasks.a.cause }}\" }\n    exec: { command: [\"echo\", \"${{ with.why }}\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    on_error: { skip: true }\n    exec: { command: [\"boom\"] }\n  b:\n    with: { why: \"${{ tasks.a.cause }}\" }\n    exec: { command: [\"echo\", \"${{ with.why }}\"] }\n";
     let shell = MockShell::new()
         .enqueue_fail(9, "kaboom")
         .enqueue_ok("error_skip\n");

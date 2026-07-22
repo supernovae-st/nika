@@ -28,6 +28,9 @@ inputs:
     type: string
     required: true
     description: "Path to the contract (markdown or plain text)"
+permits:
+  tools: ["nika:assert", "nika:read", "nika:validate", "nika:write"]
+  fs: { write: ["./legal/risk-memo.md"] }
 
 tasks:
   contract:

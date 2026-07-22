@@ -486,7 +486,7 @@ mod trace_carry {
 
     #[tokio::test]
     async fn success_task_completed_carries_the_resume_fields() {
-        const WORKFLOW: &str = "nika: v1\nworkflow:\n  id: carry\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        const WORKFLOW: &str = "nika: v1\nworkflow:\n  id: carry\npermits: { exec: [\"echo\"] }\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let wf = nika_schema::parse(
             WORKFLOW,
             nika_schema::FileId::new(0),
@@ -552,7 +552,7 @@ mod trace_carry {
         assert_eq!(stamp.input_hash, input);
     }
 
-    const TWO_TASKS: &str = "nika: v1\nworkflow:\n  id: resume\ntasks:\n  a:\n    exec: { command: [\"echo\", \"one\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"two\", \"${{ with.prev }}\"] }\n";
+    const TWO_TASKS: &str = "nika: v1\nworkflow:\n  id: resume\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"one\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"two\", \"${{ with.prev }}\"] }\n";
 
     /// Run [`TWO_TASKS`] over mock seams with an optional resume plan —
     /// returns the outcome + the emitted stream.
@@ -653,8 +653,8 @@ mod trace_carry {
         // behavior (spec 15 · proven canonical in `with_declaration_order_is_
         // canonicalized_away`). `b` is a live downstream so the run is not
         // trivially all-cache-hit — `a`'s reuse is the claim under test.
-        const SPELL_A: &str = "nika: v1\nworkflow:\n  id: sem\ntasks:\n  a:\n    with: { x: \"1\", y: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
-        const SPELL_B: &str = "nika: v1\nworkflow:\n  id: sem\ntasks:\n  a:\n    with: { y: \"2\", x: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
+        const SPELL_A: &str = "nika: v1\nworkflow:\n  id: sem\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    with: { x: \"1\", y: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
+        const SPELL_B: &str = "nika: v1\nworkflow:\n  id: sem\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    with: { y: \"2\", x: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
 
         // 1. Run spelling A — harvest a's journaled semantic identity + output.
         let (first, sink) = run_yaml(

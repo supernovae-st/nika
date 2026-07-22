@@ -24,6 +24,9 @@ workflow:
 
 const:
   batch_csv: "./data/incoming/orders.csv"
+permits:
+  tools: ["nika:convert", "nika:jq", "nika:read", "nika:validate", "nika:write"]
+  fs: { write: ["./data/quarantine/orders-rejected.json", "./data/reports/daily-totals.json"] }
 
 tasks:
   # A deterministic empty fallback · the recover target when parsing dies.

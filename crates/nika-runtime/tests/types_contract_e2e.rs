@@ -90,6 +90,7 @@ async fn decode_json_feeds_a_typed_object_downstream() {
 nika: v1
 workflow:
   id: w3-json
+permits: { exec: true }
 types:
   Stats: { object: { count: integer, mean: number } }
 tasks:
@@ -120,6 +121,7 @@ async fn decode_text_is_strict_utf8_and_trims_like_today() {
 nika: v1
 workflow:
   id: w3-text
+permits: { exec: true }
 tasks:
   say:
     exec: { command: ["echo", "42"], decode: text }
@@ -140,6 +142,7 @@ async fn decode_jsonl_is_one_value_per_non_empty_line() {
 nika: v1
 workflow:
   id: w3-jsonl
+permits: { exec: true }
 tasks:
   rows:
     exec: { command: ["stream-mock"], decode: jsonl }
@@ -161,6 +164,7 @@ async fn decode_bytes_carries_invalid_utf8_as_base64() {
 nika: v1
 workflow:
   id: w3-bytes
+permits: { exec: true }
 tasks:
   blob:
     exec: { command: ["bin-mock"], decode: bytes }
@@ -188,6 +192,7 @@ async fn invalid_utf8_under_text_is_a_task_failure_not_a_crash() {
 nika: v1
 workflow:
   id: w3-bad-utf8
+permits: { exec: true }
 tasks:
   bad:
     exec: { command: ["bin-mock"], decode: text }
@@ -217,6 +222,7 @@ async fn truncated_json_names_the_decode_and_empty_output_is_honest() {
 nika: v1
 workflow:
   id: w3-trunc
+permits: { exec: true }
 tasks:
   cut:
     exec: { command: ["api-mock"], decode: json }
@@ -249,6 +255,7 @@ async fn empty_output_fits_text_and_jsonl_as_their_empty_values() {
 nika: v1
 workflow:
   id: w3-empties
+permits: { exec: true }
 tasks:
   t:
     exec: { command: ["quiet-mock"], decode: text }
@@ -272,6 +279,7 @@ async fn a_fit_violation_is_type_101_and_never_echoes_the_value() {
 nika: v1
 workflow:
   id: w3-fit
+permits: { exec: true }
 tasks:
   n:
     exec: { command: ["num-mock"], decode: json }
@@ -305,6 +313,7 @@ async fn stderr_and_combined_captures_feed_the_decode_pipeline() {
 nika: v1
 workflow:
   id: w3-streams
+permits: { exec: true }
 tasks:
   logs:
     exec: { command: ["warn-mock"], capture: stderr, decode: json }
@@ -328,6 +337,7 @@ async fn structured_capture_with_returns_types_the_object_directly() {
 nika: v1
 workflow:
   id: w3-structured
+permits: { exec: true }
 tasks:
   probe:
     exec: { command: ["probe-mock"], capture: structured }
@@ -366,6 +376,7 @@ async fn a_large_stream_decodes_whole_through_jsonl() {
 nika: v1
 workflow:
   id: w3-big
+permits: { exec: true }
 tasks:
   bulk:
     exec: { command: ["gen-mock"], decode: jsonl }
@@ -387,6 +398,7 @@ async fn on_error_skip_scopes_both_refusal_classes() {
 nika: v1
 workflow:
   id: w3-onerror
+permits: { exec: true }
 tasks:
   bad_decode:
     exec: { command: ["bin-mock"], decode: json }
@@ -421,6 +433,7 @@ async fn a_dead_process_with_a_declared_contract_settles_cleanly() {
 nika: v1
 workflow:
   id: w3-dead
+permits: { exec: true }
 tasks:
   slow:
     exec: { command: ["sleep-mock"], decode: json }

@@ -277,15 +277,20 @@ fn judge_direct_call(
     for detail in typed_call_defects(cx.args, cx.returns, &child, cx.parent_env) {
         push("NIKA-COMP-004", detail);
     }
-    // Laws 3/4 — effect containment (child ⊆ parent declared).
-    if let Some(parent) = cx.parent_permits {
-        let child_boundary = child.permits.as_ref().map_or_else(
-            || super::permits_infer::infer(&child).permits,
-            |s| s.value.clone(),
-        );
-        for detail in boundary_violations(&child_boundary, parent) {
-            push("NIKA-COMP-002", detail);
-        }
+    // Laws 3/4 — effect containment (child ⊆ parent). F-O8 « absent =
+    // zero authority »: an absent parent block IS the empty boundary.
+    // NEP-0003 retires the draft-inferred reading (ex LAW-AUTH-0306): an
+    // absent CHILD block is the DECLARED zero — the parent's grants never
+    // flow down implicitly. The judged formula (the Python oracle's twin):
+    // child NEEDS − (parent ∩ child-declared) — the inference only ever
+    // computes NEEDS, never the judged boundary itself.
+    let zero = Permits::new();
+    let parent = cx.parent_permits.unwrap_or(&zero);
+    let child_declared = child.permits.as_ref().map_or(&zero, |s| &s.value);
+    let meet = parent.intersect(child_declared);
+    let child_needs = super::permits_infer::infer(&child).permits;
+    for detail in boundary_violations(&child_needs, &meet) {
+        push("NIKA-COMP-002", detail);
     }
 }
 
@@ -589,6 +594,8 @@ workflow:
   id: child
 inputs:
   url: { type: string, required: true }
+permits:
+  exec: [\"echo\"]
 tasks:
   fetch:
     exec: { command: [\"echo\", \"${{ inputs.url }}\"] }
@@ -640,6 +647,8 @@ outputs:
 nika: v1
 workflow:
   id: parent
+permits:
+  exec: [\"echo\"]
 tasks:
   audit:
     invoke:
@@ -669,6 +678,8 @@ tasks:
 nika: v1
 workflow:
   id: parent
+permits:
+  exec: [\"echo\"]
 tasks:
   audit:
     invoke:
@@ -689,6 +700,8 @@ workflow:
   id: parent
 const:
   u: \"x\"
+permits:
+  exec: [\"echo\"]
 tasks:
   audit:
     invoke:
@@ -804,9 +817,10 @@ tasks:
     }
 
     #[test]
-    fn undeclared_parent_boundary_is_no_wall() {
-        // No parent permits ⇒ no containment wall (the parent's own
-        // authority is unconstrained · law 3's ∩ has nothing to cut).
+    fn undeclared_parent_boundary_is_zero_authority() {
+        // F-O8 « absent = zero authority »: no parent permits ⇒ the parent
+        // boundary is ∅ (not « no wall »), so the child's concrete exec
+        // need exceeds it — containment refuses (law 3's ∩ cuts to zero).
         let wf = parse(&parent_yaml("./child.nika.yaml", "{}"));
         let child = "\
 nika: v1
@@ -818,8 +832,8 @@ tasks:
 ";
         let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(child.to_owned()));
         assert!(
-            !f.iter().any(|x| x.code == "NIKA-COMP-002"),
-            "no declared parent boundary → no containment finding: {f:?}"
+            f.iter().any(|x| x.code == "NIKA-COMP-002"),
+            "absent parent boundary = ∅ → the child's need escapes it: {f:?}"
         );
     }
 

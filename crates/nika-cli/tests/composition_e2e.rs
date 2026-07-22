@@ -74,6 +74,7 @@ workflow:
   id: greet-child
 inputs:
   name: { type: string, required: true }
+permits: { exec: ["echo"] }
 tasks:
   greet:
     exec: { command: ["echo", "hello ${{ inputs.name }}"] }
@@ -85,6 +86,7 @@ const PARENT: &str = r#"
 nika: v1
 workflow:
   id: greet-parent
+permits: { exec: ["echo"] }
 tasks:
   call:
     invoke:
@@ -339,6 +341,7 @@ fn acyclic_chain_beyond_the_depth_bound_fails_closed_at_run() {
 nika: v1
 workflow:
   id: f9
+permits: { exec: [\"echo\"] }
 tasks:
   leaf:
     exec: { command: [\"echo\", \"bottom\"] }
@@ -350,6 +353,7 @@ tasks:
 nika: v1
 workflow:
   id: f{i}
+permits: {{ exec: [\"echo\"] }}
 tasks:
   descend:
     invoke: {{ workflow: \"./f{}.nika.yaml\" }}
@@ -379,6 +383,7 @@ fn parent_timeout_bounds_the_real_child() {
 nika: v1
 workflow:
   id: sleeper
+permits: { exec: ["sleep"] }
 tasks:
   nap:
     exec: { command: ["sleep", "5"] }
@@ -387,6 +392,7 @@ tasks:
 nika: v1
 workflow:
   id: impatient
+permits: { exec: ["sleep"] }
 tasks:
   call:
     invoke: { workflow: "./child.nika.yaml" }

@@ -34,6 +34,9 @@ secrets:
     egress:                       # sanction the one send · the secret IS the URL
       - to: "nika:notify"
         host_from_self: true
+permits:
+  tools: ["nika:fetch", "nika:notify", "nika:write"]
+  fs: { write: ["./radar/competitor-brief.md"] }
 
 tasks:
   map:

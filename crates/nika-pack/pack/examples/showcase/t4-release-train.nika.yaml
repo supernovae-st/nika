@@ -40,6 +40,10 @@ secrets:
     egress:                       # sanction the on_finally ping · the secret IS the URL
       - to: "nika:notify"
         host_from_self: true
+permits:
+  tools: ["nika:assert", "nika:date", "nika:emit", "nika:fetch", "nika:prompt", "nika:wait"]
+  exec: ["./scripts/release.sh", "cargo"]
+  net: { http: ["api.example.com"] }
 
 tasks:
   t0:

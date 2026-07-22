@@ -8,6 +8,9 @@ workflow:
   id: battery-s1-nested
 model: mock/echo
 
+permits:
+  exec: false
+
 tasks:
   subject:
     infer:

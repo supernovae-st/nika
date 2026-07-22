@@ -125,10 +125,13 @@ async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
     assert_eq!(spec.net, NetPolicy::Deny, "no net.http = the deny holds");
 }
 
-/// No `permits:` block = today's unconfined floor (the blocklist only —
-/// the sandbox spec stays unset, so the noop-backend world is unchanged).
+/// No `permits:` block = ZERO AUTHORITY (F-O8): the check flags the
+/// undeclared exec (NIKA-AUTH-006 → the report is dirty) and the run is
+/// refused BEFORE the prologue (NIKA-1700 · audit-before-run) — zero
+/// process spawned. The old « unconfined floor » (spec unset · blocklist
+/// only) is retired: absent is never unconfined anymore.
 #[tokio::test]
-async fn no_declared_boundary_attaches_no_spec() {
+async fn absent_permits_refuses_the_exec_before_spawn() {
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -142,7 +145,10 @@ async fn no_declared_boundary_attaches_no_spec() {
     )
     .expect("fixture parses");
     let report = nika_check::check(&wf);
-    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+    assert!(
+        !report.is_clean(),
+        "absent permits + an exec effect = dirty (NIKA-AUTH-006): {report:?}"
+    );
     let shell = MockShell::new().enqueue_ok("ok");
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
@@ -161,13 +167,18 @@ async fn no_declared_boundary_attaches_no_spec() {
     );
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    runtime
+    let err = runtime
         .run(&wf, &report, &mut stamper, &mut sink)
         .await
-        .expect("clean run");
-    let sent = shell.executed_commands();
-    assert_eq!(sent.len(), 1);
-    assert!(sent[0].sandbox.is_none(), "no boundary = no spec attached");
+        .expect_err("audit-before-run refuses the dirty report");
+    assert!(
+        matches!(err, RuntimeError::DirtyReport),
+        "NIKA-1700 · refused before the prologue: {err:?}"
+    );
+    assert!(
+        shell.executed_commands().is_empty(),
+        "zero process spawned — the exec died before spawn"
+    );
 }
 
 /// would starve it forever (they'd only exist after gate itself
@@ -180,7 +191,7 @@ async fn wave_settles_stream_before_the_join() {
     use nika_providers::{ProviderRegistry, ProvidersConfig};
     use std::sync::atomic::AtomicBool;
 
-    let yaml = "nika: v1\nworkflow:\n  id: stream-settle\ntasks:\n  fast:\n    exec: { command: [\"true\"] }\n  gate:\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: stream-settle\npermits: { exec: [\"true\"], tools: [\"nika:jq\"] }\ntasks:\n  fast:\n    exec: { command: [\"true\"] }\n  gate:\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -279,7 +290,7 @@ async fn resolved_secret_is_scrubbed_from_the_event_stream() {
     // the shell mock's OUTPUT is the secret value — the same bytes a
     // file-sourced `cat` or an mcp echo would surface. What the scrub must
     // catch is the value, wherever it came from.
-    let yaml = "nika: v1\nworkflow:\n  id: journal-hygiene\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: journal-hygiene\npermits: { exec: [\"echo\"] }\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -726,13 +737,18 @@ mod tools_permits_tests {
 
     /// The embedder-bypass shape: `check` refuses the REAL workflow (its
     /// body escapes the declared boundary), so the run is fed the CLEAN
-    /// report of its permit-free twin — same tasks, same waves. A skipped
+    /// report of its wide-boundary twin — same tasks, same waves. A skipped
     /// check and a forged report are indistinguishable to the runtime:
     /// the trust gate re-derives the boundary from the WORKFLOW bytes and
     /// unmasks the twin's report at run start (NIKA-1707), before dispatch.
     /// Every fixture writes `permits:` as ONE line so the twin is a
-    /// line-strip away.
-    fn forged_clean_report(yaml: &str) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
+    /// line-swap away. (F-O8: the pre-F-O8 permit-free twin is dirty now —
+    /// absent = zero authority — so the clean donor is the WIDE boundary
+    /// that admits the body.)
+    fn forged_clean_report(
+        yaml: &str,
+        wide_permits: &str,
+    ) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
         let wf = parse(yaml);
         assert!(
             !nika_check::check(&wf).is_clean(),
@@ -740,13 +756,19 @@ mod tools_permits_tests {
         );
         let twin_yaml = yaml
             .lines()
-            .filter(|line| !line.starts_with("permits:"))
+            .map(|line| {
+                if line.starts_with("permits:") {
+                    wide_permits
+                } else {
+                    line
+                }
+            })
             .collect::<Vec<_>>()
             .join("\n");
         let report = nika_check::check(&parse(&twin_yaml));
         assert!(
             report.is_clean(),
-            "the permit-free twin checks clean (same tasks → same waves)"
+            "the wide-boundary twin checks clean (same tasks → same waves)"
         );
         (wf, report)
     }
@@ -795,6 +817,7 @@ mod tools_permits_tests {
     async fn invoke_outside_tools_boundary_is_unmasked_at_the_trust_gate() {
         let (wf, report) = forged_clean_report(
             "nika: v1\nworkflow:\n  id: tools-deny\npermits: { tools: [\"nika:read\"] }\ntasks:\n  danger:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n",
+            "permits: { tools: [\"nika:read\", \"nika:write\"], fs: { write: [\"x\"] } }",
         );
         let executor = MockToolExecutor::new(); // EMPTY — any call is a bug
         let probe = executor.clone();
@@ -822,6 +845,7 @@ mod tools_permits_tests {
     async fn declared_block_with_omitted_tools_denies_every_tool() {
         let (wf, report) = forged_clean_report(
             "nika: v1\nworkflow:\n  id: tools-omitted\npermits: { exec: true }\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
+            "permits: { exec: true, tools: [\"nika:read\"], fs: { read: [\"x\"] } }",
         );
         let executor = MockToolExecutor::new();
         let probe = executor.clone();
@@ -863,6 +887,7 @@ mod tools_permits_tests {
     async fn agent_universe_outside_tools_boundary_is_refused() {
         let (wf, report) = forged_clean_report(
             "nika: v1\nworkflow:\n  id: agent-tools-deny\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\", \"nika:write\"]\n",
+            "permits: { tools: [\"nika:read\", \"nika:write\"] }",
         );
         let provider = MockProvider::new("mock").enqueue_text("never reached");
         let probe = provider.clone();

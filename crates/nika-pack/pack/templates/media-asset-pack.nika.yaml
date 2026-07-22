@@ -16,6 +16,8 @@ model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 const:
   subject: "a calm cosmic landing hero"   # SLOT: what the asset is about
   out_dir: "./out/assets"           # SLOT: where assets land
+permits:
+  tools: ["nika:image_generate", "nika:jq", "nika:write"]
 
 tasks:
   brief:

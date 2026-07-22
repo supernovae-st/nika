@@ -359,7 +359,7 @@ mod tests {
     /// protocols: this pin is the MCP leg of the LSP's parity law).
     #[test]
     fn inspect_serves_the_canonical_projection_verbatim() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("clean");
         let got: Value = serde_json::from_str(&out).expect("json");
         let wf = nika_schema::parse(
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn check_a_clean_workflow_is_ok() {
-        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let wf = "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
         assert!(out.contains("clean"), "{out}");
     }

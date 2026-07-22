@@ -4,11 +4,14 @@
 //! The `permits:` block — the declared capability boundary.
 //!
 //! Per spec `01-envelope.md` §permits · the workflow's entire blast
-//! radius, declared in-file. **Optional and non-breaking** — absent means
-//! today's behavior (bounded only by the engine's SSRF + blocklist
-//! floor). **Once present, every category is DEFAULT-DENY unless
-//! listed** — `permits: {}` is a workflow provably limited to pure
-//! compute. Escapes are refused statically (`nika check`) and fail at
+//! radius, declared in-file. **F-O8 « absent = zero authority »
+//! (NEP-0003)** — a MISSING block is the UNDECLARED zero: every effect
+//! is refused (`NIKA-AUTH-006` at check · `NIKA-SEC-004` at run in
+//! defense-in-depth) and only the always-on floors (SSRF · blocklist ·
+//! masking) stay on top. `permits: {}` is the LEGAL declared zero — a
+//! workflow provably limited to pure compute.
+//! **Once present, every category is DEFAULT-DENY unless
+//! listed**. Escapes are refused statically (`nika check`) and fail at
 //! runtime with `NIKA-SEC-004` (`security_error` · never fed back to an
 //! `agent:` model).
 

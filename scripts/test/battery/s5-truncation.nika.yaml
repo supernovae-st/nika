@@ -9,6 +9,9 @@ workflow:
   id: battery-s5-truncation
 model: mock/echo
 
+permits:
+  exec: false
+
 tasks:
   bio:
     infer:

@@ -8,6 +8,9 @@ workflow:
   id: battery-s3-underspecified
 model: mock/echo
 
+permits:
+  exec: false
+
 tasks:
   note:
     infer:

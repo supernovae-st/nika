@@ -39,6 +39,13 @@ workflow:
 
 model: mock/echo
 
+permits:
+  tools: ["nika:read", "nika:write"]
+  exec: ["wc", "echo"]
+  fs:
+    read: ["./news.json"]
+    write: ["./out/report.md"]
+
 const:
   source: "./news.json"
   publish: "no"
@@ -357,6 +364,7 @@ async fn floor_dirty_report_never_executes() {
 nika: v1
 workflow:
   id: cycle
+permits: { exec: ['true'] }
 tasks:
   a:
     after: { b: success }
@@ -439,6 +447,7 @@ async fn floor_when_literal_true_runs_and_false_skips() {
 nika: v1
 workflow:
   id: gates
+permits: { exec: ['echo'] }
 tasks:
   always:
     when: true
@@ -488,6 +497,7 @@ async fn floor_typed_var_default_and_typed_output_resolve() {
 nika: v1
 workflow:
   id: typed-forms
+permits: { exec: true }
 const:
   greeting:
     type: string
@@ -604,6 +614,7 @@ nika: v1
 workflow:
   id: gated-ref
 model: mock/echo
+permits: { exec: ['echo'] }
 tasks:
   maybe:
     when: false
@@ -652,7 +663,8 @@ tasks:
 async fn stress_deep_chain_threads_bindings_in_order() {
     const DEPTH: usize = 24;
     use std::fmt::Write as _;
-    let mut yaml = String::from("nika: v1\nworkflow:\n  id: deep-chain\ntasks:\n");
+    let mut yaml =
+        String::from("nika: v1\nworkflow:\n  id: deep-chain\npermits: { exec: true }\ntasks:\n");
     yaml.push_str("  t0:\n    exec: { command: ['step', '0'] }\n");
     for n in 1..DEPTH {
         let _ = writeln!(
@@ -703,7 +715,9 @@ async fn stress_deep_chain_threads_bindings_in_order() {
 async fn stress_wide_fan_in_joins_every_source() {
     const WIDTH: usize = 12;
     use std::fmt::Write as _;
-    let mut yaml = String::from("nika: v1\nworkflow:\n  id: wide-fan\ntasks:\n");
+    let mut yaml = String::from(
+        "nika: v1\nworkflow:\n  id: wide-fan\npermits: { exec: ['src'], tools: ['nika:write'], fs: { write: ['./out/joined.md'] } }\ntasks:\n",
+    );
     for n in 0..WIDTH {
         let _ = writeln!(yaml, "  src{n}:\n    exec: {{ command: ['src', '{n}'] }}");
     }

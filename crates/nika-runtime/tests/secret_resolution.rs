@@ -96,6 +96,7 @@ async fn workflow_secret_resolves_into_a_sanctioned_sink_only() {
 nika: v1
 workflow:
   id: secret-run
+permits: { exec: true }
 secrets:
   token:
     source: env
@@ -154,6 +155,7 @@ async fn absent_workflow_secret_is_a_clean_typed_error() {
 nika: v1
 workflow:
   id: secret-missing
+permits: { exec: true }
 secrets:
   token:
     source: env
@@ -194,6 +196,7 @@ async fn no_resolver_keeps_secrets_unbound_fail_closed() {
 nika: v1
 workflow:
   id: secret-none
+permits: { exec: true }
 secrets:
   token:
     source: env

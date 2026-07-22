@@ -94,6 +94,7 @@ async fn output_named_bindings_resolve_downstream() {
 nika: v1
 workflow:
   id: out-bind
+permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   src:
     invoke: { tool: "nika:jq", args: { input: { count: 7 }, expression: "." } }
@@ -140,6 +141,7 @@ async fn output_binding_jq_path_and_collect() {
 nika: v1
 workflow:
   id: out-bind-jq
+permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   api:
     invoke: { tool: "nika:jq", args: { input: {}, expression: "." } }
@@ -186,6 +188,7 @@ async fn output_binding_cardinality_error_fails_the_task() {
 nika: v1
 workflow:
   id: out-bind-card
+permits: { tools: ["nika:jq"] }
 tasks:
   src:
     invoke: { tool: "nika:jq", args: { input: { users: [1, 2, 3] }, expression: "." } }
@@ -239,6 +242,7 @@ async fn output_binding_of_skipped_task_is_defined_null() {
 nika: v1
 workflow:
   id: out-bind-skip
+permits: { exec: true, tools: ["nika:jq"] }
 const:
   run: "no"
 tasks:
@@ -285,6 +289,7 @@ async fn exec_capture_structured_exposes_stdout_stderr_exit_code() {
 nika: v1
 workflow:
   id: exec-structured
+permits: { exec: true }
 tasks:
   probe:
     exec: { command: ["run-it"], capture: structured }
@@ -339,6 +344,7 @@ async fn exec_plain_capture_stays_a_trimmed_string() {
 nika: v1
 workflow:
   id: exec-plain
+permits: { exec: true }
 tasks:
   e:
     exec: { command: ["printf", "42"] }
@@ -378,6 +384,7 @@ async fn typed_output_type_mismatch_fails_the_run_with_var009() {
 nika: v1
 workflow:
   id: typed-out-mismatch
+permits: { tools: ["nika:jq"] }
 tasks:
   n:
     invoke: { tool: "nika:jq", args: { input: { x: 42 }, expression: ".x" } }
@@ -471,9 +478,11 @@ tasks:
         .find(|e| e.kind == EventKind::WorkflowStarted)
         .expect("a workflow_started frame");
     let permits = str_field(started, "permits").expect("a permits field on the frame");
+    // F-O8 « absent = zero authority »: the banner names the new floor —
+    // the pre-F-O8 « engine floor » (no wall at all) is retired.
     assert!(
-        permits.contains("engine floor"),
-        "no declared boundary → the engine-floor truth · got: {permits}"
+        permits.contains("zero authority"),
+        "no declared boundary → the zero-authority truth · got: {permits}"
     );
 }
 
@@ -491,6 +500,7 @@ async fn workflow_started_carries_the_source_identity_when_injected() {
 nika: v1
 workflow:
   id: source-identity
+permits: { tools: ["nika:jq"] }
 tasks:
   t:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
@@ -567,6 +577,7 @@ async fn skip_and_cancel_events_carry_their_why() {
 nika: v1
 workflow:
   id: skip-why
+permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   seed:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
@@ -644,8 +655,7 @@ tasks:
 /// prologue attests both, from compile-time constants only.
 #[tokio::test]
 async fn workflow_started_attests_engine_and_platform() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: attest\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n";
+    let yaml = "nika: v1\nworkflow:\n  id: attest\npermits: { exec: true }\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n";
     let (_outcome, events) = run_to_events(
         yaml,
         MockShell::new(),

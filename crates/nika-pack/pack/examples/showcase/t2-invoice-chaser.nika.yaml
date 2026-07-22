@@ -26,6 +26,9 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (d
 
 const:
   ledger_csv: "./finance/invoices.csv"
+permits:
+  tools: ["nika:convert", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
+  fs: { write: ["./finance/reminders-to-send.md"] }
 
 tasks:
   ledger:

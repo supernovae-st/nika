@@ -21,6 +21,8 @@
 nika: v1
 workflow:
   id: exec-pipeline
+permits:
+  exec: ["./deploy.sh"]
 
 tasks:
   test:

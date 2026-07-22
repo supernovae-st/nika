@@ -29,6 +29,7 @@ const WORKFLOW: &str = r#"
 nika: v1
 workflow:
   id: var-override
+permits: { exec: true }
 inputs:
   topic:
     type: string
@@ -122,6 +123,7 @@ const OPTIONAL_WORKFLOW: &str = r#"
 nika: v1
 workflow:
   id: var-optional
+permits: { exec: true }
 inputs:
   note: { type: string }
 tasks:

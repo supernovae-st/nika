@@ -14,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-use nika_check::{analyze, check};
+use nika_check::analyze;
 use nika_schema::{FileId, ParseMode, SchemaError, SpecCode, parse};
 
 /// Resolve the nika-spec checkout (env override · sibling default).
@@ -150,19 +150,25 @@ pub(crate) fn check_extra(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCo
     }
 }
 
-/// The `policy:` surface (spec 10 · the `core/policy/**` fixtures) — a
-/// CORE concern the `analyze()` tier does not emit: the lane lives in
-/// `check()` (it reads the derived graph), and the reference oracle
-/// judges policy on every tier. The core verdict therefore adds exactly
-/// the POLICY-namespace codes — never the deep-only builtin/permits
-/// classes, which stay deep concerns.
-pub(crate) fn check_policy_codes(yaml: &str, mode: ParseMode) -> Vec<SpecCode> {
+/// The CORE-tier check-only codes (`policy:` surface of spec 10 · F-O8's
+/// AUTH namespace of NEP-0003 · and spec 14's COMP namespace — law 3/4's
+/// « absent child = ∅ » is judged in core/authority/006): the lane lives
+/// in `check()` (it reads the derived graph — and the composed read for
+/// the child files), and the reference oracle judges these on every tier.
+/// Never the deep-only builtin/permits-fit classes, which stay deep
+/// concerns.
+pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCode> {
     match parse(yaml, FileId::new(0), mode) {
-        Ok(wf) => check(&wf)
+        Ok(wf) => {
+            let root = dir.join("input.yaml").to_string_lossy().into_owned();
+            nika_check::check_composed(&wf, &root, &mut |p| {
+                std::fs::read_to_string(p).map_err(|e| e.to_string())
+            })
             .extra_conformance_codes()
             .into_iter()
-            .filter(|c| c.namespace == "POLICY")
-            .collect(),
+            .filter(|c| matches!(c.namespace, "POLICY" | "AUTH" | "COMP"))
+            .collect()
+        }
         // A parse error (fixture 009's closed-set refusal) surfaces
         // through `run_engine` (analyze) as a SchemaError.
         Err(_) => Vec::new(),
@@ -194,7 +200,7 @@ pub(crate) fn fixture_verdict(dir: &Path, deep: bool) -> Option<String> {
     let extra = if deep {
         check_extra(&yaml, mode, dir)
     } else {
-        check_policy_codes(&yaml, mode)
+        check_core_codes(&yaml, mode, dir)
     };
 
     if expected.valid {

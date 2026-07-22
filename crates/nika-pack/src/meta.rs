@@ -112,10 +112,20 @@ fn title_of(slug: &str, body: &str) -> String {
 
 /// The verbs a workflow's tasks use — a line scan for the 4 locked verb
 /// keys at task-field indentation (`    infer:` …), deduped in the
-/// locked presentation order.
+/// locked presentation order. The top-level `permits:` block is SKIPPED:
+/// its own `exec:`/`tools:` keys are grants, not task verbs (latent
+/// until F-O8 put a `permits:` block in every pack file).
 fn verbs_of(body: &str) -> Vec<&'static str> {
     let mut found = [false; 4];
+    let mut in_permits = false;
     for line in body.lines() {
+        if !line.starts_with(' ') && !line.starts_with('#') && line.contains(':') {
+            in_permits = line.starts_with("permits:");
+            continue;
+        }
+        if in_permits {
+            continue;
+        }
         let t = line.trim_start();
         for (i, verb) in ["infer:", "exec:", "invoke:", "agent:"].iter().enumerate() {
             if t.starts_with(verb) {

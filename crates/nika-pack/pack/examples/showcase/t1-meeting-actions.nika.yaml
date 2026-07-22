@@ -26,6 +26,9 @@ inputs:
     type: string
     required: true
     description: "Path to the raw meeting transcript"
+permits:
+  tools: ["nika:log", "nika:read", "nika:write"]
+  fs: { write: ["./action-items.json"] }
 
 tasks:
   transcript:

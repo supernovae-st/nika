@@ -420,20 +420,23 @@ where
     }
 
     /// ADR-095 Layer 6 — the OS-confinement spec from the declared
-    /// boundary (the `dispatch/sandbox.rs` derivation · `None` = the
-    /// unconfined floor: no `permits:` block).
+    /// boundary (the `dispatch/sandbox.rs` derivation). F-O8 « absent =
+    /// zero authority »: `None` maps to the EMPTY boundary's spec (fs
+    /// empty · net deny) — the double lock under `check_exec_permits`,
+    /// which already refuses the exec upstream.
     fn exec_sandbox_spec(
         &self,
         permits: Option<&nika_schema::types::Permits>,
-    ) -> Option<nika_kernel::process::SandboxSpec> {
-        let permits = permits?;
+    ) -> nika_kernel::process::SandboxSpec {
+        let zero = nika_schema::types::Permits::new();
+        let permits = permits.unwrap_or(&zero);
         let root = self
             .config
             .sandbox_root
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        Some(sandbox::spec_of(permits, &root))
+        sandbox::spec_of(permits, &root)
     }
 
     async fn dispatch_shell(
@@ -474,13 +477,14 @@ where
             return Dispatched::template_err(&note, &err);
         }
 
-        if let Some(denial) = check_exec_permits(scope.permits, &note, &program, is_argv) {
+        if let Some(denial) = permits::check_exec_permits(scope.permits, &note, &program, is_argv) {
             return denial;
         }
 
         // ADR-095 Layer 6 · the OS jail rides the SAME declared boundary
-        // (no `permits:` block = today's unconfined floor).
-        input.sandbox = self.exec_sandbox_spec(scope.permits);
+        // (F-O8: no `permits:` block = the zero-authority spec · the exec
+        // is already refused above, this is the double lock).
+        input.sandbox = Some(self.exec_sandbox_spec(scope.permits));
 
         match self.shell.run(input).await {
             Ok(out) => {
@@ -981,61 +985,6 @@ fn capture_mode(spec: Option<SpecCaptureMode>) -> CaptureMode {
         Some(SpecCaptureMode::Structured) => CaptureMode::Structured,
         // `stdout`, omitted, OR an unknown future variant → the default.
         None | Some(SpecCaptureMode::Stdout | _) => CaptureMode::Stdout,
-    }
-}
-
-/// The exec capability boundary (spec 01 §permits · NIKA-SEC-004): once a
-/// workflow declares `permits`, the exec sink enforces it. Returns `Some(error)`
-/// when the command is refused, `None` when permitted (or no `permits` declared
-/// — today's behavior, where the runner floor is the only gate; operator policy
-/// is nika-policy's job, s8).
-///
-/// A program allowlist (`Programs`) governs `argv[0]` of the ARRAY form (the
-/// unambiguous program); the SHELL form is REFUSED under an allowlist because a
-/// pipeline can launch any program, so a single leading token cannot verify it
-/// (use the array form). This is STRICTER than the static `nika check` for
-/// shell-under-allowlist — the safe direction.
-fn check_exec_permits(
-    permits: Option<&nika_schema::types::Permits>,
-    note: &str,
-    program: &str,
-    is_argv: bool,
-) -> Option<Dispatched> {
-    use nika_schema::types::ExecPermit;
-    let permits = permits?;
-    match &permits.exec {
-        // Omitted or `false` → this workflow runs zero processes.
-        None | Some(ExecPermit::No) => Some(Dispatched::security_err(
-            note,
-            "exec is not permitted by the workflow `permits` boundary",
-        )),
-        // `true` → any process (still blocklist-gated at the floor).
-        Some(ExecPermit::Any) => None,
-        // A program allowlist → ARRAY form only (argv[0] must be listed); the
-        // SHELL form cannot be verified (a pipeline can launch any program), so
-        // it is refused — use the array form.
-        Some(ExecPermit::Programs(allowed)) => {
-            if !is_argv {
-                return Some(Dispatched::security_err(
-                    note,
-                    "a shell-string command cannot be verified against a \
-                     `permits.exec` program allowlist (a pipeline can launch \
-                     any program) — use the array form",
-                ));
-            }
-            if !allowed.iter().any(|p| p == program) {
-                return Some(Dispatched::security_err(
-                    note,
-                    format!("program {program:?} is not in the `permits.exec` allowlist"),
-                ));
-            }
-            None
-        }
-        // #[non_exhaustive] · a future permit form fails CLOSED.
-        Some(_) => Some(Dispatched::security_err(
-            note,
-            "exec permit form not understood by this engine version",
-        )),
     }
 }
 

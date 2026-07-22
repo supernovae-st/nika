@@ -26,12 +26,12 @@ workflow:
 
 const:
   bookmarks:
-    type: { array: string }
-    value:
+    type: array
+    default:
       - "https://example.com"
       - "https://github.com/supernovae-st/nika"
       - "https://this-domain-does-not-exist-0000.invalid" # the dead one · the recover path IS the demo
-    # The saved-links pile to triage (the pre-C2 `description:` — a typed constant carries {type, value} exactly)
+    description: "The saved-links pile to triage"
 
 permits:
   exec: false

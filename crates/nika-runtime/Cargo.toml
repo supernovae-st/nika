@@ -17,6 +17,7 @@ nika-event       = { path = "../nika-event", version = "0.105.0" }        # Even
 nika-schema      = { path = "../nika-schema", version = "0.105.0" }       # RawWorkflow · RawAction (the run input)
 nika-check       = { path = "../nika-check", version = "0.105.0" }        # CheckReport · the audit-before-run gate (the admit/trust planes)
 nika-tmpl        = { path = "../nika-tmpl", version = "0.105.0" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
+nika-cap         = { path = "../nika-cap", version = "0.105.0" }        # is_pure_internal — the NEP-0003 pure class the absent-block run admits (leaf dep · zero cycle)
 nika-catalog     = { path = "../nika-catalog", version = "0.105.0", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
 nika-cel         = { path = "../nika-cel", version = "0.105.0" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
 nika-kernel      = { path = "../nika-kernel", version = "0.105.0" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
