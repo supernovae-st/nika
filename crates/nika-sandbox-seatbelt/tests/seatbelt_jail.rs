@@ -194,10 +194,13 @@ fn allowlist_fences_loopback_to_the_proxy_port() {
 
     // 2. loopback on any OTHER port: EPERM (the fence) — not a TCP-level
     //    "Connection refused" (a listener is present), the sandbox verdict.
+    //    `-v` is load-bearing: Apple nc (macOS 15.6 verified) prints the
+    //    connect error ONLY in verbose mode — without it the EPERM is a
+    //    silent exit 1 and the stderr assertion below cannot read it.
     let out = run(
         &spec,
         "/usr/bin/nc",
-        &["-w", "2", "127.0.0.1", &other_port.to_string()],
+        &["-v", "-w", "2", "127.0.0.1", &other_port.to_string()],
     );
     assert!(!out.status.success(), "another port must be fenced");
     assert!(
