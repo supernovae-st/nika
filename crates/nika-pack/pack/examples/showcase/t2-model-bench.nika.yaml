@@ -45,7 +45,7 @@ model: ollama/qwen3.5:4b # the house default · contenders below pick their own 
 const:
   question:
     type: string
-    value: "Explain, in five lines, why a workflow should be audited before it runs."
+    default: "Explain, in five lines, why a workflow should be audited before it runs."
 
 tasks:
   ask_incumbent:

@@ -52,7 +52,7 @@ showcase:
     workflow: {'id': 'meeting-actions', 'description': 'Transcript → typed action items {owner, task, due}'}
     tier: T1
     description: ""
-    constructs: [local_model, outputs, schema, typed_vars, with]
+    constructs: [local_model, outputs, schema, with]
     sha256_16: c945aecc02ed7d09
   - file: examples/showcase/t1-og-images.nika.yaml
     workflow: {'id': 'og-images', 'description': 'Generate the launch OG hero image set into ./assets/og'}
@@ -82,13 +82,13 @@ showcase:
     workflow: {'id': 'bookmark-triage', 'description': 'URL list → per-page metadata fan-out (dead links survive) → one markdown triage table'}
     tier: T2
     description: ""
-    constructs: [fail_fast, for_each, max_parallel, on_error, outputs, retry, typed_vars, with]
-    sha256_16: 6b54a601b0a2d601
+    constructs: [fail_fast, for_each, max_parallel, on_error, outputs, retry, with]
+    sha256_16: abb12303bcb3789c
   - file: examples/showcase/t2-contract-guard.nika.yaml
     workflow: {'id': 'contract-guard', 'description': 'Local-model clause extraction → schema gate → risk memo'}
     tier: T2
     description: ""
-    constructs: [local_model, outputs, schema, typed_vars, with]
+    constructs: [local_model, outputs, schema, with]
     sha256_16: e5f0b4eb80e3a3ed
   - file: examples/showcase/t2-csv-chart-report.nika.yaml
     workflow: {'id': 'csv-chart-report', 'description': 'CSV → aggregate → rendered bar chart + markdown report · offline · deterministic'}
@@ -112,8 +112,8 @@ showcase:
     workflow: {'id': 'model-bench', 'description': 'One question → three local models → a measured comparison table'}
     tier: T2
     description: ""
-    constructs: [local_model, typed_vars, with]
-    sha256_16: 406e7d904eceb1b2
+    constructs: [local_model, with]
+    sha256_16: 3e764dfa9e514230
   - file: examples/showcase/t2-release-notes.nika.yaml
     workflow: {'id': 'release-notes', 'description': 'git log → typed release notes → CHANGELOG insert → team ping'}
     tier: T2
@@ -130,7 +130,7 @@ showcase:
     workflow: {'id': 'seo-content-brief', 'description': 'Competitor sitemap → top page → gap analysis → typed brief'}
     tier: T2
     description: ""
-    constructs: [local_model, output, outputs, schema, typed_vars, with]
+    constructs: [local_model, output, outputs, schema, with]
     sha256_16: c09ce5877b6d4e9e
   - file: examples/showcase/t2-support-triage.nika.yaml
     workflow: {'id': 'support-triage', 'description': 'Ticket queue → typed triage → urgent escalation → triage board'}
@@ -154,8 +154,8 @@ showcase:
     workflow: {'id': 'config-drift-sentinel', 'description': 'live config vs sanctioned baseline → typed drift → explained alert'}
     tier: T3
     description: ""
-    constructs: [local_model, on_error, outputs, retry, secrets, typed_vars, when, with]
-    sha256_16: 1cd31c7a0a139871
+    constructs: [local_model, on_error, outputs, retry, secrets, when, with]
+    sha256_16: ff799324cb7eef7c
   - file: examples/showcase/t3-localization-factory.nika.yaml
     workflow: {'id': 'localization-factory', 'description': 'glob docs → parallel read → parallel translate → mirror tree'}
     tier: T3
@@ -184,7 +184,7 @@ showcase:
     workflow: {'id': 'deep-research-brief', 'description': 'plan → budgeted research agent → thinking synthesis → brief on disk'}
     tier: T4
     description: ""
-    constructs: [agent_tools, local_model, outputs, schema, thinking, typed_vars, with]
+    constructs: [agent_tools, local_model, outputs, schema, thinking, with]
     sha256_16: a3d6ad30a32b1344
   - file: examples/showcase/t4-incident-war-room.nika.yaml
     workflow: {'id': 'incident-war-room', 'description': 'parallel evidence → typed timeline → settle + recheck → postmortem draft'}
@@ -196,5 +196,5 @@ showcase:
     workflow: {'id': 'release-train', 'description': 'parallel gates → human GO → hold until the window → ship · verify · record'}
     tier: T4
     description: ""
-    constructs: [capture, on_finally, outputs, retry, secrets, timeout, typed_vars, with]
+    constructs: [capture, on_finally, outputs, retry, secrets, timeout, with]
     sha256_16: 1626fe329b4aff50
