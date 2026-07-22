@@ -175,6 +175,7 @@ workflow:
   id: resume-fork
 inputs:
   topic: { type: string, default: "news" }
+permits: { exec: ["echo"] }
 tasks:
   uses_var:
     exec: { command: ["echo", "about", "${{ inputs.topic }}"] }

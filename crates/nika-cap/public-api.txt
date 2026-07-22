@@ -812,11 +812,13 @@ pub fn nika_cap::TrifectaViolation::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::TrifectaViolation where T: for<'de> serde_core::de::Deserialize<'de>
 pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::POLICY_KEYS: &[&str]
+pub const nika_cap::PURE_INTERNAL_TOOLS: &[&str]
 pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_cap::BuiltinEffect>
 pub fn nika_cap::builtin_egresses(tool: &str) -> bool
 pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
+pub fn nika_cap::is_pure_internal(tool: &str) -> bool
 pub fn nika_cap::policy_child_keys(family: &str) -> core::option::Option<&'static [&'static str]>
 pub fn nika_cap::policy_violations(policy: &nika_cap::Policy, tasks: &[nika_cap::PolicySubject]) -> alloc::vec::Vec<nika_cap::PolicyViolation>
 pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>
