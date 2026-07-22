@@ -1847,7 +1847,7 @@ pub fn nika_dap::reproduce::compare(recorded: &[nika_event::event::Event], fresh
 pub fn nika_dap::reproduce::compare_journals(recorded: &str, fresh: &str) -> core::result::Result<nika_dap::reproduce::JournalComparison, nika_dap::reproduce::CompareRefusal>
 pub fn nika_dap::reproduce::workflow_of(events: &[nika_event::event::Event]) -> core::option::Option<&str>
 pub mod nika_dap::resume
-pub struct nika_dap::resume::PlanFold
+#[non_exhaustive] pub struct nika_dap::resume::PlanFold
 pub nika_dap::resume::PlanFold::keyless: usize
 pub nika_dap::resume::PlanFold::plan: nika_runtime::resume::ResumePlan
 pub nika_dap::resume::PlanFold::unreadable: usize

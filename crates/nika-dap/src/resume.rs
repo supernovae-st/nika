@@ -84,6 +84,7 @@ pub fn parse_answers(
 
 /// The fold's yield — the skip plan plus the honesty counters the
 /// notices are built from.
+#[non_exhaustive]
 pub struct PlanFold {
     /// task id → its journaled success identity (last record wins).
     pub plan: ResumePlan,
