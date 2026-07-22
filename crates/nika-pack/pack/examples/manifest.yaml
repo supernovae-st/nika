@@ -32,7 +32,7 @@ templates:
   - file: templates/etl-state.nika.yaml
     sha256_16: 56a8398acaa000fa
   - file: templates/fanout.nika.yaml
-    sha256_16: 3a40e4d2820ada69
+    sha256_16: e708d7b649a62367
   - file: templates/gate-and-act.nika.yaml
     sha256_16: c5a5ddffb34fb354
   - file: templates/human-gated-ship.nika.yaml
