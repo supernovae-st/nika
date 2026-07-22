@@ -31,10 +31,11 @@ mod shape;
 mod trifecta;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·
-// union · intersect · new). The glob/normalize helpers stay crate-internal:
-// nothing outside consumes them yet, and an L0 API is frozen forever — widening
-// pub(crate)→pub later is additive, narrowing pub→pub(crate) would break. So the
-// surface starts minimal (Gate-11 rust-pro + spn-nika L1).
+// union · intersect · new) + the ONE lexical canonicalization (F-O1 PR-2 · the
+// runtime re-gate's refusal messages print it). The glob matcher stays
+// crate-internal: an L0 API is frozen forever — widening pub(crate)→pub later
+// is additive, narrowing pub→pub(crate) would break. So the surface starts
+// minimal (Gate-11 rust-pro + spn-nika L1).
 // The fine-grained builtin effect table (boundary checking · inference) —
 // extracted from nika-schema's permits_fit under the same 15k pressure as
 // shape.rs; the coarse policy table (EffectClass) lives beside it.
@@ -42,6 +43,7 @@ pub use effect::{
     BuiltinEffect, PURE_INTERNAL_TOOLS, builtin_effect, builtin_egresses, chart_vl_sibling,
     is_pure_internal,
 };
+pub use fit::lexically_normalize;
 // F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's
 // trifecta Value) + the shared untrusted-ingress source predicates
 // (check≡run by construction).
