@@ -17,6 +17,14 @@ const:
   site_url: "https://example.com"   # SLOT: the site to understand
   out_path: "./out/brief.json"      # SLOT: where the brief lands
 
+permits:
+  exec: false
+  tools: ["nika:fetch", "nika:write"]
+
+# review — effects too dynamic to pin statically:
+#   · task `crawl_site` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+#   · task `persist` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+
 tasks:
   crawl_site:
     invoke:

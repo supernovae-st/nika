@@ -23,6 +23,9 @@ model: mock/echo
 const:
   topic: "adopting Rust for a backend rewrite"
 
+permits:
+  exec: false
+
 tasks:
   # These three have no dependency on each other → the engine runs them in parallel.
   angle:

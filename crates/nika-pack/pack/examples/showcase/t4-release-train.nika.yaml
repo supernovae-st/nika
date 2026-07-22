@@ -41,6 +41,14 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 
+permits:
+  net: { http: ["api.example.com"] }
+  exec: ["./scripts/release.sh", "cargo"]
+  tools: ["nika:assert", "nika:date", "nika:emit", "nika:fetch", "nika:notify", "nika:prompt", "nika:wait"]
+
+# review — effects too dynamic to pin statically:
+#   · task `record (on_finally)` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+
 tasks:
   t0:
     invoke:

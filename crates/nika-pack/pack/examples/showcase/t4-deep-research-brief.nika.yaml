@@ -30,6 +30,13 @@ inputs:
     required: true
     description: "What to research"
 
+permits:
+  exec: false
+  tools: ["nika:done", "nika:fetch", "nika:write"]
+
+# review — effects too dynamic to pin statically:
+#   · task `save` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+
 tasks:
   plan:
     infer:

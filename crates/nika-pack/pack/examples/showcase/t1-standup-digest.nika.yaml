@@ -22,6 +22,12 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (fast one-liner job)
 
+permits:
+  fs:
+    write: ["./standup-note.md"]
+  exec: ["git"]
+  tools: ["nika:date", "nika:write"]
+
 tasks:
   # No deps between these two → the engine runs them in parallel.
   today:

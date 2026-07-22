@@ -44,6 +44,15 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 
+permits:
+  exec: false
+  tools: ["nika:emit", "nika:fetch", "nika:hash", "nika:json_diff", "nika:json_merge_patch", "nika:notify", "nika:read"]
+
+# review — effects too dynamic to pin statically:
+#   · task `live` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+#   · task `baseline` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+#   · task `alert` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+
 tasks:
   live:
     invoke:

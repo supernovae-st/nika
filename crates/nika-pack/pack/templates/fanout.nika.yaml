@@ -16,6 +16,10 @@ model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 const:
   collection_source: "./items"      # SLOT: where the collection comes from
 
+permits:
+  exec: false
+  tools: ["nika:glob", "nika:jq"]
+
 tasks:
   discover:
     invoke:                         # SLOT: glob / fetch sitemap / exec + jq split

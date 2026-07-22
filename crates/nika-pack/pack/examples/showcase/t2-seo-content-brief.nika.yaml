@@ -35,6 +35,15 @@ inputs:
 const:
   competitor_sitemap: "https://competitor.example.com/sitemap.xml"
 
+permits:
+  exec: false
+  tools: ["nika:fetch", "nika:write"]
+
+# review — effects too dynamic to pin statically:
+#   · task `map` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+#   · task `top_page` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+#   · task `save` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+
 tasks:
   map:
     invoke:

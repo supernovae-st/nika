@@ -26,6 +26,14 @@ const:
   lang: "fr"
   source_glob: "./docs/**/*.md"
 
+permits:
+  exec: false
+  tools: ["nika:glob", "nika:jq", "nika:read", "nika:write"]
+
+# review — effects too dynamic to pin statically:
+#   · task `texts` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+#   · task `mirror` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+
 tasks:
   files:
     invoke:

@@ -29,6 +29,10 @@ inputs:
     required: true
     description: "Path to the changed files to review"
 
+permits:
+  exec: false
+  tools: ["mcp:git/*", "nika:done", "nika:read"]
+
 tasks:
   review:
     agent:

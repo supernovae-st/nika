@@ -29,6 +29,15 @@ inputs:
     required: true
     description: "Path to the contract (markdown or plain text)"
 
+permits:
+  fs:
+    write: ["./legal/risk-memo.md"]
+  exec: false
+  tools: ["nika:assert", "nika:read", "nika:validate", "nika:write"]
+
+# review — effects too dynamic to pin statically:
+#   · task `contract` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+
 tasks:
   contract:
     invoke:

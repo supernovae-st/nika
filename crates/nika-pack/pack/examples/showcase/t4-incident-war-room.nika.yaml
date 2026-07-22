@@ -39,6 +39,17 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 
+permits:
+  exec: ["journalctl"]
+  tools: ["nika:assert", "nika:emit", "nika:fetch", "nika:notify", "nika:read", "nika:wait", "nika:write"]
+
+# review — effects too dynamic to pin statically:
+#   · task `status_history` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+#   · task `runbook` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+#   · task `recheck` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+#   · task `save` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+#   · task `ping (on_finally)` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
+
 tasks:
   # ── the gather wave · all three run in parallel ──
   logs:

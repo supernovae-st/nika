@@ -23,6 +23,9 @@ inputs:
     required: true
     description: "Free text to extract named entities from"
 
+permits:
+  exec: false
+
 tasks:
   extract:
     infer:

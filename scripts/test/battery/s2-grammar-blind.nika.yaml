@@ -8,6 +8,9 @@ workflow:
   id: battery-s2-grammar-blind
 model: mock/echo
 
+permits:
+  exec: false
+
 tasks:
   primes:
     infer:
