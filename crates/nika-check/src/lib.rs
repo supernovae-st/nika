@@ -407,6 +407,23 @@ impl CheckReport {
 /// ONE round-trip. The plan (`waves`) and the IFC secret analysis need
 /// a valid topological order and are skipped when conformance fails
 /// (empty · documented on the fields).
+/// F-O8 « absent = zero authority »: a MISSING `permits:` block whose
+/// body escapes NOTHING (pure compute) is the LEGAL zero — stated, not
+/// punished: the hint teaches the explicit `permits: {}` form (the
+/// only legal spelling of « I touch nothing »).
+fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, hints: &mut Vec<Hint>) {
+    if wf.permits.is_none() && escapes_empty {
+        hints.push(Hint {
+            kind: "permits",
+            task: "-".to_owned(),
+            advice: "no `permits:` block declared · zero authority (F-O8) — the body is \
+                     pure compute so nothing escapes; declare `permits: {}` to state the \
+                     zero explicitly"
+                .to_owned(),
+        });
+    }
+}
+
 #[must_use]
 pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
@@ -468,20 +485,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         Vec::new()
     };
     let capability_escapes = permits_fit::scan_escapes(wf);
-    // F-O8 « absent = zero authority »: a MISSING `permits:` block whose
-    // body escapes NOTHING (pure compute) is the LEGAL zero — stated, not
-    // punished: the hint teaches the explicit `permits: {}` form (the
-    // only legal spelling of « I touch nothing »).
-    if wf.permits.is_none() && capability_escapes.is_empty() {
-        hints.push(Hint {
-            kind: "permits",
-            task: "-".to_owned(),
-            advice: "no `permits:` block declared · zero authority (F-O8) — the body is \
-                     pure compute so nothing escapes; declare `permits: {}` to state the \
-                     zero explicitly"
-                .to_owned(),
-        });
-    }
+    legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
