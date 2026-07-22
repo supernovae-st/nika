@@ -1055,7 +1055,7 @@ mod tests {
         assert_eq!(p["tasks"][0]["verb"], "exec");
         assert_eq!(p["tasks"][1]["verb"], "infer");
         assert_eq!(p["effects_executed"], false);
-        assert_eq!(p["permits"]["source"], "floor");
+        assert_eq!(p["permits"]["source"], "absent");
         assert!(p["cost"].is_object() && p["requirements"].is_object());
     }
 
@@ -1289,7 +1289,7 @@ mod tests {
             std::env::temp_dir().join(format!("nika-sig-gate-sentinel-{}", std::process::id()));
         let _ = std::fs::remove_file(&sentinel);
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: sig-gate\nmodel: mock/echo\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
+            "nika: v1\nworkflow:\n  id: sig-gate\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
             sentinel.display()
         );
         let wf = stage("sig-gate.nika.yaml", &yaml);

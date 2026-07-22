@@ -15,15 +15,26 @@ use super::Dispatched;
 /// ONE predicate the
 /// static `permits_fit` scan and the e-diff parity battery already pin —
 /// so an omitted `tools:` under a declared block is DEFAULT-DENY and
-/// check≡run cannot drift. `None` permits = nothing to enforce (today's
-/// behavior · the exec gate's posture). A `workflow:` call never reaches
+/// check≡run cannot drift. F-O8 « absent = zero authority »: `None`
+/// permits = every tool refused (the check-time twin is NIKA-AUTH-006).
+/// A `workflow:` call never reaches
 /// here — spec 14's containment law (NIKA-COMP-002) owns it.
 pub(super) fn check_tool_permits(
     permits: Option<&nika_schema::types::Permits>,
     note: &str,
     tool: &str,
 ) -> Option<Dispatched> {
-    let permits = permits?;
+    let Some(permits) = permits else {
+        // F-O8 · absent = zero authority: every tool effect refused.
+        return Some(Dispatched::security_err(
+            note,
+            format!(
+                "tool {tool:?} refused: no `permits:` block declared · zero \
+                 authority (F-O8) — declare `permits:` to grant it \
+                 (`nika check --infer-permits` writes the tightest block)"
+            ),
+        ));
+    };
     if permits.allows_tool(tool) {
         return None;
     }

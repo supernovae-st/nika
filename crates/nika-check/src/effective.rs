@@ -9,10 +9,10 @@
 //! consumer could render: the nika-action comment derived tool lists
 //! from graph labels (lossy) because the report carried no grants. This
 //! module states the contract both ways — the boundary in force (the
-//! declared `permits:` block, or the engine floor when none is
-//! declared) AND the tightest boundary the body statically needs (the
-//! SAME derivation `nika check --infer-permits` prints — one inference,
-//! two consumers).
+//! declared `permits:` block, or the F-O8 ZERO boundary when none is
+//! declared · « absent = zero authority ») AND the tightest boundary the
+//! body statically needs (the SAME derivation `nika check
+//! --infer-permits` prints — one inference, two consumers).
 
 use serde::Serialize;
 
@@ -29,9 +29,12 @@ pub enum PermitsSource {
     /// A `permits:` block is declared — the checker fits every effect
     /// against it and the runtime enforces it (default-deny).
     Declared,
-    /// No boundary declared — the engine floor only (masking · taint ·
-    /// the sandbox defaults), no per-workflow allowlist.
-    Floor,
+    /// No boundary declared — F-O8 « absent = zero authority »: the
+    /// boundary in force is the EMPTY set (every effect refused · the
+    /// always-on floors — masking · taint · SSRF · blocklist — stay on
+    /// top, independent). The pre-F-O8 « engine floor = unconfined »
+    /// reading is retired.
+    Absent,
 }
 
 /// The effective grants + the derived need, on every report — consumers
@@ -44,7 +47,7 @@ pub struct EffectivePermits {
     /// Where the boundary in force comes from.
     pub source: PermitsSource,
     /// The declared `permits:` block, spec-shaped (`None` on
-    /// [`PermitsSource::Floor`]).
+    /// [`PermitsSource::Absent`]).
     pub declared: Option<Permits>,
     /// The TIGHTEST boundary the body statically needs — the
     /// `--infer-permits` derivation (exec programs · net hosts · fs
@@ -83,7 +86,7 @@ pub(super) fn collect(wf: &RawWorkflow) -> EffectivePermits {
         source: if declared.is_some() {
             PermitsSource::Declared
         } else {
-            PermitsSource::Floor
+            PermitsSource::Absent
         },
         declared,
         needed: inferred.permits,
@@ -101,18 +104,19 @@ mod tests {
         parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
     }
 
-    /// No `permits:` block → the floor, stated as such: `declared` is
-    /// null on the wire and the derived need still names what the body
-    /// touches (the renderer's affirmative line).
+    /// No `permits:` block → the F-O8 zero boundary, stated as such:
+    /// `declared` is null on the wire and the derived need still names
+    /// what the body touches (the renderer's affirmative line — and the
+    /// NIKA-AUTH-006 repair surface when the need is non-empty).
     #[test]
-    fn floor_states_the_source_and_still_derives_the_need() {
+    fn absent_states_the_zero_and_still_derives_the_need() {
         let report = collect(&wf(
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/repos\" } }\n",
         ));
-        assert_eq!(report.source, PermitsSource::Floor);
+        assert_eq!(report.source, PermitsSource::Absent);
         assert!(report.declared.is_none());
         let json = serde_json::to_value(&report).expect("serializes");
-        assert_eq!(json["source"], "floor");
+        assert_eq!(json["source"], "absent");
         assert_eq!(json["declared"], serde_json::Value::Null);
         let hosts = json["needed"]["net"]["http"]
             .as_array()

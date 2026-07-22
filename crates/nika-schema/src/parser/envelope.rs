@@ -826,7 +826,8 @@ outputs:
 
 /// Parse `permits:` — the declared capability boundary (spec 01 §permits).
 ///
-/// `None` = the block is absent (today's behavior · engine floor only).
+/// `None` = the block is absent (F-O8 « absent = zero authority » · every
+/// effect refused at the gates · `NIKA-AUTH-006` at check).
 /// `Some(Permits)` = default-deny: every category not listed is denied.
 /// The block and its sub-blocks use CLOSED key sets — an unknown key is
 /// always an error here (a typo'd capability silently widening or

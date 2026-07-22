@@ -433,7 +433,7 @@ fn touches_section(s: &mut String, doc: &GraphDoc, report: &CheckReport, permits
         if permits_declared {
             "declared boundary (default-deny beyond it)"
         } else {
-            "engine floor only — `nika check --infer-permits` prints the tightest boundary"
+            "zero authority (F-O8) — `nika check --infer-permits` prints the tightest boundary"
         }
     );
 }

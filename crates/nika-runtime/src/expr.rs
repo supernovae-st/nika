@@ -87,8 +87,9 @@ pub(crate) struct Scope<'a> {
     /// Zero-based position of `item` (spec 03 §`for_each`).
     pub index: Option<usize>,
     /// `permits:` — the workflow's declared capability boundary (spec 01
-    /// §permits). `None` = no boundary declared (today's behavior · the
-    /// effect floors apply). Set on the task-dispatch scopes so the exec
+    /// §permits). `None` = no boundary declared (F-O8 « absent = zero
+    /// authority » · every effect refused at the gates · the always-on
+    /// floors stay on top). Set on the task-dispatch scopes so the exec
     /// sink can enforce `permits.exec` (NIKA-SEC-004); `None` elsewhere.
     pub permits: Option<&'a Permits>,
 }

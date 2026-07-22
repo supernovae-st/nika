@@ -453,7 +453,7 @@ mod tests {
         let path = dir.join("broken.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  think:\n    infer: { promt: \"hi\", max_tokens: 10 }\n  read_it:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  shape:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: { tools: [\"nika:read\", \"nika:jq\"], fs: { read: [\"./x\"] } }\ntasks:\n  think:\n    infer: { promt: \"hi\", max_tokens: 10 }\n  read_it:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  shape:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -527,7 +527,7 @@ mod tests {
         let path = dir.join("two-site.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: success\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:log\"] }\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: success\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
         )
         .expect("write fixture");
         let out = run(
@@ -625,7 +625,7 @@ mod tests {
         let path = dir.join("prer5.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  build:\n    exec: { command: [\"true\"] }\n  test:\n    after: { build: succeeded }\n    exec: { command: [\"true\"] }\n  notify:\n    after:\n      test: failed\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  build:\n    exec: { command: [\"true\"] }\n  test:\n    after: { build: succeeded }\n    exec: { command: [\"true\"] }\n  notify:\n    after:\n      test: failed\n    exec: { command: [\"true\"] }\n",
         )
         .expect("write fixture");
         let out = run(

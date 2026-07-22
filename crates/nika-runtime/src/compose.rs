@@ -489,10 +489,11 @@ impl WorkflowSecretResolver for EnvFileSecretResolver {
 
 /// Derive the runtime `permits.fs` boundary from a parsed workflow.
 ///
-/// No `permits:` block → [`FsBoundary::unbounded`] (today's floor · the
-/// file builtins enforce nothing). A `permits:` block WITHOUT an `fs:`
-/// category → a DECLARED boundary with empty glob lists (default-deny ·
-/// every fs effect is refused · « once `permits:` is present every category
+/// No `permits:` block → a DECLARED boundary with empty glob lists
+/// (F-O8 « absent = zero authority » · every fs effect is refused — the
+/// absent block IS the undeclared zero, never an unconfined floor). A
+/// `permits:` block WITHOUT an `fs:` category → the same empty declared
+/// boundary (default-deny · « once `permits:` is present every category
 /// is default-deny unless listed »). An `fs:` block → its read/write globs.
 #[must_use]
 pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
@@ -504,12 +505,11 @@ pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
 /// (`child ∩ parent` · spec 14 laws 3/4), not from a workflow node.
 #[must_use]
 pub fn fs_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> FsBoundary {
-    let Some(permits) = permits else {
-        return FsBoundary::unbounded();
-    };
+    // F-O8 · absent = zero authority: `None` maps to the EMPTY declared
+    // boundary (default-deny), never to `unbounded` — the absent block is
+    // no longer a synonym for the pre-permits floor.
     let (read, write) = permits
-        .fs
-        .as_ref()
+        .and_then(|p| p.fs.as_ref())
         .map(|fs| (fs.read.clone(), fs.write.clone()))
         .unwrap_or_default();
     FsBoundary::declared(read, write)
@@ -517,12 +517,13 @@ pub fn fs_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> 
 
 /// Derive the runtime `permits.net.http` boundary from a parsed workflow.
 ///
-/// No `permits:` block → [`NetBoundary::Unbounded`] (today's floor · the fetch
-/// SSRF guard is the only net boundary). A `permits:` block WITHOUT a `net:`
-/// category → `Declared(vec![])` (default-deny · every host refused · « once
-/// `permits:` is present every category is default-deny unless listed »). A
-/// `net:` block → `Declared` of its `http:` host globs. The fetch http client
-/// enforces this on EVERY redirect hop (`NIKA-SEC-004`) — the runtime half of
+/// No `permits:` block → `Declared(vec![])` (F-O8 « absent = zero
+/// authority » · every host refused — the always-on SSRF floor stays ON
+/// TOP, independent). A `permits:` block WITHOUT a `net:` category → the
+/// same `Declared(vec![])` (default-deny · « once `permits:` is present
+/// every category is default-deny unless listed »). A `net:` block →
+/// `Declared` of its `http:` host globs. The fetch http client enforces
+/// this on EVERY redirect hop (`NIKA-SEC-004`) — the runtime half of
 /// spec §permits, catching the dynamic hosts (`${{ }}`-built · redirect
 /// bounces) the static `nika check` cannot see. Mirrors [`fs_boundary_of`].
 #[must_use]
@@ -534,13 +535,11 @@ pub fn net_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> NetBoundary {
 /// lane's intersected-boundary derivation · mirrors the fs twin).
 #[must_use]
 pub fn net_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> NetBoundary {
-    let Some(permits) = permits else {
-        return NetBoundary::Unbounded;
-    };
+    // F-O8 · absent = zero authority: `None` maps to the EMPTY declared
+    // boundary (deny-all), never to `Unbounded`.
     NetBoundary::Declared(
         permits
-            .net
-            .as_ref()
+            .and_then(|p| p.net.as_ref())
             .map(|net| net.http.clone())
             .unwrap_or_default(),
     )
@@ -649,11 +648,11 @@ fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
 /// The HTTP client for the FETCH/builtin plane (`nika:fetch` · `nika:notify`).
 ///
 /// SSRF stays ENFORCED (these URLs are workflow-controlled · the engine
-/// floor blocks loopback/private/metadata) AND, when the workflow declares
-/// a `permits:` block, the `net` boundary (`permits.net.http`) is enforced
-/// on every hop — a host outside it fails `NIKA-SEC-004`.
-/// [`NetBoundary::Unbounded`] = no declared boundary (the SSRF floor is the
-/// only net guard · today's behavior). This is the half the SSRF floor never
+/// floor blocks loopback/private/metadata) AND the `net` boundary
+/// (`permits.net.http`) is enforced on every hop — a host outside it fails
+/// `NIKA-SEC-004`. F-O8 « absent = zero authority »: no `permits:` block
+/// derives `Declared([])` (deny-all), so the SSRF floor is never the ONLY
+/// net guard anymore. This is the half the SSRF floor never
 /// covered: the workflow's OWN declared host boundary, dynamic hosts included.
 // `HttpConfig` is `#[non_exhaustive]` → field assignment, not a struct literal.
 #[allow(clippy::field_reassign_with_default)]
@@ -670,9 +669,10 @@ fn fetch_http(net: NetBoundary) -> Result<ReqwestHttp, nika_kernel::HttpError> {
 /// (`permits.net.http`) on the fetch client, both halves of the runtime
 /// `NIKA-SEC-004` boundary.
 ///
-/// A workflow with no `permits:` block yields the pre-permits floor
-/// ([`FsBoundary::unbounded`] + [`NetBoundary::Unbounded`] · enforce nothing);
-/// a declared boundary makes a `..`/symlink path or an out-of-allowlist host
+/// A workflow with no `permits:` block yields the F-O8 zero boundary
+/// (empty declared fs + net · every effect refused · « absent = zero
+/// authority »); a declared boundary makes a `..`/symlink path or an
+/// out-of-allowlist host
 /// fail `NIKA-SEC-004` (spec §permits · enforced statically AND at runtime).
 /// Taking the whole `caps` (not the two axes separately) is deliberate — a
 /// caller cannot wire fs and forget net.
@@ -878,12 +878,13 @@ mod tests {
     fn net_boundary_of_three_cases() {
         // The check↔runtime derivation contract (spec §permits default-deny),
         // the net companion to fs_boundary_of — asserted at the compose layer.
-        // (a) no permits block → Unbounded (the SSRF floor is the only guard).
+        // (a) no permits block → Declared([]) = deny-all (F-O8 « absent = zero
+        // authority » · the SSRF floor stays on top, independent).
         assert_eq!(
             net_boundary_of(&parse(
                 "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n"
             )),
-            NetBoundary::Unbounded
+            NetBoundary::Declared(Vec::new())
         );
         // (b) permits present but NO net category → Declared([]) = deny-all.
         assert_eq!(

@@ -108,14 +108,17 @@ impl ProdChildRunner {
 }
 
 /// The child's effective capability boundary — `child ∩ parent` (laws
-/// 3/4 made structural at run): absent parent wall = the child's own;
-/// absent child declaration under a parent wall = the parent's binds.
-fn effective_permits(child: Option<&Permits>, parent: Option<&Permits>) -> Option<Permits> {
-    match (child, parent) {
-        (None, None) => None,
-        (Some(c), None) => Some(c.clone()),
-        (None, Some(p)) => Some(p.clone()),
-        (Some(c), Some(p)) => Some(c.intersect(p)),
+/// 3/4 made structural at run). F-O8 « absent = zero authority »: an
+/// absent parent block is the EMPTY boundary (not « no wall »), so the
+/// meet caps every child at zero — a parent's grants never descend
+/// implicitly, and an absent child declaration under a parent wall keeps
+/// the parent's binds.
+fn effective_permits(child: Option<&Permits>, parent: Option<&Permits>) -> Permits {
+    let zero = Permits::new();
+    let parent = parent.unwrap_or(&zero);
+    match child {
+        None => parent.clone(),
+        Some(c) => c.intersect(parent),
     }
 }
 
@@ -186,8 +189,8 @@ impl ChildRunner for ProdChildRunner {
                 call.parent_permits.as_ref(),
             );
             let caps = RuntimeCapabilities {
-                fs: fs_boundary_of_permits(child_permits.as_ref()),
-                net: net_boundary_of_permits(child_permits.as_ref()),
+                fs: fs_boundary_of_permits(Some(&child_permits)),
+                net: net_boundary_of_permits(Some(&child_permits)),
                 exec_tasks: wf
                     .tasks
                     .iter()
@@ -247,5 +250,44 @@ impl ChildRunner for ProdChildRunner {
                 failure,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! F-O8 « absent = zero authority » — the containment meet with an
+    //! ABSENT parent block caps at ∅ (EPERM-style: the refusal is proven,
+    //! not supposed).
+    use super::*;
+
+    #[test]
+    fn absent_parent_caps_every_child_at_zero() {
+        // (None, None) — the pre-F-O8 « no wall » arm: now the EMPTY
+        // boundary, so nothing runs unconfined across a `workflow:` call.
+        let eff = effective_permits(None, None);
+        assert_eq!(eff, Permits::new(), "absent ∩ absent = ∅");
+        assert!(!eff.allows_exec(), "∅ refuses exec");
+        assert!(!eff.allows_tool("nika:fetch"), "∅ refuses tools");
+
+        // (Some(child), None) — a child declaring under an absent parent
+        // is capped at zero too: the parent's grants never descend
+        // implicitly (the meet ∩ stays the law).
+        let mut child = Permits::new();
+        child.exec = Some(nika_schema::types::ExecPermit::Any);
+        let eff = effective_permits(Some(&child), None);
+        assert!(
+            !eff.allows_exec(),
+            "child ∩ ∅ = ∅ — the declared child grant is capped"
+        );
+
+        // (None, Some(parent)) — unchanged: the parent's binds hold.
+        let mut parent = Permits::new();
+        parent.exec = Some(nika_schema::types::ExecPermit::Any);
+        let eff = effective_permits(None, Some(&parent));
+        assert!(eff.allows_exec(), "the declared parent wall descends");
+
+        // (Some, Some) — unchanged: the meet.
+        let eff = effective_permits(Some(&child), Some(&parent));
+        assert!(eff.allows_exec(), "both declare exec → the meet keeps it");
     }
 }

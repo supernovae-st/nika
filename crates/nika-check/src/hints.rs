@@ -21,8 +21,9 @@
 //!   deeply referenced (`tasks.X.output.field`) but declares no
 //!   `schema:` / `output:` bindings: declare a shape and the dataflow
 //!   typer starts proving those references.
-//! - **no boundary** (`permits`) — effectful tasks and no `permits:`
-//!   block: `--infer-permits` writes the tightest one.
+//! - **no boundary** (`permits`) — RETIRED by F-O8: absent + effects is
+//!   the `NIKA-AUTH-006` ERROR (the escape scan owns it) · absent + pure
+//!   compute gets the legal-zero hint from `check()`.
 //! - **open schema** (`strictness`) — an object schema admitting
 //!   undeclared keys: close it and the output shape is deterministic.
 //! - **grammar-blind constraint** (`schema-portability`) — keywords no
@@ -112,7 +113,6 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         });
     }
 
-    let mut any_effect = false;
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
@@ -145,13 +145,11 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
                 push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
-                any_effect = true; // an agent dispatches tools
             }
             RawAction::Exec(exec) => {
                 push_exec_json_capture_hint(&mut hints, t, exec);
-                any_effect = true;
             }
-            RawAction::Invoke(_) => any_effect = true,
+            RawAction::Invoke(_) => {}
             #[allow(
                 clippy::unreachable,
                 reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -161,13 +159,11 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         push_retry_effects_hint(&mut hints, t);
     }
 
-    if any_effect && wf.permits.is_none() {
-        hints.push(hint(
-            "permits",
-            "-",
-            "no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)".to_owned(),
-        ));
-    }
+    // F-O8 · the old « no `permits:` boundary declared » advisory is
+    // RETIRED: absent + effects is the NIKA-AUTH-006 ERROR now (the
+    // `capability_escapes` lane owns it), and absent + pure compute gets
+    // the legal-zero hint from `check()` (the exact, escapes-based
+    // condition — this lane cannot see the escape scan).
     push_unresolvable_secret_hints(&mut hints, wf);
     push_unwrapped_output_ref_hints(&mut hints, wf);
     hints
@@ -869,12 +865,18 @@ mod tests {
     }
 
     #[test]
-    fn effectful_workflow_without_permits_gets_the_boundary_hint() {
+    fn effectful_without_permits_gets_no_hint_the_error_owns_it() {
+        // F-O8: absent + effects is the NIKA-AUTH-006 ERROR (the
+        // capability_escapes lane), so THIS lane stays silent — an
+        // advisory hint next to the hard finding would double-teach.
         let h = hints_of(
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"echo hi\" }\n",
         );
-        assert!(h.iter().any(|x| x.kind == "permits"), "{h:?}");
-        // boundary declared → no hint
+        assert!(
+            !h.iter().any(|x| x.kind == "permits"),
+            "the error owns the absent+effects case: {h:?}"
+        );
+        // boundary declared → no hint either (unchanged).
         let h2 = hints_of(
             "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  t:\n    exec: { shell: \"echo hi\" }\n",
         );
@@ -939,8 +941,10 @@ mod tests {
     }
 
     #[test]
-    fn pure_compute_workflow_needs_no_boundary() {
-        // infer-only → no permits hint (nothing to bound).
+    fn pure_compute_hints_stay_silent_in_this_lane() {
+        // infer-only → no permits hint HERE (the legal-zero hint for
+        // absent + pure compute is stamped by `check()` itself, which
+        // sees the escape scan — this lane's half of the F-O8 split).
         let h = hints_of(
             "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );

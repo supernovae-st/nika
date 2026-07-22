@@ -284,7 +284,7 @@ mod tests {
         use nika_event::EventKind;
         use nika_kernel::tool_executor::{ToolErrorMeta, ToolResult};
 
-        const GATED: &str = "nika: v1\nworkflow:\n  id: gated\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    after: { prep: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  finish:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"done\"] }\n";
+        const GATED: &str = "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    after: { prep: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  finish:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"done\"] }\n";
 
         let blocked_prompt = || {
             let mut result = ToolResult::error("tc1", "non-interactive and no `default:`");

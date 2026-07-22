@@ -480,8 +480,10 @@ mod tests {
     /// The mute-diagnostic regression the battery re-run caught: with NO
     /// `permits:` block, a floor escape (SSRF-parity pass · permits-
     /// independent) exited rc=2 while the PERMITS panel printed only the
-    /// informational `○ no boundary declared` line — `✖ findings above`
-    /// pointed at nothing. The panel must render the escape.
+    /// informational line — `✖ findings above` pointed at nothing. The
+    /// panel must render the escape. F-O8 rider: the ABSENT block now
+    /// also speaks — the tool escape rides NIKA-AUTH-006 next to the
+    /// floor's NIKA-SEC-005.
     #[test]
     fn floor_escape_renders_without_a_permits_block() {
         let wf = parse_wf(
@@ -507,19 +509,34 @@ mod tests {
             out.contains("[NIKA-SEC-005 · net]"),
             "the code leads the row: {out}"
         );
+        // F-O8 « absent = zero authority »: the tool itself escapes the
+        // zero boundary — NIKA-AUTH-006 rides next to the floor code.
         assert!(
-            !out.contains("no boundary declared"),
-            "the informational line must yield to the finding: {out}"
+            out.contains("[NIKA-AUTH-006 · tools]"),
+            "the absent boundary speaks its own code: {out}"
         );
-        // …and the informational line still renders when there is nothing
-        // to say (the common clean case is unchanged).
-        let clean = parse_wf(
+        // …and a public-host fetch without permits is NOT the
+        // informational case anymore: the tool escape (AUTH-006) is the
+        // row (the old « no boundary declared » mute is retired).
+        let undeclared = parse_wf(
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+        );
+        let undeclared_report = nika_check::check(&undeclared);
+        let mut undeclared_out = String::new();
+        permits(&mut undeclared_out, &undeclared_report, &undeclared, theme);
+        assert!(
+            undeclared_out.contains("[NIKA-AUTH-006 · tools]"),
+            "absent + an effect = the AUTH-006 row: {undeclared_out}"
+        );
+        // …while the TRUE clean case (pure compute · zero authority
+        // assumed) renders the F-O8 informational line.
+        let clean = parse_wf(
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  probe:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         let clean_report = nika_check::check(&clean);
         let mut clean_out = String::new();
         permits(&mut clean_out, &clean_report, &clean, theme);
-        assert!(clean_out.contains("no boundary declared"), "{clean_out}");
+        assert!(clean_out.contains("zero authority"), "{clean_out}");
     }
 
     /// The #395 admitting direction, through the CLI render: the battery
@@ -710,7 +727,7 @@ mod tests {
     /// the exit code must agree (the review-swarm untested-branch gap).
     #[test]
     fn native_strict_json_payload_agrees_with_the_exit_code() {
-        let helper = "nika: v1\nworkflow:\n  id: helper\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
         // matrix · a dev double-run) share the OS tmpdir, and a fixed
         // name let them stomp each other's fixtures mid-read (flaked
@@ -746,7 +763,7 @@ mod tests {
     /// 0 under strict.
     #[test]
     fn native_strict_fails_on_native_first_hints_only() {
-        let helper = "nika: v1\nworkflow:\n  id: helper\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         let default_run = checked_output("native-default.nika.yaml", helper, false);
         assert_eq!(
             default_run.code, 0,
@@ -771,7 +788,7 @@ mod tests {
             strict.text
         );
 
-        let native_twin = "nika: v1\nworkflow:\n  id: native\ntasks:\n  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
+        let native_twin = "nika: v1\nworkflow:\n  id: native\npermits: { tools: [\"nika:fetch\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
         let twin = checked_output("native-twin.nika.yaml", native_twin, true);
         assert_eq!(twin.code, 0, "the native twin passes strict: {}", twin.text);
         assert!(!twin.text.contains("native-strict ·"), "{}", twin.text);
@@ -824,10 +841,12 @@ mod tests {
     /// ASCII parity (`ok audited` · `>=`).
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
-        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
-            text.contains("✔ audited · 2 tasks · 2 waves · permits none · est ≥$0.0000 · 1 hint"),
+            text.contains(
+                "✔ audited · 2 tasks · 2 waves · permits declared · est ≥$0.0000 · 0 hints"
+            ),
             "the audited card line: {text}"
         );
         let ascii = checked_text("audited-card-ascii.nika.yaml", yaml, true);
@@ -839,9 +858,9 @@ mod tests {
             !ascii.contains('≥'),
             "no unicode leaks into --ascii: {ascii}"
         );
-        // Hint pluralization: 1 hint here (the permits advisory).
+        // Hint pluralization: 0 hints here (the boundary is declared).
         assert!(
-            text.contains("1 hint") && !text.contains("1 hints"),
+            text.contains("0 hints") && !text.contains("0 hint·"),
             "{text}"
         );
     }
@@ -888,7 +907,7 @@ mod tests {
     fn unused_declaration_is_hinted_and_the_exit_stays_green() {
         let out = checked_output(
             "drift-unused.nika.yaml",
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             false,
         );
         assert_eq!(out.code, 0, "a drift hint never fails: {}", out.text);
@@ -915,7 +934,7 @@ mod tests {
         let path = dir.join("drift-json.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         )
         .expect("fixture body");
         let out = run(

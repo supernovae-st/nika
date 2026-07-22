@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn clean_workflow_has_no_error_diagnostics() {
-        let yaml = "nika: v1\nworkflow:\n  id: clean\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: clean\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let diags = diags_of(yaml);
         let errors: Vec<_> = diags
             .iter()

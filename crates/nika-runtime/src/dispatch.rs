@@ -420,20 +420,23 @@ where
     }
 
     /// ADR-095 Layer 6 — the OS-confinement spec from the declared
-    /// boundary (the `dispatch/sandbox.rs` derivation · `None` = the
-    /// unconfined floor: no `permits:` block).
+    /// boundary (the `dispatch/sandbox.rs` derivation). F-O8 « absent =
+    /// zero authority »: `None` maps to the EMPTY boundary's spec (fs
+    /// empty · net deny) — the double lock under `check_exec_permits`,
+    /// which already refuses the exec upstream.
     fn exec_sandbox_spec(
         &self,
         permits: Option<&nika_schema::types::Permits>,
-    ) -> Option<nika_kernel::process::SandboxSpec> {
-        let permits = permits?;
+    ) -> nika_kernel::process::SandboxSpec {
+        let zero = nika_schema::types::Permits::new();
+        let permits = permits.unwrap_or(&zero);
         let root = self
             .config
             .sandbox_root
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        Some(sandbox::spec_of(permits, &root))
+        sandbox::spec_of(permits, &root)
     }
 
     async fn dispatch_shell(
@@ -479,8 +482,9 @@ where
         }
 
         // ADR-095 Layer 6 · the OS jail rides the SAME declared boundary
-        // (no `permits:` block = today's unconfined floor).
-        input.sandbox = self.exec_sandbox_spec(scope.permits);
+        // (F-O8: no `permits:` block = the zero-authority spec · the exec
+        // is already refused above, this is the double lock).
+        input.sandbox = Some(self.exec_sandbox_spec(scope.permits));
 
         match self.shell.run(input).await {
             Ok(out) => {
@@ -986,9 +990,10 @@ fn capture_mode(spec: Option<SpecCaptureMode>) -> CaptureMode {
 
 /// The exec capability boundary (spec 01 §permits · NIKA-SEC-004): once a
 /// workflow declares `permits`, the exec sink enforces it. Returns `Some(error)`
-/// when the command is refused, `None` when permitted (or no `permits` declared
-/// — today's behavior, where the runner floor is the only gate; operator policy
-/// is nika-policy's job, s8).
+/// when the command is refused, `None` when permitted. F-O8 « absent = zero
+/// authority »: NO `permits:` block = every exec refused before spawn (the
+/// check-time twin is NIKA-AUTH-006 · the blocklist floor stays on top,
+/// independent; operator policy is nika-policy's job, s8).
 ///
 /// A program allowlist (`Programs`) governs `argv[0]` of the ARRAY form (the
 /// unambiguous program); the SHELL form is REFUSED under an allowlist because a
@@ -1002,7 +1007,15 @@ fn check_exec_permits(
     is_argv: bool,
 ) -> Option<Dispatched> {
     use nika_schema::types::ExecPermit;
-    let permits = permits?;
+    let Some(permits) = permits else {
+        // F-O8 · absent = zero authority: refuse before spawn (zero process).
+        return Some(Dispatched::security_err(
+            note,
+            "no `permits:` block declared · zero authority (F-O8) — \
+             declare `permits:` to grant exec (`nika check --infer-permits` \
+             writes the tightest block)",
+        ));
+    };
     match &permits.exec {
         // Omitted or `false` → this workflow runs zero processes.
         None | Some(ExecPermit::No) => Some(Dispatched::security_err(

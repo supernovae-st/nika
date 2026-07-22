@@ -103,6 +103,7 @@ async fn same_wave_noedge_recover_awaits_the_referent() {
 nika: v1
 workflow:
   id: recover-await-same-wave
+permits: { exec: true }
 tasks:
   risky:
     exec: { shell: "exit 1" }
@@ -165,6 +166,7 @@ async fn later_wave_referent_resolves_transitively_on_the_spine() {
 nika: v1
 workflow:
   id: recover-await-chain
+permits: { exec: true }
 tasks:
   a:
     exec: { shell: "exit 1" }
@@ -211,6 +213,7 @@ async fn skipped_referent_resolves_to_defined_null() {
 nika: v1
 workflow:
   id: recover-await-skipped
+permits: { exec: true }
 tasks:
   risky:
     exec: { shell: "exit 1" }
@@ -248,6 +251,7 @@ async fn mutual_recovery_resolves_at_workflow_end_against_failed_records() {
 nika: v1
 workflow:
   id: recover-await-mutual
+permits: { exec: true }
 tasks:
   a:
     exec: { shell: "exit 1" }
@@ -289,6 +293,7 @@ async fn broken_path_into_a_terminal_referent_still_fails_fast() {
 nika: v1
 workflow:
   id: recover-terminal-broken-path
+permits: { exec: true }
 tasks:
   done:
     exec: { command: ["echo", "ok"] }
@@ -418,6 +423,7 @@ async fn fan_out_iteration_recover_keeps_todays_fail_fast() {
 nika: v1
 workflow:
   id: recover-fanout-boundary
+permits: { exec: true }
 tasks:
   fan:
     for_each: ["x"]

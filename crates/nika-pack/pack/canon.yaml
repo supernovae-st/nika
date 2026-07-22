@@ -63,9 +63,9 @@ counts:
   providers: 17
   extract_modes: 9
   templates: 10
-  error_namespaces: 24
+  error_namespaces: 25
   error_categories: 12
-  error_codes: 87
+  error_codes: 88
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -241,11 +241,12 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 24
+  count: 25
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
     - NIKA-ASSERT
+    - NIKA-AUTH
     - NIKA-BUILTIN
     - NIKA-CANCEL
     - NIKA-COMP
@@ -295,7 +296,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 87
+  count: 88
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -378,6 +379,7 @@ error_codes:
     - { code: NIKA-POLICY-001, category: security_error, transient: "false", failure: "a hard policy: rule is violated (require.human_gate_before · forbid.exec_after · allow.providers · limits.max_tasks) — the diagnostic names rule + task + witness (order rules: the path) · check-time, before any token (spec 10)" }
     - { code: NIKA-PORT-001, category: validation_error, transient: "false", failure: "a gateway artifact (deployment bundle · capabilities report · lowering report · fidelity report · authority delta) is malformed or violates its laws (unknown promoted · permissive_unsafe without refusal · disclosure subset-chain violated · child authority exceeding parent) (spec 12)" }
     - { code: NIKA-PORT-002, category: security_error, transient: "false", failure: "policy lowering is permissive_unsafe — the backend would allow what the policy forbids · refused with the divergence witness (spec 12)" }
+    - { code: NIKA-AUTH-006, category: security_error, transient: "false", failure: "no permits: block declared and the body has effects — absent = zero authority (F-O8 · NEP-0003): every effect is refused at check before any token, and at run via NIKA-SEC-004 defense-in-depth · fix: nika check --infer-permits writes the tightest block (permits: {} is the legal declared zero)" }
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }
     - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }
     - { code: NIKA-SEC-003, category: security_error, transient: "false", failure: "run-recursion bound — nested-run depth exceeded OR self-launching workflow" }

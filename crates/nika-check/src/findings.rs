@@ -136,10 +136,14 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
             },
         );
         // The wire code the RUN would emit for the same violation: the
-        // always-on SSRF floor speaks NIKA-SEC-005, the declared permits
-        // boundary NIKA-SEC-004 (spec 05-errors) — check≡run down to the code.
+        // always-on SSRF floor speaks NIKA-SEC-005, an effect judged
+        // against the F-O8 zero boundary (no `permits:` declared) speaks
+        // NIKA-AUTH-006, the declared permits boundary NIKA-SEC-004
+        // (spec 05-errors) — check≡run down to the code.
         let code = if c.floor {
             "NIKA-SEC-005"
+        } else if c.undeclared {
+            "NIKA-AUTH-006"
         } else {
             "NIKA-SEC-004"
         };
@@ -287,7 +291,7 @@ mod tests {
     #[test]
     fn clean_report_has_zero_findings() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: ok\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: v1\nworkflow:\n  id: ok\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(r.is_clean());
         assert!(r.findings.is_empty(), "{:#?}", r.findings);

@@ -444,7 +444,7 @@ fn emit_prologue(
     let permits_desc = if wf.permits.is_some() {
         "declared boundary · default-deny"
     } else {
-        "engine floor (no boundary declared)"
+        "zero authority (no `permits:` declared · F-O8)"
     };
     let mut opening = vec![("workflow", s(workflow_name)), ("permits", s(permits_desc))];
     if let Some(hex) = source_sha256 {

@@ -605,8 +605,8 @@ pub fn nika_check::GateFindingKind::as_any(&self) -> &(dyn core::any::Any + 'sta
 impl<T> outref::AsOut<T> for nika_check::GateFindingKind where T: core::marker::Copy
 pub fn nika_check::GateFindingKind::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_check::PermitsSource
+pub nika_check::PermitsSource::Absent
 pub nika_check::PermitsSource::Declared
-pub nika_check::PermitsSource::Floor
 impl core::clone::Clone for nika_check::PermitsSource
 pub fn nika_check::PermitsSource::clone(&self) -> nika_check::PermitsSource
 impl core::cmp::Eq for nika_check::PermitsSource

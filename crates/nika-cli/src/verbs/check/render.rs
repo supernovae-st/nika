@@ -11,7 +11,6 @@
 
 use std::fmt::Write as _;
 
-use nika_check::infer_permits;
 use nika_check::{CheckReport, ConformanceViolation, UnboundedReason};
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::VarDecl;
@@ -676,12 +675,13 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
 }
 
 pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
-    // With no boundary declared the panel is informational — UNLESS the
-    // SSRF-floor parity pass found escapes (the floor is permits-
-    // independent): those MUST render, or `✖ findings above` points at
-    // nothing (the mute-diagnostic the battery re-run caught).
+    // F-O8 « absent = zero authority »: with no boundary declared AND
+    // nothing escaping (pure compute), the panel states the zero —
+    // informational, and `permits: {}` is taught as the legal explicit
+    // form. Any escape (absent → NIKA-AUTH-006 · declared → NIKA-SEC-004
+    // · floor → NIKA-SEC-005) MUST render, or `✖ findings above` points
+    // at nothing (the mute-diagnostic the battery re-run caught).
     if wf.permits.is_none() && report.capability_escapes.is_empty() {
-        let inferred = infer_permits(wf);
         let _ = writeln!(
             out,
             " {} {}  {}",
@@ -689,10 +689,9 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
             t.paint(Role::Strong, "PERMITS"),
             t.paint(
                 Role::Dim,
-                "no boundary declared (engine floor only) · `--infer-permits` writes one"
+                "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {{}}` states it"
             )
         );
-        let _ = inferred; // the inferred boundary ships behind the flag
         return;
     }
     if report.capability_escapes.is_empty() {
@@ -717,9 +716,12 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
         // the PERMITS rows printed only the category, so the one panel
         // whose findings are security-graded was the one panel a user
         // could not ask the engine to explain. Same code the findings[]
-        // machine list stamps (floor → SEC-005 · boundary → SEC-004).
+        // machine list stamps (floor → SEC-005 · absent boundary →
+        // AUTH-006 · declared boundary → SEC-004).
         let code = if e.floor {
             "NIKA-SEC-005"
+        } else if e.undeclared {
+            "NIKA-AUTH-006"
         } else {
             "NIKA-SEC-004"
         };

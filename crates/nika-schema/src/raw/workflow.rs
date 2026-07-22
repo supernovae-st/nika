@@ -57,7 +57,8 @@ pub struct RawWorkflow {
     /// `secrets:` — masked store references (`${{ secrets.X }}`).
     pub secrets: Vec<(Spanned<String>, Spanned<SecretRef>)>,
     /// `permits:` — the declared capability boundary (spec 01 §permits ·
-    /// `None` = absent = today's behavior · `Some` = default-deny).
+    /// `None` = absent = ZERO authority (F-O8 · every effect refused) ·
+    /// `Some` = default-deny).
     pub permits: Option<Spanned<Permits>>,
     /// `policy:` — named workflow law (spec 10 · hard families judged
     /// at check · soft recorded, never judged).
