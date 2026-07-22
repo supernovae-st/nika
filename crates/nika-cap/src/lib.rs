@@ -24,6 +24,7 @@
 mod algebra;
 mod effect;
 mod fit;
+mod integrity;
 mod permits;
 mod policy;
 mod shape;
@@ -41,6 +42,10 @@ pub use effect::{
     BuiltinEffect, PURE_INTERNAL_TOOLS, builtin_effect, builtin_egresses, chart_vl_sibling,
     is_pure_internal,
 };
+// F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's
+// trifecta Value) + the shared untrusted-ingress source predicates
+// (check≡run by construction).
+pub use integrity::{Integrity, invoke_tool_is_ingress, tool_grant_admits_ingress};
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
 // W4 « the authority » (spec 10) — the policy: vocabulary (closed at the
 // type level) + the pure judge + the certificate's authority projection.

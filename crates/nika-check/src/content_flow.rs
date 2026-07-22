@@ -133,15 +133,15 @@ fn source_of(
 
 /// The invoke-side classifications, ONE effect-table walk: `(born_ingress,
 /// writes_fs)` — the module doc's source table, and the writer clause.
+/// The ingress predicates are nika-cap's shared ones (check≡run — the
+/// runtime's F-O1 label reads the same law).
 pub(super) fn classify(action: &RawAction, mcp_trusted: &dyn Fn(&str) -> bool) -> (bool, bool) {
     match action {
         RawAction::Exec(_) => (false, true),
         RawAction::Agent(a) => (
-            a.tools.iter().any(|t| {
-                let g = t.value.as_str();
-                !g.starts_with('!')
-                    && (g.starts_with("mcp:") || nika_cap::glob_matches(g, "nika:fetch"))
-            }),
+            a.tools
+                .iter()
+                .any(|t| nika_cap::tool_grant_admits_ingress(t.value.as_str())),
             false,
         ),
         RawAction::Invoke(inv) => {
@@ -149,23 +149,18 @@ pub(super) fn classify(action: &RawAction, mcp_trusted: &dyn Fn(&str) -> bool) -
                 return (false, false); // a child call — spec 14 owns its boundary
             };
             let id = tool.value.as_str();
-            if id == "nika:fetch" {
-                return (true, false);
-            }
             if let Some(server) = id.strip_prefix("mcp:") {
                 // Server content untrusted UNLESS the catalog marks it
                 // (absent/unknown = untrusted) · server writes are opaque.
-                return (
-                    !mcp_trusted(server.split('/').next().unwrap_or(server)),
-                    true,
-                );
+                let trusted = mcp_trusted(server.split('/').next().unwrap_or(server));
+                return (nika_cap::invoke_tool_is_ingress(id, trusted), true);
             }
             let args = inv.args.as_ref().map(|a| &a.value);
             let writes = match nika_cap::builtin_effect(id, args) {
                 Some(nika_cap::BuiltinEffect::Fs { writes, .. }) => writes,
                 _ => false,
             };
-            (false, writes)
+            (nika_cap::invoke_tool_is_ingress(id, false), writes)
         }
         _ => (false, false),
     }

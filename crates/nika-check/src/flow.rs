@@ -395,7 +395,12 @@ fn propagate_cleanups(
 /// is never tainted from a prompt secret · ADR-092). To send a secret to a
 /// provider, the author sanctions it explicitly (`egress: [{ to: "infer" }]`
 /// / `{ to: "agent" }`).
-pub(crate) fn action_effect_fields(action: &RawAction) -> Vec<&str> {
+///
+/// `pub` (F-O1 PR-1): `nika-runtime`'s integrity walk reads the SAME
+/// effect-surface table — check≡run by construction, never a duplicated
+/// field list.
+#[must_use]
+pub fn action_effect_fields(action: &RawAction) -> Vec<&str> {
     match action {
         RawAction::Exec(a) => {
             let mut fields = a.command.text_fragments();

@@ -80,7 +80,7 @@ pub use composition::CompositionFinding;
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use effective::{EffectivePermits, PermitsSource};
 pub use findings::UnifiedFinding;
-pub use flow::{FlowFacts, TaintTrace};
+pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::{Hint, static_read_paths};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;

@@ -155,17 +155,15 @@ fn write_glob_escapes(glob: &str) -> bool {
 }
 
 /// A declared `tools:` grant admits untrusted-ingress content (leg ②'s
-/// grant form): `nika:fetch` — a glob like `nika:*` covers it — or any
+/// grant form) — the ONE predicate lives in [`crate::integrity`] (shared
+/// check≡run): `nika:fetch` — a glob like `nika:*` covers it — or any
 /// `mcp:*` server (server-provided content is untrusted by construction).
 /// A negated entry (`!…`) ADMITS nothing and never counts; first-party
 /// local builtins (`nika:read` · `nika:write` · …) are not ingress.
 fn grants_untrusted_ingress(tools: &[String]) -> bool {
-    tools.iter().any(|g| {
-        if g.starts_with('!') {
-            return false;
-        }
-        g.starts_with("mcp:") || crate::permits::glob_matches(g, "nika:fetch")
-    })
+    tools
+        .iter()
+        .any(|g| crate::integrity::tool_grant_admits_ingress(g))
 }
 
 /// The three legs off the DECLARED boundary (NEP-0002 §Specification ·

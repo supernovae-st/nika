@@ -2104,6 +2104,7 @@ impl<T> nika_error::traits::AsAny for nika_check::UnknownTool where T: 'static
 pub fn nika_check::UnknownTool::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_check::REPORT_VERSION: u32
 pub const nika_check::STATUS_VOCAB: [&str; 4]
+pub fn nika_check::action_effect_fields(action: &nika_schema::raw::action::RawAction) -> alloc::vec::Vec<&str>
 pub fn nika_check::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
 pub fn nika_check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::CheckReport
 pub fn nika_check::check_composed(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_check::CheckReport
