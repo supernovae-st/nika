@@ -68,6 +68,7 @@ const CHAIN: &str = r#"
 nika: v1
 workflow:
   id: resume-chain
+permits: { exec: ["echo"] }
 tasks:
   a:
     exec: { command: ["echo", "alpha"] }
@@ -261,6 +262,7 @@ const GATED: &str = r#"
 nika: v1
 workflow:
   id: resume-gated
+permits: { exec: ["echo"], tools: ["nika:prompt"] }
 tasks:
   prep:
     exec: { command: ["echo", "staged"] }
