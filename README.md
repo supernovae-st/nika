@@ -303,7 +303,8 @@ January 1, 2026 on the branch named `brouillon` · **79 versions in a
 from March) · then **rewritten from scratch on April 13, 2026** — the
 Diamond era, an orphan branch, zero code inherited, the version line
 continuing because the language is the continuity. Every dated claim is machine-verified in the spec
-repo's [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml).
+repo's [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml),
+rendered with the forward gates at [nika.sh/timeline](https://nika.sh/timeline).
 
 As AI agents start acting on the real world, the interface where they act
 can't be free text (too vague) or raw code (too risky). It has to be a
