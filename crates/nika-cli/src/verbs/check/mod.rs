@@ -509,15 +509,17 @@ mod tests {
             out.contains("[NIKA-SEC-005 · net]"),
             "the code leads the row: {out}"
         );
-        // F-O8 « absent = zero authority »: the tool itself escapes the
-        // zero boundary — NIKA-AUTH-006 rides next to the floor code.
+        // F-O8 « absent = zero authority » + NEP-0003 law 1: the literal
+        // URL is a NET escape under the absent block — NIKA-AUTH-006 rides
+        // next to the floor code.
         assert!(
-            out.contains("[NIKA-AUTH-006 · tools]"),
+            out.contains("[NIKA-AUTH-006 · net]"),
             "the absent boundary speaks its own code: {out}"
         );
         // …and a public-host fetch without permits is NOT the
-        // informational case anymore: the tool escape (AUTH-006) is the
-        // row (the old « no boundary declared » mute is retired).
+        // informational case anymore: the net escape (AUTH-006 · the
+        // literal URL is statically judged) is the row (the old
+        // « no boundary declared » mute is retired).
         let undeclared = parse_wf(
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
@@ -525,8 +527,8 @@ mod tests {
         let mut undeclared_out = String::new();
         permits(&mut undeclared_out, &undeclared_report, &undeclared, theme);
         assert!(
-            undeclared_out.contains("[NIKA-AUTH-006 · tools]"),
-            "absent + an effect = the AUTH-006 row: {undeclared_out}"
+            undeclared_out.contains("[NIKA-AUTH-006 · net]"),
+            "absent + a literal url = the AUTH-006 net row: {undeclared_out}"
         );
         // …while the TRUE clean case (pure compute · zero authority
         // assumed) renders the F-O8 informational line.

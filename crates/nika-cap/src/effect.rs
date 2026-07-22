@@ -51,6 +51,38 @@ pub enum BuiltinEffect {
 /// Classify a builtin invoke's statically-checkable effect, `None` for
 /// pure-compute builtins (log · jq · hash · …) and for MCP tools (their
 /// effects are server-side — the `tools:` grant is the boundary).
+/// NEP-0003 · the pure-internal builtins (mirrors `canon/builtins.yaml`
+/// LAW-AUTH-0311): no fs/net/program/tool egress by construction, so under
+/// an ABSENT `permits:` block they require nothing — they are the « pure
+/// compute » class the legal zero admits. Under a DECLARED block the
+/// default-deny still governs them (the ratified asymmetry).
+pub const PURE_INTERNAL_TOOLS: &[&str] = &[
+    "nika:assert",
+    "nika:compose",
+    "nika:convert",
+    "nika:date",
+    "nika:decide",
+    "nika:done",
+    "nika:emit",
+    "nika:hash",
+    "nika:inspect",
+    "nika:jq",
+    "nika:json_diff",
+    "nika:json_merge_patch",
+    "nika:log",
+    "nika:prompt",
+    "nika:uuid",
+    "nika:validate",
+    "nika:wait",
+];
+
+/// NEP-0003 · is `tool` in the pure-internal class (no authority needed
+/// under an absent block)?
+#[must_use]
+pub fn is_pure_internal(tool: &str) -> bool {
+    PURE_INTERNAL_TOOLS.contains(&tool)
+}
+
 #[must_use]
 pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<BuiltinEffect> {
     match tool {

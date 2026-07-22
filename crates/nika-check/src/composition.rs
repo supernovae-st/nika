@@ -278,16 +278,18 @@ fn judge_direct_call(
         push("NIKA-COMP-004", detail);
     }
     // Laws 3/4 — effect containment (child ⊆ parent). F-O8 « absent =
-    // zero authority »: an absent parent block IS the empty boundary —
-    // the child's concrete needs (declared or inferred) are judged
-    // against ∅, so a zero-authority parent caps every child at zero.
+    // zero authority »: an absent parent block IS the empty boundary.
+    // NEP-0003 retires the draft-inferred reading (ex LAW-AUTH-0306): an
+    // absent CHILD block is the DECLARED zero — the parent's grants never
+    // flow down implicitly. The judged formula (the Python oracle's twin):
+    // child NEEDS − (parent ∩ child-declared) — the inference only ever
+    // computes NEEDS, never the judged boundary itself.
     let zero = Permits::new();
     let parent = cx.parent_permits.unwrap_or(&zero);
-    let child_boundary = child.permits.as_ref().map_or_else(
-        || super::permits_infer::infer(&child).permits,
-        |s| s.value.clone(),
-    );
-    for detail in boundary_violations(&child_boundary, parent) {
+    let child_declared = child.permits.as_ref().map_or(&zero, |s| &s.value);
+    let meet = parent.intersect(child_declared);
+    let child_needs = super::permits_infer::infer(&child).permits;
+    for detail in boundary_violations(&child_needs, &meet) {
         push("NIKA-COMP-002", detail);
     }
 }
@@ -592,6 +594,8 @@ workflow:
   id: child
 inputs:
   url: { type: string, required: true }
+permits:
+  exec: [\"echo\"]
 tasks:
   fetch:
     exec: { command: [\"echo\", \"${{ inputs.url }}\"] }

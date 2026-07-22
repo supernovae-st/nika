@@ -89,12 +89,13 @@ pub fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
     let mut escapes = Vec::new();
     for task in &wf.tasks {
         let id = &task.value.id.value;
-        check_action(id, &task.value.action, permits, &mut escapes);
+        check_action(id, &task.value.action, permits, undeclared, &mut escapes);
         for cleanup in &task.value.on_finally {
             check_action(
                 &format!("{id} (on_finally)"),
                 &cleanup.value.action,
                 permits,
+                undeclared,
                 &mut escapes,
             );
         }
@@ -162,6 +163,7 @@ fn check_action(
     id: &str,
     action: &RawAction,
     permits: Option<&Permits>,
+    undeclared: bool,
     out: &mut Vec<CapabilityEscape>,
 ) {
     if let RawAction::Invoke(a) = action {
@@ -169,7 +171,7 @@ fn check_action(
     }
     let Some(permits) = permits else { return };
     match action {
-        RawAction::Exec(a) => check_exec(id, &a.command, permits, out),
+        RawAction::Exec(a) => check_exec(id, &a.command, permits, undeclared, out),
         RawAction::Invoke(a) => {
             let Some(tool) = a.tool() else {
                 // A `workflow:` call is not a tool grant — its authority
@@ -177,12 +179,23 @@ fn check_action(
                 // by the composition lane (NIKA-COMP-002 · spec 14 law 3/4).
                 return;
             };
+            // NEP-0003 law 1 · under an ABSENT block a pure-internal
+            // builtin requires nothing (it is the « pure compute » the
+            // legal zero admits).
+            if undeclared && nika_cap::is_pure_internal(&tool.value) {
+                return;
+            }
             if permits.allows_tool(&tool.value) {
                 // Tool is granted — but it may still reach a host/path
                 // outside the fs/net boundary. Check the literal effect.
                 // (A tool OUTSIDE permits.tools is already flagged below;
                 // re-flagging its effect would double-count.)
                 check_builtin_effect(id, a, permits, out);
+            } else if undeclared {
+                // NEP-0003 laws 1+3 · under the absent block only a
+                // STATICALLY visible resource is a check-time refusal; a
+                // computed one defers to the runtime (NIKA-SEC-004).
+                absent_effect_escape(id, a, &tool.value, out);
             } else {
                 escapes_tool(id, "invoke", &tool.value, out);
             }
@@ -270,12 +283,74 @@ fn escapes_tool(id: &str, surface: &str, tool: &str, out: &mut Vec<CapabilityEsc
     });
 }
 
+/// NEP-0003 law 1 (with law 3) · the escape of a non-pure tool under an
+/// ABSENT block. Only a statically visible resource counts at check time:
+/// a literal URL is a `net` escape, a literal path an `fs` one, and every
+/// other non-pure tool (chart · image/tts · mcp:* · unknown) is a `tools`
+/// escape. A computed url/path is the runtime boundary's (NIKA-SEC-004).
+fn absent_effect_escape(
+    id: &str,
+    a: &RawInvokeAction,
+    tool: &str,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    match builtin_effect(a) {
+        Some(BuiltinEffect::Net { url_arg }) => {
+            if literal_arg(a, url_arg).is_none() {
+                return; // computed at run time · the runtime refuses
+            }
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "net",
+                detail: format!(
+                    "invoke `{tool}` with a literal URL under an absent `permits:` block"
+                ),
+                fix: Some(format!(
+                    "add \"{tool}\" to permits.tools and the host to permits.net.http"
+                )),
+                floor: false,
+                undeclared: false,
+            });
+        }
+        Some(BuiltinEffect::Fs { path_arg, .. }) => {
+            if literal_arg(a, path_arg).is_none() {
+                return; // computed at run time · the runtime refuses
+            }
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "fs",
+                detail: format!(
+                    "invoke `{tool}` with a literal path under an absent `permits:` block"
+                ),
+                fix: Some(format!(
+                    "add \"{tool}\" to permits.tools and the path to permits.fs"
+                )),
+                floor: false,
+                undeclared: false,
+            });
+        }
+        _ => escapes_tool(id, "invoke", tool, out),
+    }
+}
+
 /// An `exec:` task under a `permits:` boundary. A `false`/omitted permit
 /// denies any exec; a program allowlist verifies `argv[0]` of the ARRAY
 /// form only — the shell-string form under an allowlist is an escape by
 /// FORM (runtime parity: dispatch refuses that pairing wholesale).
-fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
+fn check_exec(
+    id: &str,
+    command: &RawCommand,
+    permits: &Permits,
+    undeclared: bool,
+    out: &mut Vec<CapabilityEscape>,
+) {
     if !permits.allows_exec() {
+        // NEP-0003 law 3 · under an ABSENT block only a statically visible
+        // program is judged here (a shell line or a computed argv defers
+        // to the runtime refusal); a declared denial refuses every form.
+        if undeclared && static_program(command).is_none() {
+            return;
+        }
         out.push(CapabilityEscape {
             task: id.to_owned(),
             category: "exec",
@@ -610,15 +685,27 @@ tasks:
 
     #[test]
     fn absent_permits_every_effect_escapes_the_zero_boundary() {
-        // F-O8 « absent = zero authority »: no `permits:` block = the
-        // EMPTY boundary — the exec escapes, stamped `undeclared` (the
-        // wire code maps to NIKA-AUTH-006), with the grant fix that
-        // creates the block.
-        let y = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"rm -rf /\" }\n";
+        // F-O8 « absent = zero authority » + NEP-0003 law 3: no `permits:`
+        // block = the EMPTY boundary — a STATICALLY visible exec (argv
+        // literal) escapes, stamped `undeclared` (the wire code maps to
+        // NIKA-AUTH-006), with the grant fix that creates the block.
+        let y = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"rm\", \"-rf\", \"/\"] }\n";
         let e = escapes_of(y);
-        assert_eq!(e.len(), 1, "the exec escapes the zero boundary: {e:?}");
+        assert_eq!(
+            e.len(),
+            1,
+            "the static exec escapes the zero boundary: {e:?}"
+        );
         assert!(e[0].undeclared, "absent block = the AUTH-006 class");
         assert!(!e[0].floor, "not the SSRF floor class");
+        // A shell line is not statically verifiable — check-silent under
+        // absent, the runtime refusal (NIKA-SEC-004) owns it.
+        let shell =
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"rm -rf /\" }\n";
+        assert!(
+            escapes_of(shell).is_empty(),
+            "shell form under absent = runtime concern (NEP-0003 law 3)"
+        );
         // …while a PURE-COMPUTE body (no effects) escapes nothing —
         // the legal zero, and the « declare permits: {} » hint owns it.
         let pure = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n";
@@ -1270,8 +1357,9 @@ tasks:
             e.iter().any(|x| x.undeclared),
             "the F-O8 zero-boundary finding rides"
         );
-        // A dynamic URL is invisible statically — the runtime floor owns
-        // the HOST check; the TOOL still escapes the zero boundary (F-O8).
+        // A dynamic URL is invisible statically — under an absent block
+        // the check stays silent (NEP-0003 law 3): the runtime refusal
+        // (NIKA-SEC-004) owns the resource, and the floor never saw a host.
         let dynamic = r#"nika: v1
 workflow:
   id: w
@@ -1281,11 +1369,9 @@ tasks:
     invoke: { tool: "nika:fetch", args: { url: "${{ const.target }}" } }
 "#;
         let e = escapes(dynamic);
-        assert_eq!(
-            e.len(),
-            1,
-            "dynamic host = runtime concern · the tool escape stays static: {e:?}"
+        assert!(
+            e.is_empty(),
+            "dynamic resource under absent = runtime concern (NEP-0003 law 3): {e:?}"
         );
-        assert!(e[0].undeclared && !e[0].floor);
     }
 }
