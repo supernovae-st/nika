@@ -18,9 +18,6 @@ workflow:
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for any cloud provider in the catalog
 
-permits:
-  exec: false
-
 tasks:
   greet:
     infer:

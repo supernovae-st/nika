@@ -24,15 +24,9 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large
 
 const:
   post_path: "./blog/launch-post.md"
-
 permits:
-  fs:
-    write: ["./social-bundle.md"]
-  exec: false
   tools: ["nika:read", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `post` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+  fs: { write: ["./social-bundle.md"] }
 
 tasks:
   post:

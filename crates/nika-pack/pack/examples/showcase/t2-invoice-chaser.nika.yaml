@@ -26,15 +26,9 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (d
 
 const:
   ledger_csv: "./finance/invoices.csv"
-
 permits:
-  fs:
-    write: ["./finance/reminders-to-send.md"]
-  exec: false
   tools: ["nika:convert", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `ledger` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+  fs: { write: ["./finance/reminders-to-send.md"] }
 
 tasks:
   ledger:

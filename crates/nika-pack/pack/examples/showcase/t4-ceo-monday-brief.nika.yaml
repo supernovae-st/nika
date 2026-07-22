@@ -38,16 +38,9 @@ secrets:
     egress:                       # sanction the one send · the secret IS the URL
       - to: "nika:notify"
         host_from_self: true
-
 permits:
+  tools: ["nika:convert", "nika:date", "nika:fetch", "nika:inspect", "nika:jq", "nika:notify", "nika:read", "nika:write"]
   exec: ["git"]
-  tools: ["nika:convert", "nika:date", "nika:emit", "nika:fetch", "nika:inspect", "nika:jq", "nika:notify", "nika:read", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `news` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-#   · task `kpi_raw` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
-#   · task `save` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
-#   · task `ping` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
 
 tasks:
   # ── branch 1 · market signal ──

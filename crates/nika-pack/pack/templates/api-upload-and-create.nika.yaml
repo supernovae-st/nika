@@ -25,14 +25,6 @@ secrets:
       - to: "nika:fetch"            # the send · default-deny otherwise
       - to: "outputs"               # the return value derives from the authed response
 
-permits:
-  exec: false
-  tools: ["nika:fetch"]
-
-# review — effects too dynamic to pin statically:
-#   · task `upload` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-#   · task `create` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-
 tasks:
   upload:
     invoke:

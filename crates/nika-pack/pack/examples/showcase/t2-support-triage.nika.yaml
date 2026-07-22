@@ -35,15 +35,6 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 
-permits:
-  exec: false
-  tools: ["nika:jq", "nika:notify", "nika:read", "nika:uuid", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `queue` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
-#   · task `escalate` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-#   · task `board` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
-
 tasks:
   batch:
     invoke:

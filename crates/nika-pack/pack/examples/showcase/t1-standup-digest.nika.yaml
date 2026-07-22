@@ -21,12 +21,10 @@ workflow:
   description: "Read yesterday's commits, write today's standup note"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (fast one-liner job)
-
 permits:
-  fs:
-    write: ["./standup-note.md"]
-  exec: ["git"]
   tools: ["nika:date", "nika:write"]
+  exec: ["git"]
+  fs: { write: ["./standup-note.md"] }
 
 tasks:
   # No deps between these two → the engine runs them in parallel.

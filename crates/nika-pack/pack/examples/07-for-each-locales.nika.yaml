@@ -21,9 +21,6 @@ const:
   source: "Welcome to the launch."
   locales: ["fr", "es", "de", "ja", "pt"]
 
-permits:
-  exec: false
-
 tasks:
   translate:
     for_each: ${{ const.locales }}     # one iteration per locale

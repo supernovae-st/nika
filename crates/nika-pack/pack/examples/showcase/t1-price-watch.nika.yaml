@@ -37,14 +37,6 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 
-permits:
-  exec: false
-  tools: ["nika:fetch", "nika:notify"]
-
-# review — effects too dynamic to pin statically:
-#   · task `check` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-#   · task `alert` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-
 tasks:
   check:
     invoke:

@@ -21,13 +21,8 @@
 nika: v1
 workflow:
   id: exec-pipeline
-
 permits:
-  exec: true
-  tools: ["nika:emit"]
-
-# review — effects too dynamic to pin statically:
-#   · task `test` uses the shell-string exec form — a program allowlist applies only to the array form; `exec` widened to `true` (rewrite to the array form for a tighter permit)
+  exec: ["./deploy.sh"]
 
 tasks:
   test:

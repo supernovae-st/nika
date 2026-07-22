@@ -18,9 +18,7 @@ inputs:
     type: string
     required: true
     description: "What the agent must accomplish"   # SLOT
-
 permits:
-  exec: false
   tools: ["nika:assert", "nika:done", "nika:read"]
 
 tasks:

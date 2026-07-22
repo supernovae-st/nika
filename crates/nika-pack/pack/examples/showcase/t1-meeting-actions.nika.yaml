@@ -26,15 +26,9 @@ inputs:
     type: string
     required: true
     description: "Path to the raw meeting transcript"
-
 permits:
-  fs:
-    write: ["./action-items.json"]
-  exec: false
   tools: ["nika:log", "nika:read", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `transcript` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+  fs: { write: ["./action-items.json"] }
 
 tasks:
   transcript:

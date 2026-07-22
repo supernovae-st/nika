@@ -24,15 +24,9 @@ workflow:
 
 const:
   batch_csv: "./data/incoming/orders.csv"
-
 permits:
-  fs:
-    write: ["./data/quarantine/orders-rejected.json", "./data/reports/daily-totals.json"]
-  exec: false
   tools: ["nika:convert", "nika:jq", "nika:read", "nika:validate", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `raw` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+  fs: { write: ["./data/quarantine/orders-rejected.json", "./data/reports/daily-totals.json"] }
 
 tasks:
   # A deterministic empty fallback · the recover target when parsing dies.

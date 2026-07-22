@@ -15,17 +15,11 @@ model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
 const:
   source: "./README.md"             # SLOT: your input — README.md exists in ANY repo, so the
-                                    # skeleton runs green BEFORE you point it at real data
-
 permits:
-  fs:
-    read: ["./README.md"]
-    write: ["./output.md"]
-  exec: false
   tools: ["nika:read", "nika:write"]
+  fs: { read: ["./README.md"], write: ["./output.md"] }
 
-# review — effects too dynamic to pin statically:
-#   · task `gather` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
+                                    # skeleton runs green BEFORE you point it at real data
 
 tasks:
   gather:

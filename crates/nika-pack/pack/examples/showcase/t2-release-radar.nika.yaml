@@ -27,15 +27,6 @@ const:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"
   state_path: "./state/release-radar.json"
 
-permits:
-  exec: false
-  tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:read", "nika:write"]
-
-# review — effects too dynamic to pin statically:
-#   · task `previous` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
-#   · task `feed` reaches a dynamic URL — `net.http` cannot express 'any host'; add the resolved host(s) before running
-#   · task `save_state` uses a dynamic path — `fs` cannot express 'any path'; add the resolved path(s) before running
-
 tasks:
   # First run has no state file · recover to an empty list.
   no_state:
