@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 9712579d0e39af1ff1bba032e29f810b7174183b636abe48c4c0fad3bed9b197
+# body-sha256: 6929dadb6724ab8384fe619973faa84017cc5798fcd0557961b58cb969432d59
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -63,9 +63,9 @@ counts:
   providers: 17
   extract_modes: 9
   templates: 10
-  error_namespaces: 22
+  error_namespaces: 25
   error_categories: 12
-  error_codes: 83
+  error_codes: 88
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -241,15 +241,17 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 22
+  count: 25
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
     - NIKA-ASSERT
+    - NIKA-AUTH
     - NIKA-BUILTIN
     - NIKA-CANCEL
     - NIKA-COMP
     - NIKA-DAG
+    - NIKA-DEFAULT
     - NIKA-EXEC
     - NIKA-IMPL
     - NIKA-INFER
@@ -266,6 +268,7 @@ error_namespaces:
     - NIKA-TIMEOUT
     - NIKA-TYPE
     - NIKA-VAR
+    - NIKA-VALUES
 
 # ---------------------------------------------------- error categories (v1 closed enum)
 # spec/05-errors.md §Categories is the prose home · 10 original + 2 additive
@@ -293,7 +296,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 83
+  count: 88
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -396,6 +399,11 @@ error_codes:
 # 5 immutable pillars forever (spec/00-overview · the language backbone).
 # Order is semantic · envelope frames · verbs act · dag composes · variables
 # thread state · errors handle failure.
+    - { code: NIKA-AUTH-006, category: security_error, transient: "false", failure: "no permits: block declared and the body has effects — absent = zero authority (F-O8 · NEP-0003)" }
+    - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split)" }
+    - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split)" }
+    - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201)" }
+    - { code: NIKA-DEFAULT-001, category: validation_error, transient: "false", failure: "a declared default (inputs · config) or typed const value does not conform to its declared type (R3b · LAW-TYPE-0211)" }
 pillars:
   count: 5
   immutable: true
