@@ -52,6 +52,7 @@ pub mod event;
 #[cfg(feature = "serde")]
 pub mod fold;
 pub mod kind;
+pub mod source_id;
 
 pub use emitter::{Emitter, InMemoryEmitter, NoOpEmitter};
 pub use error::EventError;

@@ -62,6 +62,8 @@ impl<T> nika_error::traits::AsAny for nika_display::flow::Interval where T: 'sta
 pub fn nika_display::flow::Interval::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::flow::Interval where T: core::marker::Copy
 pub fn nika_display::flow::Interval::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::flow::Interval
+pub type nika_display::flow::Interval::Output = T
 pub fn nika_display::flow::dag_shape(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_display::flow::fmt_wall_ms(ms: u64) -> alloc::string::String
 pub fn nika_display::flow::heat_bucket(wall_ms: u64, max_ms: u64) -> usize
@@ -118,6 +120,8 @@ impl<T> nika_error::traits::AsAny for nika_display::format::ColorChoice where T:
 pub fn nika_display::format::ColorChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::format::ColorChoice where T: core::marker::Copy
 pub fn nika_display::format::ColorChoice::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::format::ColorChoice
+pub type nika_display::format::ColorChoice::Output = T
 pub enum nika_display::format::LinkChoice
 pub nika_display::format::LinkChoice::Always
 pub nika_display::format::LinkChoice::Auto
@@ -166,6 +170,8 @@ impl<T> nika_error::traits::AsAny for nika_display::format::LinkChoice where T: 
 pub fn nika_display::format::LinkChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::format::LinkChoice where T: core::marker::Copy
 pub fn nika_display::format::LinkChoice::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::format::LinkChoice
+pub type nika_display::format::LinkChoice::Output = T
 pub struct nika_display::format::ColorEnv
 pub nika_display::format::ColorEnv::clicolor_zero: bool
 pub nika_display::format::ColorEnv::force: bool
@@ -207,6 +213,8 @@ impl<T> nika_error::traits::AsAny for nika_display::format::ColorEnv where T: 's
 pub fn nika_display::format::ColorEnv::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::format::ColorEnv where T: core::marker::Copy
 pub fn nika_display::format::ColorEnv::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::format::ColorEnv
+pub type nika_display::format::ColorEnv::Output = T
 pub fn nika_display::format::color_enabled(choice: nika_display::format::ColorChoice, env: nika_display::format::ColorEnv, tty: bool) -> bool
 pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::string::String
 pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
@@ -279,6 +287,8 @@ impl<T> nika_error::traits::AsAny for nika_display::state::TaskState where T: 's
 pub fn nika_display::state::TaskState::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::state::TaskState where T: core::marker::Copy
 pub fn nika_display::state::TaskState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::state::TaskState
+pub type nika_display::state::TaskState::Output = T
 pub struct nika_display::state::RunView
 pub nika_display::state::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_display::state::RunView::cost_usd: f64
@@ -324,6 +334,8 @@ impl<T> core::convert::From<T> for nika_display::state::RunView
 pub fn nika_display::state::RunView::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_display::state::RunView where T: 'static
 pub fn nika_display::state::RunView::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_display::state::RunView
+pub type nika_display::state::RunView::Output = T
 pub struct nika_display::state::TaskRow
 pub nika_display::state::TaskRow::cached: bool
 pub nika_display::state::TaskRow::cost_usd: core::option::Option<f64>
@@ -375,6 +387,8 @@ impl<T> dyn_clone::DynClone for nika_display::state::TaskRow where T: core::clon
 pub fn nika_display::state::TaskRow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_display::state::TaskRow where T: 'static
 pub fn nika_display::state::TaskRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_display::state::TaskRow
+pub type nika_display::state::TaskRow::Output = T
 pub fn nika_display::state::str_field<'a>(event: &'a nika_event::event::Event, key: &str) -> core::option::Option<&'a str>
 pub mod nika_display::theme
 pub enum nika_display::theme::Role
@@ -434,6 +448,8 @@ impl<T> nika_error::traits::AsAny for nika_display::theme::Role where T: 'static
 pub fn nika_display::theme::Role::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::theme::Role where T: core::marker::Copy
 pub fn nika_display::theme::Role::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::theme::Role
+pub type nika_display::theme::Role::Output = T
 pub struct nika_display::theme::Theme
 pub nika_display::theme::Theme::accents: bool
 pub nika_display::theme::Theme::animate: bool
@@ -486,6 +502,8 @@ impl<T> nika_error::traits::AsAny for nika_display::theme::Theme where T: 'stati
 pub fn nika_display::theme::Theme::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::theme::Theme where T: core::marker::Copy
 pub fn nika_display::theme::Theme::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_display::theme::Theme
+pub type nika_display::theme::Theme::Output = T
 pub const nika_display::theme::HEAT_RAMP: [(u8, u8, u8); 5]
 pub const nika_display::theme::ROUNDTRIP: [char; 10]
 pub const nika_display::theme::SAMPLING: [char; 10]
@@ -520,6 +538,8 @@ impl<T> core::convert::From<T> for nika_display::wires::WireGraph
 pub fn nika_display::wires::WireGraph::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_display::wires::WireGraph where T: 'static
 pub fn nika_display::wires::WireGraph::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_display::wires::WireGraph
+pub type nika_display::wires::WireGraph::Output = T
 pub fn nika_display::wires::render(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme) -> core::option::Option<alloc::string::String>
 pub fn nika_display::wires::render_with(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme, node: &dyn core::ops::function::Fn(&str, &str) -> (alloc::string::String, alloc::string::String), live: core::option::Option<(nika_display::wires::LiveProbe<'_>, usize)>) -> core::option::Option<alloc::string::String>
 pub type nika_display::wires::LiveProbe<'a> = &'a dyn core::ops::function::Fn(&str) -> bool

@@ -36,11 +36,11 @@ use nika_schema::raw::RawWorkflow;
 use nika_schema::types::Permits;
 use nika_schema::{FileId, ParseMode};
 
-use nika_dap::source_id::sha256_hex;
+use nika_event::source_id::sha256_hex;
 
-use super::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits};
-use super::sink::{TRACE_DIR, TraceFileSink};
-use super::stamp::SystemStamper;
+use nika_dap::journal::TraceFileSink;
+use nika_runtime::SystemStamper;
+use nika_runtime::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits};
 
 /// The production runner — one per composed runtime, rooted at the file
 /// whose tasks it serves.
@@ -194,7 +194,7 @@ impl ChildRunner for ProdChildRunner {
                     .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
             };
             let model = wf.model.as_ref().map_or("", |m| m.value.as_str());
-            let runtime = super::compose::production_runtime(model, caps)
+            let runtime = nika_runtime::compose::production_runtime(model, caps)
                 .map_err(|e| refusal("NIKA-COMP-001", format!("child runtime: {e}")))?
                 .with_var_overrides(call.args.clone().into_iter().collect())
                 // law 6 — the inherited budget IS the parent's remaining.
@@ -207,7 +207,7 @@ impl ChildRunner for ProdChildRunner {
                 .with_child_runner(Arc::new(ProdChildRunner::new(&path, self.trace)));
             let mut stamper = SystemStamper;
             let mut sink = if self.trace {
-                TraceFileSink::new(TRACE_DIR)
+                TraceFileSink::new(nika_dap::store::TRACE_DIR)
             } else {
                 TraceFileSink::disabled()
             };

@@ -114,7 +114,7 @@ pub(crate) fn collect(ping: bool) -> Probe {
     // The SAME env composition a run uses: the probe observes the world
     // the runtime will see, overrides included (ProvidersConfig::new()
     // here made --ping probe seeds the operator had redirected away).
-    let registry = ProviderRegistry::without_http(crate::verbs::run::config_from_env());
+    let registry = ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
     let providers = nika_providers::probe::collect_provider_probes(&registry);
     let probe = Probe {
         version: env!("CARGO_PKG_VERSION").to_owned(),

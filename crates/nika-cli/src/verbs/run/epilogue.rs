@@ -18,9 +18,9 @@ use serde_json::Value;
 
 use nika_runtime::{RunOutcome, WorkflowPause};
 
-use super::resume;
 use crate::Theme;
 use crate::verbs::exit;
+use nika_dap::resume;
 
 /// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
 /// printed ONLY when a resume was requested (a fresh run's surfaces stay

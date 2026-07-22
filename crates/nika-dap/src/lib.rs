@@ -29,13 +29,14 @@ pub mod drift;
 pub mod evidence;
 pub mod flow;
 pub mod inventory;
+pub mod journal;
 pub mod otel;
 pub mod recover;
 pub mod reproduce;
+pub mod resume;
 pub mod retention;
 pub mod seal;
 pub mod sign;
-pub mod source_id;
 pub mod stats;
 pub mod store;
 

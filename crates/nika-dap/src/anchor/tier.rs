@@ -210,7 +210,7 @@ pub fn last_complete_line(raw: &str, events: usize) -> Option<serde_json::Value>
 mod tests {
     use super::*;
     use crate::chain::CHAIN_GENESIS;
-    use crate::source_id::sha256_hex;
+    use nika_event::source_id::sha256_hex;
 
     /// A fresh minisign keypair (the custody test idiom — the box is
     /// trimmed exactly as the loaders hand it back).

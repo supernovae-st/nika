@@ -24,28 +24,21 @@ clap_complete = { workspace = true }                           # `nika completio
 serde       = { workspace = true }                             # graph projection envelope (§6)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 toml_edit   = { workspace = true }                             # wire codex · ~/.codex/config.toml (comment-preserving)
-uuid        = { workspace = true }
-# The `nika run` composer (verbs/run/) wires the REAL shipped layers below
-# the CLI — all strictly downward (L4 → L3/L2/L1.5/L1/L0). Before the run
-# verb these were dev-deps (the e2e rehearsal only); the verb makes them
-# load-bearing in src/.
+# The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
+# crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
+# compute descends, render stays); what remains below is what the CLI's own
+# surfaces drive: the kernel seam bounds (the run gauntlet's generics),
+# the L3 executor + its composer, the registry resolve half, the provider
+# probe/explain ladders, the builtin tool list (tools · welcome), and the
+# registry/anchor http clients.
 nika-kernel      = { path = "../nika-kernel", version = "0.105.0" }        # ProviderInferDyn · Secret · the seam traits
-nika-runtime     = { path = "../nika-runtime", version = "0.105.0" }       # the L3 executor (the composer drives it)
+nika-runtime     = { path = "../nika-runtime", version = "0.105.0" }       # the L3 executor + the descended production composer (compose · admit · SystemStamper)
 nika-registry-client = { path = "../nika-registry-client", version = "0.105.0" }  # the L2 resolve/verify/cache half (this crate composes http + executor around it)
-nika-providers   = { path = "../nika-providers", version = "0.105.0" }     # ProviderRegistry — resolve provider/model + keys
-nika-verb-infer  = { path = "../nika-verb-infer", version = "0.105.0" }
-nika-verb-exec   = { path = "../nika-verb-exec", version = "0.105.0" }
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.105.0" }
-nika-verb-agent  = { path = "../nika-verb-agent", version = "0.105.0" }
-nika-builtin     = { path = "../nika-builtin", version = "0.105.0" }       # BuiltinDispatcher — the tool plane (invoke + agent tools)
-nika-fs          = { path = "../nika-fs", version = "0.105.0" }            # TokioFs — the builtin tool plane's fs effect
-nika-clock       = { path = "../nika-clock", version = "0.105.0" }         # SystemClock — backoff + timeout + the date builtin
-nika-http        = { path = "../nika-http", version = "0.105.0" }          # ReqwestHttp — the registry + fetch effect
-nika-exec-runner = { path = "../nika-exec-runner", version = "0.105.0" }   # TokioShell — the exec verb's subprocess runner
+nika-providers   = { path = "../nika-providers", version = "0.105.0" }     # ProviderRegistry — the probe/explain ladders
+nika-builtin     = { path = "../nika-builtin", version = "0.105.0" }       # tool_defs/tools_json — the tools + welcome surfaces
+nika-http        = { path = "../nika-http", version = "0.105.0" }          # ReqwestHttp — the registry + trace-anchor clients
 # keyring + minisign moved out with the trust plane (nika-dap::seal/sign host the custody + primitives now).
-sha2           = { workspace = true }   # the seal fingerprint (key_id) · shared with the registry chain
-nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.105.0" }  # the macOS exec jail (ADR-095 L6)
-nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.105.0" }  # the Linux exec jail (ADR-095 L6 · bwrap)
+# sha2 pruned 2026-07-22 — zero `sha2::` use in src/ (the trust plane's descent took the last one).
 nika-catalog     = { path = "../nika-catalog", version = "0.105.0", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
 nika-lsp         = { path = "../nika-lsp", version = "0.105.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
 nika-display     = { path = "../nika-display", version = "0.105.0" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
@@ -75,8 +68,18 @@ path = "src/main.rs"
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
 minisign       = { version = "0.7", default-features = false }   # the tier tests' keypair fixtures (custody lives in nika-dap now)
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.105.0" }
+# The e2e rehearsals (tests/e2e_pipeline.rs · forecast_e2e.rs ·
+# composition_e2e.rs) compose their OWN mock-seamed runtimes — the verb
+# crates + the journal hash ride dev-only since the production composer
+# descended to nika-runtime (2026-07-22).
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.105.0" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.105.0" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.105.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.105.0" }
+sha2           = { workspace = true }   # composition_e2e/trace_verify test-side journal chains
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 tempfile = { workspace = true }   # trace-file sink fixtures (`.nika/traces/` journal · sink.rs tests)
+uuid     = { workspace = true }   # test fixtures mint EventIds (the last prod use descended with the journal writer)
 expectrl = { workspace = true }   # PTY e2e · the wizard conversation is TTY-gated — unreachable
                                   # from piped harnesses by construction (tests/wizard_pty.rs · unix)
 

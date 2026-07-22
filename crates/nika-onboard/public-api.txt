@@ -57,6 +57,8 @@ impl<T> nika_error::traits::AsAny for nika_onboard::founding::CanvasTheme where 
 pub fn nika_onboard::founding::CanvasTheme::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_onboard::founding::CanvasTheme where T: core::marker::Copy
 pub fn nika_onboard::founding::CanvasTheme::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_onboard::founding::CanvasTheme
+pub type nika_onboard::founding::CanvasTheme::Output = T
 pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
 pub fn nika_onboard::founding::agents_md() -> &'static str
 pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
@@ -94,5 +96,7 @@ impl<T> core::convert::From<T> for nika_onboard::Outcome
 pub fn nika_onboard::Outcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_onboard::Outcome where T: 'static
 pub fn nika_onboard::Outcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_onboard::Outcome
+pub type nika_onboard::Outcome::Output = T
 pub type nika_onboard::Audit<'a> = (dyn core::ops::function::Fn(&str) -> nika_onboard::Outcome + 'a)
 pub type nika_onboard::Wire<'a> = (dyn core::ops::function::Fn(&str, &str) -> nika_onboard::Outcome + 'a)

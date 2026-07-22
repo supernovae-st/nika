@@ -105,7 +105,7 @@ fn render(report: &anchor_run::AnchoredReport) -> String {
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use nika_dap::chain::CHAIN_GENESIS;
-    use nika_dap::source_id::sha256_hex;
+    use nika_event::source_id::sha256_hex;
 
     use super::*;
 

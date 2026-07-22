@@ -4,10 +4,12 @@
 //! `nika run <file>` — execute a CHECKED workflow through the real L3
 //! runtime (spec §3 · exit 0 ok · 1 workflow failed · 2 file findings).
 //!
-//! The composer: this module is the L4 half that the runtime's seams
-//! (`Stamper` · `EventSink`) and the verb crates' generics expect. It
-//! wires PRODUCTION effects (real fs · http · clock · subprocess ·
-//! provider registry with env-resolved keys) and the display fold.
+//! The gauntlet + the lanes: this module is the L4 ORCHESTRATION half —
+//! audit-before-run, the gates, the exit codes, the live fold. The
+//! production composition (real fs · http · clock · subprocess ·
+//! provider registry with env-resolved keys) descended to
+//! [`nika_runtime::compose`] 2026-07-22 (compute descends, render
+//! stays); the journal's write half lives in [`nika_dap::journal`].
 //!
 //! ```text
 //! parse (Strict) → check → dirty? → render findings · exit 2
@@ -22,34 +24,25 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 mod child_runner;
-mod compose;
 mod inputs;
-pub(crate) use compose::config_from_env;
-mod resume;
 mod sink;
-mod stamp;
 
-pub use compose::{
-    ProdRuntime, RuntimeCapabilities, capabilities_of, fs_boundary_of, net_boundary_of,
-    production_runtime,
-};
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
-pub use resume::ResumeRequest;
-pub use sink::{FoldSink, JsonSink, RenderMode};
+pub use sink::{FoldSink, RenderMode};
 
 mod example;
 pub use example::example;
 use sink::{TraceNote, surface_trace};
-pub use stamp::SystemStamper;
 
 mod budget;
 mod epilogue;
 mod heartbeat;
-mod scope;
-pub(crate) use nika_dap::source_id::{lf_normal_form, sha256_hex};
-use scope::scope_to_task;
+pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 
-use sink::{TRACE_DIR, Tee, TraceFileSink};
+use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
+use nika_dap::resume::ResumeRequest;
+use nika_runtime::compose::{ProdRuntime, capabilities_of, production_runtime};
+use nika_runtime::{SystemStamper, scope_to_task};
 
 /// The workflow's semantic hash for the run seal (the proof layer's
 /// Merkle commitment over the task leaves — `None` when any task is
@@ -342,12 +335,13 @@ fn resume_setup(
         None => None,
         Some(req) => Some(load_resume_plan(req, wf, output_json)?),
     };
-    let answers = resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
-        .map_err(|message| {
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            exit::ENV
-        })?;
+    let answers =
+        nika_dap::resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
+            .map_err(|message| {
+                eprintln!("nika run: {message}");
+                epilogue::emit_error_envelope(&message, output_json);
+                exit::ENV
+            })?;
     Ok(ResumeSetup { plan, answers })
 }
 
@@ -377,7 +371,7 @@ fn load_resume_plan(
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
-    let fold = resume::fold_plan(&recovered.events);
+    let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
         // journaled successes. The run proceeds fully live (never an error).
@@ -390,7 +384,7 @@ fn load_resume_plan(
     }
     let mut plan = fold.plan;
     if let Some(from) = &req.from {
-        resume::apply_from(&mut plan, wf, from)
+        nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
     Ok(plan)
@@ -1022,12 +1016,13 @@ where
 }
 
 /// The run journal (spec §3.3) — composed like the other seams;
-/// `execute` receives the sink, never a flag.
+/// `execute` receives the sink, never a flag. The directory constant
+/// is the store scan's (one constant, one home).
 fn trace_sink(no_trace_file: bool) -> TraceFileSink {
     if no_trace_file {
         TraceFileSink::disabled()
     } else {
-        TraceFileSink::new(TRACE_DIR)
+        TraceFileSink::new(nika_dap::store::TRACE_DIR)
     }
 }
 
@@ -1036,7 +1031,7 @@ fn trace_sink(no_trace_file: bool) -> TraceFileSink {
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run, scope_to_task};
+    use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run};
     use crate::Theme;
     use serde_json::json;
 
@@ -1229,62 +1224,6 @@ mod tests {
             exit::ENV,
             "malformed --var pair is refused"
         );
-    }
-
-    /// `--task` scope · the diamond proves ancestors-only semantics: the
-    /// target + transitive upstream survive · siblings and downstream drop
-    /// · outputs clear (they may read unscoped tasks).
-    #[test]
-    fn scope_to_task_keeps_the_ancestor_cone() {
-        let yaml = "nika: v1\nworkflow:\n  id: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"count ${{ with.found }}\" }\n  digest:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"sum ${{ with.found }}\" }\n  report:\n    with:\n      stats: ${{ tasks.stats.output }}\n      digest: ${{ tasks.digest.output }}\n    infer: { prompt: \"merge ${{ with.stats }} ${{ with.digest }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
-        let wf = nika_schema::parse(
-            yaml,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("diamond parses");
-
-        let stats_only = scope_to_task(wf.clone(), "stats").expect("stats scopes");
-        let ids: Vec<&str> = stats_only
-            .tasks
-            .iter()
-            .map(|t| t.value.id.value.as_str())
-            .collect();
-        assert_eq!(
-            ids,
-            vec!["discover", "stats"],
-            "target + its one ancestor · document order"
-        );
-        assert!(stats_only.outputs.is_empty(), "outputs drop under scope");
-
-        let full = scope_to_task(wf.clone(), "report").expect("report scopes");
-        assert_eq!(full.tasks.len(), 4, "the sink's cone is the whole diamond");
-
-        let err = scope_to_task(wf, "nope").expect_err("unknown id refused");
-        assert!(
-            err.contains("nope") && err.contains("discover"),
-            "names the id + the available set"
-        );
-    }
-
-    /// The scoped sub-workflow re-checks CLEAN — the plan/waves/cost the
-    /// run renders describe exactly the cone, not the original file.
-    #[test]
-    fn scoped_workflow_rechecks_clean() {
-        let yaml = "nika: v1\nworkflow:\n  id: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"use ${{ with.prev }}\" }\n";
-        let wf = nika_schema::parse(
-            yaml,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("pair parses");
-        let sub = scope_to_task(wf, "a").expect("a scopes");
-        let report = nika_check::check(&sub);
-        assert!(
-            report.is_clean(),
-            "the cone stands alone (no dangling refs)"
-        );
-        assert_eq!(sub.tasks.len(), 1);
     }
 
     /// #473 e2e (mock · offline): the resolved-skills wiring is

@@ -11,7 +11,7 @@
 //! and every walker that checks it now share ONE genesis tag and ONE
 //! hash primitive (three private copies unified).
 
-use crate::source_id::sha256_hex;
+use nika_event::source_id::sha256_hex;
 
 /// The chain's genesis tag — the first line's `chain` field is the
 /// sha256 of exactly these bytes (the sink writes it · the walk checks

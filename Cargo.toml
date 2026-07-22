@@ -45,8 +45,9 @@ layers.nika-pack = "L0"
 # 2026-06-11 with the display fold + trace verbs per docs/crate-specs/nika-cli.md.
 layers.nika-cli = "L4"
 # nika-dap · the DAP replay server + the shared forensic seams (recover ·
-# chain · source_id) · split from nika-cli's verbs/dap 2026-07-09 (the
-# crate-size cap · the nika-cap precedent).
+# chain) · split from nika-cli's verbs/dap 2026-07-09 (the
+# crate-size cap · the nika-cap precedent) · source_id re-homed to
+# nika-event 2026-07-22 (the run-composer descent needed the hash at L≤3).
 layers.nika-dap = "L4"
 layers.nika-display = "L4"
 layers.nika-onboard = "L4"
@@ -269,7 +270,7 @@ bare_urls                  = "warn"
 thiserror  = "2.0"
 regex      = "1.11"     # nika-builtin L1.5 — nika:grep pattern engine (RE2-class · no backrefs · the portable subset)
 include_dir = "0.7"   # nika-pack L0 · compile-time spec-pack embedding
-sha2 = "0.10"         # nika-pack dev · manifest integrity hashing
+sha2 = "0.10"         # nika-pack dev · manifest integrity hashing + nika-event L0 · the source-identity hash
 miette     = "7.6"
 serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
