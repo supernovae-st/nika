@@ -1,15 +1,15 @@
 # Releasing Nika
 
 The release train is one tag push; everything after is CI. This file is the
-ceremony — what a releaser does, what the machine does, and what a user can
+ceremony: what a releaser does, what the machine does, and what a user can
 prove afterwards. The lineage law applies throughout: a published release is
-a historical record — **never rewrite a live release body retroactively**
+a historical record: **never rewrite a live release body retroactively**
 without an explicit operator decision.
 
 ## The ceremony (human side)
 
 1. **Fill the changelog.** The `[Unreleased]` section becomes the version
-   section — generate it, don't hand-type it:
+   section: generate it, don't hand-type it:
 
    ```sh
    git-cliff --config cliff.toml v<PREV>..HEAD --tag v<NEXT> --strip all
@@ -17,10 +17,10 @@ without an explicit operator decision.
 
    Splice the output under `## [Unreleased]` as `## [<NEXT>]`, newest first.
    Hand-curated narrative (a BREAKING window, an era note) may replace the
-   generated body — the section, not the release page, is where curation
+   generated body: the section, not the release page, is where curation
    lives. `CHANGELOG.md` is the single source the release body renders from.
 
-2. **Bump the workspace version** in `Cargo.toml` to `<NEXT>` — the release
+2. **Bump the workspace version** in `Cargo.toml` to `<NEXT>`: the release
    workflow refuses a tag that disagrees with the manifest (first gate).
 
 3. **Tag and push.**
@@ -43,9 +43,9 @@ without an explicit operator decision.
 | `ghcr.io/supernovae-st/nika:{<ver>,latest}` | multi-arch image, bit-identical to the tarballs |
 | Homebrew formula bump | `supernovae-st/homebrew-tap` (deploy-key scoped) |
 
-The release body is rendered by `scripts/release/render-notes.sh` — the
+The release body is rendered by `scripts/release/render-notes.sh`: the
 curated **What / Install / Verify / Provenance** front page from the
-changelog section — with GitHub's generated PR list appended below it.
+changelog section: with GitHub's generated PR list appended below it.
 
 ## What a user can prove
 
@@ -63,7 +63,7 @@ failing is a stop-the-line event.
 
 ## The record
 
-Every release is also a claim on the machine-verified timeline —
+Every release is also a claim on the machine-verified timeline ·
 [nika.sh/timeline](https://nika.sh/timeline) renders the spec's
 `timeline/timeline.yaml`, and CI re-proves the provable claims (GitHub ·
 crates.io) on every push and weekly. A release that isn't in the record
