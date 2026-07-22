@@ -4,7 +4,7 @@
 //! The live TTY fold ([`FoldSink`] · `RunView` repaint per event) and
 //! the run journal's EPILOGUE ([`surface_trace`] · the spec §3.3
 //! `trace:` pointer). The journal's WRITE half — [`TraceFileSink`] ·
-//! the `--json` NDJSON lane · the [`Tee`] combinator — descended to
+//! the `--json` NDJSON lane · the `Tee` combinator — descended to
 //! `nika_dap::journal` 2026-07-22 (compute descends, render stays ·
 //! one format, one home beside the chain walk that verifies it).
 //!

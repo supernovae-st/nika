@@ -45,6 +45,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::rekor::Checkpoint where T: cor
 pub fn nika_dap::anchor::rekor::Checkpoint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::rekor::Checkpoint where T: 'static
 pub fn nika_dap::anchor::rekor::Checkpoint::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::rekor::Checkpoint where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::Checkpoint::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::rekor::Checkpoint::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::rekor::Checkpoint
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::rekor::Checkpoint
 impl<T> typenum::type_operators::Same for nika_dap::anchor::rekor::Checkpoint
@@ -97,6 +100,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::rekor::SubmittedEntry where T:
 pub fn nika_dap::anchor::rekor::SubmittedEntry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::rekor::SubmittedEntry where T: 'static
 pub fn nika_dap::anchor::rekor::SubmittedEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::rekor::SubmittedEntry where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rekor::SubmittedEntry::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::rekor::SubmittedEntry::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::rekor::SubmittedEntry
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::rekor::SubmittedEntry
 impl<T> typenum::type_operators::Same for nika_dap::anchor::rekor::SubmittedEntry
@@ -157,6 +163,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::rfc3161::VerifiedToken where T
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::rfc3161::VerifiedToken where T: 'static
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::rfc3161::VerifiedToken where T: ?core::marker::Sized
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::rfc3161::VerifiedToken::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::rfc3161::VerifiedToken
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::rfc3161::VerifiedToken
 impl<T> typenum::type_operators::Same for nika_dap::anchor::rfc3161::VerifiedToken
@@ -218,6 +227,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::run::AnchorFailure where T: co
 pub fn nika_dap::anchor::run::AnchorFailure::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::run::AnchorFailure where T: 'static
 pub fn nika_dap::anchor::run::AnchorFailure::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::run::AnchorFailure where T: ?core::marker::Sized
+pub fn nika_dap::anchor::run::AnchorFailure::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::run::AnchorFailure::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::run::AnchorFailure
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::run::AnchorFailure
 impl<T> typenum::type_operators::Same for nika_dap::anchor::run::AnchorFailure
@@ -269,6 +281,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::run::AnchoredReport where T: c
 pub fn nika_dap::anchor::run::AnchoredReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::run::AnchoredReport where T: 'static
 pub fn nika_dap::anchor::run::AnchoredReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::run::AnchoredReport where T: ?core::marker::Sized
+pub fn nika_dap::anchor::run::AnchoredReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::run::AnchoredReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::run::AnchoredReport
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::run::AnchoredReport
 impl<T> typenum::type_operators::Same for nika_dap::anchor::run::AnchoredReport
@@ -321,6 +336,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::AnchorTier where T: core
 pub fn nika_dap::anchor::tier::AnchorTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::AnchorTier where T: 'static
 pub fn nika_dap::anchor::tier::AnchorTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::AnchorTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AnchorTier::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::AnchorTier::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::AnchorTier
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::AnchorTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::AnchorTier
@@ -374,6 +392,9 @@ impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::AttainedTier where
 pub fn nika_dap::anchor::tier::AttainedTier::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::anchor::tier::AttainedTier where T: core::marker::Copy
 pub fn nika_dap::anchor::tier::AttainedTier::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::AttainedTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::AttainedTier::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::AttainedTier::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::AttainedTier
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::AttainedTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::AttainedTier
@@ -423,6 +444,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::ReplayCompare where T: c
 pub fn nika_dap::anchor::tier::ReplayCompare::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::ReplayCompare where T: 'static
 pub fn nika_dap::anchor::tier::ReplayCompare::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::ReplayCompare where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::ReplayCompare::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::ReplayCompare::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::ReplayCompare
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::ReplayCompare
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::ReplayCompare
@@ -473,6 +497,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::ReplayTier where T: core
 pub fn nika_dap::anchor::tier::ReplayTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::ReplayTier where T: 'static
 pub fn nika_dap::anchor::tier::ReplayTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::ReplayTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::ReplayTier::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::ReplayTier::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::ReplayTier
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::ReplayTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::ReplayTier
@@ -522,6 +549,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::SealTier where T: core::
 pub fn nika_dap::anchor::tier::SealTier::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::SealTier where T: 'static
 pub fn nika_dap::anchor::tier::SealTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::SealTier where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealTier::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::SealTier::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::SealTier
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::SealTier
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::SealTier
@@ -574,6 +604,9 @@ impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::TierExit where T: 
 pub fn nika_dap::anchor::tier::TierExit::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::anchor::tier::TierExit where T: core::marker::Copy
 pub fn nika_dap::anchor::tier::TierExit::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::TierExit where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::TierExit::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::TierExit::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::TierExit
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::TierExit
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::TierExit
@@ -623,6 +656,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::SealVerdict where T: cor
 pub fn nika_dap::anchor::tier::SealVerdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::SealVerdict where T: 'static
 pub fn nika_dap::anchor::tier::SealVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::SealVerdict where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::SealVerdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::SealVerdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::SealVerdict
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::SealVerdict
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::SealVerdict
@@ -675,6 +711,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::tier::TierReport where T: core
 pub fn nika_dap::anchor::tier::TierReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::tier::TierReport where T: 'static
 pub fn nika_dap::anchor::tier::TierReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::tier::TierReport where T: ?core::marker::Sized
+pub fn nika_dap::anchor::tier::TierReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::tier::TierReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::tier::TierReport
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::TierReport
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::TierReport
@@ -734,6 +773,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::HeadRefusal where T: core::clo
 pub fn nika_dap::anchor::HeadRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::HeadRefusal where T: 'static
 pub fn nika_dap::anchor::HeadRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::HeadRefusal where T: ?core::marker::Sized
+pub fn nika_dap::anchor::HeadRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::HeadRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::HeadRefusal
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::HeadRefusal
 impl<T> typenum::type_operators::Same for nika_dap::anchor::HeadRefusal
@@ -791,6 +833,9 @@ pub fn nika_dap::anchor::AnchorSidecar::__clone_box(&self, _: dyn_clone::sealed:
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::AnchorSidecar where T: 'static
 pub fn nika_dap::anchor::AnchorSidecar::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::AnchorSidecar where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::AnchorSidecar where T: ?core::marker::Sized
+pub fn nika_dap::anchor::AnchorSidecar::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::AnchorSidecar::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::AnchorSidecar
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::AnchorSidecar
 impl<T> typenum::type_operators::Same for nika_dap::anchor::AnchorSidecar
@@ -851,6 +896,9 @@ pub fn nika_dap::anchor::RekorAnchor::__clone_box(&self, _: dyn_clone::sealed::P
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::RekorAnchor where T: 'static
 pub fn nika_dap::anchor::RekorAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::RekorAnchor where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::RekorAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::RekorAnchor::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::RekorAnchor::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::RekorAnchor
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::RekorAnchor
 impl<T> typenum::type_operators::Same for nika_dap::anchor::RekorAnchor
@@ -879,6 +927,9 @@ impl<T> core::convert::From<T> for nika_dap::anchor::RunKeyMaterial
 pub fn nika_dap::anchor::RunKeyMaterial::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::RunKeyMaterial where T: 'static
 pub fn nika_dap::anchor::RunKeyMaterial::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::RunKeyMaterial where T: ?core::marker::Sized
+pub fn nika_dap::anchor::RunKeyMaterial::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::RunKeyMaterial::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::RunKeyMaterial
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::RunKeyMaterial
 impl<T> typenum::type_operators::Same for nika_dap::anchor::RunKeyMaterial
@@ -933,6 +984,9 @@ pub fn nika_dap::anchor::TsaAnchor::__clone_box(&self, _: dyn_clone::sealed::Pri
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::TsaAnchor where T: 'static
 pub fn nika_dap::anchor::TsaAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_dap::anchor::TsaAnchor where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::TsaAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::TsaAnchor::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::TsaAnchor::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::TsaAnchor
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::TsaAnchor
 impl<T> typenum::type_operators::Same for nika_dap::anchor::TsaAnchor
@@ -982,6 +1036,9 @@ impl<T> dyn_clone::DynClone for nika_dap::anchor::VerifiedAnchor where T: core::
 pub fn nika_dap::anchor::VerifiedAnchor::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::anchor::VerifiedAnchor where T: 'static
 pub fn nika_dap::anchor::VerifiedAnchor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::anchor::VerifiedAnchor where T: ?core::marker::Sized
+pub fn nika_dap::anchor::VerifiedAnchor::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::anchor::VerifiedAnchor::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::anchor::VerifiedAnchor
 impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::VerifiedAnchor
 impl<T> typenum::type_operators::Same for nika_dap::anchor::VerifiedAnchor
@@ -1033,6 +1090,9 @@ impl<T> core::convert::From<T> for nika_dap::chain::Verdict
 pub fn nika_dap::chain::Verdict::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::chain::Verdict where T: 'static
 pub fn nika_dap::chain::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::chain::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::chain::Verdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::chain::Verdict
 impl<T> tracing::instrument::WithSubscriber for nika_dap::chain::Verdict
 impl<T> typenum::type_operators::Same for nika_dap::chain::Verdict
@@ -1092,8 +1152,13 @@ impl<T> core::convert::From<T> for nika_dap::evidence::PackError
 pub fn nika_dap::evidence::PackError::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_dap::evidence::PackError where T: core::clone::Clone
 pub fn nika_dap::evidence::PackError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_dap::evidence::PackError where T: core::fmt::Display
+pub fn nika_dap::evidence::PackError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_dap::evidence::PackError where T: 'static
 pub fn nika_dap::evidence::PackError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::evidence::PackError where T: ?core::marker::Sized
+pub fn nika_dap::evidence::PackError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::evidence::PackError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::evidence::PackError
 impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::PackError
 impl<T> typenum::type_operators::Same for nika_dap::evidence::PackError
@@ -1124,6 +1189,9 @@ impl<T> core::convert::From<T> for nika_dap::evidence::EvidencePack
 pub fn nika_dap::evidence::EvidencePack::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::evidence::EvidencePack where T: 'static
 pub fn nika_dap::evidence::EvidencePack::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::evidence::EvidencePack where T: ?core::marker::Sized
+pub fn nika_dap::evidence::EvidencePack::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::evidence::EvidencePack::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::evidence::EvidencePack
 impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::EvidencePack
 impl<T> typenum::type_operators::Same for nika_dap::evidence::EvidencePack
@@ -1178,6 +1246,9 @@ impl<T> dyn_clone::DynClone for nika_dap::flow::FlowEdge where T: core::clone::C
 pub fn nika_dap::flow::FlowEdge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::flow::FlowEdge where T: 'static
 pub fn nika_dap::flow::FlowEdge::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::flow::FlowEdge where T: ?core::marker::Sized
+pub fn nika_dap::flow::FlowEdge::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::flow::FlowEdge::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::flow::FlowEdge
 impl<T> tracing::instrument::WithSubscriber for nika_dap::flow::FlowEdge
 impl<T> typenum::type_operators::Same for nika_dap::flow::FlowEdge
@@ -1217,6 +1288,9 @@ impl<T> core::convert::From<T> for nika_dap::inventory::Rollups
 pub fn nika_dap::inventory::Rollups::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::inventory::Rollups where T: 'static
 pub fn nika_dap::inventory::Rollups::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::inventory::Rollups where T: ?core::marker::Sized
+pub fn nika_dap::inventory::Rollups::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::inventory::Rollups::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::inventory::Rollups
 impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::Rollups
 impl<T> typenum::type_operators::Same for nika_dap::inventory::Rollups
@@ -1266,6 +1340,9 @@ impl<T> dyn_clone::DynClone for nika_dap::inventory::WorkflowFact where T: core:
 pub fn nika_dap::inventory::WorkflowFact::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::inventory::WorkflowFact where T: 'static
 pub fn nika_dap::inventory::WorkflowFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::inventory::WorkflowFact where T: ?core::marker::Sized
+pub fn nika_dap::inventory::WorkflowFact::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::inventory::WorkflowFact::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::inventory::WorkflowFact
 impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::WorkflowFact
 impl<T> typenum::type_operators::Same for nika_dap::inventory::WorkflowFact
@@ -1302,6 +1379,9 @@ impl<T> core::convert::From<T> for nika_dap::inventory::Workspace
 pub fn nika_dap::inventory::Workspace::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::inventory::Workspace where T: 'static
 pub fn nika_dap::inventory::Workspace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::inventory::Workspace where T: ?core::marker::Sized
+pub fn nika_dap::inventory::Workspace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::inventory::Workspace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::inventory::Workspace
 impl<T> tracing::instrument::WithSubscriber for nika_dap::inventory::Workspace
 impl<T> typenum::type_operators::Same for nika_dap::inventory::Workspace
@@ -1312,6 +1392,109 @@ pub const nika_dap::inventory::WALK_BUDGET: usize
 pub fn nika_dap::inventory::collect_workflow_paths(root: &std::path::Path, dir: &std::path::Path, depth: u8, budget: &mut usize, out: &mut alloc::vec::Vec<std::path::PathBuf>)
 pub fn nika_dap::inventory::collect_workflows(root: &std::path::Path) -> (alloc::vec::Vec<nika_dap::inventory::WorkflowFact>, bool, usize)
 pub fn nika_dap::inventory::rollups(facts: &[nika_dap::inventory::WorkflowFact], runs: &[nika_event::fold::RunFact]) -> nika_dap::inventory::Rollups
+pub mod nika_dap::journal
+pub struct nika_dap::journal::JsonSink<W: core::io::write::Write>
+impl<W: core::io::write::Write> nika_dap::journal::JsonSink<W>
+pub fn nika_dap::journal::JsonSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
+pub fn nika_dap::journal::JsonSink<W>::new(writer: W) -> Self
+impl<W: core::io::write::Write> nika_runtime::stamp::EventSink for nika_dap::journal::JsonSink<W>
+pub fn nika_dap::journal::JsonSink<W>::emit(&mut self, event: nika_event::event::Event)
+impl<D> owo_colors::OwoColorize for nika_dap::journal::JsonSink<W>
+impl<T, U> core::convert::Into<U> for nika_dap::journal::JsonSink<W> where U: core::convert::From<T>
+pub fn nika_dap::journal::JsonSink<W>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::journal::JsonSink<W> where U: core::convert::Into<T>
+pub type nika_dap::journal::JsonSink<W>::Error = core::convert::Infallible
+pub fn nika_dap::journal::JsonSink<W>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::journal::JsonSink<W> where U: core::convert::TryFrom<T>
+pub type nika_dap::journal::JsonSink<W>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::journal::JsonSink<W>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::journal::JsonSink<W> where T: 'static + ?core::marker::Sized
+pub fn nika_dap::journal::JsonSink<W>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::journal::JsonSink<W> where T: ?core::marker::Sized
+pub fn nika_dap::journal::JsonSink<W>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::journal::JsonSink<W> where T: ?core::marker::Sized
+pub fn nika_dap::journal::JsonSink<W>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::journal::JsonSink<W>
+pub fn nika_dap::journal::JsonSink<W>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::journal::JsonSink<W> where T: 'static
+pub fn nika_dap::journal::JsonSink<W>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::journal::JsonSink<W> where T: ?core::marker::Sized
+pub fn nika_dap::journal::JsonSink<W>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::journal::JsonSink<W>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::journal::JsonSink<W>
+impl<T> tracing::instrument::WithSubscriber for nika_dap::journal::JsonSink<W>
+impl<T> typenum::type_operators::Same for nika_dap::journal::JsonSink<W>
+pub type nika_dap::journal::JsonSink<W>::Output = T
+pub struct nika_dap::journal::Tee<A: nika_runtime::stamp::EventSink, B: nika_runtime::stamp::EventSink>
+impl<A: nika_runtime::stamp::EventSink, B: nika_runtime::stamp::EventSink> nika_dap::journal::Tee<A, B>
+pub fn nika_dap::journal::Tee<A, B>::into_parts(self) -> (A, B)
+pub fn nika_dap::journal::Tee<A, B>::new(a: A, b: B) -> Self
+impl<A: nika_runtime::stamp::EventSink, B: nika_runtime::stamp::EventSink> nika_runtime::stamp::EventSink for nika_dap::journal::Tee<A, B>
+pub fn nika_dap::journal::Tee<A, B>::emit(&mut self, event: nika_event::event::Event)
+impl<D> owo_colors::OwoColorize for nika_dap::journal::Tee<A, B>
+impl<T, U> core::convert::Into<U> for nika_dap::journal::Tee<A, B> where U: core::convert::From<T>
+pub fn nika_dap::journal::Tee<A, B>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::journal::Tee<A, B> where U: core::convert::Into<T>
+pub type nika_dap::journal::Tee<A, B>::Error = core::convert::Infallible
+pub fn nika_dap::journal::Tee<A, B>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::journal::Tee<A, B> where U: core::convert::TryFrom<T>
+pub type nika_dap::journal::Tee<A, B>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::journal::Tee<A, B>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::journal::Tee<A, B> where T: 'static + ?core::marker::Sized
+pub fn nika_dap::journal::Tee<A, B>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::journal::Tee<A, B> where T: ?core::marker::Sized
+pub fn nika_dap::journal::Tee<A, B>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::journal::Tee<A, B> where T: ?core::marker::Sized
+pub fn nika_dap::journal::Tee<A, B>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::journal::Tee<A, B>
+pub fn nika_dap::journal::Tee<A, B>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::journal::Tee<A, B> where T: 'static
+pub fn nika_dap::journal::Tee<A, B>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::journal::Tee<A, B> where T: ?core::marker::Sized
+pub fn nika_dap::journal::Tee<A, B>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::journal::Tee<A, B>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::journal::Tee<A, B>
+impl<T> tracing::instrument::WithSubscriber for nika_dap::journal::Tee<A, B>
+impl<T> typenum::type_operators::Same for nika_dap::journal::Tee<A, B>
+pub type nika_dap::journal::Tee<A, B>::Output = T
+pub struct nika_dap::journal::TraceFileSink
+impl nika_dap::journal::TraceFileSink
+pub fn nika_dap::journal::TraceFileSink::chain_head(&self) -> &str
+pub fn nika_dap::journal::TraceFileSink::chain_len(&self) -> usize
+pub fn nika_dap::journal::TraceFileSink::disabled() -> Self
+pub fn nika_dap::journal::TraceFileSink::finalize(&mut self)
+pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Option<core::io::error::Error>
+pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
+impl nika_runtime::stamp::EventSink for nika_dap::journal::TraceFileSink
+pub fn nika_dap::journal::TraceFileSink::emit(&mut self, event: nika_event::event::Event)
+impl<D> owo_colors::OwoColorize for nika_dap::journal::TraceFileSink
+impl<T, U> core::convert::Into<U> for nika_dap::journal::TraceFileSink where U: core::convert::From<T>
+pub fn nika_dap::journal::TraceFileSink::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::journal::TraceFileSink where U: core::convert::Into<T>
+pub type nika_dap::journal::TraceFileSink::Error = core::convert::Infallible
+pub fn nika_dap::journal::TraceFileSink::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::journal::TraceFileSink where U: core::convert::TryFrom<T>
+pub type nika_dap::journal::TraceFileSink::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::journal::TraceFileSink::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::journal::TraceFileSink where T: 'static + ?core::marker::Sized
+pub fn nika_dap::journal::TraceFileSink::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::journal::TraceFileSink where T: ?core::marker::Sized
+pub fn nika_dap::journal::TraceFileSink::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::journal::TraceFileSink where T: ?core::marker::Sized
+pub fn nika_dap::journal::TraceFileSink::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::journal::TraceFileSink
+pub fn nika_dap::journal::TraceFileSink::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::journal::TraceFileSink where T: 'static
+pub fn nika_dap::journal::TraceFileSink::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::journal::TraceFileSink where T: ?core::marker::Sized
+pub fn nika_dap::journal::TraceFileSink::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::journal::TraceFileSink::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::journal::TraceFileSink
+impl<T> tracing::instrument::WithSubscriber for nika_dap::journal::TraceFileSink
+impl<T> typenum::type_operators::Same for nika_dap::journal::TraceFileSink
+pub type nika_dap::journal::TraceFileSink::Output = T
+pub fn nika_dap::journal::seal_journal(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>) -> bool
 pub mod nika_dap::otel
 pub struct nika_dap::otel::ExportOutcome
 pub nika_dap::otel::ExportOutcome::broken_at: core::option::Option<usize>
@@ -1357,6 +1540,9 @@ impl<T> dyn_clone::DynClone for nika_dap::otel::ExportOutcome where T: core::clo
 pub fn nika_dap::otel::ExportOutcome::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::otel::ExportOutcome where T: 'static
 pub fn nika_dap::otel::ExportOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::otel::ExportOutcome where T: ?core::marker::Sized
+pub fn nika_dap::otel::ExportOutcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::otel::ExportOutcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::otel::ExportOutcome
 impl<T> tracing::instrument::WithSubscriber for nika_dap::otel::ExportOutcome
 impl<T> typenum::type_operators::Same for nika_dap::otel::ExportOutcome
@@ -1397,8 +1583,13 @@ impl<T> core::borrow::BorrowMut<T> for nika_dap::recover::RecoverError where T: 
 pub fn nika_dap::recover::RecoverError::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_dap::recover::RecoverError
 pub fn nika_dap::recover::RecoverError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_dap::recover::RecoverError where T: core::fmt::Display
+pub fn nika_dap::recover::RecoverError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoverError where T: 'static
 pub fn nika_dap::recover::RecoverError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::recover::RecoverError where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::recover::RecoverError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::recover::RecoverError
 impl<T> tracing::instrument::WithSubscriber for nika_dap::recover::RecoverError
 impl<T> typenum::type_operators::Same for nika_dap::recover::RecoverError
@@ -1429,6 +1620,9 @@ impl<T> core::convert::From<T> for nika_dap::recover::RecoveredTrace
 pub fn nika_dap::recover::RecoveredTrace::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoveredTrace where T: 'static
 pub fn nika_dap::recover::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::recover::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::recover::RecoveredTrace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::recover::RecoveredTrace
 impl<T> tracing::instrument::WithSubscriber for nika_dap::recover::RecoveredTrace
 impl<T> typenum::type_operators::Same for nika_dap::recover::RecoveredTrace
@@ -1483,6 +1677,9 @@ impl<T> dyn_clone::DynClone for nika_dap::reproduce::CompareRefusal where T: cor
 pub fn nika_dap::reproduce::CompareRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::CompareRefusal where T: 'static
 pub fn nika_dap::reproduce::CompareRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::reproduce::CompareRefusal where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::CompareRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::reproduce::CompareRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::reproduce::CompareRefusal
 impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::CompareRefusal
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::CompareRefusal
@@ -1539,6 +1736,9 @@ impl<T> dyn_clone::DynClone for nika_dap::reproduce::Verdict where T: core::clon
 pub fn nika_dap::reproduce::Verdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Verdict where T: 'static
 pub fn nika_dap::reproduce::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::reproduce::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Verdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::reproduce::Verdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::reproduce::Verdict
 impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::Verdict
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::Verdict
@@ -1567,6 +1767,9 @@ impl<T> core::convert::From<T> for nika_dap::reproduce::JournalComparison
 pub fn nika_dap::reproduce::JournalComparison::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::JournalComparison where T: 'static
 pub fn nika_dap::reproduce::JournalComparison::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::reproduce::JournalComparison where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::JournalComparison::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::reproduce::JournalComparison::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::reproduce::JournalComparison
 impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::JournalComparison
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::JournalComparison
@@ -1600,6 +1803,9 @@ impl<T> core::convert::From<T> for nika_dap::reproduce::Report
 pub fn nika_dap::reproduce::Report::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Report where T: 'static
 pub fn nika_dap::reproduce::Report::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::reproduce::Report where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Report::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::reproduce::Report::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::reproduce::Report
 impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::Report
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::Report
@@ -1630,6 +1836,9 @@ impl<T> core::convert::From<T> for nika_dap::reproduce::Row
 pub fn nika_dap::reproduce::Row::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Row where T: 'static
 pub fn nika_dap::reproduce::Row::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::reproduce::Row where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Row::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::reproduce::Row::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::reproduce::Row
 impl<T> tracing::instrument::WithSubscriber for nika_dap::reproduce::Row
 impl<T> typenum::type_operators::Same for nika_dap::reproduce::Row
@@ -1637,6 +1846,83 @@ pub type nika_dap::reproduce::Row::Output = T
 pub fn nika_dap::reproduce::compare(recorded: &[nika_event::event::Event], fresh: &[nika_event::event::Event]) -> nika_dap::reproduce::Report
 pub fn nika_dap::reproduce::compare_journals(recorded: &str, fresh: &str) -> core::result::Result<nika_dap::reproduce::JournalComparison, nika_dap::reproduce::CompareRefusal>
 pub fn nika_dap::reproduce::workflow_of(events: &[nika_event::event::Event]) -> core::option::Option<&str>
+pub mod nika_dap::resume
+pub struct nika_dap::resume::PlanFold
+pub nika_dap::resume::PlanFold::keyless: usize
+pub nika_dap::resume::PlanFold::plan: nika_runtime::resume::ResumePlan
+pub nika_dap::resume::PlanFold::unreadable: usize
+impl<D> owo_colors::OwoColorize for nika_dap::resume::PlanFold
+impl<T, U> core::convert::Into<U> for nika_dap::resume::PlanFold where U: core::convert::From<T>
+pub fn nika_dap::resume::PlanFold::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::resume::PlanFold where U: core::convert::Into<T>
+pub type nika_dap::resume::PlanFold::Error = core::convert::Infallible
+pub fn nika_dap::resume::PlanFold::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::resume::PlanFold where U: core::convert::TryFrom<T>
+pub type nika_dap::resume::PlanFold::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::resume::PlanFold::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::resume::PlanFold where T: 'static + ?core::marker::Sized
+pub fn nika_dap::resume::PlanFold::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::resume::PlanFold where T: ?core::marker::Sized
+pub fn nika_dap::resume::PlanFold::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::resume::PlanFold where T: ?core::marker::Sized
+pub fn nika_dap::resume::PlanFold::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::resume::PlanFold
+pub fn nika_dap::resume::PlanFold::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::resume::PlanFold where T: 'static
+pub fn nika_dap::resume::PlanFold::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::resume::PlanFold where T: ?core::marker::Sized
+pub fn nika_dap::resume::PlanFold::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::resume::PlanFold::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::resume::PlanFold
+impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::PlanFold
+impl<T> typenum::type_operators::Same for nika_dap::resume::PlanFold
+pub type nika_dap::resume::PlanFold::Output = T
+pub struct nika_dap::resume::ResumeRequest
+pub nika_dap::resume::ResumeRequest::answers: alloc::vec::Vec<alloc::string::String>
+pub nika_dap::resume::ResumeRequest::from: core::option::Option<alloc::string::String>
+pub nika_dap::resume::ResumeRequest::trace: std::path::PathBuf
+impl core::clone::Clone for nika_dap::resume::ResumeRequest
+pub fn nika_dap::resume::ResumeRequest::clone(&self) -> nika_dap::resume::ResumeRequest
+impl core::fmt::Debug for nika_dap::resume::ResumeRequest
+pub fn nika_dap::resume::ResumeRequest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::resume::ResumeRequest
+impl<T, U> core::convert::Into<U> for nika_dap::resume::ResumeRequest where U: core::convert::From<T>
+pub fn nika_dap::resume::ResumeRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::resume::ResumeRequest where U: core::convert::Into<T>
+pub type nika_dap::resume::ResumeRequest::Error = core::convert::Infallible
+pub fn nika_dap::resume::ResumeRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::resume::ResumeRequest where U: core::convert::TryFrom<T>
+pub type nika_dap::resume::ResumeRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::resume::ResumeRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::resume::ResumeRequest where T: core::clone::Clone
+pub type nika_dap::resume::ResumeRequest::Owned = T
+pub fn nika_dap::resume::ResumeRequest::clone_into(&self, target: &mut T)
+pub fn nika_dap::resume::ResumeRequest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::resume::ResumeRequest where T: 'static + ?core::marker::Sized
+pub fn nika_dap::resume::ResumeRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::resume::ResumeRequest where T: ?core::marker::Sized
+pub fn nika_dap::resume::ResumeRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::resume::ResumeRequest where T: ?core::marker::Sized
+pub fn nika_dap::resume::ResumeRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::resume::ResumeRequest where T: core::clone::Clone
+pub unsafe fn nika_dap::resume::ResumeRequest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::resume::ResumeRequest
+pub fn nika_dap::resume::ResumeRequest::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::resume::ResumeRequest where T: core::clone::Clone
+pub fn nika_dap::resume::ResumeRequest::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::resume::ResumeRequest where T: 'static
+pub fn nika_dap::resume::ResumeRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::resume::ResumeRequest where T: ?core::marker::Sized
+pub fn nika_dap::resume::ResumeRequest::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::resume::ResumeRequest::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::resume::ResumeRequest
+impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::ResumeRequest
+impl<T> typenum::type_operators::Same for nika_dap::resume::ResumeRequest
+pub type nika_dap::resume::ResumeRequest::Output = T
+pub fn nika_dap::resume::apply_from(plan: &mut nika_runtime::resume::ResumePlan, wf: &nika_schema::raw::workflow::RawWorkflow, from: &str) -> core::result::Result<(), alloc::string::String>
+pub fn nika_dap::resume::fold_plan(events: &[nika_event::event::Event]) -> nika_dap::resume::PlanFold
+pub fn nika_dap::resume::parse_answers(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, alloc::string::String>
+pub fn nika_dap::resume::summary_line(cache_hits: usize, ran_live: usize) -> alloc::string::String
 pub mod nika_dap::retention
 #[non_exhaustive] pub enum nika_dap::retention::Reason
 pub nika_dap::retention::Reason::Aged
@@ -1694,6 +1980,9 @@ impl<T> nika_error::traits::AsAny for nika_dap::retention::Reason where T: 'stat
 pub fn nika_dap::retention::Reason::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::retention::Reason where T: core::marker::Copy
 pub fn nika_dap::retention::Reason::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::retention::Reason where T: ?core::marker::Sized
+pub fn nika_dap::retention::Reason::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::retention::Reason::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::retention::Reason
 impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::Reason
 impl<T> typenum::type_operators::Same for nika_dap::retention::Reason
@@ -1737,6 +2026,9 @@ impl<T> core::convert::From<T> for nika_dap::retention::GcReport
 pub fn nika_dap::retention::GcReport::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::retention::GcReport where T: 'static
 pub fn nika_dap::retention::GcReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::retention::GcReport where T: ?core::marker::Sized
+pub fn nika_dap::retention::GcReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::retention::GcReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::retention::GcReport
 impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::GcReport
 impl<T> typenum::type_operators::Same for nika_dap::retention::GcReport
@@ -1793,13 +2085,13 @@ impl<T> dyn_clone::DynClone for nika_dap::retention::RetentionConfig where T: co
 pub fn nika_dap::retention::RetentionConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::retention::RetentionConfig where T: 'static
 pub fn nika_dap::retention::RetentionConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::retention::RetentionConfig where T: ?core::marker::Sized
+pub fn nika_dap::retention::RetentionConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::retention::RetentionConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::retention::RetentionConfig
 impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::RetentionConfig
 impl<T> typenum::type_operators::Same for nika_dap::retention::RetentionConfig
 pub type nika_dap::retention::RetentionConfig::Output = T
-impl<T> zvariant::optional::NoneValue for nika_dap::retention::RetentionConfig where T: core::default::Default
-pub type nika_dap::retention::RetentionConfig::NoneType = T
-pub fn nika_dap::retention::RetentionConfig::null_value() -> T
 pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<nika_dap::retention::GcReport>
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
@@ -1837,6 +2129,9 @@ impl<T> core::convert::From<T> for nika_dap::sign::WorkflowSig
 pub fn nika_dap::sign::WorkflowSig::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_dap::sign::WorkflowSig where T: 'static
 pub fn nika_dap::sign::WorkflowSig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::sign::WorkflowSig where T: ?core::marker::Sized
+pub fn nika_dap::sign::WorkflowSig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::sign::WorkflowSig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::sign::WorkflowSig
 impl<T> tracing::instrument::WithSubscriber for nika_dap::sign::WorkflowSig
 impl<T> typenum::type_operators::Same for nika_dap::sign::WorkflowSig
@@ -1844,9 +2139,6 @@ pub type nika_dap::sign::WorkflowSig::Output = T
 pub fn nika_dap::sign::check_workflow(path: &std::path::Path) -> nika_dap::sign::WorkflowSig
 pub fn nika_dap::sign::sidecar_path(workflow: &std::path::Path) -> std::path::PathBuf
 pub fn nika_dap::sign::sign_workflow_with(path: &std::path::Path, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
-pub mod nika_dap::source_id
-pub fn nika_dap::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
-pub fn nika_dap::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
 pub mod nika_dap::stats
 #[non_exhaustive] pub enum nika_dap::stats::Prior
 pub nika_dap::stats::Prior::Bands
@@ -1904,6 +2196,9 @@ impl<T> nika_error::traits::AsAny for nika_dap::stats::Prior where T: 'static
 pub fn nika_dap::stats::Prior::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::stats::Prior where T: core::marker::Copy
 pub fn nika_dap::stats::Prior::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::stats::Prior where T: ?core::marker::Sized
+pub fn nika_dap::stats::Prior::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::stats::Prior::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::stats::Prior
 impl<T> tracing::instrument::WithSubscriber for nika_dap::stats::Prior
 impl<T> typenum::type_operators::Same for nika_dap::stats::Prior
@@ -1953,6 +2248,9 @@ impl<T> nika_error::traits::AsAny for nika_dap::stats::ConformalUpper where T: '
 pub fn nika_dap::stats::ConformalUpper::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::stats::ConformalUpper where T: core::marker::Copy
 pub fn nika_dap::stats::ConformalUpper::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::stats::ConformalUpper where T: ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::stats::ConformalUpper::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::stats::ConformalUpper
 impl<T> tracing::instrument::WithSubscriber for nika_dap::stats::ConformalUpper
 impl<T> typenum::type_operators::Same for nika_dap::stats::ConformalUpper
@@ -2014,6 +2312,9 @@ impl<T> nika_error::traits::AsAny for nika_dap::store::TraceState where T: 'stat
 pub fn nika_dap::store::TraceState::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_dap::store::TraceState where T: core::marker::Copy
 pub fn nika_dap::store::TraceState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::TraceState where T: ?core::marker::Sized
+pub fn nika_dap::store::TraceState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::TraceState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::store::TraceState
 impl<T> tracing::instrument::WithSubscriber for nika_dap::store::TraceState
 impl<T> typenum::type_operators::Same for nika_dap::store::TraceState
@@ -2059,6 +2360,9 @@ impl<T> dyn_clone::DynClone for nika_dap::store::TraceMeta where T: core::clone:
 pub fn nika_dap::store::TraceMeta::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dap::store::TraceMeta where T: 'static
 pub fn nika_dap::store::TraceMeta::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::TraceMeta where T: ?core::marker::Sized
+pub fn nika_dap::store::TraceMeta::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::TraceMeta::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_dap::store::TraceMeta
 impl<T> tracing::instrument::WithSubscriber for nika_dap::store::TraceMeta
 impl<T> typenum::type_operators::Same for nika_dap::store::TraceMeta

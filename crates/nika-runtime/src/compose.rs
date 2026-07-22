@@ -467,7 +467,12 @@ impl WorkflowSecretResolver for EnvFileSecretResolver {
                 Ok(value)
             }
             SecretSource::File => {
-                let raw = std::fs::read_to_string(&reference.key)
+                // The composition root's sanctioned secret-store boundary
+                // (MINOR-B) — the runtime L3 never reads env/files itself;
+                // the resolver is INJECTED, so the read lives exactly where
+                // the embedder owns the boundary (the config_from_env
+                // justification).
+                let raw = std::fs::read_to_string(&reference.key) // seam-bypass-ok: the injected resolver IS the sanctioned store boundary (MINOR-B · runtime cores never read files)
                     .map_err(|e| miss(&format!("file `{}` unreadable: {e}", reference.key)))?;
                 let value = raw.trim_end_matches(['\n', '\r']).to_owned();
                 if value.is_empty() {

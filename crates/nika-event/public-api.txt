@@ -32,6 +32,8 @@ impl<T> core::convert::From<T> for nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::emitter::InMemoryEmitter where T: 'static
 pub fn nika_event::emitter::InMemoryEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::emitter::InMemoryEmitter
+pub type nika_event::emitter::InMemoryEmitter::Output = T
 pub struct nika_event::emitter::NoOpEmitter
 impl core::clone::Clone for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::clone(&self) -> nika_event::emitter::NoOpEmitter
@@ -67,6 +69,8 @@ impl<T> core::convert::From<T> for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::emitter::NoOpEmitter where T: 'static
 pub fn nika_event::emitter::NoOpEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::emitter::NoOpEmitter
+pub type nika_event::emitter::NoOpEmitter::Output = T
 pub trait nika_event::emitter::Emitter: core::marker::Send + core::marker::Sync
 pub fn nika_event::emitter::Emitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
 impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
@@ -113,6 +117,8 @@ impl<T> core::convert::From<T> for nika_event::error::EventError
 pub fn nika_event::error::EventError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::error::EventError
+pub type nika_event::error::EventError::Output = T
 pub const nika_event::error::NIKA_420: nika_error::codes::NikaCode
 pub const nika_event::error::NIKA_421: nika_error::codes::NikaCode
 pub const nika_event::error::NIKA_422: nika_error::codes::NikaCode
@@ -168,6 +174,8 @@ pub fn nika_event::event::Event::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
 pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::event::Event
+pub type nika_event::event::Event::Output = T
 pub mod nika_event::fold
 pub struct nika_event::fold::RunFact
 pub nika_event::fold::RunFact::cost_usd: core::option::Option<f64>
@@ -206,6 +214,8 @@ impl<T> core::convert::From<T> for nika_event::fold::RunFact
 pub fn nika_event::fold::RunFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::fold::RunFact where T: 'static
 pub fn nika_event::fold::RunFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::fold::RunFact
+pub type nika_event::fold::RunFact::Output = T
 pub fn nika_event::fold::fold_one(path: &std::path::Path) -> nika_event::fold::RunFact
 pub fn nika_event::fold::fold_traces(dir: &std::path::Path, max: usize) -> (alloc::vec::Vec<nika_event::fold::RunFact>, bool, usize)
 pub mod nika_event::kind
@@ -259,6 +269,8 @@ pub fn nika_event::kind::EventClass::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'static
 pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::kind::EventClass
+pub type nika_event::kind::EventClass::Output = T
 #[non_exhaustive] pub enum nika_event::kind::EventKind
 pub nika_event::kind::EventKind::AgentBudgetCheckpoint
 pub nika_event::kind::EventKind::AgentComposeChecked
@@ -336,6 +348,8 @@ pub fn nika_event::kind::EventKind::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'static
 pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::kind::EventKind
+pub type nika_event::kind::EventKind::Output = T
 pub mod nika_event::prelude
 #[non_exhaustive] pub enum nika_event::prelude::EventClass
 pub nika_event::prelude::EventClass::Agent
@@ -387,6 +401,8 @@ pub fn nika_event::kind::EventClass::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'static
 pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::kind::EventClass
+pub type nika_event::kind::EventClass::Output = T
 #[non_exhaustive] pub enum nika_event::prelude::EventError
 pub nika_event::prelude::EventError::BufferFull
 pub nika_event::prelude::EventError::BufferFull::capacity: usize
@@ -426,6 +442,8 @@ impl<T> core::convert::From<T> for nika_event::error::EventError
 pub fn nika_event::error::EventError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::error::EventError
+pub type nika_event::error::EventError::Output = T
 #[non_exhaustive] pub enum nika_event::prelude::EventKind
 pub nika_event::prelude::EventKind::AgentBudgetCheckpoint
 pub nika_event::prelude::EventKind::AgentComposeChecked
@@ -503,6 +521,8 @@ pub fn nika_event::kind::EventKind::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'static
 pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::kind::EventKind
+pub type nika_event::kind::EventKind::Output = T
 #[non_exhaustive] pub struct nika_event::prelude::Event
 pub nika_event::prelude::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
 pub nika_event::prelude::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
@@ -554,6 +574,8 @@ pub fn nika_event::event::Event::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
 pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::event::Event
+pub type nika_event::event::Event::Output = T
 pub struct nika_event::prelude::InMemoryEmitter
 impl nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::bounded(capacity: usize) -> Self
@@ -586,6 +608,8 @@ impl<T> core::convert::From<T> for nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::emitter::InMemoryEmitter where T: 'static
 pub fn nika_event::emitter::InMemoryEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::emitter::InMemoryEmitter
+pub type nika_event::emitter::InMemoryEmitter::Output = T
 pub struct nika_event::prelude::NoOpEmitter
 impl core::clone::Clone for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::clone(&self) -> nika_event::emitter::NoOpEmitter
@@ -621,12 +645,17 @@ impl<T> core::convert::From<T> for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::emitter::NoOpEmitter where T: 'static
 pub fn nika_event::emitter::NoOpEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::emitter::NoOpEmitter
+pub type nika_event::emitter::NoOpEmitter::Output = T
 pub trait nika_event::prelude::Emitter: core::marker::Send + core::marker::Sync
 pub fn nika_event::prelude::Emitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
 impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
 impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+pub mod nika_event::source_id
+pub fn nika_event::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
+pub fn nika_event::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
 #[non_exhaustive] pub enum nika_event::EventClass
 pub nika_event::EventClass::Agent
 pub nika_event::EventClass::Cost
@@ -677,6 +706,8 @@ pub fn nika_event::kind::EventClass::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'static
 pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::kind::EventClass
+pub type nika_event::kind::EventClass::Output = T
 #[non_exhaustive] pub enum nika_event::EventError
 pub nika_event::EventError::BufferFull
 pub nika_event::EventError::BufferFull::capacity: usize
@@ -716,6 +747,8 @@ impl<T> core::convert::From<T> for nika_event::error::EventError
 pub fn nika_event::error::EventError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::error::EventError
+pub type nika_event::error::EventError::Output = T
 #[non_exhaustive] pub enum nika_event::EventKind
 pub nika_event::EventKind::AgentBudgetCheckpoint
 pub nika_event::EventKind::AgentComposeChecked
@@ -793,6 +826,8 @@ pub fn nika_event::kind::EventKind::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'static
 pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::kind::EventKind
+pub type nika_event::kind::EventKind::Output = T
 #[non_exhaustive] pub struct nika_event::Event
 pub nika_event::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
 pub nika_event::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
@@ -844,6 +879,8 @@ pub fn nika_event::event::Event::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
 pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::event::Event
+pub type nika_event::event::Event::Output = T
 pub struct nika_event::InMemoryEmitter
 impl nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::bounded(capacity: usize) -> Self
@@ -876,6 +913,8 @@ impl<T> core::convert::From<T> for nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::emitter::InMemoryEmitter where T: 'static
 pub fn nika_event::emitter::InMemoryEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::emitter::InMemoryEmitter
+pub type nika_event::emitter::InMemoryEmitter::Output = T
 pub struct nika_event::NoOpEmitter
 impl core::clone::Clone for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::clone(&self) -> nika_event::emitter::NoOpEmitter
@@ -911,6 +950,8 @@ impl<T> core::convert::From<T> for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::emitter::NoOpEmitter where T: 'static
 pub fn nika_event::emitter::NoOpEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::emitter::NoOpEmitter
+pub type nika_event::emitter::NoOpEmitter::Output = T
 pub trait nika_event::Emitter: core::marker::Send + core::marker::Sync
 pub fn nika_event::Emitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
 impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter

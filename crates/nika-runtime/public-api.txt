@@ -38,6 +38,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::child::ChildCall where T: core::cl
 pub fn nika_runtime::child::ChildCall::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildCall where T: 'static
 pub fn nika_runtime::child::ChildCall::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::child::ChildCall where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildCall::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::child::ChildCall::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::child::ChildCall
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::child::ChildCall
+impl<T> typenum::type_operators::Same for nika_runtime::child::ChildCall
+pub type nika_runtime::child::ChildCall::Output = T
 pub struct nika_runtime::child::ChildOutcome
 pub nika_runtime::child::ChildOutcome::cost_usd: core::option::Option<f64>
 pub nika_runtime::child::ChildOutcome::failure: core::option::Option<(alloc::string::String, alloc::string::String)>
@@ -75,6 +82,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::child::ChildOutcome where T: core:
 pub fn nika_runtime::child::ChildOutcome::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildOutcome where T: 'static
 pub fn nika_runtime::child::ChildOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::child::ChildOutcome where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildOutcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::child::ChildOutcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::child::ChildOutcome
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::child::ChildOutcome
+impl<T> typenum::type_operators::Same for nika_runtime::child::ChildOutcome
+pub type nika_runtime::child::ChildOutcome::Output = T
 pub struct nika_runtime::child::ChildRunRefusal
 pub nika_runtime::child::ChildRunRefusal::code: alloc::string::String
 pub nika_runtime::child::ChildRunRefusal::message: alloc::string::String
@@ -109,6 +123,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::child::ChildRunRefusal where T: co
 pub fn nika_runtime::child::ChildRunRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildRunRefusal where T: 'static
 pub fn nika_runtime::child::ChildRunRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::child::ChildRunRefusal where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::child::ChildRunRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::child::ChildRunRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::child::ChildRunRefusal
+impl<T> typenum::type_operators::Same for nika_runtime::child::ChildRunRefusal
+pub type nika_runtime::child::ChildRunRefusal::Output = T
 #[non_exhaustive] pub struct nika_runtime::child::ChildRunSummary
 pub nika_runtime::child::ChildRunSummary::chain_head: core::option::Option<alloc::string::String>
 pub nika_runtime::child::ChildRunSummary::def_hash: core::option::Option<alloc::string::String>
@@ -161,9 +182,138 @@ impl<T> dyn_clone::DynClone for nika_runtime::child::ChildRunSummary where T: co
 pub fn nika_runtime::child::ChildRunSummary::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::child::ChildRunSummary where T: 'static
 pub fn nika_runtime::child::ChildRunSummary::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::child::ChildRunSummary where T: ?core::marker::Sized
+pub fn nika_runtime::child::ChildRunSummary::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::child::ChildRunSummary::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::child::ChildRunSummary
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::child::ChildRunSummary
+impl<T> typenum::type_operators::Same for nika_runtime::child::ChildRunSummary
+pub type nika_runtime::child::ChildRunSummary::Output = T
 pub const nika_runtime::child::MAX_RUN_DEPTH: u32
 pub trait nika_runtime::child::ChildRunner: core::marker::Send + core::marker::Sync
 pub fn nika_runtime::child::ChildRunner::run_child<'a>(&'a self, call: nika_runtime::child::ChildCall) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_runtime::child::ChildOutcome, nika_runtime::child::ChildRunRefusal>> + 'a)>>
+pub mod nika_runtime::compose
+pub struct nika_runtime::compose::RegistryProvider<H>
+impl<H: core::fmt::Debug> core::fmt::Debug for nika_runtime::compose::RegistryProvider<H>
+pub fn nika_runtime::compose::RegistryProvider<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<H> nika_kernel_ai::provider::ProviderInferDyn for nika_runtime::compose::RegistryProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_runtime::compose::RegistryProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<H> nika_kernel_ai::provider::ProviderMeta for nika_runtime::compose::RegistryProvider<H> where H: core::marker::Send + core::marker::Sync
+pub fn nika_runtime::compose::RegistryProvider<H>::name(&self) -> &str
+pub fn nika_runtime::compose::RegistryProvider<H>::supports_response_format(&self) -> bool
+impl<H> nika_kernel_core::sealed::Sealed for nika_runtime::compose::RegistryProvider<H>
+impl<D> owo_colors::OwoColorize for nika_runtime::compose::RegistryProvider<H>
+impl<T, U> core::convert::Into<U> for nika_runtime::compose::RegistryProvider<H> where U: core::convert::From<T>
+pub fn nika_runtime::compose::RegistryProvider<H>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RegistryProvider<H> where U: core::convert::Into<T>
+pub type nika_runtime::compose::RegistryProvider<H>::Error = core::convert::Infallible
+pub fn nika_runtime::compose::RegistryProvider<H>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RegistryProvider<H> where U: core::convert::TryFrom<T>
+pub type nika_runtime::compose::RegistryProvider<H>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::compose::RegistryProvider<H>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::compose::RegistryProvider<H> where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::compose::RegistryProvider<H>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RegistryProvider<H> where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RegistryProvider<H>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RegistryProvider<H> where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RegistryProvider<H>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::compose::RegistryProvider<H>
+pub fn nika_runtime::compose::RegistryProvider<H>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::compose::RegistryProvider<H> where T: 'static
+pub fn nika_runtime::compose::RegistryProvider<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RegistryProvider<H> where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RegistryProvider<H>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::compose::RegistryProvider<H>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::compose::RegistryProvider<H>
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RegistryProvider<H>
+impl<T> typenum::type_operators::Same for nika_runtime::compose::RegistryProvider<H>
+pub type nika_runtime::compose::RegistryProvider<H>::Output = T
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_runtime::compose::RegistryProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_runtime::compose::RegistryProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub struct nika_runtime::compose::RuntimeCapabilities
+pub nika_runtime::compose::RuntimeCapabilities::exec_tasks: bool
+pub nika_runtime::compose::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
+pub nika_runtime::compose::RuntimeCapabilities::net: nika_http::NetBoundary
+impl<D> owo_colors::OwoColorize for nika_runtime::compose::RuntimeCapabilities
+impl<T, U> core::convert::Into<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::From<T>
+pub fn nika_runtime::compose::RuntimeCapabilities::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::Into<T>
+pub type nika_runtime::compose::RuntimeCapabilities::Error = core::convert::Infallible
+pub fn nika_runtime::compose::RuntimeCapabilities::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::TryFrom<T>
+pub type nika_runtime::compose::RuntimeCapabilities::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::compose::RuntimeCapabilities::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::compose::RuntimeCapabilities where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RuntimeCapabilities where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RuntimeCapabilities where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::compose::RuntimeCapabilities
+pub fn nika_runtime::compose::RuntimeCapabilities::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::compose::RuntimeCapabilities where T: 'static
+pub fn nika_runtime::compose::RuntimeCapabilities::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RuntimeCapabilities where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::compose::RuntimeCapabilities::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::compose::RuntimeCapabilities
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RuntimeCapabilities
+impl<T> typenum::type_operators::Same for nika_runtime::compose::RuntimeCapabilities
+pub type nika_runtime::compose::RuntimeCapabilities::Output = T
+pub struct nika_runtime::compose::StderrEmitter
+impl core::clone::Clone for nika_runtime::compose::StderrEmitter
+pub fn nika_runtime::compose::StderrEmitter::clone(&self) -> nika_runtime::compose::StderrEmitter
+impl core::default::Default for nika_runtime::compose::StderrEmitter
+pub fn nika_runtime::compose::StderrEmitter::default() -> nika_runtime::compose::StderrEmitter
+impl core::fmt::Debug for nika_runtime::compose::StderrEmitter
+pub fn nika_runtime::compose::StderrEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::compose::StderrEmitter
+impl nika_builtin::Emitter for nika_runtime::compose::StderrEmitter
+pub fn nika_runtime::compose::StderrEmitter::emit(&self, kind: &str, payload: serde_json::value::Value)
+impl<D> owo_colors::OwoColorize for nika_runtime::compose::StderrEmitter
+impl<T, U> core::convert::Into<U> for nika_runtime::compose::StderrEmitter where U: core::convert::From<T>
+pub fn nika_runtime::compose::StderrEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::StderrEmitter where U: core::convert::Into<T>
+pub type nika_runtime::compose::StderrEmitter::Error = core::convert::Infallible
+pub fn nika_runtime::compose::StderrEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::StderrEmitter where U: core::convert::TryFrom<T>
+pub type nika_runtime::compose::StderrEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::compose::StderrEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::compose::StderrEmitter where T: core::clone::Clone
+pub type nika_runtime::compose::StderrEmitter::Owned = T
+pub fn nika_runtime::compose::StderrEmitter::clone_into(&self, target: &mut T)
+pub fn nika_runtime::compose::StderrEmitter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::compose::StderrEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::compose::StderrEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::compose::StderrEmitter where T: ?core::marker::Sized
+pub fn nika_runtime::compose::StderrEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::StderrEmitter where T: ?core::marker::Sized
+pub fn nika_runtime::compose::StderrEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::compose::StderrEmitter where T: core::clone::Clone
+pub unsafe fn nika_runtime::compose::StderrEmitter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::compose::StderrEmitter
+pub fn nika_runtime::compose::StderrEmitter::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::compose::StderrEmitter where T: core::clone::Clone
+pub fn nika_runtime::compose::StderrEmitter::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::compose::StderrEmitter where T: 'static
+pub fn nika_runtime::compose::StderrEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::compose::StderrEmitter where T: core::marker::Copy
+pub fn nika_runtime::compose::StderrEmitter::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::StderrEmitter where T: ?core::marker::Sized
+pub fn nika_runtime::compose::StderrEmitter::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::compose::StderrEmitter::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::compose::StderrEmitter
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::StderrEmitter
+impl<T> typenum::type_operators::Same for nika_runtime::compose::StderrEmitter
+pub type nika_runtime::compose::StderrEmitter::Output = T
+pub fn nika_runtime::compose::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
+pub fn nika_runtime::compose::config_from_env() -> nika_providers::registry::ProvidersConfig
+pub fn nika_runtime::compose::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
+pub fn nika_runtime::compose::fs_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_builtin::permits::FsBoundary
+pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
+pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
+pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
+pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
 pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
@@ -209,6 +359,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::config::RuntimeConfig where T: cor
 pub fn nika_runtime::config::RuntimeConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::config::RuntimeConfig where T: 'static
 pub fn nika_runtime::config::RuntimeConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::config::RuntimeConfig where T: ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::config::RuntimeConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
+impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
+pub type nika_runtime::config::RuntimeConfig::Output = T
 pub mod nika_runtime::proof
 pub mod nika_runtime::proof::ir
 #[non_exhaustive] pub struct nika_runtime::proof::ir::WorkflowProof
@@ -255,6 +412,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::proof::ir::WorkflowProof where T: 
 pub fn nika_runtime::proof::ir::WorkflowProof::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::proof::ir::WorkflowProof where T: 'static
 pub fn nika_runtime::proof::ir::WorkflowProof::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::proof::ir::WorkflowProof where T: ?core::marker::Sized
+pub fn nika_runtime::proof::ir::WorkflowProof::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::proof::ir::WorkflowProof::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::proof::ir::WorkflowProof
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::proof::ir::WorkflowProof
+impl<T> typenum::type_operators::Same for nika_runtime::proof::ir::WorkflowProof
+pub type nika_runtime::proof::ir::WorkflowProof::Output = T
 pub fn nika_runtime::proof::ir::merkle_by_task(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_runtime::proof::ir::WorkflowProof>
 pub fn nika_runtime::proof::ir::semantic_ir_hash(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_runtime::proof::SemanticHash>
 pub fn nika_runtime::proof::ir::task_semantic_hash(task: &nika_schema::raw::task::RawTask) -> core::option::Option<nika_runtime::proof::SemanticHash>
@@ -327,6 +491,13 @@ impl<T> nika_error::traits::AsAny for nika_runtime::proof::HashDomain where T: '
 pub fn nika_runtime::proof::HashDomain::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_runtime::proof::HashDomain where T: core::marker::Copy
 pub fn nika_runtime::proof::HashDomain::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::proof::HashDomain where T: ?core::marker::Sized
+pub fn nika_runtime::proof::HashDomain::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::proof::HashDomain::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::proof::HashDomain
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::proof::HashDomain
+impl<T> typenum::type_operators::Same for nika_runtime::proof::HashDomain
+pub type nika_runtime::proof::HashDomain::Output = T
 pub struct nika_runtime::proof::SemanticHash(_)
 impl nika_runtime::proof::SemanticHash
 pub fn nika_runtime::proof::SemanticHash::as_hex(&self) -> &str
@@ -382,8 +553,17 @@ impl<T> core::convert::From<T> for nika_runtime::proof::SemanticHash
 pub fn nika_runtime::proof::SemanticHash::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_runtime::proof::SemanticHash where T: core::clone::Clone
 pub fn nika_runtime::proof::SemanticHash::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_runtime::proof::SemanticHash where T: core::fmt::Display
+pub fn nika_runtime::proof::SemanticHash::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_runtime::proof::SemanticHash where T: 'static
 pub fn nika_runtime::proof::SemanticHash::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::proof::SemanticHash where T: ?core::marker::Sized
+pub fn nika_runtime::proof::SemanticHash::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::proof::SemanticHash::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::proof::SemanticHash
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::proof::SemanticHash
+impl<T> typenum::type_operators::Same for nika_runtime::proof::SemanticHash
+pub type nika_runtime::proof::SemanticHash::Output = T
 pub struct nika_runtime::proof::UnknownDomain(pub alloc::string::String)
 impl core::clone::Clone for nika_runtime::proof::UnknownDomain
 pub fn nika_runtime::proof::UnknownDomain::clone(&self) -> nika_runtime::proof::UnknownDomain
@@ -428,8 +608,17 @@ impl<T> core::convert::From<T> for nika_runtime::proof::UnknownDomain
 pub fn nika_runtime::proof::UnknownDomain::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_runtime::proof::UnknownDomain where T: core::clone::Clone
 pub fn nika_runtime::proof::UnknownDomain::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_runtime::proof::UnknownDomain where T: core::fmt::Display
+pub fn nika_runtime::proof::UnknownDomain::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_runtime::proof::UnknownDomain where T: 'static
 pub fn nika_runtime::proof::UnknownDomain::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::proof::UnknownDomain where T: ?core::marker::Sized
+pub fn nika_runtime::proof::UnknownDomain::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::proof::UnknownDomain::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::proof::UnknownDomain
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::proof::UnknownDomain
+impl<T> typenum::type_operators::Same for nika_runtime::proof::UnknownDomain
+pub type nika_runtime::proof::UnknownDomain::Output = T
 pub const nika_runtime::proof::FORMAT_VERSION: u32
 pub fn nika_runtime::proof::canonical(value: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_runtime::proof::hash_in_domain(domain: nika_runtime::proof::HashDomain, format_version: u32, ir: &serde_json::value::Value) -> alloc::string::String
@@ -477,6 +666,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::resume::PriorSuccess where T: core
 pub fn nika_runtime::resume::PriorSuccess::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::resume::PriorSuccess where T: 'static
 pub fn nika_runtime::resume::PriorSuccess::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::resume::PriorSuccess where T: ?core::marker::Sized
+pub fn nika_runtime::resume::PriorSuccess::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::resume::PriorSuccess::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::resume::PriorSuccess
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::resume::PriorSuccess
+impl<T> typenum::type_operators::Same for nika_runtime::resume::PriorSuccess
+pub type nika_runtime::resume::PriorSuccess::Output = T
 pub struct nika_runtime::resume::ResumeKey
 impl nika_runtime::resume::ResumeKey
 pub fn nika_runtime::resume::ResumeKey::definition_hash(&self) -> core::option::Option<alloc::string::String>
@@ -513,6 +709,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::resume::ResumeKey where T: core::c
 pub fn nika_runtime::resume::ResumeKey::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::resume::ResumeKey where T: 'static
 pub fn nika_runtime::resume::ResumeKey::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::resume::ResumeKey where T: ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeKey::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::resume::ResumeKey::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::resume::ResumeKey
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::resume::ResumeKey
+impl<T> typenum::type_operators::Same for nika_runtime::resume::ResumeKey
+pub type nika_runtime::resume::ResumeKey::Output = T
 pub const nika_runtime::resume::KEY_VERSION: u32
 pub fn nika_runtime::resume::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::resume::PriorSuccess>
@@ -573,8 +776,17 @@ impl<T> core::borrow::BorrowMut<T> for nika_runtime::RuntimeError where T: ?core
 pub fn nika_runtime::RuntimeError::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_runtime::RuntimeError
 pub fn nika_runtime::RuntimeError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_runtime::RuntimeError where T: core::fmt::Display
+pub fn nika_runtime::RuntimeError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_runtime::RuntimeError where T: 'static
 pub fn nika_runtime::RuntimeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::RuntimeError where T: ?core::marker::Sized
+pub fn nika_runtime::RuntimeError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::RuntimeError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::RuntimeError
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::RuntimeError
+impl<T> typenum::type_operators::Same for nika_runtime::RuntimeError
+pub type nika_runtime::RuntimeError::Output = T
 pub enum nika_runtime::TaskStatus
 pub nika_runtime::TaskStatus::Cancelled
 pub nika_runtime::TaskStatus::Failure
@@ -626,6 +838,13 @@ impl<T> nika_error::traits::AsAny for nika_runtime::TaskStatus where T: 'static
 pub fn nika_runtime::TaskStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_runtime::TaskStatus where T: core::marker::Copy
 pub fn nika_runtime::TaskStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TaskStatus where T: ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TaskStatus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TaskStatus
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskStatus
+impl<T> typenum::type_operators::Same for nika_runtime::TaskStatus
+pub type nika_runtime::TaskStatus::Output = T
 pub enum nika_runtime::TerminalCause
 pub nika_runtime::TerminalCause::Budget
 pub nika_runtime::TerminalCause::ErrorSkip
@@ -688,6 +907,13 @@ pub fn nika_runtime::TerminalCause::as_any(&self) -> &(dyn core::any::Any + 'sta
 impl<T> outref::AsOut<T> for nika_runtime::TerminalCause where T: core::marker::Copy
 pub fn nika_runtime::TerminalCause::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_runtime::TerminalCause where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TerminalCause where T: ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TerminalCause::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TerminalCause
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TerminalCause
+impl<T> typenum::type_operators::Same for nika_runtime::TerminalCause
+pub type nika_runtime::TerminalCause::Output = T
 pub struct nika_runtime::DeterministicStamper
 impl nika_runtime::DeterministicStamper
 pub fn nika_runtime::DeterministicStamper::new() -> Self
@@ -716,6 +942,13 @@ impl<T> core::convert::From<T> for nika_runtime::DeterministicStamper
 pub fn nika_runtime::DeterministicStamper::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_runtime::DeterministicStamper where T: 'static
 pub fn nika_runtime::DeterministicStamper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::DeterministicStamper where T: ?core::marker::Sized
+pub fn nika_runtime::DeterministicStamper::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::DeterministicStamper::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::DeterministicStamper
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::DeterministicStamper
+impl<T> typenum::type_operators::Same for nika_runtime::DeterministicStamper
+pub type nika_runtime::DeterministicStamper::Output = T
 pub struct nika_runtime::NoSecrets
 impl core::clone::Clone for nika_runtime::NoSecrets
 pub fn nika_runtime::NoSecrets::clone(&self) -> nika_runtime::NoSecrets
@@ -755,6 +988,13 @@ impl<T> nika_error::traits::AsAny for nika_runtime::NoSecrets where T: 'static
 pub fn nika_runtime::NoSecrets::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_runtime::NoSecrets where T: core::marker::Copy
 pub fn nika_runtime::NoSecrets::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::NoSecrets where T: ?core::marker::Sized
+pub fn nika_runtime::NoSecrets::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::NoSecrets::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::NoSecrets
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::NoSecrets
+impl<T> typenum::type_operators::Same for nika_runtime::NoSecrets
+pub type nika_runtime::NoSecrets::Output = T
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
 pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
@@ -788,6 +1028,13 @@ impl<T> core::convert::From<T> for nika_runtime::RunOutcome
 pub fn nika_runtime::RunOutcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_runtime::RunOutcome where T: 'static
 pub fn nika_runtime::RunOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::RunOutcome where T: ?core::marker::Sized
+pub fn nika_runtime::RunOutcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::RunOutcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::RunOutcome
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::RunOutcome
+impl<T> typenum::type_operators::Same for nika_runtime::RunOutcome
+pub type nika_runtime::RunOutcome::Output = T
 pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
@@ -825,6 +1072,43 @@ impl<T> core::convert::From<T> for nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_runtime::Runtime<S, T, H, P, D, C> where T: 'static
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::Runtime<S, T, H, P, D, C> where T: ?core::marker::Sized
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::Runtime<S, T, H, P, D, C>
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::Runtime<S, T, H, P, D, C>
+impl<T> typenum::type_operators::Same for nika_runtime::Runtime<S, T, H, P, D, C>
+pub type nika_runtime::Runtime<S, T, H, P, D, C>::Output = T
+pub struct nika_runtime::RuntimeCapabilities
+pub nika_runtime::RuntimeCapabilities::exec_tasks: bool
+pub nika_runtime::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
+pub nika_runtime::RuntimeCapabilities::net: nika_http::NetBoundary
+impl<D> owo_colors::OwoColorize for nika_runtime::compose::RuntimeCapabilities
+impl<T, U> core::convert::Into<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::From<T>
+pub fn nika_runtime::compose::RuntimeCapabilities::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::Into<T>
+pub type nika_runtime::compose::RuntimeCapabilities::Error = core::convert::Infallible
+pub fn nika_runtime::compose::RuntimeCapabilities::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::TryFrom<T>
+pub type nika_runtime::compose::RuntimeCapabilities::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::compose::RuntimeCapabilities::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::compose::RuntimeCapabilities where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RuntimeCapabilities where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RuntimeCapabilities where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::compose::RuntimeCapabilities
+pub fn nika_runtime::compose::RuntimeCapabilities::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::compose::RuntimeCapabilities where T: 'static
+pub fn nika_runtime::compose::RuntimeCapabilities::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RuntimeCapabilities where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RuntimeCapabilities::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::compose::RuntimeCapabilities::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::compose::RuntimeCapabilities
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RuntimeCapabilities
+impl<T> typenum::type_operators::Same for nika_runtime::compose::RuntimeCapabilities
+pub type nika_runtime::compose::RuntimeCapabilities::Output = T
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
@@ -869,6 +1153,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::config::RuntimeConfig where T: cor
 pub fn nika_runtime::config::RuntimeConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::config::RuntimeConfig where T: 'static
 pub fn nika_runtime::config::RuntimeConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::config::RuntimeConfig where T: ?core::marker::Sized
+pub fn nika_runtime::config::RuntimeConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::config::RuntimeConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
+impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
+pub type nika_runtime::config::RuntimeConfig::Output = T
 pub struct nika_runtime::SecretResolveError
 pub nika_runtime::SecretResolveError::name: alloc::string::String
 pub nika_runtime::SecretResolveError::reason: alloc::string::String
@@ -916,8 +1207,52 @@ impl<T> core::convert::From<T> for nika_runtime::SecretResolveError
 pub fn nika_runtime::SecretResolveError::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_runtime::SecretResolveError where T: core::clone::Clone
 pub fn nika_runtime::SecretResolveError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_runtime::SecretResolveError where T: core::fmt::Display
+pub fn nika_runtime::SecretResolveError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_runtime::SecretResolveError where T: 'static
 pub fn nika_runtime::SecretResolveError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::SecretResolveError where T: ?core::marker::Sized
+pub fn nika_runtime::SecretResolveError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::SecretResolveError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::SecretResolveError
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::SecretResolveError
+impl<T> typenum::type_operators::Same for nika_runtime::SecretResolveError
+pub type nika_runtime::SecretResolveError::Output = T
+pub struct nika_runtime::SystemStamper
+impl nika_runtime::SystemStamper
+pub fn nika_runtime::SystemStamper::new() -> Self
+impl core::default::Default for nika_runtime::SystemStamper
+pub fn nika_runtime::SystemStamper::default() -> nika_runtime::SystemStamper
+impl core::fmt::Debug for nika_runtime::SystemStamper
+pub fn nika_runtime::SystemStamper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_runtime::Stamper for nika_runtime::SystemStamper
+pub fn nika_runtime::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
+impl<D> owo_colors::OwoColorize for nika_runtime::SystemStamper
+impl<T, U> core::convert::Into<U> for nika_runtime::SystemStamper where U: core::convert::From<T>
+pub fn nika_runtime::SystemStamper::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::SystemStamper where U: core::convert::Into<T>
+pub type nika_runtime::SystemStamper::Error = core::convert::Infallible
+pub fn nika_runtime::SystemStamper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::SystemStamper where U: core::convert::TryFrom<T>
+pub type nika_runtime::SystemStamper::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::SystemStamper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::SystemStamper where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::SystemStamper::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::SystemStamper where T: ?core::marker::Sized
+pub fn nika_runtime::SystemStamper::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::SystemStamper where T: ?core::marker::Sized
+pub fn nika_runtime::SystemStamper::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::SystemStamper
+pub fn nika_runtime::SystemStamper::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::SystemStamper where T: 'static
+pub fn nika_runtime::SystemStamper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::SystemStamper where T: ?core::marker::Sized
+pub fn nika_runtime::SystemStamper::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::SystemStamper::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::SystemStamper
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::SystemStamper
+impl<T> typenum::type_operators::Same for nika_runtime::SystemStamper
+pub type nika_runtime::SystemStamper::Output = T
 pub struct nika_runtime::TaskErrorRecord
 pub nika_runtime::TaskErrorRecord::code: alloc::string::String
 pub nika_runtime::TaskErrorRecord::message: alloc::string::String
@@ -965,6 +1300,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::TaskErrorRecord where T: core::clo
 pub fn nika_runtime::TaskErrorRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::TaskErrorRecord where T: 'static
 pub fn nika_runtime::TaskErrorRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TaskErrorRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TaskErrorRecord
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskErrorRecord
+impl<T> typenum::type_operators::Same for nika_runtime::TaskErrorRecord
+pub type nika_runtime::TaskErrorRecord::Output = T
 #[non_exhaustive] pub struct nika_runtime::TaskRecord
 pub nika_runtime::TaskRecord::attempts: core::option::Option<u32>
 pub nika_runtime::TaskRecord::cause: nika_runtime::TerminalCause
@@ -1010,6 +1352,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::TaskRecord where T: core::clone::C
 pub fn nika_runtime::TaskRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::TaskRecord where T: 'static
 pub fn nika_runtime::TaskRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TaskRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TaskRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TaskRecord
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskRecord
+impl<T> typenum::type_operators::Same for nika_runtime::TaskRecord
+pub type nika_runtime::TaskRecord::Output = T
 pub struct nika_runtime::VecSink
 impl nika_runtime::VecSink
 pub fn nika_runtime::VecSink::events(&self) -> &[nika_event::event::Event]
@@ -1040,6 +1389,13 @@ impl<T> core::convert::From<T> for nika_runtime::VecSink
 pub fn nika_runtime::VecSink::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_runtime::VecSink where T: 'static
 pub fn nika_runtime::VecSink::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::VecSink where T: ?core::marker::Sized
+pub fn nika_runtime::VecSink::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::VecSink::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::VecSink
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::VecSink
+impl<T> typenum::type_operators::Same for nika_runtime::VecSink
+pub type nika_runtime::VecSink::Output = T
 #[non_exhaustive] pub struct nika_runtime::WorkflowPause
 pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::WorkflowPause::message: core::option::Option<alloc::string::String>
@@ -1078,6 +1434,13 @@ impl<T> dyn_clone::DynClone for nika_runtime::WorkflowPause where T: core::clone
 pub fn nika_runtime::WorkflowPause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_runtime::WorkflowPause where T: 'static
 pub fn nika_runtime::WorkflowPause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::WorkflowPause where T: ?core::marker::Sized
+pub fn nika_runtime::WorkflowPause::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::WorkflowPause::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::WorkflowPause
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::WorkflowPause
+impl<T> typenum::type_operators::Same for nika_runtime::WorkflowPause
+pub type nika_runtime::WorkflowPause::Output = T
 pub trait nika_runtime::EventSink
 pub fn nika_runtime::EventSink::emit(&mut self, event: nika_event::event::Event)
 impl nika_runtime::EventSink for nika_runtime::VecSink
@@ -1086,10 +1449,18 @@ pub trait nika_runtime::Stamper
 pub fn nika_runtime::Stamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
 impl nika_runtime::Stamper for nika_runtime::DeterministicStamper
 pub fn nika_runtime::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
+impl nika_runtime::Stamper for nika_runtime::SystemStamper
+pub fn nika_runtime::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
 pub trait nika_runtime::WorkflowSecretResolver: core::marker::Send + core::marker::Sync
 pub fn nika_runtime::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
 pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
+pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
+pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
+pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
+pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool
+pub fn nika_runtime::unbounded_breakdown(cost: &nika_check::cost::CostCeiling) -> alloc::string::String
+pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>

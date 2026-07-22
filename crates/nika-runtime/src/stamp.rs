@@ -114,7 +114,10 @@ impl Stamper for SystemStamper {
         // by id the same way they sort by ts (the journal's natural
         // order). EventId::generate() mints v7 (ADR-033).
         let id = EventId::generate();
-        let ms = std::time::SystemTime::now()
+        // Minting the wall-clock stamp IS this stamper's contract — the
+        // composer injects it (runtime cores ride ClockDyn; the live lane
+        // needs the real clock the seam abstracts).
+        let ms = std::time::SystemTime::now() // seam-bypass-ok: the production wall-clock IS the SystemStamper's contract (injected by the composer)
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
         (id, Timestamp::from_unix_ms(ms))
