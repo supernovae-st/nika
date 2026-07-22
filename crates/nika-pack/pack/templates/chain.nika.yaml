@@ -19,6 +19,7 @@ const:
 
 permits:
   fs:
+    read: ["./README.md"]
     write: ["./output.md"]
   exec: false
   tools: ["nika:read", "nika:write"]
