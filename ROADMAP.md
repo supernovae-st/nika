@@ -5,8 +5,10 @@
 > tagged public release lives on the
 > [releases page](https://github.com/supernovae-st/nika/releases)
 > (release-candidate grade); `main` advances to the
-> next `-dev` version immediately after release → the contract system and the
-> **whole Connectome** (memory + cognition) land BEFORE the launch, declared
+> next `-dev` version immediately after release → the contract system, the
+> **whole Connectome** (memory + cognition) and the hundred-year machinery
+> (NEP door · conformance tiers · archives · the compatibility promise ·
+> the deterministic checker · succession) land BEFORE the launch, declared
 > pre-conditions of the official 1.0 (D-2026-07-22-N1) → design-partner
 > `1.0.0-rc.N` → first public launch **1.0.0**, the culmination → 1.x minors
 > add the remaining crates additively → the next major stays **un-numbered and
@@ -224,7 +226,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
 | `1.1 · 1.2 · …` | additive minors — new builtins, new providers, polish            |
-| pre-1.0    | **the contract system + the whole Connectome** land before the launch — declared pre-conditions of the official 1.0 (D-2026-07-22-N1 · ADR-004) |
+| pre-1.0    | **the contract system + the whole Connectome + the hundred-year machinery** land before the launch — declared pre-conditions of the official 1.0 (D-2026-07-22-N1 · ADR-004) |
 | next major | reserved · un-numbered and unnamed · content the operator's to declare (D-2026-07-10-N4) |
 
 > **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
