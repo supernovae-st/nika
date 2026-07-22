@@ -457,6 +457,7 @@ pub nika_check::permits_fit::CapabilityEscape::detail: alloc::string::String
 pub nika_check::permits_fit::CapabilityEscape::fix: core::option::Option<alloc::string::String>
 pub nika_check::permits_fit::CapabilityEscape::floor: bool
 pub nika_check::permits_fit::CapabilityEscape::task: alloc::string::String
+pub nika_check::permits_fit::CapabilityEscape::undeclared: bool
 impl core::clone::Clone for nika_check::permits_fit::CapabilityEscape
 pub fn nika_check::permits_fit::CapabilityEscape::clone(&self) -> nika_check::permits_fit::CapabilityEscape
 impl core::cmp::Eq for nika_check::permits_fit::CapabilityEscape
@@ -857,6 +858,7 @@ pub nika_check::CapabilityEscape::detail: alloc::string::String
 pub nika_check::CapabilityEscape::fix: core::option::Option<alloc::string::String>
 pub nika_check::CapabilityEscape::floor: bool
 pub nika_check::CapabilityEscape::task: alloc::string::String
+pub nika_check::CapabilityEscape::undeclared: bool
 impl core::clone::Clone for nika_check::permits_fit::CapabilityEscape
 pub fn nika_check::permits_fit::CapabilityEscape::clone(&self) -> nika_check::permits_fit::CapabilityEscape
 impl core::cmp::Eq for nika_check::permits_fit::CapabilityEscape

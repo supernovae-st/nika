@@ -33,6 +33,11 @@ workflow:
   id: agent-telemetry
 model: mock/echo
 
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./notes.md", "./never.md", "./same.md", "./f.md"]
+
 tasks:
   research:
     agent:
@@ -257,6 +262,11 @@ workflow:
   id: agent-timeout
 model: mock/echo
 
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./never.md"]
+
 tasks:
   wedged:
     timeout: "50ms"
@@ -356,6 +366,11 @@ nika: v1
 workflow:
   id: agent-stall
 model: mock/echo
+
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./same.md"]
 
 tasks:
   looper:
@@ -460,6 +475,11 @@ workflow:
   id: agent-retry
 model: mock/echo
 
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./f.md"]
+
 tasks:
   flaky:
     retry: { max_attempts: 2 }
@@ -540,6 +560,9 @@ workflow:
   id: agent-compose
 model: mock/echo
 
+permits:
+  tools: ["nika:compose"]
+
 tasks:
   drafter:
     agent:
@@ -604,6 +627,11 @@ nika: v1
 workflow:
   id: agent-streak
 model: mock/echo
+
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./a.md", "./b.md", "./c.md", "./f.md", "./never.md", "./same.md", "./notes.md"]
 
 tasks:
   failer:
