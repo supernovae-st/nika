@@ -5,10 +5,12 @@
 > tagged public release lives on the
 > [releases page](https://github.com/supernovae-st/nika/releases)
 > (release-candidate grade); `main` advances to the
-> next `-dev` version immediately after release → design-partner `1.0.0-rc.N` → first public
-> launch **1.0.0** → 1.x minors add the remaining crates additively → the
-> Connectome era (memory + cognition) opens as the next major, **un-numbered
-> until declared** (D-2026-07-10-N4). The `nika: v1` LANGUAGE
+> next `-dev` version immediately after release → the contract system and the
+> **whole Connectome** (memory + cognition) land BEFORE the launch, declared
+> pre-conditions of the official 1.0 (D-2026-07-22-N1) → design-partner
+> `1.0.0-rc.N` → first public launch **1.0.0**, the culmination → 1.x minors
+> add the remaining crates additively → the next major stays **un-numbered and
+> unnamed**, its content the operator's to declare (D-2026-07-10-N4). The `nika: v1` LANGUAGE
 > envelope is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
 > is SUPERSEDED (kept for history). See ADR-002 amendment + §Tag scheme.
 > The dated history and the forward gates live in the machine-verified
@@ -30,9 +32,9 @@
 > annotations gate sub-field maturity within v1. See nika-spec spec/01-envelope.md.
 >
 > Crate count: the **Diamond architecture target is 42** (admitted census in
-> the generated status block below); the **long-term** envelope grows to **50-90** (cap 100) across the
-> 1.x minors, driven by the 11-crate Connectome cluster (1 L2 orchestrator + 10
-> L1 satellites · ratified 2026-06-11), `nika-embed`, WASM + sandbox. See
+> the generated status block below); the **long-term** envelope grows to **50-90** (cap 100), driven by the
+> 11-crate Connectome cluster (1 L2 orchestrator + 10 L1 satellites · ratified
+> 2026-06-11 · lands whole before 1.0 per D-2026-07-22-N1), `nika-embed`, WASM + sandbox. See
 > §Crate sequence.
 >
 > The target counts **architectural units, not workspace members**
@@ -222,7 +224,8 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
 | `1.1 · 1.2 · …` | additive minors — new builtins, new providers, polish            |
-| next major | **the Connectome era** — memory + cognition (ADR-004) · un-numbered until declared (D-2026-07-10-N4) |
+| pre-1.0    | **the contract system + the whole Connectome** land before the launch — declared pre-conditions of the official 1.0 (D-2026-07-22-N1 · ADR-004) |
+| next major | reserved · un-numbered and unnamed · content the operator's to declare (D-2026-07-10-N4) |
 
 > **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
 > D-2026-06-20-N1 the tags climbed per layer-phase (`v0.81`=L0 complete …
