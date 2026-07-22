@@ -46,6 +46,7 @@ const VALID: &str = r#"
 nika: v1
 workflow:
   id: smoke
+permits: { exec: ["echo"] }
 tasks:
   greet:
     exec: { command: ["echo", "hello"] }

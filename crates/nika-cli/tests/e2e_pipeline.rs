@@ -65,6 +65,13 @@ workflow:
 
 model: mock/echo
 
+permits:
+  tools: ["nika:read", "nika:write"]
+  exec: ["wc", "echo"]
+  fs:
+    read: ["./news.json"]
+    write: ["./out/report.md"]
+
 const:
   source: "./news.json"
   publish: "no"

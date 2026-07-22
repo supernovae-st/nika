@@ -25,7 +25,13 @@ pub(super) fn check_tool_permits(
     tool: &str,
 ) -> Option<Dispatched> {
     let Some(permits) = permits else {
-        // F-O8 · absent = zero authority: every tool effect refused.
+        // F-O8 · absent = zero authority: every tool effect refused —
+        // EXCEPT the pure-internal class (NEP-0003 law 1 · mirrors the
+        // check-time exemption · check≡run: pure compute RUNS under the
+        // legal zero, effects refuse).
+        if nika_cap::is_pure_internal(tool) {
+            return None;
+        }
         return Some(Dispatched::security_err(
             note,
             format!(

@@ -36,6 +36,8 @@ workflow:
 
 model: mock/echo
 
+permits: { exec: ["echo"] }
+
 tasks:
   probe:
     exec:

@@ -4547,6 +4547,7 @@ dependencies = [
  "jaq-std",
  "miette",
  "nika-builtin",
+ "nika-cap",
  "nika-catalog",
  "nika-cel",
  "nika-check",
