@@ -202,6 +202,11 @@ fn check_action(
         }
         RawAction::Agent(a) => {
             for tool in &a.tools {
+                // NEP-0003 law 1 · under an ABSENT block a pure-internal
+                // tool requires nothing (the invoke twin · check≡run).
+                if undeclared && nika_cap::is_pure_internal(&tool.value) {
+                    continue;
+                }
                 if !permits.allows_tool(&tool.value) {
                     escapes_tool(id, "agent", &tool.value, out);
                 }
