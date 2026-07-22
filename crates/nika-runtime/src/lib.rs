@@ -34,18 +34,22 @@
 //!
 //! ## Seams (why 6 generics)
 //!
-//! The agent's tool-definition impl lives in `nika-builtin` (WIP · not
-//! admitted) and the production clock in `nika-clock` (L1) — an
-//! admitted crate never depends on a sideways impl, so the runtime
-//! stays seam-generic and the composer (nika-cli · L4) injects. The
-//! four verbs arrive PRE-CONSTRUCTED: their defaults (model · seams)
-//! are envelope concerns the composer resolves before the run.
+//! The agent's tool-definition impl lives in `nika-builtin` and the
+//! production clock in `nika-clock` (L1) — the runtime CORE stays
+//! seam-generic (zero concrete-effect edge in the DAG executor: the
+//! four verbs arrive PRE-CONSTRUCTED, their defaults — model · seams —
+//! are envelope concerns the composer resolves before the run). The
+//! production composition itself descended here 2026-07-22 (the
+//! run-verb 15k wall · compute descends, render stays): [`compose`]
+//! wires the real effects into the generic runtime for every embedder,
+//! keeping the executor injected (the L4 shim owns it).
 
 #![forbid(unsafe_code)]
 
 mod admit;
 mod agent_events;
 pub mod child;
+pub mod compose;
 pub mod config;
 mod contract;
 mod dispatch;
@@ -89,7 +93,8 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
-pub use admit::required_inputs_refusal;
+pub use admit::{floor_refusal, required_inputs_refusal, scope_to_task, unbounded_breakdown};
+pub use compose::{ProdRuntime, RuntimeCapabilities, capabilities_of, production_runtime};
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
 pub use pause::WorkflowPause;
@@ -97,7 +102,7 @@ pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub use secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
 };
-pub use stamp::{DeterministicStamper, EventSink, Stamper, VecSink};
+pub use stamp::{DeterministicStamper, EventSink, Stamper, SystemStamper, VecSink};
 
 use expr::Scope;
 

@@ -3,8 +3,14 @@
 
 //! The production composition root — wires the runtime over REAL effects
 //! (fs · http · clock · subprocess · provider registry with env-resolved
-//! keys). "Production stamps + seams are the composer's concern, L4"
-//! (the runtime crate spec §2) — this is that composer.
+//! keys). Descended from `nika-cli`'s run verb 2026-07-22 (the 15k wall ·
+//! compute descends, render stays): the composer is compute with zero
+//! render coupling, and its home beside the generic [`Runtime`] lets every
+//! embedder (cli today · daemon/serve/sdk tomorrow) compose the production
+//! seams instead of hand-wiring thirteen crates. The executor stays the
+//! embedder's (the L4 shim owns the production executor — this module is
+//! synchronous construction); the crate's own code keeps ZERO tokio edge,
+//! the effect crates wrap their own.
 //!
 //! Two bridges the composition owns (the registry's own doc: "the
 //! composition root resolves secrets · injects via `with_key`"):
@@ -18,8 +24,14 @@
 //!    the justification): read each catalog provider's `env_var`, inject
 //!    the present ones via [`nika_providers::ProvidersConfig::with_key`].
 
+// `StderrEmitter` + the unconfined-sandbox note ARE the spec-sanctioned
+// diagnostic surfacing (« an event and/or stderr » · observability never
+// changes the run's verdict) — the same exemption the run verb carried.
+#![allow(clippy::disallowed_macros, clippy::print_stderr)]
+
 use std::sync::Arc;
 
+use crate::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
 use nika_builtin::{
     BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive, TtsKeys,
 };
@@ -31,7 +43,6 @@ use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
 use nika_providers::{ProviderRegistry, ProvidersConfig};
-use nika_runtime::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
 use nika_schema::types::{SecretRef, SecretSource};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
@@ -236,7 +247,11 @@ fn cloud_base_url(lookup: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<S
     lookup(&format!("NIKA_{}_BASE_URL", id.to_uppercase())).filter(|v| !v.is_empty())
 }
 
-pub(crate) fn config_from_env() -> ProvidersConfig {
+/// Read the present provider keys/endpoints from the environment into a
+/// config (the sanctioned env boundary documented above) — `pub` for the
+/// probe/doctor surfaces that report the same ladder the run composes.
+#[must_use]
+pub fn config_from_env() -> ProvidersConfig {
     let mut config = ProvidersConfig::new();
     #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
     let lookup = |name: &str| std::env::var(name).ok();
@@ -483,7 +498,7 @@ pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
 /// lane derives a CHILD's boundary from the INTERSECTED permits
 /// (`child ∩ parent` · spec 14 laws 3/4), not from a workflow node.
 #[must_use]
-pub(crate) fn fs_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> FsBoundary {
+pub fn fs_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> FsBoundary {
     let Some(permits) = permits else {
         return FsBoundary::unbounded();
     };
@@ -513,9 +528,7 @@ pub fn net_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> NetBoundary {
 /// [`net_boundary_of`] over a bare `Permits` value (the composition
 /// lane's intersected-boundary derivation · mirrors the fs twin).
 #[must_use]
-pub(crate) fn net_boundary_of_permits(
-    permits: Option<&nika_schema::types::Permits>,
-) -> NetBoundary {
+pub fn net_boundary_of_permits(permits: Option<&nika_schema::types::Permits>) -> NetBoundary {
     let Some(permits) = permits else {
         return NetBoundary::Unbounded;
     };
@@ -1162,7 +1175,7 @@ mod tests {
             .expect("env secret resolves");
         assert_eq!(got, path_value);
         // file: a temp file whose trailing newline is trimmed.
-        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        let dir = std::env::temp_dir().join("nika-runtime-killtests");
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let secret_file = dir.join("secret.txt");
         std::fs::write(&secret_file, "s3cr3t\n").expect("write secret");

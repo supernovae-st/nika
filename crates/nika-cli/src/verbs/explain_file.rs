@@ -231,7 +231,7 @@ fn unbounded_gloss(task: &str, model: Option<&str>, reason: UnboundedReason) -> 
 /// from the same registry a run composes, never a hardcoded id list.
 fn local_provider_ids() -> Vec<String> {
     let registry =
-        nika_providers::ProviderRegistry::without_http(crate::verbs::run::config_from_env());
+        nika_providers::ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
     registry
         .profiles()
         .iter()

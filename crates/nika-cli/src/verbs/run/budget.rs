@@ -6,8 +6,13 @@
 //! the unavoidable exposure `nika check` computes) already exceeds the
 //! budget · warn loud when the ceiling cannot bound everything (the
 //! budget gates METERED spend only — local/mock work never trips it).
+//!
+//! The gate's pure mechanics — the floor refusal + the unbounded-reason
+//! tally — descended to [`nika_runtime`] 2026-07-22 (the launch-gate
+//! family beside `required_inputs_refusal`); this module is the
+//! operator-facing surface (texts · streams · exit codes).
 
-use nika_check::{CheckReport, CostCeiling, UnboundedReason};
+use nika_check::{CheckReport, CostCeiling};
 use nika_schema::raw::RawWorkflow;
 
 use crate::verbs::exit;
@@ -39,7 +44,7 @@ pub(super) fn preflight(
             &effective
         }
     };
-    if let Some(refusal) = floor_refusal(cost.min_path_total_usd, budget) {
+    if let Some(refusal) = nika_runtime::floor_refusal(cost.min_path_total_usd, budget) {
         super::epilogue::emit_diagnostic(&refusal, output_json);
         return Err(exit::FILE);
     }
@@ -47,7 +52,7 @@ pub(super) fn preflight(
         eprintln!(
             "⚠ --max-cost-usd {budget}: {} — the budget bounds METERED spend \
              only; local/mock work never trips it",
-            unbounded_breakdown(cost)
+            nika_runtime::unbounded_breakdown(cost)
         );
     }
     Ok(())
@@ -58,55 +63,6 @@ pub(super) fn preflight(
 /// runtime's precedence).
 fn effective_cost(wf: &RawWorkflow, model_override: &str) -> CostCeiling {
     nika_check::check(&crate::verbs::with_model_override(wf, model_override)).cost
-}
-
-/// Tally the unbounded tasks BY THEIR ACTUAL reason (the report carries
-/// `unbounded_reason` per task) instead of parroting the fixed
-/// disjunction — a priced-but-unbounded task read « unpriced model »,
-/// which misleads (the fixable one is `no max_tokens`, not the model).
-/// The operator sees WHICH kind they have, and which is fixable.
-fn unbounded_breakdown(cost: &CostCeiling) -> String {
-    let (mut no_tokens, mut unpriced, mut unknown_iters) = (0_usize, 0_usize, 0_usize);
-    for t in cost.tasks.iter().filter(|t| t.usd.is_none()) {
-        match t.unbounded_reason {
-            Some(UnboundedReason::NoTokenLimit) => no_tokens += 1,
-            Some(UnboundedReason::NoPrice) => unpriced += 1,
-            // A task with no price AND no ceiling records ONE reason
-            // (NoPrice wins in the check ladder); UnknownIterations, an
-            // unclassified None, and any FUTURE reason (the enum is
-            // #[non_exhaustive]) all count as the generic bucket.
-            _ => unknown_iters += 1,
-        }
-    }
-    let total = no_tokens + unpriced + unknown_iters;
-    let mut parts = Vec::new();
-    if no_tokens > 0 {
-        parts.push(format!("{no_tokens} with no `max_tokens`"));
-    }
-    if unpriced > 0 {
-        parts.push(format!("{unpriced} on an unpriced model"));
-    }
-    if unknown_iters > 0 {
-        parts.push(format!("{unknown_iters} with unknown iterations"));
-    }
-    format!(
-        "{total} task(s) have no static ceiling ({})",
-        parts.join(" · ")
-    )
-}
-
-/// `Some(refusal)` when the floor exceeds the budget — pure, so the
-/// operator-facing gate is unit-testable. A floor AT the budget passes
-/// (spending exactly the budget is not over it).
-fn floor_refusal(floor: f64, budget: f64) -> Option<String> {
-    (floor > budget).then(|| {
-        format!(
-            "refusing to start: the workflow's unavoidable cost floor \
-             ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
-             static path · gates closed · first-try) — raise the budget \
-             or trim the workflow (`nika check` shows the envelope)\n"
-        )
-    })
 }
 
 /// The operator-facing budget preflight — pure-fn pinned (F4.2: the
@@ -121,12 +77,7 @@ fn floor_refusal(floor: f64, budget: f64) -> Option<String> {
 mod tests {
     use nika_schema::{FileId, ParseMode, parse};
 
-    use super::{effective_cost, floor_refusal, preflight, unbounded_breakdown};
-
-    fn breakdown_of(yaml: &str) -> String {
-        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-        unbounded_breakdown(&nika_check::check(&wf).cost)
-    }
+    use super::{effective_cost, preflight};
 
     /// #342 — the delegation idiom (`--model <p/m> --max-cost-usd <usd>`):
     /// the file says mock (floor $0, would pass); the OVERRIDE is a priced
@@ -199,61 +150,5 @@ mod tests {
             cost.min_path_total_usd, 0.0,
             "the task pinned mock explicitly — the override must not reprice it"
         );
-    }
-
-    #[test]
-    fn breakdown_names_each_reason_not_the_fixed_disjunction() {
-        // A priced-but-unbounded task must read « no max_tokens », not
-        // « unpriced model » — the operator sees which is FIXABLE.
-        let msg = breakdown_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
-             a:\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
-             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
-        );
-        assert!(msg.contains("2 task(s)"), "{msg}");
-        assert!(
-            msg.contains("1 with no `max_tokens`"),
-            "the priced-unbounded task: {msg}"
-        );
-        assert!(
-            msg.contains("1 on an unpriced model"),
-            "the mock task: {msg}"
-        );
-    }
-
-    #[test]
-    fn breakdown_counts_only_the_unbounded_tasks() {
-        // A fully-bounded task (priced + max_tokens) is never in the tally.
-        // id b carries max_tokens so its reason is NoPrice (mock), not
-        // NoTokenLimit — proving the unpriced bucket AND the exclusion of
-        // the fully-bounded id a in one shot.
-        let msg = breakdown_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
-             a:\n    infer: { prompt: hi, max_tokens: 100, model: \"anthropic/claude-sonnet-5\" }\n  \
-             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
-        );
-        assert!(
-            msg.contains("1 task(s)"),
-            "only the unpriced mock task: {msg}"
-        );
-        assert!(msg.contains("unpriced model"), "{msg}");
-    }
-
-    #[test]
-    fn floor_above_budget_refuses_with_both_numbers() {
-        let msg = floor_refusal(0.000_019, 0.000_001).expect("refuses");
-        assert!(msg.contains("$0.000019"), "floor rides: {msg}");
-        assert!(msg.contains("$0.000001"), "budget rides: {msg}");
-        assert!(msg.contains("refusing to start"), "{msg}");
-        assert!(msg.contains("nika check"), "points at the envelope: {msg}");
-    }
-
-    #[test]
-    fn floor_at_or_under_budget_passes() {
-        // Spending exactly the budget is not over it (mirrors the
-        // ledger's crossing semantics).
-        assert!(floor_refusal(0.05, 0.05).is_none());
-        assert!(floor_refusal(0.0, 0.05).is_none());
-        assert!(floor_refusal(0.0, 0.0).is_none());
     }
 }

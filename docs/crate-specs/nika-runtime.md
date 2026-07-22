@@ -74,12 +74,27 @@ pub struct TaskRecord {                          // spec 04 §task reference
 ```
 
 **Why generic over 6 seams** · the agent tool-defs impl lives in
-`nika-builtin` (WIP · NOT admitted) · the clock impl in `nika-clock`
-(L1 effect). An admitted crate never depends on a sideways impl — the
-composer (nika-cli L4) injects. Zero Cargo edge beyond the four verb
-crates + the kernel hub + `futures-util` (std combinators · no
-executor — the crate keeps ZERO runtime tokio dep · async rides the
-injected seams).
+`nika-builtin` · the clock impl in `nika-clock`
+(L1 effect). The runtime CORE (the DAG executor) never names a
+concrete effect — the four verbs arrive PRE-CONSTRUCTED and async
+rides the injected seams.
+
+**Amended 2026-07-22 (the run-verb descent)** · the production
+COMPOSITION descended from `nika-cli` at the 15k wall (compute
+descends, render stays): `compose.rs` wires the real effects
+(`TokioFs` · `ReqwestHttp` · `SystemClock` · `TokioShell` ·
+`ProviderRegistry` with env-resolved keys · the sandbox pair) into
+the generic `Runtime` for every embedder (cli today · daemon/serve/
+sdk tomorrow), `SystemStamper` joined the stamper family, and the
+launch gates grew the `--task` cone + the budget floor beside the
+required-input refusal. The core stays seam-generic — the new Cargo
+edges (the L1/L1.5 effect crates · all strictly downward, acyclic)
+serve the composer module only, and the crate's own code keeps ZERO
+tokio edge (the effect crates wrap their own; the executor stays the
+embedder's). The `child_runner` production impl deliberately stayed
+in `nika-cli`: it speaks the journal's concrete `TraceFileSink` +
+`TRACE_DIR`, and the journal's home is L4 (`nika-dap`) — an L3 crate
+cannot reach up for it.
 
 ## 3 · Execution model (v0.1 · spec 03 §DAG execution model)
 

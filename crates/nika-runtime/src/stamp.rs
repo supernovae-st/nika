@@ -6,9 +6,11 @@
 //!
 //! The runtime never touches a wall clock or an RNG directly: the
 //! composer chooses determinism (tests · replay) or production stamps
-//! (kernel clock + `UUIDv7` · an L4 concern). [`DeterministicStamper`]
-//! ships here because replay-stability is part of THIS crate's test
-//! contract (the `EventPen` idiom from the L3 rehearsal · seq + 10ms).
+//! (wall clock + `UUIDv7`). [`DeterministicStamper`] ships here because
+//! replay-stability is part of THIS crate's test contract (the
+//! `EventPen` idiom from the L3 rehearsal · seq + 10ms), and
+//! [`SystemStamper`] joined it 2026-07-22 (the run-verb descent — the
+//! stamper family reads in one home).
 
 use nika_event::Event;
 use nika_types::id::EventId;
@@ -90,6 +92,35 @@ impl EventSink for VecSink {
     }
 }
 
+/// Mints real event identities: `UUIDv7` ids (time-ordered · globally
+/// unique) + wall-clock timestamps. Unlike the deterministic stamper
+/// this is NOT replay-stable — it is the LIVE lane (a real run).
+/// Descended from the run verb 2026-07-22 (the stamper family is one
+/// home: the composer picks determinism or production, both read here).
+#[derive(Debug, Default)]
+pub struct SystemStamper;
+
+impl SystemStamper {
+    /// Construct.
+    #[must_use]
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Stamper for SystemStamper {
+    fn next(&mut self) -> (EventId, Timestamp) {
+        // UUIDv7 is itself time-ordered — two events in the same run sort
+        // by id the same way they sort by ts (the journal's natural
+        // order). EventId::generate() mints v7 (ADR-033).
+        let id = EventId::generate();
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+        (id, Timestamp::from_unix_ms(ms))
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
@@ -129,5 +160,36 @@ mod tests {
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].kind, nika_event::EventKind::WorkflowStarted);
         assert_eq!(events[1].kind, nika_event::EventKind::WorkflowCompleted);
+    }
+
+    #[test]
+    fn system_stamper_every_id_is_unique() {
+        let mut stamper = SystemStamper::new();
+        let ids: Vec<EventId> = (0..1000).map(|_| stamper.next().0).collect();
+        let mut sorted = ids.clone();
+        sorted.sort_unstable_by_key(|id| id.uuid);
+        sorted.dedup_by_key(|id| id.uuid);
+        assert_eq!(sorted.len(), ids.len(), "1000 v7 ids · zero collision");
+    }
+
+    #[test]
+    fn system_stamper_timestamp_is_a_plausible_wall_time() {
+        let mut stamper = SystemStamper::new();
+        let (_, ts) = stamper.next();
+        // After 2020-01-01 and before 2100 — a sanity window, not a
+        // clock test (the seam is std SystemTime).
+        let ms = ts.unix_ms();
+        assert!(ms > 1_577_836_800_000, "after 2020: {ms}");
+        assert!(ms < 4_102_444_800_000, "before 2100: {ms}");
+    }
+
+    #[test]
+    fn system_stamper_ids_are_time_ordered_within_a_run() {
+        // v7 ids embed a millisecond timestamp — across a real interval
+        // the ids sort in mint order. We don't sleep (hermetic); we just
+        // pin that the type IS v7 (version nibble 7).
+        let mut stamper = SystemStamper::new();
+        let (id, _) = stamper.next();
+        assert_eq!(id.uuid.get_version_num(), 7, "ADR-033 · UUIDv7 ids");
     }
 }

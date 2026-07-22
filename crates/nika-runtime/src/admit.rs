@@ -2,7 +2,11 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The run-ADMISSION preflight (issue #603) — the missing-required-input
-//! refusal.
+//! refusal — plus the launch-gate family that joined it 2026-07-22 (the
+//! run-verb descent): the `--task` ancestor-cone cut ([`scope_to_task`])
+//! and the `--max-cost-usd` budget floor ([`floor_refusal`] +
+//! [`unbounded_breakdown`]). Every gate refuses BEFORE the prologue, so
+//! a refused run emits zero events and spends zero tasks.
 //!
 //! A `required: true` input with no declared `default:` has exactly one
 //! other value source: the operator's `--var` override (F4). When neither
@@ -82,6 +86,115 @@ pub fn required_inputs_refusal(
     }
     let declared = wf.inputs.iter().map(|(key, _)| key.value.clone()).collect();
     Some(RuntimeError::MissingRequiredInputs { missing, declared })
+}
+
+/// `--task` scoping — the ancestor-cone cut behind the regenerate-one-
+/// block move (its gate + re-check live in the run verb; this is the
+/// pure graph walk · descended from the run verb 2026-07-22 — DAG
+/// assembly is the runtime's family, the launch-gate module its home).
+///
+/// Ancestors must run — their outputs feed the target's bindings; nothing
+/// downstream or sibling executes. Document order is preserved (stable
+/// waves) and workflow `outputs:` drop (they may reference tasks outside
+/// the scope — the target's own output IS the point of the run). Unknown
+/// ids fail with the available set (environment class · exit 3 · before
+/// any effect — the same lane as an unknown `--var` key).
+///
+/// # Errors
+///
+/// A human-readable refusal naming the declared task ids.
+pub fn scope_to_task(mut wf: RawWorkflow, target: &str) -> Result<RawWorkflow, String> {
+    use std::collections::{BTreeSet, VecDeque};
+
+    let mut deps_of: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for t in &wf.tasks {
+        deps_of.insert(
+            t.value.id.value.as_str().to_owned(),
+            nika_check::analyzer::edges::producer_ids(&t.value),
+        );
+    }
+    if !deps_of.contains_key(target) {
+        let known = deps_of.keys().cloned().collect::<Vec<_>>().join(" · ");
+        return Err(format!(
+            "--task `{target}` names no task in this workflow — tasks: {known}"
+        ));
+    }
+
+    let mut keep: BTreeSet<String> = BTreeSet::new();
+    let mut queue: VecDeque<String> = VecDeque::from([target.to_owned()]);
+    while let Some(id) = queue.pop_front() {
+        if !keep.insert(id.clone()) {
+            continue;
+        }
+        if let Some(deps) = deps_of.get(&id) {
+            for d in deps {
+                queue.push_back(d.clone());
+            }
+        }
+    }
+
+    wf.tasks
+        .retain(|t| keep.contains(t.value.id.value.as_str()));
+    wf.outputs.clear();
+    Ok(wf)
+}
+
+/// `Some(refusal)` when the `--max-cost-usd` floor exceeds the budget —
+/// pure, so the operator-facing gate is unit-testable. A floor AT the
+/// budget passes (spending exactly the budget is not over it). The
+/// budget floor is a launch gate of the same family as
+/// [`required_inputs_refusal`] (refuse BEFORE any spend — descended
+/// from the run verb's budget preflight 2026-07-22).
+#[must_use]
+pub fn floor_refusal(floor: f64, budget: f64) -> Option<String> {
+    (floor > budget).then(|| {
+        format!(
+            "refusing to start: the workflow's unavoidable cost floor \
+             ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
+             static path · gates closed · first-try) — raise the budget \
+             or trim the workflow (`nika check` shows the envelope)\n"
+        )
+    })
+}
+
+/// Tally the unbounded tasks BY THEIR ACTUAL reason (the report carries
+/// `unbounded_reason` per task) instead of parroting the fixed
+/// disjunction — a priced-but-unbounded task read « unpriced model »,
+/// which misleads (the fixable one is `no max_tokens`, not the model).
+/// The operator sees WHICH kind they have, and which is fixable.
+/// (Descended from the run verb's budget preflight 2026-07-22.)
+#[must_use]
+pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
+    use nika_check::UnboundedReason;
+
+    let (mut no_tokens, mut unpriced, mut unknown_iters) = (0_usize, 0_usize, 0_usize);
+    for t in cost.tasks.iter().filter(|t| t.usd.is_none()) {
+        match t.unbounded_reason {
+            Some(UnboundedReason::NoTokenLimit) => no_tokens += 1,
+            Some(UnboundedReason::NoPrice) => unpriced += 1,
+            // A task with no price AND no ceiling records ONE reason
+            // (NoPrice wins in the check ladder); UnknownIterations, an
+            // unclassified None, and any FUTURE reason (the enum is
+            // #[non_exhaustive]) all count as the generic bucket.
+            _ => unknown_iters += 1,
+        }
+    }
+    let total = no_tokens + unpriced + unknown_iters;
+    let mut parts = Vec::new();
+    if no_tokens > 0 {
+        parts.push(format!("{no_tokens} with no `max_tokens`"));
+    }
+    if unpriced > 0 {
+        parts.push(format!("{unpriced} on an unpriced model"));
+    }
+    if unknown_iters > 0 {
+        parts.push(format!("{unknown_iters} with unknown iterations"));
+    }
+    format!(
+        "{total} task(s) have no static ceiling ({})",
+        parts.join(" · ")
+    )
 }
 
 #[cfg(test)]
@@ -273,5 +386,116 @@ mod tests {
         let outcome = run(&runtime, &wf).await;
         assert!(outcome.ok, "a defaulted required input never refuses");
         assert_eq!(probe.executed_commands().len(), 1, "the exec ran");
+    }
+
+    // ── `--task` scope (descended from the run verb 2026-07-22) ──────
+
+    /// `--task` scope · the diamond proves ancestors-only semantics: the
+    /// target + transitive upstream survive · siblings and downstream drop
+    /// · outputs clear (they may read unscoped tasks).
+    #[test]
+    fn scope_to_task_keeps_the_ancestor_cone() {
+        let yaml = "nika: v1\nworkflow:\n  id: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"count ${{ with.found }}\" }\n  digest:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"sum ${{ with.found }}\" }\n  report:\n    with:\n      stats: ${{ tasks.stats.output }}\n      digest: ${{ tasks.digest.output }}\n    infer: { prompt: \"merge ${{ with.stats }} ${{ with.digest }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
+        let wf = parse(yaml);
+
+        let stats_only = scope_to_task(wf.clone(), "stats").expect("stats scopes");
+        let ids: Vec<&str> = stats_only
+            .tasks
+            .iter()
+            .map(|t| t.value.id.value.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["discover", "stats"],
+            "target + its one ancestor · document order"
+        );
+        assert!(stats_only.outputs.is_empty(), "outputs drop under scope");
+
+        let full = scope_to_task(wf.clone(), "report").expect("report scopes");
+        assert_eq!(full.tasks.len(), 4, "the sink's cone is the whole diamond");
+
+        let err = scope_to_task(wf, "nope").expect_err("unknown id refused");
+        assert!(
+            err.contains("nope") && err.contains("discover"),
+            "names the id + the available set"
+        );
+    }
+
+    /// The scoped sub-workflow re-checks CLEAN — the plan/waves/cost the
+    /// run renders describe exactly the cone, not the original file.
+    #[test]
+    fn scoped_workflow_rechecks_clean() {
+        let yaml = "nika: v1\nworkflow:\n  id: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"use ${{ with.prev }}\" }\n";
+        let wf = parse(yaml);
+        let sub = scope_to_task(wf, "a").expect("a scopes");
+        let report = nika_check::check(&sub);
+        assert!(
+            report.is_clean(),
+            "the cone stands alone (no dangling refs)"
+        );
+        assert_eq!(sub.tasks.len(), 1);
+    }
+
+    // ── the budget floor (descended from the run verb 2026-07-22) ────
+
+    #[test]
+    fn floor_above_budget_refuses_with_both_numbers() {
+        let msg = floor_refusal(0.000_019, 0.000_001).expect("refuses");
+        assert!(msg.contains("$0.000019"), "floor rides: {msg}");
+        assert!(msg.contains("$0.000001"), "budget rides: {msg}");
+        assert!(msg.contains("refusing to start"), "{msg}");
+        assert!(msg.contains("nika check"), "points at the envelope: {msg}");
+    }
+
+    #[test]
+    fn floor_at_or_under_budget_passes() {
+        // Spending exactly the budget is not over it (mirrors the
+        // ledger's crossing semantics).
+        assert!(floor_refusal(0.05, 0.05).is_none());
+        assert!(floor_refusal(0.0, 0.05).is_none());
+        assert!(floor_refusal(0.0, 0.0).is_none());
+    }
+
+    fn breakdown_of(yaml: &str) -> String {
+        let wf = parse(yaml);
+        unbounded_breakdown(&nika_check::check(&wf).cost)
+    }
+
+    #[test]
+    fn breakdown_names_each_reason_not_the_fixed_disjunction() {
+        // A priced-but-unbounded task must read « no max_tokens », not
+        // « unpriced model » — the operator sees which is FIXABLE.
+        let msg = breakdown_of(
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+             a:\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
+             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
+        );
+        assert!(msg.contains("2 task(s)"), "{msg}");
+        assert!(
+            msg.contains("1 with no `max_tokens`"),
+            "the priced-unbounded task: {msg}"
+        );
+        assert!(
+            msg.contains("1 on an unpriced model"),
+            "the mock task: {msg}"
+        );
+    }
+
+    #[test]
+    fn breakdown_counts_only_the_unbounded_tasks() {
+        // A fully-bounded task (priced + max_tokens) is never in the tally.
+        // id b carries max_tokens so its reason is NoPrice (mock), not
+        // NoTokenLimit — proving the unpriced bucket AND the exclusion of
+        // the fully-bounded id a in one shot.
+        let msg = breakdown_of(
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 100, model: \"anthropic/claude-sonnet-5\" }\n  \
+             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
+        );
+        assert!(
+            msg.contains("1 task(s)"),
+            "only the unpriced mock task: {msg}"
+        );
+        assert!(msg.contains("unpriced model"), "{msg}");
     }
 }
