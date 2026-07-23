@@ -1131,7 +1131,7 @@ tasks:
             "{BASE}\
 permits:
   fs:   {{ read: [\"./data/**\"], write: [\"./out/**\"] }}
-  net:  {{ http: [\"api.example.com\", \"*.github.com\"] }}
+  net:  {{ http: [\"api.example.com\", \"api.github.com\"] }}
   exec: [\"git\", \"cargo\"]
   tools: [\"nika:read\", \"mcp:browser/*\"]
 "
@@ -1142,7 +1142,7 @@ permits:
         assert_eq!(p.fs.as_ref().expect("fs").write, vec!["./out/**"]);
         assert_eq!(
             p.net.as_ref().expect("net").http,
-            vec!["api.example.com", "*.github.com"]
+            vec!["api.example.com", "api.github.com"]
         );
         assert!(p.allows_program("git") && p.allows_program("cargo"));
         assert!(!p.allows_program("rm"));

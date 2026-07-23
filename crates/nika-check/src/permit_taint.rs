@@ -33,6 +33,12 @@
 //!   binding to trusted HERE (the static twin never re-gates it); the
 //!   value is still matched like a literal everywhere else (never a
 //!   permit bypass) and the run receipt records the event.
+//! - **F-P5 ([`PermitTaintKind::NetWildcard`] · `NIKA-AUTH-010`)** — a
+//!   `permits.net.http:` entry carrying the `*.` subdomain wildcard is a
+//!   hard refusal: the grant delegates the boundary to the zone operator
+//!   (every host under the suffix, present and future — the srt A2
+//!   lesson). The BARE `*` stays legal: the explicit allow-all hatch
+//!   (`NetPolicy::Allow` — visible, never stealth).
 //!
 //! Everything is judged against the WORKFLOW's `permits:` block (v1 has
 //! no task-level narrowing — the step permit IS the declared block), and
@@ -53,6 +59,9 @@ pub(crate) const REGATE_CODE: &str = "NIKA-AUTH-008";
 /// The wire code of a dangerous-floor dead grant in `permits.env:`
 /// (NEP-0005 law 3 · LAW-AUTH-0326).
 pub(crate) const ENV_DEAD_GRANT_CODE: &str = "NIKA-AUTH-009";
+/// The wire code of a `*.` subdomain wildcard in `permits.net.http:`
+/// (F-P5 · the wildcard delegates the boundary to the zone operator).
+pub(crate) const NET_WILDCARD_CODE: &str = "NIKA-AUTH-010";
 
 /// The fs-read tool set whose `path` arg the static re-gate judges
 /// (the reference oracle's table — the engine≡oracle differential law
@@ -85,6 +94,12 @@ pub enum PermitTaintKind {
     /// variable — an inert dead grant, the engine strips the name
     /// unconditionally (`NIKA-AUTH-009` · LAW-AUTH-0326).
     EnvDeadGrant,
+    /// F-P5 · a `permits.net.http:` entry carries the `*.` subdomain
+    /// wildcard — the grant delegates the boundary to the zone operator,
+    /// admitting every host under the suffix, present and future
+    /// (`NIKA-AUTH-010`). The BARE `*` stays legal (the explicit
+    /// allow-all hatch).
+    NetWildcard,
 }
 
 /// One permit-taint finding (law 1 or law 2) — the check-time twin of
@@ -114,6 +129,7 @@ impl PermitTaint {
             PermitTaintKind::BoundInterpolated => BOUND_CODE,
             PermitTaintKind::ArgEscapes => REGATE_CODE,
             PermitTaintKind::EnvDeadGrant => ENV_DEAD_GRANT_CODE,
+            PermitTaintKind::NetWildcard => NET_WILDCARD_CODE,
         }
     }
 }
@@ -130,6 +146,7 @@ pub(crate) fn scan_permit_taint(wf: &RawWorkflow) -> Vec<PermitTaint> {
     let mut out = Vec::new();
     scan_bound_literality(permits, &mut out);
     scan_env_dead_grants(permits, &mut out);
+    scan_net_wildcards(permits, &mut out);
     scan_regate(wf, permits, &mut out);
     out
 }
@@ -157,6 +174,43 @@ fn scan_env_dead_grants(permits: &Permits, out: &mut Vec<PermitTaint>) {
             ),
             fix: Some(
                 "remove the entry · pass authored data through the task env: map, or a                  non-dangerous engine variable by its exact name"
+                    .to_owned(),
+            ),
+        });
+    }
+}
+
+/// F-P5 · a `permits.net.http:` entry carrying the `*.` substring is
+/// REFUSED (the srt A2 lesson: the wildcard delegates the permit to the
+/// zone operator — `*.github.io` is every user of the shared zone,
+/// present and future; the matcher cannot see what the zone will serve
+/// tomorrow). The rule is the verbatim substring: the leading form
+/// (`*.github.com`) AND a would-be glob like `foo*.com` (which matches
+/// nothing by matcher law yet LOOKS like one — the author meant a glob)
+/// are both refused. The BARE `*` stays legal: the author's explicit
+/// allow-all hatch (the sandbox projection maps it to `NetPolicy::Allow`
+/// — visible, never stealth). Interpolated entries are law 1's ground
+/// (`NIKA-AUTH-007` · the bound walk above), never judged here.
+fn scan_net_wildcards(permits: &Permits, out: &mut Vec<PermitTaint>) {
+    let Some(net) = permits.net.as_ref() else {
+        return;
+    };
+    for (i, entry) in net.http.iter().enumerate() {
+        if entry.contains("${{") || !entry.contains("*.") {
+            continue;
+        }
+        out.push(PermitTaint {
+            task: "permits".to_owned(),
+            kind: PermitTaintKind::NetWildcard,
+            detail: format!(
+                "permit entry `net.http[{i}]` carries the `*.` subdomain wildcard \
+                 (`{entry}`) · the grant delegates the boundary to the zone \
+                 operator: every host under the suffix, present and future, is \
+                 admitted (F-P5)"
+            ),
+            fix: Some(
+                "name the exact hosts · or, when allow-all is genuinely intended, \
+                 the bare `*` (the explicit hatch · maps to NetPolicy::Allow)"
                     .to_owned(),
             ),
         });
@@ -655,6 +709,99 @@ tasks:
         }
     }
 
+    // ── F-P5 · the net wildcard refusal (NIKA-AUTH-010) ──
+
+    #[test]
+    fn a_subdomain_wildcard_in_net_http_is_a_hard_refusal() {
+        // The matcher ADMITS the task's host through the wildcard (no
+        // escape) — the refusal is entry-level: the grant itself is the
+        // hole, whatever the body does.
+        let y = r#"nika: v1
+workflow:
+  id: t-wildcard
+permits:
+  net: { http: ["*.github.com"] }
+  tools: ["nika:fetch"]
+tasks:
+  t:
+    invoke: { tool: "nika:fetch", args: { url: "https://api.github.com/x" } }
+"#;
+        let taints = taints_of(y);
+        assert_eq!(taints.len(), 1, "{taints:?}");
+        assert_eq!(taints[0].kind, PermitTaintKind::NetWildcard);
+        assert_eq!(taints[0].wire_code(), "NIKA-AUTH-010");
+        assert_eq!(taints[0].task, "permits");
+        assert!(
+            taints[0].detail.contains("net.http[0]"),
+            "{}",
+            taints[0].detail
+        );
+        assert!(taints[0].detail.contains("*.github.com"));
+        // …and every wildcard entry is named, exact neighbours aside.
+        // `foo*.com` carries the `*.` substring (a would-be glob that
+        // matches nothing yet LOOKS like one) — refused with the rest.
+        let mixed = y.replace(
+            "\"*.github.com\"",
+            "\"api.example.com\", \"*.github.io\", \"foo*.com\"",
+        );
+        let taints = taints_of(&mixed);
+        assert_eq!(taints.len(), 2, "{taints:?}");
+        assert!(
+            taints
+                .iter()
+                .all(|t| t.kind == PermitTaintKind::NetWildcard)
+        );
+        assert!(
+            taints[0].detail.contains("net.http[1]"),
+            "{}",
+            taints[0].detail
+        );
+        assert!(
+            taints[1].detail.contains("net.http[2]"),
+            "{}",
+            taints[1].detail
+        );
+    }
+
+    #[test]
+    fn the_bare_star_and_exact_hosts_stay_legal() {
+        // The bare `*` is the explicit allow-all hatch (NetPolicy::Allow —
+        // the author typed it, visible, never stealth): NOT this law's
+        // ground (it carries no `*.` substring). Exact hosts neither.
+        for entries in ["\"*\"", "\"api.github.com\", \"github.com\""] {
+            let y = format!(
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  net: {{ http: [{entries}] }}\n  \
+                 tools: [\"nika:fetch\"]\ntasks:\n  t:\n    \
+                 invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://api.github.com/x\" }} }}\n"
+            );
+            assert!(
+                taints_of(&y).is_empty(),
+                "{entries} must stay legal: {:?}",
+                taints_of(&y)
+            );
+        }
+    }
+
+    #[test]
+    fn an_interpolated_wildcard_bound_is_law1s_ground_only() {
+        // `${{ inputs.h }}` containing `*.` never double-fires: law 1
+        // (BoundInterpolated) owns the interpolated bound.
+        let y = r#"nika: v1
+workflow:
+  id: w
+permits:
+  net: { http: ["${{ inputs.h }}"] }
+inputs:
+  h: { type: string, default: "*.github.com" }
+tasks:
+  t:
+    exec: { command: ["true"] }
+"#;
+        let taints = taints_of(y);
+        assert_eq!(taints.len(), 1, "{taints:?}");
+        assert_eq!(taints[0].kind, PermitTaintKind::BoundInterpolated);
+    }
+
     // ── Law 2 · the static re-gate (NIKA-AUTH-008) — the conformance
     //    fixtures core/authority/007..013, mirrored one test each ──
 
@@ -964,7 +1111,7 @@ tasks:
             .into_iter()
             .map(|row| row.code.to_string())
             .collect();
-        for code in [BOUND_CODE, REGATE_CODE] {
+        for code in [BOUND_CODE, REGATE_CODE, NET_WILDCARD_CODE] {
             assert!(
                 registered.contains(code),
                 "`{code}` is not in the canon registry (spec/05-errors.md SSOT)"

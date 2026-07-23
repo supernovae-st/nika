@@ -609,6 +609,7 @@ pub fn nika_check::GateFindingKind::as_out(&mut self) -> outref::Out<'_, T>
 pub nika_check::PermitTaintKind::ArgEscapes
 pub nika_check::PermitTaintKind::BoundInterpolated
 pub nika_check::PermitTaintKind::EnvDeadGrant
+pub nika_check::PermitTaintKind::NetWildcard
 impl core::clone::Clone for nika_check::PermitTaintKind
 pub fn nika_check::PermitTaintKind::clone(&self) -> nika_check::PermitTaintKind
 impl core::cmp::Eq for nika_check::PermitTaintKind

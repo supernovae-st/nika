@@ -919,17 +919,19 @@ tasks:
 
     #[test]
     fn fetch_to_listed_host_is_clean() {
+        // F-P5: the listed form is the EXACT host — the `*.` wildcard is
+        // refused at check (NIKA-AUTH-010 · the permit_taint lane).
         let y = r#"nika: v1
 workflow:
   id: w
 permits:
-  net: { http: ["*.anthropic.com"] }
+  net: { http: ["api.anthropic.com"] }
   tools: ["nika:fetch"]
 tasks:
   t:
     invoke: { tool: "nika:fetch", args: { url: "https://api.anthropic.com/v1/x" } }
 "#;
-        assert!(escapes(y).is_empty(), "glob host match is clean");
+        assert!(escapes(y).is_empty(), "exact host match is clean");
     }
 
     #[test]
@@ -1306,7 +1308,10 @@ tasks:
     #[test]
     fn glob_entries_and_public_hosts_stay_silent() {
         // A glob may match public names — glob-vs-floor inclusion is DNS
-        // knowledge the static pass does not have. Never flagged.
+        // knowledge the static pass does not have. Never flagged HERE:
+        // the FLOOR scan stays silent on globs (F-P5's wildcard refusal
+        // is the permit_taint lane's · NIKA-AUTH-010 · a separate finding,
+        // never a floor classification).
         let y = r#"nika: v1
 workflow:
   id: w
