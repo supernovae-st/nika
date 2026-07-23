@@ -1018,6 +1018,7 @@ pub nika_check::CheckReport::schema_findings: alloc::vec::Vec<nika_check::Schema
 pub nika_check::CheckReport::schema_lints: alloc::vec::Vec<nika_check::SchemaLintFinding>
 pub nika_check::CheckReport::secret_egresses: alloc::vec::Vec<nika_check::SecretEgress>
 pub nika_check::CheckReport::secret_leaks: alloc::vec::Vec<nika_check::SecretLeak>
+pub nika_check::CheckReport::sink_findings: alloc::vec::Vec<nika_check::SinkFinding>
 pub nika_check::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
 pub nika_check::CheckReport::unknown_args: alloc::vec::Vec<nika_check::UnknownArg>
 pub nika_check::CheckReport::unknown_tools: alloc::vec::Vec<nika_check::UnknownTool>
@@ -1938,6 +1939,58 @@ impl<T> dyn_clone::DynClone for nika_check::SecretRequirement where T: core::clo
 pub fn nika_check::SecretRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::SecretRequirement where T: 'static
 pub fn nika_check::SecretRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SinkFinding
+pub nika_check::SinkFinding::class: &'static str
+pub nika_check::SinkFinding::detail: alloc::string::String
+pub nika_check::SinkFinding::ext: &'static str
+pub nika_check::SinkFinding::fix: alloc::string::String
+pub nika_check::SinkFinding::task: alloc::string::String
+pub nika_check::SinkFinding::url: alloc::string::String
+impl nika_check::SinkFinding
+pub fn nika_check::SinkFinding::wire_code(&self) -> &'static str
+impl core::clone::Clone for nika_check::SinkFinding
+pub fn nika_check::SinkFinding::clone(&self) -> nika_check::SinkFinding
+impl core::cmp::Eq for nika_check::SinkFinding
+impl core::cmp::PartialEq for nika_check::SinkFinding
+pub fn nika_check::SinkFinding::eq(&self, other: &nika_check::SinkFinding) -> bool
+impl core::fmt::Debug for nika_check::SinkFinding
+pub fn nika_check::SinkFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SinkFinding
+impl serde_core::ser::Serialize for nika_check::SinkFinding
+pub fn nika_check::SinkFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SinkFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SinkFinding where U: core::convert::From<T>
+pub fn nika_check::SinkFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SinkFinding where U: core::convert::Into<T>
+pub type nika_check::SinkFinding::Error = core::convert::Infallible
+pub fn nika_check::SinkFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SinkFinding where U: core::convert::TryFrom<T>
+pub type nika_check::SinkFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SinkFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SinkFinding where T: core::clone::Clone
+pub type nika_check::SinkFinding::Owned = T
+pub fn nika_check::SinkFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::SinkFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SinkFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::SinkFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SinkFinding where T: ?core::marker::Sized
+pub fn nika_check::SinkFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SinkFinding where T: ?core::marker::Sized
+pub fn nika_check::SinkFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SinkFinding where T: core::clone::Clone
+pub unsafe fn nika_check::SinkFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SinkFinding
+pub fn nika_check::SinkFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SinkFinding where T: core::clone::Clone
+pub fn nika_check::SinkFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SinkFinding where T: 'static
+pub fn nika_check::SinkFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::TaintTrace
 pub nika_check::TaintTrace::secret: alloc::string::String
 impl nika_check::TaintTrace

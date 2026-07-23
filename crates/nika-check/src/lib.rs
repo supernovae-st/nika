@@ -54,6 +54,7 @@ mod certificate;
 mod composition;
 mod content_flow;
 mod cost;
+mod data_sink;
 mod declass;
 mod effective;
 mod findings;
@@ -79,6 +80,7 @@ pub use analysis::{DagAnalysis, TaskBlast};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
+pub use data_sink::SinkFinding;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
@@ -254,6 +256,12 @@ pub struct CheckReport {
     /// defer to the runtime `NIKA-SEC-004` (law 4). Additive:
     /// `report_version` stays 1.
     pub permit_taints: Vec<PermitTaint>,
+    /// Every data-as-code sink finding (NEP-0006 · `NIKA-SEC-008`): a
+    /// `nika:fetch` whose resolved URL path names a code-bearing class
+    /// with no `inert:` door declared. The unresolvable defers to the
+    /// run twin (`NIKA-SEC-004` · law 3). Additive: `report_version`
+    /// stays 1.
+    pub sink_findings: Vec<SinkFinding>,
     /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` —
     /// judged on the derived graph, so empty when `conformance` has
     /// entries). Additive: `report_version` stays 1.
@@ -338,6 +346,7 @@ impl CheckReport {
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
             && self.permit_taints.is_empty()
+            && self.sink_findings.is_empty()
             && self.policy_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
@@ -389,6 +398,9 @@ impl CheckReport {
             PermitTaintKind::ArgEscapes => SpecCode::new("AUTH", 8, SpecCategory::SecurityError),
             PermitTaintKind::EnvDeadGrant => SpecCode::new("AUTH", 9, SpecCategory::SecurityError),
         }));
+        // The data-as-code sink (NEP-0006) → NIKA-SEC-008.
+        let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
+        codes.extend(self.sink_findings.iter().map(|_| sink_code));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001.
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
         codes.extend(self.policy_findings.iter().map(|_| policy_code));
@@ -519,6 +531,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes,
         permit_taints: permit_taint::scan_permit_taint(wf),
+        sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,
         trifecta_findings,
         schema_findings: schema_typing::scan_types(wf),
