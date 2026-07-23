@@ -295,6 +295,59 @@ impl Dispatched {
     }
 }
 
+/// Settle a successful exec output into the task value (spec 02 §exec ·
+/// 09 §decode · the run-time fit) — split out of `dispatch_shell` for
+/// the 100-line fn ratchet · semantics unchanged.
+fn settle_exec_out(
+    note: &str,
+    out: nika_verb_exec::ExecOutput,
+    decode: nika_schema::DecodeMode,
+    contract: Option<&crate::contract::TaskContract<'_>>,
+) -> Dispatched {
+    // A text mode (`stdout`/`stderr`/`combined`) yields a
+    // trailing-newline-trimmed STRING (the `tasks.X.output == '42'`
+    // ergonomic). `capture: structured` yields the
+    // `{ stdout, stderr, exit_code }` OBJECT verbatim — so
+    // `tasks.X.output.exit_code` resolves via CEL (spec 02 §exec · same
+    // class as BUG#3's invoke value). The structured streams are NOT
+    // trimmed (fidelity is the whole point of the mode · the verb keeps
+    // them raw).
+    let value = match out.output {
+        ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
+        // The decode pipeline (spec 09 §decode) — the exact captured
+        // octets become the value; a stream that does not decode settles
+        // the task failure (NIKA-1705 · inside `on_error:` scope).
+        ExecValue::Raw(bytes) => match crate::contract::decode_bytes(decode, &bytes) {
+            Ok(value) => value,
+            Err(err) => return Dispatched::template_err(note, &err),
+        },
+        ExecValue::Structured {
+            stdout,
+            stderr,
+            exit_code,
+        } => serde_json::json!({
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": exit_code,
+        }),
+        // #[non_exhaustive] · a future value form fails loudly rather
+        // than dropping fields (the loud doctrine).
+        other => {
+            return Dispatched::unwired(note, format!("exec value form not wired yet: {other:?}"));
+        }
+    };
+    // The run-time fit (spec 09 · `Type(decoded) ⊑ returns`): the
+    // DECODED value under the text modes · the `{stdout, stderr,
+    // exit_code}` object under structured (« a returns: on such a task
+    // types that object directly »). Violation = NIKA-TYPE-101.
+    if let Some(c) = contract
+        && let Err(err) = c.check_fit(note, &value)
+    {
+        return Dispatched::template_err(note, &err);
+    }
+    Dispatched::ok(note.to_owned(), value, None)
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -544,55 +597,7 @@ where
         input.sandbox = Some(self.exec_sandbox_spec(scope.permits));
 
         match self.shell.run(input).await {
-            Ok(out) => {
-                // A text mode (`stdout`/`stderr`/`combined`) yields a
-                // trailing-newline-trimmed STRING (the `tasks.X.output ==
-                // '42'` ergonomic). `capture: structured` yields the
-                // `{ stdout, stderr, exit_code }` OBJECT verbatim — so
-                // `tasks.X.output.exit_code` resolves via CEL (spec 02
-                // §exec · same class as BUG#3's invoke value). The
-                // structured streams are NOT trimmed (fidelity is the
-                // whole point of the mode · the verb keeps them raw).
-                let value = match out.output {
-                    ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
-                    // The decode pipeline (spec 09 §decode) — the exact
-                    // captured octets become the value; a stream that
-                    // does not decode settles the task failure
-                    // (NIKA-1705 · inside `on_error:` scope).
-                    ExecValue::Raw(bytes) => match crate::contract::decode_bytes(decode, &bytes) {
-                        Ok(value) => value,
-                        Err(err) => return Dispatched::template_err(&note, &err),
-                    },
-                    ExecValue::Structured {
-                        stdout,
-                        stderr,
-                        exit_code,
-                    } => serde_json::json!({
-                        "stdout": stdout,
-                        "stderr": stderr,
-                        "exit_code": exit_code,
-                    }),
-                    // #[non_exhaustive] · a future value form fails loudly
-                    // rather than dropping fields (the loud doctrine).
-                    other => {
-                        return Dispatched::unwired(
-                            &note,
-                            format!("exec value form not wired yet: {other:?}"),
-                        );
-                    }
-                };
-                // The run-time fit (spec 09 · `Type(decoded) ⊑ returns`):
-                // the DECODED value under the text modes · the
-                // `{stdout, stderr, exit_code}` object under structured
-                // (« a returns: on such a task types that object
-                // directly »). Violation = NIKA-TYPE-101.
-                if let Some(c) = contract
-                    && let Err(err) = c.check_fit(&note, &value)
-                {
-                    return Dispatched::template_err(&note, &err);
-                }
-                Dispatched::ok(note, value, None)
-            }
+            Ok(out) => settle_exec_out(&note, out, decode, contract),
             Err(err) => Dispatched::verb_err(note, &err),
         }
     }

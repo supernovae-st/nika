@@ -55,6 +55,46 @@ mod finally;
 
 pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};
 
+/// Assemble the `Finish` of a RAN task (the output bindings spec 04 ·
+/// the resume filter · the F-O1 declassify evidence) — split out of
+/// `run_task_pipeline` for the 100-line fn ratchet · semantics unchanged.
+// REASON: the ran assembly threads the task + its computed parts — 9
+// params, each one a distinct pipeline product (same trade as the caller).
+#[allow(clippy::too_many_arguments)]
+fn assemble_ran_finish(
+    task: &RawTask,
+    id: String,
+    mut settle: SettleAs,
+    resume: Option<crate::resume::ResumeStamp>,
+    resume_ctx: &crate::resume::ResumeContext,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    records: &BTreeMap<String, TaskRecord>,
+    integrity: nika_cap::Integrity,
+) -> Finish {
+    // `output:` named bindings (spec 04 §Output binding) — evaluated
+    // over the task's FINAL raw output, BEFORE settle emits the
+    // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
+    // success into a failure (the cascade) rather than landing after
+    // a `TaskCompleted`. The map carries one entry per declared
+    // binding (the value on success · `Null` on a non-success ·
+    // defined-null reads).
+    let named = bind_outputs(task, &mut settle);
+    let resume = filter_leaky_resume(resume, &settle, resume_ctx);
+    // F-O1 PR-3 · the task RAN — the door was used: the receipt
+    // carries one `declassify` event per declared entry (the settle
+    // spine emits them after `task_started`).
+    let declassified = declassify_evidence(task, inputs, config, records);
+    Finish {
+        id,
+        settle,
+        named,
+        resume,
+        integrity,
+        declassified,
+    }
+}
+
 pub(crate) struct Finish {
     pub id: String,
     pub settle: SettleAs,
@@ -348,7 +388,7 @@ where
         };
 
         // ── `for_each:` fan-out or the single lane ──────────────────
-        let mut settle = self
+        let settle = self
             .run_lanes(
                 task,
                 boundary_with,
@@ -360,27 +400,9 @@ where
                 &integrity,
             )
             .await;
-        // `output:` named bindings (spec 04 §Output binding) — evaluated
-        // over the task's FINAL raw output, BEFORE settle emits the
-        // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
-        // success into a failure (the cascade) rather than landing after
-        // a `TaskCompleted`. The map carries one entry per declared
-        // binding (the value on success · `Null` on a non-success ·
-        // defined-null reads).
-        let named = bind_outputs(task, &mut settle);
-        let resume = filter_leaky_resume(resume, &settle, resume_ctx);
-        // F-O1 PR-3 · the task RAN — the door was used: the receipt
-        // carries one `declassify` event per declared entry (the settle
-        // spine emits them after `task_started`).
-        let declassified = declassify_evidence(task, inputs, config, records);
-        Finish {
-            id,
-            settle,
-            named,
-            resume,
-            integrity,
-            declassified,
-        }
+        assemble_ran_finish(
+            task, id, settle, resume, resume_ctx, inputs, config, records, integrity,
+        )
     }
 
     /// The ADR-099 resume gate: the stamp (computed from the task AS
@@ -755,6 +777,32 @@ where
     /// full-jitter backoff via the clock seam) racing the task's ONE
     /// `timeout:` budget (spec 03 · "including any retries and their
     /// backoff sleeps") · then `on_error:` (spec 05).
+    /// One failed attempt's debit + retry decision (spec 05) — split out
+    /// of `attempt_loop` for the 100-line fn ratchet · the error rides
+    /// the `FailedOutcome` when the policy admits no more.
+    // REASON: the retry decision reads the task + the dispatch + the
+    // ledger + the spend fold + the attempt counters — the loop's own seam.
+    #[allow(clippy::too_many_arguments)]
+    fn failed_attempt_delay(
+        &self,
+        task: &RawTask,
+        failed: crate::dispatch::FailedDispatch,
+        ledger: &crate::ledger::RunLedger,
+        failed_cost: &mut Option<f64>,
+        failed_unpriced: &mut Option<nika_types::cost::UnpricedReason>,
+        attempt: u32,
+        max_attempts: u32,
+        jitter_key: &str,
+    ) -> Result<u64, FailedOutcome> {
+        // Debits PER ATTEMPT — a retry storm is never invisible.
+        let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
+        // Retry iff attempts remain AND the policy admits (spec 05).
+        let Some(delay) = self.retry_delay(task, &error, attempt, max_attempts, jitter_key) else {
+            return Err(FailedOutcome::new(error, *failed_cost, *failed_unpriced));
+        };
+        Ok(delay)
+    }
+
     async fn attempt_loop(
         &self,
         task: &RawTask,
@@ -811,22 +859,16 @@ where
                             return Ok(ok);
                         }
                         Err(failed) => {
-                            // Debits PER ATTEMPT — a retry storm is never invisible.
-                            let error = failed.debit_and_fold(
+                            let delay = self.failed_attempt_delay(
+                                task,
+                                failed,
                                 ledger,
                                 &mut failed_cost,
                                 &mut failed_unpriced,
-                            );
-                            // Retry iff attempts remain AND the policy admits (spec 05).
-                            let Some(delay) =
-                                self.retry_delay(task, &error, attempt, max_attempts, &jitter_key)
-                            else {
-                                return Err(FailedOutcome::new(
-                                    error,
-                                    failed_cost,
-                                    failed_unpriced,
-                                ));
-                            };
+                                attempt,
+                                max_attempts,
+                                &jitter_key,
+                            )?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,

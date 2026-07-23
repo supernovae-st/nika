@@ -24,6 +24,31 @@ use crate::{agent_events, child, emit, emit_task, i, resume, s};
 /// inserts the result record. `pub(crate)`: the recover-await spine
 /// (`recover::settle_or_park` + the drain passes) settles through THIS
 /// one site — parked stories keep the same frames as live ones.
+///
+/// The Cancelled arm of the settle (spec 13 · cancelled/upstream) — the
+/// WHY rides along: which upstream kept the gate closed.
+fn settle_cancelled(
+    id: &str,
+    note: &str,
+    blocked_by: Option<&str>,
+    named: std::collections::BTreeMap<String, Value>,
+    records: &mut BTreeMap<String, TaskRecord>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let record = with_named(
+        TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Upstream),
+        named,
+    );
+    let mut fields = vec![("task", s(id)), ("note", s(note))];
+    if let Some(culprit) = blocked_by {
+        fields.push(("blocked_by", s(culprit)));
+    }
+    fields.push(("outcome", s(&record::outcome_json(&record))));
+    emit(stamper, sink, EventKind::TaskCancelled, &fields);
+    records.insert(id.to_owned(), record);
+}
+
 pub(crate) fn settle(
     finish: Finish,
     records: &mut BTreeMap<String, TaskRecord>,
@@ -47,19 +72,15 @@ pub(crate) fn settle(
     let declassified = finish.declassified;
     match finish.settle {
         SettleAs::Cancelled { note, blocked_by } => {
-            // The WHY rides along: which upstream kept the gate closed —
-            // the outcome names the cause (spec 13 · cancelled/upstream).
-            let record = with_named(
-                TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Upstream),
+            settle_cancelled(
+                &id,
+                note,
+                blocked_by.as_deref(),
                 named,
+                records,
+                stamper,
+                sink,
             );
-            let mut fields = vec![("task", s(&id)), ("note", s(note))];
-            if let Some(culprit) = &blocked_by {
-                fields.push(("blocked_by", s(culprit)));
-            }
-            fields.push(("outcome", s(&record::outcome_json(&record))));
-            emit(stamper, sink, EventKind::TaskCancelled, &fields);
-            records.insert(id, record);
         }
         SettleAs::SkippedGate { note, expr } => {
             // The gate's own CEL text — « why did this not run » verbatim.
@@ -227,6 +248,21 @@ fn emit_retry_history(
     }
 }
 
+/// The Ran preamble (NEP-0004 law 5 · the declassify door BEFORE the
+/// attempt history · retries · the agent loop's decisions ADR-096) —
+/// split for the 100-line fn ratchet.
+fn emit_ran_preamble(
+    id: &str,
+    declassified: &[task::DeclassifyEvidence],
+    run: &task::RanTask,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    emit_declassified(id, declassified, stamper, sink);
+    emit_retry_history(id, &run.retries, stamper, sink);
+    agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
+}
+
 pub(crate) fn settle_ran(
     id: &str,
     run: task::RanTask,
@@ -243,15 +279,7 @@ pub(crate) fn settle_ran(
         EventKind::TaskStarted,
         &[("task", s(id)), ("note", s(&run.note))],
     );
-    // NEP-0004 law 5 — the receipt records the door BEFORE the attempt
-    // history replays: the lift is a dispatch-time act.
-    emit_declassified(id, declassified, stamper, sink);
-    emit_retry_history(id, &run.retries, stamper, sink);
-    // The agent loop's decisions (ADR-096 · buffered per dispatch · in
-    // order across attempts) land between the attempt history and the
-    // terminal frame — readers reconstruct per-attempt interleaving
-    // from the `turn` field.
-    agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
+    emit_ran_preamble(id, declassified, &run, stamper, sink);
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();
