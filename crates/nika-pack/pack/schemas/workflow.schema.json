@@ -548,6 +548,11 @@
             "format": "jq"
           }
         },
+        "inert": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The honest door of the data-as-code sink (spec/10-authority.md \u00a7the data-as-code sink \u00b7 NEP-0006 \u00b7 LAW-AUTH-0327) \u00b7 declares this task's fetch a code-bearing artifact it will never load or run \u00b7 the non-empty string IS the justification \u00b7 lifts the sink law only, never the net boundary or the SSRF floor."
+        },
         "declassify": {
           "type": "array",
           "description": "The ONLY door through the permit-parameterization taint (spec/10-authority.md §the permit-parameterization taint · NEP-0004 · LAW-AUTH-0325) · each entry raises ONE binding from untrusted to trusted, check-visible and receipt-recorded. Lifts the taint law only — the value is still matched against the declared boundary (never a permit bypass).",
