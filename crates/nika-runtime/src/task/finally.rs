@@ -94,6 +94,7 @@ where
         scope: &Scope<'_>,
         ran: &RanTask,
         integrity: &nika_cap::Integrity,
+        witness: &crate::witness::PermitWitness,
     ) {
         if task.on_finally.is_empty() {
             return;
@@ -124,14 +125,21 @@ where
             index: None,
             permits: scope.permits, // on_finally exec stays within the boundary
         };
-        for mini in &task.on_finally {
-            self.run_one_cleanup(&mini.value, &cleanup_scope).await;
+        for (index, mini) in task.on_finally.iter().enumerate() {
+            self.run_one_cleanup(&mini.value, &cleanup_scope, witness, index)
+                .await;
         }
     }
 
     /// One cleanup mini-task · own `when:` + `timeout:` · outcome
     /// swallowed (best-effort semantics · spec 03).
-    async fn run_one_cleanup(&self, mini: &RawFinallyTask, scope: &Scope<'_>) {
+    async fn run_one_cleanup(
+        &self,
+        mini: &RawFinallyTask,
+        scope: &Scope<'_>,
+        witness: &crate::witness::PermitWitness,
+        index: usize,
+    ) {
         if let Some(gate) = mini.when.as_ref() {
             match eval_gate(&gate.value, scope) {
                 Ok(true) => {}
@@ -150,11 +158,17 @@ where
         // `with:`/`for_each` — the records + inputs lookups still label
         // a tainted cleanup argv/arg · F-O1 PR-2).
         let value_taint = crate::integrity::ValueTaint::bare();
-        // NEP-0007 · the cleanup lane records its decisions too, into a
-        // lane-local witness the settle of the PARENT does not carry
-        // (the finally frames are best-effort · the residual is named
-        // in the witness module doc).
-        let finally_witness = crate::witness::PermitWitness::new();
+        // NEP-0007 law 2 (the final review's catch · 2026-07-23): the
+        // cleanup lane's decisions are recorded into the PARENT's
+        // witness — they settle with it as `permit_checked` frames (the
+        // lane-local witness that never drained is retired · the
+        // attestation blind spot is closed).
+        witness.record(
+            "on_finally",
+            format!("cleanup #{index}"),
+            "attempt",
+            "cleanup mini-task starts (spec 03 · best-effort lane)",
+        );
         let attempt = std::pin::pin!(self.dispatch(
             &mini.action,
             scope,
@@ -170,7 +184,7 @@ where
                 // a finally mini-task carries no inert: door (NEP-0006)
                 // — a code-bearing cleanup fetch refuses like any other.
                 inert: None,
-                witness: &finally_witness,
+                witness,
             },
             None,
         ));

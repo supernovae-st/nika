@@ -5,7 +5,8 @@
 //! The v2 spec-parity battery — bounded intra-wave concurrency with
 //! ordered settlement (determinism THEOREMS made tests) + the full
 //! task pipeline of spec 03/05: gates · records · retry · timeout ·
-//! `on_error:` · `for_each:` · `on_finally:`.
+//! `on_error:` · `for_each:`.
+//! `on_finally:` lives in `on_finally.rs` (the 1500-LOC ratchet).
 //!
 //! Every test runs the REAL parse → check → run chain over mock seams
 //! (the floor discipline) — no hand-built reports, no played layers.
@@ -1082,97 +1083,7 @@ tasks:
     );
 }
 
-// ─── 9 · on_finally (spec 03 · always-run cleanup) ──────────────────────
-
-#[tokio::test]
-async fn on_finally_runs_on_success_and_failure_and_routes_on_status() {
-    let yaml = r#"
-nika: v1
-workflow:
-  id: cleanup
-permits: { exec: true }
-tasks:
-  works:
-    exec: { command: ["make", "thing"] }
-    on_finally:
-      - exec: { command: ["rm", "-f", "scratch-a"] }
-  breaks:
-    exec: { command: ["make", "other"] }
-    on_finally:
-      - when: ${{ tasks.breaks.status == 'failure' }}
-        exec: { command: ["alert", "on-call"] }
-      - exec: { command: ["rm", "-f", "scratch-b"] }
-  never_ran:
-    after: { breaks: success }
-    exec: { command: ["downstream"] }
-    on_finally:
-      - exec: { command: ["must", "not", "run"] }
-"#;
-    // Queue: works · works-cleanup · breaks(FAIL) · breaks-cleanup-1
-    // (alert · gate OPEN on failure) · breaks-cleanup-2 — and NOTHING
-    // for never_ran (cancelled tasks run no cleanup · an extra dequeue
-    // would panic the mock).
-    let shell = MockShell::new()
-        .enqueue_ok("made\n")
-        .enqueue_ok("cleaned-a\n")
-        .enqueue_fail(2, "make exploded")
-        .enqueue_ok("alerted\n")
-        .enqueue_ok("cleaned-b\n");
-    let (outcome, _events) = run_to_events(
-        yaml,
-        shell,
-        MockToolExecutor::new(),
-        MockProvider::new("mock"),
-        RuntimeConfig::new(NonZeroUsize::new(1), 0), // FIFO queue alignment
-    )
-    .await;
-
-    assert!(!outcome.ok);
-    assert_eq!(outcome.records["works"].status, TaskStatus::Success);
-    assert_eq!(outcome.records["breaks"].status, TaskStatus::Failure);
-    // The cancelled task ran NO cleanup — proven by the mock queue
-    // being exactly drained (a 6th dequeue panics).
-    assert_eq!(outcome.records["never_ran"].status, TaskStatus::Cancelled);
-}
-
-/// A cleanup error is swallowed — the parent's status reflects ONLY
-/// the main verb (spec 03 · best-effort semantics).
-#[tokio::test]
-async fn on_finally_errors_are_swallowed() {
-    let yaml = r#"
-nika: v1
-workflow:
-  id: cleanup-err
-permits: { exec: true }
-tasks:
-  main:
-    exec: { command: ["work"] }
-    on_finally:
-      - exec: { command: ["broken", "cleanup"] }
-"#;
-    let shell = MockShell::new()
-        .enqueue_ok("worked\n")
-        .enqueue_fail(13, "cleanup died");
-    let (outcome, events) = run_to_events(
-        yaml,
-        shell,
-        MockToolExecutor::new(),
-        MockProvider::new("mock"),
-        RuntimeConfig::default(),
-    )
-    .await;
-    assert!(outcome.ok, "the cleanup failure never propagates");
-    assert_eq!(outcome.records["main"].status, TaskStatus::Success);
-    assert_eq!(
-        events
-            .iter()
-            .filter(|e| e.kind == EventKind::TaskFailed)
-            .count(),
-        0
-    );
-}
-
-// ─── 10 · records in gates (spec 04 · status routing) ───────────────────
+// ─── 9 · records in gates (spec 04 · status routing) ───────────────────
 
 #[tokio::test]
 async fn status_gates_route_on_skipped_upstream() {
@@ -1205,7 +1116,7 @@ tasks:
     assert_eq!(output_str(&outcome, "report"), "reported");
 }
 
-// ─── 11 · spec-plane wire codes pin to the embedded canon ───────────────
+// ─── 10 · spec-plane wire codes pin to the embedded canon ───────────────
 
 /// Every spec-plane code the runtime EMITS into `TaskErrorRecord` must
 /// resolve in the embedded spec table (`nika_pack::error_codes()` —
@@ -1288,7 +1199,7 @@ tasks:
     assert_eq!(var_code, "NIKA-VAR-006");
 }
 
-// ─── 12 · the for_each when-gate scope hazard (pinned) ──────────────────
+// ─── 11 · the for_each when-gate scope hazard (pinned) ──────────────────
 
 /// Spec-drift pin: the checker ACCEPTS `item` inside a `for_each`
 /// task's `when:` (statically clean — probed 2026-06-13) but the
@@ -1344,7 +1255,7 @@ tasks:
     );
 }
 
-// ─── 13 · structured tool output survives the seam (BUG#3) ──────────────
+// ─── 12 · structured tool output survives the seam (BUG#3) ──────────────
 
 /// A builtin that returns a typed value (here an array, as `nika:glob`
 /// does) must reach `tasks.X.output` AS the array — so a downstream
