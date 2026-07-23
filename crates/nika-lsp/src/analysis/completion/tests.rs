@@ -1141,7 +1141,11 @@ fn infer_block_offers_the_verb_fields() {
 fn permits_and_fs_route_by_parent() {
     let text = "nika: v1\nworkflow:\n  id: w\npermits:\n  ";
     let got = labels(&completion(text, text.len()));
-    assert_eq!(got, vec!["fs:", "net:", "exec:", "tools:"], "{got:?}");
+    assert_eq!(
+        got,
+        vec!["fs:", "net:", "exec:", "tools:", "env:"],
+        "{got:?}"
+    );
 
     let text2 = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs:\n    ";
     let got2 = labels(&completion(text2, text2.len()));

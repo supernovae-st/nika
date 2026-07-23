@@ -33,7 +33,7 @@ pub const EGRESS_KEYS: &[&str] = &["to", "host", "host_from_self"];
 pub const TYPED_OUTPUT_KEYS: &[&str] = &["value", "type", "description"];
 
 /// Keys of the `permits:` block (spec 01 §permits · closed).
-pub const PERMITS_KEYS: &[&str] = &["fs", "net", "exec", "tools"];
+pub const PERMITS_KEYS: &[&str] = &["fs", "net", "exec", "tools", "env"];
 
 /// Keys of `permits.fs` (closed).
 pub const PERMITS_FS_KEYS: &[&str] = &["read", "write"];

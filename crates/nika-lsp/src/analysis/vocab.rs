@@ -93,7 +93,7 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
     Entry {
         name: "permits",
         doc: "The declared capability boundary. Once present, every \
-              category is default-deny (exec, tools, fs, net).",
+              category is default-deny (exec, tools, fs, net, env).",
     },
     Entry {
         name: "tasks",

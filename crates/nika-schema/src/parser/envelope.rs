@@ -868,7 +868,41 @@ pub(super) fn parse_permits(
         permits.tools = Some(string_list_values(cx, mapping, "tools")?);
     }
 
+    if mapping.get_node("env").is_some() {
+        let entries = super::tasks::parse_string_list(cx, mapping, "env")?;
+        let mut names = Vec::with_capacity(entries.len());
+        for entry in entries {
+            if !is_env_permit_entry(&entry.value) {
+                return Err(SchemaError::Validation {
+                    message: format!(
+                        "`permits.env` entry `{}` is not an environment variable name \
+                         (POSIX shape `[A-Za-z_][A-Za-z0-9_]*` · exact names, no globs · \
+                         NEP-0005)",
+                        entry.value
+                    ),
+                    span: Some(entry.span),
+                });
+            }
+            names.push(entry.value);
+        }
+        permits.env = Some(names);
+    }
+
     Ok(Some(Spanned::new(permits, cx.span_or_zero(node.span()))))
+}
+
+/// A `permits.env` entry shape (NEP-0005 law 4): an exact POSIX name, or a
+/// string carrying a `${{ }}` island — the island passes the parse so the
+/// CHECK refuses it as a non-literal bound (`NIKA-AUTH-007`) with the
+/// teaching detail; any other string is a parse-level refusal (the spec
+/// schema's `anyOf` shape gate, mirrored).
+fn is_env_permit_entry(s: &str) -> bool {
+    if s.contains("${{") {
+        return true;
+    }
+    let mut chars = s.chars();
+    matches!(chars.next(), Some(c) if c == '_' || c.is_ascii_alphabetic())
+        && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
 /// `permits.exec` — the closed tri-state · `false` | `true` | `[programs…]`.
@@ -1114,6 +1148,43 @@ permits:
         assert!(!p.allows_program("rm"));
         assert!(p.allows_tool("mcp:browser/navigate"));
         assert!(!p.allows_tool("mcp:postgres/query"));
+    }
+
+    #[test]
+    fn env_permit_parses_exact_names() {
+        let yaml = format!("{BASE}permits:\n  env: [\"CI_COMMIT_SHA\", \"_UNDERSCORE1\"]\n");
+        let wf = parse_mode(&yaml, ParseMode::Strict);
+        let p = &wf.permits.expect("present").value;
+        assert_eq!(
+            p.env.as_deref(),
+            Some(&["CI_COMMIT_SHA".to_owned(), "_UNDERSCORE1".to_owned()][..])
+        );
+        assert!(p.allows_env_key("CI_COMMIT_SHA"));
+        assert!(!p.allows_env_key("HOME"), "the floor is not a grant");
+        assert_eq!(p.env_passthrough().len(), 2);
+    }
+
+    #[test]
+    fn env_permit_refuses_a_non_name_string() {
+        // NEP-0005 law 4 · a non-name, non-island string is a parse-level
+        // refusal (the spec schema's anyOf shape gate, mirrored).
+        for bad in ["AWS_*", "1LEADING", "WITH-DASH", "with space"] {
+            let yaml = format!("{BASE}permits:\n  env: [\"{bad}\"]\n");
+            let err =
+                parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("non-name refused");
+            let msg = err.to_string();
+            assert!(msg.contains("permits.env"), "{bad}: {msg}");
+        }
+    }
+
+    #[test]
+    fn env_permit_island_passes_the_parse_for_the_check_refusal() {
+        // The island is NOT a parse error: the CHECK refuses it as a
+        // non-literal bound (NIKA-AUTH-007) with the teaching detail.
+        let yaml = format!("{BASE}permits:\n  env: [\"${{{{ inputs.k }}}}\"]\n");
+        let wf = parse_mode(&yaml, ParseMode::Strict);
+        let p = &wf.permits.expect("present").value;
+        assert_eq!(p.env.as_ref().map(Vec::len), Some(1));
     }
 
     #[test]
