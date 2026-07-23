@@ -50,6 +50,9 @@ use super::permits_fit::url_host;
 pub(crate) const BOUND_CODE: &str = "NIKA-AUTH-007";
 /// The wire code of an untrusted-argument escape (law 2).
 pub(crate) const REGATE_CODE: &str = "NIKA-AUTH-008";
+/// The wire code of a dangerous-floor dead grant in `permits.env:`
+/// (NEP-0005 law 3 · LAW-AUTH-0326).
+pub(crate) const ENV_DEAD_GRANT_CODE: &str = "NIKA-AUTH-009";
 
 /// The fs-read tool set whose `path` arg the static re-gate judges
 /// (the reference oracle's table — the engine≡oracle differential law
@@ -78,6 +81,10 @@ pub enum PermitTaintKind {
     /// Law 2 · an untrusted value's canonical resolved form escapes the
     /// step's permit (`NIKA-AUTH-008`).
     ArgEscapes,
+    /// NEP-0005 law 3 · a `permits.env:` entry names a dangerous-floor
+    /// variable — an inert dead grant, the engine strips the name
+    /// unconditionally (`NIKA-AUTH-009` · LAW-AUTH-0326).
+    EnvDeadGrant,
 }
 
 /// One permit-taint finding (law 1 or law 2) — the check-time twin of
@@ -106,6 +113,7 @@ impl PermitTaint {
         match self.kind {
             PermitTaintKind::BoundInterpolated => BOUND_CODE,
             PermitTaintKind::ArgEscapes => REGATE_CODE,
+            PermitTaintKind::EnvDeadGrant => ENV_DEAD_GRANT_CODE,
         }
     }
 }
@@ -121,8 +129,38 @@ pub(crate) fn scan_permit_taint(wf: &RawWorkflow) -> Vec<PermitTaint> {
     let permits = &permits.value;
     let mut out = Vec::new();
     scan_bound_literality(permits, &mut out);
+    scan_env_dead_grants(permits, &mut out);
     scan_regate(wf, permits, &mut out);
     out
+}
+
+/// NEP-0005 law 3 (LAW-AUTH-0326) · a `permits.env:` entry naming a
+/// dangerous-floor variable is an inert dead grant — the spawn sites
+/// strip the name unconditionally (`nika_cap::env::compose_child_env` ·
+/// the same list THIS reads, so the check and the composition cannot
+/// drift), so the grant can never take effect. Interpolated entries are
+/// law 1's ground (`NIKA-AUTH-007` · the bound walk above), never
+/// judged here.
+fn scan_env_dead_grants(permits: &Permits, out: &mut Vec<PermitTaint>) {
+    let Some(env) = permits.env.as_ref() else {
+        return;
+    };
+    for (i, name) in env.iter().enumerate() {
+        if name.contains("${{") || !nika_cap::env::is_dangerous_env_name(name) {
+            continue;
+        }
+        out.push(PermitTaint {
+            task: "permits".to_owned(),
+            kind: PermitTaintKind::EnvDeadGrant,
+            detail: format!(
+                "permit entry `env[{i}]` names the dangerous-floor variable `{name}` ·                  the engine strips this name unconditionally, the grant can never take                  effect: an inert dead grant (NEP-0005 law 3)"
+            ),
+            fix: Some(
+                "remove the entry · pass authored data through the task env: map, or a                  non-dangerous engine variable by its exact name"
+                    .to_owned(),
+            ),
+        });
+    }
 }
 
 /// Law 1 · every bound string inside the block MUST be a literal — an
@@ -170,6 +208,14 @@ fn scan_bound_literality(permits: &nika_schema::types::Permits, out: &mut Vec<Pe
     if let Some(tools) = permits.tools.as_ref() {
         for (i, tool) in tools.iter().enumerate() {
             check(format!("tools[{i}]"), tool);
+        }
+    }
+    // NEP-0005 · env names are bounds too (LAW-AUTH-0325 covers every
+    // category · the parser lets the island through so THIS refusal
+    // carries the teaching detail).
+    if let Some(env) = permits.env.as_ref() {
+        for (i, name) in env.iter().enumerate() {
+            check(format!("env[{i}]"), name);
         }
     }
 }
@@ -541,12 +587,13 @@ permits:
   net: { http: ["${{ inputs.b }}"] }
   exec: ["${{ inputs.c }}"]
   tools: ["${{ inputs.d }}"]
+  env: ["${{ inputs.e }}"]
 tasks:
   t:
     exec: { command: ["true"] }
 "#;
         let paths: Vec<String> = taints_of(y).iter().map(|t| t.detail.clone()).collect();
-        for needle in ["fs.read[0]", "net.http[0]", "exec[0]", "tools[0]"] {
+        for needle in ["fs.read[0]", "net.http[0]", "exec[0]", "tools[0]", "env[0]"] {
             assert!(
                 paths.iter().any(|d| d.contains(needle)),
                 "{needle} flagged: {paths:?}"
@@ -554,6 +601,58 @@ tasks:
         }
         // the literal write glob is NOT flagged.
         assert!(!paths.iter().any(|d| d.contains("fs.write[0]")));
+    }
+
+    // ── NEP-0005 law 3 · the env dead grant (NIKA-AUTH-009) — the
+    //    conformance fixtures core/authority/014-017, mirrored ──
+
+    #[test]
+    fn fixture_015_env_dangerous_dead_grant_is_refused() {
+        let y = r#"nika: v1
+workflow:
+  id: t-env-dangerous-dead-grant
+permits:
+  exec: true
+  env: ["LD_PRELOAD"]
+tasks:
+  build:
+    exec: { shell: "echo ok" }
+"#;
+        let taints = taints_of(y);
+        assert_eq!(taints.len(), 1, "{taints:?}");
+        assert_eq!(taints[0].kind, PermitTaintKind::EnvDeadGrant);
+        assert_eq!(taints[0].wire_code(), "NIKA-AUTH-009");
+        assert!(taints[0].detail.contains("env[0]"), "{}", taints[0].detail);
+        assert!(taints[0].detail.contains("LD_PRELOAD"));
+    }
+
+    #[test]
+    fn fixtures_016_017_declared_and_zero_env_pass_clean() {
+        for y in [
+            r#"nika: v1
+workflow:
+  id: t-env-passthrough-declared
+permits:
+  exec: true
+  env: ["CI_COMMIT_SHA"]
+tasks:
+  stamp:
+    exec: { shell: "echo ok" }
+"#,
+            r#"nika: v1
+workflow:
+  id: t-env-declared-zero
+permits:
+  exec: true
+  env: []
+tasks:
+  hermetic:
+    exec: { shell: "echo ok" }
+"#,
+        ] {
+            let taints = taints_of(y);
+            assert!(taints.is_empty(), "{taints:?}");
+        }
     }
 
     // ── Law 2 · the static re-gate (NIKA-AUTH-008) — the conformance
