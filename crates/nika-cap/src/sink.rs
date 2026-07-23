@@ -46,18 +46,17 @@ const CODE_BEARING_CLASSES: &[ClassRow] = &[
 /// for the unbounded inert world.
 #[must_use]
 pub fn code_bearing_path_class(path: &str) -> Option<(&'static str, &'static str)> {
-    // O7-C · a trailing slash or dot is a display artifact, not a class
-    // change (`/setup.sh/` and `/setup.sh.` are the same fetch of the
-    // same artifact — the edge case blade, 2026-07-23).
-    let path = path.trim_end_matches(['/', '.']);
+    // O7-A + O7-C · the order IS the law (the final review 2026-07-23):
+    // trailing slashes are a path-structure artifact (trimmed first),
+    // then the segment decodes exactly once (RFC 3986 §2.3 · the origin
+    // decodes once too), then the trailing dot is trimmed AFTER decode —
+    // `legacy%2epkl%2e` and the literal `legacy.pkl.` are the SAME
+    // artifact and take the SAME verdict (the composition the first two
+    // passes got wrong).
+    let path = path.trim_end_matches('/');
     let segment = path.rsplit('/').next().unwrap_or(path);
-    // O7-A · the encoded-extension bypass (red-team 2026-07-23): the
-    // verdict reads the DECODED final segment exactly once — the same
-    // single decode URI normalizers apply (RFC 3986 §2.3), so
-    // `legacy%2epkl` classifies like `legacy.pkl` and double-encoded
-    // `%252e` stays inert (the origin decodes once too).
     let segment = percent_decode_once(segment);
-    let segment = segment.as_str();
+    let segment = segment.trim_end_matches('.');
     let dot = segment.rfind('.')?;
     let ext = &segment[dot..];
     for (class, exts) in CODE_BEARING_CLASSES {
@@ -143,6 +142,21 @@ mod tests {
         assert_eq!(
             code_bearing_path_class("/dl/setup.sh."),
             Some(("script/interpreter", ".sh"))
+        );
+    }
+
+    #[test]
+    fn decode_then_trim_is_one_verdict_for_encoded_and_literal() {
+        // The final review's catch: the composition must give the SAME
+        // verdict to the encoded form and the literal form of the same
+        // artifact.
+        assert_eq!(
+            code_bearing_path_class("/models/legacy%2epkl%2e"),
+            Some(("serialized-executable", ".pkl"))
+        );
+        assert_eq!(
+            code_bearing_path_class("/models/legacy.pkl."),
+            Some(("serialized-executable", ".pkl"))
         );
     }
 

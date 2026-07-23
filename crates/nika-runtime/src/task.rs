@@ -595,8 +595,13 @@ where
             .attempt_loop(task, &scope, types, ledger, &witness)
             .await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
-        // failure · before the failure propagates in the DAG).
-        self.run_finally(task, &scope, &ran, integrity).await;
+        // failure · before the failure propagates in the DAG). The
+        // cleanup lane's decisions ride a dedicated witness (the
+        // parent's is already drained by attempt_loop) merged right after.
+        let finally_witness = PermitWitness::new();
+        self.run_finally(task, &scope, &ran, integrity, &finally_witness)
+            .await;
+        ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
     }
@@ -694,8 +699,10 @@ where
         // `item`/`index` are NOT in scope there).
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, config, consts, secrets), permits);
-        self.run_finally(task, &finally_scope, &ran, integrity)
+        let finally_witness = PermitWitness::new();
+        self.run_finally(task, &finally_scope, &ran, integrity, &finally_witness)
             .await;
+        ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
     }
