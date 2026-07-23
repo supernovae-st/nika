@@ -1,4 +1,136 @@
 pub mod nika_clock
+pub mod nika_clock::declared_clock
+#[non_exhaustive] pub enum nika_clock::declared_clock::DeclaredClock
+pub nika_clock::declared_clock::DeclaredClock::System(nika_clock::SystemClock)
+pub nika_clock::declared_clock::DeclaredClock::Virtual(nika_clock::virtual_clock::VirtualClock)
+impl nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::as_virtual(&self) -> core::option::Option<&nika_clock::virtual_clock::VirtualClock>
+pub fn nika_clock::declared_clock::DeclaredClock::system() -> Self
+pub fn nika_clock::declared_clock::DeclaredClock::virtual() -> Self
+impl core::clone::Clone for nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::clone(&self) -> nika_clock::declared_clock::DeclaredClock
+impl nika_kernel_core::io::clock::ClockDyn for nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::declared_clock::DeclaredClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::declared_clock::DeclaredClock::system_now(&self) -> std::time::SystemTime
+impl<D> owo_colors::OwoColorize for nika_clock::declared_clock::DeclaredClock
+impl<T, U> core::convert::Into<U> for nika_clock::declared_clock::DeclaredClock where U: core::convert::From<T>
+pub fn nika_clock::declared_clock::DeclaredClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_clock::declared_clock::DeclaredClock where U: core::convert::Into<T>
+pub type nika_clock::declared_clock::DeclaredClock::Error = core::convert::Infallible
+pub fn nika_clock::declared_clock::DeclaredClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_clock::declared_clock::DeclaredClock where U: core::convert::TryFrom<T>
+pub type nika_clock::declared_clock::DeclaredClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_clock::declared_clock::DeclaredClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_clock::declared_clock::DeclaredClock where T: core::clone::Clone
+pub type nika_clock::declared_clock::DeclaredClock::Owned = T
+pub fn nika_clock::declared_clock::DeclaredClock::clone_into(&self, target: &mut T)
+pub fn nika_clock::declared_clock::DeclaredClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_clock::declared_clock::DeclaredClock where T: 'static + ?core::marker::Sized
+pub fn nika_clock::declared_clock::DeclaredClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_clock::declared_clock::DeclaredClock where T: ?core::marker::Sized
+pub fn nika_clock::declared_clock::DeclaredClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_clock::declared_clock::DeclaredClock where T: ?core::marker::Sized
+pub fn nika_clock::declared_clock::DeclaredClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_clock::declared_clock::DeclaredClock where T: core::clone::Clone
+pub unsafe fn nika_clock::declared_clock::DeclaredClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_clock::declared_clock::DeclaredClock where T: 'static
+pub fn nika_clock::declared_clock::DeclaredClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_clock::declared_clock::DeclaredClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_clock::declared_clock::DeclaredClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_clock::declared_clock::DeclaredClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::declared_clock::DeclaredClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::declared_clock::DeclaredClock::system_now(&self) -> std::time::SystemTime
+pub mod nika_clock::virtual_clock
+#[non_exhaustive] pub struct nika_clock::virtual_clock::VirtualClock
+impl nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::advance(&self, duration: core::time::Duration)
+pub fn nika_clock::virtual_clock::VirtualClock::elapsed_total(&self) -> core::time::Duration
+pub fn nika_clock::virtual_clock::VirtualClock::new() -> Self
+pub fn nika_clock::virtual_clock::VirtualClock::with_system_base(system_base: std::time::SystemTime) -> Self
+impl core::clone::Clone for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::clone(&self) -> nika_clock::virtual_clock::VirtualClock
+impl core::default::Default for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::default() -> Self
+impl nika_kernel_core::io::clock::ClockDyn for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::virtual_clock::VirtualClock::sleep(&self, _duration: core::time::Duration)
+pub fn nika_clock::virtual_clock::VirtualClock::system_now(&self) -> std::time::SystemTime
+impl<D> owo_colors::OwoColorize for nika_clock::virtual_clock::VirtualClock
+impl<T, U> core::convert::Into<U> for nika_clock::virtual_clock::VirtualClock where U: core::convert::From<T>
+pub fn nika_clock::virtual_clock::VirtualClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_clock::virtual_clock::VirtualClock where U: core::convert::Into<T>
+pub type nika_clock::virtual_clock::VirtualClock::Error = core::convert::Infallible
+pub fn nika_clock::virtual_clock::VirtualClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_clock::virtual_clock::VirtualClock where U: core::convert::TryFrom<T>
+pub type nika_clock::virtual_clock::VirtualClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_clock::virtual_clock::VirtualClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_clock::virtual_clock::VirtualClock where T: core::clone::Clone
+pub type nika_clock::virtual_clock::VirtualClock::Owned = T
+pub fn nika_clock::virtual_clock::VirtualClock::clone_into(&self, target: &mut T)
+pub fn nika_clock::virtual_clock::VirtualClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_clock::virtual_clock::VirtualClock where T: 'static + ?core::marker::Sized
+pub fn nika_clock::virtual_clock::VirtualClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_clock::virtual_clock::VirtualClock where T: ?core::marker::Sized
+pub fn nika_clock::virtual_clock::VirtualClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_clock::virtual_clock::VirtualClock where T: ?core::marker::Sized
+pub fn nika_clock::virtual_clock::VirtualClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_clock::virtual_clock::VirtualClock where T: core::clone::Clone
+pub unsafe fn nika_clock::virtual_clock::VirtualClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_clock::virtual_clock::VirtualClock where T: 'static
+pub fn nika_clock::virtual_clock::VirtualClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_clock::virtual_clock::VirtualClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_clock::virtual_clock::VirtualClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_clock::virtual_clock::VirtualClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::virtual_clock::VirtualClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::virtual_clock::VirtualClock::system_now(&self) -> std::time::SystemTime
+#[non_exhaustive] pub enum nika_clock::DeclaredClock
+pub nika_clock::DeclaredClock::System(nika_clock::SystemClock)
+pub nika_clock::DeclaredClock::Virtual(nika_clock::virtual_clock::VirtualClock)
+impl nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::as_virtual(&self) -> core::option::Option<&nika_clock::virtual_clock::VirtualClock>
+pub fn nika_clock::declared_clock::DeclaredClock::system() -> Self
+pub fn nika_clock::declared_clock::DeclaredClock::virtual() -> Self
+impl core::clone::Clone for nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::clone(&self) -> nika_clock::declared_clock::DeclaredClock
+impl nika_kernel_core::io::clock::ClockDyn for nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::declared_clock::DeclaredClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::declared_clock::DeclaredClock::system_now(&self) -> std::time::SystemTime
+impl<D> owo_colors::OwoColorize for nika_clock::declared_clock::DeclaredClock
+impl<T, U> core::convert::Into<U> for nika_clock::declared_clock::DeclaredClock where U: core::convert::From<T>
+pub fn nika_clock::declared_clock::DeclaredClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_clock::declared_clock::DeclaredClock where U: core::convert::Into<T>
+pub type nika_clock::declared_clock::DeclaredClock::Error = core::convert::Infallible
+pub fn nika_clock::declared_clock::DeclaredClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_clock::declared_clock::DeclaredClock where U: core::convert::TryFrom<T>
+pub type nika_clock::declared_clock::DeclaredClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_clock::declared_clock::DeclaredClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_clock::declared_clock::DeclaredClock where T: core::clone::Clone
+pub type nika_clock::declared_clock::DeclaredClock::Owned = T
+pub fn nika_clock::declared_clock::DeclaredClock::clone_into(&self, target: &mut T)
+pub fn nika_clock::declared_clock::DeclaredClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_clock::declared_clock::DeclaredClock where T: 'static + ?core::marker::Sized
+pub fn nika_clock::declared_clock::DeclaredClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_clock::declared_clock::DeclaredClock where T: ?core::marker::Sized
+pub fn nika_clock::declared_clock::DeclaredClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_clock::declared_clock::DeclaredClock where T: ?core::marker::Sized
+pub fn nika_clock::declared_clock::DeclaredClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_clock::declared_clock::DeclaredClock where T: core::clone::Clone
+pub unsafe fn nika_clock::declared_clock::DeclaredClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_clock::declared_clock::DeclaredClock
+pub fn nika_clock::declared_clock::DeclaredClock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_clock::declared_clock::DeclaredClock where T: 'static
+pub fn nika_clock::declared_clock::DeclaredClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_clock::declared_clock::DeclaredClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_clock::declared_clock::DeclaredClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_clock::declared_clock::DeclaredClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::declared_clock::DeclaredClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::declared_clock::DeclaredClock::system_now(&self) -> std::time::SystemTime
 pub struct nika_clock::SystemClock
 impl core::clone::Clone for nika_clock::SystemClock
 pub fn nika_clock::SystemClock::clone(&self) -> nika_clock::SystemClock
@@ -41,3 +173,47 @@ pub fn nika_clock::SystemClock::elapsed(&self, since: std::time::Instant) -> cor
 pub fn nika_clock::SystemClock::now(&self) -> std::time::Instant
 pub async fn nika_clock::SystemClock::sleep(&self, duration: core::time::Duration)
 pub fn nika_clock::SystemClock::system_now(&self) -> std::time::SystemTime
+#[non_exhaustive] pub struct nika_clock::VirtualClock
+impl nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::advance(&self, duration: core::time::Duration)
+pub fn nika_clock::virtual_clock::VirtualClock::elapsed_total(&self) -> core::time::Duration
+pub fn nika_clock::virtual_clock::VirtualClock::new() -> Self
+pub fn nika_clock::virtual_clock::VirtualClock::with_system_base(system_base: std::time::SystemTime) -> Self
+impl core::clone::Clone for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::clone(&self) -> nika_clock::virtual_clock::VirtualClock
+impl core::default::Default for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::default() -> Self
+impl nika_kernel_core::io::clock::ClockDyn for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::virtual_clock::VirtualClock::sleep(&self, _duration: core::time::Duration)
+pub fn nika_clock::virtual_clock::VirtualClock::system_now(&self) -> std::time::SystemTime
+impl<D> owo_colors::OwoColorize for nika_clock::virtual_clock::VirtualClock
+impl<T, U> core::convert::Into<U> for nika_clock::virtual_clock::VirtualClock where U: core::convert::From<T>
+pub fn nika_clock::virtual_clock::VirtualClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_clock::virtual_clock::VirtualClock where U: core::convert::Into<T>
+pub type nika_clock::virtual_clock::VirtualClock::Error = core::convert::Infallible
+pub fn nika_clock::virtual_clock::VirtualClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_clock::virtual_clock::VirtualClock where U: core::convert::TryFrom<T>
+pub type nika_clock::virtual_clock::VirtualClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_clock::virtual_clock::VirtualClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_clock::virtual_clock::VirtualClock where T: core::clone::Clone
+pub type nika_clock::virtual_clock::VirtualClock::Owned = T
+pub fn nika_clock::virtual_clock::VirtualClock::clone_into(&self, target: &mut T)
+pub fn nika_clock::virtual_clock::VirtualClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_clock::virtual_clock::VirtualClock where T: 'static + ?core::marker::Sized
+pub fn nika_clock::virtual_clock::VirtualClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_clock::virtual_clock::VirtualClock where T: ?core::marker::Sized
+pub fn nika_clock::virtual_clock::VirtualClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_clock::virtual_clock::VirtualClock where T: ?core::marker::Sized
+pub fn nika_clock::virtual_clock::VirtualClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_clock::virtual_clock::VirtualClock where T: core::clone::Clone
+pub unsafe fn nika_clock::virtual_clock::VirtualClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_clock::virtual_clock::VirtualClock where T: 'static
+pub fn nika_clock::virtual_clock::VirtualClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_clock::virtual_clock::VirtualClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_clock::virtual_clock::VirtualClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_clock::virtual_clock::VirtualClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::virtual_clock::VirtualClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::virtual_clock::VirtualClock::system_now(&self) -> std::time::SystemTime

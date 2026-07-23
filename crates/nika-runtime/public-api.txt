@@ -230,6 +230,38 @@ impl<T> typenum::type_operators::Same for nika_runtime::compose::RegistryProvide
 pub type nika_runtime::compose::RegistryProvider<H>::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_runtime::compose::RegistryProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
 pub async fn nika_runtime::compose::RegistryProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub struct nika_runtime::compose::RunSeams
+pub nika_runtime::compose::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
+pub nika_runtime::compose::RunSeams::jitter_seed: u64
+impl nika_runtime::compose::RunSeams
+pub fn nika_runtime::compose::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
+pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_runtime::Stamper>
+impl<D> owo_colors::OwoColorize for nika_runtime::compose::RunSeams
+impl<T, U> core::convert::Into<U> for nika_runtime::compose::RunSeams where U: core::convert::From<T>
+pub fn nika_runtime::compose::RunSeams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RunSeams where U: core::convert::Into<T>
+pub type nika_runtime::compose::RunSeams::Error = core::convert::Infallible
+pub fn nika_runtime::compose::RunSeams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RunSeams where U: core::convert::TryFrom<T>
+pub type nika_runtime::compose::RunSeams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::compose::RunSeams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::compose::RunSeams where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::compose::RunSeams
+pub fn nika_runtime::compose::RunSeams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::compose::RunSeams where T: 'static
+pub fn nika_runtime::compose::RunSeams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::compose::RunSeams::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::compose::RunSeams
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RunSeams
+impl<T> typenum::type_operators::Same for nika_runtime::compose::RunSeams
+pub type nika_runtime::compose::RunSeams::Output = T
 pub struct nika_runtime::compose::RuntimeCapabilities
 pub nika_runtime::compose::RuntimeCapabilities::exec_tasks: bool
 pub nika_runtime::compose::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
@@ -312,8 +344,8 @@ pub fn nika_runtime::compose::fs_boundary_of(wf: &nika_schema::raw::workflow::Ra
 pub fn nika_runtime::compose::fs_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_builtin::permits::FsBoundary
 pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
-pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
-pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
+pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
+pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
 pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
@@ -1035,6 +1067,38 @@ impl<T> tracing::instrument::Instrument for nika_runtime::RunOutcome
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::RunOutcome
 impl<T> typenum::type_operators::Same for nika_runtime::RunOutcome
 pub type nika_runtime::RunOutcome::Output = T
+pub struct nika_runtime::RunSeams
+pub nika_runtime::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
+pub nika_runtime::RunSeams::jitter_seed: u64
+impl nika_runtime::compose::RunSeams
+pub fn nika_runtime::compose::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
+pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_runtime::Stamper>
+impl<D> owo_colors::OwoColorize for nika_runtime::compose::RunSeams
+impl<T, U> core::convert::Into<U> for nika_runtime::compose::RunSeams where U: core::convert::From<T>
+pub fn nika_runtime::compose::RunSeams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RunSeams where U: core::convert::Into<T>
+pub type nika_runtime::compose::RunSeams::Error = core::convert::Infallible
+pub fn nika_runtime::compose::RunSeams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RunSeams where U: core::convert::TryFrom<T>
+pub type nika_runtime::compose::RunSeams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::compose::RunSeams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::compose::RunSeams where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::compose::RunSeams
+pub fn nika_runtime::compose::RunSeams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::compose::RunSeams where T: 'static
+pub fn nika_runtime::compose::RunSeams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::compose::RunSeams::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::compose::RunSeams::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::compose::RunSeams
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RunSeams
+impl<T> typenum::type_operators::Same for nika_runtime::compose::RunSeams
+pub type nika_runtime::compose::RunSeams::Output = T
 pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
@@ -1459,9 +1523,9 @@ pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_voc
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
-pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
+pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool
 pub fn nika_runtime::unbounded_breakdown(cost: &nika_check::cost::CostCeiling) -> alloc::string::String
-pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
+pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>

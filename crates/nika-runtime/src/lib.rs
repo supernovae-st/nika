@@ -96,7 +96,9 @@ use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
 pub use admit::{floor_refusal, required_inputs_refusal, scope_to_task, unbounded_breakdown};
-pub use compose::{ProdRuntime, RuntimeCapabilities, capabilities_of, production_runtime};
+pub use compose::{
+    ProdRuntime, RunSeams, RuntimeCapabilities, capabilities_of, production_runtime,
+};
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
 pub use pause::WorkflowPause;

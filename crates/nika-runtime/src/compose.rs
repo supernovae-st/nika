@@ -35,7 +35,7 @@ use crate::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
 use nika_builtin::{
     BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive, TtsKeys,
 };
-use nika_clock::SystemClock;
+use nika_clock::DeclaredClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
 use nika_http::{HttpConfig, NetBoundary, ReqwestHttp, SsrfMode};
@@ -43,7 +43,7 @@ use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
 use nika_providers::{ProviderRegistry, ProvidersConfig};
-use nika_schema::types::{SecretRef, SecretSource};
+use nika_schema::types::{RunDecl, SecretRef, SecretSource};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
@@ -135,10 +135,17 @@ fn format_emit(kind: &str, payload: &serde_json::Value) -> String {
 }
 
 /// The production dispatcher type — the builtin tool plane over real
-/// effects (fs · http · clock · the non-interactive prompter · stderr
-/// emitter for log/emit · no nested-workflow surface at v0).
-type ProdDispatcher =
-    BuiltinDispatcher<TokioFs, ReqwestHttp, SystemClock, StderrEmitter, NonInteractive, NoWorkflow>;
+/// effects (fs · http · the declared run clock · the non-interactive
+/// prompter · stderr emitter for log/emit · no nested-workflow surface
+/// at v0).
+type ProdDispatcher = BuiltinDispatcher<
+    TokioFs,
+    ReqwestHttp,
+    DeclaredClock,
+    StderrEmitter,
+    NonInteractive,
+    NoWorkflow,
+>;
 
 /// The fully-resolved production runtime spelling (tames the 6 generics
 /// at the call site).
@@ -148,7 +155,7 @@ pub type ProdRuntime = Runtime<
     ReqwestHttp,
     RegistryProvider<ReqwestHttp>,
     ProdDispatcher,
-    SystemClock,
+    DeclaredClock,
 >;
 
 /// A registry-backed [`ProviderInferDyn`] — resolves the request's model
@@ -662,6 +669,59 @@ fn fetch_http(net: NetBoundary) -> Result<ReqwestHttp, nika_kernel::HttpError> {
     ReqwestHttp::with_config(config)
 }
 
+/// The `run:` declaration resolved to its execution seams (F-P3 · ONE
+/// law, ONE home): which stamper mints event identities, which clock the
+/// run's deadlines/sleeps/durations measure, and the retry jitter
+/// stream's seed. An absent `run:` block (or an empty declaration)
+/// resolves to the exact status quo — system stamps · system clock ·
+/// the zero jitter stream.
+///
+/// The declared contradictions (`entropy: ambient` × `clock: virtual` ·
+/// `entropy: none | seeded` × `clock: system`) are refused at PARSE, so
+/// this resolution reads the post-refusal space; a caller bypassing the
+/// parser still lands deterministic-entropy on the deterministic seams
+/// (the fail-safe direction — never the ambient one).
+pub struct RunSeams {
+    /// The event-identity seam: deterministic (seq→UUID · +10ms/event)
+    /// or system (`UUIDv7` · wall clock).
+    stamps_deterministic: bool,
+    /// The run's ONE clock (FDB/VOPR law) — deadlines · sleeps ·
+    /// durations all measure it.
+    pub clock: DeclaredClock,
+    /// The retry jitter stream's seed (`(seed, task, attempt)` —
+    /// replay-stable by construction).
+    pub jitter_seed: u64,
+}
+
+impl RunSeams {
+    /// Resolve the authored `run:` block (`None` = absent) to its seams.
+    #[must_use]
+    pub fn of(decl: Option<&RunDecl>) -> Self {
+        let decl = decl.copied().unwrap_or_default();
+        let entropy = decl.entropy_or_default();
+        Self {
+            stamps_deterministic: entropy.is_deterministic(),
+            clock: match decl.clock_or_default() {
+                nika_schema::types::RunClock::Virtual => DeclaredClock::r#virtual(),
+                _ => DeclaredClock::system(),
+            },
+            jitter_seed: entropy.jitter_seed(),
+        }
+    }
+
+    /// The stamper this resolution picks (the composer's event-identity
+    /// seam — deterministic under `entropy: none | seeded`, the live
+    /// system stamper otherwise).
+    #[must_use]
+    pub fn stamper(&self) -> Box<dyn crate::Stamper> {
+        if self.stamps_deterministic {
+            Box::new(crate::DeterministicStamper::new())
+        } else {
+            Box::new(crate::SystemStamper::new())
+        }
+    }
+}
+
 /// Compose the production runtime for a workflow whose envelope default
 /// model is `default_model`, enforcing `caps` — the [`RuntimeCapabilities`]
 /// derived from the workflow's `permits:` ([`capabilities_of`]) — at run time:
@@ -676,6 +736,15 @@ fn fetch_http(net: NetBoundary) -> Result<ReqwestHttp, nika_kernel::HttpError> {
 /// fail `NIKA-SEC-004` (spec §permits · enforced statically AND at runtime).
 /// Taking the whole `caps` (not the two axes separately) is deliberate — a
 /// caller cannot wire fs and forget net.
+///
+/// # The `run:` declaration (F-P3)
+///
+/// `run` is the workflow's authored `run:` block (`None` = absent): it
+/// picks the run's clock (`clock: system | virtual` — virtual implied by
+/// `entropy: none | seeded`) and the retry jitter stream's seed through
+/// [`RunSeams`]. The event-stamper half of the same resolution rides
+/// [`RunSeams::stamper`] at the run-verb call site (the sink plumbing is
+/// the caller's, not this composition's).
 ///
 /// # `nika:log` / `nika:emit` — observability wiring (the remaining gap)
 ///
@@ -716,7 +785,11 @@ fn fetch_http(net: NetBoundary) -> Result<ReqwestHttp, nika_kernel::HttpError> {
 pub fn production_runtime(
     default_model: &str,
     caps: RuntimeCapabilities,
+    run: Option<&RunDecl>,
 ) -> Result<ProdRuntime, nika_kernel::HttpError> {
+    // F-P3 · the run: declaration picks the run's seams (clock · jitter
+    // stream) ONCE; every injection below reads the same resolution.
+    let seams = RunSeams::of(run);
     // The OS sandbox for exec children (ADR-095 Layer 6) — selected once:
     // the note AND the shell read the same backend. A declared boundary
     // with exec tasks but no backend on this platform = the exec child
@@ -748,7 +821,7 @@ pub fn production_runtime(
         BuiltinDispatcher::new(
             Arc::new(TokioFs),
             Arc::clone(&http),
-            Arc::new(SystemClock),
+            Arc::new(seams.clock.clone()),
             // log/emit → stderr (observable · NOT a silent no-op). The
             // `run --json` event-stream integration is the deeper wiring
             // documented on this fn.
@@ -786,8 +859,8 @@ pub fn production_runtime(
             Arc::clone(&dispatcher),
             default_model,
         ),
-        SystemClock,
-        RuntimeConfig::default()
+        seams.clock,
+        RuntimeConfig::new(None, seams.jitter_seed)
             .with_sandbox_root(std::env::current_dir().unwrap_or_default())
             .with_sandbox_backend(sandbox_backend),
     )
@@ -801,6 +874,7 @@ pub fn production_runtime(
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use nika_schema::types::RunEntropy;
 
     #[test]
     fn local_base_url_normalization_mirrors_the_ollama_client() {
@@ -929,10 +1003,73 @@ mod tests {
                 net: NetBoundary::Unbounded,
                 exec_tasks: false,
             },
+            None,
         );
         assert!(
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"
+        );
+    }
+
+    // ── F-P3 · the run: declaration resolves to its seams ────────────
+
+    #[test]
+    fn absent_run_block_resolves_to_the_status_quo() {
+        for decl in [None, Some(&RunDecl::default())] {
+            let seams = RunSeams::of(decl);
+            assert_eq!(seams.jitter_seed, 0, "the zero stream, unchanged");
+            assert!(
+                seams.clock.as_virtual().is_none(),
+                "the system clock, unchanged"
+            );
+            // The live stamper mints UUIDv7 (ADR-033) — the ambient lane.
+            let mut stamper = seams.stamper();
+            let (id, _) = stamper.next();
+            assert_eq!(id.uuid.get_version_num(), 7, "ambient = UUIDv7");
+        }
+    }
+
+    #[test]
+    fn seeded_resolves_every_deterministic_seam() {
+        let decl = RunDecl::new(Some(RunEntropy::Seeded(42)), None);
+        let seams = RunSeams::of(Some(&decl));
+        assert_eq!(seams.jitter_seed, 42, "the seed keys the jitter stream");
+        assert!(
+            seams.clock.as_virtual().is_some(),
+            "deterministic entropy implies the virtual clock (durations may \
+             not ride the wall clock when journals replay byte-identical)"
+        );
+        // The deterministic stamper is seq-keyed (id 1 · t 10ms) — replay
+        // law: same stream in, same bytes out.
+        let mut stamper = seams.stamper();
+        let (id, ts) = stamper.next();
+        assert_eq!(ts.unix_ms(), 10, "+10ms from zero");
+        let mut twin = RunSeams::of(Some(&decl)).stamper();
+        assert_eq!(twin.next().0, id, "two runs mint the same first id");
+    }
+
+    #[test]
+    fn entropy_none_pins_the_zero_stream_and_virtual_clock() {
+        let decl = RunDecl::new(Some(RunEntropy::None), None);
+        let seams = RunSeams::of(Some(&decl));
+        assert_eq!(seams.jitter_seed, 0, "none = the fixed zero stream");
+        assert!(seams.clock.as_virtual().is_some());
+        let mut stamper = seams.stamper();
+        assert_eq!(stamper.next().1.unix_ms(), 10, "deterministic stamps");
+    }
+
+    #[test]
+    fn an_explicit_virtual_clock_composes_under_ambient_entropy() {
+        // The legal testing configuration (F-P3): virtual deadlines, live
+        // event stamps — no determinism claim is made.
+        let decl = RunDecl::new(None, Some(nika_schema::types::RunClock::Virtual));
+        let seams = RunSeams::of(Some(&decl));
+        assert!(seams.clock.as_virtual().is_some());
+        let mut stamper = seams.stamper();
+        assert_eq!(
+            stamper.next().0.uuid.get_version_num(),
+            7,
+            "ambient entropy keeps the live stamper"
         );
     }
 

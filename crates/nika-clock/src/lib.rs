@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-clock` — the production [`nika_kernel::Clock`] implementation for the Nika diamond.
+//! `nika-clock` — the production [`nika_kernel::Clock`] implementations for the Nika diamond.
 //!
 //! This crate sits at **L1** (effect crate): it implements the L0.5
-//! [`nika_kernel::Clock`] trait using real system time. Every crate that
-//! needs the wall/monotonic clock or `sleep` injects `&dyn Clock` and
-//! receives [`SystemClock`] in production, a mock in tests — the kernel
-//! contract keeps the engine hermetic (Invariant #27).
+//! [`nika_kernel::Clock`] trait using real system time ([`SystemClock`]),
+//! the pure simulated clock behind `run: { clock: virtual }`
+//! ([`VirtualClock`] · F-P3), and the declaration-as-a-clock enum the
+//! composer injects ([`DeclaredClock`]). Every crate that needs the
+//! wall/monotonic clock or `sleep` injects the seam and receives
+//! [`SystemClock`]/[`DeclaredClock`] in production, a mock in tests — the
+//! kernel contract keeps the engine hermetic (Invariant #27).
 //!
 //! ```rust
 //! use nika_clock::SystemClock;
@@ -31,6 +34,12 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use nika_kernel::clock::ClockDyn;
+
+pub mod declared_clock;
+pub mod virtual_clock;
+
+pub use declared_clock::DeclaredClock;
+pub use virtual_clock::VirtualClock;
 
 /// Production clock backed by `std::time` (monotonic + wall) and
 /// `tokio::time::sleep` (async). Zero-size — no allocation, no state,
