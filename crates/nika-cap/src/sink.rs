@@ -46,6 +46,10 @@ const CODE_BEARING_CLASSES: &[ClassRow] = &[
 /// for the unbounded inert world.
 #[must_use]
 pub fn code_bearing_path_class(path: &str) -> Option<(&'static str, &'static str)> {
+    // O7-C · a trailing slash or dot is a display artifact, not a class
+    // change (`/setup.sh/` and `/setup.sh.` are the same fetch of the
+    // same artifact — the edge case blade, 2026-07-23).
+    let path = path.trim_end_matches(['/', '.']);
     let segment = path.rsplit('/').next().unwrap_or(path);
     // O7-A · the encoded-extension bypass (red-team 2026-07-23): the
     // verdict reads the DECODED final segment exactly once — the same
@@ -126,6 +130,19 @@ mod tests {
         assert_eq!(
             code_bearing_path_class("/lib/native.DYLIB"),
             Some(("executable binary/module", ".dylib"))
+        );
+    }
+
+    #[test]
+    fn trailing_slash_and_dot_are_display_artifacts_not_a_class_change() {
+        // O7-C · the same artifact, decorated.
+        assert_eq!(
+            code_bearing_path_class("/dl/setup.sh/"),
+            Some(("script/interpreter", ".sh"))
+        );
+        assert_eq!(
+            code_bearing_path_class("/dl/setup.sh."),
+            Some(("script/interpreter", ".sh"))
         );
     }
 
