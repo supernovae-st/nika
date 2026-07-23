@@ -20,11 +20,30 @@ use crate::stamp::{EventSink, Stamper};
 use crate::task::{self, Finish, SettleAs};
 use crate::{agent_events, child, emit, emit_task, i, resume, s};
 
-/// Settle one task in wave order · owns the pens (stamper + sink) ·
-/// inserts the result record. `pub(crate)`: the recover-await spine
-/// (`recover::settle_or_park` + the drain passes) settles through THIS
-/// one site — parked stories keep the same frames as live ones.
-///
+/// The `SkippedGate` arm of the settle (skipped/gate · the gate's own
+/// CEL text rides verbatim) — split for the 100-line fn ratchet.
+fn settle_skipped_gate(
+    id: &str,
+    note: &str,
+    expr: Option<&str>,
+    named: std::collections::BTreeMap<String, Value>,
+    records: &mut BTreeMap<String, TaskRecord>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let record = with_named(
+        TaskRecord::unran(TaskStatus::Skipped, TerminalCause::Gate),
+        named,
+    );
+    let mut fields = vec![("task", s(id)), ("note", s(note))];
+    if let Some(cel) = &expr {
+        fields.push(("when", s(cel)));
+    }
+    fields.push(("outcome", s(&record::outcome_json(&record))));
+    emit(stamper, sink, EventKind::TaskSkipped, &fields);
+    records.insert(id.to_owned(), record);
+}
+
 /// The Cancelled arm of the settle (spec 13 · cancelled/upstream) — the
 /// WHY rides along: which upstream kept the gate closed.
 fn settle_cancelled(
@@ -49,6 +68,10 @@ fn settle_cancelled(
     records.insert(id.to_owned(), record);
 }
 
+/// Settle one task in wave order · owns the pens (stamper + sink) ·
+/// inserts the result record. `pub(crate)`: the recover-await spine
+/// (`recover::settle_or_park` + the drain passes) settles through THIS
+/// one site — parked stories keep the same frames as live ones.
 pub(crate) fn settle(
     finish: Finish,
     records: &mut BTreeMap<String, TaskRecord>,
@@ -83,19 +106,7 @@ pub(crate) fn settle(
             );
         }
         SettleAs::SkippedGate { note, expr } => {
-            // The gate's own CEL text — « why did this not run » verbatim.
-            // Outcome: skipped/gate — a decision, `.error` defined-null.
-            let record = with_named(
-                TaskRecord::unran(TaskStatus::Skipped, TerminalCause::Gate),
-                named,
-            );
-            let mut fields = vec![("task", s(&id)), ("note", s(note))];
-            if let Some(cel) = &expr {
-                fields.push(("when", s(cel)));
-            }
-            fields.push(("outcome", s(&record::outcome_json(&record))));
-            emit(stamper, sink, EventKind::TaskSkipped, &fields);
-            records.insert(id, record);
+            settle_skipped_gate(&id, note, expr.as_deref(), named, records, stamper, sink);
         }
         SettleAs::FailedBeforeStart { stage, error } => {
             // A pre-dispatch failure (gate eval · with · for_each
