@@ -225,7 +225,7 @@ fn wrap(command: ShellCommand, jail: Vec<String>) -> ShellCommand {
     wrapped.shell = false;
     wrapped.cwd = command.cwd;
     wrapped.env = command.env;
-    wrapped.env_remove = command.env_remove;
+    wrapped.env_passthrough = command.env_passthrough;
     wrapped.stdin = command.stdin;
     wrapped.timeout = command.timeout;
     wrapped.pre_validated = true; // the original already passed the floor; the launcher is benign

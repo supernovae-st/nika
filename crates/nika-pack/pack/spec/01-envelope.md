@@ -407,9 +407,11 @@ report for taints originating from THIS secret and nothing else — it
 never authorizes a send, and a `nika:fetch` clearance never authorizes
 the boundary. Absent the rule, the report stands (default-deny).
 
-The general untrusted→decision integrity lattice (full taint of attacker-controlled
-inputs into security decisions) is a documented follow-up; the static guards
-above cover the main injection / laundering vectors with the existing analysis.
+The general untrusted→decision integrity lattice lands surface by surface:
+the permit-parameterization taint (untrusted values under a present
+`permits:` block) is normative in [10](./10-authority.md) §the
+permit-parameterization taint (NEP-0004); the remaining decision surfaces
+stay a documented follow-up covered by the static guards above.
 
 ### `permits` · *optional · the declared capability boundary*
 
@@ -419,6 +421,7 @@ permits:                          # the workflow's entire blast radius, declared
   net:  { http: ["api.example.com", "*.github.com"] }  # host allowlist — the SSRF boundary, in-file
   exec: false                     # may this workflow run shells? false | true | ["git", "cargo"] (program allowlist)
   tools: ["nika:read", "nika:write", "mcp:browser/*"]  # the builtin/MCP surface it may invoke
+  env:  ["CI_COMMIT_SHA"]         # engine env names passed through to child processes · exact names · composed, never inherited
 ```
 
 `permits:` makes the **file itself the security boundary**: an auditable
@@ -437,7 +440,11 @@ absence is a wall, the zero wall: a parent's grants never flow down to a
 child implicitly (`NIKA-COMP-002`).
 
 **Semantics (normative) · once `permits:` is present, every category is
-DEFAULT-DENY unless listed** ·
+DEFAULT-DENY unless listed, and every bound in the block is a LITERAL —
+interpolation never reaches this block (an interpolated host/glob/program
+is a hard refusal, `NIKA-AUTH-007` · untrusted values under the block are
+re-gated on their canonical resolved form, [10](./10-authority.md) §the
+permit-parameterization taint)** ·
 
 | Category | When listed | When the `permits:` block is present but this category is omitted |
 |---|---|---|
@@ -445,6 +452,7 @@ DEFAULT-DENY unless listed** ·
 | `net.http` | only the listed hosts (globs ok) · tightens the engine SSRF floor — the one loosening is the exact-loopback declassification below | **no** outbound network |
 | `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` · **no** `exec:` |
 | `tools` | only the matching `nika:` / `mcp:` ids (globs ok) | **no** `invoke:` of any tool |
+| `env` | only the named engine variables pass through to child processes (exact names · the runner env floor rides beneath) | **no** passthrough · a child sees the runner env floor plus the task `env:` map only |
 
 **A program allowlist verifies the argv form only** (normative) · when
 `exec:` is an array of program names, a task whose `command:` is a shell
@@ -471,9 +479,36 @@ to any un-permitted floor host still refuses (`NIKA-SEC-005`). An
 engine MUST NOT auto-write a loopback grant (e.g. from permits
 inference) — the explicit act stays the author's.
 
+**The environment category** (normative · NEP-0005 · LAW-AUTH-0326) · a
+child process environment (the `exec` subprocess · a stdio `mcp:*` tool
+server) is **composed, never inherited**: the runner env floor ∪ the
+declared `env:` passthrough (resolved from the engine's environment at
+spawn) ∪ the task's explicit `env:` map (authored values · applied after
+the passthrough, so an authored entry wins on the same name), minus the
+dangerous-name floor. The **runner env floor** is the fixed list `PATH`,
+`HOME`, `TMPDIR`, `LANG`, `LC_ALL`, `TZ`, `USER`, `LOGNAME` · a normative
+MAXIMUM: an engine MUST NOT pass any undeclared name beyond it and MAY
+pass fewer. An `env:` entry is an exact POSIX name
+(`[A-Za-z_][A-Za-z0-9_]*` · no globs) and a permit BOUND: an interpolated
+entry is `NIKA-AUTH-007` (a bound MUST be a literal · [10](./10-authority.md)).
+The **dangerous-name floor** (dynamic-linker injection · shell startup
+sourcing · tool command hooks · interpreter pre-exec hooks · `IFS` · the
+engine's canonical `DANGEROUS_ENV_VARS` list) is never passable: an
+`env:` entry naming one is an inert dead grant, flagged at check
+(`NIKA-AUTH-009` · the SSRF dead-grant teaching applied to the env
+plane), and a task-map entry naming one is stripped last. A declared name
+absent from the engine environment passes nothing (no error · no
+empty-string synthesis). Under composition ([14](./14-composition.md))
+the effective category is the exact-name intersection child ∩ parent.
+`env:` is **not inferable**: permit inference MUST NOT invent the list (a
+subprocess's environment reads are opaque) · the undeclared-read failure
+mode is the child tool's own missing-variable error, and the repair is
+one declared line (`env: [NAME]`).
+
 So `permits: {}` is a workflow provably limited to pure compute (`infer:` +
-CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools. That property
-is checkable BEFORE the run.
+CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools, zero env
+passthrough (its children see the runner env floor plus their task `env:`
+maps, nothing else). That property is checkable BEFORE the run.
 
 **The engine MUST enforce `permits:` on BOTH surfaces** ·
 1. **Statically** (`nika check`) · a `nika:write ./etc/x` outside `fs.write`,
@@ -705,6 +740,7 @@ A v0.1-compliant engine MUST ·
 6. Validate each typed `outputs` value against its declared `type:` at run end · a value that does not match its declared type fails the run (`NIKA-VAR-009` · `validation_error`): the callable contract is enforced on BOTH halves (typed in via `inputs`, typed out via `outputs`) · symmetric with rule 5
 7. Mask resolved `secrets` values in all logs · traces · journal events
 8. Enforce a declared `permits:` block on both surfaces: refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed
+9. Compose every child process environment (§permits env · NEP-0005): the runner env floor ∪ the declared `env:` passthrough ∪ the task `env:` map, minus the dangerous-name floor · never inherit the engine environment
 
 ---
 

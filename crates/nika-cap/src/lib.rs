@@ -23,6 +23,7 @@
 
 mod algebra;
 mod effect;
+pub mod env;
 mod fit;
 mod integrity;
 mod permits;
@@ -42,6 +43,9 @@ mod trifecta;
 pub use effect::{
     BuiltinEffect, PURE_INTERNAL_TOOLS, builtin_effect, builtin_egresses, chart_vl_sibling,
     is_pure_internal,
+};
+pub use env::{
+    DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,
 };
 pub use fit::lexically_normalize;
 // F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's

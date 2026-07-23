@@ -72,6 +72,11 @@ struct Collector {
 
 /// Infer the tightest `permits:` for a workflow.
 #[must_use]
+// `env:` is NEVER inferred (NEP-0005 law 7 · LAW-AUTH-0326): a
+// subprocess's environment reads are opaque to static analysis, so the
+// inferred block carries no `env` category — the author declares intent,
+// and the undeclared-read failure mode is the child tool's own
+// missing-variable error (the repair is one `env: [NAME]` line).
 pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
     let mut c = Collector::default();
     for task in &wf.tasks {

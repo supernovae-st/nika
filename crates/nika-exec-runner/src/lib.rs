@@ -73,7 +73,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
-use nika_kernel::process::{DANGEROUS_ENV_VARS, ShellCancelDyn, ShellRunDyn};
+use nika_kernel::process::{DANGEROUS_ENV_VARS, ShellCancelDyn, ShellRunDyn, compose_child_env};
 use nika_kernel::{ShellCommand, ShellError, ShellResult};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
@@ -119,14 +119,6 @@ pub struct TokioShell {
     /// The OS-confinement backend (injected by the wiring layer · `None` =
     /// no sandbox available, today's behavior). Applied AFTER the blocklist.
     sandbox: Option<Arc<dyn CommandSandbox>>,
-    /// Env-var NAMES the child must NOT inherit from the ENGINE's ambient
-    /// environment — the provider API keys `config_from_env` loaded for the
-    /// engine's OWN inference calls (ADR-095 Layer 3 · ambient-secret scrub).
-    /// Injected by the composition root from the provider catalog. A workflow
-    /// that genuinely needs a key in its child still sets it EXPLICITLY in
-    /// `env:` (explicit intent wins over the ambient scrub · see `run`). Empty
-    /// = today's behavior (inherit all). `Arc<[…]>` for a cheap `Clone`.
-    ambient_secret_env: Arc<[String]>,
     /// The per-run loopback egress proxy (the `NetPolicy::Allowlist` arm's
     /// enforcement half) — `Arc`-shared so every clone of this shell serves
     /// the SAME boundary on the SAME port; started lazily, stopped when the
@@ -151,7 +143,6 @@ impl Default for TokioShell {
         Self {
             registry: Registry::default(),
             sandbox: None,
-            ambient_secret_env: Arc::default(),
             egress_proxy: Arc::new(Mutex::new(None)),
             egress_observer: egress::stderr_journal(),
         }
@@ -185,21 +176,6 @@ impl TokioShell {
     #[must_use]
     pub fn with_egress_observer(mut self, observer: EgressObserver) -> Self {
         self.egress_observer = observer;
-        self
-    }
-
-    /// Scrub the ENGINE's ambient provider API keys from every child's
-    /// environment (ADR-095 Layer 3 · least-privilege by default). `names` are
-    /// the provider env-var names the engine reads for its OWN inference calls
-    /// (from the provider catalog · injected by the composition root); an exec
-    /// child has no legitimate need for them via ambient inheritance, and
-    /// leaving them in lets an untrusted command exfiltrate them (`printenv`,
-    /// `cat /proc/self/environ`). A workflow that DOES need a key in its child
-    /// sets it explicitly in `env:` — that wins (only the ambient copy is
-    /// stripped · see `run`). Chainable with [`Self::with_sandbox`].
-    #[must_use]
-    pub fn with_ambient_secret_env(mut self, names: impl Into<Arc<[String]>>) -> Self {
-        self.ambient_secret_env = names.into();
         self
     }
 
@@ -244,17 +220,6 @@ impl ShellRunDyn for TokioShell {
 
         let start = Instant::now();
         let mut cmd = build_command(&command);
-        // Ambient-secret scrub (ADR-095 Layer 3): the engine loaded provider
-        // API keys from ITS env for its own inference calls; strip them from
-        // the child UNLESS the workflow set the name EXPLICITLY in `env:`
-        // (explicit intent wins · only the ambient copy is removed). Runs after
-        // build_command applied the explicit `env:` map, so an explicit set is
-        // preserved; env_remove of an absent key is a harmless no-op.
-        for name in self.ambient_secret_env.iter() {
-            if !command.env.contains_key(name) {
-                cmd.env_remove(name);
-            }
-        }
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
         cmd.stdin(if command.stdin.is_some() {
@@ -472,10 +437,12 @@ impl ShellCancelDyn for TokioShell {
 // `nika_kernel::process::DANGEROUS_ENV_VARS` (imported above): the injection
 // vectors that grant code execution or library injection with no dangerous
 // flag in the command itself (the "env-var injection" class). The strip here
-// is independent of `pre_validated` and runs AFTER the explicit `env` map
-// (the floor wins — a workflow does not pass these). The stronger
-// clean-slate posture (drop ALL inherited env + a curated `PATH`) belongs to
-// the sandbox layer (the MCP stdio client already runs it).
+// is independent of `pre_validated` and runs AFTER the composed `env` map
+// (the floor wins — a workflow does not pass these). Since NEP-0005 the
+// child environment is CLEAN-SLATE: `env_clear` first, then exactly the
+// composed map (`ShellCommand::env` — the runner floor ∪ the declared
+// `permits.env:` passthrough ∪ the task's authored entries, composed
+// upstream by the dispatch), then the dangerous strip. Nothing is inherited.
 
 /// Build the `tokio::process::Command` (program/args or `sh -c`, env, cwd).
 fn build_command(command: &ShellCommand) -> Command {
@@ -493,17 +460,26 @@ fn build_command(command: &ShellCommand) -> Command {
         c.args(&command.args);
         c
     };
-    for (k, v) in &command.env {
+    // NEP-0005 clean slate: nothing is inherited. The child environment is
+    // COMPOSED — the runner floor ∪ the declared `permits.env:` passthrough
+    // (both resolved from the operator's ambient values HERE: reading the
+    // ambient env to re-admit a curated subset to the child is the spawn
+    // site's duty, the MCP stdio client's import-site precedent) ∪ the
+    // authored `env` map, minus the dangerous floor (inside the compose).
+    cmd.env_clear();
+    #[allow(clippy::disallowed_methods)] // the spawn-site ambient read (see above)
+    let composed = compose_child_env(
+        |name| std::env::var(name).ok(),
+        &command.env_passthrough,
+        &command.env,
+    );
+    for (k, v) in &composed {
         cmd.env(k, v);
     }
-    // After env so a removal wins over a set of the same key.
-    for k in &command.env_remove {
-        cmd.env_remove(k);
-    }
-    // SECURITY (always-on · independent of `pre_validated`): strip the
-    // dangerous-env injection vectors LAST so the floor wins even over an
-    // explicit set — these grant code/library injection with no dangerous
-    // flag in the command (see [`DANGEROUS_ENV_VARS`]).
+    // SECURITY belt (always-on · independent of `pre_validated`): the compose
+    // already stripped the dangerous floor — strip it again LAST at the spawn
+    // boundary so a future compose regression cannot re-open the injection
+    // class (see [`DANGEROUS_ENV_VARS`]).
     for var in DANGEROUS_ENV_VARS {
         cmd.env_remove(var);
     }
@@ -714,43 +690,61 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ambient_secret_env_scrubbed_unless_set_explicitly() {
-        // ADR-095 Layer 3. PATH is reliably present in the test process env
-        // AND unneeded to run an ABSOLUTE-path program — so it stands in for an
-        // ambient provider secret without the (forbidden) unsafe env::set_var.
-        let scrub = TokioShell::new().with_ambient_secret_env(vec!["PATH".to_owned()]);
-
-        // Scrubbed + not set explicitly → the child's PATH is gone (printenv
-        // prints nothing · exits non-zero, which `run` surfaces as data).
-        let out = scrub
-            .run(ShellCommand::new("/usr/bin/printenv").arg("PATH"))
+    async fn child_env_is_composed_never_inherited() {
+        // NEP-0005 law 1 · the clean slate. CARGO_PKG_NAME is reliably
+        // present in a `cargo test` process env and is NOT on the runner
+        // floor — it stands in for an ambient credential without the
+        // (forbidden) unsafe env::set_var.
+        let shell = TokioShell::new();
+        let out = shell
+            .run(ShellCommand::new("/usr/bin/printenv").arg("CARGO_PKG_NAME"))
             .await
             .expect("printenv runs");
         assert!(
             out.stdout.trim().is_empty(),
-            "ambient PATH must be scrubbed from the child, got {:?}",
+            "an ambient non-floor variable must never reach the child, got {:?}",
             out.stdout
         );
 
-        // Explicit `env:` wins over the scrub — the child sees the declared value.
-        let mut explicit = ShellCommand::new("/usr/bin/printenv").arg("PATH");
-        explicit.env.insert("PATH".to_owned(), "/decl".to_owned());
-        let out2 = scrub.run(explicit).await.expect("printenv runs");
-        assert_eq!(
-            out2.stdout.trim(),
-            "/decl",
-            "an explicit env entry must win over the ambient scrub"
-        );
-
-        // Default (no scrub set) inherits the ambient PATH as before.
-        let out3 = TokioShell::new()
+        // The runner floor still crosses (PATH is floor · law 1's "at most").
+        let floor = shell
             .run(ShellCommand::new("/usr/bin/printenv").arg("PATH"))
             .await
             .expect("printenv runs");
         assert!(
-            !out3.stdout.trim().is_empty(),
-            "default TokioShell must still inherit the ambient PATH"
+            !floor.stdout.trim().is_empty(),
+            "the runner floor must compose PATH into the child"
         );
+
+        // The declared passthrough passes exactly the named variable (law 2).
+        let mut declared = ShellCommand::new("/usr/bin/printenv").arg("CARGO_PKG_NAME");
+        declared.env_passthrough = vec!["CARGO_PKG_NAME".to_owned()];
+        let out2 = shell.run(declared).await.expect("printenv runs");
+        assert_eq!(
+            out2.stdout.trim(),
+            env!("CARGO_PKG_NAME"),
+            "a declared name must pass the ambient value through"
+        );
+
+        // The authored map wins over the passthrough on the same name (law 6).
+        let mut authored = ShellCommand::new("/usr/bin/printenv").arg("CARGO_PKG_NAME");
+        authored.env_passthrough = vec!["CARGO_PKG_NAME".to_owned()];
+        authored
+            .env
+            .insert("CARGO_PKG_NAME".to_owned(), "authored".to_owned());
+        let out3 = shell.run(authored).await.expect("printenv runs");
+        assert_eq!(out3.stdout.trim(), "authored");
+    }
+
+    #[tokio::test]
+    async fn program_resolution_rides_the_composed_floor_path() {
+        // The flip must not brick relative-program spawns: the floor PATH is
+        // in the composed map and `Command` resolves against the CHILD env.
+        let out = TokioShell::new()
+            .run(ShellCommand::new("echo").arg("resolved"))
+            .await
+            .expect("echo resolves via the composed floor PATH");
+        assert_eq!(out.stdout.trim(), "resolved");
     }
 
     #[tokio::test]

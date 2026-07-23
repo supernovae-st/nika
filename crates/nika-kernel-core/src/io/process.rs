@@ -106,60 +106,13 @@ impl EgressAllowlist {
     }
 }
 
-/// Environment variables ALWAYS stripped from a spawned child's environment —
-/// the injection vectors that grant code execution or library injection with no
-/// dangerous flag in the command itself (the "env-var injection" class). An
-/// ambient `LD_PRELOAD` inherited from the engine's own environment is not
-/// something a policy vouched for, so the strip is independent of any
-/// pre-validation and wins even over an explicit `env` set (the floor wins — a
-/// workflow does not pass these).
-///
-/// The ONE canonical list (ADR-095 Layer 3): every subprocess-spawn site
-/// scrubs against it — the `exec` verb's runner (`nika-exec-runner`, which
-/// strips it after applying the declared `env` map) and the MCP stdio client
-/// (`nika-mcp`, which goes further: `env_clear` + a curated passthrough, so
-/// these names are structurally absent). The stronger clean-slate posture
-/// (drop ALL inherited env + a curated `PATH`) belongs to the sandbox layer,
-/// which knows the confined process's declared needs.
-pub const DANGEROUS_ENV_VARS: &[&str] = &[
-    // Dynamic-linker library injection (run attacker code in any dynamically
-    // linked child) — Linux + macOS (incl. the macOS fallback paths · P2).
-    "LD_PRELOAD",
-    "LD_LIBRARY_PATH",
-    "LD_AUDIT",
-    "GCONV_PATH", // glibc iconv module load → code execution (P2)
-    "DYLD_INSERT_LIBRARIES",
-    "DYLD_LIBRARY_PATH",
-    "DYLD_FRAMEWORK_PATH",
-    "DYLD_FALLBACK_LIBRARY_PATH",
-    "DYLD_FALLBACK_FRAMEWORK_PATH",
-    // Shell startup-file sourcing on non-interactive `sh`/bash.
-    "BASH_ENV",
-    "ENV",
-    // Tool-specific command hooks (RCE with no flags).
-    "GIT_SSH_COMMAND",
-    "GIT_SSH",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_PAGER",
-    "GIT_PROXY_COMMAND", // config-driven git RCE (P2)
-    "GIT_CONFIG_GLOBAL", // point git at an attacker config (core.pager/fsmonitor)
-    "GIT_CONFIG_SYSTEM",
-    "GIT_TEMPLATE_DIR", // attacker hooks copied into a new repo
-    "LESSOPEN",         // pager-input-preprocess command injection (P2)
-    "HOSTALIASES",      // attacker file read during hostname resolution (P2)
-    "TERMINFO",         // load a crafted terminfo entry (P2)
-    "TERMINFO_DIRS",    // terminfo search-path override (P2)
-    "TERMCAP",          // crafted termcap string executed by some pagers (P2)
-    // Interpreter pre-exec hooks.
-    "PYTHONSTARTUP",
-    "PYTHONPATH", // inject a module into any python that imports (P2)
-    "PERL5OPT",
-    "PERL5LIB",
-    "RUBYOPT",
-    "NODE_OPTIONS",
-    // Field-splitting injection for shell-mode commands.
-    "IFS",
-];
+// The environment plane of the capability boundary lives in `nika-cap::env`
+// (NEP-0005 · the permits vocabulary crate): the dangerous-name floor, the
+// runner env floor, and the ONE composition law every spawn family runs.
+// Re-exported here at the historical kernel path so every consumer import
+// (`nika_kernel::process::DANGEROUS_ENV_VARS` · the spawn sites) resolves
+// unchanged.
+pub use nika_cap::env::{DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env};
 
 /// A shell command to execute.
 #[derive(Debug, Clone)]
@@ -169,10 +122,18 @@ pub struct ShellCommand {
     pub program: String,
     /// Command arguments.
     pub args: Vec<String>,
-    /// Environment variables to set.
+    /// The AUTHORED environment entries (the task's `env:` map · values the
+    /// file carries). The spawn site composes the child environment via
+    /// [`compose_child_env`] — a CLEARED slate + the runner floor + the
+    /// declared [`Self::env_passthrough`] + this map (which wins on a
+    /// same-name collision), minus [`DANGEROUS_ENV_VARS`]. Nothing is ever
+    /// inherited (NEP-0005).
     pub env: BTreeMap<String, String>,
-    /// Environment variable names to remove from inherited env.
-    pub env_remove: Vec<String>,
+    /// The declared `permits.env:` passthrough NAMES (NEP-0005) — resolved
+    /// from the ENGINE's ambient environment at the spawn site, beneath the
+    /// authored [`Self::env`] map and above the runner floor. Empty = floor
+    /// + authored map only.
+    pub env_passthrough: Vec<String>,
     /// Working directory.
     pub cwd: Option<PathBuf>,
     /// Execution timeout.
@@ -201,7 +162,7 @@ impl ShellCommand {
             program: program.into(),
             args: Vec::new(),
             env: BTreeMap::new(),
-            env_remove: Vec::new(),
+            env_passthrough: Vec::new(),
             cwd: None,
             timeout: None,
             stdin: None,

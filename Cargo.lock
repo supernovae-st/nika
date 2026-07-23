@@ -4340,6 +4340,7 @@ dependencies = [
  "futures-core",
  "insta",
  "miette",
+ "nika-cap",
  "nika-error",
  "serde",
  "serde_json",

@@ -83,6 +83,12 @@ impl Permits {
                 (None, Some(y)) => Some(y.to_vec()),
                 (Some(x), Some(y)) => Some(list_union(x, y)),
             },
+            env: match (self.env.as_deref(), other.env.as_deref()) {
+                (None, None) => None,
+                (Some(x), None) => Some(x.to_vec()),
+                (None, Some(y)) => Some(y.to_vec()),
+                (Some(x), Some(y)) => Some(list_union(x, y)),
+            },
         }
     }
 
@@ -114,6 +120,12 @@ impl Permits {
                 (Some(x), Some(y)) => Some(list_intersect(x, y)),
                 _ => None,
             },
+            // `env:` names are exact literals (NEP-0005 · no globs), so the
+            // conservative string-equal meet IS the true set intersection.
+            env: match (self.env.as_deref(), other.env.as_deref()) {
+                (Some(x), Some(y)) => Some(list_intersect(x, y)),
+                _ => None,
+            },
         }
     }
 }
@@ -139,6 +151,33 @@ mod tests {
     fn intersect_is_the_meet_for_tools() {
         let i = tools(&["nika:read", "nika:write"]).intersect(&tools(&["nika:read"]));
         assert!(i.allows_tool("nika:read") && !i.allows_tool("nika:write"));
+    }
+
+    fn env(list: &[&str]) -> Permits {
+        Permits {
+            env: Some(list.iter().map(|s| (*s).to_owned()).collect()),
+            ..Permits::new()
+        }
+    }
+
+    #[test]
+    fn env_meet_is_the_exact_name_intersection() {
+        // NEP-0005 law 5 · child ∩ parent on exact names — and since env
+        // bounds are literals (no globs), the conservative meet IS the
+        // true set intersection here.
+        let i = env(&["CI_COMMIT_SHA", "CI_JOB_ID"]).intersect(&env(&["CI_COMMIT_SHA"]));
+        assert!(i.allows_env_key("CI_COMMIT_SHA"));
+        assert!(!i.allows_env_key("CI_JOB_ID"));
+        // an absent side means zero: no child inherits a passthrough its
+        // parent could not grant.
+        let z = env(&["CI_COMMIT_SHA"]).intersect(&Permits::new());
+        assert!(!z.allows_env_key("CI_COMMIT_SHA"));
+    }
+
+    #[test]
+    fn env_union_is_the_join() {
+        let u = env(&["A_ONE"]).union(&env(&["B_TWO"]));
+        assert!(u.allows_env_key("A_ONE") && u.allows_env_key("B_TWO"));
     }
 
     #[test]

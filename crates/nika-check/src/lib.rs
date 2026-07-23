@@ -378,14 +378,16 @@ impl CheckReport {
                 SpecCode::new("SEC", 4, SpecCategory::SecurityError)
             }
         }));
-        // The permit-parameterization taint (NEP-0004): the finding's own
-        // kind maps to its ONE wire code (law 1 → AUTH-007 · law 2 →
-        // AUTH-008 · both check-time security refusals).
+        // The permits-block taint findings: the finding's own kind maps to
+        // its ONE wire code (NEP-0004 law 1 → AUTH-007 · law 2 → AUTH-008 ·
+        // NEP-0005 law 3 env dead grant → AUTH-009 · all check-time
+        // security refusals).
         codes.extend(self.permit_taints.iter().map(|t| match t.kind {
             PermitTaintKind::BoundInterpolated => {
                 SpecCode::new("AUTH", 7, SpecCategory::SecurityError)
             }
             PermitTaintKind::ArgEscapes => SpecCode::new("AUTH", 8, SpecCategory::SecurityError),
+            PermitTaintKind::EnvDeadGrant => SpecCode::new("AUTH", 9, SpecCategory::SecurityError),
         }));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001.
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);

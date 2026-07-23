@@ -1893,6 +1893,9 @@ pub trait nika_kernel_core::io::ocr::OcrEngineDyn: core::marker::Send + core::ma
 pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>> + core::marker::Send
 pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>> + core::marker::Send
 pub mod nika_kernel_core::io::process
+pub use nika_kernel_core::io::process::DANGEROUS_ENV_VARS
+pub use nika_kernel_core::io::process::RUNNER_FLOOR_ENV_VARS
+pub use nika_kernel_core::io::process::compose_child_env
 #[non_exhaustive] pub enum nika_kernel_core::io::process::NetPolicy
 pub nika_kernel_core::io::process::NetPolicy::Allow
 pub nika_kernel_core::io::process::NetPolicy::Allowlist(nika_kernel_core::io::process::EgressAllowlist)
@@ -2059,7 +2062,7 @@ pub fn nika_kernel_core::io::process::SandboxSpec::as_any(&self) -> &(dyn core::
 pub nika_kernel_core::io::process::ShellCommand::args: alloc::vec::Vec<alloc::string::String>
 pub nika_kernel_core::io::process::ShellCommand::cwd: core::option::Option<std::path::PathBuf>
 pub nika_kernel_core::io::process::ShellCommand::env: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
-pub nika_kernel_core::io::process::ShellCommand::env_remove: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_core::io::process::ShellCommand::env_passthrough: alloc::vec::Vec<alloc::string::String>
 pub nika_kernel_core::io::process::ShellCommand::pre_validated: bool
 pub nika_kernel_core::io::process::ShellCommand::program: alloc::string::String
 pub nika_kernel_core::io::process::ShellCommand::sandbox: core::option::Option<nika_kernel_core::io::process::SandboxSpec>
@@ -2140,7 +2143,6 @@ impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellResult
 pub fn nika_kernel_core::io::process::ShellResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellResult where T: 'static
 pub fn nika_kernel_core::io::process::ShellResult::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub const nika_kernel_core::io::process::DANGEROUS_ENV_VARS: &[&str]
 pub trait nika_kernel_core::io::process::ShellCancel: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel_core::io::process::ShellCancel::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::process::ShellCancelDyn> nika_kernel_core::io::process::ShellCancel for TraitVariantBlanketType

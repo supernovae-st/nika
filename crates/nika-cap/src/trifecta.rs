@@ -283,6 +283,7 @@ mod tests {
             )),
             exec: None,
             tools: Some(tools.iter().map(ToString::to_string).collect()),
+            env: None,
         }
     }
 
