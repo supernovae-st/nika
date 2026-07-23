@@ -843,9 +843,13 @@ where
                             scope,
                             &value_taint,
                             &agent_buffer,
-                            budget,
+                            crate::dispatch::DispatchCtx {
+                                deadline: budget,
+                                // law 6 · remaining AT CALL TIME
+                                child_budget: ledger.remaining_usd(),
+                                inert: task.inert.as_ref().map(|s| s.value.as_str()),
+                            },
                             contract.as_ref(),
-                            ledger.remaining_usd(), // law 6 · remaining AT CALL TIME
                         )
                         .await;
                     note.clone_from(&dispatched.note);

@@ -155,11 +155,17 @@ where
             scope,
             &value_taint,
             &cleanup_buffer,
-            Some(limit),
-            None,
-            // best-effort lane: no ledger here — a finally child inherits
-            // no cost bound (the lane has no budget admission by design);
-            // the select timer below still bounds it in TIME.
+            crate::dispatch::DispatchCtx {
+                deadline: Some(limit),
+                // best-effort lane: no ledger here — a finally child
+                // inherits no cost bound (the lane has no budget
+                // admission by design); the select timer below still
+                // bounds it in TIME.
+                child_budget: None,
+                // a finally mini-task carries no inert: door (NEP-0006)
+                // — a code-bearing cleanup fetch refuses like any other.
+                inert: None,
+            },
             None,
         ));
         let timer = std::pin::pin!(self.clock.sleep(limit));

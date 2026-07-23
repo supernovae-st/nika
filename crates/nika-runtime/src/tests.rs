@@ -134,6 +134,87 @@ async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
     );
 }
 
+/// NEP-0006 law 3 — the data-as-code sink's RUN twin: a fetch URL the
+/// static classifier deferred (a `tasks.*` derivation) resolves at run to
+/// a code-bearing artifact and is refused BEFORE the tool executor ever
+/// sees the call; the task's declared `inert:` door lets it through.
+#[tokio::test]
+async fn code_bearing_fetch_refuses_at_run_and_the_inert_door_opens() {
+    use nika_kernel::tool_executor::ToolResult;
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    let base = "nika: v1\nworkflow:\n  id: sinkrun\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:jq\", \"nika:fetch\"]\ntasks:\n  name:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"https://data.example.com/models/legacy.pkl\", expression: \".\" }\n  grab:\n    with: { u: \"${{ tasks.name.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"${{ with.u }}\" }\n";
+    for (inert, expect_calls) in [(false, 1_usize), (true, 2_usize)] {
+        let yaml = if inert {
+            base.replace(
+                "      args: { url: \"${{ with.u }}\" }\n",
+                "      args: { url: \"${{ with.u }}\" }\n    inert: \"archived for provenance · never loaded\"\n",
+            )
+        } else {
+            base.to_owned()
+        };
+        let wf = nika_schema::parse(
+            &yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(
+            report.is_clean(),
+            "the dynamic URL defers at check (law 3): {report:?}"
+        );
+        let executor = MockToolExecutor::new()
+            .enqueue_ok(ToolResult::success(
+                "tc1",
+                "https://data.example.com/models/legacy.pkl",
+            ))
+            .enqueue_ok(ToolResult::success("tc2", "bytes"));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(executor.clone())));
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default().with_sandbox_root(std::path::PathBuf::from("/repo")),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime.run(&wf, &report, &mut stamper, &mut sink).await;
+        let calls = executor.captured_calls();
+        assert_eq!(
+            calls.len(),
+            expect_calls,
+            "inert={inert} · the refusal fires BEFORE the executor (calls: {:?})",
+            calls.iter().map(|c| c.name.clone()).collect::<Vec<_>>()
+        );
+        let outcome = outcome.expect("the run completes either way");
+        if inert {
+            assert!(outcome.ok, "the declared door lets the fetch through");
+        } else {
+            assert!(!outcome.ok, "the code-bearing fetch fails the run");
+            let record = outcome.records.get("grab").expect("grab settled");
+            let error = record.error.as_ref().expect("a typed refusal");
+            assert_eq!(error.code, "NIKA-SEC-004");
+            assert!(
+                error.message.contains("code-bearing"),
+                "the refusal teaches the sink: {}",
+                error.message
+            );
+        }
+    }
+}
+
 /// NEP-0005 — the declared `permits.env:` passthrough rides every exec
 /// command to the spawn site (which composes floor ∪ these names ∪ the
 /// authored map from a cleared slate), and the authored task `env:` map

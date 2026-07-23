@@ -50,6 +50,36 @@ pub(super) fn check_tool_permits(
     ))
 }
 
+/// The data-as-code sink's RUN twin (NEP-0006 law 3 · LAW-AUTH-0327 ·
+/// the dynamic case the static classifier defers): the RESOLVED
+/// `nika:fetch` URL path is classified against the ONE closed list
+/// (`nika_cap::code_bearing_path_class` · the same predicate the check
+/// twin and the reference oracle read), honoring the task's declared
+/// `inert:` door. Refusal = `NIKA-SEC-004` (one runtime refusal voice ·
+/// the detail names the class and both repairs).
+pub(super) fn check_fetch_sink(
+    inert: Option<&str>,
+    note: &str,
+    tool: &str,
+    args: &serde_json::Value,
+) -> Option<Dispatched> {
+    if tool != "nika:fetch" || inert.is_some() {
+        return None;
+    }
+    let url = args.get("url")?.as_str()?;
+    let path = url::Url::parse(url).ok().map(|u| u.path().to_owned())?;
+    let (class, ext) = nika_cap::code_bearing_path_class(&path)?;
+    Some(Dispatched::security_err(
+        note,
+        format!(
+            "fetch of a code-bearing artifact refused ({class} class · `{ext}`) · {url} is a \
+             program, not data: the read hides an execution sink (NEP-0006) · model the \
+             acquisition as the exec it feeds (exec: + a program permit) · or declare the read \
+             inert on the task (inert: \"<because>\")"
+        ),
+    ))
+}
+
 /// The agent half of the tools boundary: every entry of the declared
 /// `tools:` universe must fit `permits.tools` — one refusal for the
 /// whole task (the run-time half of the static `permits_fit` scan).
