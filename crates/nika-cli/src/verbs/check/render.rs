@@ -696,7 +696,10 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
         );
         return;
     }
-    if report.capability_escapes.is_empty() && report.permit_taints.is_empty() {
+    if report.capability_escapes.is_empty()
+        && report.permit_taints.is_empty()
+        && report.sink_findings.is_empty()
+    {
         let _ = writeln!(
             out,
             " {} {}  {}",
@@ -735,6 +738,20 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
             e.category,
             e.task,
             e.detail,
+        );
+    }
+    for sink in &report.sink_findings {
+        // NEP-0006 · the finding's own code (the same one findings[] and
+        // extra_conformance_codes read).
+        let code = sink.wire_code();
+        let _ = writeln!(
+            out,
+            " {} {}  [{code}] task `{}` · {} · fix: {}",
+            mark(t, false),
+            t.paint(Role::Strong, "PERMITS"),
+            sink.task,
+            sink.detail,
+            sink.fix,
         );
     }
     for taint in &report.permit_taints {

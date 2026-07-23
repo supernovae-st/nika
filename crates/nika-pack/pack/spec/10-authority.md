@@ -197,6 +197,29 @@ like a literal and must still sit inside the declared boundary.
 Declassify is never a permit bypass, and there is no implicit
 declassification in v1.
 
+## The data-as-code sink (normative · NEP-0006 · LAW-AUTH-0327)
+
+The contract distinguishes an INERT read from a CODE-BEARING read.
+Some artifact classes execute at load: the serialized-executable
+family (the deserializer runs code · `.pkl` `.pickle` `.dill`
+`.joblib` `.pt` `.pth` `.ckpt`), scripts and notebooks (`.py` `.sh`
+`.bash` `.zsh` `.ps1` `.bat` `.cmd` `.rb` `.pl` `.php` `.js` `.mjs`
+`.ipynb`), and executable binaries/modules (`.exe` `.dll` `.so`
+`.dylib` `.wasm` `.jar`). The three classes are CLOSED and normative
+(only a NEP amends them · the deliberate exclusions and their reasons
+live in NEP-0006). A `nika:fetch` whose RESOLVED URL path names one ·
+matched case-insensitively on the path's final extension, the query
+carries no verdict · is refused at check (`NIKA-SEC-008` ·
+security_error · the diagnostic names the class and both repairs) when
+the URL is literal or resolvable through the taint rules above; the
+unresolvable DEFERS to the run-time twin (`NIKA-SEC-004` · the same
+class refused on the resolved URL · defense in depth). The honest door
+is the task-level `inert: "<because>"` declaration (non-empty ·
+greppable): it lifts THIS law only · never the `net.http` boundary,
+never the SSRF floor, never the taint re-gate. The repair in the other
+direction is to model the acquisition as the `exec` it feeds, under a
+program permit review can see.
+
 ## The certificate names its effects (normative)
 
 `nika check --json` already emits a resource certificate

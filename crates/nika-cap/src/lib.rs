@@ -29,6 +29,7 @@ mod integrity;
 mod permits;
 mod policy;
 mod shape;
+pub mod sink;
 mod trifecta;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·
@@ -48,6 +49,7 @@ pub use env::{
     DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,
 };
 pub use fit::lexically_normalize;
+pub use sink::code_bearing_path_class;
 // F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's
 // trifecta Value) + the shared untrusted-ingress source predicates
 // (check≡run by construction).

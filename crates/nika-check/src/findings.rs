@@ -154,6 +154,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     fold_permit_taints(report, &mut out);
+    fold_sink_findings(report, &mut out);
     for p in &report.policy_findings {
         // spec 10 — the detail already names rule + task + witness.
         let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
@@ -219,6 +220,23 @@ fn fold_permit_taints(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(t.task.clone());
+        out.push(f);
+    }
+}
+
+/// The data-as-code sink class (NEP-0006 · NIKA-SEC-008) — the detail
+/// names the class + extension, the fix carries both repairs.
+fn fold_sink_findings(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for s in &report.sink_findings {
+        let mut f = UnifiedFinding::new(
+            "data_sink",
+            "PERMITS",
+            format!("{} (task `{}`) — fix: {}", s.detail, s.task, s.fix),
+        );
+        let code = s.wire_code();
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(s.task.clone());
         out.push(f);
     }
 }

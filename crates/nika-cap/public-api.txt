@@ -4,6 +4,8 @@ pub const nika_cap::env::DANGEROUS_ENV_VARS: &[&str]
 pub const nika_cap::env::RUNNER_FLOOR_ENV_VARS: &[&str]
 pub fn nika_cap::env::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::env::is_dangerous_env_name(name: &str) -> bool
+pub mod nika_cap::sink
+pub fn nika_cap::sink::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
 pub enum nika_cap::BuiltinEffect
 pub nika_cap::BuiltinEffect::Fs
 pub nika_cap::BuiltinEffect::Fs::path_arg: &'static str
@@ -871,6 +873,7 @@ pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_js
 pub fn nika_cap::builtin_egresses(tool: &str) -> bool
 pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
+pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
 pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool) -> bool

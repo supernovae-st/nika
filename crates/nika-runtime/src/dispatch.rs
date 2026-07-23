@@ -342,6 +342,39 @@ fn settle_exec_out(
     Dispatched::ok(note.to_owned(), value, None)
 }
 
+/// The per-attempt task context the dispatch threads to its arms — the
+/// task-level knobs that are not the action itself (bundled at the
+/// 8-argument clippy wall · an additive knob lands HERE, never as a new
+/// parameter).
+pub(crate) struct DispatchCtx<'a> {
+    /// The task's ONE `timeout:` (03-dag) — enforced at dispatch too.
+    pub deadline: Option<std::time::Duration>,
+    /// Law 6 · the ledger's remaining budget AT CALL TIME (a child
+    /// workflow's ceiling).
+    pub child_budget: Option<f64>,
+    /// NEP-0006 · the task's declared `inert:` door (the data-as-code
+    /// sink's run twin honors it).
+    pub inert: Option<&'a str>,
+}
+
+impl<'a> DispatchCtx<'a> {
+    /// The per-attempt context of a task (invariant #19 · the type owns
+    /// its constructor): the ONE `timeout:`, the ledger's remaining
+    /// budget AT CALL TIME (law 6 · computed by the caller each
+    /// attempt), and the NEP-0006 `inert:` door.
+    pub(crate) fn of_task(
+        task: &'a nika_schema::raw::RawTask,
+        deadline: Option<std::time::Duration>,
+        child_budget: Option<f64>,
+    ) -> Self {
+        Self {
+            deadline,
+            child_budget,
+            inert: task.inert.as_ref().map(|s| s.value.as_str()),
+        }
+    }
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -376,17 +409,26 @@ where
         scope: &Scope<'_>,
         taint: &crate::integrity::ValueTaint<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
-        deadline: Option<std::time::Duration>,
+        ctx: DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
-        child_budget: Option<f64>,
     ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => {
-                self.dispatch_invoke(inner, scope, taint, (deadline, child_budget), contract)
-                    .await
+                self.dispatch_invoke(
+                    inner,
+                    scope,
+                    taint,
+                    (ctx.deadline, ctx.child_budget),
+                    contract,
+                    ctx.inert,
+                )
+                .await
             }
             RawAction::Exec(inner) => self.dispatch_shell(inner, scope, taint, contract).await,
-            RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline, contract).await,
+            RawAction::Infer(inner) => {
+                self.dispatch_infer(inner, scope, ctx.deadline, contract)
+                    .await
+            }
             RawAction::Agent(inner) => {
                 self.dispatch_agent(inner, scope, agent_buffer, contract)
                     .await
@@ -407,6 +449,7 @@ where
         taint: &crate::integrity::ValueTaint<'_>,
         (deadline, child_budget): (Option<std::time::Duration>, Option<f64>),
         contract: Option<&crate::contract::TaskContract<'_>>,
+        inert: Option<&str>,
     ) -> Dispatched {
         let tool = match &action.target {
             nika_schema::raw::RawInvokeTarget::Tool(t) => t.value.clone(),
@@ -435,6 +478,13 @@ where
                 Err(err) => return Dispatched::template_err(&note, &err),
             },
         };
+        // NEP-0006 law 3 · the data-as-code sink's run twin: the RESOLVED
+        // fetch URL is classified against the one closed list, honoring
+        // the task's declared inert: door — the dynamic case the static
+        // classifier deferred (dispatch/permits.rs · check_fetch_sink).
+        if let Some(denial) = permits::check_fetch_sink(inert, &note, &tool, &args) {
+            return denial;
+        }
         // F-O1 PR-2 · the mcp border re-gate (NEP-0004 law 2): the grant
         // of the tool IS the boundary, and a tainted path/host in its args
         // slipped through — the resolved value is canonicalized then

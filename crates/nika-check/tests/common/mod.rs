@@ -166,7 +166,15 @@ pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<S
             })
             .extra_conformance_codes()
             .into_iter()
-            .filter(|c| matches!(c.namespace, "POLICY" | "AUTH" | "COMP"))
+            .filter(|c| {
+                matches!(c.namespace, "POLICY" | "AUTH" | "COMP")
+                    // NEP-0006 · the data-as-code sink (NIKA-SEC-008) is a
+                    // Core-visible law: the reference oracle judges it on
+                    // every tier, so the core verdict must too — the REST
+                    // of the SEC namespace (004/005 escapes · 009 trifecta)
+                    // stays the deep tier's ground.
+                    || (c.namespace == "SEC" && c.num == 8)
+            })
             .collect()
         }
         // A parse error (fixture 009's closed-set refusal) surfaces

@@ -2,7 +2,7 @@
   "family": "F1",
   "slug": "f1-02-realized-flow-to-exec",
   "title": "The untrusted page flows directly into an exec command line",
-  "rationale": "fs.read (private data) + realized fetch (untrusted ingress) + exec enabled (egress) with no dominating human gate — the lethal trifecta is complete and the realized-flow judge must refuse statically",
+  "rationale": "fs.read (private data) + realized fetch (untrusted ingress) + exec enabled (egress) with no dominating human gate — the lethal trifecta is complete and the realized-flow judge must refuse statically · since NEP-0006 the data-as-code sink ALSO refuses this fixture even earlier (install.sh is the script class · NIKA-SEC-008 · the sidecar keys on the trifecta finding, its theme) — two independent static walls",
   "verdict": "static-deny",
   "containment": "trifecta-static",
   "static": {

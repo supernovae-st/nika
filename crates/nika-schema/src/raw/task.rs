@@ -84,6 +84,9 @@ pub struct RawTask {
     /// `declassify:` — the task-level taint-lift declarations (NEP-0004
     /// law 5 · the only door through the re-gate · receipt-recorded).
     pub declassify: Vec<DeclassifyEntry>,
+    /// `inert:` — the declared data-as-code door (NEP-0006 law 2 · one
+    /// non-empty justification · lifts the sink law only).
+    pub inert: Option<Spanned<String>>,
     /// The verb (exactly one · parser-enforced).
     pub action: RawAction,
 }
@@ -107,6 +110,7 @@ impl RawTask {
             returns: None,
             on_finally: Vec::new(),
             declassify: Vec::new(),
+            inert: None,
             action,
         }
     }
