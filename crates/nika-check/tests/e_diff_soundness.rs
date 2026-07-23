@@ -25,8 +25,9 @@
 //!   inference never over-grants by a removable entry.
 //!
 //! Composed: check ⇔ reference boundary ⇔ inference. The runtime legs
-//! for fs/net (driving the real builtin sinks under a mock transport)
-//! are the named follow-on.
+//! for fs/net LANDED with the F-O6 lane · `nika-cli/tests/
+//! check_run_equivalence.rs` drives the real builtin sinks at the real
+//! binary (deny + floor sides · the allow-side dial stays undialed).
 
 use std::fmt::Write as _;
 
