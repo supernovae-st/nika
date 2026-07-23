@@ -67,6 +67,7 @@ mod permits_infer;
 mod policy;
 mod reach;
 mod requirements;
+mod run_decl;
 mod schema_lint;
 mod schema_typing;
 mod secrets;
@@ -90,6 +91,7 @@ pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
+pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
@@ -284,6 +286,11 @@ pub struct CheckReport {
     /// ADR-092 ladder #6 (the acyclic no-SMT slice). Requires a valid
     /// DAG order — empty when `conformance` has entries.
     pub gate_findings: Vec<GateFinding>,
+    /// Every `run:` declaration the body contradicts (F-P3) —
+    /// `entropy: none` demands strict determinism but a structural
+    /// entropy source is used (a `retry:` jitter · the non-hermetic
+    /// `nika:uuid` builtin). Additive: `report_version` stays 1.
+    pub run_decl_findings: Vec<RunDeclFinding>,
     /// Every `nika:` tool that names no canonical builtin (the closed
     /// stdlib catalog — the count lives in `nika-builtin`, never here) —
     /// a runtime dispatch failure moved to check time, with the
@@ -355,6 +362,7 @@ impl CheckReport {
             && self.missing_args.is_empty()
             && self.schema_lints.is_empty()
             && self.gate_findings.is_empty()
+            && self.run_decl_findings.is_empty()
             && self.composition.is_empty()
     }
 
@@ -421,6 +429,14 @@ impl CheckReport {
                 SpecCode::new("DAG", 7, SpecCategory::ValidationError)
             }
         }));
+        // F-P3 · the run: declaration contradicted by the body — the
+        // registered generic structural validation (the dedicated mint is
+        // the spec-side follow-up).
+        codes.extend(
+            self.run_decl_findings
+                .iter()
+                .map(|_| SpecCode::new("PARSE", 19, SpecCategory::ValidationError)),
+        );
         // Composition lane (spec 14): COMP-002 is the security law
         // (child boundary ⊄ parent); 001/003/004 are validation.
         codes.extend(self.composition.iter().map(|f| match f.code {
@@ -543,6 +559,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)
         gate_findings: reach::scan_gates(wf, &topo_waves, &edges),
+        // F-P3 · the run: declaration's body-level law (entropy: none ×
+        // a structural entropy source used)
+        run_decl_findings: run_decl::scan_run_decl(wf),
         // the PURE composition half (spec 14 law 1's textual part);
         // the resolved half needs a reader — `check_composed`
         composition: composition::scan_static(wf),
@@ -1006,6 +1025,43 @@ tasks:
                 .iter()
                 .any(|c| c.category == SpecCategory::SecurityError),
             "the SEC-004 arm is a SecurityError: {codes:?}",
+        );
+    }
+
+    #[test]
+    fn extra_conformance_codes_maps_run_decl_to_parse_019() {
+        // F-P3 · `entropy: none` contradicted by a live retry jitter →
+        // the run_decl lane refuses (is_clean fails), the class-erased
+        // findings carry the row, and the code map yields the registered
+        // generic (the dedicated mint is the spec-side follow-up).
+        let r = check_yaml(
+            "\
+nika: v1
+workflow:
+  id: strict
+permits: { exec: [\"flaky\"] }
+run: { entropy: none }
+tasks:
+  flaky:
+    exec: { command: [\"flaky\"] }
+    retry: { max_attempts: 2, backoff_ms: 1000, jitter: true }
+",
+        );
+        assert_eq!(r.run_decl_findings.len(), 1, "{r:?}");
+        assert!(!r.is_clean(), "the contradiction is a run-blocker");
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "run_decl")
+            .expect("the row lands in findings[]");
+        assert_eq!(hit.gate, "RUN");
+        assert_eq!(hit.code.as_deref(), Some("NIKA-PARSE-019"));
+        assert_eq!(hit.task.as_deref(), Some("flaky"));
+        let codes = r.extra_conformance_codes();
+        let rendered: Vec<String> = codes.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered.iter().any(|c| c == "NIKA-PARSE-019"),
+            "run_decl → NIKA-PARSE-019: {rendered:?}",
         );
     }
 

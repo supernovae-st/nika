@@ -189,6 +189,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.span = g.span;
         out.push(f);
     }
+    fold_run_decl(report, &mut out);
     fold_composition(report, &mut out);
     fold_tools(report, &mut out);
     for l in &report.schema_lints {
@@ -250,6 +251,24 @@ fn fold_trifecta(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some("NIKA-SEC-009".to_owned());
         f.docs_url = Some(format!("{}/NIKA-SEC-009", super::ERROR_DOCS_BASE));
         f.task = Some(t.task.clone());
+        out.push(f);
+    }
+}
+
+/// The run-declaration class (F-P3 · `entropy: none` contradicted by a
+/// structural entropy source) — the fold follows the trifecta/sink
+/// precedent (one arm, its own fn · the 100-line ratchet).
+fn fold_run_decl(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for r in &report.run_decl_findings {
+        let mut f = UnifiedFinding::new(
+            "run_decl",
+            "RUN",
+            format!("{} (task `{}`) — fix: {}", r.detail, r.task, r.fix),
+        );
+        let code = r.wire_code();
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(r.task.clone());
         out.push(f);
     }
 }

@@ -4,9 +4,9 @@
 //! The human render surface of `nika check` — the themed report sections
 //! (conformance · plan · models · skills · cost · secrets · types ·
 //! tools · args · composition · schema · gates · permits · policy ·
-//! trifecta · hints) and their row builders, split out of `mod.rs` under
-//! the ADR-023 1,500-LOC file ceiling (NEP-0002's TRIFECTA rung pushed
-//! the verb module over). The machine (`--json`) surface stays in
+//! trifecta · run · hints) and their row builders, split out of `mod.rs`
+//! under the ADR-023 1,500-LOC file ceiling (NEP-0002's TRIFECTA rung
+//! pushed the verb module over). The machine (`--json`) surface stays in
 //! `mod.rs`; both speak the one findings contract.
 
 use std::fmt::Write as _;
@@ -158,6 +158,7 @@ pub(super) fn render(
     permits(&mut out, report, wf, t);
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
+    run_rung(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t, drift_hints);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
@@ -203,6 +204,34 @@ fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Th
                 .trifecta_findings
                 .iter()
                 .map(|f| format!("[NIKA-SEC-009] {}", f.detail))
+                .collect(),
+        );
+    }
+}
+
+/// RUN rung (F-P3) · only when the envelope declares `run:` — an absent
+/// block is the undeclared status quo and stays SILENT (the existing
+/// corpus renders unchanged). The rows are the declaration
+/// contradictions, code first (one voice with `--json` findings[]).
+fn run_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
+    if wf.run.is_some() {
+        section_list(
+            out,
+            t,
+            "RUN",
+            "the declared entropy/clock seams hold (F-P3)",
+            report
+                .run_decl_findings
+                .iter()
+                .map(|f| {
+                    format!(
+                        "[{}] task `{}` · {} · fix: {}",
+                        f.wire_code(),
+                        f.task,
+                        f.detail,
+                        f.fix
+                    )
+                })
                 .collect(),
         );
     }
