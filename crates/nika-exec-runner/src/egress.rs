@@ -28,13 +28,28 @@
 //! through the settle pass, unreachable from an out-of-band proxy thread —
 //! the `StderrEmitter` precedent in `nika-cli`).
 //!
-//! Honest limits (mirrored from srt's own): the matcher gates the HOST, not
-//! the resolved address — a DNS name that resolves to a private/metadata IP
-//! is the documented DNS-rebinding class srt also declines to close (the
-//! `nika-http` effect's `GuardedResolver` owns that half for `nika:fetch`;
-//! exec egress has no static URL to vet). Plain-HTTP forward-proxy requests
-//! (`GET http://…`) are NOT served — CONNECT and SOCKS5 only; anything else
-//! gets an honest `405` and a closed socket (fail-closed).
+//! The floor under the allowlist (the 2026-07-23 red-team stopgaps, now
+//! law): (1) DNS-rebinding is REFUSED AT THE DIAL — every resolved address
+//! passes [`nika_types::net::ip_is_blocked`] (the same oracle the
+//! `nika-http` `GuardedResolver` runs) INSIDE the dial loop, before
+//! `connect_timeout` on that address, so an allowlisted name that resolves
+//! to a loopback/private/link-local/metadata range dies with
+//! `PermissionDenied`, with zero window between resolve and connect. The
+//! one carve-out is the author's EXACT loopback literal declared in the
+//! allowlist (#395) — never another range. (2) The egress PORT floor
+//! (`DANGEROUS_EGRESS_PORTS`): a `net.http` permit is an HTTP-egress grant
+//! — it never admits the classic non-HTTP service ports (ssh · smtp ·
+//! docker · kube · the databases), and no permit overrides the floor.
+//!
+//! The proxy runs WITHOUT a session token (srt's posture, stated honestly):
+//! a co-located local process CAN connect to it — and gains nothing. An
+//! unconfined process could dial the declared hosts directly anyway; a
+//! process confined by ANOTHER run is stopped by its own fence before it
+//! reaches this proxy. The boundary (the allowlist) holds for every
+//! client: one run's authority never leaks to hosts it did not declare.
+//! Plain-HTTP forward-proxy requests (`GET http://…`) are NOT served —
+//! CONNECT and SOCKS5 only; anything else gets an honest `405` and a
+//! closed socket (fail-closed).
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
