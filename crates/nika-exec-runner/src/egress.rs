@@ -210,10 +210,20 @@ fn serve(client: TcpStream, allowlist: &[String], observer: &EgressObserver) {
     }
 }
 
+/// The always-on egress PORT floor (H3 · red team 2026-07-23): a
+/// `net.http` permit is an HTTP-egress grant — it never admits the classic
+/// non-HTTP service ports, no matter the host (the confused-deputy class:
+/// `net.http: [api]` used as an SSH/SMTP/docker relay through the proxy).
+/// This is a floor, like `DANGEROUS_ENV_VARS`: no permit overrides it.
+const DANGEROUS_EGRESS_PORTS: &[u16] = &[
+    22, 23, 25, 110, 143, 445, 2375, 2376, 3306, 5432, 6379, 9200, 10250, 27017,
+];
+
 /// The shared verdict: the ONE matcher over the declared set, journalised.
 /// Refused targets never leave this fn with an open upstream.
 fn decide(host: &str, port: u16, allowlist: &[String], observer: &EgressObserver) -> bool {
-    let allowed = nika_types::net::host_in_allowlist(allowlist, host);
+    let allowed = !DANGEROUS_EGRESS_PORTS.contains(&port)
+        && nika_types::net::host_in_allowlist(allowlist, host);
     observer(&EgressDecision {
         host: host.to_owned(),
         port,
@@ -224,10 +234,32 @@ fn decide(host: &str, port: u16, allowlist: &[String], observer: &EgressObserver
 
 /// Dial the approved target — each resolved address in turn, per-address
 /// deadline (the blocking-resolver semantics of srt's Node proxies).
-fn dial_upstream(host: &str, port: u16) -> std::io::Result<TcpStream> {
+/// H1 · DNS-rebinding (red team 2026-07-23): an allowlisted NAME that
+/// resolves to a blocked range (loopback · private · link-local · cloud
+/// metadata) is refused per-address — the same `ip_is_blocked` oracle the
+/// `GuardedResolver` of nika-http runs, so an exec arm and an http fetch now
+/// agree on the floor.
+fn dial_upstream(host: &str, port: u16, allowlist: &[String]) -> std::io::Result<TcpStream> {
     use std::net::ToSocketAddrs;
     let mut last = std::io::Error::new(std::io::ErrorKind::AddrNotAvailable, "no address resolved");
     for addr in (host, port).to_socket_addrs()? {
+        // H1 · DNS rebinding (red team 2026-07-23) · the exec arm mirrors
+        // the nika-http floor EXACTLY: a blocked range is refused — with
+        // the one documented carve-out (#395): an EXACT loopback literal
+        // declared in the allowlist declassifies that host (the local
+        // service the author named on purpose). No other range declassifies.
+        if nika_types::net::ip_is_blocked(addr.ip()) {
+            let literal = addr.ip().to_string();
+            if nika_types::net::loopback_declassified(allowlist, &literal) {
+                // the author declared this exact loopback — the carve-out.
+            } else {
+                last = std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    format!("DNS rebinding refused: {host} resolves to the blocked range {addr}"),
+                );
+                continue;
+            }
+        }
         match TcpStream::connect_timeout(&addr, UPSTREAM_DIAL_TIMEOUT) {
             Ok(stream) => return Ok(stream),
             Err(e) => last = e,
@@ -289,7 +321,7 @@ fn serve_connect(mut client: TcpStream, allowlist: &[String], observer: &EgressO
         let _ = client.write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
         return;
     }
-    let Ok(upstream) = dial_upstream(&host, port) else {
+    let Ok(upstream) = dial_upstream(&host, port, allowlist) else {
         let _ = client.write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
         return;
     };
@@ -379,7 +411,7 @@ fn serve_socks5(mut client: TcpStream, allowlist: &[String], observer: &EgressOb
         let _ = client.write_all(&socks_reply(0x02)); // not allowed by ruleset
         return;
     }
-    let Ok(upstream) = dial_upstream(&host, port) else {
+    let Ok(upstream) = dial_upstream(&host, port, allowlist) else {
         let _ = client.write_all(&socks_reply(0x05)); // connection refused
         return;
     };
@@ -636,6 +668,48 @@ mod tests {
             }],
             "the allowed decision is journalised"
         );
+    }
+
+    #[test]
+    fn rebinding_to_a_blocked_range_is_refused_unless_exact_loopback_is_declared() {
+        // H1 · localhost resolves to 127.0.0.1 (a blocked range): refused
+        // by default, admitted only when the author declared THAT exact
+        // literal (the #395 carve-out · parity with the nika-http floor).
+        let err = dial_upstream("localhost", 80, &[]).expect_err("refused");
+        let text = format!("{err}");
+        assert!(text.contains("rebinding"), "got: {text}");
+        // The exact loopback literal declassifies → the dial proceeds
+        // (to a listener we own here, so it must succeed).
+        let (port, echo) = echo_upstream();
+        let mut stream = dial_upstream("localhost", port, &["127.0.0.1".to_owned()])
+            .expect("the declared exact loopback passes");
+        // The echo listener answers one write — close its thread cleanly.
+        std::io::Write::write_all(&mut stream, b"x").expect("write the probe byte");
+        echo.join().unwrap();
+    }
+
+    #[test]
+    fn the_port_floor_refuses_classic_non_http_services() {
+        // H3 · a net.http permit never admits ssh/smtp/docker/kube ports.
+        let probe = Probe::default();
+        let observer = probe.observer();
+        for port in [22, 25, 2375, 10250] {
+            assert!(
+                !decide(
+                    "api.example.com",
+                    port,
+                    &["api.example.com".to_owned()],
+                    &observer
+                ),
+                "port {port} must hit the floor"
+            );
+        }
+        assert!(decide(
+            "api.example.com",
+            443,
+            &["api.example.com".to_owned()],
+            &observer
+        ));
     }
 
     #[test]
