@@ -33,6 +33,12 @@ pub struct Permits {
     /// `tools:` — the `nika:`/`mcp:` tool surface (id globs).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<String>>,
+    /// `env:` — engine environment names passed through to child processes
+    /// (exact POSIX names · no globs · NEP-0005). Omitted or empty = no
+    /// passthrough: a child sees the runner env floor plus the task's
+    /// authored `env:` map, nothing else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env: Option<Vec<String>>,
 }
 
 impl Permits {
@@ -74,6 +80,26 @@ impl Permits {
             None => false,
             Some(globs) => globs.iter().any(|g| glob_matches(g, tool)),
         }
+    }
+
+    /// Whether the engine variable `name` is declared for child passthrough.
+    ///
+    /// Exact-name match (NEP-0005 · no globs). The dangerous-name floor
+    /// still strips a granted dangerous name at the spawn site — such an
+    /// entry is an inert dead grant, flagged at check (`NIKA-AUTH-009`).
+    #[must_use]
+    pub fn allows_env_key(&self, name: &str) -> bool {
+        match &self.env {
+            None => false,
+            Some(names) => names.iter().any(|n| n == name),
+        }
+    }
+
+    /// The declared `env:` passthrough names (empty when the category is
+    /// omitted) — the spawn sites' input to the composed child environment.
+    #[must_use]
+    pub fn env_passthrough(&self) -> &[String] {
+        self.env.as_deref().unwrap_or_default()
     }
 }
 
