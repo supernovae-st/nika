@@ -60,6 +60,7 @@ mod findings;
 mod flow;
 mod hints;
 pub mod native_first;
+mod permit_taint;
 pub mod permits_fit;
 mod permits_infer;
 mod policy;
@@ -82,6 +83,7 @@ pub use effective::{EffectivePermits, PermitsSource};
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::{Hint, static_read_paths};
+pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
@@ -244,6 +246,14 @@ pub struct CheckReport {
     /// `undeclared` → `NIKA-AUTH-006`) — only a pure-compute body stays
     /// empty here (and gets the « declare `permits: {}` » hint instead).
     pub capability_escapes: Vec<CapabilityEscape>,
+    /// Every permit-parameterization taint finding (NEP-0004 · the static
+    /// twin of the runtime re-gate): an interpolated permit BOUND
+    /// (`NIKA-AUTH-007` · law 1) or an untrusted value whose canonical
+    /// resolved form escapes the step's permit (`NIKA-AUTH-008` · law 2).
+    /// Judged under a PRESENT block only; unresolvable untrusted values
+    /// defer to the runtime `NIKA-SEC-004` (law 4). Additive:
+    /// `report_version` stays 1.
+    pub permit_taints: Vec<PermitTaint>,
     /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` —
     /// judged on the derived graph, so empty when `conformance` has
     /// entries). Additive: `report_version` stays 1.
@@ -327,6 +337,7 @@ impl CheckReport {
             && self.secret_leaks.is_empty()
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
+            && self.permit_taints.is_empty()
             && self.policy_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
@@ -366,6 +377,15 @@ impl CheckReport {
             } else {
                 SpecCode::new("SEC", 4, SpecCategory::SecurityError)
             }
+        }));
+        // The permit-parameterization taint (NEP-0004): the finding's own
+        // kind maps to its ONE wire code (law 1 → AUTH-007 · law 2 →
+        // AUTH-008 · both check-time security refusals).
+        codes.extend(self.permit_taints.iter().map(|t| match t.kind {
+            PermitTaintKind::BoundInterpolated => {
+                SpecCode::new("AUTH", 7, SpecCategory::SecurityError)
+            }
+            PermitTaintKind::ArgEscapes => SpecCode::new("AUTH", 8, SpecCategory::SecurityError),
         }));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001.
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
@@ -496,6 +516,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes,
+        permit_taints: permit_taint::scan_permit_taint(wf),
         policy_findings,
         trifecta_findings,
         schema_findings: schema_typing::scan_types(wf),
@@ -893,6 +914,41 @@ tasks:
             r.extra_conformance_codes().is_empty(),
             "a clean report yields no extra codes: {:?}",
             r.extra_conformance_codes(),
+        );
+    }
+
+    #[test]
+    fn extra_conformance_codes_maps_bound_interpolation_to_auth_007() {
+        // NEP-0004 law 1 — an interpolated permit bound is a check-time
+        // security refusal, stamped NIKA-AUTH-007 on BOTH surfaces (the
+        // extra-conformance list AND the unified findings) and failing
+        // `is_clean` (the permit_taints arm kills `-> vec![]`).
+        let r = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"${{ inputs.host }}\"] }\n  tools: [\"nika:fetch\"]\ninputs:\n  host: { type: string, default: \"api.example.com\" }\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+        );
+        assert!(!r.is_clean(), "an interpolated bound is dirty (law 1)");
+        assert_eq!(r.permit_taints.len(), 1, "{:?}", r.permit_taints);
+        let codes: Vec<String> = r
+            .extra_conformance_codes()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert!(
+            codes.iter().any(|c| c == "NIKA-AUTH-007"),
+            "the AUTH-007 code maps: {codes:?}"
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "permit_taint")
+            .expect("the unified finding rides");
+        assert_eq!(hit.code.as_deref(), Some("NIKA-AUTH-007"));
+        assert_eq!(hit.gate, "PERMITS");
+        assert!(
+            hit.docs_url
+                .as_deref()
+                .is_some_and(|u| u.ends_with("/NIKA-AUTH-007")),
+            "{hit:?}"
         );
     }
 

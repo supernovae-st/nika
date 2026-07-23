@@ -28,8 +28,9 @@ use super::{CheckReport, FindingSeverity};
 #[non_exhaustive]
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
-    /// `capability_escape` · `policy` · `schema_type` · `gate` ·
-    /// `unknown_tool` · `unknown_arg` · `missing_arg` · `schema_lint`).
+    /// `capability_escape` · `permit_taint` · `policy` · `schema_type` ·
+    /// `gate` · `unknown_tool` · `unknown_arg` · `missing_arg` ·
+    /// `schema_lint`).
     pub kind: &'static str,
     /// The ladder section the human render files this under.
     pub gate: &'static str,
@@ -152,6 +153,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.task = Some(c.task.clone());
         out.push(f);
     }
+    fold_permit_taints(report, &mut out);
     for p in &report.policy_findings {
         // spec 10 — the detail already names rule + task + witness.
         let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
@@ -198,6 +200,27 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     out
+}
+
+/// The permit-taint class (NEP-0004 · the check-time twin of the runtime
+/// re-gate) — the wire code is the finding's own kind (law 1 →
+/// NIKA-AUTH-007 · law 2 → NIKA-AUTH-008 · ONE match arm, every surface).
+fn fold_permit_taints(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for t in &report.permit_taints {
+        let mut f = UnifiedFinding::new(
+            "permit_taint",
+            "PERMITS",
+            match &t.fix {
+                Some(fix) => format!("{} (task `{}`) — fix: {}", t.detail, t.task, fix),
+                None => format!("{} (task `{}`)", t.detail, t.task),
+            },
+        );
+        let code = t.wire_code();
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(t.task.clone());
+        out.push(f);
+    }
 }
 
 /// The lethal-trifecta class (NEP-0002 · NIKA-SEC-009) — the detail opens
