@@ -171,9 +171,17 @@ pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<S
                     // NEP-0006 · the data-as-code sink (NIKA-SEC-008) is a
                     // Core-visible law: the reference oracle judges it on
                     // every tier, so the core verdict must too — the REST
-                    // of the SEC namespace (004/005 escapes · 009 trifecta)
+                    // of the SEC namespace (004 escape · 009 trifecta)
                     // stays the deep tier's ground.
                     || (c.namespace == "SEC" && c.num == 8)
+                    // NEP-0008 law 5 · the floor-parity dead grant
+                    // (NIKA-SEC-005) is Core-visible for the same reason:
+                    // the reference oracle judges the net boundary on
+                    // every tier (deep_static.py net_egress_boundary_errors),
+                    // and the law lives in the authority suite's home tier
+                    // (core/authority/026) — a fetch-side SEC-005 emitted
+                    // at run stays the deep/runtime ground as before.
+                    || (c.namespace == "SEC" && c.num == 5)
             })
             .collect()
         }
