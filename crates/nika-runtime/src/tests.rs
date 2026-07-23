@@ -128,6 +128,66 @@ async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
     assert_eq!(spec.fs_read, vec!["/repo/data/**".to_owned()]);
     assert_eq!(spec.fs_write, vec!["/repo/out/**".to_owned()]);
     assert_eq!(spec.net, NetPolicy::Deny, "no net.http = the deny holds");
+    assert!(
+        sent[0].env_passthrough.is_empty(),
+        "no env: category = zero declared passthrough (NEP-0005 law 1)"
+    );
+}
+
+/// NEP-0005 — the declared `permits.env:` passthrough rides every exec
+/// command to the spawn site (which composes floor ∪ these names ∪ the
+/// authored map from a cleared slate), and the authored task `env:` map
+/// stays exactly the authored entries.
+#[tokio::test]
+async fn declared_env_passthrough_rides_the_exec_command() {
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    let yaml = "nika: v1\nworkflow:\n  id: envpass\npermits:\n  exec: [\"echo\"]\n  env: [\"CI_COMMIT_SHA\", \"CI_JOB_ID\"]\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"x\"]\n      env:\n        AUTHORED: \"lit\"\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+    let shell = MockShell::new().enqueue_ok("ok");
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(shell.clone())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default().with_sandbox_root(std::path::PathBuf::from("/repo")),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    let sent = shell.executed_commands();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(
+        sent[0].env_passthrough,
+        vec!["CI_COMMIT_SHA".to_owned(), "CI_JOB_ID".to_owned()],
+        "the declared names ride the command to the spawn site"
+    );
+    assert_eq!(
+        sent[0].env.get("AUTHORED").map(String::as_str),
+        Some("lit"),
+        "the authored task env: map stays the authored entries"
+    );
 }
 
 /// No `permits:` block = ZERO AUTHORITY (F-O8): the check flags the

@@ -546,7 +546,7 @@ where
         // cwd · env · stdin flow to the subprocess (spec 02 §exec). All
         // three may carry `${{ }}` and are rendered against the scope; the
         // parser captured them but the dispatch dropped them before this
-        // (the subprocess ran in the engine cwd with the inherited env).
+        // (the subprocess ran in the engine cwd with a floor-only env).
         if let Err(err) = render_exec_io(&mut input, action, scope) {
             return Dispatched::template_err(&note, &err);
         }
@@ -588,6 +588,14 @@ where
         // (F-O8: no `permits:` block = the zero-authority spec · the exec
         // is already refused above, this is the double lock).
         input.sandbox = Some(self.exec_sandbox_spec(scope.permits));
+        // NEP-0005 · the declared `permits.env:` passthrough rides the
+        // command to the spawn site, which composes the child environment
+        // (the runner floor ∪ these names ∪ the authored `env:` map) from
+        // a cleared slate — nothing ambient crosses undeclared.
+        input.env_passthrough = scope
+            .permits
+            .map(|p| p.env_passthrough().to_vec())
+            .unwrap_or_default();
 
         match self.shell.run(input).await {
             Ok(out) => settle_exec_out(&note, out, decode, contract),
@@ -1236,7 +1244,7 @@ mod tests {
         render_exec_io(&mut input, &action, &scope).expect("renders");
         assert!(input.cwd.is_none(), "no cwd → inherited");
         assert!(input.stdin.is_none(), "no stdin");
-        assert!(input.env.is_empty(), "no env → inherited only");
+        assert!(input.env.is_empty(), "no env → the composed floor only");
     }
 
     #[test]

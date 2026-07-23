@@ -95,8 +95,14 @@ pub struct ExecInput {
     pub command: ExecCommand,
     /// Working directory (default: engine cwd).
     pub cwd: Option<PathBuf>,
-    /// OS environment for THIS subprocess (NOT the envelope `env:`).
+    /// OS environment for THIS subprocess (NOT the envelope `env:`) — the
+    /// AUTHORED entries; the runner composes the child environment from the
+    /// runner floor + [`Self::env_passthrough`] + this map (NEP-0005).
     pub env: BTreeMap<String, String>,
+    /// The declared `permits.env:` passthrough names (NEP-0005) — resolved
+    /// from the engine's ambient environment at the spawn site. Set by the
+    /// engine from the step's permit, never authored.
+    pub env_passthrough: Vec<String>,
     /// Stdin data.
     pub stdin: Option<String>,
     /// Output capture mode (default `Stdout`).
@@ -157,6 +163,7 @@ impl ExecInput {
             command,
             cwd: None,
             env: BTreeMap::new(),
+            env_passthrough: Vec::new(),
             stdin: None,
             capture: CaptureMode::Stdout,
             raw_capture: false,
@@ -398,6 +405,7 @@ fn build_command(input: ExecInput) -> ShellCommand {
     };
     cmd.cwd = input.cwd;
     cmd.env = input.env;
+    cmd.env_passthrough = input.env_passthrough;
     cmd.stdin = input.stdin;
     cmd.timeout = input.timeout;
     // The OS-confinement boundary rides untouched to the runner, which
