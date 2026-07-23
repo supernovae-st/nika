@@ -295,23 +295,16 @@ impl Dispatched {
     }
 }
 
-/// Settle a successful exec output into the task value (spec 02 §exec ·
-/// 09 §decode · the run-time fit) — split out of `dispatch_shell` for
-/// the 100-line fn ratchet · semantics unchanged.
+/// Settle a successful exec output into the task value (spec 02 · 09 ·
+/// the fit) — split for the fn ratchet · semantics unchanged.
 fn settle_exec_out(
     note: &str,
     out: nika_verb_exec::ExecOutput,
     decode: nika_schema::DecodeMode,
     contract: Option<&crate::contract::TaskContract<'_>>,
 ) -> Dispatched {
-    // A text mode (`stdout`/`stderr`/`combined`) yields a
-    // trailing-newline-trimmed STRING (the `tasks.X.output == '42'`
-    // ergonomic). `capture: structured` yields the
-    // `{ stdout, stderr, exit_code }` OBJECT verbatim — so
-    // `tasks.X.output.exit_code` resolves via CEL (spec 02 §exec · same
-    // class as BUG#3's invoke value). The structured streams are NOT
-    // trimmed (fidelity is the whole point of the mode · the verb keeps
-    // them raw).
+    // Text modes trim to a STRING · structured yields the
+    // `{stdout, stderr, exit_code}` object raw (spec 02 §exec).
     let value = match out.output {
         ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
         // The decode pipeline (spec 09 §decode) — the exact captured
