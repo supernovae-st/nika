@@ -1,0 +1,33 @@
+name: estate
+
+# E0 OBSERVATION — the estate manifest (estate.yaml · schema 2, the glob
+# estate) declares every tracked file's provenance: authored · authored-pin
+# · generated · pinned-copy · testimonial · foreign. This step only
+# OBSERVES: non-blocking (continue-on-error) · read-only permissions ·
+# it enforces nothing. Drift exits 5 (the ssot-compiler convention —
+# distinguishable from the sibling gates' exit 1 in CI logs). The heavy
+# rail (diamond-ci.yml) is deliberately untouched.
+#
+# SECURITY: no github.event data reaches the shell (house convention —
+# catalog-verify.yml security note).
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: estate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  estate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: The estate matches the tree (observation — never blocks)
+        run: python3 scripts/estate.py --check
