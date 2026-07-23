@@ -193,6 +193,10 @@ fn tiered(
         use std::fmt::Write as _;
         let _ = write!(out, "\n{line}");
     }
+    if let Some(finding) = witness_finding(raw) {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{finding}");
+    }
     let code = match report.exit {
         tier::TierExit::Ok => super::exit::OK,
         tier::TierExit::File => super::exit::FILE,
@@ -201,6 +205,48 @@ fn tiered(
         _ => super::exit::ENV,
     };
     VerbOutput { text: out, code }
+}
+
+/// NEP-0007 law 3 (spec 17 §the permit witness) — the REQUIRED-witness
+/// rule: a chain-intact journal whose run exercised effects (an
+/// `exec ·` / `invoke ·` / `agent ·` task started) and carries ZERO
+/// `permit_checked` frames is a FINDING · the witness is absent (the
+/// journal predates NEP-0007 or the engine is not conformant) · never
+/// FORGED (the chain still binds every line) · never a crash (an
+/// unreadable line is the walk's business, not this rule's).
+fn witness_finding(raw: &str) -> Option<&'static str> {
+    let mut effects = false;
+    for line in raw.lines().filter(|l| !l.trim().is_empty()) {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        match v.get("kind").and_then(serde_json::Value::as_str) {
+            Some("permit_checked") => return None,
+            Some("task_started") => {
+                let note = v
+                    .get("fields")
+                    .and_then(serde_json::Value::as_array)
+                    .and_then(|fields| {
+                        fields.iter().find(|f| {
+                            f.get("key").and_then(serde_json::Value::as_str) == Some("note")
+                        })
+                    })
+                    .and_then(|f| f.get("value"))
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("");
+                if ["exec ·", "invoke ·", "agent ·"]
+                    .iter()
+                    .any(|p| note.starts_with(p))
+                {
+                    effects = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    effects.then_some(
+        "FINDING — the run exercised effects and carries zero permit_checked frames: the\n  permit witness is absent (NEP-0007 · the journal predates the witness or the\n  engine is not conformant) — the chain still binds every line",
+    )
 }
 
 // The walk + its verdict live in the forensics crate (one genesis tag ·
@@ -574,5 +620,103 @@ mod tests {
             out.text
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A chained journal with explicit `fields` payloads — the witness
+    /// rule reads `task_started.note` and the `permit_checked` kind.
+    fn chained_with(frames: &[(&str, &[(&str, &str)])]) -> String {
+        let mut chain = sha256_hex(CHAIN_GENESIS);
+        let mut out = String::new();
+        for (kind, fields) in frames {
+            let fields: Vec<serde_json::Value> = fields
+                .iter()
+                .map(|(k, v)| serde_json::json!({"key": k, "value": v}))
+                .collect();
+            let mut v = serde_json::json!({
+                "id": {"uuid": "01912345-0000-7000-8000-000000000001"},
+                "timestamp": 1000, "kind": kind, "run": null,
+                "correlation": null, "fields": fields
+            });
+            v["chain"] = serde_json::Value::String(chain.clone());
+            let line = serde_json::to_string(&v).expect("test json");
+            chain = sha256_hex(line.as_bytes());
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out
+    }
+
+    /// NEP-0007 law 3 — an effectful run (an `exec ·` task started) with
+    /// zero `permit_checked` frames: FINDING in the text, exit stays OK
+    /// (never FORGED · the chain holds · never a crash).
+    #[test]
+    fn absent_witness_on_effectful_run_is_a_finding_never_a_failure() {
+        let raw = chained_with(&[
+            ("workflow_started", &[]),
+            (
+                "task_started",
+                &[("task", "stamp"), ("note", "exec · echo")],
+            ),
+            ("task_completed", &[("task", "stamp")]),
+            ("workflow_completed", &[]),
+        ]);
+        let path = stage("witness-absent", &raw);
+        let out = verify(&path.to_string_lossy());
+        assert_eq!(
+            out.code,
+            super::super::exit::OK,
+            "a finding never fails: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("FINDING"),
+            "the finding line rides: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("permit_checked"),
+            "it names the absent frame: {}",
+            out.text
+        );
+    }
+
+    /// One `permit_checked` frame silences the rule — and a run with NO
+    /// effectful task (pure infer) never triggers it.
+    #[test]
+    fn witness_present_or_pure_infer_run_stays_clean() {
+        let witnessed = chained_with(&[
+            (
+                "task_started",
+                &[("task", "stamp"), ("note", "exec · echo")],
+            ),
+            (
+                "permit_checked",
+                &[("plane", "exec"), ("decision", "allow")],
+            ),
+            ("task_completed", &[("task", "stamp")]),
+        ]);
+        let path = stage("witness-present", &witnessed);
+        let out = verify(&path.to_string_lossy());
+        assert_eq!(out.code, super::super::exit::OK);
+        assert!(
+            !out.text.contains("FINDING"),
+            "witnessed run is clean: {}",
+            out.text
+        );
+
+        let infer_only = chained_with(&[
+            (
+                "task_started",
+                &[("task", "think"), ("note", "infer · mock/echo")],
+            ),
+            ("task_completed", &[("task", "think")]),
+        ]);
+        let path = stage("witness-infer-only", &infer_only);
+        let out = verify(&path.to_string_lossy());
+        assert!(
+            !out.text.contains("FINDING"),
+            "no effects = no required witness: {}",
+            out.text
+        );
     }
 }
