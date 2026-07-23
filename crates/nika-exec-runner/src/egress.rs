@@ -23,7 +23,9 @@
 //! upstream; anything else is refused (CONNECT → `403`, SOCKS5 →
 //! `0x02` "not allowed by ruleset"). Every decision is journalised through
 //! the injected [`EgressObserver`] — a refused host is a security event, an
-//! allowed one a debug line (the composer surfaces both on stderr, the
+//! allowed one a debug line, and a relayed tunnel reports its byte counters
+//! at close (F-P5 metering: host + port + octets, NEVER the content — the
+//! TLS-blind posture) — (the composer surfaces all three on stderr, the
 //! FCI-009 honest seam: the run journal's `EventSink` is a `&mut` threaded
 //! through the settle pass, unreachable from an out-of-band proxy thread —
 //! the `StderrEmitter` precedent in `nika-cli`).
@@ -88,30 +90,67 @@ pub struct EgressDecision {
     pub allowed: bool,
 }
 
-/// The decision sink — the composer wires the stderr journal, tests wire a
+/// One journalised egress event (F-P5) — the observer's unit: a verdict
+/// on a target, or the closure of a relayed tunnel with its byte
+/// counters. The TLS-blind posture swears host + port + OCTETS, never
+/// the content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EgressEvent {
+    /// An allow/refuse verdict on a CONNECT/SOCKS target.
+    Decision(EgressDecision),
+    /// A relayed tunnel closed — the metering (F-P5): the bytes the
+    /// proxy moved in each direction, nothing about their content.
+    Closed {
+        /// The upstream host, exactly as the client named it.
+        host: String,
+        /// The upstream port.
+        port: u16,
+        /// Bytes relayed client → upstream (the request direction).
+        bytes_up: u64,
+        /// Bytes relayed upstream → client (the response direction).
+        bytes_down: u64,
+    },
+}
+
+/// The event sink — the composer wires the stderr journal, tests wire a
 /// collecting probe. `Fn` (never `FnMut`): the proxy calls it from
 /// connection threads.
-pub type EgressObserver = Arc<dyn Fn(&EgressDecision) + Send + Sync>;
+pub type EgressObserver = Arc<dyn Fn(&EgressEvent) + Send + Sync>;
+
+/// The one journal line for an event (pure — the [`stderr_journal`]
+/// wrapper's `eprintln` is the only impurity, so tests pin the EXACT
+/// shapes: the REFUSED row is the greppable security event, `allowed`
+/// the debug line, `closed` the metering row).
+fn journal_line(event: &EgressEvent) -> String {
+    match event {
+        EgressEvent::Decision(d) if d.allowed => {
+            format!("nika:egress allowed {}:{}", d.host, d.port)
+        }
+        EgressEvent::Decision(d) => format!(
+            "nika:egress REFUSED {}:{} (not in permits.net.http)",
+            d.host, d.port
+        ),
+        EgressEvent::Closed {
+            host,
+            port,
+            bytes_up,
+            bytes_down,
+        } => format!("nika:egress closed {host}:{port} up={bytes_up} down={bytes_down}"),
+    }
+}
 
 /// The default journal when no observer is injected — a namespaced stderr
-/// line per decision (see the module doc for the FCI-009 seam rationale).
-/// REFUSED is the security event (greppable), `allowed` the debug line.
+/// line per event (see the module doc for the FCI-009 seam rationale).
+/// REFUSED is the security event (greppable), `allowed` the debug line,
+/// `closed` the metering row (F-P5 · octets, never content).
 /// stderr, NOT `tracing::warn!`: no workspace tracing subscriber exists
 /// (the `StderrEmitter` precedent in `nika-cli`), so a tracing call would
 /// journal into the void — and a security journal that can silently vanish
 /// is worse than an unformatted one.
 #[allow(clippy::disallowed_macros, clippy::print_stderr)]
 pub(crate) fn stderr_journal() -> EgressObserver {
-    Arc::new(|d: &EgressDecision| {
-        if d.allowed {
-            eprintln!("nika:egress allowed {}:{}", d.host, d.port);
-        } else {
-            eprintln!(
-                "nika:egress REFUSED {}:{} (not in permits.net.http)",
-                d.host, d.port
-            );
-        }
-    })
+    Arc::new(|e: &EgressEvent| eprintln!("{}", journal_line(e)))
 }
 
 /// The per-run loopback proxy. Owns the accept thread; `Drop` stops the
@@ -239,11 +278,11 @@ const DANGEROUS_EGRESS_PORTS: &[u16] = &[
 fn decide(host: &str, port: u16, allowlist: &[String], observer: &EgressObserver) -> bool {
     let allowed = !DANGEROUS_EGRESS_PORTS.contains(&port)
         && nika_types::net::host_in_allowlist(allowlist, host);
-    observer(&EgressDecision {
+    observer(&EgressEvent::Decision(EgressDecision {
         host: host.to_owned(),
         port,
         allowed,
-    });
+    }));
     allowed
 }
 
@@ -287,7 +326,10 @@ fn dial_upstream(host: &str, port: u16, allowlist: &[String]) -> std::io::Result
 /// each direction's EOF propagated as a write-shutdown to the other side
 /// (half-close fidelity — a server's `close_notify` reaches the client).
 /// The handshake deadlines are cleared first: the tunnel outlives them.
-fn relay(client: TcpStream, upstream: TcpStream) {
+/// F-P5 metering: both directions' byte counts are captured and journalled
+/// as ONE `Closed` event when the tunnel ends — the TLS-blind posture
+/// swears host + port + octets, never the content.
+fn relay(client: TcpStream, upstream: TcpStream, host: &str, port: u16, observer: &EgressObserver) {
     let _ = client.set_read_timeout(None);
     let _ = client.set_write_timeout(None);
     let _ = upstream.set_read_timeout(None);
@@ -299,14 +341,27 @@ fn relay(client: TcpStream, upstream: TcpStream) {
     let west = std::thread::Builder::new()
         .name("nika-egress-relay".to_owned())
         .spawn(move || {
-            let _ = std::io::copy(&mut client_r, &mut upstream_w);
+            let up = std::io::copy(&mut client_r, &mut upstream_w);
             let _ = upstream_w.shutdown(Shutdown::Write);
+            up
         });
-    let _ = std::io::copy(&mut upstream_r, &mut client_w);
+    let down = std::io::copy(&mut upstream_r, &mut client_w);
     let _ = client_w.shutdown(Shutdown::Write);
-    if let Ok(west) = west {
-        let _ = west.join();
-    }
+    // A copy error (or a failed relay-thread spawn) reports the bytes
+    // moved before the failure — 0 when the direction never ran. The
+    // counters are what the proxy RELAYED, errors included.
+    let bytes_up = west
+        .ok()
+        .and_then(|w| w.join().ok())
+        .and_then(Result::ok)
+        .unwrap_or(0);
+    let bytes_down = down.unwrap_or(0);
+    observer(&EgressEvent::Closed {
+        host: host.to_owned(),
+        port,
+        bytes_up,
+        bytes_down,
+    });
 }
 
 /// The HTTP `CONNECT` handler (HTTPS tunneling). Reads the header block
@@ -346,7 +401,7 @@ fn serve_connect(mut client: TcpStream, allowlist: &[String], observer: &EgressO
     {
         return;
     }
-    relay(client, upstream);
+    relay(client, upstream, &host, port, observer);
 }
 
 /// Read up to the end of the CONNECT header block (`\r\n\r\n`), capped at
@@ -433,7 +488,7 @@ fn serve_socks5(mut client: TcpStream, allowlist: &[String], observer: &EgressOb
     if client.write_all(&socks_reply(0x00)).is_err() {
         return;
     }
-    relay(client, upstream);
+    relay(client, upstream, &host, port, observer);
 }
 
 /// Read exactly `n` bytes (handshake-sized — the read deadline bounds it).
@@ -599,25 +654,69 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
 
-    /// A collecting observer — every decision the proxy journalised, in order.
+    /// A collecting observer — every event the proxy journalised, in order.
     #[derive(Clone, Default)]
     struct Probe {
-        decisions: Arc<Mutex<Vec<EgressDecision>>>,
+        events: Arc<Mutex<Vec<EgressEvent>>>,
     }
 
     impl Probe {
         fn observer(&self) -> EgressObserver {
-            let decisions = Arc::clone(&self.decisions);
-            Arc::new(move |d| {
-                if let Ok(mut v) = decisions.lock() {
-                    v.push(d.clone());
+            let events = Arc::clone(&self.events);
+            Arc::new(move |e| {
+                if let Ok(mut v) = events.lock() {
+                    v.push(e.clone());
                 }
             })
         }
 
-        fn taken(&self) -> Vec<EgressDecision> {
-            self.decisions.lock().map(|v| v.clone()).unwrap_or_default()
+        /// The Decision rail (the allow/refuse verdicts), in order.
+        fn decisions(&self) -> Vec<EgressDecision> {
+            self.events
+                .lock()
+                .map(|v| {
+                    v.iter()
+                        .filter_map(|e| match e {
+                            EgressEvent::Decision(d) => Some(d.clone()),
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         }
+
+        /// The metering rail — `(host, port, bytes_up, bytes_down)` per
+        /// relayed tunnel, in order.
+        fn closed(&self) -> Vec<(String, u16, u64, u64)> {
+            self.events
+                .lock()
+                .map(|v| {
+                    v.iter()
+                        .filter_map(|e| match e {
+                            EgressEvent::Closed {
+                                host,
+                                port,
+                                bytes_up,
+                                bytes_down,
+                            } => Some((host.clone(), *port, *bytes_up, *bytes_down)),
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+    }
+
+    /// Poll `cond` until it holds (10 ms steps · 2 s ceiling) — the Closed
+    /// event rides the relay thread, so a metering assertion waits for it.
+    fn wait_for(cond: impl Fn() -> bool) {
+        for _ in 0..200 {
+            if cond() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("condition not met within 2s");
     }
 
     /// A throwaway upstream: accepts one connection, echoes what it reads.
@@ -673,7 +772,7 @@ mod tests {
         let n = c.read(&mut buf).unwrap();
         assert_eq!(&buf[..n], b"PING", "the tunnel echoes both ways");
         echo.join().unwrap();
-        let decisions = probe.taken();
+        let decisions = probe.decisions();
         assert_eq!(
             decisions,
             vec![EgressDecision {
@@ -682,6 +781,62 @@ mod tests {
                 allowed: true,
             }],
             "the allowed decision is journalised"
+        );
+    }
+
+    #[test]
+    fn a_relayed_tunnel_reports_its_byte_counters_at_close() {
+        // F-P5 (e) · the TLS-blind metering: ONE Closed event per relayed
+        // connection, swearing host + port + octets — never the content.
+        let (upstream_port, echo) = echo_upstream();
+        let (proxy, probe) = start(&["127.0.0.1"]);
+        let mut c = dial(proxy.port());
+        write!(c, "CONNECT 127.0.0.1:{upstream_port} HTTP/1.1\r\n\r\n").unwrap();
+        let mut buf = [0u8; 64];
+        let n = c.read(&mut buf).unwrap();
+        assert!(String::from_utf8_lossy(&buf[..n]).contains("200"));
+        c.write_all(b"PING").unwrap(); // 4 octets up · 4 echoed down
+        let n = c.read(&mut buf).unwrap();
+        assert_eq!(&buf[..n], b"PING");
+        echo.join().unwrap();
+        drop(c); // closing the client ends the tunnel → the Closed event
+        wait_for(|| !probe.closed().is_empty());
+        assert_eq!(
+            probe.closed(),
+            vec![("127.0.0.1".to_owned(), upstream_port, 4, 4)],
+            "the metering swears octets, never content"
+        );
+    }
+
+    #[test]
+    fn the_journal_lines_are_the_greppable_contract() {
+        // F-P5 (b) · REFUSED is the security event, verbatim — the
+        // composer greps this line; `allowed` and `closed` are the debug
+        // and metering rows.
+        let refused = journal_line(&EgressEvent::Decision(EgressDecision {
+            host: "evil.com".to_owned(),
+            port: 443,
+            allowed: false,
+        }));
+        assert_eq!(
+            refused,
+            "nika:egress REFUSED evil.com:443 (not in permits.net.http)"
+        );
+        let allowed = journal_line(&EgressEvent::Decision(EgressDecision {
+            host: "api.github.com".to_owned(),
+            port: 443,
+            allowed: true,
+        }));
+        assert_eq!(allowed, "nika:egress allowed api.github.com:443");
+        let closed = journal_line(&EgressEvent::Closed {
+            host: "api.github.com".to_owned(),
+            port: 443,
+            bytes_up: 128,
+            bytes_down: 4096,
+        });
+        assert_eq!(
+            closed,
+            "nika:egress closed api.github.com:443 up=128 down=4096"
         );
     }
 
@@ -737,7 +892,7 @@ mod tests {
         let n = c.read(&mut buf).unwrap();
         let text = String::from_utf8_lossy(&buf[..n]);
         assert!(text.starts_with("HTTP/1.1 403"), "refused: {text}");
-        let decisions = probe.taken();
+        let decisions = probe.decisions();
         assert_eq!(decisions.len(), 1);
         assert!(!decisions[0].allowed, "the refusal is the security event");
         assert_eq!(decisions[0].host, "127.0.0.1");
@@ -766,7 +921,7 @@ mod tests {
         assert_eq!(&buf, b"PONG");
         echo.join().unwrap();
         assert_eq!(
-            probe.taken(),
+            probe.decisions(),
             vec![EgressDecision {
                 host: "127.0.0.1".to_owned(),
                 port: upstream_port,
@@ -792,7 +947,7 @@ mod tests {
         c.read_exact(&mut granted).unwrap();
         assert_eq!(granted[1], 0x02, "not allowed by ruleset: {granted:?}");
         assert_eq!(
-            probe.taken(),
+            probe.decisions(),
             vec![EgressDecision {
                 host: "evil.com".to_owned(),
                 port: 443,
@@ -1031,7 +1186,7 @@ mod tests {
         let mut buf = [0u8; 64];
         let n = c.read(&mut buf).unwrap();
         assert!(String::from_utf8_lossy(&buf[..n]).starts_with("HTTP/1.1 403"));
-        let decisions = probe.taken();
+        let decisions = probe.decisions();
         assert_eq!(decisions.len(), 1);
         assert!(!decisions[0].allowed, "the refused host is journalised");
         assert_eq!(decisions[0].host, "evil.com");

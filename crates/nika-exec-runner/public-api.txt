@@ -1,4 +1,44 @@
 pub mod nika_exec_runner
+#[non_exhaustive] pub enum nika_exec_runner::EgressEvent
+pub nika_exec_runner::EgressEvent::Closed
+pub nika_exec_runner::EgressEvent::Closed::bytes_down: u64
+pub nika_exec_runner::EgressEvent::Closed::bytes_up: u64
+pub nika_exec_runner::EgressEvent::Closed::host: alloc::string::String
+pub nika_exec_runner::EgressEvent::Closed::port: u16
+pub nika_exec_runner::EgressEvent::Decision(nika_exec_runner::EgressDecision)
+impl core::clone::Clone for nika_exec_runner::EgressEvent
+pub fn nika_exec_runner::EgressEvent::clone(&self) -> nika_exec_runner::EgressEvent
+impl core::cmp::Eq for nika_exec_runner::EgressEvent
+impl core::cmp::PartialEq for nika_exec_runner::EgressEvent
+pub fn nika_exec_runner::EgressEvent::eq(&self, other: &nika_exec_runner::EgressEvent) -> bool
+impl core::fmt::Debug for nika_exec_runner::EgressEvent
+pub fn nika_exec_runner::EgressEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_exec_runner::EgressEvent
+impl<D> owo_colors::OwoColorize for nika_exec_runner::EgressEvent
+impl<T, U> core::convert::Into<U> for nika_exec_runner::EgressEvent where U: core::convert::From<T>
+pub fn nika_exec_runner::EgressEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::EgressEvent where U: core::convert::Into<T>
+pub type nika_exec_runner::EgressEvent::Error = core::convert::Infallible
+pub fn nika_exec_runner::EgressEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::EgressEvent where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::EgressEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::EgressEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_exec_runner::EgressEvent where T: core::clone::Clone
+pub type nika_exec_runner::EgressEvent::Owned = T
+pub fn nika_exec_runner::EgressEvent::clone_into(&self, target: &mut T)
+pub fn nika_exec_runner::EgressEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_exec_runner::EgressEvent where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::EgressEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::EgressEvent where T: ?core::marker::Sized
+pub fn nika_exec_runner::EgressEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::EgressEvent where T: ?core::marker::Sized
+pub fn nika_exec_runner::EgressEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_exec_runner::EgressEvent where T: core::clone::Clone
+pub unsafe fn nika_exec_runner::EgressEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_exec_runner::EgressEvent
+pub fn nika_exec_runner::EgressEvent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::EgressEvent where T: 'static
+pub fn nika_exec_runner::EgressEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_exec_runner::EgressDecision
 pub nika_exec_runner::EgressDecision::allowed: bool
 pub nika_exec_runner::EgressDecision::host: alloc::string::String
@@ -81,4 +121,4 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellCancel for nik
 pub async fn nika_exec_runner::TokioShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
 impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_exec_runner::TokioShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
 pub async fn nika_exec_runner::TokioShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
-pub type nika_exec_runner::EgressObserver = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_exec_runner::EgressDecision) + core::marker::Send + core::marker::Sync)>
+pub type nika_exec_runner::EgressObserver = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_exec_runner::EgressEvent) + core::marker::Send + core::marker::Sync)>

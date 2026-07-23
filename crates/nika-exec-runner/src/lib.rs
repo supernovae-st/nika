@@ -44,7 +44,9 @@
 //! injects the srt-mirrored env contract (`HTTP(S)_PROXY` / `ALL_PROXY` /
 //! `NO_PROXY` … on the muxed CONNECT+SOCKS5 port), and lets the OS fence
 //! admit loopback only. Every target is evaluated against the ONE host
-//! matcher and every decision journalised (see the `egress` module doc).
+//! matcher and every event journalised — the allow/refuse verdict, then
+//! the relayed tunnel's byte counters at close (the F-P5 metering · see
+//! the `egress` module doc).
 //!
 //! # Process safety (kernel CANCEL SAFETY contract)
 //!
@@ -65,7 +67,7 @@
 mod blocklist;
 mod egress;
 
-pub use egress::{EgressDecision, EgressObserver};
+pub use egress::{EgressDecision, EgressEvent, EgressObserver};
 
 use std::collections::BTreeMap;
 use std::process::Stdio;
@@ -124,8 +126,9 @@ pub struct TokioShell {
     /// the SAME boundary on the SAME port; started lazily, stopped when the
     /// last clone drops (no orphan listener outlives the run).
     egress_proxy: Arc<Mutex<Option<egress::EgressProxy>>>,
-    /// The egress-decision journal sink (every proxy verdict — a refused
-    /// host is a security event). Default: the namespaced stderr line (see
+    /// The egress-event journal sink (every proxy verdict — a refused
+    /// host is a security event — plus each relayed tunnel's byte
+    /// counters at close, F-P5). Default: the namespaced stderr line (see
     /// the `egress` module doc for the FCI-009 seam rationale).
     egress_observer: EgressObserver,
 }
@@ -169,10 +172,11 @@ impl TokioShell {
         }
     }
 
-    /// Replace the egress-decision journal sink (the allowlist arm's
-    /// allow/refuse verdicts). The default is the namespaced stderr line —
-    /// the honest out-of-band channel (FCI-009 · see the `egress` module
-    /// doc); tests and embedders wire a collecting probe here. Chainable.
+    /// Replace the egress-event journal sink (the allowlist arm's
+    /// allow/refuse verdicts + the relayed tunnels' byte counters). The
+    /// default is the namespaced stderr line — the honest out-of-band
+    /// channel (FCI-009 · see the `egress` module doc); tests and
+    /// embedders wire a collecting probe here. Chainable.
     #[must_use]
     pub fn with_egress_observer(mut self, observer: EgressObserver) -> Self {
         self.egress_observer = observer;
