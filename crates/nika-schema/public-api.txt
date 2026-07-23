@@ -924,6 +924,7 @@ pub nika_schema::raw::task::RawTask::declassify: alloc::vec::Vec<nika_schema::ra
 pub nika_schema::raw::task::RawTask::fail_fast: core::option::Option<nika_source::span::Spanned<bool>>
 pub nika_schema::raw::task::RawTask::for_each: core::option::Option<nika_source::span::Spanned<nika_schema::raw::task::ForEachValue>>
 pub nika_schema::raw::task::RawTask::id: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::task::RawTask::inert: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::task::RawTask::max_parallel: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::task::RawTask::on_error: core::option::Option<nika_source::span::Spanned<nika_vocab::on_error::OnError>>
 pub nika_schema::raw::task::RawTask::on_finally: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawFinallyTask>>
@@ -1430,6 +1431,7 @@ pub nika_schema::raw::RawTask::declassify: alloc::vec::Vec<nika_schema::raw::tas
 pub nika_schema::raw::RawTask::fail_fast: core::option::Option<nika_source::span::Spanned<bool>>
 pub nika_schema::raw::RawTask::for_each: core::option::Option<nika_source::span::Spanned<nika_schema::raw::task::ForEachValue>>
 pub nika_schema::raw::RawTask::id: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::RawTask::inert: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawTask::max_parallel: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::RawTask::on_error: core::option::Option<nika_source::span::Spanned<nika_vocab::on_error::OnError>>
 pub nika_schema::raw::RawTask::on_finally: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawFinallyTask>>

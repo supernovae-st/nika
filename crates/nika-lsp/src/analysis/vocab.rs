@@ -165,6 +165,13 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
               the re-gate): `{from, to: trusted, because}` entries — \
               check-visible and receipt-recorded, never a permit bypass.",
     },
+    Entry {
+        name: "inert",
+        doc: "Declare this task's fetch a code-bearing artifact it will \
+              never load or run (NEP-0006 · the data-as-code door): one \
+              non-empty justification string — lifts the sink law only, \
+              never the host boundary or the SSRF floor.",
+    },
 ];
 
 /// The JSON-Schema keyset inside a `schema:` block (02-verbs: the typed

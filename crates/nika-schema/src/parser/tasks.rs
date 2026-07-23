@@ -48,6 +48,7 @@ const TASK_KEYS: &[&str] = &[
     "returns",
     "on_finally",
     "declassify",
+    "inert",
 ];
 
 pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
@@ -184,6 +185,7 @@ fn parse_task(
     task.returns = parse_returns(cx, mapping)?;
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
     task.declassify = super::declassify::parse_declassify(cx, mapping, &task_label)?;
+    task.inert = super::inert::parse_inert(cx, mapping, &task_label)?;
 
     Ok(task)
 }

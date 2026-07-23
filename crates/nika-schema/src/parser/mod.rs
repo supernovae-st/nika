@@ -21,6 +21,7 @@
 pub(crate) mod declassify;
 pub(crate) mod envelope;
 pub(crate) mod envelope_values;
+mod inert;
 pub(crate) mod tasks;
 mod value;
 pub(crate) mod verbs;
