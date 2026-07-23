@@ -19,6 +19,7 @@
 use std::sync::Arc;
 
 use nika_check::check;
+use nika_event::{Event, EventKind};
 use nika_kernel::tool_executor::ToolResult;
 use nika_kernel_mock::{
     MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
@@ -26,6 +27,7 @@ use nika_kernel_mock::{
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
 use nika_schema::{FileId, ParseMode, parse};
+use nika_types::resource::Value as FieldValue;
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
@@ -260,4 +262,107 @@ async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
         shell.executed_commands().is_empty(),
         "the cleanup's tainted argv is refused pre-spawn — the overlay carried the parent's label"
     );
+}
+
+/// NEP-0004 law 5 (F-O1 PR-3) — the ONLY door: a task-level `declassify:`
+/// entry admits the named binding at the re-gate (the traversal below
+/// would refuse NIKA-SEC-004 without it — the first fixture of this
+/// file), SCOPED to the task, and the receipt records the lift: one
+/// `declassify` event between `task_started` and the terminal frame,
+/// carrying `from` · `because` · the admitted value's digest.
+#[tokio::test]
+async fn declassify_admits_the_binding_and_the_receipt_records_it() {
+    let yaml = "nika: v1\nworkflow:\n  id: regate-declassify\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    exec: { command: [\"tar\", \"-xf\", \"${{ inputs.p }}\"] }\n    declassify:\n      - from: inputs.p\n        to: trusted\n        because: \"pinned vendor bundle, hash-reviewed at release time\"\n";
+    let (outcome, _, shell) =
+        run_with_ingress(yaml, "unused", MockShell::new().enqueue_ok("extracted\n")).await;
+    assert!(
+        outcome.ok,
+        "the declassified binding is admitted at the re-gate: {:?}",
+        outcome.records
+    );
+    assert_eq!(outcome.records["untar"].status, TaskStatus::Success);
+    assert_eq!(
+        shell.executed_commands().len(),
+        1,
+        "the admitted exec reached the runner"
+    );
+    // The receipt: one `declassify` event, between task_started and the
+    // terminal, with the law-5 evidence (from · because · value digest).
+    let sink_events = run_with_ingress_sink(yaml).await;
+    let kinds: Vec<EventKind> = sink_events.iter().map(|e| e.kind).collect();
+    let started = kinds
+        .iter()
+        .position(|k| *k == EventKind::TaskStarted)
+        .expect("task_started");
+    let lift = kinds
+        .iter()
+        .position(|k| *k == EventKind::Declassify)
+        .expect("the declassify event rides the receipt");
+    let terminal = kinds
+        .iter()
+        .rposition(|k| *k == EventKind::TaskCompleted)
+        .expect("task_completed");
+    assert!(
+        started < lift && lift < terminal,
+        "task_started < declassify < task_completed: {kinds:?}"
+    );
+    let event = &sink_events[lift];
+    let field = |key: &str| {
+        event
+            .fields
+            .iter()
+            .find(|kv| kv.key == key)
+            .and_then(|kv| match &kv.value {
+                FieldValue::String(s) => Some(s.as_str()),
+                _ => None,
+            })
+    };
+    assert_eq!(field("task"), Some("untar"));
+    assert_eq!(field("from"), Some("inputs.p"));
+    assert!(
+        field("because").is_some_and(|b| b.contains("hash-reviewed")),
+        "the justification rides: {:?}",
+        event.fields
+    );
+    assert!(
+        field("value_digest").is_some_and(|d| d.len() == 64),
+        "the blake3 hex digest of the admitted value: {:?}",
+        event.fields
+    );
+}
+
+/// Re-run the declassify workflow keeping the sink (the event assertions
+/// need the stream, not just the outcome).
+async fn run_with_ingress_sink(yaml: &str) -> Vec<Event> {
+    let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = check(&wf);
+    assert!(
+        report.is_clean(),
+        "the door is check-visible, never a finding: {:?}",
+        report.findings
+    );
+    let tools = Arc::new(MockToolExecutor::new());
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("extracted\n"))),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    assert!(outcome.ok, "{:?}", outcome.records);
+    sink.into_events()
 }

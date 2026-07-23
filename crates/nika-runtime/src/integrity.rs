@@ -72,6 +72,7 @@ pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskReco
         &taint.with_taint,
         taint.item_taint.as_ref(),
         records,
+        &taint.declassified,
     );
 
     // Born-source wins the witness; else the effect flows out; else the
@@ -82,7 +83,13 @@ pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskReco
     if effect.is_untrusted() {
         return effect;
     }
-    recover_taint(task, &taint.with_taint, taint.item_taint.as_ref(), records)
+    recover_taint(
+        task,
+        &taint.with_taint,
+        taint.item_taint.as_ref(),
+        records,
+        &taint.declassified,
+    )
 }
 
 /// The per-template taint oracle (F-O1 PR-2 · the dispatch re-gate's
@@ -96,6 +103,11 @@ pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskReco
 /// The oracle is iteration-agnostic: a fan-out's `with:` is re-rendered
 /// per item but its TAINT is a static function of the templates (an
 /// `item` read joins the collection's taint, not the item's value).
+///
+/// F-O1 PR-3 (NEP-0004 law 5): the task's `declassify:` declarations ride
+/// the oracle — a `from:` binding reads TRUSTED here (scoped to THIS
+/// task, the only door through the re-gate); the receipt event is the
+/// settle spine's.
 pub(crate) struct ValueTaint<'a> {
     /// `with:` slot taints, progressive (a with-value may reference an
     /// EARLIER with key — declaration order, the content-flow walk).
@@ -103,22 +115,36 @@ pub(crate) struct ValueTaint<'a> {
     /// `for_each` item taint: the collection's refs taint the loop-local
     /// `item` within the task (a literal list is authored — clean).
     item_taint: Option<Integrity>,
+    /// The bindings THIS task declassifies (`declassify.from` verbatim ·
+    /// the dotted canonical form `inputs.p` · `tasks.dl.output`).
+    declassified: std::collections::BTreeSet<String>,
 }
 
 impl<'a> ValueTaint<'a> {
     /// The task-local taints (the first two steps of the integrity
     /// walk), borrowed from the task's own templates.
     pub(crate) fn of_task(task: &'a RawTask, records: &BTreeMap<String, TaskRecord>) -> Self {
+        let declassified: std::collections::BTreeSet<String> = task
+            .declassify
+            .iter()
+            .map(|entry| entry.from.value.clone())
+            .collect();
         let mut with_taint: BTreeMap<&str, Integrity> = BTreeMap::new();
         for (key, value) in &task.with {
-            let taint = join_refs(&refs_in_json(&value.value), &with_taint, None, records);
+            let taint = join_refs(
+                &refs_in_json(&value.value),
+                &with_taint,
+                None,
+                records,
+                &declassified,
+            );
             if taint.is_untrusted() {
                 with_taint.insert(key.value.as_str(), taint);
             }
         }
         let item_taint: Option<Integrity> = task.for_each.as_ref().and_then(|f| match &f.value {
             ForEachValue::Expression(src) => {
-                let taint = join_refs(&refs_in_str(src), &with_taint, None, records);
+                let taint = join_refs(&refs_in_str(src), &with_taint, None, records, &declassified);
                 taint.is_untrusted().then_some(taint)
             }
             ForEachValue::List(_) => None,
@@ -131,23 +157,27 @@ impl<'a> ValueTaint<'a> {
         Self {
             with_taint,
             item_taint,
+            declassified,
         }
     }
 
     /// No task-local taints — the `on_finally:` mini-task shape (no
-    /// `with:` · no `for_each`); the records/inputs lookups of
+    /// `with:` · no `for_each` · no `declassify:` — a cleanup never
+    /// declares the door); the records/inputs lookups of
     /// [`ValueTaint::label`] still apply.
     pub(crate) fn bare() -> ValueTaint<'static> {
         ValueTaint {
             with_taint: BTreeMap::new(),
             item_taint: None,
+            declassified: std::collections::BTreeSet::new(),
         }
     }
 
     /// The label of ONE template's rendered value: the join of every
     /// reference the template reads (the SAME `join_refs` + `source_of`
     /// law as the task-level walk — `inputs.X` is the caller boundary,
-    /// `tasks.X` reads the settled record's label).
+    /// `tasks.X` reads the settled record's label, a declassified binding
+    /// reads trusted HERE).
     pub(crate) fn label(
         &self,
         template: &str,
@@ -158,6 +188,7 @@ impl<'a> ValueTaint<'a> {
             &self.with_taint,
             self.item_taint.as_ref(),
             records,
+            &self.declassified,
         )
     }
 }
@@ -187,6 +218,7 @@ fn recover_taint(
     with_taint: &BTreeMap<&str, Integrity>,
     item_taint: Option<&Integrity>,
     records: &BTreeMap<String, TaskRecord>,
+    declassified: &std::collections::BTreeSet<String>,
 ) -> Integrity {
     let Some(on_error) = &task.on_error else {
         return Integrity::trusted();
@@ -194,7 +226,13 @@ fn recover_taint(
     let OnErrorAction::Recover(value) = &on_error.value.action else {
         return Integrity::trusted();
     };
-    join_refs(&refs_in_json(&value.value), with_taint, item_taint, records)
+    join_refs(
+        &refs_in_json(&value.value),
+        with_taint,
+        item_taint,
+        records,
+        declassified,
+    )
 }
 
 /// The join of a ref set's taints — the FIRST untrusted witness sticks
@@ -204,9 +242,10 @@ fn join_refs(
     with_taint: &BTreeMap<&str, Integrity>,
     item_taint: Option<&Integrity>,
     records: &BTreeMap<String, TaskRecord>,
+    declassified: &std::collections::BTreeSet<String>,
 ) -> Integrity {
     refs.iter().fold(Integrity::trusted(), |acc, r| {
-        acc.join(source_of(r, with_taint, item_taint, records))
+        acc.join(source_of(r, with_taint, item_taint, records, declassified))
     })
 }
 
@@ -216,20 +255,33 @@ fn join_refs(
 /// external boundary (Perl-taint slot rule — untrusted whether or not
 /// THIS run overrode the default). `config:`/`const:` are the operator's
 /// authorities · `secrets:` is the confidentiality axis's business — all
-/// trusted on THIS lattice.
+/// trusted on THIS lattice. F-O1 PR-3 (NEP-0004 law 5): a binding the
+/// task's `declassify:` names reads TRUSTED here — the only door,
+/// scoped to this task (the receipt event is the settle spine's).
 fn source_of(
     r: &NamespaceRef,
     with_taint: &BTreeMap<&str, Integrity>,
     item_taint: Option<&Integrity>,
     records: &BTreeMap<String, TaskRecord>,
+    declassified: &std::collections::BTreeSet<String>,
 ) -> Integrity {
     match r {
-        NamespaceRef::Tasks { id, .. } => records
-            .get(id)
-            .map_or_else(Integrity::default, |rec| rec.integrity.clone()),
+        NamespaceRef::Tasks { id, .. } => {
+            if declassified.contains(&format!("tasks.{id}.output")) {
+                return Integrity::trusted();
+            }
+            records
+                .get(id)
+                .map_or_else(Integrity::default, |rec| rec.integrity.clone())
+        }
         NamespaceRef::With(key) => with_taint.get(key.as_str()).cloned().unwrap_or_default(),
         NamespaceRef::Item => item_taint.cloned().unwrap_or_default(),
-        NamespaceRef::Inputs(name) => Integrity::untrusted(format!("inputs.{name}")),
+        NamespaceRef::Inputs(name) => {
+            if declassified.contains(&format!("inputs.{name}")) {
+                return Integrity::trusted();
+            }
+            Integrity::untrusted(format!("inputs.{name}"))
+        }
         _ => Integrity::trusted(),
     }
 }
@@ -531,6 +583,54 @@ mod tests {
             oracle.label("${{ with.page }}", &recs),
             Integrity::trusted(),
             "a mini-task has no with: to taint"
+        );
+    }
+
+    #[test]
+    fn declassify_lifts_the_named_binding_scoped_to_the_task() {
+        // NEP-0004 law 5 — the ONLY door: a task-level `declassify:` entry
+        // raises its `from:` binding to trusted HERE (the re-gate oracle
+        // AND the task's own output label), and leaves every OTHER
+        // binding tainted (never a blanket lift).
+        let task = parse_task(&format!(
+            "{HEAD}  load:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ inputs.p }}}}\" }}\n    declassify:\n      - {{ from: inputs.p, to: trusted, because: \"reviewed vendor path\" }}\n"
+        ));
+        let recs = records(Vec::new());
+        let oracle = ValueTaint::of_task(&task, &recs);
+        assert_eq!(
+            oracle.label("${{ inputs.p }}", &recs),
+            Integrity::trusted(),
+            "the declassified binding reads trusted"
+        );
+        assert_eq!(
+            oracle.label("${{ inputs.other }}", &recs),
+            Integrity::untrusted("inputs.other"),
+            "an unnamed binding stays tainted — the lift is scoped"
+        );
+        // …and the task's own output label follows (the author vouched).
+        assert_eq!(task_integrity(&task, &recs), Integrity::trusted());
+
+        // A tasks.<id>.output door lifts the record's label at the
+        // CONSUMER (the record itself keeps its provenance).
+        let consumer = parse_task(&format!(
+            "{HEAD}  use:\n    exec: {{ command: [\"tar\", \"-xf\", \"${{{{ tasks.dl.output }}}}\"] }}\n    declassify:\n      - {{ from: tasks.dl.output, to: trusted, because: \"pinned artifact, hash-reviewed\" }}\n"
+        ));
+        let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
+        assert_eq!(
+            ValueTaint::of_task(&consumer, &recs).label("${{ tasks.dl.output }}", &recs),
+            Integrity::trusted(),
+            "the tasks.* door lifts the consumer's read"
+        );
+        assert_eq!(task_integrity(&consumer, &recs), Integrity::trusted());
+        // …but a DIFFERENT tainted record still taints the same task.
+        let recs2 = records(vec![
+            settled("dl", Integrity::untrusted("dl")),
+            settled("page", Integrity::untrusted("page")),
+        ]);
+        assert_eq!(
+            ValueTaint::of_task(&consumer, &recs2).label("${{ tasks.page.output }}", &recs2),
+            Integrity::untrusted("page"),
+            "the door names ONE binding — page stays tainted"
         );
     }
 }

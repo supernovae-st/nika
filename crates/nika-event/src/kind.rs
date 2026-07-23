@@ -135,6 +135,16 @@ pub enum EventKind {
     /// run-key that minted it, emitted as the LAST line of a signed run
     /// (S2 · `seal_format: 1` · the evidence pack's integrity root).
     RunSealed,
+    // ── additive cohort 2026-07-23 · F-O1 PR-3 (NEP-0004 law 5) · the
+    //    declassify door is receipt-recorded. MINOR-bump additive per
+    //    the header law. ──
+    /// A task-level `declassify:` entry lifted one binding from untrusted
+    /// to trusted for THIS task (`task` + `from` + `because` +
+    /// `value_digest` fields — the taint-lift evidence · NEP-0004 law 5 ·
+    /// the only door through the permit re-gate; emitted once per entry
+    /// between `task_started` and the terminal frame, so the receipt
+    /// commits to WHAT was lifted and WHY).
+    Declassify,
 }
 
 impl EventKind {
@@ -173,6 +183,7 @@ impl EventKind {
             Self::TaskCacheHit => "task_cache_hit",
             Self::WorkflowPaused => "workflow_paused",
             Self::RunSealed => "run_sealed",
+            Self::Declassify => "declassify",
         }
     }
 
@@ -243,7 +254,7 @@ impl EventKind {
             Self::CheckpointWritten | Self::RunSealed => EventClass::Durability,
             Self::CostIncurred => EventClass::Cost,
             Self::InferChunk => EventClass::Stream,
-            Self::PermitChecked => EventClass::Security,
+            Self::PermitChecked | Self::Declassify => EventClass::Security,
             Self::AgentToolsSelected
             | Self::AgentNudge
             | Self::AgentStalled
@@ -323,6 +334,7 @@ mod tests {
         EventKind::TaskCacheHit,
         EventKind::WorkflowPaused,
         EventKind::RunSealed,
+        EventKind::Declassify,
     ];
 
     #[test]
@@ -357,10 +369,11 @@ mod tests {
                 | EventKind::AgentBudgetCheckpoint
                 | EventKind::TaskCacheHit
                 | EventKind::WorkflowPaused
-                | EventKind::RunSealed => {}
+                | EventKind::RunSealed
+                | EventKind::Declassify => {}
             }
         }
-        assert_eq!(ALL.len(), 26, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 27, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -437,7 +450,7 @@ mod tests {
                 "checkpoint_written" | "run_sealed" => Some(EventClass::Durability),
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
-                "permit_checked" => Some(EventClass::Security),
+                "permit_checked" | "declassify" => Some(EventClass::Security),
                 s if s.starts_with("agent_") => Some(EventClass::Agent),
                 _ => None,
             };

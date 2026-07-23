@@ -102,6 +102,9 @@ struct Parked {
     agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     duration_ms: u64,
     resume: Option<crate::resume::ResumeStamp>,
+    /// The `declassify:` receipt evidence computed when the task ran —
+    /// the door opened BEFORE the park; the events ride to resolution.
+    declassified: Vec<crate::task::DeclassifyEvidence>,
     pending: Box<PendingRecovery>,
 }
 
@@ -205,6 +208,7 @@ fn try_park(
         named,
         resume,
         integrity,
+        declassified,
     } = finish;
     let ran = match settled_as {
         SettleAs::Ran(ran) => ran,
@@ -215,6 +219,7 @@ fn try_park(
                 named,
                 resume,
                 integrity,
+                declassified,
             });
         }
     };
@@ -241,6 +246,7 @@ fn try_park(
                 named,
                 resume,
                 integrity,
+                declassified,
             });
         }
     };
@@ -257,6 +263,7 @@ fn try_park(
                 agent_events,
                 duration_ms,
                 resume,
+                declassified,
                 pending,
             },
         );
@@ -287,6 +294,7 @@ fn try_park(
         named,
         resume,
         integrity,
+        declassified,
     })
 }
 
@@ -417,6 +425,7 @@ fn resolve_parked(
         agent_events,
         duration_ms,
         resume,
+        declassified,
         pending,
     } = park;
     let PendingRecovery {
@@ -500,6 +509,7 @@ fn resolve_parked(
         named,
         resume,
         integrity,
+        declassified,
     }
 }
 

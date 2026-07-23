@@ -73,6 +73,72 @@ pub(crate) struct Finish {
     /// flowed). The settle spine stamps it on the record; no gate
     /// consumes it yet (PR-2).
     pub integrity: nika_cap::Integrity,
+    /// The `declassify:` receipt evidence (F-O1 PR-3 · NEP-0004 law 5) —
+    /// one entry per declared door, emitted as `declassify` events between
+    /// `task_started` and the terminal frame when the task RAN (the door
+    /// was used). Empty everywhere else (a skipped/cancelled/cache-hit
+    /// task never opened it).
+    pub declassified: Vec<DeclassifyEvidence>,
+}
+
+/// One `declassify:` entry's receipt evidence (NEP-0004 law 5 · the only
+/// door through the permit re-gate): the raised binding, the author's
+/// justification, and the digest of the value the door admitted (when
+/// the binding resolves at dispatch — an unresolvable binding records
+/// the door with `value_digest` absent, never a guess).
+pub(crate) struct DeclassifyEvidence {
+    /// The `from:` binding, verbatim (`inputs.p` · `tasks.dl.output`).
+    pub from: String,
+    /// The `because:` justification, verbatim.
+    pub because: String,
+    /// blake3 hex over the JCS of the binding's resolved value.
+    pub value_digest: Option<String>,
+}
+
+/// Compute the receipt evidence for a task that is about to RUN: one row
+/// per `declassify:` entry, the digest read from the live scopes
+/// (`inputs.` / `config.` / a settled `tasks.<id>.output` — anything
+/// else records the door digest-less).
+fn declassify_evidence(
+    task: &RawTask,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    records: &BTreeMap<String, TaskRecord>,
+) -> Vec<DeclassifyEvidence> {
+    task.declassify
+        .iter()
+        .map(|entry| {
+            let from = entry.from.value.clone();
+            let value = binding_value(&from, inputs, config, records);
+            DeclassifyEvidence {
+                from,
+                because: entry.because.value.clone(),
+                value_digest: value.and_then(crate::resume::jcs_blake3_hex),
+            }
+        })
+        .collect()
+}
+
+/// The live value of a `declassify.from` binding (`inputs.X` ·
+/// `config.X` · `tasks.<id>.output`) — `None` when the binding names
+/// anything else (the door is still recorded, digest absent).
+fn binding_value<'a>(
+    from: &str,
+    inputs: &'a BTreeMap<String, Value>,
+    config: &'a BTreeMap<String, Value>,
+    records: &'a BTreeMap<String, TaskRecord>,
+) -> Option<&'a Value> {
+    if let Some(name) = from.strip_prefix("inputs.") {
+        return inputs.get(name);
+    }
+    if let Some(name) = from.strip_prefix("config.") {
+        return config.get(name);
+    }
+    if let Some(rest) = from.strip_prefix("tasks.") {
+        let id = rest.strip_suffix(".output")?;
+        return records.get(id).map(|rec| &rec.output);
+    }
+    None
 }
 
 /// How the task settles (spec 03 §task states).
@@ -293,8 +359,10 @@ where
                         named: null_bindings(task),
                         resume: None,
                         // Never started — no content flowed (the F-O1
-                        // label is trusted by default).
+                        // label is trusted by default · the door never
+                        // opened either).
                         integrity: nika_cap::Integrity::trusted(),
+                        declassified: Vec::new(),
                     };
                 }
             };
@@ -359,12 +427,17 @@ where
         // defined-null reads).
         let named = bind_outputs(task, &mut settle);
         let resume = filter_leaky_resume(resume, &settle, resume_ctx);
+        // F-O1 PR-3 · the task RAN — the door was used: the receipt
+        // carries one `declassify` event per declared entry (the settle
+        // spine emits them after `task_started`).
+        let declassified = declassify_evidence(task, inputs, config, records);
         Finish {
             id,
             settle,
             named,
             resume,
             integrity,
+            declassified,
         }
     }
 
@@ -478,6 +551,9 @@ where
             // pipeline's computed label — the rehydrated output carries
             // the task's provenance.
             integrity: nika_cap::Integrity::trusted(),
+            // A cache hit never ran HERE — the original run recorded the
+            // door (no new `declassify` event).
+            declassified: Vec::new(),
         })
     }
 
@@ -1200,6 +1276,7 @@ fn gate_finish(
                 resume: None,
                 // Never ran — the output is `Null`, no content flowed.
                 integrity: nika_cap::Integrity::trusted(),
+                declassified: Vec::new(),
             });
         }
     }
@@ -1258,6 +1335,7 @@ fn when_finish(
         // Never started (the gate closed · the boundary refused) — the
         // output is `Null`, no content flowed.
         integrity: nika_cap::Integrity::trusted(),
+        declassified: Vec::new(),
     })
 }
 

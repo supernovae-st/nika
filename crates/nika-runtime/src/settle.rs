@@ -42,6 +42,9 @@ pub(crate) fn settle(
     // for a never-started task); stamped on the record + rides the
     // terminal frame when untrusted. Additive — no gate reads it (PR-2).
     let integrity = finish.integrity;
+    // F-O1 PR-3 — the `declassify:` receipt evidence (NEP-0004 law 5);
+    // emitted once per entry on the Ran path (the door was used).
+    let declassified = finish.declassified;
     match finish.settle {
         SettleAs::Cancelled { note, blocked_by } => {
             // The WHY rides along: which upstream kept the gate closed —
@@ -112,10 +115,45 @@ pub(crate) fn settle(
             cache_hits.push(id);
         }
         SettleAs::Ran(run) => {
-            let mut record = settle_ran(&id, run, resume.as_ref(), &integrity, ok, stamper, sink);
+            let mut record = settle_ran(
+                &id,
+                run,
+                resume.as_ref(),
+                &integrity,
+                &declassified,
+                ok,
+                stamper,
+                sink,
+            );
             record.named = named;
             records.insert(id, record);
         }
+    }
+}
+
+/// Emit one `declassify` frame per declared entry (NEP-0004 law 5 · the
+/// only door through the re-gate): the receipt commits to WHAT was
+/// lifted (`from` · the taint path's binding), WHY (`because`), and the
+/// digest of the value the door admitted (`value_digest`, when the
+/// binding resolved at dispatch). Emitted BETWEEN `task_started` and
+/// the terminal frame — the hash chain binds the lift to the task that
+/// consumed it.
+fn emit_declassified(
+    id: &str,
+    evidence: &[task::DeclassifyEvidence],
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    for entry in evidence {
+        let mut fields = vec![
+            ("task", s(id)),
+            ("from", s(&entry.from)),
+            ("because", s(&entry.because)),
+        ];
+        if let Some(digest) = &entry.value_digest {
+            fields.push(("value_digest", s(digest)));
+        }
+        emit(stamper, sink, EventKind::Declassify, &fields);
     }
 }
 
@@ -194,6 +232,7 @@ pub(crate) fn settle_ran(
     run: task::RanTask,
     resume: Option<&resume::ResumeStamp>,
     integrity: &nika_cap::Integrity,
+    declassified: &[task::DeclassifyEvidence],
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -204,6 +243,9 @@ pub(crate) fn settle_ran(
         EventKind::TaskStarted,
         &[("task", s(id)), ("note", s(&run.note))],
     );
+    // NEP-0004 law 5 — the receipt records the door BEFORE the attempt
+    // history replays: the lift is a dispatch-time act.
+    emit_declassified(id, declassified, stamper, sink);
     emit_retry_history(id, &run.retries, stamper, sink);
     // The agent loop's decisions (ADR-096 · buffered per dispatch · in
     // order across attempts) land between the attempt history and the

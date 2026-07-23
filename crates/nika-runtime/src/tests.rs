@@ -510,6 +510,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
         ran,
         None,
         &TRUSTED,
+        &[],
         &mut ok,
         &mut stamper,
         &mut sink,
@@ -563,6 +564,7 @@ fn obs_e_warning_rides_task_completed() {
         ran,
         None,
         &TRUSTED,
+        &[],
         &mut ok,
         &mut stamper,
         &mut sink,
@@ -617,7 +619,16 @@ fn no_warning_field_on_a_clean_success() {
     let mut ok = true;
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    settle::settle_ran("t", ran, None, &TRUSTED, &mut ok, &mut stamper, &mut sink);
+    settle::settle_ran(
+        "t",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
 
     let completed = sink
         .events()
@@ -661,7 +672,16 @@ fn cost_unpriced_reason_rides_task_completed() {
     let mut ok = true;
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    settle::settle_ran("ask", ran, None, &TRUSTED, &mut ok, &mut stamper, &mut sink);
+    settle::settle_ran(
+        "ask",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
 
     let completed = sink
         .events()
