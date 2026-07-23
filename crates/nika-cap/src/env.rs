@@ -52,19 +52,28 @@ pub const DANGEROUS_ENV_VARS: &[&str] = &[
     "GIT_PROXY_COMMAND", // config-driven git RCE (P2)
     "GIT_CONFIG_GLOBAL", // point git at an attacker config (core.pager/fsmonitor)
     "GIT_CONFIG_SYSTEM",
-    "GIT_TEMPLATE_DIR", // attacker hooks copied into a new repo
-    "LESSOPEN",         // pager-input-preprocess command injection (P2)
-    "HOSTALIASES",      // attacker file read during hostname resolution (P2)
-    "TERMINFO",         // load a crafted terminfo entry (P2)
-    "TERMINFO_DIRS",    // terminfo search-path override (P2)
-    "TERMCAP",          // crafted termcap string executed by some pagers (P2)
+    "GIT_CONFIG_PARAMETERS", // inline config (core.pager) with no file at all (O4-A)
+    "GIT_CONFIG_COUNT",      // the enumerated form of the same inline class (O4-A)
+    "GIT_TEMPLATE_DIR",      // attacker hooks copied into a new repo
+    "LESSOPEN",              // pager-input-preprocess command injection (P2)
+    "HOSTALIASES",           // attacker file read during hostname resolution (P2)
+    "TERMINFO",              // load a crafted terminfo entry (P2)
+    "TERMINFO_DIRS",         // terminfo search-path override (P2)
+    "TERMCAP",               // crafted termcap string executed by some pagers (P2)
     // Interpreter pre-exec hooks.
     "PYTHONSTARTUP",
     "PYTHONPATH", // inject a module into any python that imports (P2)
     "PERL5OPT",
     "PERL5LIB",
     "RUBYOPT",
+    "RUBYLIB", // ruby search-path override (O4-A)
     "NODE_OPTIONS",
+    "NODE_PATH",            // node module search-path override (O4-A)
+    "JAVA_TOOL_OPTIONS",    // JVM -agentlib/-agentpath hook (O4-A)
+    "_JAVA_OPTIONS",        // the same class, honored even when the other is set (O4-A)
+    "DOTNET_STARTUP_HOOKS", // .NET startup hook assembly (O4-A)
+    "OPENSSL_CONF",         // OpenSSL config → module load (O4-A)
+    "OPENSSL_MODULES",      // OpenSSL provider search path (O4-A)
     // Field-splitting injection for shell-mode commands.
     "IFS",
 ];
@@ -193,6 +202,25 @@ mod tests {
         assert!(!env.contains_key("BASH_ENV"));
         assert!(is_dangerous_env_name("LD_PRELOAD"));
         assert!(!is_dangerous_env_name("CI_COMMIT_SHA"));
+    }
+
+    #[test]
+    fn the_o4_a_inline_config_class_is_dangerous() {
+        // O4-A · the same-RCE-with-no-file class (red team 2026-07-23):
+        // inline git config + the interpreter pre-exec hooks join the floor.
+        for name in [
+            "GIT_CONFIG_PARAMETERS",
+            "GIT_CONFIG_COUNT",
+            "JAVA_TOOL_OPTIONS",
+            "_JAVA_OPTIONS",
+            "DOTNET_STARTUP_HOOKS",
+            "RUBYLIB",
+            "NODE_PATH",
+            "OPENSSL_CONF",
+            "OPENSSL_MODULES",
+        ] {
+            assert!(is_dangerous_env_name(name), "{name} must be on the floor");
+        }
     }
 
     #[test]
