@@ -390,7 +390,7 @@ fn propagate_cleanups(
 /// network exposure as an `mcp:` tool, which is already flagged). A secret
 /// reaching one with no `egress:` sanction is a leak (BUG#3 · now CANONICAL ·
 /// spec `01-envelope.md` §egress aligned to this strict behavior · F-03).
-/// The OUTPUT carve-out is SEPARATE and PRESERVED (see [`propagate_task`]
+/// The OUTPUT carve-out is SEPARATE and PRESERVED (see `propagate_task`
 /// step 4 · the model response is not a verbatim echo, so infer/agent OUTPUT
 /// is never tainted from a prompt secret · ADR-092). To send a secret to a
 /// provider, the author sanctions it explicitly (`egress: [{ to: "infer" }]`

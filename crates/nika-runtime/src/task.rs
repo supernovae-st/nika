@@ -21,7 +21,7 @@ use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{ForEachValue, RawAction, RawFinallyTask, RawTask};
+use nika_schema::raw::{ForEachValue, RawAction, RawTask};
 use nika_schema::types::{OnError, OnErrorAction, Permits, WhenGate};
 use serde_json::Value;
 
@@ -48,11 +48,13 @@ pub(crate) const TIMEOUT_CODE: &str = "NIKA-TIMEOUT-001";
 /// (spec 03 · same spec-plane discipline as [`TIMEOUT_CODE`]).
 pub(crate) const VAR_TYPE_CODE: &str = "NIKA-VAR-006";
 
-/// Default per-cleanup-task timeout (spec 03 §`on_finally`).
-const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
-
 /// One task's complete, pen-free outcome — the settle pass turns this
 /// into events + a record.
+mod declassify;
+mod finally;
+
+pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};
+
 pub(crate) struct Finish {
     pub id: String,
     pub settle: SettleAs,
@@ -79,66 +81,6 @@ pub(crate) struct Finish {
     /// was used). Empty everywhere else (a skipped/cancelled/cache-hit
     /// task never opened it).
     pub declassified: Vec<DeclassifyEvidence>,
-}
-
-/// One `declassify:` entry's receipt evidence (NEP-0004 law 5 · the only
-/// door through the permit re-gate): the raised binding, the author's
-/// justification, and the digest of the value the door admitted (when
-/// the binding resolves at dispatch — an unresolvable binding records
-/// the door with `value_digest` absent, never a guess).
-pub(crate) struct DeclassifyEvidence {
-    /// The `from:` binding, verbatim (`inputs.p` · `tasks.dl.output`).
-    pub from: String,
-    /// The `because:` justification, verbatim.
-    pub because: String,
-    /// blake3 hex over the JCS of the binding's resolved value.
-    pub value_digest: Option<String>,
-}
-
-/// Compute the receipt evidence for a task that is about to RUN: one row
-/// per `declassify:` entry, the digest read from the live scopes
-/// (`inputs.` / `config.` / a settled `tasks.<id>.output` — anything
-/// else records the door digest-less).
-fn declassify_evidence(
-    task: &RawTask,
-    inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
-    records: &BTreeMap<String, TaskRecord>,
-) -> Vec<DeclassifyEvidence> {
-    task.declassify
-        .iter()
-        .map(|entry| {
-            let from = entry.from.value.clone();
-            let value = binding_value(&from, inputs, config, records);
-            DeclassifyEvidence {
-                from,
-                because: entry.because.value.clone(),
-                value_digest: value.and_then(crate::resume::jcs_blake3_hex),
-            }
-        })
-        .collect()
-}
-
-/// The live value of a `declassify.from` binding (`inputs.X` ·
-/// `config.X` · `tasks.<id>.output`) — `None` when the binding names
-/// anything else (the door is still recorded, digest absent).
-fn binding_value<'a>(
-    from: &str,
-    inputs: &'a BTreeMap<String, Value>,
-    config: &'a BTreeMap<String, Value>,
-    records: &'a BTreeMap<String, TaskRecord>,
-) -> Option<&'a Value> {
-    if let Some(name) = from.strip_prefix("inputs.") {
-        return inputs.get(name);
-    }
-    if let Some(name) = from.strip_prefix("config.") {
-        return config.get(name);
-    }
-    if let Some(rest) = from.strip_prefix("tasks.") {
-        let id = rest.strip_suffix(".output")?;
-        return records.get(id).map(|rec| &rec.output);
-    }
-    None
 }
 
 /// How the task settles (spec 03 §task states).
@@ -982,88 +924,6 @@ where
         }
     }
 
-    /// Run the cleanup mini-tasks (spec 03 §`on_finally` · sequential ·
-    /// best-effort · errors swallowed · per-cleanup timeout 30s).
-    async fn run_finally(
-        &self,
-        task: &RawTask,
-        scope: &Scope<'_>,
-        ran: &RanTask,
-        integrity: &nika_cap::Integrity,
-    ) {
-        if task.on_finally.is_empty() {
-            return;
-        }
-        // The cleanup scope sees the PARENT's fresh status/error via a
-        // one-record overlay (spec 03 · status/error routing).
-        // PERF (documented trade): one records-map clone per
-        // task-WITH-cleanup (early-return above keeps the common lane
-        // free) · workflow size is certificate-bounded (degree-1) — a
-        // copy-on-read overlay Scope would save it at the cost of a
-        // two-level resolve on EVERY lookup.
-        let mut records = scope.records.clone();
-        let mut preview = preview_record(ran);
-        // F-O1 · the overlay carries the parent's integrity label: a
-        // cleanup argv/arg reading `${{ tasks.<parent>.output }}` re-gates
-        // on its taint (PR-2) — the overlay is the ONLY records entry the
-        // settle spine has not stamped.
-        preview.integrity = integrity.clone();
-        records.insert(task.id.value.clone(), preview);
-        let cleanup_scope = Scope {
-            records: &records,
-            inputs: scope.inputs,
-            config: scope.config,
-            consts: scope.consts,
-            secrets: scope.secrets, // a cleanup may reference secrets.X too
-            with_ns: scope.with_ns,
-            item: None, // locals out of scope after the fan-out (spec 03)
-            index: None,
-            permits: scope.permits, // on_finally exec stays within the boundary
-        };
-        for mini in &task.on_finally {
-            self.run_one_cleanup(&mini.value, &cleanup_scope).await;
-        }
-    }
-
-    /// One cleanup mini-task · own `when:` + `timeout:` · outcome
-    /// swallowed (best-effort semantics · spec 03).
-    async fn run_one_cleanup(&self, mini: &RawFinallyTask, scope: &Scope<'_>) {
-        if let Some(gate) = mini.when.as_ref() {
-            match eval_gate(&gate.value, scope) {
-                Ok(true) => {}
-                // Closed gate OR eval error → the cleanup is skipped
-                // (a cleanup error never propagates).
-                _ => return,
-            }
-        }
-        let limit = mini.timeout.as_ref().map_or(CLEANUP_TIMEOUT, |t| t.value);
-        // Cleanup agent decisions are NOT collected (best-effort lane ·
-        // outcome dropped by design) — a throwaway buffer satisfies the
-        // dispatch seam; collecting it is a trigger-gated ratchet.
-        let cleanup_buffer = crate::agent_events::BufferingObserver::new();
-        // Mini-tasks carry no `returns:` (closed shape) — no contract.
-        // The re-gate oracle is the BARE one (a mini-task has no
-        // `with:`/`for_each` — the records + inputs lookups still label
-        // a tainted cleanup argv/arg · F-O1 PR-2).
-        let value_taint = crate::integrity::ValueTaint::bare();
-        let attempt = std::pin::pin!(self.dispatch(
-            &mini.action,
-            scope,
-            &value_taint,
-            &cleanup_buffer,
-            Some(limit),
-            None,
-            // best-effort lane: no ledger here — a finally child inherits
-            // no cost bound (the lane has no budget admission by design);
-            // the select timer below still bounds it in TIME.
-            None,
-        ));
-        let timer = std::pin::pin!(self.clock.sleep(limit));
-        // Either way the outcome is dropped — cleanup observability is
-        // the cleanup's own effects (e.g. `nika:emit` · spec 03).
-        let _ = futures_util::future::select(attempt, timer).await;
-    }
-
     /// Milliseconds since `started` per the injected clock.
     fn since_ms(&self, started: std::time::Instant) -> u64 {
         // checked_duration_since: the ClockDyn contract does not forbid
@@ -1388,59 +1248,6 @@ fn references_loop_locals(value: &Value) -> bool {
         Value::Object(map) => map.values().any(references_loop_locals),
         _ => false,
     }
-}
-
-/// The parent's preview record for the cleanup scope (spec 03 · the
-/// cleanup sees `tasks.<parent>.status` / `.error`). A PENDING recovery
-/// previews as its pre-recovery failure: the attempts DID fail, and the
-/// deferred render has produced no value when the cleanup runs (the
-/// cleanup is task-scoped · it never awaits the spine). The CALLER
-/// (`run_finally`) stamps the pipeline's integrity label on the returned
-/// record — the overlay is the one records entry the settle spine never
-/// sees (F-O1 PR-2 · the cleanup re-gate reads it).
-fn preview_record(ran: &RanTask) -> TaskRecord {
-    use crate::record::{TerminalCause, failure_cause};
-    let attempts = ran.attempts();
-    let mut record = match &ran.result {
-        RunResult::Success { recovered_from, .. } => {
-            let cause = if recovered_from.is_some() {
-                TerminalCause::Recovered
-            } else {
-                TerminalCause::Normal
-            };
-            let mut rec = TaskRecord::unran(TaskStatus::Success, cause);
-            rec.attempts = Some(attempts);
-            rec.recovered_from.clone_from(recovered_from);
-            rec
-        }
-        RunResult::SkippedWithError { .. } => {
-            TaskRecord::unran(TaskStatus::Skipped, TerminalCause::ErrorSkip)
-        }
-        RunResult::Failed { error, .. } => {
-            let mut rec = TaskRecord::unran(TaskStatus::Failure, failure_cause(error, attempts));
-            rec.attempts = Some(attempts);
-            rec
-        }
-        RunResult::PendingRecovery(pending) => {
-            let mut rec = TaskRecord::unran(
-                TaskStatus::Failure,
-                failure_cause(&pending.failed.record, attempts),
-            );
-            rec.attempts = Some(attempts);
-            rec
-        }
-    };
-    match &ran.result {
-        RunResult::Success { value, .. } => record.output = value.clone(),
-        RunResult::SkippedWithError { error, .. } | RunResult::Failed { error, .. } => {
-            record.error = Some(error.clone());
-        }
-        RunResult::PendingRecovery(pending) => {
-            record.error = Some(pending.failed.record.clone());
-        }
-    }
-    record.duration_ms = Some(ran.duration_ms);
-    record
 }
 
 /// Evaluate a `when:` gate value (shared by tasks + cleanup mini-tasks).

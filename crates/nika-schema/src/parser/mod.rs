@@ -18,6 +18,7 @@
 //! analyzer's job (collected errors) — the parser only validates the
 //! fields it sees.
 
+pub(crate) mod declassify;
 pub(crate) mod envelope;
 pub(crate) mod envelope_values;
 pub(crate) mod tasks;

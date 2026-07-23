@@ -186,7 +186,7 @@ pub struct TaskRecord {
     /// defined-null per spec 04).
     pub output: Value,
     /// The coarse runtime integrity label of the output (F-O1 PR-1 ·
-    /// RS-06's `Integ` axis — [`Integrity::Trusted`] by default, so
+    /// RS-06's `Integ` axis — `Integrity::Trusted` by default, so
     /// records settled before the label existed read clean). ADDITIVE:
     /// no gate consumes it yet (PR-2 is the re-gate), and it is NOT part
     /// of the `tasks.<id>` expression namespace (the closed field set in
