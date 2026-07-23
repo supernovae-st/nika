@@ -854,4 +854,22 @@ tasks:
         let ok = y.replace("default: \"rm\"", "default: \"find\"");
         assert!(taints_of(&ok).is_empty(), "{:?}", taints_of(&ok));
     }
+
+    /// The emitted⊆registered ratchet, permit-taint tier (the
+    /// `composition.rs` pattern): every wire code this lane stamps must
+    /// exist in the vendored canon registry — an unregistered refusal
+    /// 404s the `docs_url` every finding carries.
+    #[test]
+    fn every_permit_taint_code_is_registered_in_the_canon() {
+        let registered: std::collections::BTreeSet<String> = nika_pack::error_codes()
+            .into_iter()
+            .map(|row| row.code.to_string())
+            .collect();
+        for code in [BOUND_CODE, REGATE_CODE] {
+            assert!(
+                registered.contains(code),
+                "`{code}` is not in the canon registry (spec/05-errors.md SSOT)"
+            );
+        }
+    }
 }

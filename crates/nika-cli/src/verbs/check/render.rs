@@ -680,7 +680,9 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
     // informational, and `permits: {}` is taught as the legal explicit
     // form. Any escape (absent → NIKA-AUTH-006 · declared → NIKA-SEC-004
     // · floor → NIKA-SEC-005) MUST render, or `✖ findings above` points
-    // at nothing (the mute-diagnostic the battery re-run caught).
+    // at nothing (the mute-diagnostic the battery re-run caught). The
+    // NEP-0004 taint findings (interpolated bound → NIKA-AUTH-007 ·
+    // untrusted argument escape → NIKA-AUTH-008) ride the SAME panel.
     if wf.permits.is_none() && report.capability_escapes.is_empty() {
         let _ = writeln!(
             out,
@@ -694,7 +696,7 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
         );
         return;
     }
-    if report.capability_escapes.is_empty() {
+    if report.capability_escapes.is_empty() && report.permit_taints.is_empty() {
         let _ = writeln!(
             out,
             " {} {}  {}",
@@ -733,6 +735,24 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
             e.category,
             e.task,
             e.detail,
+        );
+    }
+    for taint in &report.permit_taints {
+        // NEP-0004 — the finding's own kind IS the code (one arm, the
+        // same one findings[] and extra_conformance_codes read).
+        let code = taint.wire_code();
+        let fix = taint
+            .fix
+            .as_deref()
+            .map(|f| format!(" · fix: {f}"))
+            .unwrap_or_default();
+        let _ = writeln!(
+            out,
+            " {} {}  [{code}] task `{}` · {}{fix}",
+            mark(t, false),
+            t.paint(Role::Strong, "PERMITS"),
+            taint.task,
+            taint.detail,
         );
     }
 }
