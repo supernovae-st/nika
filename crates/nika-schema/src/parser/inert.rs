@@ -36,7 +36,7 @@ pub(super) fn parse_inert(
         });
     };
     let value = scalar.as_str().to_owned();
-    if value.is_empty() {
+    if value.trim().is_empty() {
         return Err(SchemaError::Validation {
             message: format!(
                 "`inert` on {task_label} is empty — the because IS the substance of the door \
@@ -65,6 +65,17 @@ mod tests {
             task.inert.as_ref().map(|s| s.value.as_str()),
             Some("archived for provenance")
         );
+    }
+
+    #[test]
+    fn inert_whitespace_only_is_refused_too() {
+        // O7-E · the door needs a real because, not spaces (red team
+        // 2026-07-23 · `inert: " "` used to pass the non-empty check).
+        let yaml = format!(
+            "{BASE}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://data.example.com/a.csv\" }}\n    inert: \"   \"\n"
+        );
+        let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("refused");
+        assert!(err.to_string().contains("inert"), "{err}");
     }
 
     #[test]
