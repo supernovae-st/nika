@@ -102,6 +102,9 @@ struct Parked {
     agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     duration_ms: u64,
     resume: Option<crate::resume::ResumeStamp>,
+    /// The dispatch boundary's permit decisions recorded before the park
+    /// (NEP-0007) — they ride to resolution like the declassify events.
+    decisions: Vec<crate::witness::PermitDecision>,
     /// The `declassify:` receipt evidence computed when the task ran —
     /// the door opened BEFORE the park; the events ride to resolution.
     declassified: Vec<crate::task::DeclassifyEvidence>,
@@ -192,6 +195,26 @@ pub(crate) fn settle_or_park(
     drain_ready(scope, parked, prior, live, ok, cache_hits, stamper, sink);
 }
 
+/// Reassemble a `Finish` around a settle — the shared tail of every
+/// park path (declined · not-parkable · resolved).
+fn finish_with(
+    id: String,
+    settle: SettleAs,
+    named: BTreeMap<String, Value>,
+    resume: Option<crate::resume::ResumeStamp>,
+    integrity: nika_cap::Integrity,
+    declassified: Vec<crate::task::DeclassifyEvidence>,
+) -> Finish {
+    Finish {
+        id,
+        settle,
+        named,
+        resume,
+        integrity,
+        declassified,
+    }
+}
+
 /// Park a pending-recovery finish — `None` when parked (nothing settles
 /// yet). `Some(finish)` settles normally: either the finish untouched
 /// (not a pending recovery), or its immediate failure when an awaited
@@ -213,20 +236,15 @@ fn try_park(
     let ran = match settled_as {
         SettleAs::Ran(ran) => ran,
         other => {
-            return Some(Finish {
-                id,
-                settle: other,
-                named,
-                resume,
-                integrity,
-                declassified,
-            });
+            let done = finish_with(id, other, named, resume, integrity, declassified);
+            return Some(done);
         }
     };
     let RanTask {
         note,
         retries,
         agent_events,
+        decisions,
         duration_ms,
         result,
     } = ran;
@@ -237,17 +255,13 @@ fn try_park(
                 note,
                 retries,
                 agent_events,
+                decisions,
                 duration_ms,
                 result: other,
             };
-            return Some(Finish {
-                id,
-                settle: SettleAs::Ran(ran),
-                named,
-                resume,
-                integrity,
-                declassified,
-            });
+            let settle = SettleAs::Ran(ran);
+            let done = finish_with(id, settle, named, resume, integrity, declassified);
+            return Some(done);
         }
     };
     let declared = |t: &String| scope.wf.tasks.iter().any(|s| s.value.id.value == *t);
@@ -263,6 +277,7 @@ fn try_park(
                 agent_events,
                 duration_ms,
                 resume,
+                decisions,
                 declassified,
                 pending,
             },
@@ -281,6 +296,7 @@ fn try_park(
         note,
         retries,
         agent_events,
+        decisions,
         duration_ms,
         result: RunResult::Failed {
             error: render_error,
@@ -288,14 +304,15 @@ fn try_park(
             cost_unpriced: failed.cost_unpriced,
         },
     };
-    Some(Finish {
+    let settle = SettleAs::Ran(ran);
+    Some(finish_with(
         id,
-        settle: SettleAs::Ran(ran),
+        settle,
         named,
         resume,
         integrity,
         declassified,
-    })
+    ))
 }
 
 /// Resolve + settle every park the spine's terminal truth covers, to a
@@ -423,6 +440,7 @@ fn resolve_parked(
         note,
         retries,
         agent_events,
+        decisions,
         duration_ms,
         resume,
         declassified,
@@ -482,6 +500,7 @@ fn resolve_parked(
         note,
         retries,
         agent_events,
+        decisions,
         duration_ms,
         result,
     });
@@ -503,14 +522,7 @@ fn resolve_parked(
         .map_or_else(nika_cap::Integrity::trusted, |task| {
             crate::integrity::task_integrity(&task.value, view)
         });
-    Finish {
-        id,
-        settle: settled_as,
-        named,
-        resume,
-        integrity,
-        declassified,
-    }
+    finish_with(id, settled_as, named, resume, integrity, declassified)
 }
 
 /// The declared recover template of `wf.tasks[index]`, when it is one.

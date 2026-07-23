@@ -64,6 +64,8 @@ pub(super) struct FanOutAccum {
     pub(super) retries: Vec<RetryStamp>,
     /// The agent decisions across all iterations, in order.
     pub(super) agent_events: Vec<crate::agent_events::StampedAgentEvent>,
+    /// NEP-0007 · the per-lane permit decisions, folded in lane order.
+    pub(super) decisions: Vec<crate::witness::PermitDecision>,
     /// The FIRST iteration error (the one the task reports on failure).
     pub(super) first_error: Option<TaskErrorRecord>,
     /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
@@ -89,6 +91,7 @@ where
         outputs: Vec::with_capacity(total),
         retries: Vec::new(),
         agent_events: Vec::new(),
+        decisions: Vec::new(),
         first_error: None,
         tokens_sum: None,
         cost_sum: None,
@@ -98,6 +101,7 @@ where
     while let Some(iter_ran) = stream.next().await {
         acc.retries.extend(iter_ran.retries);
         acc.agent_events.extend(iter_ran.agent_events);
+        acc.decisions.extend(iter_ran.decisions);
         match iter_ran.result {
             // OBS-E `warning` is per-call · a fan-out element's diagnostic
             // is not aggregated up (only `value` + `tokens` fold).

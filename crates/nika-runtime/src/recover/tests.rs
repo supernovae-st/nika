@@ -365,6 +365,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     let finish = task::Finish {
         id: "risky".to_owned(),
         settle: task::SettleAs::Ran(task::RanTask {
+            decisions: Vec::new(),
             note: "exec · sh".to_owned(),
             retries: Vec::new(),
             agent_events: Vec::new(),

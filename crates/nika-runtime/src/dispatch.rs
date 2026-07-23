@@ -342,6 +342,12 @@ fn settle_exec_out(
     Dispatched::ok(note.to_owned(), value, None)
 }
 
+/// `temperature:` lowering — f64 grammar to the provider's f32 seat.
+#[allow(clippy::cast_possible_truncation)] // 0-2 range · checker-validated
+fn temp_f32(t: Option<&nika_schema::Spanned<f64>>) -> Option<f32> {
+    t.map(|t| t.value as f32)
+}
+
 /// The per-attempt task context the dispatch threads to its arms — the
 /// task-level knobs that are not the action itself (bundled at the
 /// 8-argument clippy wall · an additive knob lands HERE, never as a new
@@ -355,6 +361,10 @@ pub(crate) struct DispatchCtx<'a> {
     /// NEP-0006 · the task's declared `inert:` door (the data-as-code
     /// sink's run twin honors it).
     pub inert: Option<&'a str>,
+    /// NEP-0007 · the attempt's permit-decision collector (spec 17 §the
+    /// permit witness) — every dispatch-boundary decision records here,
+    /// the settle spine emits one `permit_checked` frame per entry.
+    pub witness: &'a crate::witness::PermitWitness,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -366,11 +376,13 @@ impl<'a> DispatchCtx<'a> {
         task: &'a nika_schema::raw::RawTask,
         deadline: Option<std::time::Duration>,
         child_budget: Option<f64>,
+        witness: &'a crate::witness::PermitWitness,
     ) -> Self {
         Self {
             deadline,
             child_budget,
             inert: task.inert.as_ref().map(|s| s.value.as_str()),
+            witness,
         }
     }
 }
@@ -414,23 +426,19 @@ where
     ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => {
-                self.dispatch_invoke(
-                    inner,
-                    scope,
-                    taint,
-                    (ctx.deadline, ctx.child_budget),
-                    contract,
-                    ctx.inert,
-                )
-                .await
+                self.dispatch_invoke(inner, scope, taint, &ctx, contract)
+                    .await
             }
-            RawAction::Exec(inner) => self.dispatch_shell(inner, scope, taint, contract).await,
+            RawAction::Exec(inner) => {
+                self.dispatch_shell(inner, scope, taint, &ctx, contract)
+                    .await
+            }
             RawAction::Infer(inner) => {
                 self.dispatch_infer(inner, scope, ctx.deadline, contract)
                     .await
             }
             RawAction::Agent(inner) => {
-                self.dispatch_agent(inner, scope, agent_buffer, contract)
+                self.dispatch_agent(inner, scope, agent_buffer, &ctx, contract)
                     .await
             }
             // #[non_exhaustive] · a future verb must land HERE loudly ·
@@ -447,28 +455,24 @@ where
         action: &nika_schema::raw::RawInvokeAction,
         scope: &Scope<'_>,
         taint: &crate::integrity::ValueTaint<'_>,
-        (deadline, child_budget): (Option<std::time::Duration>, Option<f64>),
+        ctx: &DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
-        inert: Option<&str>,
     ) -> Dispatched {
+        let (deadline, child_budget, inert) = (ctx.deadline, ctx.child_budget, ctx.inert);
+        let witness = ctx.witness;
         let tool = match &action.target {
             nika_schema::raw::RawInvokeTarget::Tool(t) => t.value.clone(),
             nika_schema::raw::RawInvokeTarget::Workflow(w) => {
+                let args = action.args.as_ref();
                 return self
-                    .dispatch_workflow_call(
-                        w,
-                        action.args.as_ref(),
-                        scope,
-                        (deadline, child_budget),
-                        contract,
-                    )
+                    .dispatch_workflow_call(w, args, scope, (deadline, child_budget), contract)
                     .await;
             }
         };
         let note = format!("invoke · {tool}");
         // NIKA-SEC-004 BEFORE any arg rendering — the tool id is static,
         // so an out-of-boundary invoke is refused without touching the scope.
-        if let Some(denial) = permits::check_tool_permits(scope.permits, &note, &tool) {
+        if let Some(denial) = permits::check_tool_permits(scope.permits, &note, &tool, witness) {
             return denial;
         }
         let args = match &action.args {
@@ -482,7 +486,7 @@ where
         // fetch URL is classified against the one closed list, honoring
         // the task's declared inert: door — the dynamic case the static
         // classifier deferred (dispatch/permits.rs · check_fetch_sink).
-        if let Some(denial) = permits::check_fetch_sink(inert, &note, &tool, &args) {
+        if let Some(denial) = permits::check_fetch_sink(inert, &note, &tool, &args, witness) {
             return denial;
         }
         // F-O1 PR-2 · the mcp border re-gate (NEP-0004 law 2): the grant
@@ -501,6 +505,7 @@ where
                 &args,
                 taint,
                 scope.records,
+                witness,
             )
         {
             return denial;
@@ -568,6 +573,7 @@ where
         action: &nika_schema::raw::RawExecAction,
         scope: &Scope<'_>,
         taint: &crate::integrity::ValueTaint<'_>,
+        ctx: &DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let (mut input, program, is_argv) = match build_exec_input(action, scope) {
@@ -602,7 +608,9 @@ where
             return Dispatched::template_err(&note, &err);
         }
 
-        if let Some(denial) = permits::check_exec_permits(scope.permits, &note, &program, is_argv) {
+        if let Some(denial) =
+            permits::check_exec_permits(scope.permits, &note, &program, is_argv, ctx.witness)
+        {
             return denial;
         }
 
@@ -616,8 +624,15 @@ where
         if let Some(boundary) = scope.permits {
             if let (RawCommand::Argv(elements), ExecCommand::Argv(argv)) =
                 (&action.command, &input.command)
-                && let Some(denial) =
-                    regate::regate_exec_argv(boundary, &note, elements, argv, taint, scope.records)
+                && let Some(denial) = regate::regate_exec_argv(
+                    boundary,
+                    &note,
+                    elements,
+                    argv,
+                    taint,
+                    scope.records,
+                    ctx.witness,
+                )
             {
                 return denial;
             }
@@ -629,6 +644,7 @@ where
                     &cwd.to_string_lossy(),
                     taint,
                     scope.records,
+                    ctx.witness,
                 )
             {
                 return denial;
@@ -643,10 +659,7 @@ where
         // command to the spawn site, which composes the child environment
         // (the runner floor ∪ these names ∪ the authored `env:` map) from
         // a cleared slate — nothing ambient crosses undeclared.
-        input.env_passthrough = scope
-            .permits
-            .map(|p| p.env_passthrough().to_vec())
-            .unwrap_or_default();
+        input.env_passthrough = permits::env_passthrough_witnessed(scope.permits, ctx.witness);
 
         match self.shell.run(input).await {
             Ok(out) => settle_exec_out(&note, out, decode, contract),
@@ -674,10 +687,7 @@ where
             Err(err) => return Dispatched::template_err("infer · ?", &err),
         };
         input.model = action.model.as_ref().map(|m| m.value.clone());
-        #[allow(clippy::cast_possible_truncation)] // 0-2 range · checker-validated
-        {
-            input.temperature = action.temperature.as_ref().map(|t| t.value as f32);
-        }
+        input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         // `returns:` compiles `lower(returns)` as the structured-output
         // contract — EXACTLY the `schema:` lane (spec 09 §returns · one
@@ -741,12 +751,15 @@ where
         action: &nika_schema::raw::RawAgentAction,
         scope: &Scope<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
+        ctx: &DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         // NIKA-SEC-004: the declared `tools:` universe must FIT
         // `permits.tools` — refused before any render or provider call,
         // one refusal for the whole task.
-        if let Some(denial) = permits::check_agent_tools_permits(scope.permits, &action.tools) {
+        if let Some(denial) =
+            permits::check_agent_tools_permits(scope.permits, &action.tools, ctx.witness)
+        {
             return denial;
         }
         let prompt = match expr::render(&action.prompt.value, scope) {
@@ -771,10 +784,7 @@ where
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
-        #[allow(clippy::cast_possible_truncation)] // 0-2 range · checker-validated
-        {
-            input.temperature = action.temperature.as_ref().map(|t| t.value as f32);
-        }
+        input.temperature = temp_f32(action.temperature.as_ref());
         // `returns:` — same as infer: `lower(returns)` rides the
         // structured-output lane over the loop's FINAL message (spec 09
         // §returns · violations stay NIKA-INFER-002 · one voice).

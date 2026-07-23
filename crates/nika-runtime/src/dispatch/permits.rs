@@ -7,6 +7,8 @@
 //! `permits_fit` scan so check≡run cannot drift.
 
 use super::Dispatched;
+use crate::witness::PermitWitness;
+use nika_schema::types::Permits;
 
 /// The tools capability boundary (spec 01 §permits · NIKA-SEC-004): once a
 /// workflow declares `permits`, every tool the body names — an `invoke:`
@@ -23,6 +25,7 @@ pub(super) fn check_tool_permits(
     permits: Option<&nika_schema::types::Permits>,
     note: &str,
     tool: &str,
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
     let Some(permits) = permits else {
         // F-O8 · absent = zero authority: every tool effect refused —
@@ -30,8 +33,20 @@ pub(super) fn check_tool_permits(
         // check-time exemption · check≡run: pure compute RUNS under the
         // legal zero, effects refuse).
         if nika_cap::is_pure_internal(tool) {
+            witness.record(
+                "tool",
+                tool,
+                "allow",
+                "pure-internal exemption (NEP-0003 law 1)",
+            );
             return None;
         }
+        witness.record(
+            "tool",
+            tool,
+            "deny",
+            "absent permits: = zero authority (NEP-0003)",
+        );
         return Some(Dispatched::security_err(
             note,
             format!(
@@ -42,8 +57,10 @@ pub(super) fn check_tool_permits(
         ));
     };
     if permits.allows_tool(tool) {
+        witness.record("tool", tool, "allow", "permits.tools covers the id");
         return None;
     }
+    witness.record("tool", tool, "deny", "not in the permits.tools allowlist");
     Some(Dispatched::security_err(
         note,
         format!("tool {tool:?} is not in the `permits.tools` allowlist"),
@@ -62,13 +79,37 @@ pub(super) fn check_fetch_sink(
     note: &str,
     tool: &str,
     args: &serde_json::Value,
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
-    if tool != "nika:fetch" || inert.is_some() {
+    if tool != "nika:fetch" {
+        return None;
+    }
+    if let Some(because) = inert {
+        witness.record(
+            "sink",
+            tool,
+            "allow",
+            format!("inert door declared · {because}"),
+        );
         return None;
     }
     let url = args.get("url")?.as_str()?;
     let path = url::Url::parse(url).ok().map(|u| u.path().to_owned())?;
-    let (class, ext) = nika_cap::code_bearing_path_class(&path)?;
+    let Some((class, ext)) = nika_cap::code_bearing_path_class(&path) else {
+        witness.record(
+            "sink",
+            path,
+            "allow",
+            "no code-bearing class on the URL path",
+        );
+        return None;
+    };
+    witness.record(
+        "sink",
+        format!("{class} · {ext}"),
+        "deny",
+        "code-bearing fetch with no inert door (NEP-0006 law 1)",
+    );
     Some(Dispatched::security_err(
         note,
         format!(
@@ -86,9 +127,10 @@ pub(super) fn check_fetch_sink(
 pub(super) fn check_agent_tools_permits(
     permits: Option<&nika_schema::types::Permits>,
     tools: &[nika_schema::Spanned<String>],
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
     for tool in tools {
-        if let Some(denial) = check_tool_permits(permits, "agent · ?", &tool.value) {
+        if let Some(denial) = check_tool_permits(permits, "agent · ?", &tool.value, witness) {
             return Some(denial);
         }
     }
@@ -112,10 +154,17 @@ pub(super) fn check_exec_permits(
     note: &str,
     program: &str,
     is_argv: bool,
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
     use nika_schema::types::ExecPermit;
     let Some(permits) = permits else {
         // F-O8 · absent = zero authority: refuse before spawn (zero process).
+        witness.record(
+            "exec",
+            program,
+            "deny",
+            "absent permits: = zero authority (NEP-0003)",
+        );
         return Some(Dispatched::security_err(
             note,
             "no `permits:` block declared · zero authority (F-O8) — \
@@ -125,17 +174,39 @@ pub(super) fn check_exec_permits(
     };
     match &permits.exec {
         // Omitted or `false` → this workflow runs zero processes.
-        None | Some(ExecPermit::No) => Some(Dispatched::security_err(
-            note,
-            "exec is not permitted by the workflow `permits` boundary",
-        )),
+        None | Some(ExecPermit::No) => {
+            witness.record(
+                "exec",
+                program,
+                "deny",
+                "exec is not permitted by the boundary",
+            );
+            Some(Dispatched::security_err(
+                note,
+                "exec is not permitted by the workflow `permits` boundary",
+            ))
+        }
         // `true` → any process (still blocklist-gated at the floor).
-        Some(ExecPermit::Any) => None,
+        Some(ExecPermit::Any) => {
+            witness.record(
+                "exec",
+                program,
+                "allow",
+                "exec: true (blocklist floor stays on top)",
+            );
+            None
+        }
         // A program allowlist → ARRAY form only (argv[0] must be listed); the
         // SHELL form cannot be verified (a pipeline can launch any program), so
         // it is refused — use the array form.
         Some(ExecPermit::Programs(allowed)) => {
             if !is_argv {
+                witness.record(
+                    "exec",
+                    program,
+                    "deny",
+                    "shell form under a program allowlist is unverifiable",
+                );
                 return Some(Dispatched::security_err(
                     note,
                     "a shell-string command cannot be verified against a \
@@ -144,17 +215,42 @@ pub(super) fn check_exec_permits(
                 ));
             }
             if !allowed.iter().any(|p| p == program) {
+                witness.record("exec", program, "deny", "not in the permits.exec allowlist");
                 return Some(Dispatched::security_err(
                     note,
                     format!("program {program:?} is not in the `permits.exec` allowlist"),
                 ));
             }
+            witness.record("exec", program, "allow", "permits.exec lists the program");
             None
         }
         // #[non_exhaustive] · a future permit form fails CLOSED.
-        Some(_) => Some(Dispatched::security_err(
-            note,
-            "exec permit form not understood by this engine version",
-        )),
+        Some(_) => {
+            witness.record("exec", program, "deny", "unknown permit form fails closed");
+            Some(Dispatched::security_err(
+                note,
+                "exec permit form not understood by this engine version",
+            ))
+        }
     }
+}
+
+/// NEP-0005 · the declared `permits.env:` passthrough for the spawn
+/// site, witnessed (NEP-0007): the passed names ARE the exercised
+/// authority — one `env` frame per spawn, allow-side by construction
+/// (an undeclared name never reaches the composition).
+pub(super) fn env_passthrough_witnessed(
+    permits: Option<&Permits>,
+    witness: &PermitWitness,
+) -> Vec<String> {
+    let names = permits
+        .map(|p| p.env_passthrough().to_vec())
+        .unwrap_or_default();
+    witness.record(
+        "env",
+        names.join(","),
+        "allow",
+        "composed floor ∪ declared passthrough (NEP-0005)",
+    );
+    names
 }

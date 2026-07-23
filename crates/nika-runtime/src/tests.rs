@@ -215,6 +215,105 @@ async fn code_bearing_fetch_refuses_at_run_and_the_inert_door_opens() {
     }
 }
 
+/// NEP-0007 — the permit witness end to end: every dispatch-boundary
+/// decision becomes ONE `permit_checked` frame between `task_started`
+/// and the terminal — the exec program gate and the env composition on
+/// the allow side; the SAME channel carries the deny when the RUNTIME
+/// gate refuses a check-deferred program (granted and refused alike ·
+/// spec 17 §the permit witness).
+#[tokio::test]
+async fn permit_witness_frames_ride_the_journal() {
+    use nika_kernel::tool_executor::ToolResult;
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+
+    // (allowed, yaml): the allow case is a static echo under its permit;
+    // the deny case derives the program from a task output — the static
+    // judge DEFERS (dynamic command), the runtime gate refuses `curl`.
+    let allow_yaml = "nika: v1\nworkflow:\n  id: witness\npermits:\n  exec: [\"echo\"]\ntasks:\n  stamp:\n    exec: { command: [\"echo\", \"ok\"] }\n";
+    let deny_yaml = "nika: v1\nworkflow:\n  id: witness\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:jq\"]\ntasks:\n  name:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"curl ok\", expression: \".\" }\n  stamp:\n    with: { c: \"${{ tasks.name.output }}\" }\n    exec: { command: [\"${{ with.c }}\", \"ok\"] }\n";
+    for (allowed, yaml) in [(true, allow_yaml), (false, deny_yaml)] {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "both shapes defer to run: {report:?}");
+        let executor = MockToolExecutor::new().enqueue_ok(ToolResult::success("tc1", "curl ok"));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(executor)));
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("ok"))),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default().with_sandbox_root(std::path::PathBuf::from("/repo")),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime.run(&wf, &report, &mut stamper, &mut sink).await;
+        let outcome = outcome.expect("the run completes either way");
+        assert_eq!(outcome.ok, allowed, "the gate decides the run");
+
+        let events = sink.events();
+        let field = |e: &nika_event::Event, key: &str| -> String {
+            e.fields
+                .iter()
+                .find(|f| f.key == key)
+                .map(|f| match &f.value {
+                    FieldValue::String(s) => s.clone(),
+                    other => format!("{other:?}"),
+                })
+                .unwrap_or_default()
+        };
+        let witness: Vec<(String, String)> = events
+            .iter()
+            .filter(|e| e.kind == EventKind::PermitChecked)
+            .map(|e| (field(e, "plane"), field(e, "decision")))
+            .collect();
+        if allowed {
+            assert!(
+                witness.contains(&("exec".to_owned(), "allow".to_owned())),
+                "the exec program gate witnesses its allow: {witness:?}"
+            );
+            assert!(
+                witness.iter().any(|(p, d)| p == "env" && d == "allow"),
+                "the env composition witnesses the passed names: {witness:?}"
+            );
+        } else {
+            assert!(
+                witness.contains(&("exec".to_owned(), "deny".to_owned())),
+                "the refused gate rides the SAME channel: {witness:?}"
+            );
+        }
+        // Position law (spec 17): the frames land between task_started
+        // and the terminal.
+        let kinds: Vec<EventKind> = events.iter().map(|e| e.kind).collect();
+        let started = kinds
+            .iter()
+            .position(|k| *k == EventKind::TaskStarted)
+            .expect("a task_started frame");
+        let first_witness = kinds
+            .iter()
+            .position(|k| *k == EventKind::PermitChecked)
+            .expect("at least one permit_checked frame");
+        assert!(
+            started < first_witness,
+            "witness frames follow task_started"
+        );
+    }
+}
+
 /// NEP-0005 — the declared `permits.env:` passthrough rides every exec
 /// command to the spawn site (which composes floor ∪ these names ∪ the
 /// authored map from a cleared slate), and the authored task `env:` map
@@ -625,6 +724,7 @@ fn declared_output_types_fit_lenient_floats_strict_cross_type() {
 #[test]
 fn recovered_success_emits_task_recovered_before_completed() {
     let ran = task::RanTask {
+        decisions: Vec::new(),
         note: "exec · sh".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -683,6 +783,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
 #[test]
 fn obs_e_warning_rides_task_completed() {
     let ran = task::RanTask {
+        decisions: Vec::new(),
         note: "infer · gemini/flash".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -743,6 +844,7 @@ fn obs_e_warning_rides_task_completed() {
 #[test]
 fn no_warning_field_on_a_clean_success() {
     let ran = task::RanTask {
+        decisions: Vec::new(),
         note: "exec · true".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -796,6 +898,7 @@ fn no_warning_field_on_a_clean_success() {
 #[test]
 fn cost_unpriced_reason_rides_task_completed() {
     let ran = task::RanTask {
+        decisions: Vec::new(),
         note: "infer · ollama/llama3.2".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
