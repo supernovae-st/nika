@@ -125,6 +125,50 @@ pub unsafe fn nika_cap::ExecPermit::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::ExecPermit
 pub fn nika_cap::ExecPermit::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::ExecPermit where T: for<'de> serde_core::de::Deserialize<'de>
+pub enum nika_cap::Integrity
+pub nika_cap::Integrity::Trusted
+pub nika_cap::Integrity::Untrusted
+pub nika_cap::Integrity::Untrusted::source: alloc::string::String
+impl nika_cap::Integrity
+pub const fn nika_cap::Integrity::as_str(&self) -> &'static str
+pub const fn nika_cap::Integrity::is_trusted(&self) -> bool
+pub const fn nika_cap::Integrity::is_untrusted(&self) -> bool
+pub fn nika_cap::Integrity::join(self, other: Self) -> Self
+pub fn nika_cap::Integrity::source(&self) -> core::option::Option<&str>
+pub const fn nika_cap::Integrity::trusted() -> Self
+pub fn nika_cap::Integrity::untrusted(source: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cap::Integrity
+pub fn nika_cap::Integrity::clone(&self) -> nika_cap::Integrity
+impl core::cmp::Eq for nika_cap::Integrity
+impl core::cmp::PartialEq for nika_cap::Integrity
+pub fn nika_cap::Integrity::eq(&self, other: &nika_cap::Integrity) -> bool
+impl core::default::Default for nika_cap::Integrity
+pub fn nika_cap::Integrity::default() -> Self
+impl core::fmt::Debug for nika_cap::Integrity
+pub fn nika_cap::Integrity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::Integrity
+impl<T, U> core::convert::Into<U> for nika_cap::Integrity where U: core::convert::From<T>
+pub fn nika_cap::Integrity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::Integrity where U: core::convert::Into<T>
+pub type nika_cap::Integrity::Error = core::convert::Infallible
+pub fn nika_cap::Integrity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::Integrity where U: core::convert::TryFrom<T>
+pub type nika_cap::Integrity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::Integrity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::Integrity where T: core::clone::Clone
+pub type nika_cap::Integrity::Owned = T
+pub fn nika_cap::Integrity::clone_into(&self, target: &mut T)
+pub fn nika_cap::Integrity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::Integrity where T: 'static + ?core::marker::Sized
+pub fn nika_cap::Integrity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::Integrity where T: ?core::marker::Sized
+pub fn nika_cap::Integrity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::Integrity where T: ?core::marker::Sized
+pub fn nika_cap::Integrity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::Integrity where T: core::clone::Clone
+pub unsafe fn nika_cap::Integrity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::Integrity
+pub fn nika_cap::Integrity::from(t: T) -> T
 #[non_exhaustive] pub enum nika_cap::Objective
 pub nika_cap::Objective::Cost
 pub nika_cap::Objective::Latency
@@ -818,7 +862,10 @@ pub fn nika_cap::builtin_egresses(tool: &str) -> bool
 pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
+pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool
+pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::policy_child_keys(family: &str) -> core::option::Option<&'static [&'static str]>
 pub fn nika_cap::policy_violations(policy: &nika_cap::Policy, tasks: &[nika_cap::PolicySubject]) -> alloc::vec::Vec<nika_cap::PolicyViolation>
+pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>

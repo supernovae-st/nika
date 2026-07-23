@@ -10,6 +10,11 @@
 
 use super::*;
 
+/// The F-O1 integrity label for the pre-existing frame tests below —
+/// they exercise the frame surface, not the label: a trusted settle
+/// emits NO `integrity` field (the additive law: absent = trusted).
+const TRUSTED: nika_cap::Integrity = nika_cap::Integrity::trusted();
+
 /// #412 test seam — the gate: a `nika:jq` call whose `expression` arg is
 /// `".gate"` polls the sink's flag (1ms yields — tokio's `sync` feature
 /// is off in this workspace, and a flag poll needs only `time`); every
@@ -500,7 +505,16 @@ fn recovered_success_emits_task_recovered_before_completed() {
     let mut ok = true;
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    settle::settle_ran("risky", ran, None, &mut ok, &mut stamper, &mut sink);
+    settle::settle_ran(
+        "risky",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
 
     let kinds: Vec<EventKind> = sink.events().iter().map(|e| e.kind).collect();
     let rec = kinds
@@ -545,7 +559,16 @@ fn obs_e_warning_rides_task_completed() {
     let mut ok = true;
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    settle::settle_ran("think", ran, None, &mut ok, &mut stamper, &mut sink);
+    settle::settle_ran(
+        "think",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
 
     let completed = sink
         .events()
@@ -596,7 +619,16 @@ fn no_warning_field_on_a_clean_success() {
     let mut ok = true;
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    settle::settle_ran("t", ran, None, &mut ok, &mut stamper, &mut sink);
+    settle::settle_ran(
+        "t",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
 
     let completed = sink
         .events()
@@ -640,7 +672,16 @@ fn cost_unpriced_reason_rides_task_completed() {
     let mut ok = true;
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    settle::settle_ran("ask", ran, None, &mut ok, &mut stamper, &mut sink);
+    settle::settle_ran(
+        "ask",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
 
     let completed = sink
         .events()
@@ -694,6 +735,7 @@ mod tools_permits_tests {
     use nika_verb_invoke::InvokeVerb;
 
     use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
+    use crate::{EventKind, FieldValue};
 
     type MockRuntime = Runtime<
         MockShell,
@@ -877,6 +919,89 @@ mod tools_permits_tests {
         assert!(outcome.ok, "a granted tool runs to success");
         assert_eq!(outcome.records["ok"].status, TaskStatus::Success);
         assert_eq!(probe.captured_calls().len(), 1, "exactly one tool call");
+    }
+
+    /// F-O1 PR-1 · the coarse integrity label end to end (ADDITIVE — the
+    /// verdicts and the frames' pre-existing fields are untouched):
+    /// a fetch output is born untrusted · the taint propagates through
+    /// `with:` + `${{ }}` reads · an `inputs.` read is the caller
+    /// boundary · a literal-only task stays trusted. The terminal frame
+    /// carries the label ONLY when untrusted (old journals stay
+    /// readable); no gate consumes it yet (PR-2).
+    #[tokio::test]
+    async fn integrity_label_flows_from_ingress_to_the_records_and_frames() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: integ-label\ninputs:\n  q: { type: string, default: \"authored-default\" }\npermits: { tools: [\"nika:fetch\", \"nika:jq\"], net: { http: [\"example.com\"] } }\ntasks:\n  dl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page\" } }\n  probe:\n    with: { page: \"${{ tasks.dl.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ with.page }}\" } }\n  plain:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"authored\" } }\n  inp:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ inputs.q }}\" } }\n",
+        );
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "the fixture fits its boundary");
+        // Wave 0 = dl + plain + inp (any dispatch interleaving — the
+        // results are interchangeable) · wave 1 = probe.
+        let executor = MockToolExecutor::new()
+            .enqueue_ok(ToolResult::success("t1", "attacker-controlled page"))
+            .enqueue_ok(ToolResult::success("t2", "\"ok\""))
+            .enqueue_ok(ToolResult::success("t3", "\"ok\""))
+            .enqueue_ok(ToolResult::success("t4", "\"ok\""));
+        let runtime = runtime_with(executor, MockProvider::new("mock"));
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("run settles");
+        assert!(outcome.ok, "the label changes NO verdict: {outcome:?}");
+
+        // The records carry the coarse label + the born-origin witness.
+        assert_eq!(
+            outcome.records["dl"].integrity,
+            nika_cap::Integrity::untrusted("dl"),
+            "a fetch output is born untrusted"
+        );
+        assert_eq!(
+            outcome.records["probe"].integrity,
+            nika_cap::Integrity::untrusted("dl"),
+            "the taint propagates through with: + the effect read"
+        );
+        assert_eq!(
+            outcome.records["inp"].integrity,
+            nika_cap::Integrity::untrusted("inputs.q"),
+            "an inputs read is the caller boundary"
+        );
+        assert_eq!(
+            outcome.records["plain"].integrity,
+            nika_cap::Integrity::trusted(),
+            "a literal-only task stays trusted"
+        );
+
+        // The terminal frame carries the label ONLY when untrusted.
+        let completed_for = |task: &str| {
+            sink.events()
+                .iter()
+                .find(|e| {
+                    e.kind == EventKind::TaskCompleted
+                        && e.fields.iter().any(|f| {
+                            f.key == "task"
+                                && matches!(&f.value, FieldValue::String(s) if s == task)
+                        })
+                })
+                .expect("a TaskCompleted frame per task")
+        };
+        let dl = completed_for("dl");
+        assert!(
+            dl.fields.iter().any(|f| f.key == "integrity"
+                && matches!(&f.value, FieldValue::String(s) if s == "untrusted")),
+            "the untrusted frame names the label"
+        );
+        assert!(
+            dl.fields.iter().any(|f| f.key == "integrity_source"
+                && matches!(&f.value, FieldValue::String(s) if s == "dl")),
+            "the frame names the born origin"
+        );
+        let plain = completed_for("plain");
+        assert!(
+            !plain.fields.iter().any(|f| f.key == "integrity"),
+            "a trusted task emits NO integrity field — old journals stay readable"
+        );
     }
 
     /// The agent verb's declared `tools:` universe is gated the same way —

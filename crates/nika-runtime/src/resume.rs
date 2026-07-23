@@ -160,6 +160,13 @@ fn jcs_blake3(payload: &Value) -> Option<String> {
     Some(blake3::hash(&bytes).to_hex().to_string())
 }
 
+/// The shared digest door (F-O1 PR-3 · the `declassify` receipt's value
+/// digest reads the SAME canonical fold as the resume identity hashes —
+/// one digest law per receipt).
+pub(crate) fn jcs_blake3_hex(payload: &Value) -> Option<String> {
+    jcs_blake3(payload)
+}
+
 /// Replace every JSON number with a tagged string of its `serde_json`
 /// literal — full int64/float fidelity under JCS (RFC 8785 alone
 /// serializes numbers as ES6 doubles: two int64s beyond 2^53 would

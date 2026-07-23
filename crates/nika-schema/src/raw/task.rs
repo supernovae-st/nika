@@ -3,10 +3,12 @@
 
 //! `RawTask` — a single task in the raw workflow AST.
 //!
-//! Canonical v1 task shape per spec `03-dag.md` §forward-compat ·
+//! Canonical v1 task shape per spec `03-dag.md` §forward-compat +
+//! NEP-0004 law 7's one grammar addition ·
 //! « v1 ships with these task fields · `with` · `after` · `when` ·
 //! `for_each` · `max_parallel` · `fail_fast` · `retry` · `on_error` ·
-//! `timeout` · `on_finally` · `output` · plus the verb selector. »
+//! `timeout` · `on_finally` · `output` · `declassify` · plus the verb
+//! selector. »
 //! The set is CLOSED — strict mode rejects anything else.
 
 use std::time::Duration;
@@ -15,6 +17,28 @@ use crate::source::Spanned;
 use crate::types::{AfterPredicate, OnError, RetryConfig, WhenGate};
 
 use super::action::RawAction;
+
+/// One `declassify:` entry (NEP-0004 law 5 · the ONLY door through the
+/// permit-parameterization taint): raise ONE binding from untrusted to
+/// trusted, authored and check-visible. Lifts the TAINT law only — the
+/// value is still matched against the declared boundary (never a permit
+/// bypass) — and the run receipt records it (taint path · `because` ·
+/// value digest).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DeclassifyEntry {
+    /// `from:` — the ONE binding this entry raises (`inputs.p` ·
+    /// `config.region` · `tasks.fetch.output`) — a dotted value-binding
+    /// path, kept verbatim (the taint oracle matches it against the
+    /// canonical dotted form of each reference).
+    pub from: Spanned<String>,
+    /// `to:` — the target integrity label · v1 knows exactly one raise:
+    /// `trusted` (parser-enforced).
+    pub to: Spanned<String>,
+    /// `because:` — the non-empty justification (parser-enforced) ·
+    /// recorded in the run receipt.
+    pub because: Spanned<String>,
+}
 
 /// A raw task — a single step in the workflow DAG.
 ///
@@ -57,6 +81,9 @@ pub struct RawTask {
     pub returns: Option<Spanned<serde_json::Value>>,
     /// `on_finally:` — cleanup mini-tasks · ALWAYS run (spec 03).
     pub on_finally: Vec<Spanned<RawFinallyTask>>,
+    /// `declassify:` — the task-level taint-lift declarations (NEP-0004
+    /// law 5 · the only door through the re-gate · receipt-recorded).
+    pub declassify: Vec<DeclassifyEntry>,
     /// The verb (exactly one · parser-enforced).
     pub action: RawAction,
 }
@@ -79,6 +106,7 @@ impl RawTask {
             output: Vec::new(),
             returns: None,
             on_finally: Vec::new(),
+            declassify: Vec::new(),
             action,
         }
     }

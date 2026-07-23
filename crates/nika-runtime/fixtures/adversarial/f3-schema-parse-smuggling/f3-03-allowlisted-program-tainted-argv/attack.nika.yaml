@@ -1,8 +1,11 @@
-# F3 — DOCUMENTED RESIDUAL: the page's content fills an argv slot of an
-# ALLOWLISTED program. The exec allowlist gates the program (echo), never
-# the arguments — the untrusted string runs as data. The argv form is the
-# structural fix against shell re-parsing (no `sh -c` ever sees the bytes),
-# so this fixture pins exactly where the boundary ends: the program name.
+# F3 — RUNTIME-BLOCK (F-O1 PR-2): the page's content fills an argv slot of
+# an ALLOWLISTED program. The exec allowlist still gates the program (echo);
+# the permit-parameterization taint (NEP-0004 law 2) now owns the argv: the
+# slot's template reads an untrusted fetch output, so the RESOLVED value is
+# re-gated against the step's permit — it carries path shape under a
+# default-deny fs boundary and the refusal lands pre-spawn (NIKA-SEC-004).
+# The argv form stays the structural fix against shell re-parsing; the
+# re-gate closes what the program allowlist could not see.
 nika: v1
 workflow:
   id: f3-03-allowlisted-program-tainted-argv

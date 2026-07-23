@@ -56,6 +56,7 @@ mod dispatch;
 mod emit_task;
 mod errors;
 mod expr;
+mod integrity;
 mod jq;
 mod ledger;
 mod pause;

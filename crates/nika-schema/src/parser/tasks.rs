@@ -4,9 +4,10 @@
 //! Task-list parsing — YAML `tasks:` sequence → `Vec<Spanned<RawTask>>`.
 //!
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
-//! §forward-compat) · `with` · `after` · `when` · `for_each` ·
-//! `max_parallel` · `fail_fast` · `retry` · `on_error` · `timeout` ·
-//! `on_finally` · `output` · plus exactly one verb key.
+//! §forward-compat + NEP-0004 law 7's ONE grammar addition) · `with` ·
+//! `after` · `when` · `for_each` · `max_parallel` · `fail_fast` ·
+//! `retry` · `on_error` · `timeout` · `on_finally` · `output` ·
+//! `declassify` · plus exactly one verb key.
 
 use std::time::Duration;
 
@@ -46,6 +47,7 @@ const TASK_KEYS: &[&str] = &[
     "output",
     "returns",
     "on_finally",
+    "declassify",
 ];
 
 pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
@@ -181,6 +183,7 @@ fn parse_task(
     task.output = parse_output_bindings(cx, mapping)?;
     task.returns = parse_returns(cx, mapping)?;
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
+    task.declassify = super::declassify::parse_declassify(cx, mapping, &task_label)?;
 
     Ok(task)
 }
@@ -740,7 +743,7 @@ fn parse_on_finally(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::time::Duration;
 
     use crate::error::SchemaError;
@@ -749,11 +752,11 @@ mod tests {
     use crate::source::FileId;
     use crate::types::{AfterPredicate, BackoffStrategy, OnErrorAction, WhenGate};
 
-    fn parse_strict(yaml: &str) -> Result<RawWorkflow, SchemaError> {
+    pub(crate) fn parse_strict(yaml: &str) -> Result<RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)
     }
 
-    fn one_task(yaml: &str) -> crate::raw::RawTask {
+    pub(crate) fn one_task(yaml: &str) -> crate::raw::RawTask {
         parse_strict(yaml).expect("parse").tasks.remove(0).value
     }
 

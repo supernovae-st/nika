@@ -159,6 +159,12 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         name: "on_finally",
         doc: "Cleanup mini-tasks that ALWAYS run after this task.",
     },
+    Entry {
+        name: "declassify",
+        doc: "Declare a taint lift (NEP-0004 law 5 · the only door through \
+              the re-gate): `{from, to: trusted, because}` entries — \
+              check-visible and receipt-recorded, never a permit bypass.",
+    },
 ];
 
 /// The JSON-Schema keyset inside a `schema:` block (02-verbs: the typed

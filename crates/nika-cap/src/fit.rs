@@ -66,8 +66,12 @@ pub(crate) fn path_glob_matches(glob: &str, path: &str) -> bool {
 /// (`/..` == `/`), so it is dropped; for a **relative** path the escape MUST be
 /// preserved (`./../data` stays out-of-boundary) — dropping it would collapse an
 /// escaping path onto an in-boundary one, a false ACCEPT in the permit check.
+///
+/// `pub` since F-O1 PR-2: the runtime re-gate (`NIKA-SEC-004`) prints THIS
+/// canonical form in its refusals — the same fold [`Permits::allows_path`]
+/// matches against, so the message can never disagree with the verdict.
 #[must_use]
-pub(crate) fn lexically_normalize(path: &str) -> String {
+pub fn lexically_normalize(path: &str) -> String {
     let absolute = path.starts_with('/');
     let dot_rooted = path.starts_with("./");
     let mut out: Vec<&str> = Vec::new();

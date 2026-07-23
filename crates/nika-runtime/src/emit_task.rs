@@ -8,6 +8,21 @@
 use crate::record::{TaskRecord, outcome_json};
 use crate::{EventKind, EventSink, FieldValue, Stamper, emit, i, resume, s};
 
+/// The F-O1 additive integrity fields — pushed onto a terminal task frame
+/// ONLY when the settled record is untrusted (`integrity` ·
+/// `integrity_source`, the born-origin witness). Absent = trusted: old
+/// journals stay readable and the field is never required — and no gate
+/// consumes the label yet (PR-2 is the re-gate).
+pub(crate) fn push_integrity_fields(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    record: &TaskRecord,
+) {
+    if let nika_cap::Integrity::Untrusted { source } = &record.integrity {
+        fields.push(("integrity", s(record.integrity.as_str())));
+        fields.push(("integrity_source", s(source)));
+    }
+}
+
 /// `task_recovered` — the ONE emission site (INV#24 · engine#301 · the
 /// D-2026-07-08-N4 sequence lock): INSERTS before the terminal, so
 /// `task_completed` stays the one success terminal and audit surfaces read
@@ -96,5 +111,7 @@ pub(crate) fn emit_completed(
     // outcome (class · cause · payload per class).
     let outcome = outcome_json(record);
     fields.push(("outcome", s(&outcome)));
+    // F-O1 · the additive integrity label (present only when untrusted).
+    push_integrity_fields(&mut fields, record);
     emit(stamper, sink, EventKind::TaskCompleted, &fields)
 }

@@ -21,7 +21,7 @@ use nika_schema::raw::{RawAction, RawCommand};
 use nika_schema::types::CaptureMode as SpecCaptureMode;
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentInput, AgentValue};
-use nika_verb_exec::{CaptureMode, ExecInput, ExecValue};
+use nika_verb_exec::{CaptureMode, ExecCommand, ExecInput, ExecValue};
 use nika_verb_infer::{InferInput, InferValue};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
@@ -30,6 +30,7 @@ use crate::Runtime;
 use crate::errors::RuntimeError;
 
 mod permits;
+mod regate;
 mod sandbox;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
@@ -294,6 +295,52 @@ impl Dispatched {
     }
 }
 
+/// Settle a successful exec output into the task value (spec 02 · 09 ·
+/// the fit) — split for the fn ratchet · semantics unchanged.
+fn settle_exec_out(
+    note: &str,
+    out: nika_verb_exec::ExecOutput,
+    decode: nika_schema::DecodeMode,
+    contract: Option<&crate::contract::TaskContract<'_>>,
+) -> Dispatched {
+    // Text modes trim to a STRING · structured yields the
+    // `{stdout, stderr, exit_code}` object raw (spec 02 §exec).
+    let value = match out.output {
+        ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
+        // The decode pipeline (spec 09 §decode) — the exact captured
+        // octets become the value; a stream that does not decode settles
+        // the task failure (NIKA-1705 · inside `on_error:` scope).
+        ExecValue::Raw(bytes) => match crate::contract::decode_bytes(decode, &bytes) {
+            Ok(value) => value,
+            Err(err) => return Dispatched::template_err(note, &err),
+        },
+        ExecValue::Structured {
+            stdout,
+            stderr,
+            exit_code,
+        } => serde_json::json!({
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": exit_code,
+        }),
+        // #[non_exhaustive] · a future value form fails loudly rather
+        // than dropping fields (the loud doctrine).
+        other => {
+            return Dispatched::unwired(note, format!("exec value form not wired yet: {other:?}"));
+        }
+    };
+    // The run-time fit (spec 09 · `Type(decoded) ⊑ returns`): the
+    // DECODED value under the text modes · the `{stdout, stderr,
+    // exit_code}` object under structured (« a returns: on such a task
+    // types that object directly »). Violation = NIKA-TYPE-101.
+    if let Some(c) = contract
+        && let Err(err) = c.check_fit(note, &value)
+    {
+        return Dispatched::template_err(note, &err);
+    }
+    Dispatched::ok(note.to_owned(), value, None)
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -318,10 +365,15 @@ where
     /// `child_budget` — the run ledger's remaining USD at call time
     /// (spec 14 law 6): an `invoke: workflow:` child runs under
     /// `min(this, its declared budget)`. `None` = no budget to inherit.
+    ///
+    /// `taint` — the F-O1 PR-2 per-template oracle: the exec/mcp re-gates
+    /// label each RAW template against it and match the RENDERED value
+    /// against the step's permit (NEP-0004 law 2 · `dispatch/regate.rs`).
     pub(crate) async fn dispatch(
         &self,
         action: &RawAction,
         scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
         deadline: Option<std::time::Duration>,
         contract: Option<&crate::contract::TaskContract<'_>>,
@@ -329,10 +381,10 @@ where
     ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => {
-                self.dispatch_invoke(inner, scope, (deadline, child_budget), contract)
+                self.dispatch_invoke(inner, scope, taint, (deadline, child_budget), contract)
                     .await
             }
-            RawAction::Exec(inner) => self.dispatch_shell(inner, scope, contract).await,
+            RawAction::Exec(inner) => self.dispatch_shell(inner, scope, taint, contract).await,
             RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline, contract).await,
             RawAction::Agent(inner) => {
                 self.dispatch_agent(inner, scope, agent_buffer, contract)
@@ -351,6 +403,7 @@ where
         &self,
         action: &nika_schema::raw::RawInvokeAction,
         scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
         (deadline, child_budget): (Option<std::time::Duration>, Option<f64>),
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
@@ -381,6 +434,26 @@ where
                 Err(err) => return Dispatched::template_err(&note, &err),
             },
         };
+        // F-O1 PR-2 · the mcp border re-gate (NEP-0004 law 2): the grant
+        // of the tool IS the boundary, and a tainted path/host in its args
+        // slipped through — the resolved value is canonicalized then
+        // matched against the step's fs/net permit. First-party builtins
+        // are already re-gated at their own boundary (`boundary.enforce` ·
+        // the one-hop net enforce) — never duplicated here.
+        if tool.starts_with("mcp:")
+            && let (Some(boundary), Some(raw)) = (scope.permits, &action.args)
+            && let Some(denial) = regate::regate_mcp_args(
+                boundary,
+                &note,
+                &tool,
+                &raw.value,
+                &args,
+                taint,
+                scope.records,
+            )
+        {
+            return denial;
+        }
         let mut input = InvokeInput::new(tool);
         input.args = args;
         match self.invoke.run(input).await {
@@ -443,6 +516,7 @@ where
         &self,
         action: &nika_schema::raw::RawExecAction,
         scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let (mut input, program, is_argv) = match build_exec_input(action, scope) {
@@ -481,61 +555,42 @@ where
             return denial;
         }
 
+        // F-O1 PR-2 · the argv/cwd re-gate (NEP-0004 law 2): an untrusted
+        // value reaching the PERMITTED verb's argument is matched against
+        // the step's permit on its RESOLVED, canonical form — argv[1..]
+        // (option-injection · traversal · host), then cwd. `argv[0]` is
+        // the program, already matched on its resolved value above; the
+        // shell form has no per-token canonical form (the OS jail owns
+        // its fs — `dispatch/regate.rs` module docs).
+        if let Some(boundary) = scope.permits {
+            if let (RawCommand::Argv(elements), ExecCommand::Argv(argv)) =
+                (&action.command, &input.command)
+                && let Some(denial) =
+                    regate::regate_exec_argv(boundary, &note, elements, argv, taint, scope.records)
+            {
+                return denial;
+            }
+            if let (Some(template), Some(cwd)) = (&action.cwd, &input.cwd)
+                && let Some(denial) = regate::regate_exec_cwd(
+                    boundary,
+                    &note,
+                    &template.value,
+                    &cwd.to_string_lossy(),
+                    taint,
+                    scope.records,
+                )
+            {
+                return denial;
+            }
+        }
+
         // ADR-095 Layer 6 · the OS jail rides the SAME declared boundary
         // (F-O8: no `permits:` block = the zero-authority spec · the exec
         // is already refused above, this is the double lock).
         input.sandbox = Some(self.exec_sandbox_spec(scope.permits));
 
         match self.shell.run(input).await {
-            Ok(out) => {
-                // A text mode (`stdout`/`stderr`/`combined`) yields a
-                // trailing-newline-trimmed STRING (the `tasks.X.output ==
-                // '42'` ergonomic). `capture: structured` yields the
-                // `{ stdout, stderr, exit_code }` OBJECT verbatim — so
-                // `tasks.X.output.exit_code` resolves via CEL (spec 02
-                // §exec · same class as BUG#3's invoke value). The
-                // structured streams are NOT trimmed (fidelity is the
-                // whole point of the mode · the verb keeps them raw).
-                let value = match out.output {
-                    ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
-                    // The decode pipeline (spec 09 §decode) — the exact
-                    // captured octets become the value; a stream that
-                    // does not decode settles the task failure
-                    // (NIKA-1705 · inside `on_error:` scope).
-                    ExecValue::Raw(bytes) => match crate::contract::decode_bytes(decode, &bytes) {
-                        Ok(value) => value,
-                        Err(err) => return Dispatched::template_err(&note, &err),
-                    },
-                    ExecValue::Structured {
-                        stdout,
-                        stderr,
-                        exit_code,
-                    } => serde_json::json!({
-                        "stdout": stdout,
-                        "stderr": stderr,
-                        "exit_code": exit_code,
-                    }),
-                    // #[non_exhaustive] · a future value form fails loudly
-                    // rather than dropping fields (the loud doctrine).
-                    other => {
-                        return Dispatched::unwired(
-                            &note,
-                            format!("exec value form not wired yet: {other:?}"),
-                        );
-                    }
-                };
-                // The run-time fit (spec 09 · `Type(decoded) ⊑ returns`):
-                // the DECODED value under the text modes · the
-                // `{stdout, stderr, exit_code}` object under structured
-                // (« a returns: on such a task types that object
-                // directly »). Violation = NIKA-TYPE-101.
-                if let Some(c) = contract
-                    && let Err(err) = c.check_fit(&note, &value)
-                {
-                    return Dispatched::template_err(&note, &err);
-                }
-                Dispatched::ok(note, value, None)
-            }
+            Ok(out) => settle_exec_out(&note, out, decode, contract),
             Err(err) => Dispatched::verb_err(note, &err),
         }
     }

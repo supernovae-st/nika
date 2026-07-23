@@ -431,8 +431,9 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
     assert_eq!(
         labels(&items),
         vec![
-            // the 11 task fields (vocab order · W2: after/with are the
-            // two doors · id and depends_on are dead forms)
+            // the 12 task fields (vocab order · W2: after/with are the
+            // two doors · id and depends_on are dead forms · NEP-0004
+            // law 7 added declassify)
             "after",
             "when",
             "for_each",
@@ -444,6 +445,7 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
             "with",
             "output",
             "on_finally",
+            "declassify",
             // then the 4 verbs
             "infer",
             "exec",
@@ -452,15 +454,15 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
         ],
         "task fields then the 4 verbs"
     );
-    // the first 11 are PROPERTY (fields), the last 4 are KEYWORD (verbs).
+    // the first 12 are PROPERTY (fields), the last 4 are KEYWORD (verbs).
     let ks = kinds(&items);
-    assert_eq!(ks.len(), 15, "15 items, all kinded");
+    assert_eq!(ks.len(), 16, "16 items, all kinded");
     assert!(
-        ks[..11].iter().all(|k| *k == CompletionItemKind::PROPERTY),
+        ks[..12].iter().all(|k| *k == CompletionItemKind::PROPERTY),
         "fields are PROPERTY-kinded"
     );
     assert!(
-        ks[11..].iter().all(|k| *k == CompletionItemKind::KEYWORD),
+        ks[12..].iter().all(|k| *k == CompletionItemKind::KEYWORD),
         "verbs are KEYWORD-kinded"
     );
     // the verb items carry their doc as detail (the detail field).

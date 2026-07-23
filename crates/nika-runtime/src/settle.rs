@@ -20,6 +20,54 @@ use crate::stamp::{EventSink, Stamper};
 use crate::task::{self, Finish, SettleAs};
 use crate::{agent_events, child, emit, emit_task, i, resume, s};
 
+/// The `SkippedGate` arm of the settle (skipped/gate · the gate's own
+/// CEL text rides verbatim) — split for the 100-line fn ratchet.
+fn settle_skipped_gate(
+    id: &str,
+    note: &str,
+    expr: Option<&str>,
+    named: std::collections::BTreeMap<String, Value>,
+    records: &mut BTreeMap<String, TaskRecord>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let record = with_named(
+        TaskRecord::unran(TaskStatus::Skipped, TerminalCause::Gate),
+        named,
+    );
+    let mut fields = vec![("task", s(id)), ("note", s(note))];
+    if let Some(cel) = &expr {
+        fields.push(("when", s(cel)));
+    }
+    fields.push(("outcome", s(&record::outcome_json(&record))));
+    emit(stamper, sink, EventKind::TaskSkipped, &fields);
+    records.insert(id.to_owned(), record);
+}
+
+/// The Cancelled arm of the settle (spec 13 · cancelled/upstream) — the
+/// WHY rides along: which upstream kept the gate closed.
+fn settle_cancelled(
+    id: &str,
+    note: &str,
+    blocked_by: Option<&str>,
+    named: std::collections::BTreeMap<String, Value>,
+    records: &mut BTreeMap<String, TaskRecord>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let record = with_named(
+        TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Upstream),
+        named,
+    );
+    let mut fields = vec![("task", s(id)), ("note", s(note))];
+    if let Some(culprit) = blocked_by {
+        fields.push(("blocked_by", s(culprit)));
+    }
+    fields.push(("outcome", s(&record::outcome_json(&record))));
+    emit(stamper, sink, EventKind::TaskCancelled, &fields);
+    records.insert(id.to_owned(), record);
+}
+
 /// Settle one task in wave order · owns the pens (stamper + sink) ·
 /// inserts the result record. `pub(crate)`: the recover-await spine
 /// (`recover::settle_or_park` + the drain passes) settles through THIS
@@ -38,36 +86,27 @@ pub(crate) fn settle(
     // non-success (defined-null reads · empty when no `output:`).
     let named = finish.named;
     let resume = finish.resume;
+    // F-O1 — the coarse integrity label the pipeline computed (trusted
+    // for a never-started task); stamped on the record + rides the
+    // terminal frame when untrusted. Additive — no gate reads it (PR-2).
+    let integrity = finish.integrity;
+    // F-O1 PR-3 — the `declassify:` receipt evidence (NEP-0004 law 5);
+    // emitted once per entry on the Ran path (the door was used).
+    let declassified = finish.declassified;
     match finish.settle {
         SettleAs::Cancelled { note, blocked_by } => {
-            // The WHY rides along: which upstream kept the gate closed —
-            // the outcome names the cause (spec 13 · cancelled/upstream).
-            let record = with_named(
-                TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Upstream),
+            settle_cancelled(
+                &id,
+                note,
+                blocked_by.as_deref(),
                 named,
+                records,
+                stamper,
+                sink,
             );
-            let mut fields = vec![("task", s(&id)), ("note", s(note))];
-            if let Some(culprit) = &blocked_by {
-                fields.push(("blocked_by", s(culprit)));
-            }
-            fields.push(("outcome", s(&record::outcome_json(&record))));
-            emit(stamper, sink, EventKind::TaskCancelled, &fields);
-            records.insert(id, record);
         }
         SettleAs::SkippedGate { note, expr } => {
-            // The gate's own CEL text — « why did this not run » verbatim.
-            // Outcome: skipped/gate — a decision, `.error` defined-null.
-            let record = with_named(
-                TaskRecord::unran(TaskStatus::Skipped, TerminalCause::Gate),
-                named,
-            );
-            let mut fields = vec![("task", s(&id)), ("note", s(note))];
-            if let Some(cel) = &expr {
-                fields.push(("when", s(cel)));
-            }
-            fields.push(("outcome", s(&record::outcome_json(&record))));
-            emit(stamper, sink, EventKind::TaskSkipped, &fields);
-            records.insert(id, record);
+            settle_skipped_gate(&id, note, expr.as_deref(), named, records, stamper, sink);
         }
         SettleAs::FailedBeforeStart { stage, error } => {
             // A pre-dispatch failure (gate eval · with · for_each
@@ -95,15 +134,58 @@ pub(crate) fn settle(
             *ok = false;
         }
         SettleAs::CacheHit { output } => {
-            let record = settle_cache_hit(&id, output, named, resume.as_ref(), stamper, sink);
+            let record = settle_cache_hit(
+                &id,
+                output,
+                named,
+                resume.as_ref(),
+                &integrity,
+                stamper,
+                sink,
+            );
             records.insert(id.clone(), record);
             cache_hits.push(id);
         }
         SettleAs::Ran(run) => {
-            let mut record = settle_ran(&id, run, resume.as_ref(), ok, stamper, sink);
+            let mut record = settle_ran(
+                &id,
+                run,
+                resume.as_ref(),
+                &integrity,
+                &declassified,
+                ok,
+                stamper,
+                sink,
+            );
             record.named = named;
             records.insert(id, record);
         }
+    }
+}
+
+/// Emit one `declassify` frame per declared entry (NEP-0004 law 5 · the
+/// only door through the re-gate): the receipt commits to WHAT was
+/// lifted (`from` · the taint path's binding), WHY (`because`), and the
+/// digest of the value the door admitted (`value_digest`, when the
+/// binding resolved at dispatch). Emitted BETWEEN `task_started` and
+/// the terminal frame — the hash chain binds the lift to the task that
+/// consumed it.
+fn emit_declassified(
+    id: &str,
+    evidence: &[task::DeclassifyEvidence],
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    for entry in evidence {
+        let mut fields = vec![
+            ("task", s(id)),
+            ("from", s(&entry.from)),
+            ("because", s(&entry.because)),
+        ];
+        if let Some(digest) = &entry.value_digest {
+            fields.push(("value_digest", s(digest)));
+        }
+        emit(stamper, sink, EventKind::Declassify, &fields);
     }
 }
 
@@ -118,6 +200,7 @@ fn settle_cache_hit(
     output: Value,
     named: BTreeMap<String, Value>,
     resume: Option<&resume::ResumeStamp>,
+    integrity: &nika_cap::Integrity,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) -> TaskRecord {
@@ -125,6 +208,8 @@ fn settle_cache_hit(
     record.attempts = Some(1);
     record.output = output;
     record.named = named;
+    // The rehydrated output carries the task's provenance (F-O1).
+    record.integrity = integrity.clone();
     let mut fields = vec![("task", s(id)), ("note", s("cache hit"))];
     let output_text = serde_json::to_string(&record.output).unwrap_or_else(|_| "null".to_owned());
     if let Some(stamp) = resume {
@@ -133,6 +218,7 @@ fn settle_cache_hit(
         fields.push((resume::fields::OUTPUT, s(&output_text)));
     }
     fields.push(("outcome", s(&record::outcome_json(&record))));
+    emit_task::push_integrity_fields(&mut fields, &record);
     let ended = emit(stamper, sink, EventKind::TaskCacheHit, &fields);
     record.ended_at = Some(ended);
     record
@@ -173,10 +259,27 @@ fn emit_retry_history(
     }
 }
 
+/// The Ran preamble (NEP-0004 law 5 · the declassify door BEFORE the
+/// attempt history · retries · the agent loop's decisions ADR-096) —
+/// split for the 100-line fn ratchet.
+fn emit_ran_preamble(
+    id: &str,
+    declassified: &[task::DeclassifyEvidence],
+    run: &task::RanTask,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    emit_declassified(id, declassified, stamper, sink);
+    emit_retry_history(id, &run.retries, stamper, sink);
+    agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
+}
+
 pub(crate) fn settle_ran(
     id: &str,
     run: task::RanTask,
     resume: Option<&resume::ResumeStamp>,
+    integrity: &nika_cap::Integrity,
+    declassified: &[task::DeclassifyEvidence],
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -187,18 +290,16 @@ pub(crate) fn settle_ran(
         EventKind::TaskStarted,
         &[("task", s(id)), ("note", s(&run.note))],
     );
-    emit_retry_history(id, &run.retries, stamper, sink);
-    // The agent loop's decisions (ADR-096 · buffered per dispatch · in
-    // order across attempts) land between the attempt history and the
-    // terminal frame — readers reconstruct per-attempt interleaving
-    // from the `turn` field.
-    agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
+    emit_ran_preamble(id, declassified, &run, stamper, sink);
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();
     let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
     record.started_at = Some(started_at);
     record.duration_ms = Some(run.duration_ms);
+    // F-O1 — the pipeline's computed label, set BEFORE any terminal frame
+    // so the frame's additive fields read the settled truth.
+    record.integrity = integrity.clone();
     match run.result {
         task::RunResult::Success {
             value,
@@ -356,6 +457,7 @@ fn settle_failed_terminal(
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
     fields.push(("outcome", s(&record::outcome_json(record))));
+    emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
     record.ended_at = Some(ended);
     *ok = false;
@@ -385,6 +487,7 @@ fn settle_skip_with_error(
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
     fields.push(("outcome", s(&record::outcome_json(record))));
+    emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskSkipped, &fields);
     record.ended_at = Some(ended);
 }

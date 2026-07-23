@@ -21,7 +21,7 @@ use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{ForEachValue, RawAction, RawFinallyTask, RawTask};
+use nika_schema::raw::{ForEachValue, RawAction, RawTask};
 use nika_schema::types::{OnError, OnErrorAction, Permits, WhenGate};
 use serde_json::Value;
 
@@ -48,11 +48,53 @@ pub(crate) const TIMEOUT_CODE: &str = "NIKA-TIMEOUT-001";
 /// (spec 03 · same spec-plane discipline as [`TIMEOUT_CODE`]).
 pub(crate) const VAR_TYPE_CODE: &str = "NIKA-VAR-006";
 
-/// Default per-cleanup-task timeout (spec 03 §`on_finally`).
-const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
-
 /// One task's complete, pen-free outcome — the settle pass turns this
 /// into events + a record.
+mod declassify;
+mod finally;
+
+pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};
+
+/// Assemble the `Finish` of a RAN task (the output bindings spec 04 ·
+/// the resume filter · the F-O1 declassify evidence) — split out of
+/// `run_task_pipeline` for the 100-line fn ratchet · semantics unchanged.
+// REASON: the ran assembly threads the task + its computed parts — 9
+// params, each one a distinct pipeline product (same trade as the caller).
+#[allow(clippy::too_many_arguments)]
+fn assemble_ran_finish(
+    task: &RawTask,
+    id: String,
+    mut settle: SettleAs,
+    resume: Option<crate::resume::ResumeStamp>,
+    resume_ctx: &crate::resume::ResumeContext,
+    inputs: &BTreeMap<String, Value>,
+    config: &BTreeMap<String, Value>,
+    records: &BTreeMap<String, TaskRecord>,
+    integrity: nika_cap::Integrity,
+) -> Finish {
+    // `output:` named bindings (spec 04 §Output binding) — evaluated
+    // over the task's FINAL raw output, BEFORE settle emits the
+    // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
+    // success into a failure (the cascade) rather than landing after
+    // a `TaskCompleted`. The map carries one entry per declared
+    // binding (the value on success · `Null` on a non-success ·
+    // defined-null reads).
+    let named = bind_outputs(task, &mut settle);
+    let resume = filter_leaky_resume(resume, &settle, resume_ctx);
+    // F-O1 PR-3 · the task RAN — the door was used: the receipt
+    // carries one `declassify` event per declared entry (the settle
+    // spine emits them after `task_started`).
+    let declassified = declassify_evidence(task, inputs, config, records);
+    Finish {
+        id,
+        settle,
+        named,
+        resume,
+        integrity,
+        declassified,
+    }
+}
+
 pub(crate) struct Finish {
     pub id: String,
     pub settle: SettleAs,
@@ -65,6 +107,20 @@ pub(crate) struct Finish {
     /// run (future form · render miss · secret leak) — the task records
     /// no key and simply never skips (honest degradation).
     pub resume: Option<crate::resume::ResumeStamp>,
+    /// The coarse runtime integrity label (F-O1 PR-1 · additive) —
+    /// computed from the task's static reference surface + the settled
+    /// upstream records ([`crate::integrity::task_integrity`]) for a task
+    /// that RAN or cache-hit; [`nika_cap::Integrity::Trusted`] for a
+    /// task that never started (its output is `Null` — no content
+    /// flowed). The settle spine stamps it on the record; no gate
+    /// consumes it yet (PR-2).
+    pub integrity: nika_cap::Integrity,
+    /// The `declassify:` receipt evidence (F-O1 PR-3 · NEP-0004 law 5) —
+    /// one entry per declared door, emitted as `declassify` events between
+    /// `task_started` and the terminal frame when the task RAN (the door
+    /// was used). Empty everywhere else (a skipped/cancelled/cache-hit
+    /// task never opened it).
+    pub declassified: Vec<DeclassifyEvidence>,
 }
 
 /// How the task settles (spec 03 §task states).
@@ -284,6 +340,11 @@ where
                         },
                         named: null_bindings(task),
                         resume: None,
+                        // Never started — no content flowed (the F-O1
+                        // label is trusted by default · the door never
+                        // opened either).
+                        integrity: nika_cap::Integrity::trusted(),
+                        declassified: Vec::new(),
                     };
                 }
             };
@@ -299,10 +360,17 @@ where
             return finish;
         }
 
+        // F-O1 · the coarse integrity label — computed from the task AS
+        // AUTHORED (an `--answer` binding below is the operator's act,
+        // never an ingress) over the wave-frozen records. Carried on the
+        // Finish; the settle spine stamps it.
+        let integrity = crate::integrity::task_integrity(task, records);
+
         // ── ADR-099 resume identity + the skip verdict — extracted
         //    (the 100-line fn ratchet · semantics unchanged) ──
-        let (resume, skip) =
-            self.resume_skip_finish(task, &id, records, inputs, config, consts, resume_ctx);
+        let (resume, skip) = self.resume_skip_finish(
+            task, &id, records, inputs, config, consts, resume_ctx, &integrity,
+        );
         if let Some(finish) = skip {
             return finish;
         }
@@ -320,7 +388,7 @@ where
         };
 
         // ── `for_each:` fan-out or the single lane ──────────────────
-        let mut settle = self
+        let settle = self
             .run_lanes(
                 task,
                 boundary_with,
@@ -329,23 +397,12 @@ where
                 permits,
                 types,
                 ledger,
+                &integrity,
             )
             .await;
-        // `output:` named bindings (spec 04 §Output binding) — evaluated
-        // over the task's FINAL raw output, BEFORE settle emits the
-        // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
-        // success into a failure (the cascade) rather than landing after
-        // a `TaskCompleted`. The map carries one entry per declared
-        // binding (the value on success · `Null` on a non-success ·
-        // defined-null reads).
-        let named = bind_outputs(task, &mut settle);
-        let resume = filter_leaky_resume(resume, &settle, resume_ctx);
-        Finish {
-            id,
-            settle,
-            named,
-            resume,
-        }
+        assemble_ran_finish(
+            task, id, settle, resume, resume_ctx, inputs, config, records, integrity,
+        )
     }
 
     /// The ADR-099 resume gate: the stamp (computed from the task AS
@@ -355,7 +412,9 @@ where
     /// edited task or a changed input re-runs · §1 · a freshly-supplied
     /// `--answer` FORCES the ask — operator intent is explicit, never
     /// replay an old answer over a new one). The stamp returns for the
-    /// leak filter downstream.
+    /// leak filter downstream. A cache hit keeps the pipeline's computed
+    /// `integrity` (the rehydrated output carries the task's provenance).
+    #[allow(clippy::too_many_arguments)] // the run-scoped reads + the F-O1 label
     fn resume_skip_finish(
         &self,
         task: &RawTask,
@@ -365,13 +424,18 @@ where
         config: &BTreeMap<String, Value>,
         consts: &BTreeMap<String, Value>,
         resume_ctx: &crate::resume::ResumeContext,
+        integrity: &nika_cap::Integrity,
     ) -> (Option<crate::resume::ResumeStamp>, Option<Finish>) {
         let resume = crate::resume::stamp(task, records, inputs, config, consts, resume_ctx);
         let skip = if self.prompt_answers.contains_key(id) {
             None
         } else {
             self.cache_hit_finish(task, id, resume.as_ref())
-        };
+        }
+        .map(|mut finish| {
+            finish.integrity = integrity.clone();
+            finish
+        });
         (resume, skip)
     }
 
@@ -388,6 +452,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        integrity: &nika_cap::Integrity,
     ) -> SettleAs {
         match task.for_each.as_ref() {
             None => {
@@ -399,6 +464,7 @@ where
                     permits,
                     types,
                     ledger,
+                    integrity,
                 )
                 .await
             }
@@ -412,6 +478,7 @@ where
                     permits,
                     types,
                     ledger,
+                    integrity,
                 )
                 .await
             }
@@ -444,6 +511,13 @@ where
             settle,
             named,
             resume: Some(stamp.clone()),
+            // Stamped by the caller (`resume_skip_finish`) with the
+            // pipeline's computed label — the rehydrated output carries
+            // the task's provenance.
+            integrity: nika_cap::Integrity::trusted(),
+            // A cache hit never ran HERE — the original run recorded the
+            // door (no new `declassify` event).
+            declassified: Vec::new(),
         })
     }
 
@@ -483,7 +557,7 @@ where
     }
 
     /// The single-execution lane (no `for_each:`).
-    // REASON: the run-scoped seams plus the boundary render.
+    // REASON: the run-scoped seams plus the boundary render + the F-O1 label.
     #[allow(clippy::too_many_arguments)]
     async fn run_single(
         &self,
@@ -494,6 +568,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        integrity: &nika_cap::Integrity,
     ) -> SettleAs {
         // `with:` materialized at the boundary (spec 03 §dispatch
         // pipeline) — the single lane consumes it as rendered.
@@ -512,13 +587,13 @@ where
         let mut ran = self.attempt_loop(task, &scope, types, ledger).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG).
-        self.run_finally(task, &scope, &ran).await;
+        self.run_finally(task, &scope, &ran, integrity).await;
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
-    // REASON: same run-scoped seams as the pipeline.
+    // REASON: same run-scoped seams as the pipeline + the F-O1 label.
     #[allow(clippy::too_many_arguments)]
     async fn run_fan_out(
         &self,
@@ -530,6 +605,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        integrity: &nika_cap::Integrity,
     ) -> SettleAs {
         // The collection resolves on the PRE-fan-out surface (the
         // item-free boundary bindings) · empty settles `skipped`.
@@ -608,7 +684,8 @@ where
         // `item`/`index` are NOT in scope there).
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, config, consts, secrets), permits);
-        self.run_finally(task, &finally_scope, &ran).await;
+        self.run_finally(task, &finally_scope, &ran, integrity)
+            .await;
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
     }
@@ -700,6 +777,32 @@ where
     /// full-jitter backoff via the clock seam) racing the task's ONE
     /// `timeout:` budget (spec 03 · "including any retries and their
     /// backoff sleeps") · then `on_error:` (spec 05).
+    /// One failed attempt's debit + retry decision (spec 05) — split out
+    /// of `attempt_loop` for the 100-line fn ratchet · the error rides
+    /// the `FailedOutcome` when the policy admits no more.
+    // REASON: the retry decision reads the task + the dispatch + the
+    // ledger + the spend fold + the attempt counters — the loop's own seam.
+    #[allow(clippy::too_many_arguments)]
+    fn failed_attempt_delay(
+        &self,
+        task: &RawTask,
+        failed: crate::dispatch::FailedDispatch,
+        ledger: &crate::ledger::RunLedger,
+        failed_cost: &mut Option<f64>,
+        failed_unpriced: &mut Option<nika_types::cost::UnpricedReason>,
+        attempt: u32,
+        max_attempts: u32,
+        jitter_key: &str,
+    ) -> Result<u64, FailedOutcome> {
+        // Debits PER ATTEMPT — a retry storm is never invisible.
+        let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
+        // Retry iff attempts remain AND the policy admits (spec 05).
+        let Some(delay) = self.retry_delay(task, &error, attempt, max_attempts, jitter_key) else {
+            return Err(FailedOutcome::new(error, *failed_cost, *failed_unpriced));
+        };
+        Ok(delay)
+    }
+
     async fn attempt_loop(
         &self,
         task: &RawTask,
@@ -724,6 +827,10 @@ where
             let budget = task.timeout.as_ref().map(|t| t.value);
             // The `returns:` contract, resolved ONCE (spec 09 · W3) — `None` = gradual.
             let contract = crate::contract::TaskContract::of(task, types);
+            // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE
+            // (a static walk over the task's own templates + the wave-frozen
+            // records; iteration-agnostic), consumed per dispatch attempt.
+            let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -734,6 +841,7 @@ where
                         .dispatch(
                             &task.action,
                             scope,
+                            &value_taint,
                             &agent_buffer,
                             budget,
                             contract.as_ref(),
@@ -751,22 +859,16 @@ where
                             return Ok(ok);
                         }
                         Err(failed) => {
-                            // Debits PER ATTEMPT — a retry storm is never invisible.
-                            let error = failed.debit_and_fold(
+                            let delay = self.failed_attempt_delay(
+                                task,
+                                failed,
                                 ledger,
                                 &mut failed_cost,
                                 &mut failed_unpriced,
-                            );
-                            // Retry iff attempts remain AND the policy admits (spec 05).
-                            let Some(delay) =
-                                self.retry_delay(task, &error, attempt, max_attempts, &jitter_key)
-                            else {
-                                return Err(FailedOutcome::new(
-                                    error,
-                                    failed_cost,
-                                    failed_unpriced,
-                                ));
-                            };
+                                attempt,
+                                max_attempts,
+                                &jitter_key,
+                            )?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,
@@ -862,71 +964,6 @@ where
                 }
             }
         }
-    }
-
-    /// Run the cleanup mini-tasks (spec 03 §`on_finally` · sequential ·
-    /// best-effort · errors swallowed · per-cleanup timeout 30s).
-    async fn run_finally(&self, task: &RawTask, scope: &Scope<'_>, ran: &RanTask) {
-        if task.on_finally.is_empty() {
-            return;
-        }
-        // The cleanup scope sees the PARENT's fresh status/error via a
-        // one-record overlay (spec 03 · status/error routing).
-        // PERF (documented trade): one records-map clone per
-        // task-WITH-cleanup (early-return above keeps the common lane
-        // free) · workflow size is certificate-bounded (degree-1) — a
-        // copy-on-read overlay Scope would save it at the cost of a
-        // two-level resolve on EVERY lookup.
-        let mut records = scope.records.clone();
-        records.insert(task.id.value.clone(), preview_record(ran));
-        let cleanup_scope = Scope {
-            records: &records,
-            inputs: scope.inputs,
-            config: scope.config,
-            consts: scope.consts,
-            secrets: scope.secrets, // a cleanup may reference secrets.X too
-            with_ns: scope.with_ns,
-            item: None, // locals out of scope after the fan-out (spec 03)
-            index: None,
-            permits: scope.permits, // on_finally exec stays within the boundary
-        };
-        for mini in &task.on_finally {
-            self.run_one_cleanup(&mini.value, &cleanup_scope).await;
-        }
-    }
-
-    /// One cleanup mini-task · own `when:` + `timeout:` · outcome
-    /// swallowed (best-effort semantics · spec 03).
-    async fn run_one_cleanup(&self, mini: &RawFinallyTask, scope: &Scope<'_>) {
-        if let Some(gate) = mini.when.as_ref() {
-            match eval_gate(&gate.value, scope) {
-                Ok(true) => {}
-                // Closed gate OR eval error → the cleanup is skipped
-                // (a cleanup error never propagates).
-                _ => return,
-            }
-        }
-        let limit = mini.timeout.as_ref().map_or(CLEANUP_TIMEOUT, |t| t.value);
-        // Cleanup agent decisions are NOT collected (best-effort lane ·
-        // outcome dropped by design) — a throwaway buffer satisfies the
-        // dispatch seam; collecting it is a trigger-gated ratchet.
-        let cleanup_buffer = crate::agent_events::BufferingObserver::new();
-        // Mini-tasks carry no `returns:` (closed shape) — no contract.
-        let attempt = std::pin::pin!(self.dispatch(
-            &mini.action,
-            scope,
-            &cleanup_buffer,
-            Some(limit),
-            None,
-            // best-effort lane: no ledger here — a finally child inherits
-            // no cost bound (the lane has no budget admission by design);
-            // the select timer below still bounds it in TIME.
-            None,
-        ));
-        let timer = std::pin::pin!(self.clock.sleep(limit));
-        // Either way the outcome is dropped — cleanup observability is
-        // the cleanup's own effects (e.g. `nika:emit` · spec 03).
-        let _ = futures_util::future::select(attempt, timer).await;
     }
 
     /// Milliseconds since `started` per the injected clock.
@@ -1139,6 +1176,9 @@ fn gate_finish(
                 },
                 named: null_bindings(task),
                 resume: None,
+                // Never ran — the output is `Null`, no content flowed.
+                integrity: nika_cap::Integrity::trusted(),
+                declassified: Vec::new(),
             });
         }
     }
@@ -1194,6 +1234,10 @@ fn when_finish(
         settle,
         named: null_bindings(task),
         resume: None,
+        // Never started (the gate closed · the boundary refused) — the
+        // output is `Null`, no content flowed.
+        integrity: nika_cap::Integrity::trusted(),
+        declassified: Vec::new(),
     })
 }
 
@@ -1246,56 +1290,6 @@ fn references_loop_locals(value: &Value) -> bool {
         Value::Object(map) => map.values().any(references_loop_locals),
         _ => false,
     }
-}
-
-/// The parent's preview record for the cleanup scope (spec 03 · the
-/// cleanup sees `tasks.<parent>.status` / `.error`). A PENDING recovery
-/// previews as its pre-recovery failure: the attempts DID fail, and the
-/// deferred render has produced no value when the cleanup runs (the
-/// cleanup is task-scoped · it never awaits the spine).
-fn preview_record(ran: &RanTask) -> TaskRecord {
-    use crate::record::{TerminalCause, failure_cause};
-    let attempts = ran.attempts();
-    let mut record = match &ran.result {
-        RunResult::Success { recovered_from, .. } => {
-            let cause = if recovered_from.is_some() {
-                TerminalCause::Recovered
-            } else {
-                TerminalCause::Normal
-            };
-            let mut rec = TaskRecord::unran(TaskStatus::Success, cause);
-            rec.attempts = Some(attempts);
-            rec.recovered_from.clone_from(recovered_from);
-            rec
-        }
-        RunResult::SkippedWithError { .. } => {
-            TaskRecord::unran(TaskStatus::Skipped, TerminalCause::ErrorSkip)
-        }
-        RunResult::Failed { error, .. } => {
-            let mut rec = TaskRecord::unran(TaskStatus::Failure, failure_cause(error, attempts));
-            rec.attempts = Some(attempts);
-            rec
-        }
-        RunResult::PendingRecovery(pending) => {
-            let mut rec = TaskRecord::unran(
-                TaskStatus::Failure,
-                failure_cause(&pending.failed.record, attempts),
-            );
-            rec.attempts = Some(attempts);
-            rec
-        }
-    };
-    match &ran.result {
-        RunResult::Success { value, .. } => record.output = value.clone(),
-        RunResult::SkippedWithError { error, .. } | RunResult::Failed { error, .. } => {
-            record.error = Some(error.clone());
-        }
-        RunResult::PendingRecovery(pending) => {
-            record.error = Some(pending.failed.record.clone());
-        }
-    }
-    record.duration_ms = Some(ran.duration_ms);
-    record
 }
 
 /// Evaluate a `when:` gate value (shared by tasks + cleanup mini-tasks).

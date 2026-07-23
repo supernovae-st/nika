@@ -26,10 +26,12 @@
 //!   (`NIKA-SEC-004`/`005`, gate `PERMITS`);
 //! - the **runtime lanes**: the agent tool whitelist (`NIKA-SEC-002`,
 //!   never fed back to the model), the exec permit gate (`NIKA-SEC-004`,
-//!   pre-spawn), and the real builtin fs confinement (`NIKA-SEC-004`,
-//!   canonicalize-then-confine) — the last wired through the true
-//!   `BuiltinDispatcher` over mock fs/http seams, so the refusal is the
-//!   production code path with zero I/O.
+//!   pre-spawn), the F-O1 permit-parameterization re-gate (`NIKA-SEC-004`,
+//!   a tainted argv/mcp argument matched on its resolved, canonical form
+//!   against the step's permit), and the real builtin fs confinement
+//!   (`NIKA-SEC-004`, canonicalize-then-confine) — the last wired through
+//!   the true `BuiltinDispatcher` over mock fs/http seams, so the refusal
+//!   is the production code path with zero I/O.
 //!
 //! ## The five families
 //!
@@ -75,11 +77,18 @@
 //! Current residuals (kept honest by `suite_contract`):
 //!
 //! - `f1-03-in-boundary-egress-args` — model-chosen arguments ride INSIDE
-//!   the declared net boundary; no arg-level taint tracking at runtime
-//!   (owner: ADR-095 shadow zone `l1-taint-runtime`).
-//! - `f3-03-allowlisted-program-tainted-argv` — the exec allowlist gates
-//!   the program, never the argv (owner: ADR-095 shadow zone
-//!   `l1-taint-runtime`).
+//!   the declared net boundary: the F-O1 PR-2 re-gate (NEP-0004 law 2)
+//!   matches resolved values against the step's permit at the task-level
+//!   seams, but this egress is a model-chosen arg inside the agent loop
+//!   whose host the permit COVERS — a re-gate matches, it cannot judge
+//!   (owner: F-O10 / the confidentiality axis · the trifecta lane).
+//!
+//! Closed by F-O1 PR-2 (reclassified `runtime-block`):
+//!
+//! - `f3-03-allowlisted-program-tainted-argv` — the exec allowlist gated
+//!   the program, never the argv; the re-gate now labels the tainted slot
+//!   and matches its RESOLVED value against the step's permit
+//!   (NIKA-SEC-004, pre-spawn).
 //!
 //! ## Determinism guarantee
 //!

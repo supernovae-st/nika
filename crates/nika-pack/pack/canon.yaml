@@ -296,7 +296,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 88
+  count: 90
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -400,6 +400,8 @@ error_codes:
 # Order is semantic · envelope frames · verbs act · dag composes · variables
 # thread state · errors handle failure.
     - { code: NIKA-AUTH-006, category: security_error, transient: "false", failure: "no permits: block declared and the body has effects — absent = zero authority (F-O8 · NEP-0003)" }
+    - { code: NIKA-AUTH-007, category: security_error, transient: "false", failure: "an interpolation reaches a permit bound (host · glob · program) — a bound MUST be a literal, the boundary would be self-serve (F-O1 · NEP-0004)" }
+    - { code: NIKA-AUTH-008, category: security_error, transient: "false", failure: "an untrusted value reaches a permitted verb's argument and its canonical resolved form escapes the step's permit — re-gate refused (F-O1 · NEP-0004)" }
     - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201)" }

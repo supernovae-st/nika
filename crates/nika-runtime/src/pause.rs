@@ -191,6 +191,8 @@ mod tests {
             }),
             named: BTreeMap::new(),
             resume: None,
+            integrity: nika_cap::Integrity::trusted(),
+            declassified: Vec::new(),
         }
     }
 
