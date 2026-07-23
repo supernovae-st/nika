@@ -10,14 +10,18 @@ expression: lines
 - "TaskScheduled · write_out · "
 - "TaskScheduled · notify · "
 - "TaskStarted · gather · invoke · nika:read"
+- "PermitChecked · gather · "
 - "TaskCompleted · gather · invoke · nika:read"
 - TaskStarted · probe · exec · wc
+- "PermitChecked · probe · "
+- "PermitChecked · probe · "
 - TaskCompleted · probe · exec · wc
 - TaskStarted · extract · infer · mock/echo
 - TaskCompleted · extract · infer · mock/echo
 - TaskStarted · think · infer · mock/echo
 - TaskCompleted · think · infer · mock/echo
 - "TaskStarted · write_out · invoke · nika:write"
+- "PermitChecked · write_out · "
 - "TaskCompleted · write_out · invoke · nika:write"
 - "TaskSkipped · notify · when: closed (post-gate)"
 - "WorkflowCompleted ·  · "
