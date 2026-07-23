@@ -239,3 +239,25 @@ async fn untrusted_cwd_escaping_is_refused() {
     );
     assert!(shell.executed_commands().is_empty());
 }
+
+/// The `on_finally:` cleanup lane re-gates too: the overlay record
+/// carries the PARENT's label, so a cleanup argv reading the parent's
+/// tainted output is refused pre-spawn. The cleanup lane is best-effort
+/// (its outcome is swallowed) — the proof is the shell mock staying
+/// silent. Without the label riding the overlay this fixture is RED: the
+/// cleanup's exec would reach the (enqueue-less) mock and panic.
+#[tokio::test]
+async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
+    let yaml = "nika: v1\nworkflow:\n  id: regate-finally\npermits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"-xf\", \"${{ tasks.dl.output }}\"] }\n";
+    let (outcome, _, shell) =
+        run_with_ingress(yaml, "datasets/../../../etc/passwd", MockShell::new()).await;
+    assert!(
+        outcome.ok,
+        "the parent settles green: {:?}",
+        outcome.records
+    );
+    assert!(
+        shell.executed_commands().is_empty(),
+        "the cleanup's tainted argv is refused pre-spawn — the overlay carried the parent's label"
+    );
+}

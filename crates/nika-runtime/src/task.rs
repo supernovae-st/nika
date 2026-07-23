@@ -347,6 +347,7 @@ where
                 permits,
                 types,
                 ledger,
+                &integrity,
             )
             .await;
         // `output:` named bindings (spec 04 §Output binding) — evaluated
@@ -414,6 +415,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        integrity: &nika_cap::Integrity,
     ) -> SettleAs {
         match task.for_each.as_ref() {
             None => {
@@ -425,6 +427,7 @@ where
                     permits,
                     types,
                     ledger,
+                    integrity,
                 )
                 .await
             }
@@ -438,6 +441,7 @@ where
                     permits,
                     types,
                     ledger,
+                    integrity,
                 )
                 .await
             }
@@ -513,7 +517,7 @@ where
     }
 
     /// The single-execution lane (no `for_each:`).
-    // REASON: the run-scoped seams plus the boundary render.
+    // REASON: the run-scoped seams plus the boundary render + the F-O1 label.
     #[allow(clippy::too_many_arguments)]
     async fn run_single(
         &self,
@@ -524,6 +528,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        integrity: &nika_cap::Integrity,
     ) -> SettleAs {
         // `with:` materialized at the boundary (spec 03 §dispatch
         // pipeline) — the single lane consumes it as rendered.
@@ -542,13 +547,13 @@ where
         let mut ran = self.attempt_loop(task, &scope, types, ledger).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG).
-        self.run_finally(task, &scope, &ran).await;
+        self.run_finally(task, &scope, &ran, integrity).await;
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
-    // REASON: same run-scoped seams as the pipeline.
+    // REASON: same run-scoped seams as the pipeline + the F-O1 label.
     #[allow(clippy::too_many_arguments)]
     async fn run_fan_out(
         &self,
@@ -560,6 +565,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        integrity: &nika_cap::Integrity,
     ) -> SettleAs {
         // The collection resolves on the PRE-fan-out surface (the
         // item-free boundary bindings) · empty settles `skipped`.
@@ -638,7 +644,8 @@ where
         // `item`/`index` are NOT in scope there).
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, config, consts, secrets), permits);
-        self.run_finally(task, &finally_scope, &ran).await;
+        self.run_finally(task, &finally_scope, &ran, integrity)
+            .await;
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
     }
@@ -901,7 +908,13 @@ where
 
     /// Run the cleanup mini-tasks (spec 03 §`on_finally` · sequential ·
     /// best-effort · errors swallowed · per-cleanup timeout 30s).
-    async fn run_finally(&self, task: &RawTask, scope: &Scope<'_>, ran: &RanTask) {
+    async fn run_finally(
+        &self,
+        task: &RawTask,
+        scope: &Scope<'_>,
+        ran: &RanTask,
+        integrity: &nika_cap::Integrity,
+    ) {
         if task.on_finally.is_empty() {
             return;
         }
@@ -913,7 +926,13 @@ where
         // copy-on-read overlay Scope would save it at the cost of a
         // two-level resolve on EVERY lookup.
         let mut records = scope.records.clone();
-        records.insert(task.id.value.clone(), preview_record(ran));
+        let mut preview = preview_record(ran);
+        // F-O1 · the overlay carries the parent's integrity label: a
+        // cleanup argv/arg reading `${{ tasks.<parent>.output }}` re-gates
+        // on its taint (PR-2) — the overlay is the ONLY records entry the
+        // settle spine has not stamped.
+        preview.integrity = integrity.clone();
+        records.insert(task.id.value.clone(), preview);
         let cleanup_scope = Scope {
             records: &records,
             inputs: scope.inputs,
@@ -1297,7 +1316,10 @@ fn references_loop_locals(value: &Value) -> bool {
 /// cleanup sees `tasks.<parent>.status` / `.error`). A PENDING recovery
 /// previews as its pre-recovery failure: the attempts DID fail, and the
 /// deferred render has produced no value when the cleanup runs (the
-/// cleanup is task-scoped · it never awaits the spine).
+/// cleanup is task-scoped · it never awaits the spine). The CALLER
+/// (`run_finally`) stamps the pipeline's integrity label on the returned
+/// record — the overlay is the one records entry the settle spine never
+/// sees (F-O1 PR-2 · the cleanup re-gate reads it).
 fn preview_record(ran: &RanTask) -> TaskRecord {
     use crate::record::{TerminalCause, failure_cause};
     let attempts = ran.attempts();
