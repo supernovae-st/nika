@@ -142,6 +142,61 @@ decoration: it is the **minimal witness** that lets an author decide
 sanction-or-fix without re-deriving the flow by eye. The secret's
 *value* never appears in any diagnostic.
 
+## The permit-parameterization taint (normative)
+
+The fit above proves `Required ⊆ Declared` on **categories**; it says
+nothing about the resolved VALUES flowing under a present block. Every
+value carries an integrity label — **Integ ∈ {trusted, untrusted}** —
+orthogonal to Conf (the secrets axis): literals, `const.*`, and
+`secrets.*` are trusted; `inputs.*` (caller-supplied at launch),
+`config.*` (deployment-supplied, outside the file), fetch/tool results,
+and anything derived from them are untrusted, with monotone propagation
+(one untrusted operand taints the whole interpolation). Two rules bind
+untrusted values under a `permits:` block (NEP-0004 · LAW-AUTH-0325):
+
+| Code | Class | Witness (in the diagnostic) |
+|---|---|---|
+| `NIKA-AUTH-007` | an interpolation reaches a **permit bound** (a host, glob, or program literal inside `permits:`) | the bound's own path (`net.http[0]`) — a bound MUST be a literal: the boundary would be self-serve, there is nothing left to canonicalize against |
+| `NIKA-AUTH-008` | an untrusted value reaches a permitted verb's **argument** and its canonical resolved form escapes the step's permit | the **taint path**, source-first (`inputs.p → args.path`) + the resolved value, its canonical form, and the bound it escaped |
+
+Both are `security_error`, check-time, blocking. The **re-gate** never
+matches raw strings: the engine canonicalizes the RESOLVED value first,
+per plane — fs paths are lexically normalized (`.`/`..` resolved,
+separators collapsed) before the glob match, net hosts are lowercased
+(IDNA→punycode, trailing dot and default port stripped), and for exec
+argv the program is argv[0] while re-entry-class tokens (`--exec`, `-c`,
+`eval`…) are never covered unless the permit lists them explicitly.
+`datasets/../datasets/q3.csv` is INSIDE `datasets/**`;
+`../../etc/passwd` is not — a prefix matcher cannot tell them apart,
+the canonical form can.
+
+An untrusted value not resolvable at check (no default) **defers**: the
+file stays valid, the run-time re-gate is mandatory (an escape fails the
+task `NIKA-SEC-004` — the defense-in-depth twin of NEP-0003 law 3), and
+the check report SHOULD list the deferred re-gates informationally so CI
+sees the attack surface before launch.
+
+The only door is the authored one — a task-level `declassify:` entry:
+
+```yaml
+tasks:
+  load:
+    invoke:
+      tool: nika:read
+      args: { path: "${{ inputs.p }}" }
+    declassify:
+      - from: inputs.p            # one binding
+        to: trusted
+        because: "vendor inventory path, deployment-controlled, reviewed at release time"
+```
+
+`declassify:` MUST name `from:` (one binding), `to: trusted`, and a
+non-empty `because:`; the receipt records it (taint path · because ·
+value digest). It lifts the TAINT law only — the value is then matched
+like a literal and must still sit inside the declared boundary.
+Declassify is never a permit bypass, and there is no implicit
+declassification in v1.
+
 ## The certificate names its effects (normative)
 
 `nika check --json` already emits a resource certificate
@@ -172,7 +227,8 @@ projection: the judge is the check ladder, never the JSON.
 | `NIKA-POLICY-001` | `security_error` | a hard `policy:` rule is violated (the diagnostic names rule + task + witness) |
 
 `NIKA-SEC-006` / `NIKA-SEC-007` join the existing `NIKA-SEC` namespace
-([05](./05-errors.md)).
+([05](./05-errors.md)); `NIKA-AUTH-007` / `NIKA-AUTH-008` join the
+`NIKA-AUTH` namespace opened by NEP-0003's `NIKA-AUTH-006`.
 
 ## One obvious way (normative for linters)
 

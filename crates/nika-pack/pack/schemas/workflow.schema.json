@@ -533,6 +533,39 @@
             "format": "jq"
           }
         },
+        "declassify": {
+          "type": "array",
+          "description": "The ONLY door through the permit-parameterization taint (spec/10-authority.md §the permit-parameterization taint · NEP-0004 · LAW-AUTH-0325) · each entry raises ONE binding from untrusted to trusted, check-visible and receipt-recorded. Lifts the taint law only — the value is still matched against the declared boundary (never a permit bypass).",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "because"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+                "description": "The ONE binding this entry raises (e.g. inputs.p · config.region · tasks.fetch.output) · a dotted value-binding path."
+              },
+              "to": {
+                "type": "string",
+                "enum": [
+                  "trusted"
+                ],
+                "description": "The target integrity label · v1 knows exactly one raise: untrusted -> trusted."
+              },
+              "because": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The non-empty justification · recorded in the run receipt with the taint path and the value digest."
+              }
+            }
+          }
+        },
         "infer": {
           "$ref": "#/$defs/infer"
         },

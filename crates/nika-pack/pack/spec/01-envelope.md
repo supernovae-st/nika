@@ -407,9 +407,11 @@ report for taints originating from THIS secret and nothing else — it
 never authorizes a send, and a `nika:fetch` clearance never authorizes
 the boundary. Absent the rule, the report stands (default-deny).
 
-The general untrusted→decision integrity lattice (full taint of attacker-controlled
-inputs into security decisions) is a documented follow-up; the static guards
-above cover the main injection / laundering vectors with the existing analysis.
+The general untrusted→decision integrity lattice lands surface by surface:
+the permit-parameterization taint (untrusted values under a present
+`permits:` block) is normative in [10](./10-authority.md) §the
+permit-parameterization taint (NEP-0004); the remaining decision surfaces
+stay a documented follow-up covered by the static guards above.
 
 ### `permits` · *optional · the declared capability boundary*
 
@@ -437,7 +439,11 @@ absence is a wall, the zero wall: a parent's grants never flow down to a
 child implicitly (`NIKA-COMP-002`).
 
 **Semantics (normative) · once `permits:` is present, every category is
-DEFAULT-DENY unless listed** ·
+DEFAULT-DENY unless listed, and every bound in the block is a LITERAL —
+interpolation never reaches this block (an interpolated host/glob/program
+is a hard refusal, `NIKA-AUTH-007` · untrusted values under the block are
+re-gated on their canonical resolved form, [10](./10-authority.md) §the
+permit-parameterization taint)** ·
 
 | Category | When listed | When the `permits:` block is present but this category is omitted |
 |---|---|---|
