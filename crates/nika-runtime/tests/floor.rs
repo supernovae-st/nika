@@ -692,8 +692,10 @@ async fn stress_deep_chain_threads_bindings_in_order() {
 
     assert!(outcome.ok);
     assert_eq!(outcome.records.len(), DEPTH, "every link recorded");
-    // Event arithmetic · 1 started + N scheduled + N×(started+completed) + 1 terminal.
-    assert_eq!(events.len(), 1 + DEPTH + 2 * DEPTH + 1);
+    // Event arithmetic · 1 started + N scheduled + N×(started + the
+    // NEP-0007 witness pair [exec gate + env composition] + completed)
+    // + 1 terminal.
+    assert_eq!(events.len(), 1 + DEPTH + 4 * DEPTH + 1);
     // Strict chain order · TaskStarted frames appear exactly t0..t23.
     let started: Vec<String> = storyboard(&events)
         .into_iter()

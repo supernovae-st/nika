@@ -22,15 +22,18 @@ use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{ForEachValue, RawAction, RawTask};
-use nika_schema::types::{OnError, OnErrorAction, Permits, WhenGate};
+use nika_schema::types::{OnErrorAction, Permits, WhenGate};
 use serde_json::Value;
 
 use crate::Runtime;
+use crate::dispatch::DispatchCtx;
 use crate::dispatch::DispatchOk;
 use crate::errors::RuntimeError;
 use crate::expr::{self, Scope};
 use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
-use crate::retry::{delay_ms, rand_unit};
+use crate::retry::jitter_key;
+pub(crate) use crate::retry::on_error_applies;
+use crate::witness::PermitWitness;
 
 mod fan_out;
 
@@ -168,6 +171,9 @@ pub(crate) struct RanTask {
     /// attempt a timeout cut short (the buffer lives OUTSIDE the
     /// cancellable region — review F1).
     pub agent_events: Vec<crate::agent_events::StampedAgentEvent>,
+    /// The dispatch boundary's permit decisions across attempts (NEP-0007
+    /// law 2 · spec 17) — one `permit_checked` frame each at settle.
+    pub decisions: Vec<crate::witness::PermitDecision>,
     /// Clock-measured wall time across attempts + cleanup (0 under a
     /// mock clock · real under the production clock — the event-stream
     /// determinism contract is "deterministic seams in · deterministic
@@ -215,7 +221,7 @@ type ValueBags<'a> = (
 );
 
 impl FailedOutcome {
-    fn new(
+    pub(crate) fn new(
         record: TaskErrorRecord,
         cost_usd: Option<f64>,
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
@@ -584,7 +590,10 @@ where
             permits,
         };
         let started = self.clock.now();
-        let mut ran = self.attempt_loop(task, &scope, types, ledger).await;
+        let witness = PermitWitness::new();
+        let mut ran = self
+            .attempt_loop(task, &scope, types, ledger, &witness)
+            .await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG).
         self.run_finally(task, &scope, &ran, integrity).await;
@@ -677,6 +686,7 @@ where
             note: format!("for_each · {total} items"),
             retries,
             agent_events,
+            decisions: acc.decisions,
             duration_ms: 0,
             result,
         };
@@ -743,6 +753,7 @@ where
                     note: format!("for_each[{}]", locals.index),
                     retries: Vec::new(),
                     agent_events: Vec::new(),
+                    decisions: Vec::new(),
                     duration_ms: 0,
                     result: RunResult::Failed {
                         error: runtime_error_record(&err),
@@ -763,7 +774,10 @@ where
             index: Some(locals.index),
             permits,
         };
-        let mut ran = self.attempt_loop(task, &scope, types, ledger).await;
+        let witness = PermitWitness::new();
+        let mut ran = self
+            .attempt_loop(task, &scope, types, ledger, &witness)
+            .await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
         #[allow(clippy::cast_possible_truncation)] // fan-out ≪ u32::MAX
@@ -773,42 +787,13 @@ where
         ran
     }
 
-    /// The attempt loop — `retry:` (transient-only · `on_codes` filter ·
-    /// full-jitter backoff via the clock seam) racing the task's ONE
-    /// `timeout:` budget (spec 03 · "including any retries and their
-    /// backoff sleeps") · then `on_error:` (spec 05).
-    /// One failed attempt's debit + retry decision (spec 05) — split out
-    /// of `attempt_loop` for the 100-line fn ratchet · the error rides
-    /// the `FailedOutcome` when the policy admits no more.
-    // REASON: the retry decision reads the task + the dispatch + the
-    // ledger + the spend fold + the attempt counters — the loop's own seam.
-    #[allow(clippy::too_many_arguments)]
-    fn failed_attempt_delay(
-        &self,
-        task: &RawTask,
-        failed: crate::dispatch::FailedDispatch,
-        ledger: &crate::ledger::RunLedger,
-        failed_cost: &mut Option<f64>,
-        failed_unpriced: &mut Option<nika_types::cost::UnpricedReason>,
-        attempt: u32,
-        max_attempts: u32,
-        jitter_key: &str,
-    ) -> Result<u64, FailedOutcome> {
-        // Debits PER ATTEMPT — a retry storm is never invisible.
-        let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
-        // Retry iff attempts remain AND the policy admits (spec 05).
-        let Some(delay) = self.retry_delay(task, &error, attempt, max_attempts, jitter_key) else {
-            return Err(FailedOutcome::new(error, *failed_cost, *failed_unpriced));
-        };
-        Ok(delay)
-    }
-
     async fn attempt_loop(
         &self,
         task: &RawTask,
         scope: &Scope<'_>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        witness: &PermitWitness,
     ) -> RanTask {
         let started = self.clock.now();
         let max_attempts = task
@@ -818,8 +803,7 @@ where
         let jitter_key = jitter_key(task, scope);
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
-        // OUTSIDE the timeout-cancellable region: a timed-out attempt's
-        // decisions survive the drop of the attempt future (review F1).
+        // Outside the timeout-cancellable region — survives the attempt's drop (review F1).
         let agent_buffer = crate::agent_events::BufferingObserver::new();
         let mut attempt_marks: Vec<usize> = Vec::new();
         let outcome = {
@@ -827,13 +811,10 @@ where
             let budget = task.timeout.as_ref().map(|t| t.value);
             // The `returns:` contract, resolved ONCE (spec 09 · W3) — `None` = gradual.
             let contract = crate::contract::TaskContract::of(task, types);
-            // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE
-            // (a static walk over the task's own templates + the wave-frozen
-            // records; iteration-agnostic), consumed per dispatch attempt.
+            // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx =
-                || crate::dispatch::DispatchCtx::of_task(task, budget, ledger.remaining_usd());
+            let ctx = || DispatchCtx::of_task(task, budget, ledger.remaining_usd(), witness);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -899,29 +880,10 @@ where
                 agent_buffer.into_events(),
                 &attempt_marks,
             ),
+            decisions: witness.take(),
             duration_ms,
             result,
         }
-    }
-
-    /// The retry decision — `Some(delay_ms)` when attempts remain AND
-    /// the policy admits the error (spec 05 · the config is present by
-    /// construction past the gate) · `None` = the failure is final.
-    fn retry_delay(
-        &self,
-        task: &RawTask,
-        error: &TaskErrorRecord,
-        attempt: u32,
-        max_attempts: u32,
-        jitter_key: &str,
-    ) -> Option<u64> {
-        let eligible = attempt < max_attempts && retry_eligible(task, error);
-        let cfg = task.retry.as_ref().filter(|_| eligible).map(|r| &r.value)?;
-        Some(delay_ms(
-            cfg,
-            attempt,
-            rand_unit(self.config.jitter_seed, jitter_key, attempt),
-        ))
     }
 
     /// Race the attempt future against the task's ONE `timeout:` budget
@@ -978,21 +940,6 @@ where
             .now()
             .checked_duration_since(started)
             .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
-    }
-}
-
-/// The jitter stream selector — fan-out iterations get DISTINCT
-/// streams (anti-thundering-herd applies WITHIN a fan-out too ·
-/// Brooker 2015: same-task iterations retrying the same upstream
-/// must not synchronize) while staying replay-stable (the index
-/// is part of the deterministic coordinates). Collision-free: task
-/// ids are `snake_case` (checker law · CEL-safe) so `[` can never
-/// appear in a real id — iteration `t[0]` can't collide with a task
-/// NAMED `t[0]`.
-fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
-    match scope.index {
-        Some(i) => format!("{}[{i}]", task.id.value),
-        None => task.id.value.clone(),
     }
 }
 
@@ -1417,25 +1364,6 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_unpriced,
         },
     }
-}
-
-/// `retry:` eligibility (spec 05 · transient-only unless `on_codes`).
-fn retry_eligible(task: &RawTask, error: &TaskErrorRecord) -> bool {
-    let Some(retry) = task.retry.as_ref() else {
-        return false;
-    };
-    if retry.value.on_codes.is_empty() {
-        error.transient
-    } else {
-        retry.value.on_codes.iter().any(|c| c == &error.code)
-    }
-}
-
-/// `on_error.on_codes` filter (spec 05 · empty = applies to all).
-/// `pub(crate)`: the ADR-099 pause rider consults it too (an authored
-/// route for PROMPT-001 wins over the pause).
-pub(crate) fn on_error_applies(on_error: &OnError, error: &TaskErrorRecord) -> bool {
-    on_error.on_codes.is_empty() || on_error.on_codes.iter().any(|c| c.value == error.code)
 }
 
 /// Render the task's `with:` map (spec 03 · per-iteration in fan-out ·

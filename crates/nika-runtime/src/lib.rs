@@ -70,6 +70,7 @@ mod settle;
 mod stamp;
 mod task;
 mod trust;
+pub(crate) mod witness;
 mod workflow_call;
 
 use std::collections::BTreeMap;

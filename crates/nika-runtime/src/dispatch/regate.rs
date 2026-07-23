@@ -63,6 +63,7 @@ use serde_json::Value;
 use super::Dispatched;
 use crate::integrity::ValueTaint;
 use crate::record::TaskRecord;
+use crate::witness::PermitWitness;
 
 /// The exec argv re-gate — every `argv[1..]` element whose RAW template
 /// reads untrusted content is matched on its RENDERED value against the
@@ -75,6 +76,7 @@ pub(super) fn regate_exec_argv(
     argv: &[String],
     taint: &ValueTaint<'_>,
     records: &BTreeMap<String, TaskRecord>,
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
     debug_assert_eq!(
         elements.len(),
@@ -95,8 +97,20 @@ pub(super) fn regate_exec_argv(
             rendered,
             Plane::Exec,
         ) {
+            witness.record(
+                "regate",
+                &sink,
+                "deny",
+                format!("tainted by {source} · escaped"),
+            );
             return Some(denial);
         }
+        witness.record(
+            "regate",
+            &sink,
+            "allow",
+            format!("tainted by {source} · covered"),
+        );
     }
     None
 }
@@ -111,13 +125,26 @@ pub(super) fn regate_exec_cwd(
     rendered: &str,
     taint: &ValueTaint<'_>,
     records: &BTreeMap<String, TaskRecord>,
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
     let Integrity::Untrusted { source } = taint.label(template, records) else {
         return None;
     };
     if permits.allows_path(rendered, false) {
+        witness.record(
+            "regate",
+            "exec.cwd",
+            "allow",
+            format!("tainted by {source} · covered"),
+        );
         return None;
     }
+    witness.record(
+        "regate",
+        "exec.cwd",
+        "deny",
+        format!("tainted by {source} · escaped"),
+    );
     Some(path_refusal(
         note,
         &source,
@@ -131,6 +158,7 @@ pub(super) fn regate_exec_cwd(
 /// with the RENDERED one (same keys, same array lengths — `render_json`
 /// preserves shape; only string leaves can change type). Every tainted
 /// string leaf re-gates on its rendered value.
+#[allow(clippy::too_many_arguments)] // REASON: the border's own state (permit · note · tool · two JSON views · oracle · records · witness) — each a distinct read.
 pub(super) fn regate_mcp_args(
     permits: &Permits,
     note: &str,
@@ -139,8 +167,9 @@ pub(super) fn regate_mcp_args(
     rendered_args: &Value,
     taint: &ValueTaint<'_>,
     records: &BTreeMap<String, TaskRecord>,
+    witness: &PermitWitness,
 ) -> Option<Dispatched> {
-    regate_json(
+    let denial = regate_json(
         permits,
         note,
         tool,
@@ -149,7 +178,15 @@ pub(super) fn regate_mcp_args(
         "",
         taint,
         records,
-    )
+    );
+    // The mcp border's decision, one frame per call: per-leaf verdicts
+    // stay internal to the walk (the denial names the leaf) — the
+    // witness records the BORDER outcome (NEP-0007 · bounded volume).
+    match &denial {
+        Some(_) => witness.record("regate", tool, "deny", "a tainted arg leaf escaped"),
+        None => witness.record("regate", tool, "allow", "rendered args within the boundary"),
+    }
+    denial
 }
 
 /// The recursive half of [`regate_mcp_args`] — `path` is the JSON
@@ -408,7 +445,15 @@ mod tests {
             "-xf".to_owned(),
             "--checkpoint-action=exec=sh id".to_owned(),
         ];
-        let denial = regate_exec_argv(&permits, "exec · tar", &elements, &argv, &taint, &records);
+        let denial = regate_exec_argv(
+            &permits,
+            "exec · tar",
+            &elements,
+            &argv,
+            &taint,
+            &records,
+            &PermitWitness::new(),
+        );
         let denial = denial.expect("the option token is refused");
         let err = denial.result.err().expect("a refusal");
         assert_eq!(err.record.code, "NIKA-SEC-004");
@@ -433,7 +478,16 @@ mod tests {
         ];
         let argv = vec!["tar".to_owned(), "--file=report.csv".to_owned()];
         assert!(
-            regate_exec_argv(&permits, "exec · tar", &authored, &argv, &taint, &records).is_none(),
+            regate_exec_argv(
+                &permits,
+                "exec · tar",
+                &authored,
+                &argv,
+                &taint,
+                &records,
+                &PermitWitness::new()
+            )
+            .is_none(),
             "an authored option with a plain-data value runs"
         );
     }
@@ -463,6 +517,7 @@ mod tests {
             &escaping,
             &taint,
             &records,
+            &PermitWitness::new(),
         )
         .expect("the traversal is refused");
         let err = denial.result.err().expect("a refusal");
@@ -481,8 +536,16 @@ mod tests {
             "datasets/2026/report.csv".to_owned(),
         ];
         assert!(
-            regate_exec_argv(&permits, "exec · tar", &elements, &inside, &taint, &records)
-                .is_none(),
+            regate_exec_argv(
+                &permits,
+                "exec · tar",
+                &elements,
+                &inside,
+                &taint,
+                &records,
+                &PermitWitness::new()
+            )
+            .is_none(),
             "a value covered by the permit is not a blind deny"
         );
         // A back-spelled in-boundary path (`datasets/../datasets/q3.csv`)
@@ -493,8 +556,16 @@ mod tests {
             "datasets/../datasets/q3.csv".to_owned(),
         ];
         assert!(
-            regate_exec_argv(&permits, "exec · tar", &elements, &folded, &taint, &records)
-                .is_none(),
+            regate_exec_argv(
+                &permits,
+                "exec · tar",
+                &elements,
+                &folded,
+                &taint,
+                &records,
+                &PermitWitness::new()
+            )
+            .is_none(),
             "the canonical form, never a raw prefix"
         );
     }
@@ -512,8 +583,16 @@ mod tests {
             ),
         ];
         let evil = vec!["curl".to_owned(), "https://evil.example/x".to_owned()];
-        let denial = regate_exec_argv(&permits, "exec · curl", &elements, &evil, &taint, &records)
-            .expect("the escaped host is refused");
+        let denial = regate_exec_argv(
+            &permits,
+            "exec · curl",
+            &elements,
+            &evil,
+            &taint,
+            &records,
+            &PermitWitness::new(),
+        )
+        .expect("the escaped host is refused");
         let err = denial.result.err().expect("a refusal");
         assert!(
             err.record
@@ -524,7 +603,16 @@ mod tests {
         );
         let ok = vec!["curl".to_owned(), "https://api.example.com/v1".to_owned()];
         assert!(
-            regate_exec_argv(&permits, "exec · curl", &elements, &ok, &taint, &records).is_none(),
+            regate_exec_argv(
+                &permits,
+                "exec · curl",
+                &elements,
+                &ok,
+                &taint,
+                &records,
+                &PermitWitness::new()
+            )
+            .is_none(),
             "an in-permit host runs"
         );
     }
@@ -540,7 +628,8 @@ mod tests {
                 "${{ tasks.dl.output }}",
                 "src/lib",
                 &taint,
-                &records
+                &records,
+                &PermitWitness::new()
             )
             .is_none()
         );
@@ -551,6 +640,7 @@ mod tests {
             "src/../../etc",
             &taint,
             &records,
+            &PermitWitness::new(),
         )
         .expect("the escaping cwd is refused");
         assert_eq!(
@@ -584,6 +674,7 @@ mod tests {
             &escaping,
             &taint,
             &records,
+            &PermitWitness::new(),
         )
         .expect("the escaping leaf is refused");
         let err = denial.result.err().expect("a refusal");
@@ -606,7 +697,8 @@ mod tests {
                 &raw,
                 &covered,
                 &taint,
-                &records
+                &records,
+                &PermitWitness::new()
             )
             .is_none(),
             "fs.write alone covers an mcp leaf (direction unknowable)"
@@ -623,7 +715,8 @@ mod tests {
                 &raw_island,
                 &structured,
                 &taint,
-                &records
+                &records,
+                &PermitWitness::new()
             )
             .is_none(),
             "the structured-payload channel is the declared v1 residual"
@@ -643,7 +736,16 @@ mod tests {
         ];
         let argv = vec!["echo".to_owned(), "hello world".to_owned()];
         assert!(
-            regate_exec_argv(&permits, "exec · echo", &elements, &argv, &taint, &records).is_none(),
+            regate_exec_argv(
+                &permits,
+                "exec · echo",
+                &elements,
+                &argv,
+                &taint,
+                &records,
+                &PermitWitness::new()
+            )
+            .is_none(),
             "a tainted plain word carries no path/host/option shape"
         );
     }

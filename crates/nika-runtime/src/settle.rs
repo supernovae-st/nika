@@ -260,8 +260,8 @@ fn emit_retry_history(
 }
 
 /// The Ran preamble (NEP-0004 law 5 · the declassify door BEFORE the
-/// attempt history · retries · the agent loop's decisions ADR-096) —
-/// split for the 100-line fn ratchet.
+/// attempt history · then the NEP-0007 permit witness · retries · the
+/// agent loop's decisions ADR-096) — split for the 100-line fn ratchet.
 fn emit_ran_preamble(
     id: &str,
     declassified: &[task::DeclassifyEvidence],
@@ -270,8 +270,35 @@ fn emit_ran_preamble(
     sink: &mut dyn EventSink,
 ) {
     emit_declassified(id, declassified, stamper, sink);
+    emit_permit_checked(id, &run.decisions, stamper, sink);
     emit_retry_history(id, &run.retries, stamper, sink);
     agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
+}
+
+/// Emit one `permit_checked` frame per dispatch-boundary decision
+/// (NEP-0007 law 2 · spec 17 §the permit witness): granted and refused
+/// alike, between `task_started` and the terminal frame — the hash
+/// chain binds the exercised authority to the task that exercised it.
+fn emit_permit_checked(
+    id: &str,
+    decisions: &[crate::witness::PermitDecision],
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    for d in decisions {
+        emit(
+            stamper,
+            sink,
+            EventKind::PermitChecked,
+            &[
+                ("task", s(id)),
+                ("plane", s(d.plane)),
+                ("gate", s(&d.gate)),
+                ("decision", s(d.decision)),
+                ("why", s(&d.why)),
+            ],
+        );
+    }
 }
 
 pub(crate) fn settle_ran(

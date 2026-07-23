@@ -150,6 +150,11 @@ where
         // `with:`/`for_each` — the records + inputs lookups still label
         // a tainted cleanup argv/arg · F-O1 PR-2).
         let value_taint = crate::integrity::ValueTaint::bare();
+        // NEP-0007 · the cleanup lane records its decisions too, into a
+        // lane-local witness the settle of the PARENT does not carry
+        // (the finally frames are best-effort · the residual is named
+        // in the witness module doc).
+        let finally_witness = crate::witness::PermitWitness::new();
         let attempt = std::pin::pin!(self.dispatch(
             &mini.action,
             scope,
@@ -165,6 +170,7 @@ where
                 // a finally mini-task carries no inert: door (NEP-0006)
                 // — a code-bearing cleanup fetch refuses like any other.
                 inert: None,
+                witness: &finally_witness,
             },
             None,
         ));
