@@ -449,7 +449,7 @@ permit-parameterization taint)** ·
 | Category | When listed | When the `permits:` block is present but this category is omitted |
 |---|---|---|
 | `fs.read` / `fs.write` | only the matching path globs are allowed | **no** filesystem read / write |
-| `net.http` | only the listed hosts (globs ok) · tightens the engine SSRF floor — the one loosening is the exact-loopback declassification below | **no** outbound network |
+| `net.http` | only the listed hosts (**exact names only** · an entry carrying a `*` anywhere but as the whole bare-`*` entry is refused at check, `NIKA-AUTH-010` · the bare `*` stays the explicit, visible escape) · tightens the engine SSRF floor — the one loosening is the exact-loopback declassification below | **no** outbound network |
 | `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` · **no** `exec:` |
 | `tools` | only the matching `nika:` / `mcp:` ids (globs ok) | **no** `invoke:` of any tool |
 | `env` | only the named engine variables pass through to child processes (exact names · the runner env floor rides beneath) | **no** passthrough · a child sees the runner env floor plus the task `env:` map only |
@@ -469,15 +469,45 @@ precedent: the owner's explicit act, co-located with the boundary). The
 clearing is **exact-host** (never a prefix, subnet, or resolution: a
 permitted `localhost` does not clear `127.0.0.1`, and a public DNS name
 resolving to loopback stays refused) and **host-level** (ports do not
-participate in permits). It **never** extends past loopback: a glob
-entry, the `*.localhost` family, and RFC1918 / link-local / CGN /
-metadata targets stay floor-blocked even when named — their entries
-remain inert dead grants. DNS-rebinding stays covered: the engine
+participate in permits). It **never** extends past loopback: a glob entry
+(refused outright at check, `NIKA-AUTH-010`), the `*.localhost` family,
+and RFC1918 / link-local / CGN / metadata targets stay floor-blocked even
+when named — an exact entry naming one is an inert dead grant, flagged at
+check under the floor parity (`NIKA-SEC-005`). DNS-rebinding stays covered: the engine
 re-checks every resolved address and every redirect hop; a permitted
 loopback name admits only its own loopback resolution, and a redirect
 to any un-permitted floor host still refuses (`NIKA-SEC-005`). An
 engine MUST NOT auto-write a loopback grant (e.g. from permits
 inference) — the explicit act stays the author's.
+
+**The sandboxed egress proxy is the permit's exact projection** (normative
+· NEP-0008) · when a sandboxed `exec` child runs under a `net.http`
+allowlist, the engine mediates every outbound connection through a
+loopback egress proxy plus an OS fence that refuses every other
+destination. Four laws hold ·
+
+1. **DNS is resolved by the proxy, never by the client** — the OS fence
+   refuses the confined client's own resolver (fail-closed), and the
+   proxy re-checks **every resolved address** against the SSRF floor
+   inside the dial loop (no resolve-then-connect window: a permitted
+   name that resolves to a blocked address is refused at dial,
+   `NIKA-SEC-005`).
+2. **The port floor is normative** — the engine's dangerous-egress-port
+   denylist rides beneath every permit; **no permit overrides it** (a
+   `net.http` grant can never admit ssh/smtp/docker/kube/database
+   ports).
+3. **One run, one allowlist** — a run projecting two distinct `net.http`
+   sets refuses fail-closed at the second projection; there is no
+   ambient merge of egress boundaries inside one run.
+4. **A floor-blocked entry is a dead grant** — an exact entry naming a
+   private / link-local / CGN / metadata / otherwise non-public address
+   can never take effect and is refused at check under the floor parity
+   (`NIKA-SEC-005`); the only declassifiable target is the exact loopback
+   literal of the paragraph above.
+
+The proxy is **TLS-blind by design**: it observes the CONNECT authority
+(host · port) and relayed byte counts only, never the content — and every
+verdict (allowed · refused · bytes relayed) is journaled.
 
 **The environment category** (normative · NEP-0005 · LAW-AUTH-0326) · a
 child process environment (the `exec` subprocess · a stdio `mcp:*` tool
