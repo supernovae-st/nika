@@ -139,7 +139,7 @@ test:
 | `command` | one of | array | **argv** — `["prog", "arg", …]` → direct `execve`, **NO shell** · each element substituted independently — an interpolated `${{ }}` value can never break out of its argument (see Security). Exactly one of `command` \| `shell`. |
 | `shell` | one of | string | **The explicit shell door** — one line run via `/bin/sh -c` · pipes · redirects · globs. The blocklist applies HERE; interpolating untrusted values here is the author's own risk, visibly. Exactly one of `command` \| `shell`. *(D1 · #75: semantics never fork on a YAML type — the field name carries the meaning. The old string `command:` is rejected at parse.)* |
 | `cwd` | no | string | Working directory · default = engine's cwd |
-| `env` | no | object | OS environment variables for **this subprocess** · key→value map |
+| `env` | no | object | OS environment variables for **this subprocess** · key→value map · applied over the COMPOSED environment ([01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary) env · never inherited) |
 | `stdin` | no | string | Stdin data · may use `${{ ... }}` |
 | `capture` | no | enum | `stdout` (default) · `stderr` · `combined` · `structured` (= `{ stdout, stderr, exit_code }`) — the **source** |
 | `decode` | no | enum | `text` (default) · `json` · `jsonl` · `bytes` — how the captured **string** becomes a value ([09 §decode](./09-types.md#decode--how-exec-bytes-become-a-value-normative)) · illegal with `capture: structured` (`NIKA-PARSE-025` — that capture already IS an object) · a non-parsing stream settles the task `failure` inside `on_error:` scope |
@@ -149,7 +149,12 @@ test:
 > `NIKA-VALUES-002`). The envelope `config:` is *workflow config* read via
 > `${{ config.* }}`; `exec.env` is the *OS environment of this subprocess*. They
 > are NOT auto-connected. To pass a workflow value into the process, do it
-> explicitly: `env: { API_BASE: "${{ config.API_BASE }}" }`.
+> explicitly: `env: { API_BASE: "${{ config.API_BASE }}" }`. The subprocess
+> environment itself is COMPOSED, never inherited (NEP-0005 ·
+> [01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary)):
+> the runner env floor ∪ the `permits.env:` passthrough ∪ this map, minus
+> the dangerous-name floor · an ambient engine variable reaches the child
+> only through a declared `permits.env:` name.
 
 > `timeout` and `retry` are **task-level** fields (see [03-dag.md](./03-dag.md)): they apply uniformly to every verb, so they are not repeated inside `exec:`.
 
