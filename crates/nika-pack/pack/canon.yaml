@@ -404,6 +404,7 @@ error_codes:
     - { code: NIKA-AUTH-007, category: security_error, transient: "false", failure: "an interpolation reaches a permit bound (host · glob · program · env name) — a bound MUST be a literal, the boundary would be self-serve (F-O1 · NEP-0004 · env per NEP-0005)" }
     - { code: NIKA-AUTH-008, category: security_error, transient: "false", failure: "an untrusted value reaches a permitted verb's argument and its canonical resolved form escapes the step's permit — re-gate refused (F-O1 · NEP-0004)" }
     - { code: NIKA-AUTH-009, category: security_error, transient: "false", failure: "a permits env: entry names a dangerous-floor variable · the engine strips the name unconditionally, the grant can never take effect: an inert dead grant (F-O4 · NEP-0005)" }
+    - { code: NIKA-AUTH-010, category: security_error, transient: "false", failure: "a permits net.http: entry carries the *. subdomain wildcard · the grant delegates the boundary to the zone operator (every host under the suffix, present and future) — refused: name exact hosts, or the bare * when allow-all is genuinely intended (F-P5)" }
     - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201)" }

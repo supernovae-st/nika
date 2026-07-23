@@ -389,14 +389,15 @@ impl CheckReport {
         }));
         // The permits-block taint findings: the finding's own kind maps to
         // its ONE wire code (NEP-0004 law 1 → AUTH-007 · law 2 → AUTH-008 ·
-        // NEP-0005 law 3 env dead grant → AUTH-009 · all check-time
-        // security refusals).
+        // NEP-0005 law 3 env dead grant → AUTH-009 · F-P5 net wildcard →
+        // AUTH-010 · all check-time security refusals).
         codes.extend(self.permit_taints.iter().map(|t| match t.kind {
             PermitTaintKind::BoundInterpolated => {
                 SpecCode::new("AUTH", 7, SpecCategory::SecurityError)
             }
             PermitTaintKind::ArgEscapes => SpecCode::new("AUTH", 8, SpecCategory::SecurityError),
             PermitTaintKind::EnvDeadGrant => SpecCode::new("AUTH", 9, SpecCategory::SecurityError),
+            PermitTaintKind::NetWildcard => SpecCode::new("AUTH", 10, SpecCategory::SecurityError),
         }));
         // The data-as-code sink (NEP-0006) → NIKA-SEC-008.
         let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);

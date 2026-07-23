@@ -494,4 +494,47 @@ mod tests {
         assert!(row.get("task").is_none(), "absent, not null: {row}");
         assert!(row.get("code").is_some());
     }
+
+    /// F-P5 (c) · the `*.` wildcard in `permits.net.http` is a hard
+    /// refusal at check — the finding lands in findings[] with its wire
+    /// code (NIKA-AUTH-010) so the run gate blocks on it.
+    #[test]
+    fn a_wildcard_net_http_entry_is_an_error_finding() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"*.github.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/x\" } }\n",
+        );
+        assert!(!r.is_clean(), "the wildcard is a run-blocker");
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "permit_taint")
+            .expect("the wildcard finding");
+        assert_eq!(hit.code.as_deref(), Some("NIKA-AUTH-010"));
+        assert_eq!(hit.severity, super::FindingSeverity::Error);
+        assert!(hit.message.contains("net.http[0]"), "{}", hit.message);
+    }
+
+    /// F-P5 (d) · the dead-grant twin of NIKA-AUTH-009 (env): a
+    /// floor-blocked `permits.net.http` entry is an inert grant — flagged
+    /// at the ENTRY with the floor code (check≡run down to the code: the
+    /// run refuses the same target with NIKA-SEC-005).
+    #[test]
+    fn a_floor_blocked_net_http_entry_is_a_dead_grant_finding() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"169.254.169.254\", \"api.x.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.x.com/x\" } }\n",
+        );
+        assert!(!r.is_clean());
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "capability_escape" && f.task.as_deref() == Some("permits"))
+            .expect("the dead-grant entry finding");
+        assert_eq!(hit.code.as_deref(), Some("NIKA-SEC-005"));
+        assert!(hit.message.contains("169.254.169.254"), "{}", hit.message);
+        assert!(
+            hit.message.contains("can never take effect"),
+            "the dead-grant teaching: {}",
+            hit.message
+        );
+    }
 }
