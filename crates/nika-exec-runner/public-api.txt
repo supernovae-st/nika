@@ -39,7 +39,6 @@ pub fn nika_exec_runner::EgressDecision::as_any(&self) -> &(dyn core::any::Any +
 pub struct nika_exec_runner::TokioShell
 impl nika_exec_runner::TokioShell
 pub fn nika_exec_runner::TokioShell::new() -> Self
-pub fn nika_exec_runner::TokioShell::with_ambient_secret_env(self, names: impl core::convert::Into<alloc::sync::Arc<[alloc::string::String]>>) -> Self
 pub fn nika_exec_runner::TokioShell::with_egress_observer(self, observer: nika_exec_runner::EgressObserver) -> Self
 pub fn nika_exec_runner::TokioShell::with_sandbox(sandbox: alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>) -> Self
 impl core::clone::Clone for nika_exec_runner::TokioShell

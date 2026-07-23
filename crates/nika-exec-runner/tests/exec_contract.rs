@@ -123,8 +123,8 @@ async fn env_var_is_set() {
 #[tokio::test]
 async fn dangerous_env_vars_are_stripped_from_the_child() {
     // The dangerous-env floor strips library-injection / startup-sourcing /
-    // tool-hook vectors even when EXPLICITLY set — so it strips an ambient
-    // inherited one too (`env_remove` removes regardless of source). Argv
+    // tool-hook vectors even when EXPLICITLY set — and nothing ambient ever
+    // crosses at all (NEP-0005 · the composed clean slate). Argv
     // mode (`printenv` is not a dangerous program); `printenv VAR` exits
     // non-zero with empty stdout when VAR is absent → proof of the strip.
     for var in ["LD_PRELOAD", "BASH_ENV", "GIT_SSH_COMMAND", "NODE_OPTIONS"] {

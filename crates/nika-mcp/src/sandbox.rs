@@ -59,19 +59,21 @@ pub fn platform_sandbox() -> Arc<dyn CommandSandbox> {
     Arc::new(nika_kernel::command_sandbox::NoopSandbox)
 }
 
-/// The env-var names a spawned MCP server may inherit — a CURATED
-/// passthrough; everything else the engine holds is dropped (`env_clear` at
-/// the spawn site). A server needs its loader path, a home for tool caches,
-/// scratch, and locale/timezone — nothing else. Provider API keys and every
-/// other ambient value stay with the engine.
-pub(crate) const PASSTHROUGH_ENV_VARS: &[&str] = &[
-    "PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "TZ", "USER", "LOGNAME",
-];
+/// The env-var names a spawned MCP server may inherit — the ONE canonical
+/// runner env floor (NEP-0005 · `nika_kernel::process::RUNNER_FLOOR_ENV_VARS`
+/// · the same list the exec spawn site composes from, so the two spawn
+/// families cannot drift). A server needs its loader path, a home for tool
+/// caches, scratch, and locale/timezone — nothing else. Provider API keys and
+/// every other ambient value stay with the engine; a workflow-declared
+/// `permits.env:` passthrough joins here when run-time MCP spawning lands
+/// (the seam is `compose_child_env` · today's spawns are the pin/approve
+/// verbs, outside any workflow — floor-only is the correct composition).
+pub(crate) const PASSTHROUGH_ENV_VARS: &[&str] = nika_kernel::process::RUNNER_FLOOR_ENV_VARS;
 
-/// The spawn-env decision, pure: ONLY the curated passthrough names inherit,
-/// and the exec path's [`DANGEROUS_ENV_VARS`] floor wins even over those — a
-/// name on both lists never reaches the child (the same « the floor wins »
-/// posture as the exec runner's after-`env` strip).
+/// The spawn-env decision, pure: ONLY the floor names inherit, and the
+/// [`DANGEROUS_ENV_VARS`] floor wins even over those — a name on both lists
+/// never reaches the child (the same « the floor wins » posture as the exec
+/// runner's composed strip · disjointness is asserted kernel-side).
 pub(crate) fn env_passthrough(name: &str) -> bool {
     PASSTHROUGH_ENV_VARS.contains(&name) && !DANGEROUS_ENV_VARS.contains(&name)
 }
