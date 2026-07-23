@@ -485,6 +485,8 @@ pub const nika_vocab::keys::PERMITS_FS_KEYS: &[&str]
 pub const nika_vocab::keys::PERMITS_KEYS: &[&str]
 pub const nika_vocab::keys::PERMITS_NET_KEYS: &[&str]
 pub const nika_vocab::keys::RETRY_KEYS: &[&str]
+pub const nika_vocab::keys::RUN_ENTROPY_MAP_KEYS: &[&str]
+pub const nika_vocab::keys::RUN_KEYS: &[&str]
 pub const nika_vocab::keys::SECRET_KEYS: &[&str]
 pub const nika_vocab::keys::THINKING_KEYS: &[&str]
 pub const nika_vocab::keys::TYPED_OUTPUT_KEYS: &[&str]
@@ -696,6 +698,129 @@ impl<T> core::convert::From<T> for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::retry::RetryConfig where T: for<'de> serde_core::de::Deserialize<'de>
 pub fn nika_vocab::retry::is_valid_error_code(code: &str) -> bool
+pub mod nika_vocab::run
+#[non_exhaustive] pub enum nika_vocab::run::RunClock
+pub nika_vocab::run::RunClock::System
+pub nika_vocab::run::RunClock::Virtual
+impl nika_vocab::run::RunClock
+pub const fn nika_vocab::run::RunClock::name(&self) -> &'static str
+impl core::clone::Clone for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::clone(&self) -> nika_vocab::run::RunClock
+impl core::cmp::Eq for nika_vocab::run::RunClock
+impl core::cmp::PartialEq for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::eq(&self, other: &nika_vocab::run::RunClock) -> bool
+impl core::fmt::Debug for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunClock
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunClock
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunClock where U: core::convert::From<T>
+pub fn nika_vocab::run::RunClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunClock where U: core::convert::Into<T>
+pub type nika_vocab::run::RunClock::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunClock where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunClock where T: core::clone::Clone
+pub type nika_vocab::run::RunClock::Owned = T
+pub fn nika_vocab::run::RunClock::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunClock where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunClock where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunClock where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunClock where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::from(t: T) -> T
+#[non_exhaustive] pub enum nika_vocab::run::RunEntropy
+pub nika_vocab::run::RunEntropy::Ambient
+pub nika_vocab::run::RunEntropy::None
+pub nika_vocab::run::RunEntropy::Seeded(u64)
+impl nika_vocab::run::RunEntropy
+pub const fn nika_vocab::run::RunEntropy::is_deterministic(&self) -> bool
+pub const fn nika_vocab::run::RunEntropy::jitter_seed(&self) -> u64
+pub const fn nika_vocab::run::RunEntropy::name(&self) -> &'static str
+impl core::clone::Clone for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::clone(&self) -> nika_vocab::run::RunEntropy
+impl core::cmp::Eq for nika_vocab::run::RunEntropy
+impl core::cmp::PartialEq for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::eq(&self, other: &nika_vocab::run::RunEntropy) -> bool
+impl core::fmt::Debug for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunEntropy
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunEntropy
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunEntropy where U: core::convert::From<T>
+pub fn nika_vocab::run::RunEntropy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunEntropy where U: core::convert::Into<T>
+pub type nika_vocab::run::RunEntropy::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunEntropy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunEntropy where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunEntropy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunEntropy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunEntropy where T: core::clone::Clone
+pub type nika_vocab::run::RunEntropy::Owned = T
+pub fn nika_vocab::run::RunEntropy::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunEntropy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunEntropy where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunEntropy where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunEntropy where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunEntropy where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunEntropy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::run::RunDecl
+pub nika_vocab::run::RunDecl::clock: core::option::Option<nika_vocab::run::RunClock>
+pub nika_vocab::run::RunDecl::entropy: core::option::Option<nika_vocab::run::RunEntropy>
+impl nika_vocab::run::RunDecl
+pub const fn nika_vocab::run::RunDecl::clock_or_default(&self) -> nika_vocab::run::RunClock
+pub const fn nika_vocab::run::RunDecl::contradiction(&self) -> core::option::Option<&'static str>
+pub const fn nika_vocab::run::RunDecl::entropy_or_default(&self) -> nika_vocab::run::RunEntropy
+pub const fn nika_vocab::run::RunDecl::new(entropy: core::option::Option<nika_vocab::run::RunEntropy>, clock: core::option::Option<nika_vocab::run::RunClock>) -> Self
+impl core::clone::Clone for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::clone(&self) -> nika_vocab::run::RunDecl
+impl core::cmp::Eq for nika_vocab::run::RunDecl
+impl core::cmp::PartialEq for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::eq(&self, other: &nika_vocab::run::RunDecl) -> bool
+impl core::default::Default for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::default() -> Self
+impl core::fmt::Debug for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunDecl
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunDecl
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunDecl where U: core::convert::From<T>
+pub fn nika_vocab::run::RunDecl::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunDecl where U: core::convert::Into<T>
+pub type nika_vocab::run::RunDecl::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunDecl::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunDecl where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunDecl::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunDecl::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunDecl where T: core::clone::Clone
+pub type nika_vocab::run::RunDecl::Owned = T
+pub fn nika_vocab::run::RunDecl::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunDecl::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunDecl where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunDecl where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunDecl where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunDecl where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunDecl::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::from(t: T) -> T
 pub mod nika_vocab::schema_version
 #[non_exhaustive] pub enum nika_vocab::schema_version::SchemaVersion
 pub nika_vocab::schema_version::SchemaVersion::V1
@@ -1502,6 +1627,85 @@ pub unsafe fn nika_vocab::extract::ResponseMode::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::extract::ResponseMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_vocab::RunClock
+pub nika_vocab::RunClock::System
+pub nika_vocab::RunClock::Virtual
+impl nika_vocab::run::RunClock
+pub const fn nika_vocab::run::RunClock::name(&self) -> &'static str
+impl core::clone::Clone for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::clone(&self) -> nika_vocab::run::RunClock
+impl core::cmp::Eq for nika_vocab::run::RunClock
+impl core::cmp::PartialEq for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::eq(&self, other: &nika_vocab::run::RunClock) -> bool
+impl core::fmt::Debug for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunClock
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunClock
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunClock where U: core::convert::From<T>
+pub fn nika_vocab::run::RunClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunClock where U: core::convert::Into<T>
+pub type nika_vocab::run::RunClock::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunClock where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunClock where T: core::clone::Clone
+pub type nika_vocab::run::RunClock::Owned = T
+pub fn nika_vocab::run::RunClock::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunClock where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunClock where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunClock where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunClock where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunClock
+pub fn nika_vocab::run::RunClock::from(t: T) -> T
+#[non_exhaustive] pub enum nika_vocab::RunEntropy
+pub nika_vocab::RunEntropy::Ambient
+pub nika_vocab::RunEntropy::None
+pub nika_vocab::RunEntropy::Seeded(u64)
+impl nika_vocab::run::RunEntropy
+pub const fn nika_vocab::run::RunEntropy::is_deterministic(&self) -> bool
+pub const fn nika_vocab::run::RunEntropy::jitter_seed(&self) -> u64
+pub const fn nika_vocab::run::RunEntropy::name(&self) -> &'static str
+impl core::clone::Clone for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::clone(&self) -> nika_vocab::run::RunEntropy
+impl core::cmp::Eq for nika_vocab::run::RunEntropy
+impl core::cmp::PartialEq for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::eq(&self, other: &nika_vocab::run::RunEntropy) -> bool
+impl core::fmt::Debug for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunEntropy
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunEntropy
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunEntropy where U: core::convert::From<T>
+pub fn nika_vocab::run::RunEntropy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunEntropy where U: core::convert::Into<T>
+pub type nika_vocab::run::RunEntropy::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunEntropy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunEntropy where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunEntropy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunEntropy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunEntropy where T: core::clone::Clone
+pub type nika_vocab::run::RunEntropy::Owned = T
+pub fn nika_vocab::run::RunEntropy::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunEntropy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunEntropy where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunEntropy where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunEntropy where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunEntropy where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunEntropy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunEntropy
+pub fn nika_vocab::run::RunEntropy::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::SchemaVersion
 pub nika_vocab::SchemaVersion::V1
 impl nika_vocab::schema_version::SchemaVersion
@@ -1829,6 +2033,49 @@ pub unsafe fn nika_vocab::retry::RetryConfig::clone_to_uninit(&self, dest: *mut 
 impl<T> core::convert::From<T> for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::retry::RetryConfig where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_vocab::RunDecl
+pub nika_vocab::RunDecl::clock: core::option::Option<nika_vocab::run::RunClock>
+pub nika_vocab::RunDecl::entropy: core::option::Option<nika_vocab::run::RunEntropy>
+impl nika_vocab::run::RunDecl
+pub const fn nika_vocab::run::RunDecl::clock_or_default(&self) -> nika_vocab::run::RunClock
+pub const fn nika_vocab::run::RunDecl::contradiction(&self) -> core::option::Option<&'static str>
+pub const fn nika_vocab::run::RunDecl::entropy_or_default(&self) -> nika_vocab::run::RunEntropy
+pub const fn nika_vocab::run::RunDecl::new(entropy: core::option::Option<nika_vocab::run::RunEntropy>, clock: core::option::Option<nika_vocab::run::RunClock>) -> Self
+impl core::clone::Clone for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::clone(&self) -> nika_vocab::run::RunDecl
+impl core::cmp::Eq for nika_vocab::run::RunDecl
+impl core::cmp::PartialEq for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::eq(&self, other: &nika_vocab::run::RunDecl) -> bool
+impl core::default::Default for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::default() -> Self
+impl core::fmt::Debug for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunDecl
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunDecl
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunDecl where U: core::convert::From<T>
+pub fn nika_vocab::run::RunDecl::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunDecl where U: core::convert::Into<T>
+pub type nika_vocab::run::RunDecl::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunDecl::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunDecl where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunDecl::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunDecl::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunDecl where T: core::clone::Clone
+pub type nika_vocab::run::RunDecl::Owned = T
+pub fn nika_vocab::run::RunDecl::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunDecl::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunDecl where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunDecl where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunDecl where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunDecl where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunDecl::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::SecretRef
 pub nika_vocab::SecretRef::egress: alloc::vec::Vec<nika_vocab::secret::EgressRule>
 pub nika_vocab::SecretRef::key: alloc::string::String

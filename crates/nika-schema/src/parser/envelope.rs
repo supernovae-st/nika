@@ -2,9 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Envelope block parsing — `assert:` · `types:` · `outputs:` · `permits:`
-//! · `policy:` (spec `01-envelope.md` · the four value authorities parse in
-//! `envelope_values.rs`, re-exported below · `vars:`/`env:` are dead forms,
-//! refused at `parser/mod.rs` with NIKA-VALUES-001/002).
+//! · `policy:` · `run:` (spec `01-envelope.md` · the four value authorities
+//! parse in `envelope_values.rs`, re-exported below · `vars:`/`env:` are
+//! dead forms, refused at `parser/mod.rs` with NIKA-VALUES-001/002).
 
 use marked_yaml::Node;
 use marked_yaml::types::MarkedMappingNode;
@@ -12,7 +12,8 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy,
+    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy, RunClock,
+    RunDecl, RunEntropy,
 };
 
 use super::{Cx, value::json_value};
@@ -21,7 +22,7 @@ use super::{Cx, value::json_value};
 // one vocabulary, one home); the parser reads them through this re-export.
 pub(crate) use nika_vocab::keys::{
     CONFIG_KEYS, CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, PERMITS_FS_KEYS, PERMITS_KEYS,
-    PERMITS_NET_KEYS, SECRET_KEYS, TYPED_OUTPUT_KEYS,
+    PERMITS_NET_KEYS, RUN_ENTROPY_MAP_KEYS, RUN_KEYS, SECRET_KEYS, TYPED_OUTPUT_KEYS,
 };
 
 // The four value authorities parse in `envelope_values.rs` (the C2 file
@@ -970,6 +971,115 @@ pub(super) fn parse_policy(
     Ok(Some(Spanned::new(policy, cx.span_or_zero(node.span()))))
 }
 
+/// Parse `run:` — the run's entropy + clock declaration (F-P3).
+///
+/// Shape-only, with the CLOSED key set `{entropy, clock}` refused in BOTH
+/// parse modes (the `permits:`/`policy:` precedent: a typo'd declaration
+/// silently not binding would mis-declare the run's determinism contract).
+/// The value forms are the `assert:` vocabulary idiom — bare scalars for
+/// the parameterless values (`none` · `ambient` · `system` · `virtual`),
+/// a single-key map for the one parameterized value (`{ seeded: <u64> }`).
+///
+/// The ONE semantic judgment the parser makes here is the declared
+/// CONTRADICTION ([`RunDecl::contradiction`]): a determinism demand
+/// sharing the block with a declared non-deterministic source
+/// (`entropy: ambient` × `clock: virtual` · `entropy: none | seeded` ×
+/// `clock: system`). Everything else — which seams the declaration
+/// pilots, the body-level entropy-source judgment — belongs to the
+/// composer and the checker, never to a shape pass.
+pub(super) fn parse_run(
+    cx: &Cx<'_>,
+    workflow: &MarkedMappingNode,
+) -> Result<Option<Spanned<RunDecl>>, SchemaError> {
+    let Some(node) = workflow.get_node("run") else {
+        return Ok(None);
+    };
+    let mapping = require_mapping(cx, node, "run")?;
+    cx.check_unknown_keys_always(mapping, RUN_KEYS, "`run:`")?;
+
+    let entropy = match mapping.get_node("entropy") {
+        Some(entropy_node) => Some(parse_run_entropy(cx, entropy_node)?),
+        None => None,
+    };
+    let clock = match mapping.get_node("clock") {
+        Some(clock_node) => {
+            let scalar = clock_node
+                .as_scalar()
+                .ok_or_else(|| SchemaError::Validation {
+                    message: "`run.clock` must be a scalar (`system` | `virtual`)".to_owned(),
+                    span: cx.span(clock_node.span()),
+                })?;
+            let clock = match scalar.as_str() {
+                "system" => RunClock::System,
+                "virtual" => RunClock::Virtual,
+                other => {
+                    return Err(SchemaError::Validation {
+                        message: format!(
+                            "`run.clock` must be `system` or `virtual` — got `{other}` (F-P3 · \
+                             the closed clock vocabulary)"
+                        ),
+                        span: cx.span(scalar.span()),
+                    });
+                }
+            };
+            Some(clock)
+        }
+        None => None,
+    };
+
+    let decl = RunDecl::new(entropy, clock);
+    if let Some(why) = decl.contradiction() {
+        return Err(SchemaError::Validation {
+            message: format!("`run:` contradicts itself — {why}"),
+            span: cx.span(node.span()),
+        });
+    }
+    Ok(Some(Spanned::new(decl, cx.span_or_zero(node.span()))))
+}
+
+/// `run.entropy` — `none` · `ambient` · `{ seeded: <u64> }` (the
+/// single-key map carries the one parameterized value).
+fn parse_run_entropy(cx: &Cx<'_>, node: &marked_yaml::Node) -> Result<RunEntropy, SchemaError> {
+    if let Some(scalar) = node.as_scalar() {
+        return match scalar.as_str() {
+            "none" => Ok(RunEntropy::None),
+            "ambient" => Ok(RunEntropy::Ambient),
+            other => Err(SchemaError::Validation {
+                message: format!(
+                    "`run.entropy` must be `none`, `ambient`, or `{{ seeded: <u64> }}` — got \
+                     `{other}` (F-P3 · the closed entropy vocabulary)"
+                ),
+                span: cx.span(scalar.span()),
+            }),
+        };
+    }
+    let mapping = require_mapping(cx, node, "run.entropy")?;
+    cx.check_unknown_keys_always(mapping, RUN_ENTROPY_MAP_KEYS, "`run.entropy`")?;
+    let Some(seed_node) = mapping.get_node("seeded") else {
+        return Err(SchemaError::Validation {
+            message: "`run.entropy` as a map is exactly `{ seeded: <u64> }`".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let Some(seed_scalar) = seed_node.as_scalar() else {
+        return Err(SchemaError::Validation {
+            message: "`run.entropy.seeded` must be a non-negative integer (u64)".to_owned(),
+            span: cx.span(seed_node.span()),
+        });
+    };
+    let seed = seed_scalar
+        .as_str()
+        .parse::<u64>()
+        .map_err(|_| SchemaError::Validation {
+            message: format!(
+                "`run.entropy.seeded` must be a non-negative integer (u64) — got `{}`",
+                seed_scalar.as_str()
+            ),
+            span: cx.span(seed_scalar.span()),
+        })?;
+    Ok(RunEntropy::Seeded(seed))
+}
+
 #[cfg(test)]
 mod policy_tests {
     use crate::parser::{ParseMode, parse};
@@ -1217,5 +1327,122 @@ permits:
         let yaml = format!("{BASE}permits: {{ exec: \"maybe\" }}\n");
         let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(err.to_string().contains("permits.exec"));
+    }
+}
+
+// ── F-P3 · the `run:` block (entropy + clock declaration) ─────────────
+
+#[cfg(test)]
+mod run_tests {
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+    use crate::types::{RunClock, RunEntropy};
+
+    const BASE: &str = "\
+nika: v1
+workflow:
+  id: demo
+";
+
+    fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, crate::error::SchemaError> {
+        parse(yaml, FileId::new(0), ParseMode::Strict)
+    }
+
+    #[test]
+    fn absent_run_block_is_none() {
+        let wf = parse_strict(BASE).expect("parse");
+        assert!(wf.run.is_none(), "absent = the undeclared status quo");
+    }
+
+    #[test]
+    fn every_entropy_form_parses() {
+        let wf = parse_strict(&format!("{BASE}run: {{ entropy: none }}\n")).expect("none");
+        assert_eq!(wf.run.expect("run").value.entropy, Some(RunEntropy::None));
+        let wf = parse_strict(&format!("{BASE}run: {{ entropy: ambient }}\n")).expect("ambient");
+        assert_eq!(
+            wf.run.expect("run").value.entropy,
+            Some(RunEntropy::Ambient)
+        );
+        let wf =
+            parse_strict(&format!("{BASE}run: {{ entropy: {{ seeded: 42 }} }}\n")).expect("seeded");
+        assert_eq!(
+            wf.run.expect("run").value.entropy,
+            Some(RunEntropy::Seeded(42))
+        );
+    }
+
+    #[test]
+    fn block_form_and_clock_parse() {
+        let yaml = format!("{BASE}run:\n  entropy:\n    seeded: 7\n  clock: virtual\n");
+        let wf = parse_strict(&yaml).expect("block form parses");
+        let decl = wf.run.expect("run").value;
+        assert_eq!(decl.entropy, Some(RunEntropy::Seeded(7)));
+        assert_eq!(decl.clock, Some(RunClock::Virtual));
+        let wf = parse_strict(&format!("{BASE}run: {{ clock: system }}\n")).expect("system");
+        assert_eq!(
+            wf.run.expect("run").value.clock,
+            Some(RunClock::System),
+            "an explicit system clock parses (the spelled-out status quo)"
+        );
+    }
+
+    #[test]
+    fn ambient_times_virtual_is_refused() {
+        // F-P3 (a) — the determinism demand × the ambient declaration.
+        let yaml = format!("{BASE}run: {{ entropy: ambient, clock: virtual }}\n");
+        let err = parse_strict(&yaml).expect_err("contradiction refused");
+        let msg = err.to_string();
+        assert!(msg.contains("contradicts itself"), "{msg}");
+        assert!(msg.contains("ambient") && msg.contains("virtual"), "{msg}");
+    }
+
+    #[test]
+    fn deterministic_entropy_times_system_clock_is_refused() {
+        // The mirror — seeded/none force the virtual clock; an explicit
+        // wall clock breaks the byte-identical-journal law.
+        for entropy in ["none", "{ seeded: 42 }"] {
+            let yaml = format!("{BASE}run: {{ entropy: {entropy}, clock: system }}\n");
+            let err = parse_strict(&yaml).expect_err("contradiction refused");
+            assert!(
+                err.to_string().contains("contradicts itself"),
+                "{entropy}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn redundant_virtual_beside_seeded_is_legal() {
+        let yaml = format!("{BASE}run: {{ entropy: {{ seeded: 42 }}, clock: virtual }}\n");
+        let wf = parse_strict(&yaml).expect("coherent (redundant but named)");
+        assert_eq!(wf.run.expect("run").value.clock, Some(RunClock::Virtual));
+    }
+
+    #[test]
+    fn unknown_run_key_is_refused_in_both_modes() {
+        // A typo'd declaration silently not binding is the permits:/policy:
+        // class — strict in BOTH modes.
+        for mode in [ParseMode::Strict, ParseMode::Lenient] {
+            let yaml = format!("{BASE}run: {{ entropi: none }}\n");
+            let err = parse(&yaml, FileId::new(0), mode).expect_err("typo key refused");
+            assert!(err.to_string().contains("entropi"), "{err}");
+        }
+    }
+
+    #[test]
+    fn bad_entropy_and_clock_values_are_refused() {
+        let yaml = format!("{BASE}run: {{ entropy: pseudo }}\n");
+        let err = parse_strict(&yaml).expect_err("unknown entropy");
+        assert!(err.to_string().contains("pseudo"), "{err}");
+        let yaml = format!("{BASE}run: {{ clock: sidereal }}\n");
+        let err = parse_strict(&yaml).expect_err("unknown clock");
+        assert!(err.to_string().contains("sidereal"), "{err}");
+        let yaml = format!("{BASE}run: {{ entropy: {{ seeded: -1 }} }}\n");
+        let err = parse_strict(&yaml).expect_err("negative seed");
+        assert!(err.to_string().contains("u64"), "{err}");
+        let yaml = format!("{BASE}run: {{ entropy: {{ seeded: 42, salt: 1 }} }}\n");
+        let err = parse_strict(&yaml).expect_err("unknown entropy map key");
+        assert!(err.to_string().contains("salt"), "{err}");
+        let yaml = format!("{BASE}run: fast\n");
+        assert!(parse_strict(&yaml).is_err(), "run: must be a mapping");
     }
 }

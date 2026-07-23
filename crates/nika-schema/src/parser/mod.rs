@@ -51,12 +51,12 @@ pub enum ParseMode {
 }
 
 /// The canonical top-level envelope keys (spec `01-envelope.md` +
-/// `09-types.md` `types:` + `10-authority.md` `policy:` · post-C2 the
-/// four-authority family — `vars`/`env` are NOT here: they get their
-/// specific dead-form refusals (NIKA-VALUES-001/002) before this check).
+/// `09-types.md` `types:` + `10-authority.md` `policy:` + F-P3 `run:` ·
+/// post-C2 the four-authority family — `vars`/`env` are NOT here: they get
+/// their specific dead-form refusals (NIKA-VALUES-001/002) before this check).
 const TOP_LEVEL_KEYS: &[&str] = &[
     "nika", "workflow", "model", "inputs", "config", "const", "secrets", "permits", "policy",
-    "types", "tasks", "outputs", "assert",
+    "types", "run", "tasks", "outputs", "assert",
 ];
 
 /// Parse a YAML string into a [`RawWorkflow`].
@@ -162,6 +162,7 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     workflow.permits = envelope::parse_permits(&cx, mapping)?;
     workflow.policy = envelope::parse_policy(&cx, mapping)?;
     workflow.types = envelope::parse_types(&cx, mapping)?;
+    workflow.run = envelope::parse_run(&cx, mapping)?;
     workflow.outputs = envelope::parse_outputs(&cx, mapping)?;
     workflow.assert = envelope::parse_assert(&cx, mapping)?;
     workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
