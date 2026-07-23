@@ -552,11 +552,18 @@ where
     /// boundary (the `dispatch/sandbox.rs` derivation). F-O8 « absent =
     /// zero authority »: `None` maps to the EMPTY boundary's spec (fs
     /// empty · net deny) — the double lock under `check_exec_permits`,
-    /// which already refuses the exec upstream.
+    /// which already refuses the exec upstream. Fallible since NEP-0009
+    /// (LAW-AUTH-0330): a grant whose EFFECTIVE path identity escapes the
+    /// declared set refuses before spawn (`NIKA-SEC-004`) — witnessed on
+    /// the `fs` plane, granted and refused alike, the refusal attested as
+    /// `fs.path_mismatch` carrying the judged prefix and the resolved
+    /// target (never a silent rewrite: judged = mounted).
     fn exec_sandbox_spec(
         &self,
         permits: Option<&nika_schema::types::Permits>,
-    ) -> nika_kernel::process::SandboxSpec {
+        note: &str,
+        witness: &crate::witness::PermitWitness,
+    ) -> Result<nika_kernel::process::SandboxSpec, Box<Dispatched>> {
         let zero = nika_schema::types::Permits::new();
         let permits = permits.unwrap_or(&zero);
         let root = self
@@ -565,7 +572,40 @@ where
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        sandbox::spec_of(permits, &root)
+        match sandbox::spec_of(permits, &root) {
+            Ok(spec) => {
+                for grant in spec.fs_read.iter().chain(spec.fs_write.iter()) {
+                    witness.record(
+                        "fs",
+                        grant,
+                        "allow",
+                        "the effective path identity stays in the declared set (NEP-0009)",
+                    );
+                }
+                Ok(spec)
+            }
+            Err(mismatch) => {
+                witness.record(
+                    "fs",
+                    &mismatch.grant,
+                    "deny",
+                    format!(
+                        "fs.path_mismatch · resolves to `{}` · outside the declared {} set (NEP-0009)",
+                        mismatch.resolved, mismatch.access
+                    ),
+                );
+                Err(Box::new(Dispatched::security_err(
+                    note,
+                    format!(
+                        "fs.{} grant `{}` names another identity: it resolves to `{}`, \
+                         outside the declared boundary — a path grant names an effective \
+                         path identity (NEP-0009) · declare the effective path; the grant \
+                         is refused, never rewritten",
+                        mismatch.access, mismatch.grant, mismatch.resolved
+                    ),
+                )))
+            }
+        }
     }
 
     async fn dispatch_shell(
@@ -651,10 +691,12 @@ where
             }
         }
 
-        // ADR-095 Layer 6 · the OS jail rides the SAME declared boundary
-        // (F-O8: no `permits:` block = the zero-authority spec · the exec
-        // is already refused above, this is the double lock).
-        input.sandbox = Some(self.exec_sandbox_spec(scope.permits));
+        // ADR-095 Layer 6 · the jail rides the declared boundary (F-O8) ·
+        // NEP-0009: a planted symlink refuses HERE, before any spawn.
+        input.sandbox = match self.exec_sandbox_spec(scope.permits, &note, ctx.witness) {
+            Ok(spec) => Some(spec),
+            Err(refusal) => return *refusal,
+        };
         // NEP-0005 · the declared `permits.env:` passthrough rides the
         // command to the spawn site, which composes the child environment
         // (the runner floor ∪ these names ∪ the authored `env:` map) from

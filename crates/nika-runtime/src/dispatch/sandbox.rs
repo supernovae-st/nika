@@ -7,7 +7,7 @@
 //! builtin/fs gates enforce at their own seams, so an exec that the
 //! blocklist passes can still not TOUCH what the boundary denies.
 //!
-//! Two doctrine rules, kept in lockstep with the builtin `FsBoundary` so
+//! Three doctrine rules, kept in lockstep with the builtin `FsBoundary` so
 //! check≡run ≡jail cannot drift:
 //!
 //! - **Relative globs anchor at the run's launch cwd** (the same root the
@@ -22,15 +22,44 @@
 //!   an absent `net:` block or empty `net.http` maps to `Deny` (the
 //!   default, fail-closed). Until the proxy lands the allowlist arm
 //!   confines exactly as the pre-tri-state grant did — zero regression.
+//! - **A path grant names an effective path identity** (NEP-0009 ·
+//!   LAW-AUTH-0330): the mount-projection arm follows a symlinked bind
+//!   SOURCE at mount(2) time (the CVE-2024-42472 class) where the kernel
+//!   path-walk arm refuses at open — so before any projection the grant's
+//!   literal prefix is re-judged as its EFFECTIVE identity (longest
+//!   existing ancestor canonicalized, the not-yet-existing tail carried
+//!   lexically — the `FsBoundary::resolve_effective` algorithm, sync). An
+//!   identity that escapes the declared set is REFUSED before spawn and
+//!   attested (`fs.path_mismatch`), never silently rewritten or mounted:
+//!   the receipt does not lie — judged = mounted. A parallel task swapping
+//!   the link between this re-gate and the mount is the DECLARED residual
+//!   window (NEP-0009 law 6); the fd-pin projection (`--bind-fd` · bwrap ≥
+//!   0.10.0) closes it as a named follow-on.
 
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use nika_kernel::process::{EgressAllowlist, NetPolicy, SandboxSpec};
 use nika_schema::types::Permits;
 
+/// One grant whose effective identity escaped the declared set (NEP-0009
+/// law 2): the judged prefix, the resolved target, and the access class —
+/// the caller refuses the dispatch and attests both paths.
+#[derive(Debug)]
+pub(super) struct PathMismatch {
+    /// The judged (declared · absolutized) literal prefix.
+    pub grant: String,
+    /// The effective identity the prefix resolves to on the live fs.
+    pub resolved: String,
+    /// `read` | `write` — which declared set was escaped.
+    pub access: &'static str,
+}
+
 /// Derive the OS-confinement spec from the declared boundary, anchored at
-/// `root` (the run's launch cwd — see the module doc).
-pub(super) fn spec_of(permits: &Permits, root: &Path) -> SandboxSpec {
+/// `root` (the run's launch cwd — see the module doc). Fallible since
+/// NEP-0009: every fs grant's literal prefix must keep its judged identity
+/// on the live filesystem — an escape refuses the whole derivation (the
+/// task never spawns) and is never rewritten to the resolved form.
+pub(super) fn spec_of(permits: &Permits, root: &Path) -> Result<SandboxSpec, Box<PathMismatch>> {
     let (read, write) = permits
         .fs
         .as_ref()
@@ -39,8 +68,16 @@ pub(super) fn spec_of(permits: &Permits, root: &Path) -> SandboxSpec {
     let mut spec = SandboxSpec::new();
     spec.fs_read = read.iter().map(|g| absolutize(root, g)).collect();
     spec.fs_write = write.iter().map(|g| absolutize(root, g)).collect();
+    for (grant, access) in spec
+        .fs_read
+        .iter()
+        .map(|g| (g, "read"))
+        .chain(spec.fs_write.iter().map(|g| (g, "write")))
+    {
+        judge_identity(grant, access)?;
+    }
     spec.net = net_policy_of(permits);
-    spec
+    Ok(spec)
 }
 
 /// The network arm (see the module doc): declared host list → `Allowlist`
@@ -60,6 +97,112 @@ fn net_policy_of(permits: &Permits) -> NetPolicy {
     NetPolicy::Allowlist(EgressAllowlist::new(net.http.clone()))
 }
 
+/// NEP-0009 law 1+2 — re-judge ONE grant's literal prefix: the mount point
+/// bwrap binds must be the identity the author lexically named. The test
+/// compares the FULLY resolved prefix against its parent-resolved form —
+/// the parent (existing ancestors · the run root · a `/tmp`→`/private/tmp`
+/// system link) canonicalized so a legitimately-symlinked ANCESTOR is
+/// tolerated, and the FINAL component held lexical so a planted symlink AT
+/// the mount point (the CVE-2024-42472 pivot) cannot masquerade. Equal →
+/// the identity holds; different → the final component redirects outside
+/// the judged path · REFUSE, never rewrite (NEP-0009 backwards-compat: the
+/// author declares the effective path). A not-yet-existing tail (the legal
+/// new-write · law 5) folds identically on both sides → admitted. Non-
+/// absolute shapes (`~` · a preserved escape) pass through untouched — the
+/// launchers' `grant_subpath` owns their fail-closed refusal, as before.
+fn judge_identity(grant: &str, access: &'static str) -> Result<(), Box<PathMismatch>> {
+    if !grant.starts_with('/') {
+        return Ok(());
+    }
+    let lit = literal_root(grant);
+    let lit_path = Path::new(&lit);
+    let effective = resolve_effective(lit_path);
+    let expected = match (lit_path.parent(), lit_path.file_name()) {
+        // Parent resolved (ancestor symlinks absorbed), final name lexical.
+        (Some(parent), Some(name)) if parent != lit_path => resolve_effective(parent).join(name),
+        // A bare root (`/` · `/**`) has no final component to redirect.
+        _ => effective.clone(),
+    };
+    if effective == expected {
+        return Ok(());
+    }
+    Err(Box::new(PathMismatch {
+        grant: lit,
+        resolved: effective.display().to_string(),
+        access,
+    }))
+}
+
+/// The glob's longest literal directory prefix — every component up to
+/// (not including) the first one containing `*` (the builtin
+/// `FsBoundary`'s exact split, restated for the sync arm).
+fn literal_root(glob: &str) -> String {
+    if !glob.contains('*') {
+        return glob.to_owned();
+    }
+    let mut root = PathBuf::new();
+    for comp in Path::new(glob).components() {
+        if comp.as_os_str().to_string_lossy().contains('*') {
+            break;
+        }
+        root.push(comp.as_os_str());
+    }
+    root.to_string_lossy().into_owned()
+}
+
+/// Resolve a literal prefix to its EFFECTIVE absolute identity (symlinks +
+/// `..` against the live fs) — the sync twin of the builtin
+/// `FsBoundary::resolve_effective`: an existing path canonicalizes
+/// directly; a not-yet-existing tail (the legal new-write case · NEP-0009
+/// law 5) canonicalizes its longest existing ancestor — resolving every
+/// symlink up to that point — then folds the trailing components lexically
+/// (they don't exist, so none can be a symlink, making the fold sound).
+fn resolve_effective(path: &Path) -> PathBuf {
+    // The security gate must see the REAL filesystem the jail will mount —
+    // a mocked seam here would blind the re-gate, so the bypass is the
+    // deliberate, reviewable exception (the nika:uuid entropy precedent).
+    let whole = std::fs::canonicalize(path); // seam-bypass-ok: judge the LIVE fs
+    if let Ok(canon) = whole {
+        return canon;
+    }
+    let mut trailing: Vec<Component<'_>> = Vec::new();
+    let mut cur = path;
+    loop {
+        let ancestor = std::fs::canonicalize(cur); // seam-bypass-ok: judge the LIVE fs
+        if let Ok(base) = ancestor {
+            return fold_trailing(base, trailing.iter().rev());
+        }
+        match cur.parent() {
+            Some(parent) if parent != cur => {
+                // Keep the LAST component (file_name OR a `..`/`.`) to fold.
+                if let Some(last) = cur.components().next_back() {
+                    trailing.push(last);
+                }
+                cur = parent;
+            }
+            // No existing ancestor: fold lexically — nothing on this path
+            // could be canonicalized anyway, so the lexical form IS the
+            // judged identity.
+            _ => return PathBuf::from(lexically_normalize(path)),
+        }
+    }
+}
+
+/// Fold trailing path components onto an already-canonical base.
+fn fold_trailing<'a>(base: PathBuf, comps: impl Iterator<Item = &'a Component<'a>>) -> PathBuf {
+    let mut out = base;
+    for comp in comps {
+        match comp {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
 /// Absolutize one declared glob against the run root: a relative glob
 /// joins the root and folds lexically (`.`/`..` resolved textually — the
 /// `lexically_normalize` semantics the fit checker already pins, so a
@@ -77,8 +220,8 @@ fn absolutize(root: &Path, glob: &str) -> String {
 
 /// Textual `.`/`..` fold (the `nika-cap` `fit::lexically_normalize`
 /// semantics, restated here so the runtime stays a leaf consumer — no
-/// symlink walk: a not-yet-existing write tree has no symlinks to
-/// resolve, and the jail's own canonicalization owns the existing part).
+/// symlink walk: the EFFECTIVE-identity walk lives in
+/// [`resolve_effective`], which owns the existing part).
 fn lexically_normalize(path: &Path) -> String {
     let mut out = std::path::PathBuf::new();
     for comp in path.components() {
@@ -94,6 +237,7 @@ fn lexically_normalize(path: &Path) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use nika_schema::types::{FsPermits, NetPermits, Permits};
 
@@ -111,12 +255,23 @@ mod tests {
         p
     }
 
+    /// A per-test scratch tree, CANONICALIZED so the declared grants name
+    /// their effective identity (NEP-0009's own law — `temp_dir` on macOS
+    /// lives under the `/var` → `/private/var` symlink).
+    fn scratch(tag: &str) -> PathBuf {
+        let base = std::env::temp_dir().join(format!("nika-h2-{}-{tag}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).expect("scratch dir");
+        std::fs::canonicalize(&base).expect("canonical scratch root")
+    }
+
     #[test]
     fn relative_globs_anchor_at_the_run_root() {
         let spec = spec_of(
             &permits(&["./data/**"], &["./out/**"], &[]),
             Path::new("/repo"),
-        );
+        )
+        .expect("no symlink on the judged prefixes");
         assert_eq!(spec.fs_read, vec!["/repo/data/**".to_owned()]);
         assert_eq!(spec.fs_write, vec!["/repo/out/**".to_owned()]);
         assert_eq!(
@@ -131,7 +286,8 @@ mod tests {
         let spec = spec_of(
             &permits(&["/data/in/**"], &["/data/out/**"], &["api.example.com"]),
             Path::new("/repo"),
-        );
+        )
+        .expect("no symlink on the judged prefixes");
         assert_eq!(spec.fs_read, vec!["/data/in/**".to_owned()]);
         assert_eq!(spec.fs_write, vec!["/data/out/**".to_owned()]);
         assert_eq!(
@@ -185,14 +341,111 @@ mod tests {
 
     #[test]
     fn dot_dot_folds_the_same_way_as_the_fit_checker() {
-        let spec = spec_of(&permits(&["data/../out/**"], &[], &[]), Path::new("/repo"));
+        let spec = spec_of(&permits(&["data/../out/**"], &[], &[]), Path::new("/repo"))
+            .expect("no symlink on the judged prefix");
         assert_eq!(spec.fs_read, vec!["/repo/out/**".to_owned()]);
     }
 
     #[test]
     fn no_fs_block_means_no_extra_grants() {
-        let spec = spec_of(&Permits::new(), Path::new("/repo"));
+        let spec =
+            spec_of(&Permits::new(), Path::new("/repo")).expect("an empty boundary judges nothing");
         assert!(spec.fs_read.is_empty() && spec.fs_write.is_empty());
         assert_eq!(spec.net, NetPolicy::Deny, "no net block = the deny holds");
+    }
+
+    /// NEP-0009 law 1+2 — the planted-pivot shape: a grant prefix that IS
+    /// a symlink pointing outside the declared set is refused, carrying
+    /// the judged prefix and the resolved target (never rewritten).
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_prefix_escaping_the_declared_set_is_refused() {
+        let base = scratch("escape");
+        let outside = base.join("outside");
+        let ws = base.join("ws");
+        std::fs::create_dir_all(&outside).expect("outside tree");
+        std::fs::create_dir_all(&ws).expect("judged tree");
+        let data = ws.join("data");
+        std::os::unix::fs::symlink(&outside, &data).expect("the plant");
+
+        let grant = format!("{}/**", data.display());
+        let err = spec_of(&permits(&[&grant], &[], &[]), &base)
+            .expect_err("the escaped identity refuses the derivation");
+        assert_eq!(err.grant, data.display().to_string(), "the judged prefix");
+        assert_eq!(
+            err.resolved,
+            outside.display().to_string(),
+            "the resolved target is named, never mounted"
+        );
+        assert_eq!(err.access, "read");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// NEP-0009 law 5 — a write grant whose target does not exist yet is
+    /// judged on its longest existing ancestor: creation under a healthy
+    /// ancestor is admitted.
+    #[test]
+    fn a_not_yet_existing_write_tree_under_a_healthy_ancestor_stays_legal() {
+        let base = scratch("newwrite");
+        let grant = format!("{}/fresh/out/**", base.display());
+        let spec = spec_of(&permits(&[], &[&grant], &[]), &base)
+            .expect("the not-yet-existing tail folds onto the healthy ancestor");
+        assert_eq!(spec.fs_write, vec![grant]);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The run-root tolerance (the correctness core): a grant sitting under
+    /// a legitimately-symlinked ANCESTOR (the `/tmp`→`/private/tmp` class,
+    /// or any symlinked checkout root) is ADMITTED — the parent is resolved
+    /// on both sides, so the ancestor link is absorbed, not mistaken for the
+    /// planted-pivot. Without this the effective (canonical) form would
+    /// never match a lexical declared root and every macOS temp run would
+    /// false-refuse.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_ancestor_is_tolerated_not_mistaken_for_the_pivot() {
+        let base = scratch("ancestor");
+        let real_root = base.join("real-root");
+        let data = real_root.join("data");
+        std::fs::create_dir_all(&data).expect("the real tree");
+        // The declared grant is reached THROUGH a symlinked ancestor.
+        let link_root = base.join("link-root");
+        std::os::unix::fs::symlink(&real_root, &link_root).expect("ancestor link");
+
+        let grant = format!("{}/data/**", link_root.display());
+        let spec = spec_of(&permits(&[&grant], &[], &[]), &base)
+            .expect("a symlinked ANCESTOR is absorbed on both sides · admitted");
+        assert_eq!(spec.fs_read, vec![grant]);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The identity is what the author NAMED: a final-component symlink is
+    /// refused even when its target is a sibling under the SAME base — the
+    /// receipt would otherwise say `link` while binding `real` (NEP-0009
+    /// backwards-compat · declare the effective path).
+    #[cfg(unix)]
+    #[test]
+    fn a_final_component_symlink_is_refused_even_to_a_sibling() {
+        let base = scratch("sibling");
+        let real = base.join("real");
+        std::fs::create_dir_all(&real).expect("sibling tree");
+        let link = base.join("link");
+        std::os::unix::fs::symlink(&real, &link).expect("redirecting link");
+
+        let grant = format!("{}/**", link.display());
+        let err = spec_of(&permits(&[&grant], &[], &[]), &base)
+            .expect_err("the final component redirects · refused");
+        assert_eq!(err.resolved, real.display().to_string());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The launcher-refused shapes (`~` · relative escapes) pass through
+    /// unjudged — `grant_subpath`'s fail-closed refusal stays the honest
+    /// verdict for them, exactly as before NEP-0009.
+    #[test]
+    fn non_absolute_shapes_stay_the_launchers_refusal() {
+        let spec = spec_of(&permits(&["~/x/**"], &[], &[]), Path::new("/repo"))
+            .expect("the `~` shape is the launcher's refusal, not this gate's");
+        assert_eq!(spec.fs_read, vec!["~/x/**".to_owned()]);
     }
 }

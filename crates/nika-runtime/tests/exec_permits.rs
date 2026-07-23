@@ -104,3 +104,56 @@ tasks:
     assert!(outcome.ok, "an allowed program runs to success");
     assert_eq!(outcome.records["ok"].status, TaskStatus::Success);
 }
+
+/// NEP-0009 (LAW-AUTH-0330) · the planted-pivot POC refused BEFORE spawn.
+/// An `fs.read` grant whose prefix was replaced with a symlink pointing
+/// outside the declared tree (the CVE-2024-42472 class · bwrap follows
+/// the bind SOURCE at mount) is re-judged as its effective identity at
+/// dispatch: the escape refuses the exec with NIKA-SEC-004 before the OS
+/// jail is ever built. The `MockShell` is EMPTY — reaching the runner would
+/// panic, so a passing test proves ZERO bytes were read and no exec frame
+/// fired for the task.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_symlinked_fs_grant_escaping_the_boundary_is_refused_before_spawn() {
+    let base = std::env::temp_dir().join(format!("nika-h2-exec-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let outside = base.join("outside");
+    let ws = base.join("ws");
+    std::fs::create_dir_all(&outside).expect("outside tree");
+    std::fs::create_dir_all(&ws).expect("judged tree");
+    // The upstream plant: /…/ws/data now points at /…/outside.
+    std::os::unix::fs::symlink(&outside, ws.join("data")).expect("the plant");
+
+    let grant = format!("{}/data/**", ws.display());
+    let yaml = format!(
+        r#"
+nika: v1
+workflow:
+  id: h2-pivot
+permits:
+  exec: ["cat"]
+  fs:
+    read: ["{grant}"]
+tasks:
+  read_secret:
+    exec:
+      command: ["cat", "{}/data/id_ed25519"]
+"#,
+        ws.display()
+    );
+
+    // EMPTY shell — the security gate must fire before any spawn.
+    let outcome = run(&yaml, MockShell::new()).await;
+    assert!(!outcome.ok, "the planted pivot fails the run");
+    let rec = &outcome.records["read_secret"];
+    assert_eq!(rec.status, TaskStatus::Failure);
+    let err = rec.error.as_ref().expect("a refusal record");
+    assert_eq!(err.code, "NIKA-SEC-004", "the path-identity escape code");
+    assert!(
+        err.message.contains("effective path identity") || err.message.contains("resolves to"),
+        "the refusal names the resolved target (never rewritten): {}",
+        err.message
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}
