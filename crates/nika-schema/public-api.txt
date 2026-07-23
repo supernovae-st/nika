@@ -843,6 +843,45 @@ impl<T> core::convert::From<T> for nika_schema::raw::task::ForEachValue
 pub fn nika_schema::raw::task::ForEachValue::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::task::ForEachValue where T: 'static
 pub fn nika_schema::raw::task::ForEachValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::raw::task::DeclassifyEntry
+pub nika_schema::raw::task::DeclassifyEntry::because: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::task::DeclassifyEntry::from: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::task::DeclassifyEntry::to: nika_source::span::Spanned<alloc::string::String>
+impl core::clone::Clone for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::clone(&self) -> nika_schema::raw::task::DeclassifyEntry
+impl core::cmp::Eq for nika_schema::raw::task::DeclassifyEntry
+impl core::cmp::PartialEq for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::eq(&self, other: &nika_schema::raw::task::DeclassifyEntry) -> bool
+impl core::fmt::Debug for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::raw::task::DeclassifyEntry
+impl<D> owo_colors::OwoColorize for nika_schema::raw::task::DeclassifyEntry
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::raw::task::DeclassifyEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::raw::task::DeclassifyEntry where U: core::convert::From<T>
+pub fn nika_schema::raw::task::DeclassifyEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::raw::task::DeclassifyEntry where U: core::convert::Into<T>
+pub type nika_schema::raw::task::DeclassifyEntry::Error = core::convert::Infallible
+pub fn nika_schema::raw::task::DeclassifyEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::raw::task::DeclassifyEntry where U: core::convert::TryFrom<T>
+pub type nika_schema::raw::task::DeclassifyEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::raw::task::DeclassifyEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::raw::task::DeclassifyEntry where T: core::clone::Clone
+pub type nika_schema::raw::task::DeclassifyEntry::Owned = T
+pub fn nika_schema::raw::task::DeclassifyEntry::clone_into(&self, target: &mut T)
+pub fn nika_schema::raw::task::DeclassifyEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::raw::task::DeclassifyEntry where T: 'static + ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::raw::task::DeclassifyEntry where T: ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::raw::task::DeclassifyEntry where T: ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::raw::task::DeclassifyEntry where T: core::clone::Clone
+pub unsafe fn nika_schema::raw::task::DeclassifyEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::raw::task::DeclassifyEntry where T: 'static
+pub fn nika_schema::raw::task::DeclassifyEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::task::RawFinallyTask
 pub nika_schema::raw::task::RawFinallyTask::action: nika_schema::raw::action::RawAction
 pub nika_schema::raw::task::RawFinallyTask::timeout: core::option::Option<nika_source::span::Spanned<core::time::Duration>>
@@ -881,6 +920,7 @@ pub fn nika_schema::raw::task::RawFinallyTask::as_any(&self) -> &(dyn core::any:
 #[non_exhaustive] pub struct nika_schema::raw::task::RawTask
 pub nika_schema::raw::task::RawTask::action: nika_schema::raw::action::RawAction
 pub nika_schema::raw::task::RawTask::after: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_vocab::after::AfterPredicate>)>
+pub nika_schema::raw::task::RawTask::declassify: alloc::vec::Vec<nika_schema::raw::task::DeclassifyEntry>
 pub nika_schema::raw::task::RawTask::fail_fast: core::option::Option<nika_source::span::Spanned<bool>>
 pub nika_schema::raw::task::RawTask::for_each: core::option::Option<nika_source::span::Spanned<nika_schema::raw::task::ForEachValue>>
 pub nika_schema::raw::task::RawTask::id: nika_source::span::Spanned<alloc::string::String>
@@ -1152,6 +1192,45 @@ impl<T> core::convert::From<T> for nika_schema::raw::action::VisionInput
 pub fn nika_schema::raw::action::VisionInput::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::VisionInput where T: 'static
 pub fn nika_schema::raw::action::VisionInput::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::raw::DeclassifyEntry
+pub nika_schema::raw::DeclassifyEntry::because: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::DeclassifyEntry::from: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::DeclassifyEntry::to: nika_source::span::Spanned<alloc::string::String>
+impl core::clone::Clone for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::clone(&self) -> nika_schema::raw::task::DeclassifyEntry
+impl core::cmp::Eq for nika_schema::raw::task::DeclassifyEntry
+impl core::cmp::PartialEq for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::eq(&self, other: &nika_schema::raw::task::DeclassifyEntry) -> bool
+impl core::fmt::Debug for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::raw::task::DeclassifyEntry
+impl<D> owo_colors::OwoColorize for nika_schema::raw::task::DeclassifyEntry
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::raw::task::DeclassifyEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::raw::task::DeclassifyEntry where U: core::convert::From<T>
+pub fn nika_schema::raw::task::DeclassifyEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::raw::task::DeclassifyEntry where U: core::convert::Into<T>
+pub type nika_schema::raw::task::DeclassifyEntry::Error = core::convert::Infallible
+pub fn nika_schema::raw::task::DeclassifyEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::raw::task::DeclassifyEntry where U: core::convert::TryFrom<T>
+pub type nika_schema::raw::task::DeclassifyEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::raw::task::DeclassifyEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::raw::task::DeclassifyEntry where T: core::clone::Clone
+pub type nika_schema::raw::task::DeclassifyEntry::Owned = T
+pub fn nika_schema::raw::task::DeclassifyEntry::clone_into(&self, target: &mut T)
+pub fn nika_schema::raw::task::DeclassifyEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::raw::task::DeclassifyEntry where T: 'static + ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::raw::task::DeclassifyEntry where T: ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::raw::task::DeclassifyEntry where T: ?core::marker::Sized
+pub fn nika_schema::raw::task::DeclassifyEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::raw::task::DeclassifyEntry where T: core::clone::Clone
+pub unsafe fn nika_schema::raw::task::DeclassifyEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::raw::task::DeclassifyEntry
+pub fn nika_schema::raw::task::DeclassifyEntry::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::raw::task::DeclassifyEntry where T: 'static
+pub fn nika_schema::raw::task::DeclassifyEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawAgentAction
 pub nika_schema::raw::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
 pub nika_schema::raw::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
@@ -1347,6 +1426,7 @@ pub fn nika_schema::raw::action::RawInvokeAction::as_any(&self) -> &(dyn core::a
 #[non_exhaustive] pub struct nika_schema::raw::RawTask
 pub nika_schema::raw::RawTask::action: nika_schema::raw::action::RawAction
 pub nika_schema::raw::RawTask::after: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_vocab::after::AfterPredicate>)>
+pub nika_schema::raw::RawTask::declassify: alloc::vec::Vec<nika_schema::raw::task::DeclassifyEntry>
 pub nika_schema::raw::RawTask::fail_fast: core::option::Option<nika_source::span::Spanned<bool>>
 pub nika_schema::raw::RawTask::for_each: core::option::Option<nika_source::span::Spanned<nika_schema::raw::task::ForEachValue>>
 pub nika_schema::raw::RawTask::id: nika_source::span::Spanned<alloc::string::String>

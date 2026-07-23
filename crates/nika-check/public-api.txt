@@ -605,6 +605,55 @@ impl<T> nika_error::traits::AsAny for nika_check::GateFindingKind where T: 'stat
 pub fn nika_check::GateFindingKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_check::GateFindingKind where T: core::marker::Copy
 pub fn nika_check::GateFindingKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check::PermitTaintKind
+pub nika_check::PermitTaintKind::ArgEscapes
+pub nika_check::PermitTaintKind::BoundInterpolated
+impl core::clone::Clone for nika_check::PermitTaintKind
+pub fn nika_check::PermitTaintKind::clone(&self) -> nika_check::PermitTaintKind
+impl core::cmp::Eq for nika_check::PermitTaintKind
+impl core::cmp::PartialEq for nika_check::PermitTaintKind
+pub fn nika_check::PermitTaintKind::eq(&self, other: &nika_check::PermitTaintKind) -> bool
+impl core::fmt::Debug for nika_check::PermitTaintKind
+pub fn nika_check::PermitTaintKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check::PermitTaintKind
+impl core::marker::StructuralPartialEq for nika_check::PermitTaintKind
+impl serde_core::ser::Serialize for nika_check::PermitTaintKind
+pub fn nika_check::PermitTaintKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::PermitTaintKind
+impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
+pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::PermitTaintKind where U: core::convert::From<T>
+pub fn nika_check::PermitTaintKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::PermitTaintKind where U: core::convert::Into<T>
+pub type nika_check::PermitTaintKind::Error = core::convert::Infallible
+pub fn nika_check::PermitTaintKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::PermitTaintKind where U: core::convert::TryFrom<T>
+pub type nika_check::PermitTaintKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::PermitTaintKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::PermitTaintKind where T: core::clone::Clone
+pub type nika_check::PermitTaintKind::Owned = T
+pub fn nika_check::PermitTaintKind::clone_into(&self, target: &mut T)
+pub fn nika_check::PermitTaintKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::PermitTaintKind where T: 'static + ?core::marker::Sized
+pub fn nika_check::PermitTaintKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::PermitTaintKind where T: ?core::marker::Sized
+pub fn nika_check::PermitTaintKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::PermitTaintKind where T: ?core::marker::Sized
+pub fn nika_check::PermitTaintKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::PermitTaintKind where T: core::clone::Clone
+pub unsafe fn nika_check::PermitTaintKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::PermitTaintKind
+pub fn nika_check::PermitTaintKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::PermitTaintKind where T: core::clone::Clone
+pub fn nika_check::PermitTaintKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::PermitTaintKind where T: 'static
+pub fn nika_check::PermitTaintKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check::PermitTaintKind where T: core::marker::Copy
+pub fn nika_check::PermitTaintKind::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_check::PermitsSource
 pub nika_check::PermitsSource::Absent
 pub nika_check::PermitsSource::Declared
@@ -959,6 +1008,7 @@ pub nika_check::CheckReport::findings: alloc::vec::Vec<nika_check::UnifiedFindin
 pub nika_check::CheckReport::gate_findings: alloc::vec::Vec<nika_check::GateFinding>
 pub nika_check::CheckReport::hints: alloc::vec::Vec<nika_check::Hint>
 pub nika_check::CheckReport::missing_args: alloc::vec::Vec<nika_check::MissingArg>
+pub nika_check::CheckReport::permit_taints: alloc::vec::Vec<nika_check::PermitTaint>
 pub nika_check::CheckReport::permits: nika_check::EffectivePermits
 pub nika_check::CheckReport::policy_findings: alloc::vec::Vec<nika_cap::policy::PolicyViolation>
 pub nika_check::CheckReport::report_version: u32
@@ -1493,6 +1543,56 @@ impl<T> dyn_clone::DynClone for nika_check::ModelRequirement where T: core::clon
 pub fn nika_check::ModelRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::ModelRequirement where T: 'static
 pub fn nika_check::ModelRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::PermitTaint
+pub nika_check::PermitTaint::detail: alloc::string::String
+pub nika_check::PermitTaint::fix: core::option::Option<alloc::string::String>
+pub nika_check::PermitTaint::kind: nika_check::PermitTaintKind
+pub nika_check::PermitTaint::task: alloc::string::String
+impl nika_check::PermitTaint
+pub fn nika_check::PermitTaint::wire_code(&self) -> &'static str
+impl core::clone::Clone for nika_check::PermitTaint
+pub fn nika_check::PermitTaint::clone(&self) -> nika_check::PermitTaint
+impl core::cmp::Eq for nika_check::PermitTaint
+impl core::cmp::PartialEq for nika_check::PermitTaint
+pub fn nika_check::PermitTaint::eq(&self, other: &nika_check::PermitTaint) -> bool
+impl core::fmt::Debug for nika_check::PermitTaint
+pub fn nika_check::PermitTaint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::PermitTaint
+impl serde_core::ser::Serialize for nika_check::PermitTaint
+pub fn nika_check::PermitTaint::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::PermitTaint
+impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
+pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::PermitTaint where U: core::convert::From<T>
+pub fn nika_check::PermitTaint::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::PermitTaint where U: core::convert::Into<T>
+pub type nika_check::PermitTaint::Error = core::convert::Infallible
+pub fn nika_check::PermitTaint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::PermitTaint where U: core::convert::TryFrom<T>
+pub type nika_check::PermitTaint::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::PermitTaint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::PermitTaint where T: core::clone::Clone
+pub type nika_check::PermitTaint::Owned = T
+pub fn nika_check::PermitTaint::clone_into(&self, target: &mut T)
+pub fn nika_check::PermitTaint::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::PermitTaint where T: 'static + ?core::marker::Sized
+pub fn nika_check::PermitTaint::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::PermitTaint where T: ?core::marker::Sized
+pub fn nika_check::PermitTaint::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::PermitTaint where T: ?core::marker::Sized
+pub fn nika_check::PermitTaint::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::PermitTaint where T: core::clone::Clone
+pub unsafe fn nika_check::PermitTaint::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::PermitTaint
+pub fn nika_check::PermitTaint::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::PermitTaint where T: core::clone::Clone
+pub fn nika_check::PermitTaint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::PermitTaint where T: 'static
+pub fn nika_check::PermitTaint::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_check::Requirements
 pub nika_check::Requirements::config_defined: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::config_reads: alloc::vec::Vec<alloc::string::String>
