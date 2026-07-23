@@ -129,8 +129,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/nika-check-split`                                      |
-| HEAD             | `1acc3e42a` (`1acc3e42ad3959c3a50d65dc01ce27a98320429f`)             |
+| branch           | `main`                                      |
+| HEAD             | `79588ad76` (`79588ad76a9c25be253b8fd23943a22d91037afb`)             |
 | workspace        | v0.105.0                                  |
 | crates (workspace)| 56                                              |
 | crates (admitted)| 54                                             |
@@ -142,25 +142,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 8                                              |
-| lib tests        | 4714 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
-
-| field            | value                                          |
-|------------------|------------------------------------------------|
-| branch           | `chore/release-0.105.0`                                      |
-| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
-| workspace        | v0.105.0                                  |
-| crates (workspace)| 42                                              |
-| crates (admitted)| 42                                              |
-| crates (WIP)     | 0 —                                   |
-| L0               | 11                                              |
-| L0.5             | 6                                              |
-| L1               | 12                                              |
-| L1.5             | 4                                              |
-| L2               | 4                                              |
-| L3               | 1                                              |
-| L4               | 4                                              |
-| lib tests        | 3545 passed, 0 failed                              |
+| lib tests        | 4809 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -199,8 +181,9 @@ Narrative context (manually maintained):
   bug · test + spec clarification). Full battery green · 2687 lib + e2e + 503-wf
   corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
 - **Next** · design-partner `1.0.0-rc.N` → the **1.0.0**
-  launch (amended D-2026-06-20-N1). Latest tagged release is 0.91.0; `main`
-  carries the next dev version so contributor binaries cannot masquerade as the
+  launch (amended D-2026-06-20-N1). The latest tagged release is whatever the
+  CHANGELOG top names (never quote a number here · it rots); `main` carries
+  the next dev version so contributor binaries cannot masquerade as the
   Homebrew asset. The crate count follows the ADR-037 horizon (50-90 · cap 100 ·
   projected, never a gate · ruled D-2026-07-21-N1).
 
