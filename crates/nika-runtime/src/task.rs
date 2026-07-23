@@ -831,6 +831,9 @@ where
             // (a static walk over the task's own templates + the wave-frozen
             // records; iteration-agnostic), consumed per dispatch attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
+            // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
+            let ctx =
+                || crate::dispatch::DispatchCtx::of_task(task, budget, ledger.remaining_usd());
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -843,12 +846,7 @@ where
                             scope,
                             &value_taint,
                             &agent_buffer,
-                            crate::dispatch::DispatchCtx {
-                                deadline: budget,
-                                // law 6 · remaining AT CALL TIME
-                                child_budget: ledger.remaining_usd(),
-                                inert: task.inert.as_ref().map(|s| s.value.as_str()),
-                            },
+                            ctx(),
                             contract.as_ref(),
                         )
                         .await;

@@ -357,6 +357,24 @@ pub(crate) struct DispatchCtx<'a> {
     pub inert: Option<&'a str>,
 }
 
+impl<'a> DispatchCtx<'a> {
+    /// The per-attempt context of a task (invariant #19 · the type owns
+    /// its constructor): the ONE `timeout:`, the ledger's remaining
+    /// budget AT CALL TIME (law 6 · computed by the caller each
+    /// attempt), and the NEP-0006 `inert:` door.
+    pub(crate) fn of_task(
+        task: &'a nika_schema::raw::RawTask,
+        deadline: Option<std::time::Duration>,
+        child_budget: Option<f64>,
+    ) -> Self {
+        Self {
+            deadline,
+            child_budget,
+            inert: task.inert.as_ref().map(|s| s.value.as_str()),
+        }
+    }
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
