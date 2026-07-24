@@ -218,6 +218,30 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              above the declared floor; a MISSING required key is not an \
              error (the evaluation defers — abstention is a safety property)",
         ),
+        _ => run_decl_fix_hint(code),
+    }
+}
+
+/// The `run:` declaration hints (F-P3 · NEP-0010 · the dedicated
+/// mints) — split out of [`cli_fix_hint`] at the fn-length wall.
+fn run_decl_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
+        "NIKA-PARSE-026" => Some(
+            "`entropy: ambient` declares live entropy while `clock: virtual` \
+             demands a simulated clock — drop `clock: virtual`, or name the \
+             stream (`entropy: none` or `{ seeded: <u64> }`)",
+        ),
+        "NIKA-PARSE-027" => Some(
+            "`entropy: none | seeded` forces byte-identical journals; a wall \
+             clock would leak real durations into them — drop `clock: system` \
+             (the virtual clock is implied) or declare `clock: virtual`",
+        ),
+        "NIKA-PARSE-028" => Some(
+            "`entropy: none` is a strict no-entropy promise but the body \
+             consumes a structural source (a live retry jitter · `nika:uuid`) \
+             — set `jitter: false`, drop the uuid call, or name the stream \
+             with `entropy: { seeded: <u64> }`",
+        ),
         _ => None,
     }
 }

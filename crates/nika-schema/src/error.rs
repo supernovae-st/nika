@@ -361,6 +361,18 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// The `run:` block declares a contradicting entropy × clock pair
+    /// (F-P3 · the parse-level law) — the wire code follows the class
+    /// (`NIKA-PARSE-026` ambient × virtual · `NIKA-PARSE-027`
+    /// determinism × system · NEP-0010).
+    #[error("`run:` contradicts itself — {class}")]
+    RunContradiction {
+        /// Which declared pair contradicts (the vocab-level class).
+        class: crate::types::RunContradiction,
+        /// Source span.
+        span: Option<Span>,
+    },
+
     /// A builtin `invoke:` violates its statically-checkable arg
     /// contract (`stdlib/builtins-v0.1.md` · deep fixtures 009-012).
     #[error("task `{task}` · `{tool}` {reason}")]
@@ -716,6 +728,7 @@ impl SchemaError {
             | Self::DuplicateKey { span, .. }
             | Self::MissingField { span, .. }
             | Self::Validation { span, .. }
+            | Self::RunContradiction { span, .. }
             | Self::BadBuiltinArgs { span, .. }
             | Self::RecoverAwaitDeadlock { span, .. }
             | Self::WhenNotBoolean { span, .. }
@@ -824,6 +837,7 @@ schema_code!(SCHEMA_323, 323, "decode-with-structured-capture");
 schema_code!(SCHEMA_324, 324, "dead-value-form");
 schema_code!(SCHEMA_325, 325, "foreign-value-namespace");
 schema_code!(SCHEMA_326, 326, "default-not-conforming");
+schema_code!(SCHEMA_327, 327, "run-contradiction");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -855,6 +869,7 @@ impl NikaErrorCode for SchemaError {
             Self::DuplicateKey { .. } => SCHEMA_297,
             Self::MissingField { .. } => SCHEMA_298,
             Self::Validation { .. } => SCHEMA_299,
+            Self::RunContradiction { .. } => SCHEMA_327,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
             Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,
             Self::BadBuiltinArgs { .. } => SCHEMA_309,

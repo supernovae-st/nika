@@ -430,12 +430,11 @@ impl CheckReport {
             }
         }));
         // F-P3 · the run: declaration contradicted by the body — the
-        // registered generic structural validation (the dedicated mint is
-        // the spec-side follow-up).
+        // dedicated NIKA-PARSE-028 mint (NEP-0010 · the 87f764a pack).
         codes.extend(
             self.run_decl_findings
                 .iter()
-                .map(|_| SpecCode::new("PARSE", 19, SpecCategory::ValidationError)),
+                .map(|_| SpecCode::new("PARSE", 28, SpecCategory::ValidationError)),
         );
         // Composition lane (spec 14): COMP-002 is the security law
         // (child boundary ⊄ parent); 001/003/004 are validation.
@@ -1029,11 +1028,11 @@ tasks:
     }
 
     #[test]
-    fn extra_conformance_codes_maps_run_decl_to_parse_019() {
+    fn extra_conformance_codes_maps_run_decl_to_parse_028() {
         // F-P3 · `entropy: none` contradicted by a live retry jitter →
         // the run_decl lane refuses (is_clean fails), the class-erased
-        // findings carry the row, and the code map yields the registered
-        // generic (the dedicated mint is the spec-side follow-up).
+        // findings carry the row, and the code map yields the dedicated
+        // NIKA-PARSE-028 mint (NEP-0010 · the 87f764a pack).
         let r = check_yaml(
             "\
 nika: v1
@@ -1055,13 +1054,13 @@ tasks:
             .find(|f| f.kind == "run_decl")
             .expect("the row lands in findings[]");
         assert_eq!(hit.gate, "RUN");
-        assert_eq!(hit.code.as_deref(), Some("NIKA-PARSE-019"));
+        assert_eq!(hit.code.as_deref(), Some("NIKA-PARSE-028"));
         assert_eq!(hit.task.as_deref(), Some("flaky"));
         let codes = r.extra_conformance_codes();
         let rendered: Vec<String> = codes.iter().map(ToString::to_string).collect();
         assert!(
-            rendered.iter().any(|c| c == "NIKA-PARSE-019"),
-            "run_decl → NIKA-PARSE-019: {rendered:?}",
+            rendered.iter().any(|c| c == "NIKA-PARSE-028"),
+            "run_decl → NIKA-PARSE-028: {rendered:?}",
         );
     }
 
