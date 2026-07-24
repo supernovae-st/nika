@@ -336,6 +336,11 @@ fn chain_facts(raw: &str, label: &str) -> Result<ChainFacts, PackError> {
         Verdict::Unreadable { line, .. } => Err(PackError::NotAJournal(format!(
             "{label}:{line}: not a journal — the line is not valid JSON"
         ))),
+        // F-P1 · the fortress line bound: beyond the verifier's bounds
+        // is nothing an evidence pack attests (refused, never packed).
+        Verdict::LineOverLong { line, got } => Err(PackError::NotAJournal(format!(
+            "{label}:{line}: line is {got} bytes — beyond the verifier's line bound"
+        ))),
     }
 }
 
