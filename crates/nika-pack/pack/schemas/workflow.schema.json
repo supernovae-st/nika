@@ -300,7 +300,7 @@
     "run": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The run's entropy + clock declaration (NEP-0010) · every source of randomness and time is declared, never ambient · the dimensions couple: only ambient×system (the status quo) and none|seeded×virtual (the deterministic states) are legal · a contradiction refuses at parse (NIKA-PARSE-019).",
+      "description": "The run's entropy + clock declaration (NEP-0010) · every source of randomness and time is declared, never ambient · the dimensions couple: only ambient×system (the status quo) and none|seeded×virtual (the deterministic states) are legal · a contradiction refuses at parse (NIKA-PARSE-026 ambient×virtual · NIKA-PARSE-027 none|seeded×system) and a strict declaration contradicted by the body refuses at check (NIKA-PARSE-028).",
       "properties": {
         "entropy": {
           "description": "none (strict determinism) · ambient (the honest status quo, default) · { seeded: <u64> } (the deterministic seams + the pinned seed · two runs of the same file with the same seed produce byte-identical journals)",
