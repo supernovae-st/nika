@@ -737,6 +737,48 @@ impl<T> core::clone::CloneToUninit for nika_vocab::run::RunClock where T: core::
 pub unsafe fn nika_vocab::run::RunClock::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::run::RunClock
 pub fn nika_vocab::run::RunClock::from(t: T) -> T
+#[non_exhaustive] pub enum nika_vocab::run::RunContradiction
+pub nika_vocab::run::RunContradiction::AmbientTimesVirtual
+pub nika_vocab::run::RunContradiction::DeterminismTimesSystem
+impl nika_vocab::run::RunContradiction
+pub const fn nika_vocab::run::RunContradiction::why(self) -> &'static str
+impl core::clone::Clone for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::clone(&self) -> nika_vocab::run::RunContradiction
+impl core::cmp::Eq for nika_vocab::run::RunContradiction
+impl core::cmp::PartialEq for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::eq(&self, other: &nika_vocab::run::RunContradiction) -> bool
+impl core::fmt::Debug for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunContradiction
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunContradiction
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunContradiction where U: core::convert::From<T>
+pub fn nika_vocab::run::RunContradiction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunContradiction where U: core::convert::Into<T>
+pub type nika_vocab::run::RunContradiction::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunContradiction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunContradiction where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunContradiction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunContradiction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunContradiction where T: core::clone::Clone
+pub type nika_vocab::run::RunContradiction::Owned = T
+pub fn nika_vocab::run::RunContradiction::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunContradiction::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_vocab::run::RunContradiction where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_vocab::run::RunContradiction where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunContradiction where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunContradiction where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunContradiction where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunContradiction::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::run::RunEntropy
 pub nika_vocab::run::RunEntropy::Ambient
 pub nika_vocab::run::RunEntropy::None
@@ -784,6 +826,7 @@ pub nika_vocab::run::RunDecl::entropy: core::option::Option<nika_vocab::run::Run
 impl nika_vocab::run::RunDecl
 pub const fn nika_vocab::run::RunDecl::clock_or_default(&self) -> nika_vocab::run::RunClock
 pub const fn nika_vocab::run::RunDecl::contradiction(&self) -> core::option::Option<&'static str>
+pub const fn nika_vocab::run::RunDecl::contradiction_class(&self) -> core::option::Option<nika_vocab::run::RunContradiction>
 pub const fn nika_vocab::run::RunDecl::entropy_or_default(&self) -> nika_vocab::run::RunEntropy
 pub const fn nika_vocab::run::RunDecl::new(entropy: core::option::Option<nika_vocab::run::RunEntropy>, clock: core::option::Option<nika_vocab::run::RunClock>) -> Self
 impl core::clone::Clone for nika_vocab::run::RunDecl
@@ -1665,6 +1708,48 @@ impl<T> core::clone::CloneToUninit for nika_vocab::run::RunClock where T: core::
 pub unsafe fn nika_vocab::run::RunClock::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::run::RunClock
 pub fn nika_vocab::run::RunClock::from(t: T) -> T
+#[non_exhaustive] pub enum nika_vocab::RunContradiction
+pub nika_vocab::RunContradiction::AmbientTimesVirtual
+pub nika_vocab::RunContradiction::DeterminismTimesSystem
+impl nika_vocab::run::RunContradiction
+pub const fn nika_vocab::run::RunContradiction::why(self) -> &'static str
+impl core::clone::Clone for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::clone(&self) -> nika_vocab::run::RunContradiction
+impl core::cmp::Eq for nika_vocab::run::RunContradiction
+impl core::cmp::PartialEq for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::eq(&self, other: &nika_vocab::run::RunContradiction) -> bool
+impl core::fmt::Debug for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_vocab::run::RunContradiction
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunContradiction
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunContradiction where U: core::convert::From<T>
+pub fn nika_vocab::run::RunContradiction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunContradiction where U: core::convert::Into<T>
+pub type nika_vocab::run::RunContradiction::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunContradiction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunContradiction where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunContradiction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunContradiction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunContradiction where T: core::clone::Clone
+pub type nika_vocab::run::RunContradiction::Owned = T
+pub fn nika_vocab::run::RunContradiction::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunContradiction::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_vocab::run::RunContradiction where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_vocab::run::RunContradiction where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunContradiction where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunContradiction where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunContradiction where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunContradiction::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunContradiction
+pub fn nika_vocab::run::RunContradiction::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::RunEntropy
 pub nika_vocab::RunEntropy::Ambient
 pub nika_vocab::RunEntropy::None
@@ -2039,6 +2124,7 @@ pub nika_vocab::RunDecl::entropy: core::option::Option<nika_vocab::run::RunEntro
 impl nika_vocab::run::RunDecl
 pub const fn nika_vocab::run::RunDecl::clock_or_default(&self) -> nika_vocab::run::RunClock
 pub const fn nika_vocab::run::RunDecl::contradiction(&self) -> core::option::Option<&'static str>
+pub const fn nika_vocab::run::RunDecl::contradiction_class(&self) -> core::option::Option<nika_vocab::run::RunContradiction>
 pub const fn nika_vocab::run::RunDecl::entropy_or_default(&self) -> nika_vocab::run::RunEntropy
 pub const fn nika_vocab::run::RunDecl::new(entropy: core::option::Option<nika_vocab::run::RunEntropy>, clock: core::option::Option<nika_vocab::run::RunClock>) -> Self
 impl core::clone::Clone for nika_vocab::run::RunDecl
