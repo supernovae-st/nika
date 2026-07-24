@@ -864,10 +864,10 @@ tasks:
   a:
     infer: { prompt: "Step 1" }
   b:
-    with: { prev: ${{ tasks.a.output }} }
+    with: { prev: "${{ tasks.a.output }}" }
     infer: { prompt: "Step 2 · prev was ${{ with.prev }}" }
   c:
-    with: { prev: ${{ tasks.b.output }} }
+    with: { prev: "${{ tasks.b.output }}" }
     infer: { prompt: "Step 3 · prev was ${{ with.prev }}" }
 ```
 
@@ -907,12 +907,12 @@ tasks:
     exec: { command: ["./check-env.sh"], capture: structured }
 
   build_prod:
-    with: { env_name: ${{ tasks.check.output.env }} }
+    with: { env_name: "${{ tasks.check.output.env }}" }
     when: ${{ with.env_name == 'production' }}
     exec: { command: ["./build.sh", "--release"] }
 
   build_dev:
-    with: { env_name: ${{ tasks.check.output.env }} }
+    with: { env_name: "${{ tasks.check.output.env }}" }
     when: ${{ with.env_name != 'production' }}
     exec: { command: ["./build.sh", "--debug"] }
 
