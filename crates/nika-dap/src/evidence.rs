@@ -54,8 +54,10 @@ const EVIDENCE_FORMAT: u32 = 1;
 /// The receipt's lock-digest placeholder: the journal does not record
 /// the `nika.lock` the run resolved under, so the receipt SAYS so —
 /// hashing whatever lock file sits nearby TODAY would be a claim
-/// without provenance (it may differ from run time).
-const LOCK_UNRECORDED: &str = "unrecorded — the journal does not carry the run's nika.lock digest";
+/// without provenance (it may differ from run time). Shared with the
+/// teardown seal (F-P2): the run's receipt fold says the same words.
+pub(crate) const LOCK_UNRECORDED: &str =
+    "unrecorded — the journal does not carry the run's nika.lock digest";
 
 /// The one pointer every workflow-derived null shares.
 const WORKFLOW_HINT: &str =
@@ -299,6 +301,14 @@ fn chain_facts(raw: &str, label: &str) -> Result<ChainFacts, PackError> {
             status: "intact",
             head: Some(head),
             note: None,
+        }),
+        Verdict::Incomplete { head, .. } => Ok(ChainFacts {
+            status: "incomplete",
+            head: Some(head),
+            note: Some(
+                "the run never reached a terminal frame (killed or crashed between writes) — the chain covers every complete line"
+                    .to_owned(),
+            ),
         }),
         Verdict::TornTail { head, .. } => Ok(ChainFacts {
             status: "torn_tail",

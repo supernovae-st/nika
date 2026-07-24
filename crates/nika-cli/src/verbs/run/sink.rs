@@ -664,11 +664,14 @@ pub(super) enum TraceNote {
 /// contract: journaling is a rider, a broken rider is a note, not a
 /// failure). An fs error goes to stderr with the path when one was opened;
 /// a written journal prints its `trace:` pointer per [`TraceNote`].
+/// `teardown` folds the run's F-P2 teardown facts into the seal's
+/// `covers` (the receipt digest · budgets ρ · effects ε).
 pub(super) fn surface_trace(
     mut trace: TraceFileSink,
     note: TraceNote,
     autopsy: Option<&str>,
     workflow_hash: Option<&str>,
+    teardown: Option<&nika_dap::seal::SealTeardown>,
 ) -> Option<std::path::PathBuf> {
     // The run seal (S2 · verifiable runs): when a run-key exists on this
     // machine, the journal's LAST line is the signature that binds the
@@ -676,7 +679,7 @@ pub(super) fn surface_trace(
     // the durability point so the seal's own bytes are covered by the
     // fsync; additive — an absent key leaves the journal as today. The
     // sealing itself lives in `nika_dap::journal` (the journal's home).
-    let sealed = nika_dap::journal::seal_journal(&mut trace, workflow_hash);
+    let sealed = nika_dap::journal::seal_journal_with(&mut trace, workflow_hash, teardown);
     // Durability BEFORE advertisement: the anchor must describe bytes
     // that survive a power loss (flush reaches the page cache only).
     trace.finalize();

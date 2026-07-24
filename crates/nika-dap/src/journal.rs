@@ -377,17 +377,32 @@ impl<A: EventSink, B: EventSink> EventSink for Tee<A, B> {
 /// `surface_trace` seal block 2026-07-22 — the journal seals itself in
 /// the journal's home; `CARGO_PKG_VERSION` is the one workspace version
 /// on both sides of the old seam, so the sealed bytes are unchanged.)
+/// The teardown-less path: the classic four `covers` fields
+/// ([`seal_journal_with`] folds the F-P2 teardown in).
 pub fn seal_journal(trace: &mut TraceFileSink, workflow_hash: Option<&str>) -> bool {
+    seal_journal_with(trace, workflow_hash, None)
+}
+
+/// [`seal_journal`] with the run's teardown facts (F-P2 · LOT-1): the
+/// seal's `covers` attests the receipt digest, the budgets ρ and the
+/// effects ε the run settled with — the run's END is as attested as its
+/// boot. `None` keeps the classic covers (byte-unchanged).
+pub fn seal_journal_with(
+    trace: &mut TraceFileSink,
+    workflow_hash: Option<&str>,
+    teardown: Option<&crate::seal::SealTeardown>,
+) -> bool {
     let mut sealed = false;
     if let Some(hash) = workflow_hash
         && let Some((sk, pk_box)) = crate::seal::load_signing_key()
-        && let Some(ev) = crate::seal::seal_event(
+        && let Some(ev) = crate::seal::seal_event_with(
             EventId::generate(),
             Timestamp::from_unix_ms(now_millis()),
             trace.chain_head(),
             trace.chain_len(),
             hash,
             env!("CARGO_PKG_VERSION"),
+            teardown,
             &sk,
             &pk_box,
         )

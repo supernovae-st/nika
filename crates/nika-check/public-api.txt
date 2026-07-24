@@ -1025,6 +1025,7 @@ pub nika_check::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifec
 pub nika_check::CheckReport::unknown_args: alloc::vec::Vec<nika_check::UnknownArg>
 pub nika_check::CheckReport::unknown_tools: alloc::vec::Vec<nika_check::UnknownTool>
 pub nika_check::CheckReport::waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
+pub nika_check::CheckReport::workflow_semantic: core::option::Option<alloc::string::String>
 impl nika_check::CheckReport
 pub fn nika_check::CheckReport::extra_conformance_codes(&self) -> alloc::vec::Vec<nika_schema::error::spec_code::SpecCode>
 pub fn nika_check::CheckReport::is_clean(&self) -> bool

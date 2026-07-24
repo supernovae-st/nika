@@ -1062,6 +1062,9 @@ pub nika_dap::chain::Verdict::Broken::computed: alloc::string::String
 pub nika_dap::chain::Verdict::Broken::line: usize
 pub nika_dap::chain::Verdict::Broken::recorded: alloc::string::String
 pub nika_dap::chain::Verdict::Empty
+#[non_exhaustive] pub nika_dap::chain::Verdict::Incomplete
+pub nika_dap::chain::Verdict::Incomplete::events: usize
+pub nika_dap::chain::Verdict::Incomplete::head: alloc::string::String
 #[non_exhaustive] pub nika_dap::chain::Verdict::Intact
 pub nika_dap::chain::Verdict::Intact::events: usize
 pub nika_dap::chain::Verdict::Intact::head: alloc::string::String
@@ -1495,6 +1498,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::journal::TraceFileSink
 impl<T> typenum::type_operators::Same for nika_dap::journal::TraceFileSink
 pub type nika_dap::journal::TraceFileSink::Output = T
 pub fn nika_dap::journal::seal_journal(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>) -> bool
+pub fn nika_dap::journal::seal_journal_with(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>, teardown: core::option::Option<&nika_dap::seal::SealTeardown>) -> bool
 pub mod nika_dap::otel
 pub struct nika_dap::otel::ExportOutcome
 pub nika_dap::otel::ExportOutcome::broken_at: core::option::Option<usize>
@@ -2099,6 +2103,58 @@ pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::reten
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
 pub mod nika_dap::seal
+#[non_exhaustive] pub struct nika_dap::seal::SealTeardown
+pub nika_dap::seal::SealTeardown::assertions: alloc::vec::Vec<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::budgets: core::option::Option<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::certificate: core::option::Option<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::effects: core::option::Option<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::outcome: core::option::Option<alloc::string::String>
+pub nika_dap::seal::SealTeardown::proves: core::option::Option<alloc::string::String>
+impl nika_dap::seal::SealTeardown
+pub fn nika_dap::seal::SealTeardown::new() -> Self
+impl core::clone::Clone for nika_dap::seal::SealTeardown
+pub fn nika_dap::seal::SealTeardown::clone(&self) -> nika_dap::seal::SealTeardown
+impl core::default::Default for nika_dap::seal::SealTeardown
+pub fn nika_dap::seal::SealTeardown::default() -> nika_dap::seal::SealTeardown
+impl core::fmt::Debug for nika_dap::seal::SealTeardown
+pub fn nika_dap::seal::SealTeardown::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::seal::SealTeardown
+impl<T, U> core::convert::Into<U> for nika_dap::seal::SealTeardown where U: core::convert::From<T>
+pub fn nika_dap::seal::SealTeardown::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::seal::SealTeardown where U: core::convert::Into<T>
+pub type nika_dap::seal::SealTeardown::Error = core::convert::Infallible
+pub fn nika_dap::seal::SealTeardown::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::seal::SealTeardown where U: core::convert::TryFrom<T>
+pub type nika_dap::seal::SealTeardown::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::seal::SealTeardown::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::seal::SealTeardown where T: core::clone::Clone
+pub type nika_dap::seal::SealTeardown::Owned = T
+pub fn nika_dap::seal::SealTeardown::clone_into(&self, target: &mut T)
+pub fn nika_dap::seal::SealTeardown::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::seal::SealTeardown where T: 'static + ?core::marker::Sized
+pub fn nika_dap::seal::SealTeardown::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::seal::SealTeardown where T: ?core::marker::Sized
+pub fn nika_dap::seal::SealTeardown::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::seal::SealTeardown where T: ?core::marker::Sized
+pub fn nika_dap::seal::SealTeardown::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::seal::SealTeardown where T: core::clone::Clone
+pub unsafe fn nika_dap::seal::SealTeardown::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::seal::SealTeardown
+pub fn nika_dap::seal::SealTeardown::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::seal::SealTeardown where T: core::clone::Clone
+pub fn nika_dap::seal::SealTeardown::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::seal::SealTeardown where T: 'static
+pub fn nika_dap::seal::SealTeardown::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::seal::SealTeardown where T: ?core::marker::Sized
+pub fn nika_dap::seal::SealTeardown::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::seal::SealTeardown::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::seal::SealTeardown
+impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::SealTeardown
+impl<T> typenum::type_operators::Same for nika_dap::seal::SealTeardown
+pub type nika_dap::seal::SealTeardown::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::seal::SealTeardown where T: core::default::Default
+pub type nika_dap::seal::SealTeardown::NoneType = T
+pub fn nika_dap::seal::SealTeardown::null_value() -> T
 pub fn nika_dap::seal::candidate_pubkeys(key_file: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::string::String>
 pub fn nika_dap::seal::fingerprint(pubkey_box: &str) -> alloc::string::String
 pub fn nika_dap::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
@@ -2107,6 +2163,7 @@ pub fn nika_dap::seal::key_trust() -> core::option::Option<(alloc::string::Strin
 pub fn nika_dap::seal::load_public_box() -> core::option::Option<alloc::string::String>
 pub fn nika_dap::seal::load_signing_key() -> core::option::Option<(minisign::secret_key::SecretKey, alloc::string::String)>
 pub fn nika_dap::seal::seal_event(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
+pub fn nika_dap::seal::seal_event_with(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, teardown: core::option::Option<&nika_dap::seal::SealTeardown>, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
 pub mod nika_dap::sign
 pub enum nika_dap::sign::WorkflowSig
 pub nika_dap::sign::WorkflowSig::Invalid(alloc::string::String)

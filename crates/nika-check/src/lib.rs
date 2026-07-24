@@ -339,6 +339,16 @@ pub struct CheckReport {
     /// honest skip: no claim, never wrong. Additive: `report_version`
     /// stays 1.
     pub analysis: Option<DagAnalysis>,
+    /// The semantic hash (the proof layer's Merkle root) of the workflow
+    /// this report JUDGED — the judged-vs-booted binding (F-P2). The
+    /// stamp is applied by the producer that owns the hash machinery:
+    /// `check()` stays pure over nika-schema types (the semantic hash
+    /// lives in nika-runtime, which depends on THIS crate — computing it
+    /// here would close a dependency cycle), so the CLI's load seam
+    /// stamps it. `None` = unstamped: the runtime's trust gate then
+    /// rides the boundary-lane clause alone (today's posture). Additive:
+    /// `report_version` stays 1.
+    pub workflow_semantic: Option<String>,
 }
 
 impl CheckReport {
@@ -568,6 +578,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         waves: topo_waves,
         analysis: dag_read.analysis,
         findings: Vec::new(),
+        workflow_semantic: None,
     };
     // The class-erased list folds the FINISHED report (one truth, read
     // back) — every consumer (CLI --json · MCP nika_check) gets it free.

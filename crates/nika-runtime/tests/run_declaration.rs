@@ -172,20 +172,35 @@ tasks:
     assert_eq!(stream42.len(), stream43.len(), "same events, same order");
     assert_ne!(stream42, stream43, "different seeds diverge");
 
-    // The divergence is EXACTLY the jittered retry delay — every other
-    // event line is byte-equal (stamps are seq-keyed, durations are
-    // virtual; nothing else reads the seed).
+    // The divergence is EXACTLY two lines — the boot manifest NAMING its
+    // seed (F-P2: the journal self-describes its determinism contract)
+    // and the jittered retry delay the seed keys. Every other event line
+    // is byte-equal (stamps are seq-keyed, durations are virtual;
+    // nothing else reads the seed).
     let differing: Vec<usize> = (0..stream42.len())
         .filter(|&i| stream42[i] != stream43[i])
         .collect();
-    assert_eq!(differing.len(), 1, "one field diverges: {differing:?}");
-    let line = &stream42[differing[0]];
+    assert_eq!(
+        differing.len(),
+        2,
+        "the manifest's seed claim + the jittered delay: {differing:?}"
+    );
+    let manifest = &stream42[differing[0]];
+    assert!(
+        manifest.contains(&format!(
+            "\"kind\":\"{}\"",
+            EventKind::WorkflowStarted.as_str()
+        )),
+        "the first divergence is the boot manifest's seed claim: {manifest}"
+    );
+    assert!(manifest.contains("\"seed\""), "{manifest}");
+    let line = &stream42[differing[1]];
     assert!(
         line.contains(&format!(
             "\"kind\":\"{}\"",
             EventKind::TaskRetrying.as_str()
         )),
-        "the divergence IS the journaled retry delay: {line}"
+        "the second divergence IS the journaled retry delay: {line}"
     );
     assert!(line.contains("\"delay_ms\""), "{line}");
 }
