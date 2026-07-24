@@ -460,6 +460,31 @@ STRING is refused under that allowlist — at check and at run. A
 leading-token heuristic is unsound (`"git log; rm -rf /"` leads with `git`);
 the array `command:` form is the shape an allowlist can actually verify.
 
+**A path grant names an effective path identity, re-judged at dispatch**
+(normative · NEP-0009) · an `fs.read` / `fs.write` entry is not a string
+prefix the sandbox mounts blindly: at dispatch the engine resolves the
+grant's literal prefix to its **effective form** (the longest existing
+ancestor canonicalized, the not-yet-existing tail carried lexically) and
+re-judges that identity against the declared set ·
+
+1. **Escape = refusal, never rewrite** — a grant whose effective target
+   escapes the declared set (a planted symlink pointing out of the judged
+   tree) is REFUSED before spawn (`NIKA-SEC-004` class) and the refusal is
+   attested in the run journal (`fs.path_mismatch`, carrying the judged
+   prefix and the resolved target). The engine MUST NOT silently mount
+   the resolved target under the judged name — the receipt never lies:
+   judged = mounted.
+2. **Platform parity** — the same verdict holds on every enforcement arm
+   (the kernel path-walk arm and the mount-projection arm alike); a
+   conformance pair asserts it, so `check ≡ run ≡ jail` descends to
+   symlinks.
+3. **A write grant whose target does not exist yet stays legal** — the
+   identity is judged on the longest existing ancestor.
+4. **The residual window is declared** — a parallel task of the same run
+   swapping the symlink between the dispatch re-gate and the mount is a
+   documented residual; the fd-pin projection (`--bind-fd`, bwrap ≥
+   0.10.0) closes it and is a named follow-on, not v1.
+
 **Exact-loopback declassification** (normative) · an **exact loopback
 literal** in `net.http` — the bare `localhost` name, a `127.x.y.z` v4
 literal, or the v6 loopback `::1` (the bracketed `[::1]` authority
@@ -563,6 +588,43 @@ maps, nothing else). That property is checkable BEFORE the run.
 `permits.net.http` and the agent `tools:` whitelist compose: the agent
 whitelist scopes ONE task's tools; `permits.tools` scopes the WHOLE workflow
 (the union ceiling). An agent may never be granted a tool outside `permits`.
+
+### `run` · *optional · the run's entropy + clock declaration*
+
+```yaml
+run:
+  entropy: ambient          # none | ambient | { seeded: <u64> }
+  clock: system             # system | virtual
+```
+
+Every source of randomness and time a run consumes is **declared, never
+ambient** (normative · NEP-0010). The block is optional; absent, the run
+behaves exactly as `entropy: ambient` + `clock: system` (the status quo).
+The key set is closed (`{entropy, clock}` only — a typo'd declaration is
+refused in both parse modes, like `permits:`).
+
+- **`entropy: { seeded: N }`** forces the deterministic seams and pins the
+  run's seed: two runs of the same file with the same `N` produce
+  **byte-identical journals**. `entropy: none` demands strict determinism
+  (any structural randomness is a finding). `entropy: ambient` is the
+  honest status quo — legal, and named as what it is.
+- **`clock: virtual`** substitutes the engine's injected virtual clock for
+  wall time: a `timeout:` budget reads against the declared clock, and
+  time becomes a contract input.
+- **The dimensions couple** (normative): byte-identical journals require
+  deterministic TIME as much as deterministic randomness, so the only
+  legal pairs are `ambient × system` (the status quo) and
+  `none | seeded × virtual` (the deterministic states). A declared
+  contradiction (`ambient × virtual` · `none | seeded × system`) is
+  refused at parse (`NIKA-PARSE-026` · `NIKA-PARSE-027`). The
+  contradiction is judged on the DECLARED pair: `clock: virtual` alone
+  (entropy left implicit) stays legal — a test configuration that makes
+  no determinism claim. And `entropy: none` with a structural randomness
+  source consumed (a live retry jitter · `nika:uuid`) is refused at
+  check (`NIKA-PARSE-028`).
+- **One run, one clock**: the declaration lives at the envelope, never
+  per task — a run has exactly one entropy source and one clock, so the
+  composition stays auditable.
 
 ### `tasks` · **required · a non-empty MAP · the key IS the identity**
 
