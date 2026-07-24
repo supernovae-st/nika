@@ -177,18 +177,67 @@ impl RunDecl {
     /// Defaults never contradict — only two EXPLICIT values can.
     #[must_use]
     pub const fn contradiction(&self) -> Option<&'static str> {
+        match self.contradiction_class() {
+            Some(class) => Some(class.why()),
+            None => None,
+        }
+    }
+
+    /// The typed twin of [`Self::contradiction`] — WHICH declared pair
+    /// contradicts. The wire code follows the class (the NEP-0010 mints:
+    /// `NIKA-PARSE-026` ambient × virtual · `NIKA-PARSE-027`
+    /// determinism × system).
+    #[must_use]
+    pub const fn contradiction_class(&self) -> Option<RunContradiction> {
         match (self.entropy, self.clock) {
-            (Some(RunEntropy::Ambient), Some(RunClock::Virtual)) => Some(
-                "`entropy: ambient` declares live entropy but `clock: virtual` demands a \
-                 simulated clock — the run cannot be both ambient and simulated",
-            ),
-            (Some(e), Some(RunClock::System)) if e.is_deterministic() => Some(
-                "`entropy: none | seeded` forces the deterministic seams (byte-identical \
-                 journals) but `clock: system` lets task durations ride the wall clock — \
-                 drop `clock: system` (the virtual clock is implied) or declare `clock: virtual`",
-            ),
+            (Some(RunEntropy::Ambient), Some(RunClock::Virtual)) => {
+                Some(RunContradiction::AmbientTimesVirtual)
+            }
+            (Some(e), Some(RunClock::System)) if e.is_deterministic() => {
+                Some(RunContradiction::DeterminismTimesSystem)
+            }
             _ => None,
         }
+    }
+}
+
+/// A declared `run:` pair contradiction (F-P3 · NEP-0010) — the two
+/// EXPLICIT pairs the parse-level law refuses, each carrying its
+/// dedicated wire mint (spec `05-errors.md` registry).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum RunContradiction {
+    /// `entropy: ambient` × `clock: virtual` — live entropy cannot ride
+    /// a simulated clock (`NIKA-PARSE-026`).
+    AmbientTimesVirtual,
+    /// `entropy: none | seeded` × `clock: system` — byte-identical
+    /// journals cannot ride the wall clock (`NIKA-PARSE-027`).
+    DeterminismTimesSystem,
+}
+
+impl RunContradiction {
+    /// The witness sentence (the declared pair × why it cannot hold) —
+    /// the ONE prose source every refusal renders.
+    #[must_use]
+    pub const fn why(self) -> &'static str {
+        match self {
+            Self::AmbientTimesVirtual => {
+                "`entropy: ambient` declares live entropy but `clock: virtual` demands a \
+                 simulated clock — the run cannot be both ambient and simulated"
+            }
+            Self::DeterminismTimesSystem => {
+                "`entropy: none | seeded` forces the deterministic seams (byte-identical \
+                 journals) but `clock: system` lets task durations ride the wall clock — \
+                 drop `clock: system` (the virtual clock is implied) or declare `clock: virtual`"
+            }
+        }
+    }
+}
+
+impl core::fmt::Display for RunContradiction {
+    /// Renders [`Self::why`] — the refusal's human sentence.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.why())
     }
 }
 
@@ -211,6 +260,27 @@ mod tests {
         assert_eq!(decl.clock_or_default(), RunClock::System);
         assert_eq!(decl.entropy_or_default().jitter_seed(), 0);
         assert!(decl.contradiction().is_none());
+    }
+
+    #[test]
+    fn the_contradiction_class_names_the_pair() {
+        let av = RunDecl::new(Some(RunEntropy::Ambient), Some(RunClock::Virtual));
+        assert_eq!(
+            av.contradiction_class(),
+            Some(RunContradiction::AmbientTimesVirtual)
+        );
+        for e in [RunEntropy::None, RunEntropy::Seeded(7)] {
+            let ds = RunDecl::new(Some(e), Some(RunClock::System));
+            assert_eq!(
+                ds.contradiction_class(),
+                Some(RunContradiction::DeterminismTimesSystem)
+            );
+        }
+        // One prose source: contradiction() renders the class's why().
+        assert_eq!(
+            av.contradiction(),
+            av.contradiction_class().map(RunContradiction::why)
+        );
     }
 
     #[test]

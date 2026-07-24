@@ -26,6 +26,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   shims; the clean cut). Static judgment without the CLI, for the
   embedder/SDK surface.
 
+### Changed
+
+- **`run:` declared-pair refusals ride their dedicated mints** — the
+  parse-level entropy × clock contradictions stamp `NIKA-PARSE-026`
+  (ambient × virtual) and `NIKA-PARSE-027` (none | seeded × system), and
+  the check-side `entropy: none` × structural-source judgment stamps
+  `NIKA-PARSE-028` — was the registered generic `NIKA-PARSE-019`; the
+  NEP-0010 mints landed with the 87f764a spec pack resync.
+
 ## [0.105.0](https://github.com/supernovae-st/nika/compare/v0.104.0..v0.105.0) - 2026-07-20
 
 ### ✨ Features

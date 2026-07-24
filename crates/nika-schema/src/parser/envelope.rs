@@ -981,12 +981,13 @@ pub(super) fn parse_policy(
 /// a single-key map for the one parameterized value (`{ seeded: <u64> }`).
 ///
 /// The ONE semantic judgment the parser makes here is the declared
-/// CONTRADICTION ([`RunDecl::contradiction`]): a determinism demand
-/// sharing the block with a declared non-deterministic source
-/// (`entropy: ambient` × `clock: virtual` · `entropy: none | seeded` ×
-/// `clock: system`). Everything else — which seams the declaration
-/// pilots, the body-level entropy-source judgment — belongs to the
-/// composer and the checker, never to a shape pass.
+/// CONTRADICTION ([`RunDecl::contradiction_class`]): a determinism demand
+/// sharing the block with a declared non-deterministic source, each
+/// class riding its dedicated mint (`NIKA-PARSE-026` ambient × virtual ·
+/// `NIKA-PARSE-027` none|seeded × system · NEP-0010). Everything else —
+/// which seams the declaration pilots, the body-level entropy-source
+/// judgment — belongs to the composer and the checker, never to a
+/// shape pass.
 pub(super) fn parse_run(
     cx: &Cx<'_>,
     workflow: &MarkedMappingNode,
@@ -1028,9 +1029,9 @@ pub(super) fn parse_run(
     };
 
     let decl = RunDecl::new(entropy, clock);
-    if let Some(why) = decl.contradiction() {
-        return Err(SchemaError::Validation {
-            message: format!("`run:` contradicts itself — {why}"),
+    if let Some(class) = decl.contradiction_class() {
+        return Err(SchemaError::RunContradiction {
+            class,
             span: cx.span(node.span()),
         });
     }
@@ -1391,6 +1392,11 @@ workflow:
         // F-P3 (a) — the determinism demand × the ambient declaration.
         let yaml = format!("{BASE}run: {{ entropy: ambient, clock: virtual }}\n");
         let err = parse_strict(&yaml).expect_err("contradiction refused");
+        assert_eq!(
+            err.spec_code().to_string(),
+            "NIKA-PARSE-026",
+            "the dedicated mint (NEP-0010)"
+        );
         let msg = err.to_string();
         assert!(msg.contains("contradicts itself"), "{msg}");
         assert!(msg.contains("ambient") && msg.contains("virtual"), "{msg}");
@@ -1403,6 +1409,11 @@ workflow:
         for entropy in ["none", "{ seeded: 42 }"] {
             let yaml = format!("{BASE}run: {{ entropy: {entropy}, clock: system }}\n");
             let err = parse_strict(&yaml).expect_err("contradiction refused");
+            assert_eq!(
+                err.spec_code().to_string(),
+                "NIKA-PARSE-027",
+                "{entropy}: the dedicated mint (NEP-0010)"
+            );
             assert!(
                 err.to_string().contains("contradicts itself"),
                 "{entropy}: {err}"

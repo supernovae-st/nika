@@ -174,6 +174,18 @@ const fn builtin_spec_code(tool: &str) -> SpecCode {
     }
 }
 
+/// The `run:` declared-pair mints (F-P3 · NEP-0010) — the wire code
+/// follows the vocab class; a future contradiction class rides the
+/// registered generic until its dedicated mint lands.
+const fn run_contradiction_code(class: crate::types::RunContradiction) -> SpecCode {
+    use crate::types::RunContradiction as Class;
+    match class {
+        Class::AmbientTimesVirtual => parse(26, SpecCategory::ValidationError),
+        Class::DeterminismTimesSystem => parse(27, SpecCategory::ValidationError),
+        _ => parse(19, SpecCategory::ValidationError),
+    }
+}
+
 impl SchemaError {
     /// Map to the spec-facing code (spec `05-errors.md`).
     ///
@@ -184,6 +196,15 @@ impl SchemaError {
     /// with the R3b `TypeExpr` widen (the rich forms are admitted ·
     /// out-of-grammar refuses NIKA-TYPE-001 · the surviving shape
     /// refusals ride NIKA-PARSE-019).
+    ///
+    /// NIKA-VAR-005 (spec 05 registry) = « static expression violation —
+    /// outside cel-subset/0.1 · chained relation · unknown function ·
+    /// non-boolean `when:` root · jq compile error »: the class spans the
+    /// non-boolean `when:` shape gate (the retired NIKA-PARSE-WHEN-001
+    /// folded here), `${{ }}` inside an output binding (04 §binding rules
+    /// · deep fixtures 003/007/008), and a CLOSED `${{ }}` island whose
+    /// CEL is outside the subset (`ExpressionViolation` — distinct from
+    /// the unclosed-opener VAR-008).
     #[must_use]
     pub fn spec_code(&self) -> SpecCode {
         use SpecCategory::{ParseError, ValidationError, VariableError};
@@ -210,6 +231,7 @@ impl SchemaError {
             Self::DuplicateKey { .. } => parse(17, ValidationError),
             Self::MissingField { .. } => parse(18, ValidationError),
             Self::Validation { .. } => parse(19, ValidationError),
+            Self::RunContradiction { class, .. } => run_contradiction_code(*class),
             // W1 « the map » migration teachings (dead forms · 0.104)
             Self::W1WorkflowScalar { .. } => parse(20, ValidationError),
             Self::W1TopLevelDescription { .. } => parse(21, ValidationError),
@@ -217,16 +239,6 @@ impl SchemaError {
             Self::W1TaskIdField { .. } => parse(23, ValidationError),
             // W2 « the flow » migration teaching (dead form · 0.104)
             Self::W2DependsOnField { .. } => parse(24, ValidationError),
-            // Spec 05 registry · NIKA-VAR-005 = « static expression
-            // violation — outside cel-subset/0.1 · chained relation ·
-            // unknown function · non-boolean when: root · jq compile
-            // error ». The class spans the non-boolean `when:` shape gate
-            // (the retired NIKA-PARSE-WHEN-001 folded here), `${{ }}` inside
-            // an output binding (04 §binding rules · deep fixtures 003/007/008),
-            // AND a CLOSED `${{ }}` island whose CEL is outside the subset
-            // (chained relation · unknown function · arithmetic · stray token
-            // — `ExpressionViolation`, distinct from the unclosed-opener
-            // VAR-008 below).
             Self::WhenNotBoolean { .. }
             | Self::JqBindingContainsTemplate { .. }
             | Self::ExpressionViolation { .. } => var(5, ValidationError),

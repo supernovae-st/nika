@@ -29,16 +29,16 @@
 //! positive), and the replay-divergence half of the contract (a seeded
 //! run that still diverges) is the fixture's, not a static judgment.
 //!
-//! The wire code rides NIKA-PARSE-019 (the registered generic structural
-//! validation — the dedicated NIKA-PARSE-027 mint for this class is the
-//! spec-side follow-up, mirrored from the engine's choice).
+//! The wire code is the dedicated `NIKA-PARSE-028` mint (NEP-0010 ·
+//! registered by the 87f764a pack resync — this lane's generic
+//! NIKA-PARSE-019 era ended when the spec-side follow-up landed).
 
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::RunEntropy;
 
-/// The wire code of a run-declaration contradiction (the registered
-/// generic — the dedicated mint is the spec-side follow-up).
-pub(crate) const RUN_DECL_CODE: &str = "NIKA-PARSE-019";
+/// The wire code of a body-level run-declaration contradiction — the
+/// dedicated `entropy: none` × structural-source mint (NEP-0010).
+pub(crate) const RUN_DECL_CODE: &str = "NIKA-PARSE-028";
 
 /// One `run:` declaration the workflow body contradicts (F-P3).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -140,7 +140,7 @@ mod tests {
         );
         let f = findings_of(&y);
         assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].wire_code(), "NIKA-PARSE-019");
+        assert_eq!(f[0].wire_code(), "NIKA-PARSE-028");
         assert_eq!(f[0].task, "flaky");
         assert_eq!(f[0].source, "retry jitter");
         assert!(
@@ -227,18 +227,20 @@ mod tests {
     }
 
     /// The emitted⊆registered ratchet, run-declaration tier (the
-    /// `composition.rs` / `permit_taint.rs` pattern): the wire code this
-    /// lane stamps must exist in the vendored canon registry (the dedicated
-    /// mint lands spec-side; the generic is registered today).
+    /// `composition.rs` / `permit_taint.rs` pattern): every F-P3 mint the
+    /// engine stamps — the check-side 028 here, the parse-side 026/027 in
+    /// nika-schema's envelope — must exist in the vendored canon registry.
     #[test]
-    fn the_run_decl_code_is_registered_in_the_canon() {
+    fn the_run_decl_codes_are_registered_in_the_canon() {
         let registered: std::collections::BTreeSet<String> = nika_pack::error_codes()
             .into_iter()
             .map(|row| row.code.to_string())
             .collect();
-        assert!(
-            registered.contains(RUN_DECL_CODE),
-            "`{RUN_DECL_CODE}` is not in the canon registry (spec/05-errors.md SSOT)"
-        );
+        for code in ["NIKA-PARSE-026", "NIKA-PARSE-027", RUN_DECL_CODE] {
+            assert!(
+                registered.contains(code),
+                "`{code}` is not in the canon registry (spec/05-errors.md SSOT)"
+            );
+        }
     }
 }
