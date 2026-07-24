@@ -1055,6 +1055,84 @@ pub fn nika_dap::anchor::sidecar_path(trace: &str) -> std::path::PathBuf
 pub async fn nika_dap::anchor::submit(http: &impl nika_kernel_core::io::http::HttpPostDyn, rekor_url: &str, tsa_url: &str, head: &[u8; 32], key: &nika_dap::anchor::RunKeyMaterial) -> core::result::Result<nika_dap::anchor::AnchorSidecar, alloc::string::String>
 pub fn nika_dap::anchor::verify_offline(sidecar: &nika_dap::anchor::AnchorSidecar, head: &[u8; 32], pk32: &[u8; 32], key_id: &str) -> core::result::Result<nika_dap::anchor::VerifiedAnchor, alloc::string::String>
 pub fn nika_dap::anchor::write_sidecar(path: &std::path::Path, sidecar: &nika_dap::anchor::AnchorSidecar) -> core::result::Result<(), alloc::string::String>
+pub mod nika_dap::bounded
+#[non_exhaustive] pub enum nika_dap::bounded::DecodeRefusal
+pub nika_dap::bounded::DecodeRefusal::IdOverflow
+pub nika_dap::bounded::DecodeRefusal::IdOverflow::field: &'static str
+pub nika_dap::bounded::DecodeRefusal::IdOverflow::got: usize
+pub nika_dap::bounded::DecodeRefusal::IdOverflow::max: usize
+pub nika_dap::bounded::DecodeRefusal::Malformed
+pub nika_dap::bounded::DecodeRefusal::Malformed::detail: alloc::string::String
+pub nika_dap::bounded::DecodeRefusal::Oversized
+pub nika_dap::bounded::DecodeRefusal::Oversized::got: usize
+pub nika_dap::bounded::DecodeRefusal::Oversized::max: usize
+pub nika_dap::bounded::DecodeRefusal::ProofFlood
+pub nika_dap::bounded::DecodeRefusal::ProofFlood::field: &'static str
+pub nika_dap::bounded::DecodeRefusal::ProofFlood::got: usize
+pub nika_dap::bounded::DecodeRefusal::ProofFlood::max: usize
+pub nika_dap::bounded::DecodeRefusal::TooDeep
+pub nika_dap::bounded::DecodeRefusal::TooDeep::got: usize
+pub nika_dap::bounded::DecodeRefusal::TooDeep::max: usize
+impl core::clone::Clone for nika_dap::bounded::DecodeRefusal
+pub fn nika_dap::bounded::DecodeRefusal::clone(&self) -> nika_dap::bounded::DecodeRefusal
+impl core::cmp::Eq for nika_dap::bounded::DecodeRefusal
+impl core::cmp::PartialEq for nika_dap::bounded::DecodeRefusal
+pub fn nika_dap::bounded::DecodeRefusal::eq(&self, other: &nika_dap::bounded::DecodeRefusal) -> bool
+impl core::error::Error for nika_dap::bounded::DecodeRefusal
+impl core::fmt::Debug for nika_dap::bounded::DecodeRefusal
+pub fn nika_dap::bounded::DecodeRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_dap::bounded::DecodeRefusal
+pub fn nika_dap::bounded::DecodeRefusal::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::bounded::DecodeRefusal
+impl<D> owo_colors::OwoColorize for nika_dap::bounded::DecodeRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::bounded::DecodeRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::bounded::DecodeRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::bounded::DecodeRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::bounded::DecodeRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::bounded::DecodeRefusal where U: core::convert::From<T>
+pub fn nika_dap::bounded::DecodeRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::bounded::DecodeRefusal where U: core::convert::Into<T>
+pub type nika_dap::bounded::DecodeRefusal::Error = core::convert::Infallible
+pub fn nika_dap::bounded::DecodeRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::bounded::DecodeRefusal where U: core::convert::TryFrom<T>
+pub type nika_dap::bounded::DecodeRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::bounded::DecodeRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::bounded::DecodeRefusal where T: core::clone::Clone
+pub type nika_dap::bounded::DecodeRefusal::Owned = T
+pub fn nika_dap::bounded::DecodeRefusal::clone_into(&self, target: &mut T)
+pub fn nika_dap::bounded::DecodeRefusal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_dap::bounded::DecodeRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_dap::bounded::DecodeRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::bounded::DecodeRefusal where T: ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::bounded::DecodeRefusal where T: ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::bounded::DecodeRefusal where T: core::clone::Clone
+pub unsafe fn nika_dap::bounded::DecodeRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::bounded::DecodeRefusal
+pub fn nika_dap::bounded::DecodeRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::bounded::DecodeRefusal where T: core::clone::Clone
+pub fn nika_dap::bounded::DecodeRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_dap::bounded::DecodeRefusal where T: core::fmt::Display
+pub fn nika_dap::bounded::DecodeRefusal::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_dap::bounded::DecodeRefusal where T: 'static
+pub fn nika_dap::bounded::DecodeRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::bounded::DecodeRefusal where T: ?core::marker::Sized
+pub fn nika_dap::bounded::DecodeRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::bounded::DecodeRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::bounded::DecodeRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::bounded::DecodeRefusal
+impl<T> typenum::type_operators::Same for nika_dap::bounded::DecodeRefusal
+pub type nika_dap::bounded::DecodeRefusal::Output = T
+pub const nika_dap::bounded::MAX_ARTIFACT_BYTES: usize
+pub const nika_dap::bounded::MAX_ID_BYTES: usize
+pub const nika_dap::bounded::MAX_JSON_DEPTH: usize
+pub const nika_dap::bounded::MAX_PROOF_NODES: usize
+pub fn nika_dap::bounded::decode_untrusted_json(raw: &str) -> core::result::Result<serde_json::value::Value, nika_dap::bounded::DecodeRefusal>
 pub mod nika_dap::chain
 #[non_exhaustive] pub enum nika_dap::chain::Verdict
 #[non_exhaustive] pub nika_dap::chain::Verdict::Broken
@@ -1068,6 +1146,9 @@ pub nika_dap::chain::Verdict::Incomplete::head: alloc::string::String
 #[non_exhaustive] pub nika_dap::chain::Verdict::Intact
 pub nika_dap::chain::Verdict::Intact::events: usize
 pub nika_dap::chain::Verdict::Intact::head: alloc::string::String
+#[non_exhaustive] pub nika_dap::chain::Verdict::LineOverLong
+pub nika_dap::chain::Verdict::LineOverLong::got: usize
+pub nika_dap::chain::Verdict::LineOverLong::line: usize
 #[non_exhaustive] pub nika_dap::chain::Verdict::TornTail
 pub nika_dap::chain::Verdict::TornTail::events: usize
 pub nika_dap::chain::Verdict::TornTail::head: alloc::string::String
@@ -1101,6 +1182,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::chain::Verdict
 impl<T> typenum::type_operators::Same for nika_dap::chain::Verdict
 pub type nika_dap::chain::Verdict::Output = T
 pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
+pub const nika_dap::chain::MAX_LINE_BYTES: usize
 pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
 pub mod nika_dap::drift
 pub const nika_dap::drift::DRIFT_CODE: &str
