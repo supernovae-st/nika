@@ -24,6 +24,7 @@
 //! → stopped/continue loop → disconnect.
 
 pub mod anchor;
+pub mod bounded;
 pub mod chain;
 pub mod drift;
 pub mod evidence;

@@ -115,6 +115,13 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
             short(&recorded),
             short(&computed),
         )),
+        // F-P1 · the fortress line bound: beyond the verifier's bounds
+        // is a FILE refusal (a 100 MB line is a DoS vector, never a
+        // journal line — recognized, never partially read).
+        Verdict::LineOverLong { line, got, .. } => VerbOutput::file(format!(
+            "line {line} is {got} bytes — beyond the verifier's line bound ({} bytes)\n  a journal line is small (the seal's covers included); an oversized line is\n  the DoS class, refused before any parse (F-P1)",
+            nika_dap::chain::MAX_LINE_BYTES,
+        )),
         Verdict::Unchained => VerbOutput::env(format!(
             "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
         )),

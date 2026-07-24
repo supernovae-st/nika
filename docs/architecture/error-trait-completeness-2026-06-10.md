@@ -113,4 +113,12 @@ timeout boundary (spec 03 · catchable · never retryable).
    renders `Display` verbatim as the env-class message. Zero NIKA
    range owed.
 
+6. **`DecodeRefusal`** (nika-dap `bounded.rs`) — the fortress decoder's
+   typed total refusal (F-P1 · NEP-0012 · born typed 2026-07-24). Never
+   crosses into the workflow/verb plane: `load_sidecar` flattens it to
+   its reason string, `trace verify` renders the line-bound class as a
+   FILE-class `VerbOutput`. Exempted `transport-surface` (allowlist row
+   · the RecoverError/PackError precedent); the spec-side mint for
+   fortress refusals is NEP-0012 ratification's owed.
+
 🦋

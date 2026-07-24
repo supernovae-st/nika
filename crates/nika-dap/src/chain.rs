@@ -76,6 +76,16 @@ pub enum Verdict {
         /// FILE line number (1-based).
         line: usize,
     },
+    /// A line exceeds [`MAX_LINE_BYTES`] — beyond the verifier's bounds
+    /// (F-P1 · NEP-0012: a 100-megabyte line is a denial-of-service,
+    /// never a journal line; the refusal fires BEFORE the parse).
+    #[non_exhaustive]
+    LineOverLong {
+        /// FILE line number (1-based).
+        line: usize,
+        /// Observed byte length.
+        got: usize,
+    },
 }
 
 /// The kinds that CLOSE a run's lifecycle: the four terminal frames
@@ -91,6 +101,13 @@ const LIFECYCLE_TERMINAL: &[&str] = &[
     "workflow_paused",
     "run_sealed",
 ];
+
+/// Maximum bytes per journal LINE the walk parses (F-P1 · NEP-0012) —
+/// the same 1 MiB grain as [`crate::bounded::MAX_ARTIFACT_BYTES`]: a
+/// real event line is under 10 KB (the seal's covers included); a line
+/// beyond this is a denial-of-service vector, refused before
+/// `serde_json` sees it.
+pub const MAX_LINE_BYTES: usize = crate::bounded::MAX_ARTIFACT_BYTES;
 
 /// The pure walk — recompute the chain over exact line bytes. Line
 /// numbers are FILE lines (blanks skipped, never renumbered — the
@@ -112,6 +129,14 @@ pub fn walk(raw: &str) -> Verdict {
     let mut last_closes = false;
     for (pos, &(lineno, line)) in numbered.iter().enumerate() {
         let is_last = pos + 1 == numbered.len();
+        // The fortress line bound (F-P1) — refused BEFORE the parse, so
+        // the DoS class never reaches serde_json (bounds are code).
+        if line.len() > MAX_LINE_BYTES {
+            return Verdict::LineOverLong {
+                line: lineno + 1,
+                got: line.len(),
+            };
+        }
         let parsed: Option<serde_json::Value> = serde_json::from_str(line).ok();
         let Some(value) = parsed else {
             // Invalid JSON: a torn tail (crash mid-write) ONLY when a
@@ -335,5 +360,23 @@ mod tests {
         raw.push_str(&ev("workflow_completed").to_string());
         raw.push('\n');
         assert!(matches!(walk(&raw), Verdict::Broken { line: 2, .. }));
+    }
+
+    /// (F-P1 · the fortress line bound) An oversized line refuses BEFORE
+    /// any parse — the walk names the line and the observed length, and
+    /// a normal-sized journal is untouched by the bound.
+    #[test]
+    fn an_oversized_line_refuses_before_the_parse() {
+        let mut long = ev("workflow_started");
+        long["pad"] = serde_json::Value::String("x".repeat(MAX_LINE_BYTES));
+        let raw = chained(&[long]);
+        let Verdict::LineOverLong { line, got } = walk(&raw) else {
+            panic!("the DoS line is refused, never parsed");
+        };
+        assert_eq!(line, 1);
+        assert!(got > MAX_LINE_BYTES, "the observed length is named: {got}");
+        // The bound never bites a real journal (the flagship pair).
+        let normal = chained(&[ev("workflow_started"), ev("workflow_completed")]);
+        assert!(matches!(walk(&normal), Verdict::Intact { .. }));
     }
 }

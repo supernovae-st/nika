@@ -135,6 +135,10 @@ pub fn sidecar_path(trace: &str) -> PathBuf {
 pub fn load_sidecar(path: &Path) -> Result<AnchorSidecar, String> {
     let raw = std::fs::read_to_string(path) // seam-bypass-ok: L4 verb reading its own sidecar (same idiom as trace_verify's journal read)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    // The fortress gate (F-P1 · NEP-0012): the sidecar is UNTRUSTED
+    // input — size + depth + structural bounds refuse typed BEFORE the
+    // shape parse (the unbounded-recursion class dies at the door).
+    crate::bounded::decode_untrusted_json(&raw).map_err(|e| format!("{}: {e}", path.display()))?;
     let sidecar: AnchorSidecar = serde_json::from_str(&raw)
         .map_err(|e| format!("{}: not an anchor sidecar: {e}", path.display()))?;
     if sidecar.anchor_format != 1 {
@@ -574,7 +578,10 @@ pub fn head_of(raw: &str) -> Result<(String, [u8; 32], usize), HeadRefusal> {
         }
         crate::chain::Verdict::Unchained => return Err(HeadRefusal::Unchained),
         crate::chain::Verdict::Empty => return Err(HeadRefusal::Empty),
-        crate::chain::Verdict::Unreadable { line, .. } => {
+        // F-P1 · an oversized line was never parsed: no head to offer —
+        // the same Unreadable refusal class as garbage.
+        crate::chain::Verdict::Unreadable { line, .. }
+        | crate::chain::Verdict::LineOverLong { line, .. } => {
             return Err(HeadRefusal::Unreadable { line });
         } // The verdict is #[non_exhaustive] ACROSS crates — a consumer
           // matches the classes above; a newer class lands nowhere else
