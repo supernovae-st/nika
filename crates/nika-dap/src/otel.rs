@@ -97,7 +97,11 @@ pub fn project(
         resource_attrs.push(kv_str("nika.platform", platform));
     }
     match chain {
-        Some(Verdict::Intact { head, .. } | Verdict::TornTail { head, .. }) => {
+        Some(
+            Verdict::Intact { head, .. }
+            | Verdict::Incomplete { head, .. }
+            | Verdict::TornTail { head, .. },
+        ) => {
             resource_attrs.push(kv_str("nika.trace.chain_head", head));
         }
         Some(Verdict::Broken { .. }) => {

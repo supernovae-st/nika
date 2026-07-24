@@ -168,10 +168,22 @@ pub(crate) fn load_checked_with_source(
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     // The composed lane (spec 14): child targets resolve against the
     // file the operator named; the fs edge is the skills reader's twin.
-    let report = nika_check::check_composed(&wf, path, &mut |p| {
+    let mut report = nika_check::check_composed(&wf, path, &mut |p| {
         std::fs::read_to_string(p).map_err(|e| e.to_string())
     });
+    stamp_judged_semantic(&wf, &mut report);
     Ok((yaml, wf, report))
+}
+
+/// Stamp the judged-vs-booted binding (F-P2): the report records the
+/// semantic hash of the workflow it JUDGED, so the runtime's trust gate
+/// refuses a report that describes OTHER bytes — a file edited after
+/// the check (same structure) handed its now-stale report refuses
+/// NIKA-1707 at boot. An unprojectable workflow stamps `None` (the
+/// gate's boundary-lane clause rides alone, today's posture).
+pub(crate) fn stamp_judged_semantic(wf: &RawWorkflow, report: &mut CheckReport) {
+    report.workflow_semantic =
+        nika_runtime::proof::ir::semantic_ir_hash(wf).map(|h| h.as_hex().to_owned());
 }
 
 /// The `skills:` fs edge (#473) — the ONE reader check · run · test share.

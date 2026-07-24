@@ -1,11 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The run-start report gate — audit-before-run, TWO clauses.
+//! The run-start report gate — audit-before-run, THREE clauses.
 //!
 //! 1. **Dirty** (spec §3 · NIKA-1700) — a dirty [`CheckReport`] never
 //!    executes.
-//! 2. **Trust** (NIKA-1707) — the audit's « honor system » backstop.
+//! 2. **Binding** (F-P2 · NIKA-1707) — the judged-vs-booted semantic
+//!    binding: a report STAMPED with the semantic hash of the workflow
+//!    it judged (the CLI's load seam stamps it) must match the workflow
+//!    the run is booting. A file edited after the check — same
+//!    structure, a prompt string changed — re-keys the semantic hash,
+//!    so its stale report refuses at boot; a COSMETIC edit (whitespace
+//!    · a comment) re-keys nothing and never refuses (the semantic
+//!    grain, exactly like resume). An UNSTAMPED report skips the clause
+//!    (today's posture — the stamp is opt-in at the producer).
+//! 3. **Trust** (NIKA-1707) — the audit's « honor system » backstop.
 //!    Nothing BINDS a clean report to the workflow bytes: a library
 //!    embedder can hand `run` a hand-built clean one (a skipped check
 //!    and a forged report are indistinguishable). Under a declared
@@ -17,16 +26,18 @@
 //!    floor has its own live enforcement in the effect path) and the
 //!    clause costs nothing — it never runs.
 //!
-//! The trust clause is NOT a second check for the CLI, which re-checks
-//! right before run; it is the fail-closed word for every other driver.
+//! The trust clauses are NOT a second check for the CLI, which re-checks
+//! right before run; they are the fail-closed word for every other driver.
 
 use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
 use crate::errors::RuntimeError;
 
-/// The audit-before-run gate, both clauses, in order: a dirty report is
-/// [`RuntimeError::DirtyReport`] (NIKA-1700) · a clean report whose
+/// The audit-before-run gate, the three clauses, in order: a dirty report is
+/// [`RuntimeError::DirtyReport`] (NIKA-1700) · a stamped report whose
+/// judged semantic hash is not the workflow's boot hash is
+/// [`RuntimeError::ReportMismatch`] (NIKA-1707 · F-P2) · a clean report whose
 /// boundary lanes the workflow's own re-derivation contradicts is
 /// [`RuntimeError::ReportMismatch`] (NIKA-1707) — `Ok` only when the
 /// report may vouch for THESE bytes.
@@ -36,6 +47,20 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     const MAX_NAMED: usize = 8;
     if !report.is_clean() {
         return Err(RuntimeError::DirtyReport);
+    }
+    // The judged-vs-booted binding (F-P2): the report names the semantic
+    // hash of the workflow it judged — the run refuses when the workflow
+    // it is BOOTING hashes differently (edited after the check, even
+    // structure-preserving). An unprojectable workflow carries no boot
+    // hash: the clause stays silent (no claim, never a guess).
+    if let Some(judged) = report.workflow_semantic.as_deref()
+        && let Some(booted) = crate::proof::ir::semantic_ir_hash(wf)
+        && judged != booted.as_hex()
+    {
+        return Err(RuntimeError::ReportMismatch {
+            detail: "the report was judged over different workflow bytes (semantic hash mismatch — the file changed after the check)"
+                .to_owned(),
+        });
     }
     if wf.permits.is_none() {
         return Ok(());
@@ -324,5 +349,62 @@ mod tests {
             probe.captured_calls().is_empty(),
             "the refused tool NEVER executed"
         );
+    }
+
+    /// (F-P2 · the judged-vs-booted binding) A report STAMPED with a
+    /// different semantic hash refuses at boot — before one event: the
+    /// file changed after the check, even structure-preserving.
+    #[tokio::test]
+    async fn a_stamped_report_over_different_bytes_refuses_at_boot() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: stale\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        );
+        let mut report = nika_check::check(&wf);
+        assert!(report.is_clean(), "the fixture fits its boundary");
+        report.workflow_semantic = Some("0".repeat(64));
+        let runtime = runtime_with(
+            MockShell::new(),
+            MockToolExecutor::new(),
+            MockProvider::new("mock"),
+        );
+        let err = run_refused(&runtime, &wf, &report).await;
+        let crate::RuntimeError::ReportMismatch { detail } = &err else {
+            panic!("expected ReportMismatch, got {err:?}");
+        };
+        assert_eq!(err.spec_code(), "NIKA-1707");
+        assert!(
+            detail.contains("semantic hash mismatch"),
+            "the refusal names the binding: {detail}"
+        );
+    }
+
+    /// The binding's positive control + the semantic grain: a report
+    /// stamped with the workflow's OWN hash runs (no false refusal),
+    /// and a cosmetic twin (a comment) re-keys nothing — the SAME stamp
+    /// still vouches, exactly the resume grain. The unstamped-skip half
+    /// is the (b′) test above: `check()` produces `workflow_semantic:
+    /// None` and that report passes the gate untouched.
+    #[tokio::test]
+    async fn a_stamped_matching_report_passes_and_the_grain_is_semantic() {
+        let yaml = "nika: v1\nworkflow:\n  id: honest\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let wf = parse(yaml);
+        let mut report = nika_check::check(&wf);
+        let stamp = crate::proof::ir::semantic_ir_hash(&wf)
+            .expect("the fixture projects")
+            .as_hex()
+            .to_owned();
+        report.workflow_semantic = Some(stamp.clone());
+        let shell = MockShell::new().enqueue_ok("ok");
+        let runtime = runtime_with(shell, MockToolExecutor::new(), MockProvider::new("mock"));
+        let outcome = run(&runtime, &wf, &report).await;
+        assert!(outcome.ok, "the stamped match vouches — no false refusal");
+        // The cosmetic twin: a comment changes the bytes, never the
+        // semantic hash — the SAME stamp would still match.
+        let twin = parse(&format!("# a cosmetic comment\n{yaml}"));
+        let twin_stamp = crate::proof::ir::semantic_ir_hash(&twin)
+            .expect("the twin projects")
+            .as_hex()
+            .to_owned();
+        assert_eq!(stamp, twin_stamp, "the grain is semantic, never bytes");
     }
 }

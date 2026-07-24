@@ -37,7 +37,9 @@ use sink::{TraceNote, surface_trace};
 mod budget;
 mod epilogue;
 mod heartbeat;
+mod teardown;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
+use teardown::teardown_facts;
 
 use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
 use nika_dap::resume::ResumeRequest;
@@ -699,7 +701,10 @@ fn apply_task_scope(
     };
     match scope_to_task(wf, target) {
         Ok(sub) => {
-            let sub_report = nika_check::check(&sub);
+            let mut sub_report = nika_check::check(&sub);
+            // F-P2 · the scoped report is judged over the CONE — stamp
+            // the cone's semantic hash so the trust gate binds it.
+            crate::verbs::stamp_judged_semantic(&sub, &mut sub_report);
             Ok((sub, sub_report))
         }
         Err(msg) => {
@@ -763,7 +768,13 @@ async fn execute(
         let (code, outcome) = drive(runtime, wf, report, stamper.as_mut(), &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
-        let trace_path = surface_trace(trace, TraceNote::Stderr, None, seal_hash(wf).as_deref());
+        let trace_path = surface_trace(
+            trace,
+            TraceNote::Stderr,
+            None,
+            seal_hash(wf).as_deref(),
+            Some(&teardown_facts(wf, report, &outcome)),
+        );
         // A paused run teaches its exact resume command on stderr — the
         // pause sibling of the failure lane's `autopsy:` line.
         if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
@@ -801,24 +812,15 @@ async fn execute(
             failure: first_failure(&outcome),
         }
     } else if json {
-        let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
-        let (code, outcome) = drive(runtime, wf, report, stamper.as_mut(), &mut tee).await;
-        let (sink, trace) = tee.into_parts();
-        // stdout stays NDJSON verbatim (byte-identical with or without the
-        // journal) — the trace note rides on stderr here.
-        let trace_path = surface_trace(trace, TraceNote::Stderr, None, seal_hash(wf).as_deref());
-        if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
-            eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
-        }
-        if let Some(e) = sink.into_error() {
-            eprintln!("nika run: stream write failed: {e}");
-            return RunVerdict::bare(exit::ENV);
-        }
-        epilogue::print_resume_summary(&outcome, resumed, true);
-        RunVerdict {
-            code,
-            failure: first_failure(&outcome),
-        }
+        execute_json_lane(
+            runtime,
+            (file, wf),
+            report,
+            stamper.as_mut(),
+            resumed,
+            trace,
+        )
+        .await
     } else {
         execute_fold_lane(
             runtime,
@@ -832,6 +834,42 @@ async fn execute(
             model_override,
         )
         .await
+    }
+}
+
+/// The NDJSON machine lane (`--json`) — extracted whole (the fold-lane
+/// precedent · the fn-length wall): stdout stays NDJSON verbatim
+/// (byte-identical with or without the journal), the trace note rides
+/// stderr.
+async fn execute_json_lane(
+    runtime: &ProdRuntime,
+    (file, wf): (&str, &RawWorkflow),
+    report: &CheckReport,
+    stamper: &mut dyn Stamper,
+    resumed: bool,
+    trace: TraceFileSink,
+) -> RunVerdict {
+    let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
+    let (sink, trace) = tee.into_parts();
+    let trace_path = surface_trace(
+        trace,
+        TraceNote::Stderr,
+        None,
+        seal_hash(wf).as_deref(),
+        Some(&teardown_facts(wf, report, &outcome)),
+    );
+    if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
+        eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
+    }
+    if let Some(e) = sink.into_error() {
+        eprintln!("nika run: stream write failed: {e}");
+        return RunVerdict::bare(exit::ENV);
+    }
+    epilogue::print_resume_summary(&outcome, resumed, true);
+    RunVerdict {
+        code,
+        failure: first_failure(&outcome),
     }
 }
 
@@ -924,6 +962,7 @@ async fn execute_fold_lane(
         },
         failed_task.as_deref(),
         seal_hash(wf).as_deref(),
+        Some(&teardown_facts(wf, report, &outcome)),
     );
     epilogue::print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.take_error() {
@@ -1006,6 +1045,15 @@ where
             let mut stderr = std::io::stderr().lock();
             if let RuntimeError::MissingRequiredInputs { .. } = err {
                 let _ = writeln!(stderr, "nika run: {err}");
+            } else if let RuntimeError::ReportMismatch { .. } = err {
+                // Audit-before-run (spec §4): the report does not describe
+                // THESE bytes — the file-findings class (the F-P2
+                // judged-vs-booted binding), never a system breach.
+                let _ = writeln!(stderr, "nika run: {err}");
+                return (
+                    exit::FILE,
+                    RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+                );
             } else {
                 let _ = writeln!(
                     stderr,

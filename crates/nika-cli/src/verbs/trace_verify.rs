@@ -10,6 +10,11 @@
 //! - **OK** — the chain is intact (tamper-evident, not tamper-proof:
 //!   with no external trust root, an attacker can rewrite the whole
 //!   chain; compare the head against the one the run printed).
+//! - **INCOMPLETE** (F-P2) — the chain is intact but the run never
+//!   reached a lifecycle-terminal frame (kill -9 · crash between
+//!   writes): the finding rides the verifier — the dying run writes
+//!   nothing. The exit stays OK (the journal is honestly what it is);
+//!   the ladder below still climbs over the complete prefix.
 //! - **SEALED** — the terminal `run_sealed` event's ed25519 signature
 //!   verifies against a custody-resolved key (`--key` ·
 //!   `~/.nika/keys/run-signing.pub` · the `retired.pub` ledger),
@@ -73,12 +78,33 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
         Err(e) => return VerbOutput::env(format!("cannot read {trace}: {e}")),
     };
     match walk(&raw) {
-        Verdict::Intact { events, head, .. } => {
-            tiered(trace, &raw, events, &head, None, opts, &candidates)
-        }
-        Verdict::TornTail { events, head, .. } => {
-            tiered(trace, &raw, events, &head, Some(()), opts, &candidates)
-        }
+        Verdict::Intact { events, head, .. } => tiered(
+            trace,
+            &raw,
+            events,
+            &head,
+            ChainHeadline::Intact,
+            opts,
+            &candidates,
+        ),
+        Verdict::Incomplete { events, head, .. } => tiered(
+            trace,
+            &raw,
+            events,
+            &head,
+            ChainHeadline::Incomplete,
+            opts,
+            &candidates,
+        ),
+        Verdict::TornTail { events, head, .. } => tiered(
+            trace,
+            &raw,
+            events,
+            &head,
+            ChainHeadline::Torn,
+            opts,
+            &candidates,
+        ),
         Verdict::Broken {
             line,
             recorded,
@@ -139,10 +165,26 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
     }
 }
 
+/// The chain-intact headline the verify surface prints (the lifecycle
+/// truth the walk attested, F-P2). `Intact`'s OK line stays byte-
+/// identical to the pre-tier surface; `Torn` and `Incomplete` name the
+/// crash signature the journal carries.
+#[derive(Clone, Copy)]
+enum ChainHeadline {
+    /// Chain intact AND the run reached a lifecycle-terminal frame.
+    Intact,
+    /// Chain intact — the final line is torn (a crash mid-write).
+    Torn,
+    /// Chain intact — the run never reached a terminal frame (kill -9 ·
+    /// crash between writes): a finding, never a silence.
+    Incomplete,
+}
+
 /// The ladder above an intact chain: the OK line stays byte-identical
 /// to the pre-tier surface; the tiers then speak for themselves.
-/// `torn` marks the torn-tail OK variant (a crash mid-write — the
-/// ladder still climbs over the COMPLETE prefix). The EVALUATION lives
+/// `headline` carries the walk's lifecycle truth (the torn-tail OK
+/// variant · the F-P2 INCOMPLETE class — the ladder still climbs over
+/// the COMPLETE prefix). The EVALUATION lives
 /// in the forensics crate (`nika_dap::anchor::tier::evaluate` — the
 /// 15k descent); this verb keeps the OK line, the reproduce shim call
 /// (the fs seam), and the `VerbOutput` envelope + exit code.
@@ -151,18 +193,25 @@ fn tiered(
     raw: &str,
     events: usize,
     head: &str,
-    torn: Option<()>,
+    headline: ChainHeadline,
     opts: &VerifyOptions,
     candidates: &[(String, String)],
 ) -> VerbOutput {
-    let mut out = if torn.is_some() {
-        format!(
+    let mut out = match headline {
+        ChainHeadline::Torn => format!(
             "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
-        )
-    } else {
-        format!(
+        ),
+        ChainHeadline::Intact => format!(
             "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
-        )
+        ),
+        // F-P2 · the killed run: the chain attests every complete line —
+        // the lifecycle end is absent, said out loud. A FINDING (the
+        // exit stays OK: the journal is honestly what it is), never the
+        // `unknown` silence a truncated fold used to answer. The
+        // attestation rides the VERIFIER — the dying run writes nothing.
+        ChainHeadline::Incomplete => format!(
+            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
+        ),
     };
     // The replay comparison is the CLI's fs seam — the ladder only
     // hears what the outcome MEANS.
@@ -305,7 +354,7 @@ mod tests {
     fn verify_many_reports_per_file_and_exits_worst_of() {
         let intact = stage(
             "intact.ndjson",
-            &chained(&["workflow_started", "task_completed"]),
+            &chained(&["workflow_started", "workflow_completed"]),
         );
         // Tamper a MIDDLE line — the next line's recorded chain breaks.
         // (An edited FINAL line is exactly what only the externally
@@ -426,6 +475,81 @@ mod tests {
         assert!(
             out.text.contains("REPLAYED — not attempted"),
             "{}",
+            out.text
+        );
+        let _ = std::fs::remove_file(trace);
+        let _ = std::fs::remove_file(key);
+    }
+
+    /// (F-P2) A journal that never reached a terminal frame verifies
+    /// INCOMPLETE — the finding is the VERIFIER's (the dying run writes
+    /// nothing) and the exit stays OK: the journal is honestly what it
+    /// is, the tier ladder still speaks.
+    #[test]
+    fn a_terminal_less_journal_verifies_incomplete() {
+        let trace = stage(
+            "incomplete.ndjson",
+            &chained(&["workflow_started", "task_completed"]),
+        );
+        let out = verify_with(&trace.to_string_lossy(), &VerifyOptions::default());
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(out.text.contains("INCOMPLETE — 2 events"), "{}", out.text);
+        assert!(
+            out.text.contains("never reached a terminal frame"),
+            "{}",
+            out.text
+        );
+        let _ = std::fs::remove_file(trace);
+    }
+
+    /// (F-P2) The EXTENDED seal (teardown covers) attains SEALED through
+    /// the real verify tier — the verifier signs off on the extended
+    /// covers object exactly as on the classic four.
+    #[test]
+    fn an_extended_seal_attains_sealed_through_the_tier() {
+        let (pk_box, sk) = keypair();
+        let kinds = ["workflow_started", "workflow_completed"];
+        let mut chain = sha256_hex(CHAIN_GENESIS);
+        let mut journal = String::new();
+        for kind in kinds {
+            let mut v = serde_json::json!({
+                "id": {"uuid": "01912345-0000-7000-8000-000000000002"},
+                "timestamp": 1000, "kind": kind, "run": null,
+                "correlation": null, "fields": []
+            });
+            v["chain"] = serde_json::Value::String(chain.clone());
+            let line = serde_json::to_string(&v).expect("test json");
+            chain = sha256_hex(line.as_bytes());
+            journal.push_str(&line);
+            journal.push('\n');
+        }
+        let mut teardown = crate::seal::SealTeardown::new();
+        teardown.outcome = Some("completed".to_owned());
+        teardown.budgets = Some(serde_json::json!({ "priced_calls": 0 }));
+        let seal = crate::seal::seal_event_with(
+            nika_types::id::EventId::generate(),
+            nika_types::timestamp::Timestamp::from_unix_ms(1_700_000_000_000),
+            &chain,
+            kinds.len(),
+            "wf-hash-test",
+            "0.105.0-test",
+            Some(&teardown),
+            &sk,
+            &pk_box,
+        )
+        .expect("the extended seal mints");
+        let mut v = serde_json::to_value(&seal).expect("seal json");
+        v["chain"] = serde_json::Value::String(chain);
+        journal.push_str(&serde_json::to_string(&v).expect("seal line"));
+        journal.push('\n');
+        let trace = stage("sealed-extended.ndjson", &journal);
+        let key = stage_key("sealed-extended.pub", &pk_box);
+        let out = verify_with(&trace.to_string_lossy(), &opts_with_key(key.clone()));
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(
+            out.text
+                .contains("SEALED — the run_sealed signature verifies"),
+            "the extended covers verify: {}",
             out.text
         );
         let _ = std::fs::remove_file(trace);

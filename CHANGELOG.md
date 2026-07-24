@@ -26,6 +26,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   shims; the clean cut). Static judgment without the CLI, for the
   embedder/SDK surface.
 
+- **The run's lifecycle is attested (F-P2 · NEP-0011 draft)** — the
+  `workflow_started` prologue becomes a boot manifest (`spec_pin` ·
+  `stamper_kind` · the resolved `clock` · `seed` under a determinism
+  demand); the run seal's `covers` extends additively with the folded
+  `receipt_digest`, the consumed budgets and the exercised effects
+  (the classic four-field seal stays byte-identical); a journal that
+  never reached a lifecycle-terminal frame verifies **INCOMPLETE** —
+  the verifier's finding, never the dying run's silence; and a check
+  report stamped with a different semantic hash than the booting
+  workflow refuses before the first event (the judged-vs-booted
+  binding · exit 2 · semantic grain).
+
 ### Changed
 
 - **`run:` declared-pair refusals ride their dedicated mints** — the

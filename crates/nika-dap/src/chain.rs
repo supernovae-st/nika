@@ -21,9 +21,23 @@ pub const CHAIN_GENESIS: &[u8] = b"nika-trace-v1";
 /// The walk's verdict over one raw journal text.
 #[non_exhaustive]
 pub enum Verdict {
-    /// Every line chained — `head` is the last line's sha256.
+    /// Every line chained, and the last one CLOSES the run's lifecycle
+    /// — `head` is the last line's sha256.
     #[non_exhaustive]
     Intact {
+        /// Verified event-line count.
+        events: usize,
+        /// sha256 hex of the last verified line's exact bytes.
+        head: String,
+    },
+    /// Every line chained, but the last complete line never CLOSES the
+    /// run's lifecycle (no terminal frame, no seal): the run was killed
+    /// or crashed between writes. The chain attests every complete line
+    /// exactly as `Intact` does — the LIFECYCLE end is absent, said out
+    /// loud (a killed run is a finding, never a silence; the attestation
+    /// rides the verifier, never the dying run).
+    #[non_exhaustive]
+    Incomplete {
         /// Verified event-line count.
         events: usize,
         /// sha256 hex of the last verified line's exact bytes.
@@ -64,6 +78,20 @@ pub enum Verdict {
     },
 }
 
+/// The kinds that CLOSE a run's lifecycle: the four terminal frames
+/// (spec 13 · `EventKind::is_terminal`) plus the seal that rides after
+/// one. A journal whose last complete line carries any of these reached
+/// an attested end; anything else means the run died mid-flight (kill ·
+/// crash · power) — the walk names that [`Verdict::Incomplete`], never
+/// `Intact` (F-P2 · LOT-1).
+const LIFECYCLE_TERMINAL: &[&str] = &[
+    "workflow_completed",
+    "workflow_failed",
+    "workflow_cancelled",
+    "workflow_paused",
+    "run_sealed",
+];
+
 /// The pure walk — recompute the chain over exact line bytes. Line
 /// numbers are FILE lines (blanks skipped, never renumbered — the
 /// recover path counts the same way), each line parses exactly once,
@@ -81,6 +109,7 @@ pub fn walk(raw: &str) -> Verdict {
     }
     let mut expected = sha256_hex(CHAIN_GENESIS);
     let mut verified = 0usize;
+    let mut last_closes = false;
     for (pos, &(lineno, line)) in numbered.iter().enumerate() {
         let is_last = pos + 1 == numbered.len();
         let parsed: Option<serde_json::Value> = serde_json::from_str(line).ok();
@@ -118,10 +147,21 @@ pub fn walk(raw: &str) -> Verdict {
         }
         expected = sha256_hex(line.as_bytes());
         verified += 1;
+        last_closes = value
+            .get("kind")
+            .and_then(|k| k.as_str())
+            .is_some_and(|k| LIFECYCLE_TERMINAL.contains(&k));
     }
-    Verdict::Intact {
-        events: verified,
-        head: expected,
+    if last_closes {
+        Verdict::Intact {
+            events: verified,
+            head: expected,
+        }
+    } else {
+        Verdict::Incomplete {
+            events: verified,
+            head: expected,
+        }
     }
 }
 
@@ -225,7 +265,7 @@ mod tests {
 
     #[test]
     fn broken_line_numbers_are_file_lines_even_with_blanks() {
-        let raw = chained(&[ev("workflow_started"), ev("task_completed")]);
+        let raw = chained(&[ev("workflow_started"), ev("workflow_completed")]);
         // Insert a blank line between the two — the second event now
         // sits on FILE line 3 and its chain still verifies; tamper it
         // and the report must say line 3, not post-filter line 2.
@@ -240,6 +280,42 @@ mod tests {
         // see it.)
         let tampered = spaced.replace("workflow_started", "workflow_startex");
         assert!(matches!(walk(&tampered), Verdict::Broken { line: 3, .. }));
+    }
+
+    /// F-P2 · a chain-intact journal whose last complete line never
+    /// closes the lifecycle is `Incomplete` (the run died mid-flight),
+    /// never `Intact`; the four terminal frames and the seal all close
+    /// it. The chain facts (events · head) carry identically on both.
+    #[test]
+    fn a_journal_without_a_terminal_frame_is_incomplete_not_intact() {
+        let killed = chained(&[ev("workflow_started"), ev("task_started")]);
+        let Verdict::Incomplete { events, head } = walk(&killed) else {
+            panic!("a killed run's journal is Incomplete, never Intact");
+        };
+        assert_eq!(events, 2);
+        let last = killed.lines().last().expect("last line");
+        assert_eq!(
+            head,
+            sha256_hex(last.as_bytes()),
+            "the head still binds every line"
+        );
+
+        for terminal in [
+            "workflow_completed",
+            "workflow_failed",
+            "workflow_cancelled",
+            "workflow_paused",
+            "run_sealed",
+        ] {
+            let raw = chained(&[ev("workflow_started"), ev(terminal)]);
+            assert!(
+                matches!(walk(&raw), Verdict::Intact { events: 2, .. }),
+                "{terminal} closes the lifecycle"
+            );
+        }
+        // A mid-flight kind anywhere but last never flips the class.
+        let finished = chained(&[ev("task_started"), ev("workflow_completed")]);
+        assert!(matches!(walk(&finished), Verdict::Intact { .. }));
     }
 
     #[test]

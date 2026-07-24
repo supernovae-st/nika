@@ -553,17 +553,21 @@ pub enum HeadRefusal {
     Unknown,
 }
 
-/// The head one may anchor: the walk's `Intact` verdict ONLY. A broken
+/// The head one may anchor: the walk's CHAIN-INTACT verdicts. A broken
 /// chain is refused (notarizing a forgery), a torn tail is refused
 /// (the anchor would notarize a head that excludes live bytes), and
-/// the pre-chain / garbage classes have no head to offer.
+/// the pre-chain / garbage classes have no head to offer. An
+/// `Incomplete` journal (the run died mid-flight · F-P2) anchors like
+/// `Intact`: its head covers every complete line — exactly the state an
+/// auditor notarizes after a kill.
 ///
 /// # Errors
 ///
 /// The [`HeadRefusal`] class the walk's verdict maps to.
 pub fn head_of(raw: &str) -> Result<(String, [u8; 32], usize), HeadRefusal> {
     let (head, events) = match crate::chain::walk(raw) {
-        crate::chain::Verdict::Intact { events, head, .. } => (head, events),
+        crate::chain::Verdict::Intact { events, head, .. }
+        | crate::chain::Verdict::Incomplete { events, head, .. } => (head, events),
         crate::chain::Verdict::Broken { line, .. } => return Err(HeadRefusal::Broken { line }),
         crate::chain::Verdict::TornTail { events, .. } => {
             return Err(HeadRefusal::TornTail { events });

@@ -19,7 +19,12 @@
 //! - `covers` — `{ head, events, workflow }`: the chain head BEFORE the
 //!   seal line (so the seal commits to every prior line) and the
 //!   workflow's semantic hash (the proof layer's Merkle commitment), so
-//!   journal ↔ workflow bind into one certificate;
+//!   journal ↔ workflow bind into one certificate. F-P2 folds the run's
+//!   TEARDOWN in additively ([`SealTeardown`]): `receipt_digest` (the
+//!   receipt the run folded at teardown), `budgets` (ρ consumed vs the
+//!   certificate's ceiling), `effects` (ε exercised vs declared) — the
+//!   format stays `1` (the verify tier reads `covers` tolerantly:
+//!   unknown keys are ignored, the signature covers the whole object);
 //! - `key_id` — the first 16 hex of the public key's sha256 (the TOFU
 //!   fingerprint `nika key trust` prints);
 //! - `alg` — `"ed25519"` (the envelope is algorithm-versioned from day
@@ -321,7 +326,10 @@ fn write_0600(path: &Path, text: &str) -> Result<(), String> {
 /// The seal event for one finished run — the terminal line of a signed
 /// journal. `covers` binds head + event count + the workflow's semantic
 /// hash; the signature rides the proof layer's ONE canonicalization.
+/// The teardown-less path: `covers` carries the classic four fields,
+/// byte-unchanged ([`seal_event_with`] folds the F-P2 teardown in).
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn seal_event(
     run_id: EventId,
     at: Timestamp,
@@ -332,12 +340,81 @@ pub fn seal_event(
     sk: &minisign::SecretKey,
     pk_box: &str,
 ) -> Option<Event> {
-    let covers = serde_json::json!({
+    seal_event_with(
+        run_id,
+        at,
+        head,
+        events,
+        workflow_hash,
+        engine,
+        None,
+        sk,
+        pk_box,
+    )
+}
+
+/// The run's teardown facts (F-P2 · LOT-1) — what the seal's `covers`
+/// attests BEYOND the chain: the receipt the run folded at teardown
+/// (its digest rides; the body stays the evidence pack's surface), the
+/// budgets ρ consumed against the certificate's ceiling, and the
+/// effects ε exercised against the declared bound. Every field is
+/// ADDITIVE — `seal_format` stays 1: the verify tier reads `covers`
+/// tolerantly (unknown keys are ignored, verified by the tier tests),
+/// and the signature's canonicalization covers the whole object either
+/// way. A `None`/empty fact keeps its key OUT of the covers (absent is
+/// honest — never a fabricated zero).
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct SealTeardown {
+    /// The run's semantic hash hex (the receipt's `proves` — the same
+    /// Merkle root the boot manifest's `semantic_hash` carries).
+    pub proves: Option<String>,
+    /// The check certificate as JSON (the receipt's `certificate`).
+    pub certificate: Option<serde_json::Value>,
+    /// The judged assertions as receipt entries (`{assert, level}`).
+    pub assertions: Vec<serde_json::Value>,
+    /// The terminal outcome word (`completed` · `failed` · `paused`).
+    pub outcome: Option<String>,
+    /// The budgets ρ fold (consumed vs ceiling), pre-shaped by the caller.
+    pub budgets: Option<serde_json::Value>,
+    /// The effects ε fold (exercised vs declared), pre-shaped by the caller.
+    pub effects: Option<serde_json::Value>,
+}
+
+impl SealTeardown {
+    /// An empty teardown (INV-019): the seal carries its classic four
+    /// `covers` fields and nothing more.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// The seal event with the run's teardown facts folded into `covers`
+/// (F-P2): the receipt's digest (folded HERE — the chain head and count
+/// it binds are this seal's own), the budgets ρ, and the effects ε.
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn seal_event_with(
+    run_id: EventId,
+    at: Timestamp,
+    head: &str,
+    events: usize,
+    workflow_hash: &str,
+    engine: &str,
+    teardown: Option<&SealTeardown>,
+    sk: &minisign::SecretKey,
+    pk_box: &str,
+) -> Option<Event> {
+    let mut covers = serde_json::json!({
         "head": head,
         "events": events,
         "workflow": workflow_hash,
         "engine": engine,
     });
+    if let Some(teardown) = teardown {
+        extend_covers(&mut covers, head, events, teardown);
+    }
     let preimage =
         nika_runtime::proof::preimage(nika_runtime::proof::HashDomain::Trace, 1, &covers);
     let sig_box = minisign::sign(None, sk, Cursor::new(preimage.as_bytes()), None, None).ok()?;
@@ -361,6 +438,50 @@ pub fn seal_event(
         ),
     ];
     Some(Event::new(run_id, at, EventKind::RunSealed).with_fields(fields))
+}
+
+/// Fold the teardown facts into the seal's `covers` (F-P2 · ADDITIVE).
+fn extend_covers(
+    covers: &mut serde_json::Value,
+    head: &str,
+    events: usize,
+    teardown: &SealTeardown,
+) {
+    // The receipt digest: the receipt is folded AT TEARDOWN with the
+    // chain facts only this seal knows (the pre-seal head and count —
+    // the seal cannot cover its own bytes). The receipt body stays the
+    // evidence pack's surface; the digest binds it here. The verdict's
+    // `sealed` is written `true`: it becomes true when this line lands
+    // — the seal attests WHAT HAPPENED, it never promises the future.
+    if let (Some(proves), Some(certificate), Some(outcome)) = (
+        teardown.proves.as_deref(),
+        teardown.certificate.clone(),
+        teardown.outcome.as_deref(),
+    ) {
+        let trace_verdict = serde_json::json!({
+            "outcome": outcome,
+            "chain": "intact",
+            "events": events,
+            "head": head,
+            "sealed": true,
+        });
+        let receipt = nika_runtime::proof::receipt::build_receipt(
+            proves,
+            certificate,
+            trace_verdict,
+            teardown.assertions.clone(),
+            crate::evidence::LOCK_UNRECORDED,
+        );
+        if let Some(digest) = receipt.get("digest").and_then(serde_json::Value::as_str) {
+            covers["receipt_digest"] = serde_json::Value::String(digest.to_owned());
+        }
+    }
+    if let Some(budgets) = &teardown.budgets {
+        covers["budgets"] = budgets.clone();
+    }
+    if let Some(effects) = &teardown.effects {
+        covers["effects"] = effects.clone();
+    }
 }
 
 /// Strict standard-alphabet base64 → bytes (`None` on any
@@ -513,6 +634,16 @@ mod tests {
         let covers = get("covers").expect("covers present");
         assert!(covers.contains("ab12cd") && covers.contains("wf-hash-7c2a"));
 
+        // (e) the teardown-less regression guard: `covers` is EXACTLY
+        // the classic four keys (the pre-F-P2 wire, byte-unchanged).
+        let parsed: serde_json::Value = serde_json::from_str(&covers).expect("covers parses");
+        let keys: Vec<&String> = parsed.as_object().expect("an object").keys().collect();
+        assert_eq!(
+            keys,
+            ["engine", "events", "head", "workflow"],
+            "the classic covers is the classic four, nothing more"
+        );
+
         // The signature verifies against the pubkey box over the SAME
         // preimage (the proof layer's canonicalization).
         let covers_json = serde_json::json!({
@@ -533,6 +664,103 @@ mod tests {
             false,
         )
         .expect("the seal verifies");
+    }
+
+    /// F-P2 (b) · the extended seal: the teardown facts ride `covers`
+    /// additively — the receipt digest RECOMPUTES from the same inputs,
+    /// and the signature verifies over the extended object (the proof
+    /// layer's ONE canonicalization covers whatever `covers` carries).
+    #[test]
+    fn the_teardown_seal_carries_the_run_end_attestation_and_verifies() {
+        let (pk, sk) = keypair();
+        let mut teardown = SealTeardown::new();
+        teardown.proves = Some("wf-semantic-7c2a".to_owned());
+        teardown.certificate = Some(serde_json::json!({
+            "task_attempts": { "constant": 2, "terms": [] }
+        }));
+        teardown.assertions = vec![serde_json::json!({
+            "assert": "no_secret_egress", "level": "TraceVerified"
+        })];
+        teardown.outcome = Some("completed".to_owned());
+        teardown.budgets = Some(serde_json::json!({
+            "spent_usd": 0.012, "priced_calls": 3, "unpriced_calls": 0, "budget_exceeded": false
+        }));
+        teardown.effects = Some(serde_json::json!({ "exercised": 2, "escapes": 0 }));
+        let ev = seal_event_with(
+            EventId::generate(),
+            Timestamp::from_unix_ms(1_700_000_000_000),
+            "ab12cd",
+            142,
+            "wf-semantic-7c2a",
+            "0.105.0",
+            Some(&teardown),
+            &sk,
+            &pk,
+        )
+        .expect("the seal mints");
+        let get = |key: &str| {
+            ev.fields
+                .iter()
+                .find(|f| f.key == key)
+                .and_then(|f| match &f.value {
+                    nika_types::resource::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+        };
+        let covers: serde_json::Value =
+            serde_json::from_str(&get("covers").expect("covers present")).expect("covers parses");
+
+        // The classic four ride unchanged; the teardown keys join them.
+        assert_eq!(covers["head"], serde_json::json!("ab12cd"));
+        assert_eq!(covers["events"], serde_json::json!(142));
+        assert_eq!(covers["workflow"], serde_json::json!("wf-semantic-7c2a"));
+        assert_eq!(covers["engine"], serde_json::json!("0.105.0"));
+        assert_eq!(covers["budgets"]["priced_calls"], serde_json::json!(3));
+        assert_eq!(covers["effects"]["exercised"], serde_json::json!(2));
+
+        // The receipt digest recomputes from the same inputs (the
+        // seal's own pre-seal chain facts + the run's certificate).
+        let verdict = serde_json::json!({
+            "outcome": "completed", "chain": "intact",
+            "events": 142, "head": "ab12cd", "sealed": true,
+        });
+        let receipt = nika_runtime::proof::receipt::build_receipt(
+            "wf-semantic-7c2a",
+            serde_json::json!({ "task_attempts": { "constant": 2, "terms": [] } }),
+            verdict,
+            vec![serde_json::json!({
+                "assert": "no_secret_egress", "level": "TraceVerified"
+            })],
+            crate::evidence::LOCK_UNRECORDED,
+        );
+        assert_eq!(
+            covers["receipt_digest"]
+                .as_str()
+                .expect("the receipt digest rides"),
+            receipt["digest"].as_str().expect("the recomputed digest"),
+            "the seal's receipt digest IS the folded receipt's own digest"
+        );
+        assert!(
+            nika_runtime::proof::receipt::verify(&receipt, "wf-semantic-7c2a"),
+            "the folded receipt verifies its self-digest"
+        );
+
+        // The signature verifies over the EXTENDED covers.
+        let preimage =
+            nika_runtime::proof::preimage(nika_runtime::proof::HashDomain::Trace, 1, &covers);
+        let sig_box = minisign::SignatureBox::from_string(&get("sig").expect("sig present"))
+            .expect("sig parses");
+        let pk_box = minisign::PublicKeyBox::from_string(&pk).expect("pk box parses");
+        let pk_key = pk_box.into_public_key().expect("pk decodes");
+        minisign::verify(
+            &pk_key,
+            &sig_box,
+            std::io::Cursor::new(preimage.as_bytes()),
+            true,
+            false,
+            false,
+        )
+        .expect("the extended seal verifies");
     }
 
     /// (a) The pair probe hands back the public box + a 16-hex
