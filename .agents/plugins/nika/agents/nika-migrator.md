@@ -28,7 +28,7 @@ parity is the proof.
    loops → `for_each:` · conditionals → `when:` · parameters →
    `vars:` + `${{ env.KEY }}` · credentials → `${{ secrets.X }}`
    declared with an `egress:` sink. Every task that reads another's
-   output binds it — `with: { alias: ${{ tasks.A.output }} }` (the
+   output binds it — `with: { alias: "${{ tasks.A.output }}" }` (the
    binding IS the edge) — and reads `${{ with.alias }}`; pure ordering
    without data is `after: { A: succeeded }`.
 4. **Guard the irreversible.** Any step the source author would have
