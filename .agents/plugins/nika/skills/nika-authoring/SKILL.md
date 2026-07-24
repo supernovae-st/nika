@@ -120,7 +120,7 @@ Every surviving `exec:` gets a row in the workflow's header comment:
   this as `[envelope-output]`; fix the binding, never re-baseline
   around it.
 - A task that reads another task's output binds it in `with:` —
-  `with: { alias: ${{ tasks.<id>.output }} }` — and the body reads
+  `with: { alias: "${{ tasks.<id>.output }}" }` — and the body reads
   `${{ with.alias }}` (the binding IS the edge; `tasks.*` anywhere
   else is NIKA-VAR-021). Pure ordering is `after: { <id>: succeeded }`.
 - Models are `provider/name` (`ollama/llama3.2:3b` local-first ·
