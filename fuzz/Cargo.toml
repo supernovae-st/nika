@@ -15,6 +15,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 nika-schema = { path = "../crates/nika-schema" }
 nika-check  = { path = "../crates/nika-check" }
+nika-dap    = { path = "../crates/nika-dap" }
 
 [[bin]]
 name = "parse_workflow"
@@ -40,6 +41,13 @@ bench = false
 [[bin]]
 name = "infer_permits"
 path = "fuzz_targets/infer_permits.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "receipt_decode"
+path = "fuzz_targets/receipt_decode.rs"
 test = false
 doc = false
 bench = false
