@@ -51,6 +51,15 @@ pub const RETRY_KEYS: &[&str] = &[
     "on_codes",
 ];
 
+/// Keys of the `run:` block (F-P3 · closed — a typo'd declaration would
+/// silently not bind, so the parser refuses unknown keys in BOTH modes,
+/// the `permits:`/`policy:` precedent).
+pub const RUN_KEYS: &[&str] = &["entropy", "clock"];
+
+/// Keys of the parameterized `run.entropy` form (`{ seeded: <u64> }` ·
+/// the single-key map idiom of the `assert:` vocabulary).
+pub const RUN_ENTROPY_MAP_KEYS: &[&str] = &["seeded"];
+
 /// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
 /// ACTION + the optional `on_codes` filter).
 pub const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];

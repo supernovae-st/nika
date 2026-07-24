@@ -977,6 +977,7 @@ pub nika_schema::raw::workflow::RawWorkflow::nika: core::option::Option<nika_sou
 pub nika_schema::raw::workflow::RawWorkflow::outputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::output_decl::OutputDecl)>
 pub nika_schema::raw::workflow::RawWorkflow::permits: core::option::Option<nika_source::span::Spanned<nika_cap::permits::Permits>>
 pub nika_schema::raw::workflow::RawWorkflow::policy: core::option::Option<nika_source::span::Spanned<nika_cap::policy::Policy>>
+pub nika_schema::raw::workflow::RawWorkflow::run: core::option::Option<nika_source::span::Spanned<nika_vocab::run::RunDecl>>
 pub nika_schema::raw::workflow::RawWorkflow::secrets: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_vocab::secret::SecretRef>)>
 pub nika_schema::raw::workflow::RawWorkflow::tasks: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawTask>>
 pub nika_schema::raw::workflow::RawWorkflow::types: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>
@@ -1483,6 +1484,7 @@ pub nika_schema::raw::RawWorkflow::nika: core::option::Option<nika_source::span:
 pub nika_schema::raw::RawWorkflow::outputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::output_decl::OutputDecl)>
 pub nika_schema::raw::RawWorkflow::permits: core::option::Option<nika_source::span::Spanned<nika_cap::permits::Permits>>
 pub nika_schema::raw::RawWorkflow::policy: core::option::Option<nika_source::span::Spanned<nika_cap::policy::Policy>>
+pub nika_schema::raw::RawWorkflow::run: core::option::Option<nika_source::span::Spanned<nika_vocab::run::RunDecl>>
 pub nika_schema::raw::RawWorkflow::secrets: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_vocab::secret::SecretRef>)>
 pub nika_schema::raw::RawWorkflow::tasks: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::task::RawTask>>
 pub nika_schema::raw::RawWorkflow::types: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<serde_json::value::Value>)>

@@ -39,7 +39,7 @@ use nika_schema::{FileId, ParseMode};
 use nika_event::source_id::sha256_hex;
 
 use nika_dap::journal::TraceFileSink;
-use nika_runtime::SystemStamper;
+use nika_runtime::RunSeams;
 use nika_runtime::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits};
 
 /// The production runner — one per composed runtime, rooted at the file
@@ -197,25 +197,31 @@ impl ChildRunner for ProdChildRunner {
                     .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
             };
             let model = wf.model.as_ref().map_or("", |m| m.value.as_str());
-            let runtime = nika_runtime::compose::production_runtime(model, caps)
-                .map_err(|e| refusal("NIKA-COMP-001", format!("child runtime: {e}")))?
-                .with_var_overrides(call.args.clone().into_iter().collect())
-                // law 6 — the inherited budget IS the parent's remaining.
-                .with_max_cost_usd(call.remaining_budget_usd)
-                .with_source_sha256(sha256_hex(source.as_bytes()))
-                // depth rides to the child so ITS dispatch gate sees the
-                // truth (NIKA-SEC-003 · fail-closed).
-                .with_run_depth(call.depth)
-                // grandchildren resolve against the CHILD's path.
-                .with_child_runner(Arc::new(ProdChildRunner::new(&path, self.trace)));
-            let mut stamper = SystemStamper;
+            // F-P3 · the CHILD's own run: declaration governs its seams
+            // (one run = one clock · each file declares for itself).
+            let runtime = nika_runtime::compose::production_runtime(
+                model,
+                caps,
+                wf.run.as_ref().map(|s| &s.value),
+            )
+            .map_err(|e| refusal("NIKA-COMP-001", format!("child runtime: {e}")))?
+            .with_var_overrides(call.args.clone().into_iter().collect())
+            // law 6 — the inherited budget IS the parent's remaining.
+            .with_max_cost_usd(call.remaining_budget_usd)
+            .with_source_sha256(sha256_hex(source.as_bytes()))
+            // depth rides to the child so ITS dispatch gate sees the
+            // truth (NIKA-SEC-003 · fail-closed).
+            .with_run_depth(call.depth)
+            // grandchildren resolve against the CHILD's path.
+            .with_child_runner(Arc::new(ProdChildRunner::new(&path, self.trace)));
             let mut sink = if self.trace {
                 TraceFileSink::new(nika_dap::store::TRACE_DIR)
             } else {
                 TraceFileSink::disabled()
             };
             let def_hash = sha256_hex(source.as_bytes());
-            let run = runtime.run(&wf, &report, &mut stamper, &mut sink).await;
+            let mut stamper = RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
+            let run = runtime.run(&wf, &report, stamper.as_mut(), &mut sink).await;
             let (ok, outputs, cost, failure) = match &run {
                 Ok(outcome) => {
                     // A paused child cannot be answered through a call

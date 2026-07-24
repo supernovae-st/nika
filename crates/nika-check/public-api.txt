@@ -1015,6 +1015,7 @@ pub nika_check::CheckReport::permits: nika_check::EffectivePermits
 pub nika_check::CheckReport::policy_findings: alloc::vec::Vec<nika_cap::policy::PolicyViolation>
 pub nika_check::CheckReport::report_version: u32
 pub nika_check::CheckReport::requirements: nika_check::Requirements
+pub nika_check::CheckReport::run_decl_findings: alloc::vec::Vec<nika_check::RunDeclFinding>
 pub nika_check::CheckReport::schema_findings: alloc::vec::Vec<nika_check::SchemaTypeFinding>
 pub nika_check::CheckReport::schema_lints: alloc::vec::Vec<nika_check::SchemaLintFinding>
 pub nika_check::CheckReport::secret_egresses: alloc::vec::Vec<nika_check::SecretEgress>
@@ -1702,6 +1703,56 @@ impl<T> dyn_clone::DynClone for nika_check::RunCertificate where T: core::clone:
 pub fn nika_check::RunCertificate::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::RunCertificate where T: 'static
 pub fn nika_check::RunCertificate::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::RunDeclFinding
+pub nika_check::RunDeclFinding::detail: alloc::string::String
+pub nika_check::RunDeclFinding::fix: alloc::string::String
+pub nika_check::RunDeclFinding::source: &'static str
+pub nika_check::RunDeclFinding::task: alloc::string::String
+impl nika_check::RunDeclFinding
+pub fn nika_check::RunDeclFinding::wire_code(&self) -> &'static str
+impl core::clone::Clone for nika_check::RunDeclFinding
+pub fn nika_check::RunDeclFinding::clone(&self) -> nika_check::RunDeclFinding
+impl core::cmp::Eq for nika_check::RunDeclFinding
+impl core::cmp::PartialEq for nika_check::RunDeclFinding
+pub fn nika_check::RunDeclFinding::eq(&self, other: &nika_check::RunDeclFinding) -> bool
+impl core::fmt::Debug for nika_check::RunDeclFinding
+pub fn nika_check::RunDeclFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::RunDeclFinding
+impl serde_core::ser::Serialize for nika_check::RunDeclFinding
+pub fn nika_check::RunDeclFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::RunDeclFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::RunDeclFinding where U: core::convert::From<T>
+pub fn nika_check::RunDeclFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::RunDeclFinding where U: core::convert::Into<T>
+pub type nika_check::RunDeclFinding::Error = core::convert::Infallible
+pub fn nika_check::RunDeclFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::RunDeclFinding where U: core::convert::TryFrom<T>
+pub type nika_check::RunDeclFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::RunDeclFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::RunDeclFinding where T: core::clone::Clone
+pub type nika_check::RunDeclFinding::Owned = T
+pub fn nika_check::RunDeclFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::RunDeclFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::RunDeclFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::RunDeclFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::RunDeclFinding where T: ?core::marker::Sized
+pub fn nika_check::RunDeclFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::RunDeclFinding where T: ?core::marker::Sized
+pub fn nika_check::RunDeclFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::RunDeclFinding where T: core::clone::Clone
+pub unsafe fn nika_check::RunDeclFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::RunDeclFinding
+pub fn nika_check::RunDeclFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::RunDeclFinding where T: core::clone::Clone
+pub fn nika_check::RunDeclFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::RunDeclFinding where T: 'static
+pub fn nika_check::RunDeclFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::SchemaLintFinding
 pub nika_check::SchemaLintFinding::detail: alloc::string::String
 pub nika_check::SchemaLintFinding::path: alloc::string::String

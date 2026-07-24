@@ -15,6 +15,7 @@
 //! config: { … }           # optional · non-sensitive runtime config
 //! const: { … }            # optional · named constants
 //! secrets: { … }          # optional · vault-backed references
+//! run: { … }              # optional · entropy + clock declaration (F-P3)
 //! tasks: [ … ]            # required · non-empty (analyzer-enforced)
 //! outputs: { … }          # optional · the workflow's return contract
 //! ```
@@ -24,7 +25,7 @@
 
 use crate::source::Spanned;
 use crate::types::{
-    AssertProperty, OutputDecl, Permits, Policy, SchemaVersion, SecretRef, VarDecl,
+    AssertProperty, OutputDecl, Permits, Policy, RunDecl, SchemaVersion, SecretRef, VarDecl,
 };
 
 use super::task::RawTask;
@@ -67,6 +68,9 @@ pub struct RawWorkflow {
     /// RAW type expression · parsed/validated by the type core at
     /// check time, never here — the parser is shape-only).
     pub types: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
+    /// `run:` — the run's entropy + clock declaration (F-P3 · `None` =
+    /// absent = the status quo: `entropy: ambient` + `clock: system`).
+    pub run: Option<Spanned<RunDecl>>,
     /// `tasks:` — the DAG.
     pub tasks: Vec<Spanned<RawTask>>,
     /// `outputs:` — the workflow's return contract.
@@ -93,6 +97,7 @@ impl RawWorkflow {
             permits: None,
             policy: None,
             types: Vec::new(),
+            run: None,
             tasks: Vec::new(),
             outputs: Vec::new(),
             assert: Vec::new(),
@@ -122,6 +127,7 @@ mod tests {
         assert!(w.consts.is_empty());
         assert!(w.secrets.is_empty());
         assert!(w.types.is_empty());
+        assert!(w.run.is_none());
         assert!(w.outputs.is_empty());
     }
 }

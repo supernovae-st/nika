@@ -56,6 +56,11 @@
 //!   drift on the timestamps every run; bind `tasks.X.output` for the
 //!   value. Suppresses `dead-spend` for the same task (the output IS
 //!   consumed — in trap form).
+//! - **deadline against an undeclared clock** (`run-clock`) — a task
+//!   `timeout:` whose time source the envelope never names: the deadline
+//!   rides the ambient system clock (the honest status quo · WARN-dur,
+//!   NEVER a refusal — the existing corpus cannot turn red overnight);
+//!   declare `run: { clock: … }` to pin the choice (F-P3).
 
 use std::collections::BTreeSet;
 
@@ -71,8 +76,8 @@ pub struct Hint {
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` · `parallel-writers` ·
     /// `secrets-store` · `native-first` · `exec-json-capture` ·
-    /// `unwrapped-ref` · `envelope-output` · `policy-soft` (additive ·
-    /// agents route on it; the module doc describes each).
+    /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
+    /// (additive · agents route on it; the module doc describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -166,7 +171,46 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     // condition — this lane cannot see the escape scan).
     push_unresolvable_secret_hints(&mut hints, wf);
     push_unwrapped_output_ref_hints(&mut hints, wf);
+    push_run_clock_hint(&mut hints, wf);
     hints
+}
+
+/// The deadline-vs-undeclared-clock hint (F-P3 finding (b)): a task
+/// `timeout:` is a deadline ρ — and a deadline whose clock the envelope
+/// never names rides the ambient system clock. That is the honest status
+/// quo (WARN-dur · NEVER a refusal: the existing corpus cannot turn red
+/// overnight), so the hint teaches the declaration that pins the choice.
+/// One workflow-level row, however many tasks carry a deadline. The
+/// clock counts as named when `run.clock` is explicit OR when a
+/// deterministic `run.entropy` binds it by law (the virtual clock —
+/// `entropy: none | seeded` implies it); under those the deadline's
+/// time source IS declared.
+fn push_run_clock_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    let clock_named = wf.run.as_ref().is_some_and(|run| {
+        let decl = &run.value;
+        decl.clock.is_some() || decl.entropy_or_default().is_deterministic()
+    });
+    if clock_named {
+        return;
+    }
+    let deadlines = wf
+        .tasks
+        .iter()
+        .filter(|task| task.value.timeout.is_some())
+        .count();
+    if deadlines == 0 {
+        return;
+    }
+    hints.push(hint(
+        "run-clock",
+        "-",
+        format!(
+            "{deadlines} task(s) declare `timeout:` against an undeclared clock — the \
+             deadline rides the ambient system clock (the honest default, never a refusal); \
+             declare `run: {{ clock: system }}` to pin the choice out loud, or \
+             `clock: virtual` for a simulated clock (F-P3)"
+        ),
+    ));
 }
 
 /// The `redundant-gate` hint (6. non-tightening after) — `after:
@@ -1315,5 +1359,60 @@ mod tests {
             !plain.iter().any(|x| x.kind == "unwrapped-ref"),
             "{plain:?}"
         );
+    }
+
+    // ── F-P3 · the run-clock hint (finding (b) · WARN-dur, never a refusal) ──
+
+    #[test]
+    fn a_deadline_against_an_undeclared_clock_is_hinted() {
+        let h = hints_of(
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  slow:\n    exec: { command: [\"sleep\", \"1\"] }\n    timeout: \"5m\"\n",
+        );
+        let hit = h
+            .iter()
+            .find(|x| x.kind == "run-clock")
+            .expect("the undeclared-clock hint fires");
+        assert_eq!(hit.task, "-", "one workflow-level row");
+        assert!(hit.advice.contains("1 task(s)"), "{}", hit.advice);
+        assert!(
+            hit.advice.contains("run: { clock: system }"),
+            "the fix is spelled: {}",
+            hit.advice
+        );
+    }
+
+    #[test]
+    fn the_run_clock_hint_stays_silent_when_the_clock_is_named() {
+        // Explicit clock: — named.
+        let explicit = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nrun: { clock: system }\ntasks:\n  slow:\n    exec: { command: [\"sleep\", \"1\"] }\n    timeout: \"5m\"\n",
+        );
+        assert!(
+            !explicit.iter().any(|x| x.kind == "run-clock"),
+            "{explicit:?}"
+        );
+        // Deterministic entropy binds the virtual clock by law — named too.
+        let seeded = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nrun: { entropy: { seeded: 42 } }\ntasks:\n  slow:\n    exec: { command: [\"sleep\", \"1\"] }\n    timeout: \"5m\"\n",
+        );
+        assert!(!seeded.iter().any(|x| x.kind == "run-clock"), "{seeded:?}");
+        // No deadline at all — nothing to teach.
+        let no_timeout = hints_of(
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  fast:\n    exec: { command: [\"true\"] }\n",
+        );
+        assert!(
+            !no_timeout.iter().any(|x| x.kind == "run-clock"),
+            "{no_timeout:?}"
+        );
+    }
+
+    #[test]
+    fn the_run_clock_hint_counts_every_deadline_once() {
+        let h = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nrun: { entropy: ambient }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n    timeout: \"30s\"\n  b:\n    exec: { command: [\"true\"] }\n    timeout: \"30s\"\n",
+        );
+        let hits: Vec<_> = h.iter().filter(|x| x.kind == "run-clock").collect();
+        assert_eq!(hits.len(), 1, "one deduped row: {hits:?}");
+        assert!(hits[0].advice.contains("2 task(s)"), "{}", hits[0].advice);
     }
 }

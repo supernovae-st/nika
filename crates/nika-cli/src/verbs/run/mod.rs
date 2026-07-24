@@ -42,7 +42,7 @@ pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
 use nika_dap::resume::ResumeRequest;
 use nika_runtime::compose::{ProdRuntime, capabilities_of, production_runtime};
-use nika_runtime::{SystemStamper, scope_to_task};
+use nika_runtime::scope_to_task;
 
 /// The workflow's semantic hash for the run seal (the proof layer's
 /// Merkle commitment over the task leaves — `None` when any task is
@@ -557,7 +557,9 @@ fn composed_runtime(
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
-    match production_runtime(default_model, caps) {
+    // F-P3 · the run: declaration rides the SAME composition path (clock ·
+    // jitter seed — the stamper half is picked at the drive site).
+    match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
         Ok(rt) => {
             let rt = rt
                 // The child seam (spec 14) — children resolve against THIS file.
@@ -615,16 +617,19 @@ pub(crate) fn capture_mock_outputs(
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let caps = capabilities_of(wf);
-    let runtime = production_runtime("mock/echo", caps).map_err(|e| e.to_string())?;
+    let runtime = production_runtime("mock/echo", caps, wf.run.as_ref().map(|s| &s.value))
+        .map_err(|e| e.to_string())?;
     let runtime = runtime.with_skills(skills);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| format!("cannot start the async executor: {e}"))?;
     Ok(rt.block_on(async {
-        let mut stamper = SystemStamper::new();
+        // F-P3 · the declaration picks the stamper too (seeded/none →
+        // deterministic stamps — the test goldens stop drifting).
+        let mut stamper = nika_runtime::RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
-        let (code, outcome) = drive(&runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outcome) = drive(&runtime, wf, report, stamper.as_mut(), &mut sink).await;
         // Success is silent (the caller prints the test verdict); a failed
         // mock run surfaces its compact verdict card so the operator sees
         // WHY before the caller's exit.
@@ -743,7 +748,10 @@ async fn execute(
     outputs: bool,
     model_override: Option<&str>,
 ) -> RunVerdict {
-    let mut stamper = SystemStamper::new();
+    // F-P3 · the run: declaration picks the event-identity seam:
+    // `entropy: none | seeded(N)` mints deterministic stamps (replayable
+    // journals), ambient keeps the live `UUIDv7`+wall-clock stamper.
+    let mut stamper = nika_runtime::RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
     if output_json {
         // Machine-result mode (spec 01 §export · 08 §composition): the
         // fold is a DIAGNOSTIC → stderr (Plain deliberately — a pipe,
@@ -752,7 +760,7 @@ async fn execute(
         let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
         fold.set_plan(plan_waves(wf, report));
         let mut tee = Tee::new(fold, trace);
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (code, outcome) = drive(runtime, wf, report, stamper.as_mut(), &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
         let trace_path = surface_trace(trace, TraceNote::Stderr, None, seal_hash(wf).as_deref());
@@ -794,7 +802,7 @@ async fn execute(
         }
     } else if json {
         let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (code, outcome) = drive(runtime, wf, report, stamper.as_mut(), &mut tee).await;
         let (sink, trace) = tee.into_parts();
         // stdout stays NDJSON verbatim (byte-identical with or without the
         // journal) — the trace note rides on stderr here.
@@ -816,7 +824,7 @@ async fn execute(
             runtime,
             wf,
             report,
-            &mut stamper,
+            stamper.as_mut(),
             file,
             theme,
             (mode, resumed, outputs),
@@ -839,7 +847,7 @@ async fn execute_fold_lane(
     runtime: &ProdRuntime,
     wf: &RawWorkflow,
     report: &CheckReport,
-    stamper: &mut SystemStamper,
+    stamper: &mut dyn Stamper,
     file: &str,
     theme: Theme,
     (mode, resumed, outputs): (RenderMode, bool, bool),
