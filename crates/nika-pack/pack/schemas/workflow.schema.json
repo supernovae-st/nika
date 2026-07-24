@@ -297,6 +297,45 @@
         }
       }
     },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The run's entropy + clock declaration (NEP-0010) · every source of randomness and time is declared, never ambient · the dimensions couple: only ambient×system (the status quo) and none|seeded×virtual (the deterministic states) are legal · a contradiction refuses at parse (NIKA-PARSE-019).",
+      "properties": {
+        "entropy": {
+          "description": "none (strict determinism) · ambient (the honest status quo, default) · { seeded: <u64> } (the deterministic seams + the pinned seed · two runs of the same file with the same seed produce byte-identical journals)",
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "ambient"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "seeded": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "The run's pinned seed (u64)"
+                }
+              },
+              "required": [
+                "seeded"
+              ]
+            }
+          ]
+        },
+        "clock": {
+          "enum": [
+            "system",
+            "virtual"
+          ],
+          "description": "system (wall time, default) · virtual (the injected virtual clock · time becomes a contract input · a timeout: budget reads against it)"
+        }
+      }
+    },
     "policy": {
       "type": "object",
       "additionalProperties": false,
@@ -551,7 +590,7 @@
         "inert": {
           "type": "string",
           "minLength": 1,
-          "description": "The honest door of the data-as-code sink (spec/10-authority.md \u00a7the data-as-code sink \u00b7 NEP-0006 \u00b7 LAW-AUTH-0327) \u00b7 declares this task's fetch a code-bearing artifact it will never load or run \u00b7 the non-empty string IS the justification \u00b7 lifts the sink law only, never the net boundary or the SSRF floor."
+          "description": "The honest door of the data-as-code sink (spec/10-authority.md §the data-as-code sink · NEP-0006 · LAW-AUTH-0327) · declares this task's fetch a code-bearing artifact it will never load or run · the non-empty string IS the justification · lifts the sink law only, never the net boundary or the SSRF floor."
         },
         "declassify": {
           "type": "array",
