@@ -93,7 +93,15 @@ pre-push:
       # Forward git's pre-push refspec (<local-ref> <local-sha> <remote-ref>
       # <remote-sha>) to the hook — lefthook v2 defaults to /dev/null otherwise,
       # which hangs the `while read` loop indefinitely.
-      stdin: true
+      #
+      # The key is `use_stdin`, not `stdin`. This asked for `stdin: true` from
+      # the day the comment above was written; lefthook drops unknown keys
+      # without a word, so the documented remedy was never actually applied
+      # and the guard kept the default. `lefthook dump` is what says so: it
+      # prints the config as PARSED, and this command had no stdin option
+      # while its sibling `gate` right below carried `use_stdin: true` all
+      # along. A silent key is worse than a missing one.
+      use_stdin: true
       run: bash scripts/hooks/force-push-guard.sh
 
 post-commit:

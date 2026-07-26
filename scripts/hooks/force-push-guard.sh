@@ -52,13 +52,28 @@ check_force_push() {
 # the test always failed even when git provided real stdin data. The correct
 # portable test is simply `! -t 0` — "stdin is not a terminal" — which is
 # true for both pipes and redirections on all platforms.
+#
+# `! -t 0` says "stdin is not a terminal". That is true of git's refspec
+# pipe, of /dev/null, AND of an inherited socket, and those three want
+# three different behaviours. Two consequences were live:
+#   · /dev/null took this branch, read EOF at once and `exit 0` — the
+#     lefthook path never reached the derive-from-state check below, so
+#     the guard has been guarding NOTHING whenever lefthook ran it.
+#   · an inherited socket (a non-TTY push, e.g. an agent shell) takes it
+#     too and never sees EOF, so the loop blocks forever and no push can
+#     leave that machine.
+# Bounding the read separates them: real refspec lines arrive at once,
+# and a silent stdin falls through to the state-derived check instead of
+# hanging or waving the push past unexamined.
 if [[ ! -t 0 ]]; then
-  while IFS=' ' read -r _local_ref local_sha remote_ref remote_sha; do
+  saw_refspec=0
+  while IFS=' ' read -r -t 5 _local_ref local_sha remote_ref remote_sha; do
     [[ -z "$_local_ref" ]] && continue
+    saw_refspec=1
     branch="${remote_ref#refs/heads/}"
     check_force_push "$branch" "$local_sha" "$remote_sha" || exit 1
   done
-  exit 0
+  [[ "$saw_refspec" -eq 1 ]] && exit 0
 fi
 
 # Lefthook-invoked path (stdin is /dev/null): derive branch + remote sha
