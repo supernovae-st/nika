@@ -294,4 +294,32 @@ mod tests {
             "skip_serializing_if drops absent categories"
         );
     }
+
+    #[test]
+    fn env_passthrough_returns_exactly_what_was_declared() {
+        // The accessor the spawn sites read to compose a child environment
+        // (NEP-0005). It had NO test, and cargo-mutants proved the cost:
+        // three mutants survived here, returning an empty slice, a slice of
+        // one empty name, and a slice naming "xyzzy" — a mutant able to
+        // invent an environment name nobody declared, undetected. An
+        // accessor on the authority boundary has to be pinned by VALUE.
+        let mut p = Permits::new();
+        assert!(
+            p.env_passthrough().is_empty(),
+            "an omitted env: category passes nothing through"
+        );
+
+        p.env = Some(vec!["HOME".into(), "TZ".into()]);
+        assert_eq!(
+            p.env_passthrough(),
+            ["HOME".to_string(), "TZ".to_string()],
+            "the accessor returns the declared names, in order, and nothing else"
+        );
+
+        p.env = Some(Vec::new());
+        assert!(
+            p.env_passthrough().is_empty(),
+            "an explicitly empty env: is still nothing, not a default"
+        );
+    }
 }
