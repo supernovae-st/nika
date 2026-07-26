@@ -130,7 +130,13 @@ mod tests {
     }
 
     fn stage(name: &str, raw: &str) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(format!("nika-anchor-{name}"));
+        // The pid keeps the staged file this PROCESS's own. Without it the
+        // name is a fixed slot in the shared system temp dir, so a second
+        // `cargo test -p nika-cli` (a pre-push gate beside a manual run, two
+        // agents, a retried CI leg) reads or unlinks the first one's file
+        // mid-test and the assertion dies on a path that "does not exist".
+        // Same idiom as mcp_pins.rs, which already carries the pid.
+        let path = std::env::temp_dir().join(format!("nika-anchor-{}-{name}", std::process::id()));
         std::fs::write(&path, raw).expect("stage");
         path
     }
