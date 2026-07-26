@@ -10,7 +10,7 @@
 | Edition | 2024 |
 | Publish | `true` — publishable on crates.io (nika-bm25 class · pure-algo external value) |
 | Errors | `NIKA-BUILTIN-IMAGE_FX-001..006` (assigned by the `nika-builtin` wiring · the crate's own `FxError` is the typed source) |
-| Reference | FX master plan `dx/.claude/plans/active/master/2026-07-09-nika-fx-native-media-master-plan.md` (§12-B pins every algorithm) |
+| Reference | FX master plan · private DX surface (§12-B pins every algorithm) |
 
 ---
 

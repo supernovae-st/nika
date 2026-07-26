@@ -156,7 +156,7 @@ pub const NIKA_600: NikaCode = NikaCode {
 //   - 635..=639  reserved · nika-fsrs
 //   - 640..=644  reserved · nika-rdfs-reasoner / graph-algos / temporal / autodesc
 //   - 645..=649  reserved · nika-memory L2 orchestrator
-// See dx/.claude/plans/active/sprint/2026-05-11-diamond-memory-phase-1-entry-plan.md §2.
+// Ranges reserved by the memory-phase entry plan (private DX surface).
 
 /// NIKA-601: Memory store unavailable (provider misconfigured · runtime down).
 pub const NIKA_601: NikaCode = NikaCode {

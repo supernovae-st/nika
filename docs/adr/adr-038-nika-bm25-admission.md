@@ -126,7 +126,7 @@ Per `dx/.claude/rules/steal-pattern.md` §"Step 0 — Consumer-signal gate" (Wav
 
 - `crates/nika-kernel-ai/src/memory.rs:218-223` — `MemoryRecall` trait definition that `nika-bm25` will implement
 - `crates/nika-error/src/codes/registry.rs:140-186` — NIKA_600 placeholder + NIKA_601..604 active + NIKA-620..629 reserved for this crate
-- W3 admission plan in the SuperNovae monorepo `dx/.claude/plans/active/sprint/` (private DX surface · not engine-bound)
+- W3 admission plan · private SuperNovae DX surface (not engine-bound)
 - Commit anchor pre-W3 · `git log --oneline -1` on `main` at admission time will land in the W3 closeout commit body
 
 ## Alternatives considered

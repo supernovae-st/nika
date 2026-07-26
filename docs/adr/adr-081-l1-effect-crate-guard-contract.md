@@ -26,9 +26,9 @@ follow_ups: ["per-guard impl review at each M2.X close", "DEF-1 KernelError seal
 
 ## Context
 
-Phase 2 M2 dispatches 6 L1 effect crates (`nika-screen` · `nika-ocr` · `nika-a11y` · `nika-input` · `nika-browser` · `nika-vision-local`) which implement the L0.5 sealed traits shipped in M1 (per `dx/.claude/plans/active/sprint/2026-05-14-nika-phase-2-m1-kernel-modules-sprint-plan.md`). These crates collectively give the Olympus cockpit (atelier consumer) headless computer-use capability — screen capture · OCR · accessibility tree query · synthetic input · browser automation · local vision inference.
+Phase 2 M2 dispatches 6 L1 effect crates (`nika-screen` · `nika-ocr` · `nika-a11y` · `nika-input` · `nika-browser` · `nika-vision-local`) which implement the L0.5 sealed traits shipped in M1 (per the Phase 2 M1 kernel-modules sprint plan · private DX surface). These crates collectively give the Olympus cockpit (atelier consumer) headless computer-use capability — screen capture · OCR · accessibility tree query · synthetic input · browser automation · local vision inference.
 
-The 6-review-pass audit on M1 close (commits 4836cf7a + 438234ad2) surfaced **5 HIGH security findings** in `studio/architecture/research/2026-05-14-olympus-computer-use-megabundle/15-phase2-m1-security-review.md` · all 5 deferrable to L1 effect crate admission because L0.5 ships only sealed traits + DTOs (zero impl). The findings cluster around 7 concrete guards required across the 6 effect crates · documented verbatim in the Phase 2 M2 entry conditions doc (`dx/.claude/plans/active/sprint/2026-05-14-nika-phase-2-m2-entry-conditions.md` §2 EC-1) ·
+The 6-review-pass audit on M1 close (commits 4836cf7a + 438234ad2) surfaced **5 HIGH security findings** in the Phase 2 M1 security review (private studio surface) · all 5 deferrable to L1 effect crate admission because L0.5 ships only sealed traits + DTOs (zero impl). The findings cluster around 7 concrete guards required across the 6 effect crates · documented verbatim in the Phase 2 M2 entry-conditions doc §2 EC-1 (private DX surface) ·
 
 ```
 L1 nika-input · password-typing redaction guard (intercept type_text into
@@ -195,9 +195,9 @@ All 5 shadow zones addressed by 7-guard contract · cohérent Diamond engine 7 s
 ### Source · empirical research
 - `studio/architecture/research/2026-05-14-olympus-computer-use-megabundle/15-phase2-m1-security-review.md` (5 HIGH findings · trigger for this ADR)
 - `studio/architecture/research/2026-05-14-olympus-computer-use-megabundle/INDEX.md` (18 reports total · 6-review pass post M1)
-- `dx/.claude/plans/active/sprint/2026-05-14-nika-phase-2-m2-entry-conditions.md` §2 EC-1 (7 L1 guards verbatim)
-- `dx/.claude/plans/active/sprint/2026-05-14-nika-phase-2-m2-1-nika-screen-l1-admission.md` (companion sprint plan · this ADR ships SAME-BATCH as B.1)
-- `dx/.claude/plans/active/master/2026-05-14-olympus-computer-use-and-spatial-cockpit-master-plan.md` §3 M2 (parent master plan · M2.1..M2.6 sequence)
+- Phase 2 M2 entry-conditions §2 EC-1 · private DX surface (7 L1 guards verbatim)
+- nika-screen L1 admission · private DX surface (companion sprint plan · this ADR ships SAME-BATCH as B.1)
+- Olympus computer-use master plan §3 M2 · private DX surface (parent · M2.1..M2.6 sequence)
 
 ### Companion · future
 - (TBD) `nika/engine/scripts/hygiene/check-l1-guard-compliance.sh` (P2/warn ratchet candidate post 3+ L1 admissions)
@@ -236,7 +236,7 @@ All 5 shadow zones addressed by 7-guard contract · cohérent Diamond engine 7 s
                 (nika-screen M2.1) admission close · auto-flip to Accepted
                 when Gate 2 audit confirms ADR-081 cited in nika-screen
                 Cargo.toml + README.md.
-              · Companion · dx/.claude/plans/active/sprint/2026-05-14-nika-
-                phase-2-m2-1-nika-screen-l1-admission.md (ships SAME-BATCH
-                as B.1 trait extension + ADR companion).
+              · Companion · the nika-screen L1 admission sprint plan
+                (private DX surface · ships SAME-BATCH as B.1 trait
+                extension + ADR companion).
 ```
