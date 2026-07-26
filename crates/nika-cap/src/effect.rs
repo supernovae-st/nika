@@ -312,4 +312,37 @@ mod tests {
             ));
         }
     }
+
+    #[test]
+    fn is_pure_internal_separates_the_two_classes() {
+        // NEP-0003 · this predicate decides which tools need NO authority
+        // under an absent permits block, which is F-O8 territory: absent
+        // means zero authority, and this is the one door through it.
+        // cargo-mutants killed neither `-> true` nor `-> false` here, so
+        // a mutant declaring EVERY tool pure-internal (every tool allowed
+        // under an absent block) went unnoticed. Both directions are
+        // pinned, because one assertion only kills one of the two.
+        assert!(
+            is_pure_internal("nika:jq"),
+            "a pure compute tool needs no authority"
+        );
+        assert!(
+            is_pure_internal("nika:hash"),
+            "a second pure tool · one example could be an accident"
+        );
+        assert!(
+            !is_pure_internal("nika:fetch"),
+            "network egress is NOT pure-internal · this is the assertion a \
+             `-> true` mutant dies on"
+        );
+        assert!(
+            !is_pure_internal("nika:write"),
+            "a filesystem write is NOT pure-internal"
+        );
+        assert!(
+            !is_pure_internal("nika:definitely_not_a_tool"),
+            "an unknown name is not pure by default · the list is a closed \
+             allowlist, never a fallback"
+        );
+    }
 }
