@@ -344,7 +344,7 @@ criterion   = { version = "0.5", features = ["html_reports"] }
 proptest    = "1.6"
 insta       = { version = "1.42", features = ["yaml"] }
 tempfile    = "3"   # nika-ocr dev — model-load error-path fixtures (with_models headless tests)
-rstest      = "0.22"
+rstest      = "0.26"
 expect-test = "1.5"  # inline snapshots, see ADR-015
 expectrl    = "0.8"  # PTY e2e — the wizard's TTY-gated conversation (unix-only tests)
 
