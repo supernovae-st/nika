@@ -345,4 +345,48 @@ mod tests {
              allowlist, never a fallback"
         );
     }
+
+    #[test]
+    fn the_media_writers_each_declare_their_write() {
+        // cargo-mutants could DELETE either media arm of builtin_effect and
+        // nothing failed. A deleted arm means the tool stops declaring a
+        // filesystem WRITE, so the checker stops demanding an `fs:` write
+        // permit for it: an authority hole with no error message. The file
+        // already records this exact class biting once, chart being
+        // INVISIBLE here until 2026-07-11, the inference writing a boundary
+        // the run then refused. Each arm is pinned to the path_arg it
+        // claims, so a deletion cannot be silent twice.
+        for tool in ["nika:image_generate", "nika:tts_generate"] {
+            match builtin_effect(tool, None) {
+                Some(BuiltinEffect::Fs {
+                    path_arg,
+                    reads,
+                    writes,
+                    recursive,
+                }) => {
+                    assert_eq!(path_arg, "output_dir", "{tool} writes into output_dir");
+                    assert!(writes, "{tool} is a write");
+                    assert!(!reads, "{tool} does not read");
+                    assert!(recursive, "{tool} lands assets + manifest · recursive");
+                }
+                other => panic!("{tool} must declare an Fs write · got {other:?}"),
+            }
+        }
+        for tool in ["nika:image_fx", "nika:chart"] {
+            match builtin_effect(tool, None) {
+                Some(BuiltinEffect::Fs {
+                    path_arg,
+                    reads,
+                    writes,
+                    recursive,
+                }) => {
+                    assert_eq!(path_arg, "out", "{tool} writes a single artifact to out");
+                    assert!(writes, "{tool} is a write");
+                    assert!(!reads, "{tool} read side is runtime-gated, not static");
+                    assert!(!recursive, "{tool} is one artifact, not a tree");
+                }
+                other => panic!("{tool} must declare an Fs write · got {other:?}"),
+            }
+        }
+    }
 }
