@@ -776,3 +776,7 @@ fn check_image_v1_reservations(
         );
     }
 }
+
+#[cfg(test)]
+#[path = "shape_tests.rs"]
+mod tests;

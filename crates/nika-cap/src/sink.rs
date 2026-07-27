@@ -223,4 +223,28 @@ mod tests {
             Some(("script/interpreter", ".py"))
         );
     }
+
+    #[test]
+    fn percent_decode_reads_one_layer_and_leaves_the_rest_alone() {
+        // The traversal case this guards: %2e%2e%2f is ../ once decoded.
+        assert_eq!(percent_decode_once("%2e%2e%2f"), "../");
+        assert_eq!(percent_decode_once("%2E%2E%2F"), "../");
+        assert_eq!(percent_decode_once("%41"), "A");
+
+        // ONCE, not to a fixed point — a double-encoded dot yields the
+        // literal `%2e`, which is the whole point of the name.
+        assert_eq!(percent_decode_once("%252e"), "%2e");
+
+        // Bytes that are not a triplet are carried through untouched. Two
+        // hex digits sitting next to each other are not an escape.
+        assert_eq!(percent_decode_once("abc"), "abc");
+        assert_eq!(percent_decode_once("plain/path.txt"), "plain/path.txt");
+
+        // Invalid or truncated triplets stay as-is (normalizer posture),
+        // including one that runs off the end of the segment.
+        assert_eq!(percent_decode_once("%ZZ"), "%ZZ");
+        assert_eq!(percent_decode_once("a%4"), "a%4");
+        assert_eq!(percent_decode_once("%"), "%");
+        assert_eq!(percent_decode_once(""), "");
+    }
 }
