@@ -45,14 +45,23 @@ case "$file" in
   *) done_quiet ;;
 esac
 
-if [ ! -f "$file" ] || ! command -v nika >/dev/null 2>&1; then
+# NIKA_BIN wins when set — the seatbelt judges with the binary the WORK
+# targets, not only whatever the PATH serves. Proven need 2026-07-27: the
+# E-split window, where every ratified-grammar file on this machine drew a
+# cry from the PATH's 0.105 while engine main already spoke the new forms.
+# Pointing NIKA_BIN at a main-built nika lets the hook judge 0.106 work
+# BEFORE brew serves it. Same capability-honesty: an unset or broken
+# NIKA_BIN falls back to silence, never to a failure.
+NIKA="${NIKA_BIN:-nika}"
+
+if [ ! -f "$file" ] || ! command -v "$NIKA" >/dev/null 2>&1; then
   # Missing file or binary: nothing to audit (the skill teaches the
   # install line) — stay silent and let the edit flow.
   done_quiet
 fi
 
 set +e
-findings="$(nika check "$file" --color never 2>&1)"
+findings="$("$NIKA" check "$file" --color never 2>&1)"
 rc=$?
 set -e
 
