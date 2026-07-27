@@ -287,7 +287,7 @@ serde_json_canonicalizer = "0.3"   # nika-runtime L3 — RFC 8785 JCS bytes unde
 annotate-snippets = "0.12"          # nika-cli L4 — rustc-grade painted diagnostics (rust-lang org · cargo depends on it · MIT OR Apache-2.0)
 anstyle = "1"                       # nika-cli L4 — the Style type annotate-snippets' renderer consumes (colour stays OUR seam mapping)
 unicode-normalization = "0.1"   # nika-exec-runner L1 — NFKC confusable-bypass defense in the command blocklist (MIT OR Apache-2.0)
-nix           = { version = "0.30", default-features = false, features = ["signal"] }   # nika-exec-runner L1 (unix) — safe killpg wrapper for process-group kill (encapsulates the unsafe signal FFI → crate stays unsafe_code = forbid · MIT)
+nix           = { version = "0.31", default-features = false, features = ["signal"] }   # nika-exec-runner L1 (unix) — safe killpg wrapper for process-group kill (encapsulates the unsafe signal FFI → crate stays unsafe_code = forbid · MIT)
 futures-core  = "0.3"
 parking_lot   = "0.12"
 tokio         = { version = "1", features = ["rt", "macros", "time"] }
