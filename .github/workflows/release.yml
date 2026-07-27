@@ -211,6 +211,12 @@ jobs:
       contents: write # create the release + upload assets
       id-token: write # SLSA provenance · OIDC identity for Sigstore
       attestations: write # publish the build-provenance attestation
+      # --discussion-category rides the createRelease call, and creating
+      # that discussion needs its own scope: without it GitHub answers
+      # HTTP 404 (not 403) and the release is NOT created. Third distinct
+      # first-exercise failure of the front-page step on v0.106.0 —
+      # Discussions were on and « Announcements » existed the whole time.
+      discussions: write
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
