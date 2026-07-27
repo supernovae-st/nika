@@ -11,9 +11,9 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-event  = { path = "../nika-event", version = "0.105.0" }  # the REAL event taxonomy (the fold input)
-nika-types  = { path = "../nika-types", version = "0.105.0" }  # Timestamp · KeyValue · ids
-nika-check  = { path = "../nika-check", version = "0.105.0" }  # the ByteSpan the snippet painter maps
+nika-event  = { path = "../nika-event", version = "0.106.0" }  # the REAL event taxonomy (the fold input)
+nika-types  = { path = "../nika-types", version = "0.106.0" }  # Timestamp · KeyValue · ids
+nika-check  = { path = "../nika-check", version = "0.106.0" }  # the ByteSpan the snippet painter maps
 annotate-snippets = { workspace = true }                       # painted spans (rustc-grade frames through the Theme seam)
 anstyle     = { workspace = true }                             # Role→Style mapping for the snippet renderer
 serde_json  = { workspace = true }                             # the shape reader parses task output JSON

@@ -10,42 +10,302 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.106.0](https://github.com/supernovae-st/nika/compare/v0.105.0..v0.106.0) - 2026-07-27
+
+**The authority release.** Two flag-days land in the same window, and both
+change what an existing file MEANS. The envelope's value forms split into the
+four authorities — `vars:` and `env:` are dead, `inputs:` · `config:` ·
+`const:` · `secrets:` are the whole family — and a `permits:` block stops
+being optional: absent is now the EMPTY boundary, not the unconfined floor.
+Around them the attestation lane arrives whole: a run declares its entropy and
+its clock, boots from a manifest, seals what it covered, signs, anchors to a
+public transparency log, and exports a pack an auditor reads without trusting
+us. This is the first release where a workflow written yesterday can refuse to
+check today. The migration is the front page, not a footnote — `nika check
+--fix` applies the mechanical half and STOPS untouched rather than guess at
+the rest.
+
+### ⚠️ Migration
+
+#### 1 · The value authorities — `vars:` and `env:` are dead (R3a « the E-split » · #669)
+
+The law is **classify-not-rename**: every old entry moves to the authority its
+ROLE commands, never to one bulk destination.
+
+| Dead form | Classify it as | Refusal |
+|---|---|---|
+| `vars:` entry · a typed parameter a caller supplies | `inputs:` (typed · `required:` · `default:`) | `NIKA-VALUES-001` |
+| `vars:` entry · a fixed value baked into the file | `const:` (bare literal, or `{ type, value }`) | `NIKA-VALUES-001` |
+| `env:` entry · non-sensitive runtime configuration | `config:` (typed · deployment-supplied) | `NIKA-VALUES-002` |
+| `env:` entry · a credential | `secrets:` (a store reference · never a literal) | `NIKA-VALUES-002` |
+| `env:` entry · a name a child process must see | `permits: { env: [NAME] }` (exact names) | `NIKA-VALUES-002` |
+| `${{ vars.X }}` · `${{ env.X }}` | the authority the role commands | `-001` · `-002` |
+| `${{ anything_else.X }}` | the family is closed: inputs · config · const · secrets | `NIKA-VALUES-003` |
+
+`nika check --fix` migrates the `vars:` half mechanically — comment-preserving,
+idempotent, and class-aware (the name→class map comes from the file's own
+block, never a blind rename). It leaves the file UNTOUCHED and names the reason
+on a credential-shaped name, a typed-only declaration, a flow-style
+`vars: {…}` header, a `required: true` entry without `type:`, or an empty
+block: atomic-or-nothing, the codemod never guesses. **`env:` has no
+mechanical repair** — re-shaping a flat string map into typed `config:`
+declarations is a human classification, and the teaching says so at the point
+of refusal.
+
+Two consequences worth reading twice · `config:` resolves ONLY against the
+declared block, so the engine never silently falls back to the OS environment
+(every value a workflow depends on is visible in the file); and `--var` now
+names `inputs:` — the flag keeps its spelling, its target moved.
+
+#### 2 · The boundary — absent `permits:` is zero authority (F-O8 · NEP-0003 · #691)
+
+A missing `permits:` block used to be the unconfined floor. It is now the
+EMPTY boundary: a body carrying any effect with no block refuses
+`NIKA-AUTH-006` at check — before a token is spent — and the runtime gates
+refuse before any spawn. Only a pure-compute body stays clean, and it gets a
+hint teaching `permits: {}`, the legal zero. The 39 embedded workflows that
+shipped with this repo — examples, showcase tiers, templates, battery files —
+each had to declare its inferred block: that is the blast radius, measured
+rather than guessed. The repair is one command —
+`nika check --infer-permits` prints the tightest block, and the round-trip law
+holds (the inferred block re-checks clean).
+
+Four more refusals ride the same window. Each was previously admitted:
+
+| Refusal | What it now refuses |
+|---|---|
+| `NIKA-AUTH-007` | an interpolation reaching a permit BOUND (host · glob · program · env name) — a bound MUST be a literal, or the boundary is self-serve |
+| `NIKA-AUTH-008` | an untrusted value whose canonical resolved form escapes the step's permit (the static twin of the runtime re-gate) |
+| `NIKA-AUTH-009` | a `permits: env:` entry naming a dangerous-floor variable — the engine strips it unconditionally, so the grant is an inert dead grant |
+| `NIKA-AUTH-010` | `*.example.com` in `permits.net.http` — the `*.` subdomain wildcard delegates the boundary to the zone operator (every host under the suffix, present and future). Name exact hosts, or the bare `*` when allow-all is genuinely intended |
+| `NIKA-SEC-008` | a `nika:fetch` whose resolved URL path names a code-bearing class with no `inert:` door declared — the read hides an execution sink (NEP-0006) |
+
+And one law that carries no code but changes what a child process SEES · **a
+spawned child no longer inherits the engine environment**. Its environment is
+COMPOSED from a cleared slate — the runner floor ∪ the names declared in
+`permits: env:` ∪ the task's own `env:` map, the dangerous names stripped last
+(F-O4 · NEP-0005). A workflow that relied on an ambient variable reaching an
+`exec:` child must now name it.
+
+#### 3 · The embedder cut — `nika-schema` → `nika-check` (#683 · no re-export shims)
+
+| Before | After |
+|---|---|
+| `nika_schema::{analyze, AnalyzedWorkflow}` | `nika_check::{analyze, AnalyzedWorkflow}` |
+| `nika_schema::{check, check_composed, infer_permits}` | `nika_check::{…}` |
+| `nika_vocab::VarType` (the flat 6-enum) | the full `TypeExpr` of spec 09 |
+| `NIKA-PARSE-019` (entropy × clock) | `NIKA-PARSE-026` · `-027` · `-028` |
+| `NIKA-PARSE-015` (malformed typed `vars:`) | **retired · never reused** — what it refused is admitted by `TypeExpr`; what stays outside the grammar refuses `NIKA-TYPE-001` |
+
+`nika-schema` keeps its blueprint shape (THE PARSER: AST + raw + error +
+keysets). Every consumer inside this repo — cli · lsp · runtime · dap · mcp ·
+verb-agent · lints · graph · display · onboard · the fuzz harness — already
+points at `nika_check`; what migrates is the embedding code outside this repo.
+The cut is clean by choice: a shim would have kept two names for one judgment.
+
+The retired and re-minted codes count as breaking for anyone FILTERING on
+them — a tool watching `NIKA-PARSE-019` for the entropy × clock contradiction
+will never see it pass again.
+
+#### 4 · The predicates and the type grammar (R5 · #677 · R3b · #673)
+
+| Dead form | The respelling | Refusal |
+|---|---|---|
+| `after: { t: succeeded }` | `after: { t: success }` | `NIKA-DAG-005` |
+| `after: { t: failed }` | `after: { t: failure }` | `NIKA-DAG-005` |
+| `type: boolean` | `type: bool` — the one boolean spelling, no alias | `NIKA-TYPE-001` |
+| bare `type: array` · `type: object` | `{ array: T }` · `{ object: { … } }` | `NIKA-TYPE-001` |
+| a `default:` that does not fit its own `type:` | fix the value, or the type | `NIKA-DEFAULT-001` |
+
+`skipped` and `terminal` are unchanged. `nika check --fix` applies the
+predicate respelling 1:1 — flow and block `after:` forms, quoted values,
+comments preserved, idempotent; a `when:` status comparison is the
+`NIKA-DAG-007` class and is never touched. `NIKA-DEFAULT-001` closes a real
+soundness hole: a declared default that could never satisfy its own type used
+to sail through.
+
 ### Added
 
-- **`nika-check`** — the static judgment crate (new L0 member · split
-  from `nika-schema` at the 15k crate-size wall; the
-  nika-graph/nika-dap precedents): the workflow analyzer (`analyze` ·
-  `AnalyzedWorkflow` · the ONE derived-DAG-edge computation every
-  surface projects) plus the whole `nika check` ladder (`check` ·
-  `check_composed` · cost ceiling · secret-leak IFC · capability-escape
-  fit · trifecta · policy · gate reachability · the RunCertificate ·
-  `infer_permits`). `nika-schema` keeps its blueprint shape (THE PARSER:
-  AST + raw + error + keysets) and every consumer — cli · lsp · runtime
-  · dap · mcp · verb-agent · lints · graph · display · onboard · the
-  fuzz harness — now points at `nika_check` directly (no re-export
-  shims; the clean cut). Static judgment without the CLI, for the
-  embedder/SDK surface.
+- **`nika-check`** — the static judgment crate (new L0 member · split from
+  `nika-schema` at the 15k crate-size wall; the nika-graph/nika-dap
+  precedents): the workflow analyzer (`analyze` · `AnalyzedWorkflow` · the ONE
+  derived-DAG-edge computation every surface projects) plus the whole `nika
+  check` ladder (`check` · `check_composed` · cost ceiling · secret-leak IFC ·
+  capability-escape fit · trifecta · policy · gate reachability · the
+  `RunCertificate` · `infer_permits`). Static judgment without the CLI, for
+  the embedder/SDK surface (§Migration 3 for the import map).
 
-- **The run's lifecycle is attested (F-P2 · NEP-0011 draft)** — the
+- **`run:` — the run declares its entropy and its clock** (F-P3 · NEP-0010 ·
+  #711) — a new envelope block with two keys: `entropy:` (`ambient` · `none` ·
+  `{ seeded: <n> }`) and `clock:` (`system` · `virtual`). A declared pair that
+  contradicts itself refuses at parse (`NIKA-PARSE-026` ambient × virtual ·
+  `NIKA-PARSE-027` none|seeded × system), and an `entropy: none` that
+  nevertheless consumes a structural randomness source refuses at check
+  (`NIKA-PARSE-028`). `ambient` is the default when `run:` is absent — the
+  honest status quo, so nothing that ran before changes. Determinism becomes a
+  declaration the engine holds you to, not a hope.
+
+- **The run's lifecycle is attested** (F-P2 · NEP-0011 draft · #718) — the
   `workflow_started` prologue becomes a boot manifest (`spec_pin` ·
-  `stamper_kind` · the resolved `clock` · `seed` under a determinism
-  demand); the run seal's `covers` extends additively with the folded
-  `receipt_digest`, the consumed budgets and the exercised effects
-  (the classic four-field seal stays byte-identical); a journal that
-  never reached a lifecycle-terminal frame verifies **INCOMPLETE** —
-  the verifier's finding, never the dying run's silence; and a check
-  report stamped with a different semantic hash than the booting
-  workflow refuses before the first event (the judged-vs-booted
-  binding · exit 2 · semantic grain).
+  `stamper_kind` · the resolved `clock` · `seed` under a determinism demand);
+  the run seal's `covers` extends additively with the folded `receipt_digest`,
+  the consumed budgets and the exercised effects (the classic four-field seal
+  stays byte-identical); a journal that never reached a lifecycle-terminal
+  frame verifies **INCOMPLETE** — the verifier's finding, never the dying
+  run's silence; and a check report stamped with a different semantic hash
+  than the booting workflow refuses before the first event (the
+  judged-vs-booted binding · exit 2 · semantic grain).
+
+- **The receipt fortress — bounds are code** (F-P1 · NEP-0012 draft · #721) —
+  the verifier is the one component guaranteed to parse attacker-supplied
+  bytes, so its bounds became named constants on every profile: 1 MiB per
+  document, a string-aware pre-parse depth scan at 32, proof-bearing arrays at
+  64, identifier strings at 256. The chain walk refuses an over-long line
+  BEFORE the parse (the new `LineOverLong` verdict, rendered as a FILE refusal
+  by `trace verify` and an honest refusal by the evidence pack), and the
+  anchor sidecar loads through the same door.
+
+- **`nika sign` · `nika key` · `run --require-signature`** (S3 · #660 · #655) —
+  workflow author-binding. `nika sign <file>` mints `<file>.minisig`
+  (`--check` verifies); `nika key` is the run-signing key lifecycle (mint ·
+  TOFU fingerprint · rotate — old public halves stay verifiable); `nika run
+  --require-signature` refuses an unsigned or invalidly-signed workflow at
+  exit 2. Runs emit a signed `run_sealed` event under run-key custody.
+
+- **`nika trace anchor`** (#665) — notarize the journal head OUTSIDE the
+  journal: the post-seal head, signed with the run key, submitted to the
+  public Sigstore Rekor v2 transparency log plus an RFC 3161 timestamp,
+  writing a detached `<trace>.anchor.json` sidecar. An explicit NETWORK act —
+  this verb IS the opt-in. `nika trace verify` now climbs a four-tier ladder
+  and reports the highest honestly-attained tier: chain OK · **SEALED** (the
+  `run_sealed` signature verifies against a custody key) · **ANCHORED** (the
+  sidecar verifies fully offline) · **REPLAYED** (`--replay` compares a fresh
+  run; verify never re-executes).
+
+- **`nika evidence`** (#662) — export the evidence pack for one run: journal +
+  manifest + receipt + a `VERIFY.md` that tells an auditor what to run.
+
+- **The permit-decision witness** (F-O6 · NEP-0007 · #701) — every permit
+  decision is recorded in the journal, granted and refused alike, so
+  `trace verify` can judge the boundary a run actually rode; and the
+  check ⇔ run equivalence oracle proves the two agree. `trace_format` stays 2
+  (the witness rides existing frames · no wire bump).
+
+- **MCP tool pinning — TOFU + fail-closed drift** (#657) — a configured MCP
+  server that changes its tool definitions after you approved them is the rug
+  pull. Per-tool pins (blake3 over a domain-separated canonical pre-image)
+  land in `.nika/mcp_pins.json` (`mcp_pins_format: 1`) beside a reviewable
+  snapshot; first contact enrolls loudly, a match proceeds silently, ANY drift
+  fails closed with a diff naming the CHANGED field and returns no tools. A
+  hand-edited lockfile is `NIKA-MCP-004`, never a silent re-TOFU.
+  **`nika mcp approve <server>`** re-pins after human review.
+
+- **The exec sandbox is wired** (ADR-095 L6 · #642) — `permits:` jails the
+  child (seatbelt on macOS · landlock/bubblewrap on Linux), the
+  `SandboxSpec` network arm becomes a tri-state (#658), MCP stdio servers are
+  spawned inside the same confinement (#667), and the **loopback egress
+  proxy** makes the sandbox's network arm the exact projection of
+  `permits.net.http` (#663 · #706 · F-P5 · NEP-0008).
+
+- **Two new task fields** — `inert:` (the declared door for a `nika:fetch`
+  whose payload is data, never code · the `NIKA-SEC-008` sanction) and
+  `declassify:` (`from` · `to` · `because` · the audited secret-flow
+  sanction).
+
+- **Registry client v0.2 signatures** (#648) — minisign + TOFU on registry
+  pulls (`NIKA-REG-006` · `NIKA-REG-007`).
+
+- **`NIKA-DRIFT-001` — declared-but-unused hints in `check`** (#661) — a
+  declared name or a `permits:` entry nothing in the body references. Advisory:
+  it never fails the audit (the reverse direction, used-but-undeclared, is the
+  hard refusal surface).
+
+- **Two new journal event kinds** — `declassify` and `run_sealed`. Additive:
+  `trace_format` stays 2, but a consumer matching the kind vocabulary
+  exhaustively must learn them.
+
+- **Spec 17 · trace** — the journal dialect becomes normative in the embedded
+  pack (the NDJSON frame grammar chained by sha256, the prologue manifest, the
+  closed kind vocabulary), and the pack ships the `law` + `registries` JSON
+  schemas.
 
 ### Changed
 
 - **`run:` declared-pair refusals ride their dedicated mints** — the
-  parse-level entropy × clock contradictions stamp `NIKA-PARSE-026`
-  (ambient × virtual) and `NIKA-PARSE-027` (none | seeded × system), and
-  the check-side `entropy: none` × structural-source judgment stamps
-  `NIKA-PARSE-028` — was the registered generic `NIKA-PARSE-019`; the
-  NEP-0010 mints landed with the 87f764a spec pack resync.
+  parse-level entropy × clock contradictions stamp `NIKA-PARSE-026` (ambient ×
+  virtual) and `NIKA-PARSE-027` (none | seeded × system), and the check-side
+  `entropy: none` × structural-source judgment stamps `NIKA-PARSE-028` — was
+  the registered generic `NIKA-PARSE-019`; the NEP-0010 mints landed with the
+  87f764a spec pack resync.
+
+- **The lethal-trifecta judge asks a better question** (trifecta v2.0 ·
+  NEP-0002 · #643) — v1.1 asked « could this workflow complete the trifecta? »
+  over the declared capability set. v2.0 asks « does untrusted content
+  actually REACH an egress? », the integrity half of the flow lattice. The
+  inversion that matters: an `infer:`/`agent:` output carries the taint when
+  its prompt saw it — a summary of an attacker's page carries the payload.
+  v2.0 findings ⊆ v1.1, so nothing that passed before starts failing.
+
+- **`permits.tools` is enforced at run** (#639) — the last check-only axis
+  closes. A tool call outside the boundary now refuses at dispatch, not only
+  at check.
+
+- **`NIKA-SEC-005` is core-visible — law 5 at every tier** (#708) — the
+  net-egress floor was already emitted by `check`; only the core-tier
+  conformance filter hid it. The core verdict now matches the reference
+  oracle.
+
+- **`nika trace verify` exit 0 means « the highest attained tier holds »** —
+  the verdict is tiered, not binary (exit 2 broken or forged · exit 3
+  unchained or a missing input).
+
+- **The embedded spec pack catches up to the spec branch** — NEP-0004 through
+  NEP-0012 land in the pack `nika spec` serves, along with the 6-namespace
+  substitution family, the 25 error namespaces / 96 error codes, and the
+  17-provider catalog count.
+
+### Fixed
+
+- **A planted symlink can no longer pivot an `fs:` grant** (H2 · NEP-0009 ·
+  #710 · the CVE-2024-42472 class) — the mount-projection arm followed a
+  symlinked bind SOURCE where the kernel path-walk arm refuses at open, so an
+  upstream task that replaced `/ws/data` with a link to `$HOME/.ssh` made a
+  later task's `fs.read: [/ws/data]` bind the wrong tree. Every grant's
+  literal prefix is now re-judged as its EFFECTIVE path identity at dispatch,
+  before the jail is built: a legitimately-symlinked ANCESTOR is absorbed, the
+  final component stays lexical, and an identity that redirects outside the
+  judged path is refused before spawn (`NIKA-SEC-004`) — never mounted under
+  the judged name, never rewritten to the resolved form. The receipt does not
+  lie.
+
+- **A forged `CheckReport` cannot buy authority** (#656 · `NIKA-1707`) — the
+  runtime re-derives the boundary subset at run start; a clean report over
+  different bytes is not clean.
+
+- **Resolved secrets are redacted from the journal, and journals are 0600**
+  (#640).
+
+- **Pulled model weights are sha256-verified against the Hub's declaration**
+  (#641).
+
+- **Security-boundary refusals never feed back to the model** (#638 ·
+  `NIKA-468`) — a mid-loop refusal is the boundary's word, not another turn's
+  context.
+
+- **A `required: true` input with neither a `default:` nor a `--var` refuses
+  at admission** (#674 · `NIKA-1708`) — before the DAG spends a task, not
+  mid-run.
+
+- **Key trust reads the public half only** (#668) — no decrypt on the print
+  path.
+
+- **The red team's residuals close** (#702 · #703 · #704) — four permit edge
+  cases, three exec-runner residuals, decode-then-trim, and the `finally`
+  attestation.
+
+- **The taught flow bindings quote their islands** (#717) — an unquoted
+  `${{ }}` in a YAML flow mapping is `NIKA-PARSE-001`; the shipped teaching
+  surfaces no longer hand it to you.
 
 ## [0.105.0](https://github.com/supernovae-st/nika/compare/v0.104.0..v0.105.0) - 2026-07-20
 

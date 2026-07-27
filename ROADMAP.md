@@ -103,7 +103,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | branch           | `feat/nika-check-split`                                      |
 | HEAD             | `1acc3e42a` (`1acc3e42ad3959c3a50d65dc01ce27a98320429f`)             |
-| workspace        | v0.105.0                                  |
+| workspace        | v0.106.0                                  |
 | crates (workspace)| 56                                              |
 | crates (admitted)| 54                                             |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
