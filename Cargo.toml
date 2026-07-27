@@ -346,7 +346,7 @@ insta       = { version = "1.42", features = ["yaml"] }
 tempfile    = "3"   # nika-ocr dev — model-load error-path fixtures (with_models headless tests)
 rstest      = "0.22"
 expect-test = "1.5"  # inline snapshots, see ADR-015
-expectrl    = "0.8"  # PTY e2e — the wizard's TTY-gated conversation (unix-only tests)
+expectrl    = "0.9"  # PTY e2e — the wizard's TTY-gated conversation (unix-only tests)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Release profile (post rust-perf audit 2026-05-12 · BLUEPRINT v1.2 §4 ship-now)
