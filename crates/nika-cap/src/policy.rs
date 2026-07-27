@@ -853,4 +853,24 @@ mod tests {
             serde_json::json!({ "boundary_declared": true, "needed": {}, "escapes": 0 })
         );
     }
+
+    #[test]
+    fn the_wire_names_are_pinned_variant_by_variant() {
+        // Both accessors call themselves the WIRE name, and EffectClass adds
+        // "witness": these strings land in the serialized form and in the
+        // permit witness (F-O6), so they are recorded evidence rather than
+        // display text. cargo-mutants replaced each with "" and with
+        // "xyzzy" and nothing failed, which means a mutant could rename the
+        // effect class inside the very record that proves what a run did.
+        // Pinned variant by variant, because a match arm is only as honest
+        // as the assertion naming it.
+        assert_eq!(EffectClass::Exec.as_str(), "exec");
+        assert_eq!(EffectClass::Write.as_str(), "write");
+        assert_eq!(EffectClass::Net.as_str(), "net");
+        assert_eq!(EffectClass::Tools.as_str(), "tools");
+
+        assert_eq!(Objective::Cost.as_str(), "cost");
+        assert_eq!(Objective::Latency.as_str(), "latency");
+        assert_eq!(Objective::Quality.as_str(), "quality");
+    }
 }
