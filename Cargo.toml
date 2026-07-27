@@ -310,7 +310,7 @@ ocrs     = "0.12"   # nika-ocr L1 (M2.2) — pure-Rust OCR engine (rten runtime 
 rten     = "0.24"   # nika-ocr L1 — Model::load_file for .rten weights (ocrs ^0.24 normal dep · pinned aligned)
 accessibility = "0.2"   # nika-a11y L1 (M2.3 · macOS-gated) — safe AXUIElement API (TreeWalker · encapsulated ApplicationServices unsafe · keeps unsafe forbid)
 core-foundation = "0.10" # nika-a11y L1 (M2.3 · macOS-gated) — CFString/CFType for AXAttribute generic reads (value · subrole)
-atspi    = "0.29"   # nika-a11y L1 (M2.3-bis · Linux-gated · ADR-083) — pure-Rust async AT-SPI2 D-Bus client (root_accessible_on_registry · get_children · get_role · State::Sensitive) · CI-pending verify on a Linux/AT-SPI host
+atspi    = "0.30"   # nika-a11y L1 (M2.3-bis · Linux-gated · ADR-083) — pure-Rust async AT-SPI2 D-Bus client (root_accessible_on_registry · get_children · get_role · State::Sensitive) · CI-pending verify on a Linux/AT-SPI host
 enigo    = "0.6"    # nika-input L1 (M2.4 · ADR-083 cross-platform) — synthetic pointer+keyboard (macOS CGEvent · Windows SendInput · Linux X11/Wayland · per-OS unsafe encapsulated → keeps unsafe forbid) · API tarball-verified 0.6.1
 chromiumoxide = { version = "0.9", default-features = false, features = ["bytes"] }   # nika-browser L1 (M2.5 · ADR-083) — CDP browser automation (tokio-native · kill_on_drop child per INV-011) · fetcher EXPLICITLY out (default-features=false pins the sovereign surface · a future default-flip is caught by cargo, not silently activating a browser download) · API tarball-verified 0.9.1
 png      = "0.18"   # nika-browser L1 — Page.captureScreenshot PNG → RGBA8 kernel Frame decode (pure · headless-testable)
