@@ -15,7 +15,13 @@ set -uo pipefail
 ZERO=0000000000000000000000000000000000000000
 saw_ref=false
 deletion_only=true
-while read -r _local_ref local_sha _remote_ref _remote_sha; do
+# The read is BOUNDED so this loop cannot outlive its input. git closes the
+# pipe after the refspec, but a harness that forwards stdin without closing
+# it would leave an unbounded `read` waiting on an EOF that never arrives.
+# Five seconds is far more than a refspec needs, and a silent stdin still
+# lands on the fail-safe below (the gate RUNS), so the bound can never turn
+# into a skipped gate. Defensive only: no such harness has been observed.
+while read -r -t 5 _local_ref local_sha _remote_ref _remote_sha; do
   [ -z "${local_sha:-}" ] && continue
   saw_ref=true
   if [ "$local_sha" != "$ZERO" ]; then
@@ -34,8 +40,21 @@ if [ "${NIKA_GATE_DRYRUN:-}" = "1" ]; then
 fi
 
 set -e
-cargo test --workspace --lib --quiet
-cargo clippy --workspace --all-targets -- -D warnings
+# stdin closed on purpose. This script is a pre-push hook, so its stdin is
+# git's refspec pipe, and cargo hands whatever it inherits down to every
+# test binary it spawns. A test suite has no business reading stdin, and a
+# half-drained refspec pipe is the last thing it should read if it tries.
+#
+# If this gate ever looks frozen, do NOT judge it by cargo's own CPU time.
+# During the test phase cargo sits in wait4 and its CPU is SUPPOSED to stay
+# near zero while its children do the work; `ps time` does not count them.
+# The honest judges are `sample <cargo-pid>` (it names the blocking frame)
+# and `pgrep -P <cargo-pid>` (a changing child name means it is advancing).
+# Measured 2026-07-27: a whole run at 0.4s of cargo CPU was healthy, and
+# every test binary was stalled pre-main in _dyld_start waiting on
+# Gatekeeper to scan it. That is a machine setting, not a bug in here.
+cargo test --workspace --lib --quiet </dev/null
+cargo clippy --workspace --all-targets -- -D warnings </dev/null
 # hygiene: YELLOW (rc=1) passes with its stdout · only RED (rc=2) blocks —
 # the exact contract the old inline leg carried.
 rc=0
