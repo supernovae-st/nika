@@ -45,6 +45,17 @@ for crate in "${LIB_CRATES[@]}"; do
   fi
 done
 
+# A DEDICATED target dir, and the reason is the gate's shape. `cargo test`,
+# `cargo clippy --all-targets` and this `cargo doc --document-private-items`
+# each carry different flags, so one shared target dir makes each invalidate
+# the other two. The pre-push gate runs all three back to back, so this vector
+# always paid a FULL cold rebuild and blew its timeout twice on 2026-07-27:
+# first at the 300s default, then again at 900s. Run alone against a warm
+# shared dir the very same check finishes in 220s, clean across 55 crates.
+# Its own dir keeps its artifacts across gate runs, where test and clippy
+# cannot reach them. Costs one cold build the first time and a few GB on disk.
+export CARGO_TARGET_DIR="$REPO_ROOT/target/doc-check"
+
 # RUSTDOCFLAGS=-D warnings promotes every rustdoc warning to an error.
 output=$(RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items "${pkg_args[@]}" 2>&1 || true)
 if echo "$output" | grep -qE '^(error|warning):'; then
