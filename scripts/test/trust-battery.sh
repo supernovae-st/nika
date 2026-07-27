@@ -40,6 +40,15 @@ nika: v1
 workflow:
   id: trust
 model: mock/echo
+# F-O8 · absent permits is the EMPTY boundary since 0.106, and this fixture
+# spends an exec. Without this block the battery's very first run refuses
+# NIKA-AUTH-006, no trace exists, and every downstream probe cascades into
+# empty-variable noise — exactly how the v0.106.0 release run died on all
+# four builders (2026-07-27, run 30299180129) while the binaries themselves
+# were fine. The infer task needs nothing: infer is not an effect
+# (permits_fit.rs · RawAction::Infer(_) => {}).
+permits:
+  exec: ["echo"]
 tasks:
   fetch:
     exec: { command: ["echo", "data-v1"] }
