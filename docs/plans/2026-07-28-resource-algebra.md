@@ -28,6 +28,100 @@ literature and the code say about fixing that.
 
 ---
 
+## 0.5 · CORRECTIONS · what an adversarial pass killed
+
+> Read this before §1. An adversarial refutation swarm attacked every claim
+> in this document on the same day it was written: **17 of 33 REFUTED, 10
+> more hold with the wrong hypotheses stated.** The sections below are left
+> intact so the record is honest, but the following supersedes them.
+
+### The worst one: I rebuilt a capability the engine already documents
+
+`crates/nika-check/src/analysis.rs:26-32` says, verbatim:
+
+> *"Width can EXCEED the largest wave … `max parallelism` = the wave peak
+> **as executed** · `width` = what the DAG **permits**."*
+
+It is computed exactly (Dilworth → Fulkerson → Hopcroft-Karp, with a König
+witness) and **printed on the PLAN line of every check**. I saw `width 3`
+in an output, noted it, and did not follow it. Then I spent three attempts
+re-deriving it from YAML, more slowly and wrong.
+
+**The reusable lesson: when the engine prints a number you are about to
+recompute, read where it comes from first.**
+
+### S9 is wrong three ways
+
+| | Claimed | Actual |
+|---|---|---|
+| the quantity | width bounds concurrency | width counts TASK NODES; the real parallelism lives in `for_each` — `runtime/src/task.rs:640`, `cap = max_parallel OR items.len()`, so **without `max_parallel:` every item is in flight**. A 20-item file reports `width 1` and holds 20 processes. **15 of 76 corpus files carry a runtime `for_each`.** |
+| the statistics | median 2, mean 1.8, over 43 | **45 of 76 have width 1** ⟹ median **1**, mean **1.66**. Only `max 4` and `100% ≤ 4` survive. |
+| the coverage caveat | "the parser saw 43 of ~76" | 43 is not a parser gap, it is **mirror deduplication** (33 workflows × 2 mirrors + 10 templates = 76; 43 unique basenames) — which K4 of this very document already explains. And the binary sweep takes **2 seconds**, not the 10 minutes that timed out. |
+
+### The measured counter-example that reorders the plan
+
+16 identical `infer:` tasks, a provider allowing 4 concurrent, default retry:
+
+```
+flat16    (0 edges · width 16)  →  EXIT=1 · 12/16 RED · 12 × 429
+staged16  (12 after: edges)     →  EXIT=0 · 16/16 green · 4.0 s · 0 × 429
+```
+
+**The widest schedule fails; the narrowest succeeds.** Therefore:
+
+- **Item 8 (per-provider concurrency) is a PREREQUISITE of item 1
+  (dataflow scheduler), not its peer.** Removing the barrier first is a
+  regression, not an optimisation.
+- **Item 6 (the phantom-`after:` hint) must be gated on item 8**, or it
+  will tell authors to delete the only thing keeping their workflow green.
+
+And `m` in T1 is the PROCESSOR count, not a software cap: 24 CPU-bound
+units at declared `width 1` measured 7.3 s wall / 63.9 s user on 12 cores
+against 2.21 s predicted. For `infer:`, `m` is the provider's concurrency
+allocation, measured at 4.
+
+### `buffered` is a buffer, not a scheduler
+
+`futures::stream::Buffered` admits a new item only when the **head** of its
+ordered queue resolves. It idles with free slots and ready work, which puts
+it **outside Graham's non-idling precondition** (T2). Measured on 28 items
+(`[8s, 27×1s]`, `max_parallel: 10`): six seconds at 1-in-flight with 9 free
+slots and 18 ready items. `capped 10 → 10.1 s` vs `uncapped → 8.0 s`, the
+optimum. **A tighter cap was SLOWER.**
+
+### The wave theorem: four of seven lines are wrong as written
+
+| | Verdict | What breaks |
+|---|---|---|
+| **W1** | holds, hypothesis oversized | true for ANY proper layering (0 violations in 1,128,320); only `d ≥ 0` carries. ASAP is stated and unused. |
+| **W2** | holds, second conjunct VACUOUS | the `d(v) = max_{level(v)}` clause is implied by the first (0 disagreements over 28,448,688 exhaustive pairs). The `max_w > 0` guard is the WHOLE correction — my account of my own fix was wrong. |
+| **W3** | **REFUTED (hypothesis)** | the result holds; the named hypothesis does not. Exhaustive over n≤7 (2,131,019 DAGs): 0 failures under ASAP **and** under ALAP; a STRETCHED layering fails (6 cases). The real condition is **minimum height**, not ASAP. The engine's layering (`analyzer/dag.rs:211`, Kahn) is minimum-height, so the conclusion survives — but teaching the wrong hypothesis would make a future layering change falsely safe. |
+| **W4** | **REFUTED** | `W` is **attained**, not approached. Witness: 3 tasks, one edge, `d=(1,0,1)` → ratio exactly 2 = W. Zero durations are in W1's own domain (`d : V → ℝ≥0`) and are real — `cost.rs:108` maps `exec`/`invoke` to `continue`. So `W` is the **real worst case**, not a loose majorant. |
+| **W5** | holds, one hole | `T_∞ = 0` is attainable (all-zero durations), so the ratio form divides by zero. Needs a `T_flow > 0` guard. |
+| **W6** | **REFUTED** | the algebra survives — 15/15 concurrent-monoid axioms verified — but the **identification fails**. On the N poset (the one W7 names two paragraphs later) the exchange slack is 1 while the wave penalty is 0, and the right-hand side (1) is not `T_flow` (2). Only 2 of 9 bindings hold, both the same "two disjoint chains" DAG. **"The penalty IS the exchange law" comes out of the document.** What survives: `T_wave ≥ T_flow` follows from exchange PLUS isotonicity, and the slack **upper-bounds** the penalty without equalling it. |
+| **W7** | **REFUTED** | the paragraph contradicts itself. A weak order IS N-free, therefore series-parallel — **waves DO remove the Ns**. On the N poset the wave order is N-free. What survives is the ORIGINAL DAG's N. Three further errors in the same paragraph: the SP extension is not minimal (up to 2 needless relations), "optimal exactly under unit durations" read as an iff is false, and the example loses 1.998002×, not "2×". |
+
+### And a claim in §2.5 that the code refutes
+
+**T17 said the budget composes by meet.** It composes in theory and **not in
+the code**. Measured:
+
+```
+child alone,  --max-cost-usd 0.0001  →  rc=2 · "refusing to start:
+                                        the unavoidable cost floor exceeds"
+same child via a PARENT, same flag   →  the run STARTS, dispatches the child,
+                                        reaches the provider, and fails only
+                                        on a missing API key
+```
+
+**With a key present this spends real money under a budget that forbade
+it.** The `COMPOSITION` rung already proves the call graph is *"static,
+typed, contained and acyclic"*, so the floor is a **topological sum**, not a
+fixpoint. This is a P0 and it outranks everything in §5.
+
+
+---
+
 ## 1 · The measurement matrix
 
 Everything below was run. `check` = `nika check --native-strict` unless
@@ -1039,6 +1133,77 @@ The MCP row is the one nobody else holds. The official registry answers
 engine needs answered is *"this server costs ~X ms, ~$Y, fails Z% of the
 time, caps at N req/min"* — and the engine that **executes** the calls is
 the one structurally positioned to measure it.
+
+### 3.3 Three dimensions the refutation pass revealed
+
+Each passes the resource test — consumed, composes under both `;` and `‖`,
+boundable — and each is decidable from data the engine already holds.
+
+**🔁 REPRODUCIBILITY · `∧` under both.**
+A run is replayable iff EVERY task is. That is a meet on booleans, so it
+composes trivially and is statically decidable: `run: entropy:` is already
+declared (`ambient` · `none` · `{seeded: n}`), the verb kinds are known, and
+`nika test --update` already pins a golden. The engine has the parts and does
+not report the aggregate. Worth having because it answers the question a
+reader of a trace actually asks — *"can I get this back?"* — and because it is
+the precondition for every caching claim (T21: a volatile task cannot be
+cached, and volatility is exactly `¬reproducible`).
+
+**⏳ STALENESS · `max` under both.**
+The age of the OLDEST input a run depends on. Composes as a max because a
+workflow is as stale as its stalest dependency. Statically knowable for
+everything the engine pins: `pricing.as_of` (measured 21 days at time of
+writing), `SPEC_PIN`, a golden's date, a cached artifact's TTL. This is not
+an abstraction — it is the concrete defect §5's item on the pricing heal
+exists to fix, generalised. A ceiling computed against 21-day-old prices and
+a ceiling computed against today's are different promises, and only one of
+them says so.
+
+**🧬 PROVENANCE DEPTH · `max` under both.**
+How many hops separate a value from a source the run did not produce. Zero
+for a `const:`, one for a `nika:fetch`, more through a chain. It composes as
+a max and it is the quantity that makes the taint lattice *legible*: today
+`🏷️ taint` is a set of origins, which answers "is this tainted" but not "how
+far from trusted". Depth answers the second, and it is what a reviewer of an
+`accept_flow:` discharge actually needs to judge.
+
+| Dimension | `;` | `‖` | Structure | Static? |
+|---|---|---|---|---|
+| 🔁 reproducibility | `∧` | `∧` | meet on booleans | **yes** — `run: entropy:` + verb kinds |
+| ⏳ staleness | `max` | `max` | tropical | **yes** — every pin carries a date |
+| 🧬 provenance depth | `max` | `max` | tropical | **yes** — the flow graph already has it |
+
+Note the shape: **two of the three are tropical, like time.** That is not a
+coincidence. Additive dimensions answer *"how much in total"*; tropical ones
+answer *"what is the worst point"*. A workflow's staleness is not the sum of
+its inputs' ages any more than its duration is the sum of its tasks'.
+
+### 3.4 What the upstream carries and we do not read
+
+Measured against `https://models.dev/api.json` on 2026-07-28: 173 providers,
+5,810 models, 21 model fields. Restricted to our 10 providers — 653 models —
+the import reads **four** of them.
+
+| Field | Coverage | What it unlocks |
+|---|---|---|
+| **`limit.output`** | **653/653 · 100%** | **the max_tokens the model actually accepts.** A workflow declaring `max_tokens: 100000` against a model capped at 8192 is wrong, and check could say so today. It also TIGHTENS the ceiling rather than merely making it honest. |
+| `limit.context` | 653/653 · 100% | the context window — today hand-written on 69 lines of `llm-providers.toml`, which the file itself calls "a manually-curated snapshot" |
+| `open_weights` | 653/653 · 100% | local vs cloud, DECLARED — so "unpriced, never free" stops being inferred from a missing price |
+| `tool_call` · `reasoning` | 653/653 · 100% | a workflow handing tools to a model that takes none is a runtime failure check could catch |
+| `structured_output` | 487/653 · 74% | same, for `schema:` |
+| `temperature` | 650/653 · 99% | |
+| `knowledge` | 400/653 · 61% | the cutoff — "this model cannot know about that" |
+| `status` | 35/653 · 5% | **deprecated** — we may be teaching a model that is going away |
+| `modalities` | 653/653 · 100% | |
+| `cost.reasoning` | 18/653 · 2% | a SEPARATE reasoning rate the formula ignores |
+| `cost.tiers` | 31/653 · 4% | long context, with the threshold as an explicit value |
+| `cost.input_audio` | 14/653 · 2% | |
+
+**`limit.output` is the pick of the lot**: total coverage, zero new supply
+chain, and it converts an unchecked `max_tokens` into one bounded by the
+model. That is one more false green closed, from a file we already fetch,
+hash and pin.
+
 
 ---
 
