@@ -349,3 +349,240 @@ checked before the run.
 the number it prints is off by two orders of magnitude on a shape
 (fetch a document, summarise it) that is the single most common thing a
 person writes first.
+
+---
+
+# F8 · the security gate rewards under-declaring
+
+Found by the catalog swarm, reproduced here end to end. **This outranks
+F7 and everything before it.** It is not a verdict that covers less than
+it claims — it is a verdict that inverts the incentive it exists to
+create.
+
+## The repro
+
+Two files. The `tasks:` block is byte-for-byte identical: read a local
+pin with `nika:read`, fetch upstream with `nika:fetch`, write a verdict
+with `nika:write`. The only difference is one line deleted from
+`permits:` — the `fs.read` grant.
+
+```
+honest         nika check --native-strict → rc=2
+               ✔ PERMITS  body fits the declared boundary
+               ✖ TRIFECTA [NIKA-SEC-009] lethal trifecta complete · human gate required
+
+underdeclared  nika check --native-strict → rc=0
+               ✔ PERMITS  body fits the declared boundary
+               ✔ TRIFECTA no lethal trifecta without a dominating human gate
+               ✔ audited · 3 tasks · 2 waves · permits declared · est ≤$0.0000 · 0 hints
+```
+
+The author who declares the truth is blocked. The author who declares
+less than the body does gets a green audited card.
+
+## And the pass is worthless
+
+```
+underdeclared  nika run → rc=1
+               ✖ pin  invoke · nika:read  3ms
+               ✖ NIKA-SEC-004 · `./crates/nika-catalog/data/model-pricing.toml`
+                 resolves outside the declared permits.fs.read boundary
+```
+
+The workflow that passes the security gate **cannot run at all**. It
+dies on its first task. So the gate is not trading safety for
+convenience — it is passing something broken and blocking something
+that works.
+
+## The two defects, and their single root
+
+> **CORRECTION, same session, before this shipped.** The first version of
+> this section read *"PERMITS does not statically resolve literal paths
+> against the declared globs."* **That is wrong, and measuring it is what
+> found the real defect.** With a genuine literal the module works exactly
+> as its own header documents:
+>
+> ```
+> path: "./crates/nika-catalog/data/model-pricing.toml"
+> → ✖ PERMITS [NIKA-SEC-004 · fs] task `pin` · `nika:read` path
+>   `./crates/…` is outside permits.fs.read
+>   fix: add "./crates/…" to permits.fs.read
+> ```
+>
+> My repro wrote the path as `${{ const.pin }}`, which is not a literal to
+> this scanner. The claim below is the corrected one, and it is narrower
+> and far more tractable than what I first wrote.
+
+**(1) A `${{ const.x }}` path is treated as DYNAMIC when it is provably
+STATIC.** `permits_fit.rs` says so in its own header — *"A path/host built
+from a `${{ }}` value is dynamic and stays the runtime `NIKA-SEC-004`
+check"* — and for `inputs:` or a task output that is correct. For
+`const:` it is not: `const` is a static authority, its value is in the
+file, and no runtime input can change it. The checker can resolve it.
+
+**The precedent is already in this codebase.** `cost.rs`
+(`static_vars_array_len`) resolves exactly this shape — a bare
+`${{ <authority>.<name> }}` over a literal — to decide whether a
+`for_each` count is statically known. One rung resolves const-backed
+expressions; the other defers them to runtime. The asymmetry is the bug.
+
+Measured in both directions: deleting `fs.write` while keeping a
+`nika:write` to a const-backed path passes identically.
+
+**(2) TRIFECTA reads leg ① off the DECLARATION, not the BODY.** Private
+read is taken from `permits.fs.read`. Delete the grant and the leg
+disappears, while the `nika:read` stays in the body doing the same
+thing.
+
+They compose into the inversion: (2) makes under-declaring profitable,
+and (1) makes it free **for the shape everyone actually writes** — a path
+in `const:`, referenced once, which is what every template and every
+example teaches.
+
+**One fix closes both, and it is small.** Resolve
+`${{ <static-authority>.<name> }}` in `permits_fit` the way `cost.rs`
+already resolves it, then the under-declared file fails PERMITS and can
+never reach TRIFECTA with a short leg. Note what the literal case above
+shows: it fails PERMITS while TRIFECTA still reports `✔ no lethal
+trifecta` — the file is blocked, but by a different rung than the one
+that should have caught it. The gate holds by accident there, and not at
+all when the path goes through `const:`.
+
+Fixing (2) as well — reading leg ① off the BODY rather than the
+declaration — is the belt to that suspender, and is the general law
+below.
+
+## Why the shape recurs
+
+This is the fourth instance in this record of the same mechanism:
+a verdict computed over what the author DECLARED rather than what the
+body DOES.
+
+- `05-fetch-chain` and `t3-localization-factory` — two shipped examples
+  pass `--native-strict` claiming *pure compute · nothing escapes*, then
+  die at run with `NIKA-SEC-004`, because a `url:` or `path:` written as
+  `${{ const.x }}` hides the effect from the static gate while a literal
+  would not.
+- F7 above — the ceiling prices `max_tokens` (declared) and not the
+  prompt (what the body sends).
+- F8 here.
+
+The generalisation is worth stating as a law of this checker:
+
+> **Every gate must read the BODY. A gate that reads the declaration is
+> gating the author's honesty, not the workflow.**
+
+## Rank
+
+**P0, top.** It is a security gate, it is inverted, and the two shipped
+examples sitting in the quiet half of the same hole mean we are teaching
+the shape.
+
+---
+
+# F11 · the declared boundary granted more than it declared · SHIPPED
+
+Found by an adversarial research swarm sent to check whether F9 was the right
+fix. It was not the right fix, and it was not the important bug. **This one
+outranks every finding in this document.**
+
+Measured on the published `nika 0.106.1` — Homebrew, npm, Docker — with no
+attacker, no symlink, and no path traversal.
+
+## The two proofs
+
+```
+permits.fs.read:  ["data/*.csv"]     args.path → data/sub/deeper/private.key
+  nika check → ✔ PERMITS body fits the declared boundary · ✔ audited · 0 hints
+  nika run   → ✔ 1/1 done
+  and the file's contents are in the SIGNED TRACE:
+  .nika/traces/2026-07-28T22-26-47Z-e3ef.ndjson
+
+permits.fs.write: ["out/*.md"]       args.path → out/sub/pwned.sh
+  nika check → ✔ PERMITS · ✔ audited · 0 hints
+  nika run   → ✔ 1/1 done
+  ls out/sub → pwned.sh, on disk
+```
+
+A permit naming CSV files read a private key three directories down. A permit
+naming markdown at the root of `out/` wrote a shell script into a subdirectory
+it never mentioned.
+
+## The cause, at the line
+
+`crates/nika-builtin/src/permits.rs` · `literal_root()` walked the glob's
+components, stopped at the first one containing `*`, and returned
+`(literal_prefix, true)`. The `true` was the whole of what survived: **the
+pattern itself was discarded.** `confines()` then admitted anything under the
+resolved prefix. `data/*.csv` meant `data/**`, and the extension was
+decoration.
+
+Its own comment stated the behaviour plainly —
+`// <root>/** · <root>/* etc. — any descendant of the real root` — which is
+why a unit test asserted it rather than caught it:
+
+```rust
+assert_eq!(literal_root("/var/log/*.log"), ("/var/log".to_owned(), true),
+           "a *.ext segment ends the literal prefix");
+```
+
+The static side was wrong differently: `glob_matches` was a trailing-star
+prefix test, so `data/*` also crossed `/`, and any glob whose star was not
+final (`*.csv`, `data/*.md`) matched nothing at all — a silently inert grant.
+Two implementations, two different wrong answers.
+
+## Why the guard that exists for exactly this did not fire
+
+A differential proptest sits in the same file, comparing the static predicate
+against the runtime enforcer on the grounds that "they share no code, so a
+common bug would have to be born twice." It ran green. Its generator emitted
+only `<segs>/**` and literal paths, and its doc comment gave the reason:
+
+> Mid-pattern globs like `a/*/b` are a KNOWN, documented non-decidability ·
+> `crate::effect` states "glob-pattern ⊆ permits-glob inclusion is not soundly
+> decidable" · the runtime uses prefix-containment there · so this differential
+> is scoped to the forms that DO decide.
+
+**The theorem is true and it is about a different question.** Deciding whether
+one PATTERN is contained in another is genuinely hard. Both sides here match a
+CONCRETE resolved path against ONE pattern, which is ordinary glob matching and
+entirely decidable. A correct theorem was used to justify a shortcut on a
+problem it does not govern, and the exclusion it justified is exactly where the
+fail-open lived.
+
+That is the transferable lesson, and it is sharper than the bug:
+
+> **When a proof obligation is waived as undecidable, name the decision
+> procedure it would have needed. If you can write it down, it was decidable
+> and the waiver is a hole.**
+
+## The fix
+
+One predicate, `nika_cap::glob_admits`, segment-aware, `*` never crossing `/`,
+used by BOTH sides — the arrangement hosts have always had via
+`nika_types::net::host_glob_matches`. `nika-cap` moves from a dev-dependency of
+`nika-builtin` to a real one. `literal_root` returns the tail instead of a
+bool; `confines` resolves the prefix against the filesystem (unchanged — that
+is the part that legitimately differs) and then re-applies the tail to the
+remainder. The differential generator now emits `*`, `*.csv`, `*/x` and `*/**`.
+
+Verified after, check and run agreeing on every row:
+
+```
+  data/*.csv  data/sub/deeper/private.key   refused / refused
+  data/*      data/sub/deeper/private.key   refused / refused
+  data/*.csv  data/sales.csv                admitted / allowed
+  data/*      data/sales.csv                admitted / allowed
+  data/**     data/sub/deeper/private.key   admitted / allowed
+  out/*.md    out/sub/pwned.sh              refused / refused · nothing written
+```
+
+## What this says about F8, F9 and F10
+
+They were real and they are fixed, but every one of them was **fail-closed** —
+friction, refusing what should pass. I spent the session on the side of the
+ledger that costs authors rounds, and the side that costs users secrets was one
+function away in a crate I had already opened. The research pass that found it
+was sent to check my fix, not to look for this.
+
+**Send the adversarial pass before the fix feels finished, not after.**

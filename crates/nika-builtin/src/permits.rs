@@ -252,7 +252,7 @@ fn lexical_only(path: &Path) -> PathBuf {
 /// descendant of it — the descendancy test a literal-prefix string match
 /// fails to make.
 async fn confines<F: FsReadDyn>(fs: &F, glob: &str, effective: &Path) -> bool {
-    let (root_lit, has_wildcard) = literal_root(glob);
+    let (root_lit, tail) = literal_root(glob);
     // Resolve the permit root the SAME way the effective path was resolved
     // ([`resolve_effective`]: longest existing ancestor canonicalized —
     // symlinks resolved, the security core — then the trailing non-existent
@@ -269,33 +269,66 @@ async fn confines<F: FsReadDyn>(fs: &F, glob: &str, effective: &Path) -> bool {
     // not an escape: the boundary only ever ADMITS on a match · authors should
     // write canonical `permits.fs` paths.)
     let canon_root = resolve_effective(fs, Path::new(&root_lit)).await;
-    if has_wildcard {
-        // `<root>/**` · `<root>/*` etc. — any descendant of the real root
-        // (and the root itself, matching the static `/**`-includes-root rule).
-        effective == canon_root || effective.starts_with(&canon_root)
-    } else {
+    let Some(tail) = tail else {
         // An exact path (no wildcard) — the resolved target must BE it.
-        effective == canon_root
-    }
+        return effective == canon_root;
+    };
+    // Descendancy is NECESSARY but not SUFFICIENT. The wildcard half of the
+    // permit is then re-applied to whatever the path has beyond the root.
+    //
+    // It used to be discarded. `literal_root` returned a bare `true` and this
+    // arm admitted any descendant of the literal prefix, so `data/*.csv` meant
+    // `data/**` and the extension was decoration. Measured on the published
+    // 0.106.1, no attacker, no symlink, no traversal:
+    //
+    //     read:  ["data/*.csv"]  →  read  data/sub/deeper/private.key
+    //     write: ["out/*.md"]    →  wrote out/sub/pwned.sh
+    //
+    // Both green at check with 0 hints, and the read's content landed in the
+    // signed trace.
+    //
+    // The differential proptest that exists to catch exactly this drift was
+    // scoped away from mid-pattern globs, on the grounds that "glob-pattern ⊆
+    // permits-glob inclusion is not soundly decidable". That theorem is true
+    // and it is about a different question: deciding whether one PATTERN is
+    // contained in another. Here a CONCRETE resolved path is matched against
+    // one pattern, which is ordinary glob matching and entirely decidable.
+    // A correct theorem justified a shortcut on a problem it does not govern.
+    let Ok(rest) = effective.strip_prefix(&canon_root) else {
+        return false; // not under the root at all
+    };
+    // An empty remainder is the root itself: `<root>/**` admits it (zero
+    // segments), `<root>/*` does not (it wants exactly one).
+    nika_cap::glob_admits(&tail, &rest.to_string_lossy())
 }
 
-/// Split a gitignore-style permit glob into (literal directory prefix, has
-/// a wildcard). `/data/in/**` → (`/data/in`, true) · `/etc/x` → (`/etc/x`,
-/// false) · `/var/*.log` → (`/var`, true). The literal prefix is every
-/// component up to (not including) the first one containing `*`.
-fn literal_root(glob: &str) -> (String, bool) {
+/// Split a gitignore-style permit glob into its literal directory prefix and
+/// the wildcard pattern that follows it.
+///
+/// `/data/in/**` → (`/data/in`, Some(`**`)) · `/var/*.log` → (`/var`,
+/// Some(`*.log`)) · `/srv/*/cache/**` → (`/srv`, Some(`*/cache/**`)) ·
+/// `/etc/x` → (`/etc/x`, None).
+///
+/// The prefix is resolved (symlinks and all) so the boundary is checked
+/// against real filesystem identity; the TAIL is then matched lexically
+/// against what remains. Returning the tail is the whole point: dropping it
+/// — which the previous `(String, bool)` shape forced — turned every
+/// wildcard permit into "any descendant of the literal prefix".
+fn literal_root(glob: &str) -> (String, Option<String>) {
     if !glob.contains('*') {
-        return (glob.to_owned(), false);
+        return (glob.to_owned(), None);
     }
     let mut root = PathBuf::new();
+    let mut rest: Vec<String> = Vec::new();
     for comp in Path::new(glob).components() {
         let part = comp.as_os_str().to_string_lossy();
-        if part.contains('*') {
-            break; // the first wildcard segment ends the literal prefix
+        if !rest.is_empty() || part.contains('*') {
+            rest.push(part.into_owned());
+        } else {
+            root.push(comp.as_os_str());
         }
-        root.push(comp.as_os_str());
     }
-    (root.to_string_lossy().into_owned(), true)
+    (root.to_string_lossy().into_owned(), Some(rest.join("/")))
 }
 
 #[cfg(test)]
@@ -307,23 +340,27 @@ mod tests {
     fn literal_root_splits_at_the_first_wildcard() {
         assert_eq!(
             literal_root("/data/in/**"),
-            ("/data/in".to_owned(), true),
-            "trailing /** → the dir prefix"
+            ("/data/in".to_owned(), Some("**".to_owned())),
+            "trailing /** → the dir prefix, and the ** is KEPT"
         );
+        // This one used to assert `true` for the second field, which is how a
+        // test came to pin the fail-open: `*.log` was dropped, so the permit
+        // admitted `/var/log/secrets/id_rsa`. The pattern must survive the
+        // split or there is nothing left to enforce.
         assert_eq!(
             literal_root("/var/log/*.log"),
-            ("/var/log".to_owned(), true),
-            "a *.ext segment ends the literal prefix"
+            ("/var/log".to_owned(), Some("*.log".to_owned())),
+            "a *.ext segment ends the prefix and BECOMES the tail"
         );
         assert_eq!(
             literal_root("/etc/cron.d/x"),
-            ("/etc/cron.d/x".to_owned(), false),
+            ("/etc/cron.d/x".to_owned(), None),
             "no wildcard → the whole path is literal"
         );
         assert_eq!(
             literal_root("/srv/*/cache/**"),
-            ("/srv".to_owned(), true),
-            "a mid-path wildcard segment ends the prefix"
+            ("/srv".to_owned(), Some("*/cache/**".to_owned())),
+            "a mid-path wildcard keeps every following segment"
         );
     }
 
@@ -658,17 +695,28 @@ mod fs_security_tests {
 /// The fs boundary DIFFERENTIAL — the static checker and the runtime enforcer
 /// decide the `permits.fs` boundary the same way on the CANONICAL glob forms.
 ///
-/// Two independent implementations gate fs access · `nika_cap::Permits::allows_path`
-/// (lexical · what `nika check`/`permits_fit` consults) and this crate's
-/// `FsBoundary::enforce` (what refuses at effect time). They share no code, so a
-/// common bug would have to be born twice. On a symlink-free `MockFs`
-/// (canonicalize is a no-op) `enforce` folds purely lexically, so the two must
-/// agree on the canonical permit forms authors write · a `<dir>/**` recursive
-/// glob or a literal path. (Mid-pattern globs like `a/*/b` are a KNOWN,
-/// documented non-decidability · `crate::effect` states "glob-pattern ⊆
-/// permits-glob inclusion is not soundly decidable" · the runtime uses
-/// prefix-containment there · so this differential is scoped to the forms that
-/// DO decide, which is what the boundary contract rests on.)
+/// `nika_cap::Permits::allows_path` (what `nika check`/`permits_fit` consults)
+/// and this crate's `FsBoundary::enforce` (what refuses at effect time) once
+/// read: « two independent implementations · they share no code, so a common
+/// bug would have to be born twice ». They drifted instead, in the permissive
+/// direction, and the differential below was scoped away from exactly the
+/// forms that broke — so it ran green while `data/*.csv` granted `data/**` on
+/// the published binary. Both now decide through the ONE predicate
+/// `nika_cap::glob_admits`, the arrangement hosts have always had via
+/// `nika_types::net::host_glob_matches`.
+///
+/// What this proptest guards now is the part that legitimately still differs:
+/// the runtime resolves the permit root against the real filesystem before
+/// matching. On a symlink-free `MockFs` (canonicalize is a no-op) that
+/// resolution is the identity, so the two verdicts must agree exactly — over
+/// every tail form, mid-pattern included.
+///
+/// The old scoping cited `crate::effect`'s « glob-pattern ⊆ permits-glob
+/// inclusion is not soundly decidable ». That is a true statement about
+/// containment between two PATTERNS. Both sides here match a CONCRETE path
+/// against ONE pattern, which is ordinary glob matching and entirely
+/// decidable — a correct theorem waived a proof obligation it did not govern,
+/// and the fail-open lived in the gap.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod fs_boundary_differential {
@@ -684,14 +732,25 @@ mod fs_boundary_differential {
 
     /// A CANONICAL fs permit glob · `<segs>/**` (recursive) or a literal
     /// `<segs>` · never a mid-pattern `*` (the known non-decidable form).
+    /// The glob TAIL. The generator used to emit `**` or nothing, which is
+    /// why the fail-open survived it: `*`, `*.csv` and `*/x` were never
+    /// generated, and those are the forms where the runtime discarded the
+    /// pattern and admitted the whole subtree.
+    fn tail() -> impl Strategy<Value = Option<String>> {
+        prop_oneof![
+            Just(None),                     // a literal path · no wildcard
+            Just(Some("**".to_owned())),    // any descendant, any depth
+            Just(Some("*".to_owned())),     // exactly one segment
+            Just(Some("*.csv".to_owned())), // one segment, by extension
+            Just(Some("*/x".to_owned())),   // MID-PATTERN · the excluded class
+            Just(Some("*/**".to_owned())),  // one segment, then any depth
+        ]
+    }
+
     fn canon_glob() -> impl Strategy<Value = String> {
-        (prop::collection::vec(seg(), 1..3), any::<bool>()).prop_map(|(segs, recursive)| {
+        (prop::collection::vec(seg(), 1..3), tail()).prop_map(|(segs, tail)| {
             let base = segs.join("/");
-            if recursive {
-                format!("{base}/**")
-            } else {
-                base
-            }
+            tail.map_or(base.clone(), |t| format!("{base}/{t}"))
         })
     }
 

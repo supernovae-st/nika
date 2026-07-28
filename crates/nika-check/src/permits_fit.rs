@@ -86,16 +86,25 @@ pub fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
         // F-O8 · absent = zero authority: judge the body against ∅.
         (Some(&zero), true)
     };
+    let consts = ConstStrings::of(wf);
     let mut escapes = Vec::new();
     for task in &wf.tasks {
         let id = &task.value.id.value;
-        check_action(id, &task.value.action, permits, undeclared, &mut escapes);
+        check_action(
+            id,
+            &task.value.action,
+            permits,
+            undeclared,
+            &consts,
+            &mut escapes,
+        );
         for cleanup in &task.value.on_finally {
             check_action(
                 &format!("{id} (on_finally)"),
                 &cleanup.value.action,
                 permits,
                 undeclared,
+                &consts,
                 &mut escapes,
             );
         }
@@ -164,10 +173,11 @@ fn check_action(
     action: &RawAction,
     permits: Option<&Permits>,
     undeclared: bool,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     if let RawAction::Invoke(a) = action {
-        check_net_floor(id, a, permits, out);
+        check_net_floor(id, a, permits, consts, out);
     }
     let Some(permits) = permits else { return };
     match action {
@@ -190,12 +200,12 @@ fn check_action(
                 // outside the fs/net boundary. Check the literal effect.
                 // (A tool OUTSIDE permits.tools is already flagged below;
                 // re-flagging its effect would double-count.)
-                check_builtin_effect(id, a, permits, out);
+                check_builtin_effect(id, a, permits, consts, out);
             } else if undeclared {
                 // NEP-0003 laws 1+3 · under the absent block only a
                 // STATICALLY visible resource is a check-time refusal; a
                 // computed one defers to the runtime (NIKA-SEC-004).
-                absent_effect_escape(id, a, &tool.value, out);
+                absent_effect_escape(id, a, &tool.value, consts, out);
             } else {
                 escapes_tool(id, "invoke", &tool.value, out);
             }
@@ -238,6 +248,7 @@ fn check_net_floor(
     id: &str,
     a: &RawInvokeAction,
     permits: Option<&Permits>,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     let Some(BuiltinEffect::Net { url_arg }) = builtin_effect(a) else {
@@ -246,7 +257,9 @@ fn check_net_floor(
     let Some(tool_ref) = a.tool() else {
         return; // builtin_effect is None for workflow: — unreachable belt
     };
-    if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
+    if let Some(host) = judgeable_arg(consts, a, url_arg)
+        .as_deref()
+        .and_then(url_host)
         && nika_types::net::host_is_blocked(&host)
         && !nika_types::net::loopback_declassified(net_http(permits), &host)
     {
@@ -297,11 +310,12 @@ fn absent_effect_escape(
     id: &str,
     a: &RawInvokeAction,
     tool: &str,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
-            if literal_arg(a, url_arg).is_none() {
+            if judgeable_arg(consts, a, url_arg).is_none() {
                 return; // computed at run time · the runtime refuses
             }
             out.push(CapabilityEscape {
@@ -318,7 +332,7 @@ fn absent_effect_escape(
             });
         }
         Some(BuiltinEffect::Fs { path_arg, .. }) => {
-            if literal_arg(a, path_arg).is_none() {
+            if judgeable_arg(consts, a, path_arg).is_none() {
                 return; // computed at run time · the runtime refuses
             }
             out.push(CapabilityEscape {
@@ -446,6 +460,7 @@ fn check_builtin_effect(
     id: &str,
     a: &RawInvokeAction,
     permits: &Permits,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     let Some(tool_ref) = a.tool() else {
@@ -460,7 +475,9 @@ fn check_builtin_effect(
             // DECLASSIFIED by an exact loopback literal (#395) — and that
             // same entry admits the host at the runtime boundary too
             // (`check_net_allowlist`), so there is nothing to escape.
-            if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
+            if let Some(host) = judgeable_arg(consts, a, url_arg)
+                .as_deref()
+                .and_then(url_host)
                 && !nika_types::net::host_is_blocked(&host)
                 && !permits.allows_host(&host)
             {
@@ -480,7 +497,7 @@ fn check_builtin_effect(
             writes,
             ..
         }) => {
-            let Some(path) = literal_arg(a, path_arg) else {
+            let Some(path) = judgeable_arg(consts, a, path_arg) else {
                 return;
             };
             for (active, dir_writes, cat) in [(reads, false, "fs.read"), (writes, true, "fs.write")]
@@ -521,6 +538,94 @@ pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
     let s = a.args.as_ref()?.value.get(key)?.as_str()?;
     if s.contains("${{") {
         return None; // dynamic value · runtime concern
+    }
+    Some(s.to_owned())
+}
+
+/// The `const:` string values, resolved once per scan.
+///
+/// `const:` is the ONE authority a run cannot move. Measured 2026-07-28,
+/// `nika run <file> --var p=X` on a file whose `p` is a const answers with
+/// the refusal « this workflow declares no inputs », because `--var`
+/// satisfies `inputs:` and nothing else. So a bare `${{ const.<name> }}` has
+/// a value that is known at check time and CANNOT differ at run time.
+///
+/// `inputs:` and `config:` are deliberately NOT resolved here even when they
+/// carry a default — the run can supply another value, and a boundary verdict
+/// computed against a value the run may replace is exactly the kind of claim
+/// this checker must not make.
+///
+/// A pair list rather than a map: a `const:` block holds a handful of entries,
+/// so a linear scan costs nothing and spares the crate a dependency (the house
+/// lint forbids `std::collections::HashMap` in favour of `rustc_hash`, which
+/// `nika-check` does not otherwise pull in).
+#[derive(Debug, Default)]
+pub(super) struct ConstStrings(Vec<(String, String)>);
+
+impl ConstStrings {
+    fn of(wf: &RawWorkflow) -> Self {
+        use nika_schema::types::VarDecl;
+        Self(
+            wf.consts
+                .iter()
+                .filter_map(|(k, decl)| {
+                    let v = match decl {
+                        VarDecl::Untyped(v)
+                        | VarDecl::Typed {
+                            default: Some(v), ..
+                        } => v,
+                        VarDecl::Typed { default: None, .. } => return None,
+                    };
+                    Some((k.value.clone(), v.as_str()?.to_owned()))
+                })
+                .collect(),
+        )
+    }
+
+    /// A bare `${{ const.<name> }}` resolved to its declared string.
+    ///
+    /// BARE only: further navigation (`.field` · `[0]`), operators, or any
+    /// surrounding text make the result something other than the const, and
+    /// this returns `None` so the value stays the runtime's concern. Same
+    /// discipline as `cost::static_vars_array_len`, which resolves this
+    /// exact shape to bound a `for_each` count — one rung already treats a
+    /// const-backed expression as static, and the asymmetry between them is
+    /// what let a boundary escape through.
+    fn resolve(&self, expr: &str) -> Option<&str> {
+        let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
+        let name = inner.strip_prefix("const.")?;
+        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+            return None;
+        }
+        self.0
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+/// `args.<key>` as a value this scan can judge — a literal, OR a bare
+/// `${{ const.<name> }}` resolved through the const table.
+///
+/// The security reason this exists (F8, measured 2026-07-28): reading
+/// `const:`-backed paths as dynamic made under-declaring both free and
+/// profitable. Two files with a byte-identical `tasks:` block, one line of
+/// `permits:` apart — the honest one was refused `NIKA-SEC-009`, and the
+/// one whose `fs.read` grant was DELETED passed `--native-strict` with
+/// `0 hints` and a green audited card, then died at run on its first task
+/// with `NIKA-SEC-004`. The gate blocked what worked and passed what could
+/// not run, because TRIFECTA reads its private-read leg off `permits:`
+/// while the effect stayed in the body. Resolving the const closes it at
+/// the source: the under-declared file now fails PERMITS and never reaches
+/// TRIFECTA with a short leg.
+pub(super) fn judgeable_arg(
+    consts: &ConstStrings,
+    a: &RawInvokeAction,
+    key: &str,
+) -> Option<String> {
+    let s = a.args.as_ref()?.value.get(key)?.as_str()?;
+    if s.contains("${{") {
+        return consts.resolve(s).map(str::to_owned);
     }
     Some(s.to_owned())
 }
@@ -1367,10 +1472,50 @@ tasks:
             e.iter().any(|x| x.undeclared),
             "the F-O8 zero-boundary finding rides"
         );
-        // A dynamic URL is invisible statically — under an absent block
-        // the check stays silent (NEP-0003 law 3): the runtime refusal
-        // (NIKA-SEC-004) owns the resource, and the floor never saw a host.
+        // A GENUINELY dynamic URL is invisible statically — under an absent
+        // block the check stays silent (NEP-0003 law 3): the runtime
+        // refusal (NIKA-SEC-004) owns the resource, and the floor never saw
+        // a host. `inputs.` is the law's own case: NEP-0003's conformance
+        // fixture `runtime/permits/003-absent-permits-runtime-refusal`
+        // templates the host `${{ inputs.url }}` verbatim, and a run
+        // supplies any value it likes with `--var`.
         let dynamic = r#"nika: v1
+workflow:
+  id: w
+inputs:
+  target:
+    type: string
+    default: "http://127.0.0.1/x"
+tasks:
+  t:
+    invoke: { tool: "nika:fetch", args: { url: "${{ inputs.target }}" } }
+"#;
+        let e = escapes(dynamic);
+        assert!(
+            e.is_empty(),
+            "dynamic resource under absent = runtime concern (NEP-0003 law 3): {e:?}"
+        );
+        // A `const.`-backed URL is NOT dynamic and is judged. This half of
+        // the test used to assert silence with `const:` in the same slot,
+        // calling it "dynamic" — the law never said that (its fixture uses
+        // `inputs.`), and it is not true: measured 2026-07-28, `nika run
+        // <file> --var target=X` on a file whose `target` is a const
+        // answers ``--var target: this workflow declares no `inputs:` ``.
+        // `--var` reaches `inputs:` only, so a const cannot move between
+        // check and run.
+        //
+        // Reading it as dynamic was a live security hole (F8): TRIFECTA
+        // takes its private-read leg off `permits:`, so deleting a grant
+        // deleted the leg while the effect stayed in the body — and with a
+        // const-backed path nothing else caught it. Two files one
+        // `permits:` line apart, byte-identical `tasks:`: the honest one
+        // was refused NIKA-SEC-009, the under-declared one passed
+        // `--native-strict` with 0 hints and then died at run on its first
+        // task. The gate blocked what worked and passed what could not run.
+        //
+        // THE AUTHORITY IS THE BOUNDARY, and this assertion pins it:
+        // `const.` resolves, `inputs.`/`config.` do not.
+        let constant = r#"nika: v1
 workflow:
   id: w
 const: { target: "http://127.0.0.1/x" }
@@ -1378,10 +1523,55 @@ tasks:
   t:
     invoke: { tool: "nika:fetch", args: { url: "${{ const.target }}" } }
 "#;
-        let e = escapes(dynamic);
+        let e = escapes(constant);
         assert!(
-            e.is_empty(),
-            "dynamic resource under absent = runtime concern (NEP-0003 law 3): {e:?}"
+            e.iter().any(|x| x.floor),
+            "a const-backed loopback target floors at CHECK time, not at run: {e:?}"
+        );
+    }
+
+    /// The under-declaration inversion, pinned (F8 · 2026-07-28).
+    ///
+    /// Same body, one `permits:` line apart. Before the const table, the
+    /// under-declared file passed clean; the runtime then refused it on its
+    /// first task. A boundary verdict must not depend on which authority
+    /// the author routed the path through.
+    #[test]
+    fn a_const_backed_path_cannot_dodge_the_declared_boundary() {
+        let body = |grant: &str| {
+            format!(
+                r#"nika: v1
+workflow:
+  id: w
+const: {{ pin: "./data/pin.toml" }}
+permits:
+  fs:
+{grant}    write: ["./target/**"]
+  tools: ["nika:read"]
+tasks:
+  t:
+    invoke: {{ tool: "nika:read", args: {{ path: "${{{{ const.pin }}}}" }} }}
+"#
+            )
+        };
+        let granted = escapes(&body("    read: [\"./data/**\"]\n"));
+        assert!(
+            granted.is_empty(),
+            "the declared boundary admits the const-backed path: {granted:?}"
+        );
+        let withheld = escapes(&body(""));
+        assert!(
+            withheld.iter().any(|e| e.category == "fs"),
+            "deleting the grant must NOT hide the read: {withheld:?}"
+        );
+        // The repair names the resolved path, not the expression — an agent
+        // repair loop pattern-matches the one `add "<entry>" to permits.<p>`
+        // idiom, and `${{ const.pin }}` is not an entry.
+        assert!(
+            withheld
+                .iter()
+                .any(|e| e.fix.as_deref() == Some(r#"add "./data/pin.toml" to permits.fs.read"#)),
+            "the fix carries the resolved path: {withheld:?}"
         );
     }
 }

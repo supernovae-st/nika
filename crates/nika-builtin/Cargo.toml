@@ -45,9 +45,14 @@ tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval o
 # ToolDef schemas (one source, no drift). Minimal features: the builtin
 # catalog only, no provider/pricing data. L1.5→L0 downward (layering-clean).
 nika-catalog  = { path = "../nika-catalog", version = "0.106.0", default-features = false, features = ["builtins-transforms"] }
+# THE fs boundary predicate (`fit::glob_admits`), shared with the static check
+# so the two verdicts cannot drift. Was dev-only, backing a differential test
+# between "two independent implementations" — they drifted, in the permissive
+# direction, and the differential was scoped away from the forms that broke.
+# One implementation, like `nika_types::net` already is for hosts.
+nika-cap = { path = "../nika-cap", version = "0.106.0" }
 
 [dev-dependencies]
-nika-cap = { path = "../nika-cap", version = "0.106.0" }  # test-only: the static side of the fs boundary differential
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.106.0" }
 # test-only: the REAL filesystem (TokioFs) — the permits.fs boundary tests
 # need a true `canonicalize` (resolves `..` + symlinks) against a /tmp scratch
