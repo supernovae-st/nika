@@ -73,6 +73,7 @@ mod schema_typing;
 mod secrets;
 mod tools;
 pub mod trifecta;
+mod walk;
 
 use nika_schema::error::{SpecCategory, SpecCode};
 use nika_schema::raw::RawWorkflow;
@@ -85,7 +86,7 @@ pub use data_sink::SinkFinding;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
-pub use hints::{Hint, static_read_paths};
+pub use hints::Hint;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
@@ -96,6 +97,7 @@ pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
+pub use walk::static_read_paths;
 
 // The analyzer's surface at the crate root — the same shape `nika-schema`
 // re-exported before the split (`analyze` · `AnalyzedWorkflow` · the
