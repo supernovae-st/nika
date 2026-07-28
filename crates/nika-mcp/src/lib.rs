@@ -35,6 +35,7 @@
 pub mod client;
 mod http;
 pub mod pin;
+mod prompts;
 mod protocol;
 pub mod sandbox;
 mod tools;

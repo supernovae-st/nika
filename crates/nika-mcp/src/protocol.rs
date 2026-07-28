@@ -11,6 +11,7 @@
 
 use serde_json::{Value, json};
 
+use crate::prompts;
 use crate::tools;
 
 /// The MCP protocol revision this server prefers (its own latest).
@@ -86,13 +87,15 @@ pub(crate) fn handle(msg: &Value) -> Option<Value> {
         "initialize" => ok(id, initialize_result(msg.get("params"))),
         "tools/list" => ok(id, json!({ "tools": tools::catalog() })),
         "tools/call" => tools_call(id, msg.get("params")),
+        "prompts/list" => ok(id, json!({ "prompts": prompts::catalog() })),
+        "prompts/get" => prompts_get(id, msg.get("params")),
         "ping" => ok(id, json!({})),
         other => err(id, -32601, &format!("method not found: {other}")),
     })
 }
 
 /// The `initialize` result — the negotiated protocol version · the tools
-/// capability · identity. Version negotiation (spec lifecycle · MUST): echo the
+/// and prompts capabilities · identity. Version negotiation (spec lifecycle · MUST): echo the
 /// client's requested version when supported, else answer with ours.
 fn initialize_result(params: Option<&Value>) -> Value {
     let version = params
@@ -102,7 +105,7 @@ fn initialize_result(params: Option<&Value>) -> Value {
         .unwrap_or(PROTOCOL_VERSION);
     json!({
         "protocolVersion": version,
-        "capabilities": { "tools": {} },
+        "capabilities": { "tools": {}, "prompts": {} },
         "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
     })
 }
@@ -126,6 +129,31 @@ fn tools_call(id: &Value, params: Option<&Value>) -> Value {
     match tools::execute(name, &args) {
         Ok(text) => ok(id, tool_content(&text, false)),
         Err(text) => ok(id, tool_content(&text, true)),
+    }
+}
+
+/// `prompts/get` → the named kit command, rendered with its argument.
+/// Prompts have NO `isError` channel (unlike `tools/call`): an unknown
+/// name or a missing required argument is a real `-32602`, never a
+/// content block a model would read back as instructions.
+fn prompts_get(id: &Value, params: Option<&Value>) -> Value {
+    let Some(params) = params else {
+        return err(
+            id,
+            -32602,
+            "invalid params: `prompts/get` requires {name, arguments}",
+        );
+    };
+    let Some(name) = params.get("name").and_then(Value::as_str) else {
+        return err(
+            id,
+            -32602,
+            "invalid params: `prompts/get` requires a `name`",
+        );
+    };
+    match prompts::render(name, params.get("arguments")) {
+        Ok(result) => ok(id, result),
+        Err(message) => err(id, -32602, &message),
     }
 }
 
