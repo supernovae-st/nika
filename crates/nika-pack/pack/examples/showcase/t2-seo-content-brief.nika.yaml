@@ -34,6 +34,8 @@ inputs:
     description: "The keyword/topic you want to rank for"
 const:
   competitor_sitemap: "https://competitor.example.com/sitemap.xml"
+permits:
+  tools: ["nika:fetch", "nika:write"]
 
 tasks:
   map:

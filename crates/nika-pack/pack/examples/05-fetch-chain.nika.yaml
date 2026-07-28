@@ -24,6 +24,8 @@ workflow:
 model: mock/echo
 const:
   api_url: "https://api.example.com/v1/articles/latest"
+permits:
+  tools: ["nika:fetch"]
 
 tasks:
   fetch_article:

@@ -29,6 +29,7 @@
           "description": "Workflow id · kebab-case · the document-type discriminator (W1: the envelope became an object)."
         },
         "description": {
+          "description": "Free-form prose about the workflow · documentation for whoever reads the file, never read by the engine (spec/01-envelope.md).",
           "type": "string"
         }
       },
@@ -40,7 +41,7 @@
     },
     "types": {
       "type": "object",
-      "description": "Named type declarations (spec 09-types.md · PascalCase · acyclic)",
+      "description": "Named type declarations · the workflow's own vocabulary, referenced by name wherever a type is expected. PascalCase · acyclic (spec 09-types.md).",
       "propertyNames": {
         "pattern": "^[A-Z][A-Za-z0-9]*$"
       },
@@ -50,7 +51,7 @@
     },
     "inputs": {
       "type": "object",
-      "description": "Typed workflow inputs · `${{ inputs.X }}` · the parameters an author declares and a caller supplies (R3a · LAW-SURFACE-0201 · the typed half of the dead `vars:` block · a required:true value lands here per the E-split total rule). Each entry is a typed declaration whose `type:` speaks the full TypeExpr of 09-types (R3b · LAW-GRAMMAR-0211 · the flat 6-enum is dead · LAW-SURFACE-0211).",
+      "description": "Typed workflow inputs · `${{ inputs.X }}` · the parameters an author declares and a caller supplies. Each entry is a typed declaration whose `type:` speaks the full TypeExpr of 09-types (R3b · LAW-GRAMMAR-0211 · the flat 6-enum is dead · LAW-SURFACE-0211). The typed half of the dead `vars:` block (R3a · LAW-SURFACE-0201) · a `required: true` value lands here per the E-split total rule.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -69,6 +70,7 @@
             "description": "The value used when the caller supplies none · MUST conform to `type:` (R3b · LAW-TYPE-0211 · NIKA-DEFAULT-001 · the P0 soundness hole is closed at check)."
           },
           "description": {
+            "description": "Free-form prose about this input · what a caller is being asked for. Documentation only — the contract is `type` and `required`.",
             "type": "string"
           }
         }
@@ -76,7 +78,7 @@
     },
     "config": {
       "type": "object",
-      "description": "Typed non-sensitive runtime config · `${{ config.X }}` · supplied by the deployment or environment, may appear in logs (R3a · LAW-SURFACE-0201 · succeeds the dead `env:` block). Each entry is a typed declaration; a `default:` MUST conform to `type:` (LAW-TYPE-0211 · NIKA-DEFAULT-001).",
+      "description": "Typed non-sensitive runtime config · `${{ config.X }}` · supplied by the deployment, and it MAY appear in logs. Each entry is a typed declaration; a `default:` MUST conform to `type:` (LAW-TYPE-0211 · NIKA-DEFAULT-001). Succeeds the dead `env:` block (R3a · LAW-SURFACE-0201).",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -91,6 +93,7 @@
             "description": "The value used when the deployment supplies none · MUST conform to `type:` (NIKA-DEFAULT-001)."
           },
           "description": {
+            "description": "Free-form prose about this config value · where a deployment is expected to get it. Documentation only — the contract is `type`.",
             "type": "string"
           }
         }
@@ -98,7 +101,7 @@
     },
     "const": {
       "type": "object",
-      "description": "Named constants · `${{ const.X }}` · a fixed value baked into the workflow (R3a · LAW-SURFACE-0201 · the literal half of the dead `vars:` block · everything that is not required:true lands here per the E-split total rule). Either a bare literal, or a `{ type, value }` typed constant whose `value:` MUST conform to `type:`.",
+      "description": "Named constants · `${{ const.X }}` · a fixed value baked into the workflow. Either a bare literal, or a `{ type, value }` typed constant whose `value:` MUST conform to `type:`. The literal half of the dead `vars:` block (R3a · LAW-SURFACE-0201) · everything that is not `required: true` lands here per the E-split total rule.",
       "additionalProperties": {
         "type": [
           "string",
@@ -125,6 +128,7 @@
               "description": "The constant value · MUST conform to `type:` (NIKA-DEFAULT-001)."
             },
             "description": {
+              "description": "Free-form prose about this constant · why the value is what it is. Documentation only — the contract is `type` and `value`.",
               "type": "string"
             }
           },
@@ -300,7 +304,7 @@
     "run": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The run's entropy + clock declaration (NEP-0010) · every source of randomness and time is declared, never ambient · the dimensions couple: only ambient×system (the status quo) and none|seeded×virtual (the deterministic states) are legal · a contradiction refuses at parse (NIKA-PARSE-026 ambient×virtual · NIKA-PARSE-027 none|seeded×system) and a strict declaration contradicted by the body refuses at check (NIKA-PARSE-028).",
+      "description": "The run's entropy and clock declaration · every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010).",
       "properties": {
         "entropy": {
           "description": "none (strict determinism) · ambient (the honest status quo, default) · { seeded: <u64> } (the deterministic seams + the pinned seed · two runs of the same file with the same seed produce byte-identical journals)",
@@ -339,7 +343,7 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Named workflow law · hard families (require/forbid/allow/limits) are judged at check (NIKA-POLICY-001) · soft families (prefer/optimize) are recorded, never judged in v1 (spec/10-authority.md).",
+      "description": "Named workflow law · hard families are judged at check, soft families are only recorded. Hard is require/forbid/allow/limits (NIKA-POLICY-001) · soft is prefer/optimize, never judged in v1 (spec/10-authority.md).",
       "properties": {
         "require": {
           "type": "object",
@@ -458,6 +462,7 @@
                 "description": "The output's type · the full TypeExpr of 09-types (R3b · LAW-GRAMMAR-0211 · the flat 6-enum is dead alongside the inputs half · LAW-SURFACE-0211)."
               },
               "description": {
+                "description": "Free-form prose about this output · what a caller receives. Documentation only — the contract is `value` and `type`.",
                 "type": "string"
               }
             }
@@ -527,7 +532,7 @@
               "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
             }
           ],
-          "description": "LOCAL business condition · evaluated POST-gate over {vars · env · with · item · index} — tasks.* is illegal here (NIKA-VAR-021 · hoist into with:). false → skipped (spec/03-dag.md §when)."
+          "description": "LOCAL business condition · false skips the task · evaluated POST-gate over {vars · env · with · item · index}. Referring to `tasks.*` is illegal here (NIKA-VAR-021 · hoist it into `with:`) · spec/03-dag.md §when."
         },
         "for_each": {
           "description": "Map this task over a collection · `${{ ... }}` reference OR a literal array.",
@@ -543,9 +548,10 @@
         },
         "fail_fast": {
           "type": "boolean",
-          "description": "for_each abort-on-error · default true."
+          "description": "Whether a `for_each` fan-out abandons the batch on the first failure · default true. False finishes every item and yields null at a failed index, so the batch reports what it could."
         },
         "retry": {
+          "description": "Retry policy for this task · `{ max_attempts, backoff_ms, backoff_strategy, backoff_max_ms, jitter, on_codes }`. Retries run BEFORE `on_error` sees anything — the catch handles the last error only (spec/05-errors.md §Retry policy).",
           "$ref": "#/$defs/retry"
         },
         "on_error": {
@@ -590,7 +596,7 @@
         "inert": {
           "type": "string",
           "minLength": 1,
-          "description": "The honest door of the data-as-code sink (spec/10-authority.md §the data-as-code sink · NEP-0006 · LAW-AUTH-0327) · declares this task's fetch a code-bearing artifact it will never load or run · the non-empty string IS the justification · lifts the sink law only, never the net boundary or the SSRF floor."
+          "description": "The honest door of the data-as-code sink · declares this task's fetch a code-bearing artifact it will never load or run. The non-empty string IS the justification · it lifts the sink law only, never the net boundary and never the SSRF floor (spec/10-authority.md · NEP-0006 · LAW-AUTH-0327)."
         },
         "declassify": {
           "type": "array",
@@ -639,7 +645,7 @@
         },
         "returns": {
           "$ref": "#/$defs/typeExpr",
-          "description": "The task's output contract (spec 09-types.md) — exclusive with a verb-level schema: (NIKA-TYPE-003)"
+          "description": "The task's output contract · the TYPED door, where a verb-level `schema:` is the out-of-core hatch. The two are exclusive on one task (NIKA-TYPE-003 · spec 09-types.md)."
         }
       }
     },
@@ -654,6 +660,7 @@
           "type": "string"
         },
         "system": {
+          "description": "System prompt · the standing instruction, sent ahead of `prompt:` and unchanged by it.",
           "type": "string"
         },
         "model": {
@@ -664,7 +671,7 @@
             "number",
             "string"
           ],
-          "description": "0-2 · number or `${{ }}`."
+          "description": "Sampling temperature · 0 is the steadiest the provider offers, 2 the loosest. A number in 0-2, or a `${{ }}` reference."
         },
         "max_tokens": {
           "type": [
@@ -674,9 +681,10 @@
         },
         "schema": {
           "type": "object",
-          "description": "JSON Schema · structured output contract."
+          "description": "JSON Schema · the structured-output contract the model's reply must satisfy. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003)."
         },
         "thinking": {
+          "description": "Extended thinking · `{ enabled, budget_tokens }` — reasoning the model may spend before it answers (spec/02-verbs.md §infer).",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -689,6 +697,7 @@
           }
         },
         "vision": {
+          "description": "Image inputs for the call · each entry `{ source: file | url, path | url }` · the images `prompt:` is allowed to refer to.",
           "type": "array",
           "items": {
             "type": "object",
@@ -724,18 +733,22 @@
           "minItems": 1
         },
         "cwd": {
+          "description": "Working directory for the subprocess · default = the engine's own cwd.",
           "type": "string"
         },
         "env": {
+          "description": "OS environment variables for THIS subprocess · a key→value map applied over the composed environment. Nothing is inherited — the ambient environment reaches a task only through `permits.env` (spec/01-envelope.md §permits).",
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
         "stdin": {
+          "description": "Data written to the command's standard input · may interpolate `${{ }}`.",
           "type": "string"
         },
         "capture": {
+          "description": "Which stream becomes the task's output · `stdout` (default) · `stderr` · `combined` · `structured` = `{ stdout, stderr, exit_code }`. This is the SOURCE; `decode:` is how that string becomes a value.",
           "type": "string",
           "enum": [
             "stdout",
@@ -752,7 +765,7 @@
             "jsonl",
             "bytes"
           ],
-          "description": "How the captured string becomes a value (spec 09 §decode) — illegal with capture: structured (NIKA-PARSE-025)"
+          "description": "How the captured string becomes a value · `text` (default) · `json` · `jsonl` · `bytes`. Illegal with `capture: structured`, which already IS an object (NIKA-PARSE-025) · a non-parsing stream settles the task `failure` inside `on_error:` scope (spec 09 §decode)."
         },
         "shell": {
           "description": "One shell line, run via /bin/sh -c — the EXPLICIT dangerous door (pipes · redirects · globs). The blocklist applies here; interpolating untrusted values here is on the author. Exactly one of command|shell.",
@@ -822,6 +835,7 @@
           ]
         },
         "args": {
+          "description": "Arguments passed to the tool · an object whose shape is the TOOL's own schema, not the language's. Each builtin and each MCP tool declares its own (spec/02-verbs.md §invoke) · `${{ }}` may appear in any leaf value.",
           "type": "object"
         },
         "workflow": {
@@ -863,6 +877,7 @@
           "type": "string"
         },
         "system": {
+          "description": "System prompt · the standing instruction, sent ahead of `prompt:` and unchanged by any turn of the loop.",
           "type": "string"
         },
         "model": {
@@ -877,7 +892,7 @@
         },
         "skills": {
           "type": "array",
-          "description": "Agent Skill (SKILL.md) file paths · agentskills.io shape · explicit static paths only (no globs · no templates) · loaded at compose time and injected into the system context.",
+          "description": "Agent Skill (SKILL.md) file paths · explicit static paths only, no globs and no templates. They follow the agentskills.io shape, and are loaded at compose time and injected into the system context.",
           "items": {
             "type": "string"
           }
@@ -889,6 +904,7 @@
           ]
         },
         "max_tokens_total": {
+          "description": "Cumulative token budget across every turn of the loop · the SPEND ceiling, where `max_turns` is the step ceiling. Default is engine-configurable (spec/02-verbs.md §agent).",
           "type": [
             "integer",
             "string"
@@ -898,11 +914,12 @@
           "type": [
             "number",
             "string"
-          ]
+          ],
+          "description": "Sampling temperature for every turn of the loop · 0 is the steadiest the provider offers, 2 the loosest. A number in 0-2, or a `${{ }}` reference."
         },
         "schema": {
           "type": "object",
-          "description": "JSON Schema · validate the agent's final message as structured output."
+          "description": "JSON Schema · the contract the agent's FINAL message must satisfy. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003)."
         }
       }
     },
@@ -914,13 +931,16 @@
       "additionalProperties": false,
       "properties": {
         "max_attempts": {
+          "description": "Total attempts, counting the first try · integer ≥ 1 · the one required field of a `retry:` block. Engines honor it strictly and surface the LAST error if every attempt fails (spec/05-errors.md §Retry policy).",
           "type": "integer",
           "minimum": 1
         },
         "backoff_ms": {
+          "description": "Initial delay between attempts, in milliseconds · default 1000. `backoff_strategy` decides how it grows from there.",
           "type": "integer"
         },
         "backoff_strategy": {
+          "description": "Which curve the delay follows between attempts · `fixed` · `linear` · `exponential` · default `exponential`. Each attempt waits `backoff_ms` flat, `backoff_ms × attempt`, or `backoff_ms × 2^(attempt-1)` capped at `backoff_max_ms`.",
           "type": "string",
           "enum": [
             "fixed",
@@ -929,12 +949,15 @@
           ]
         },
         "backoff_max_ms": {
+          "description": "Ceiling on the computed delay, in milliseconds · default 60000, one minute. Exponential growth stops climbing here.",
           "type": "integer"
         },
         "jitter": {
+          "description": "Randomize the computed delay so tasks retrying the same upstream do not synchronize · default TRUE. Engines SHOULD use a full-jitter or equal-jitter family — the anti-thundering-herd default (spec/05-errors.md §Retry policy).",
           "type": "boolean"
         },
         "on_codes": {
+          "description": "Retry ONLY on these canonical `NIKA-<NS>-<NNN>` codes · absent, the engine retries anything transient. Codes, never HTTP status numbers · the retry-side mirror of `on_error.on_codes`.",
           "type": "array",
           "items": {
             "type": "string",
@@ -952,9 +975,11 @@
           "description": "Recovery output · a `${{ }}` ref OR a literal (merges the former fallback/value per spec/05-errors.md)."
         },
         "skip": {
+          "description": "Swallow the error and let the DAG continue · the task produces no output, and the original error stays readable at `tasks.<id>.error`. Exactly one of `recover` · `skip` · `fail_workflow`.",
           "type": "boolean"
         },
         "fail_workflow": {
+          "description": "Fail the whole workflow on this error · the written-down form of the default, so a reader sees the choice instead of inferring it. Exactly one of `recover` · `skip` · `fail_workflow`.",
           "type": "boolean"
         },
         "on_codes": {

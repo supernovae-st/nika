@@ -43,7 +43,11 @@ brand:
 
 # The 4 verbs — locked forever (spec/02-verbs.md). codicon + glyph are the
 # SHIPPED vscode bindings (workflowTree ThemeIcons · the ◇▷◆✦ unicode set);
-# fa is the Mintlify binding; icon is the nika.sh ontology id (icons.json).
+# fa is the Mintlify binding; icon is the nika.sh ontology id (icons.json) —
+# the FULL id including its family segment, checked against that file at
+# TARGET 1. Three of these four were wrong until 2026-07-28: two had lost the
+# `code/` family prefix and `agent` named `agent-graph`, which appears nowhere
+# in the ontology at all. Nothing consumed the field, so nothing went red.
 # text is the verb hue re-anchored for BODY COPY: it clears
 # rules.contrast_apca.body (APCA Lc >= 60) on brand.color.bg_base AND
 # bg_elevated. invoke already clears at its base hue — its ramp is the
@@ -62,21 +66,21 @@ verbs:
     codicon: "terminal"
     fa: "terminal"
     glyph: "▷"
-    icon: "console"
+    icon: "code/console"
   invoke:
     color: "#22d3ee"
     text: "#22d3ee"
     codicon: "plug"
     fa: "plug"
     glyph: "◆"
-    icon: "api-connection"
+    icon: "code/api-connection"
   agent:
     color: "#b07bff"
     text: "#c5a4ff"
     codicon: "robot"
     fa: "robot"
     glyph: "✦"
-    icon: "agent-graph"
+    icon: "code/agent"
 
 # The severity pair shared by run verdicts across surfaces (website run/morph
 # css · vscode run-state · docs). warn stays surface-local today (no cross-
@@ -85,6 +89,21 @@ severity:
   ok: "#34d399"
   fail: "#ff5d5d"
   fail_text: "#ff9791"      # fail re-anchored for body copy (APCA Lc >= 60 on both bg_* planes)
+  # THE AUDIT LADDER — which stored hue paints each `material.node.audit_severity`
+  # level. That list has named three levels since the node contract landed, but
+  # nothing here said what any of them look like: the canvas resolved the map
+  # inside its own stylesheet (dag.css · « Worst-severity hue: error red ·
+  # warning amber · info accent ») and the website could resolve none of it. The
+  # binding lived in one surface instead of in the vocabulary both read.
+  #
+  # ALIASES ONLY, by construction: a finding never introduces a colour, it
+  # borrows the one its weight already means. Keys must equal
+  # `material.node.audit_severity`, in that order; every value is a dotted path
+  # into this file that must land on a #rrggbb.
+  audit:
+    error: severity.fail          # a finding that stops the run wears the failure red
+    warning: status.retrying      # not fatal, not settled — the same amber as a retry
+    info: brand.color.accent      # a remark, in the voice the page already speaks
 
 # The LIVE run-state palette — the register every surface that animates a
 # run speaks (website run/morph/plan css · the vscode canvas NIKA skin ·
@@ -98,6 +117,129 @@ status:
   running: "#5b8cff"
   retrying: "#e0b071"
   muted: "#5a606b"
+
+# THE BUILTIN'S HOUSE — which stored hue paints each of the six categories the
+# tool catalogue declares (core · file · data · network · introspection ·
+# media). The canvas has drawn these since the house-icon landed, resolved
+# inside its own stylesheet as --nk-cat-*; nothing in the shared vocabulary
+# said what a category looks like, so the website could paint none of them and
+# the design bench could not show a builtin at all.
+#
+# ALIASES ONLY, like severity.audit: a category never introduces a colour, it
+# borrows the one its MEANING already has. Reading them in order is the
+# argument — what touches your disk wears the success green because it is the
+# thing that either happened or did not; what leaves the machine wears the
+# accent because that is the reach; what looks at the run itself wears the
+# amber, the same one a retry wears, because both are the colour of « not
+# settled yet ».
+#
+# Keys MUST equal the catalogue's `category` set; every value is a dotted path
+# into this file that must land on a #rrggbb.
+builtin:
+  category:
+    core: status.muted                # the plumbing · it should not shout
+    file: severity.ok                 # it touched your disk, or it did not
+    # THE CANVAS DOES NOT SEPARATE THESE TWO in its brand skin: --nk-data and
+    # --nk-accent are the same #4f86ff there. Recorded as the fact it is, not
+    # dressed up — if data ever earns its own hue, this is the line that moves.
+    data: brand.color.accent
+    network: brand.color.accent       # the only ones that leave the machine
+    # THE CANVAS HOLDS #e6b873 HERE and this file does not store it. Six units
+    # from status.retrying (#e0b071) across all three channels — indistinguishable
+    # at chip size, and one stored amber is worth more than two that differ by
+    # nothing. The canvas converges on this one; the difference is named rather
+    # than silently rounded.
+    introspection: status.retrying
+    # A MIX, because the canvas's is one: infer at 45% into agent. Computed at
+    # projection from two stored hues, so it stays an alias — it introduces no
+    # colour, it states a ratio between two that already exist.
+    media:
+      mix: [verbs.infer.color, verbs.agent.color]
+      at: 0.55                        # weight of the SECOND · agent-leaning
+
+# THE CARD'S IDENTITY — what a node card SHOWS, beyond its verb and its status.
+#
+# All of this shipped in the VS Code canvas (src/core/cardIdentity.ts) and
+# nowhere else: the website and the design bench draw a text card because the
+# vocabulary for a richer one lived in one repository. Promoted here VERBATIM —
+# every glyph, every kind, every essence below is read off that file, not
+# chosen. The rule that derives a preview is a small decision table, so it comes
+# across as data instead of a function.
+card_identity:
+  # The category's MARK — one glyph per catalogue house. Read as a set they are
+  # a little alphabet of what a builtin touches: a dot for the plumbing, a page
+  # for the disk, stacked sheets for shape, arrows for the wire, a lens for
+  # looking, a frame for what it develops.
+  category_glyph:
+    core: "◦"
+    file: "▤"
+    data: "⧉"
+    network: "⇄"
+    introspection: "⌕"
+    media: "▣"
+
+  # THE PREVIEW SLOT a card earns. Six kinds, and `none` is the honest default:
+  # most builtins have nothing to show but their words.
+  preview:
+    kinds: [image, audio, file, http, check, none]
+    # the category decides first …
+    by_category:
+      core: none
+      file: none
+      data: none
+      network: http        # a request has a response worth framing
+      introspection: none
+      media: image         # the developing frame
+    # … and these builtins differ from their house. Each is a fact about the
+    # tool, not a preference: tts_generate is the catalogue's only audio maker;
+    # write and edit are the only file builtins that leave something behind;
+    # compose statically CHECKS a drafted workflow, so its card earns a receipt.
+    overrides:
+      tts_generate: audio
+      write: file
+      edit: file
+      compose: check
+
+  # THE ESSENCE — which argument IS a builtin's soul, and how to render it.
+  # A card that shows every arg shows nothing; this names the one that answers
+  # « what does this task actually do ».
+  essence:
+    renders: [code, path, url, event, duration, condition, text]
+    by_builtin:
+      log: { arg: message, render: text }
+      emit: { arg: event_type, render: event }
+      assert: { arg: condition, render: condition }
+      prompt: { arg: message, render: text }
+      wait: { arg: duration, render: duration }
+      read: { arg: path, render: path }
+      write: { arg: path, render: path }
+      edit: { arg: path, render: path }
+      glob: { arg: pattern, render: code }
+      grep: { arg: pattern, render: code }
+      jq: { arg: expression, render: code }
+      validate: { arg: schema, render: condition }
+      convert: { arg: to, render: code }
+      uuid: { arg: version, render: text }
+      date: { arg: op, render: code }
+      hash: { arg: content, render: text }
+      decide: { arg: bundle, render: path }
+      fetch: { arg: url, render: url }
+      notify: { arg: target, render: text }
+      inspect: { arg: view, render: code }
+      compose: { arg: workflow_yaml, render: code }
+      image_generate: { arg: prompt, render: text }
+      tts_generate: { arg: text, render: text }
+
+  # THE PORT — the patch-bay jack a wire plugs into. The canvas draws it as an
+  # SVG circle with a dark bore and a machined collar; what matters here is the
+  # TYPING, and it reuses the category hues rather than inventing a palette:
+  # a media wire wears the media house, a data wire the data house.
+  port:
+    directions: [in, out]
+    flows: [data, media, plain]
+    flow_hue:
+      data: builtin.category.data
+      media: builtin.category.media
 
 # The per-FEATURE icon bindings — vscode codicon ids, drawn on the
 # rules.icon_grid contract. Unlike the 4 verbs this set is OPEN: a feature
@@ -139,6 +281,338 @@ presentation:
     - openai
     - google
     - xai
+
+# ── the semantic ROLES a key carries ─────────────────────────────────────────
+# A generic YAML highlighter colours by SYNTAX class (key · string · number)
+# because it does not know the language. Nika is a closed contract: the schema
+# declares, for every word, the scopes it may legally appear in. So a surface
+# can colour by MEANING instead — `command` belongs to exec because it cannot
+# live anywhere else, and that is information rather than decoration.
+#
+# MEMBERSHIP IS DERIVED, NEVER LISTED. The projector reads
+# schemas/workflow.schema.json and closes each role over the schema's own
+# scopes; only the seeds below are authored, because they are the three
+# judgments the schema cannot state about itself. Add a word to the schema and
+# its role follows on the next projection.
+#
+# AND NO ROLE INVENTS A HUE. The seven layer hues already collide with the four
+# verb hues by construction (flow IS infer's blue, reach IS invoke's cyan,
+# boundary IS exec's orange), so a fourth palette would either clash or leave
+# this SSOT. Each role reuses a mark that already means what it says, and each
+# surface binds that mark in its own vocabulary — a React span, a vscode
+# semantic token, a terminal glyph are not the same object, and pretending
+# they are is how false coherence starts.
+roles:
+  boundary:
+    means: "the declarations that bound what a plan may touch"
+    # heads; every descendant inherits by SCOPE at tokenize time, because
+    # `tools` under permits: is the boundary while `tools` under agent: is the
+    # verb's, and only position can tell them apart
+    seed: ["permits", "secrets"]
+    inherit: "descendants"
+    # a SHIELD, not a hue: icons.features.permits is already 'shield' here, and
+    # a glyph stays legible in forced-colors and in a monochrome terminal
+    mark: "glyph"
+    codicon: "shield"
+    web_token: "--cf-key"
+    web_weight: 600
+    vscode_semantic: "keyword.control"
+  wire:
+    means: "the keys that DECLARE an edge — the same fact as the ${{ }} they introduce"
+    seed: ["after", "with"]
+    inherit: "none"
+    # the ref ink the interpolation already wears; `with:` and `after:` ARE the
+    # edge, so they are not a second colour
+    mark: "ref-ink"
+    codicon: "arrow-right"
+    web_token: "--cf-ref"
+    vscode_semantic: "variable.other.link"
+  fail:
+    means: "the declared failure grammar"
+    seed: ["on_error", "on_finally", "retry", "recover"]
+    # the closure: a word whose ONLY scopes are recovery scopes is failure
+    # grammar, however deep it sits (backoff_ms · jitter · on_codes · skip …)
+    inherit: "scopes_closed_under"
+    recovery_scopes: ["on_error", "on_finally", "retry"]
+    # refusals — the one layer hue no verb claims, and the exact hue /errors
+    # and the danger ring already speak
+    mark: "danger"
+    codicon: "error"
+    web_token: "--danger"
+    web_mix_pct: 78
+    vscode_semantic: "invalid.deprecated"
+
+# ── the MATERIAL a surface is made of ────────────────────────────────────────
+# Every surface that draws a nika node draws the same object: a PLATE. It has
+# a top edge that catches light, a face with a paper tooth, a well cut into it
+# where code sits, and two shadows — one where it touches, one where it hangs.
+# The website, the VS Code canvas and the design bench all render that object,
+# and until now each invented its own version of it: three radii, three shadow
+# recipes, three ideas of how much an edge should glint.
+#
+# WHAT IS STORED HERE ARE QUANTITIES, NOT CSS. How far the light reaches, how
+# deep the well is cut, how much the edge takes — a surface binds them in its
+# own vocabulary, the way roles: above binds a mark rather than a hue. The one
+# deliberate exception is the easing curves: the VS Code canvas is a WEBVIEW,
+# so it and the site share a rendering engine, and a damping profile written
+# once as linear() is the same physical curve in both. The docs target ignores
+# this block entirely — a Mintlify page has no plates.
+#
+# THE LAMP IS THE POINT. There is one light in the room and every plate obeys
+# it: the bevel brightens as it turns toward it, the shadow lengthens away from
+# it, the paper's tooth shifts by a pixel. That is why these are quantities on
+# a scene rather than properties on a card — one gradient lights a hundred
+# plates, and a plate alone cannot know where the light is.
+material:
+  plate:
+    radius_px: 7          # the corner · already what the shipped canvas draws
+    pad_px: 7             # the air inside a row
+    bevel: 0.06           # white alpha on the top edge, at rest
+    bevel_lit: 0.15       # …when the lamp is on it
+    grain: 0.03           # the paper's tooth · Bayer, never a smooth noise
+    lift_px: 3            # how far it rises when picked up
+    contact: { y_px: 1, blur_px: 3, alpha: 0.38 }
+    ambient: { y_px: 24, blur_px: 40, spread_px: -24, alpha: 0.55 }
+  well:                   # the code is CUT INTO the plate, not boxed on it
+    inset_alpha: 0.40     # shadow at the top lip — the exact inverse of bevel
+    glow_alpha: 0.05      # light pooling at the bottom lip
+  lamp:
+    reach_vmax: 60        # the light's radius
+    # 0.10 was a guess and it was invisible: forced to two opposite corners
+    # the rendered page moved 1 sample in 5394. 0.55 reads as a spotlight;
+    # 0.26 reads as a presence, which is the register. Measured on /language
+    # at 1280×1450, additive over the dark room.
+    core: 0.26            # alpha at its centre
+    falloff: 0.22         # where it starts to give up
+    drift_s: 40           # one idle orbit, so the room lives without a pointer
+  # THE SECOND PRIMITIVE, found by reading the shipped canvas. Thirteen distinct
+  # selectors in nika-vscode src/webview/dag.css carry the same recipe by hand —
+  # the toolbar, the omnibar, the plan rail, the scrubber, the title, the status
+  # pill, both command palettes, the describe panel, the stale banner, the mark,
+  # and two toolbar parts. Twenty backdrop-filter declarations, nine of them
+  # blur+saturate, and not one shared name between them.
+  #
+  # A plate SITS on the page; a glass FLOATS over it. That is the whole
+  # difference and it is why they cannot be the same token: the plate takes a
+  # bevel because light lands on its top edge, the glass takes a blur because
+  # what is behind it must stay legible as depth rather than as content.
+  glass:
+    tint: 0.88            # how much of the surface colour remains · the rest is what is behind
+    blur_px: 11
+    saturate: 1.12        # the backdrop keeps its colour instead of going grey under blur
+    border: 0.09          # white alpha on the hairline
+    grain: 0.03           # the same tooth as the plate · one paper, two objects
+  # ── THE GROUND · the floor the graph is drawn on ────────────────────────────
+  # Read out of the shipped canvas (nika-vscode src/webview/dag.css), not
+  # designed here. The web had been drawing a flat fill where the canvas draws
+  # four stacked layers, which is why the two diverged on sight.
+  #
+  # A CROSS, NOT A GRID. The tick is a plus — two 8px arms crossing at the cell
+  # centre — repeated every 40px at 5% white. It reads as a survey mark rather
+  # than as graph paper: it says « this is a plane with coordinates » without
+  # drawing lines that compete with the wires.
+  #
+  # AND THE VIGNETTE KNOWS THE RUN. At rest the pool falls away from 55%; while
+  # tasks execute the falloff TIGHTENS to 46% and the rim darkens, pulling the
+  # eye to the lit work. That is not decoration — it is the only ambient signal
+  # that a run is in flight.
+  ground:
+    grid:
+      cell_px: 40         # the cross repeats on this pitch
+      arm_px: 4           # each arm reaches this far from the centre
+      stroke: 0.05        # white alpha
+      far_cell_px: 96     # when zoomed out, a coarser, slightly firmer mark
+      far_arm_px: 6
+      far_stroke: 0.07
+    vignette:
+      reach_x: 1.20       # of the container width
+      reach_y: 1.00
+      at_y: 0.38          # the pool's centre sits above the middle
+      clear: 0.55         # untouched out to here
+      edge: 0.38          # black alpha at the rim
+    vignette_running:     # the falloff closes while tasks execute
+      reach_x: 1.10
+      reach_y: 0.92
+      at_y: 0.40
+      clear: 0.46
+      edge: 0.50
+    # THE POINTER LAMP ALREADY EXISTED HERE, and it is BLUE. The website
+    # invented a white one for its cabinets before anyone read this; the two
+    # are the same idea at two scales, and this one is the original.
+    spot:
+      radius_px: 680
+      hue: "79 134 255"
+      alpha: 0.06
+      fade: 0.70          # transparent by this stop
+      ease_ms: 400
+    # ── LE CURSEUR ────────────────────────────────────────────────────────────
+    # The canvas ships NO drawn cursor: it has a native vocabulary where each
+    # shape says what the gesture will do (grab · pointer · crosshair · help ·
+    # zoom-in). That vocabulary stays. This adds ONE drawn mark, and only where
+    # it earns its place — over the pool itself.
+    #
+    # AND THE MARK IS THE GROUND'S OWN TICK. The floor is surveyed with crosses
+    # every 40px; the pointer is the same cross, larger and brighter. So moving
+    # the sheet reads as moving a survey grid rather than dragging a page, and
+    # the cursor is the one place the plane and the hand speak the same shape.
+    #
+    # It tightens when held: shorter arms, because a gripped plane is a smaller
+    # gesture than a plane you could grip. The halo is not decoration — a white
+    # mark on a pale node is invisible without it.
+    cursor:
+      box_px: 20          # the SVG box · the hotspot is its centre
+      arm_px: 6           # each arm from centre, at rest
+      arm_held_px: 4      # tightened while the sheet is held
+      stroke_px: 1.5
+      halo: 0.55          # dark outline alpha · survives any ground beneath
+  # ── LE NŒUD · deux axes, pas un ─────────────────────────────────────────────
+  # A node carries exactly ONE status and ANY NUMBER of marks. The website's
+  # bench had collapsed the two into a single list of eight, which is how it
+  # came to show `stale` beside `success` as though a task could not be both —
+  # it can, and most finished tasks eventually are.
+  #
+  # Read out of nika-vscode: the status enum is what dag.css actually styles
+  # (7 classes), the marks are what nodeClassOf() appends (dag.ts:1485), and
+  # the anatomy is what src/test/verbAnatomies.test.ts asserts. Nothing here is
+  # a reconstruction — the anatomy in particular had been carried as a « draft
+  # canon » on the website since this arc opened, and the canvas's own test
+  # confirms it word for word.
+  node:
+    # ONE of these, always. `pending` deliberately has no resting rule in the
+    # canvas — « pending is CALM »: a task that has not started should not
+    # advertise itself.
+    status: [pending, running, success, failed, retrying, skipped, cancelled]
+    # ANY of these, on top. Each is orthogonal to the status: a task can be
+    # `success` AND stale AND cached, and that is three facts, not one state.
+    marks:
+      stale: "its recorded trace no longer matches the file"
+      stale_up: "something it depends on went stale"
+      cached: "it did not run · a previous identical run answered"
+      recovered: "it failed and its on_error branch caught it"
+      audit: "check found something · severity below"
+      dead_gate: "its when: can never be true · it will never run"
+      asking: "parked on a question · WAITING, not working"
+    audit_severity: [error, warning, info]
+    # THE SECOND SIGNAL — what each status owes BEYOND its hue. A colour dies
+    # under forced-colors and under a colour-blind eye, so a state carried by
+    # hue alone is a state half the readers cannot read.
+    #
+    # This block exists because converging the three surfaces surfaced a gap
+    # nobody had noticed: auditing the canvas status by status found `cancelled`
+    # carrying NOTHING but a hue — indistinguishable from `pending` to an eye
+    # that cannot separate the two greys. The bench had invented shapes for all
+    # seven, which was right for the wrong reason: it diverged instead of
+    # reporting. The finding belongs here, where all three read it.
+    #
+    # The value NAMES the signal; each surface picks its own implementation
+    # (the canvas dashes the card's border for `skipped`, the bench flattens the
+    # dot — same fact, two idioms, one contract). `none` is legal exactly once.
+    # A GLOW IS NOT A SECOND SIGNAL. The first draft of this block said `glow`
+    # for failed, and a halo is made of colour — it dies in exactly the two
+    # conditions this contract exists for. Every value below names a GEOMETRY,
+    # and the gate checks that each surface writes a non-colour property for it.
+    signal:
+      pending: small       # DELIBERATE understatement · smaller than the rest, and nothing else
+      running: ring        # hollow · something is passing through it
+      success: filled      # solid · the only state that is finished and fine
+      failed: diamond      # the disc turns a corner up · it stops the eye
+      retrying: ring_halo  # a ring with a second ring outside it · not settled, not lost
+      skipped: bar         # flattened · the disc never inflated, nothing ran
+      cancelled: bar_struck # the same bar, struck across · someone stopped it
+                            # (hue-only in the canvas until this block · the gap
+                            #  that converging the three surfaces found)
+    # THE ROW ORDER PER VERB. Head, mechanism, essence, why — except invoke,
+    # whose essence (the tool it calls) LEADS the mechanism, because that is
+    # what a reader looks for first. The agent band rides between the ordered
+    # pair and the why.
+    anatomy:
+      infer: [head, sub, body, why]
+      exec: [head, sub, body, why]
+      invoke: [head, body, sub, why]
+      agent: [head, sub, body, band, why]
+    # THE CLASS CONTRACT · how three surfaces write the SAME card.
+    #
+    # Read off the canvas's own nodeClassOf(), which was the only place it
+    # lived. Two facts a re-implementation gets wrong every time, and both did:
+    #   1. STATE RIDES THE WRAPPER, NOT THE CARD. `.dag-node.status-running`
+    #      wraps `.nc`; the card itself carries no state class. A surface that
+    #      writes `.nc--running` has invented a second grammar.
+    #   2. STATUS IS ONE, MARKS ARE MANY. A task can be success AND stale AND
+    #      cached — three facts, one state. They cannot share a slot.
+    classes:
+      wrapper: dag-node
+      card: nc
+      status_prefix: status-   # status-running · exactly one, always
+      verb_prefix: verb-       # verb-infer · exactly one, always
+      audit_prefix: audit-     # audit-error · rides with has-audit
+      mark:
+        stale: is-stale
+        stale_up: stale-up
+        cached: is-cached
+        recovered: is-recovered
+        audit: has-audit
+        dead_gate: dead-gate
+        asking: is-asking
+      # the anatomy's rows, in the canvas's own words
+      part:
+        head: nc-head
+        tile: nc-tile         # the verb glyph
+        id: nc-id
+        st: nc-st
+        dot: nc-dot
+        sub: nc-sub
+        sub_k: nc-sub-k
+        sub_v: nc-sub-v
+        body: nc-body
+        band: nc-agent-band
+        why: nc-policy        # the container; each line inside is nc-pol
+        why_line: nc-pol
+        badge: nc-badge
+        chip: nc-chip
+  # THE CARD'S GEOMETRY — read off the canvas, which was the only place it
+  # lived. Every number below is measured from `dag.css`, not chosen: the site
+  # and the bench each drew a card of their own invention because there was
+  # nothing to draw one FROM. Colour is deliberately absent — the hues already
+  # project (verb.hex · severity · status), and each surface binds them to its
+  # own host (VS Code theme variables · the site's palette). Geometry is the
+  # half that was still being re-invented three times.
+  card:
+    pad_x_px: 12
+    pad_y_px: 10
+    radius_px: 12          # --nk-radius-card
+    head_h_px: 22
+    head_gap_px: 7
+    tile_px: 22            # the verb glyph's square
+    tile_radius_px: 6      # --nk-r-tile
+    st_w_px: 18            # the status column, kept clear for the spinner
+    dot_px: 7
+    dot_rest_alpha: 0.6    # a task that has not started should not shout
+    sub_h_px: 15
+    sub_gap_px: 10
+    body_top_px: 4
+    body_line_px: 15
+    body_clamp: 3          # three lines, then it truncates — it never pushes
+    body_ink: 0.82
+    chip_pad_x_px: 7
+    chip_pad_y_px: 1
+    chip_radius_px: 4      # --nk-r-chip
+    chip_fill: 0.06
+    badge_clear_px: 12     # room for the spinner's corner
+    base_ms: 160           # --nk-dur-base
+    # the type ramp the card speaks in, smallest last
+    fs:
+      heading_px: 12.5     # the node's id
+      label_px: 11         # the tile's glyph
+      sub_px: 10.5         # the mechanism row
+      body_px: 10
+      meta_px: 9.5         # chips and the badge
+      note_px: 9
+  motion:
+    lift_ms: 190
+    drawer_ms: 420
+    # springs in pure CSS · linear() samples the curve, values over 1 overshoot
+    ease_lift: "linear(0, 0.1 6%, 0.54 19%, 0.85 32%, 0.97 42%, 1.02 50%, 1.008 70%, 1)"
+    ease_drawer: "linear(0, 0.04 8%, 0.38 24%, 0.78 42%, 1.04 62%, 0.99 78%, 1)"
 
 rules:
   # Mermaid classDef fill = verb color + this alpha suffix. Derived at

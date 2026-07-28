@@ -172,7 +172,7 @@ Tools are `<namespace>:<path>` · `nika:*` are stdlib builtins ·
 
 ```yaml
 infer:  { prompt: "Summarize ${{ inputs.text }}" }            # call a model
-exec:   { command: "cargo test --workspace --lib" }           # run a process
+exec:   { command: ["cargo", "test", "--lib"] }               # argv · no implicit shell
 invoke: { tool: "nika:fetch", args: { url: "https://..." } }  # call a tool
 agent:                                                         # agentic loop
   prompt: "Review the diff"

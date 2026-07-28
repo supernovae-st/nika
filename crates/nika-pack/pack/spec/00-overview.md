@@ -39,7 +39,8 @@ Standards work · SQL · GraphQL · OpenAPI · Dockerfile · GitHub Actions YAML
 
 ```
 1.  ENVELOPE        nika: v1
-                    workflow: my-workflow-id
+                    workflow:
+                      id: my-workflow-id
 
 2.  THE 4 VERBS     infer:  exec:  invoke:  agent:
 
