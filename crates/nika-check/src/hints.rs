@@ -154,7 +154,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
             RawAction::Exec(exec) => {
                 push_exec_json_capture_hint(&mut hints, t, exec);
             }
-            RawAction::Invoke(_) => {}
+            RawAction::Invoke(a) => push_headless_prompt_hint(&mut hints, id, a),
             #[allow(
                 clippy::unreachable,
                 reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -217,6 +217,51 @@ fn push_run_clock_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
 /// {x: terminal}` beside a value edge changes nothing (edges compose by
 /// intersection: {success, skipped} ∩ terminal = the value edge alone ·
 /// one-obvious-way/008); tighten to `success` or drop it.
+/// The `headless-prompt` hint: a `nika:prompt` with no `default:` cannot
+/// answer itself, so the workflow completes ONLY with a human at the
+/// keyboard. Headless — which is where CI and every agent lives — the run
+/// dies on `NIKA-BUILTIN-PROMPT-001`.
+///
+/// The absence of a `default:` is a STATIC fact, visible in the file
+/// before anything runs. Saying nothing about it at check time is how an
+/// agent hands over a workflow it just audited green and the human
+/// watches it fail on the first run — reported from Cursor 2026-07-28,
+/// where the agent did its job correctly and the oracle was the one
+/// that lied.
+///
+/// Advisory, not a refusal: an interactive workflow is a legitimate
+/// thing to author. The hint names the cost, it does not forbid it.
+fn push_headless_prompt_hint(
+    hints: &mut Vec<Hint>,
+    id: &str,
+    a: &nika_schema::raw::RawInvokeAction,
+) {
+    let nika_schema::raw::RawInvokeTarget::Tool(tool) = &a.target else {
+        return;
+    };
+    if tool.value != "nika:prompt" {
+        return;
+    }
+    if a.args
+        .as_ref()
+        .and_then(|args| args.value.get("default"))
+        .is_some()
+    {
+        return;
+    }
+    hints.push(hint(
+        "headless-prompt",
+        id,
+        format!(
+            "`nika:prompt` on `{id}` declares no `default:` — this workflow can only \
+             complete with a human at the keyboard, and a headless run (CI, or an \
+             agent handing it over) fails NIKA-BUILTIN-PROMPT-001 before it finishes. \
+             Declare the `default:` the unattended path should take, or pass the run \
+             over as `nika run <file> --resume <trace> --answer {id}=<value>`"
+        ),
+    ));
+}
+
 fn push_redundant_gate_hints(hints: &mut Vec<Hint>, t: &RawTask, id: &str) {
     for (target, pred) in &t.after {
         if !matches!(pred.value, nika_schema::types::AfterPredicate::Terminal) {
@@ -788,6 +833,36 @@ mod tests {
 
     fn hints_of(yaml: &str) -> Vec<Hint> {
         scan_hints(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn a_prompt_without_a_default_names_its_headless_cost() {
+        // Reported from Cursor 2026-07-28: an agent audited a workflow
+        // green and handed it over, and the run died on
+        // NIKA-BUILTIN-PROMPT-001. The agent behaved correctly; the
+        // oracle was silent about a fact sitting in the file.
+        let bare = hints_of(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  tools: [\"nika:prompt\"]\ntasks:\n  confirm:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n",
+        );
+        let hit = bare
+            .iter()
+            .find(|h| h.kind == "headless-prompt")
+            .expect("a prompt with no default names its headless cost");
+        assert_eq!(hit.task, "confirm");
+        assert!(
+            hit.advice.contains("NIKA-BUILTIN-PROMPT-001"),
+            "the hint names the code the run will emit: {}",
+            hit.advice
+        );
+
+        // A declared default IS the unattended path — nothing to say.
+        let defaulted = hints_of(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  tools: [\"nika:prompt\"]\ntasks:\n  confirm:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\", default: false }\n",
+        );
+        assert!(
+            !defaulted.iter().any(|h| h.kind == "headless-prompt"),
+            "a declared default silences the hint"
+        );
     }
 
     #[test]
