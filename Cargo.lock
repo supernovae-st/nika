@@ -4081,6 +4081,7 @@ dependencies = [
  "getrandom 0.3.4",
  "nika-check",
  "nika-schema",
+ "proptest",
  "serde_json",
  "uuid",
  "wasm-bindgen",

@@ -18,11 +18,11 @@ classes:
   testimonial: "impl-owned test evidence — fixtures, corpora, batteries: proves behavior; neither shipped code nor derived output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4142
+  classified_files: 4143
   file_rows: 10
   pattern_rows: 22
   by_class:
-    authored: 1268
+    authored: 1269
     authored-pin: 1
     generated: 110
     pinned-copy: 75
@@ -142,7 +142,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 635
-  aggregate_sha256: 7c2885845d08372e4065c5e000a3f8d9a2a7dd5fd1c9178ae34868a4676c04d3
+  aggregate_sha256: 2d609007ef886f24cae83010bd0928bbdc5150fe35ecfc28fc978ebdde252edf
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -167,8 +167,8 @@ patterns:
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
-  match_count: 88
-  aggregate_sha256: 975331ebf1e4408e52303553a6ab09213c4af8508bed54e0b8007c20b802a580
+  match_count: 89
+  aggregate_sha256: 4b05c71bf5d1a294a3420c43189105b2c1596443eadc8bbe39ade434eee5d2ae
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -227,7 +227,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 7135c78e09352dc86f68d5775a3a76e92b98c2a1f884c8f463cb447a496e9658
+  aggregate_sha256: fe2b633c9b72db48bcb99ca8d992049880a78be5eb898ab7bae7db061e888560
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
