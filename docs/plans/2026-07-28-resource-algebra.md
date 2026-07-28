@@ -857,6 +857,137 @@ non-invertibility of its 2-cell *is* the scheduling loss. And authority
 descends by `⊓` while taint ascends by `⊔`; they meet exactly at effect
 sites, which is where the trifecta is judged.
 
+### 3.0 Corrections to the table above
+
+The table is the right shape and four of its rows are wrong. Recorded
+here rather than silently rewritten, because each correction is load-
+bearing.
+
+**X1 · Money is not `+` under retry. [E]**
+Retry-with-backoff multiplies by the attempt count. The sound form is
+`Σ max_tokens × price × max_attempts` — and per T34 that 3× should be
+reported **separately** from the nominal ceiling, because it fires on a
+tail event and folding it in is a 3× lie in the modal case.
+
+**X2 · Energy is `+` only on DISTINCT hardware. [E]**
+Two concurrent calls to the same local GPU **share the weight read** —
+that is what batching is. Measured (ML.ENERGY, Llama 3.1 8B, H100):
+560 J/generation at batch 32 falls to 152 J at batch 512, a 3.7× spread
+from configuration alone. So `+` remains a sound **upper** bound and is a
+loose one exactly where local inference matters.
+
+**X3 · Time is a PAIR, not a scalar. [E]**
+```
+   T_1 = Σ over tasks (the money-shaped sum)      commutative monoid
+   T_∞ = max over paths (the span)                max-plus semiring
+
+   max(T_∞, T_1/p)  ≤  T_p  ≤  T_∞ + T_1/p       (Brent)
+```
+It degrades correctly at both ends: `p = 1` reduces to the sequential
+sum, `p = ∞` to the span. **Report the pair.** And the implementation
+consequence is real: money, energy, tokens and interrupts need only the
+**multiset of tasks** — a fold over the task list. Time needs the
+**edges** — a topological traversal. That justifies two code paths, not
+one.
+
+**X4 · Human attention: the unit is a COUNT, and the folklore figure is
+misquoted. [E]**
+The "23 minutes to refocus" is Mark, González & Harris, CHI 2005, and it
+says **25 min 26 s (sd 54 min 48 s)** — *elapsed wall-clock before
+returning to the task, during which the worker did 2.26 other real pieces
+of work.* It is **not** lost productivity and not a refocus time. The
+standard deviation is twice the mean.
+And the controlled follow-up (Mark, Gudith & Klocke, CHI 2008) inverts
+the naive model: interrupted work is completed **faster**, with *"more
+stress, higher frustration, more time pressure, and effort."* **The cost
+is load, not duration.**
+Therefore the checkable unit is **the count of human gates on the
+critical path** — a pure graph property, zero model risk, and the
+highest-value/lowest-cost component of the whole vector. Attention-
+seconds is a report-time enrichment, never a check-time bound. And
+*blocked wall-clock* is a different quantity again: a gate answered
+overnight costs 8 h of latency and ~30 s of attention.
+
+### 3.0.1 The component that was missing, and the one that is inverted
+
+**Tokens are the dimensionless invariant, and they should lead.** They
+are exactly boundable pre-run, provider-independent, and **every other
+dimension is `tokens × a-coefficient-you-may-not-have`**. Publishing
+tokens is publishing the uncertainty budget honestly.
+
+**And `0.00` for a local model is not conservative — it is inverted.**
+`find_pricing_for("ollama/…")` returns `None`, which renders as free. The
+most resource-intensive execution path is reported as the cheapest. The
+doctrine already names this — *"a local model is unpriced, never free"* —
+so the fix is not new physics, it is making **`⊥ unknown` a first-class
+rendered value** instead of zero. That single change delivers most of the
+vector's value without asserting a single joule.
+
+**Which components may FAIL a run:**
+
+```
+   BOUND (may fail)      tokens · money-on-priced-APIs · interrupt-count
+                         ← sound derivations, all three
+
+   ESTIMATE (may warn)   time · energy · attention-seconds · carbon
+                         ← mandatory provenance: measured@sha,
+                           calibrated@host, or ⊥ unknown
+```
+
+**X5 · Do not combine the dimensions. [E]**
+Weighted sum can only reach points on the **convex hull** of the Pareto
+front — it cannot produce any point in a non-convex region for *any*
+weights (Das & Dennis, *Structural Optimization* 14(1), 1997). It also
+encodes an exchange rate between €, seconds, joules and human attention
+that we have no basis to set. Lexicographic order makes dimensions 2..n
+dead letters, since continuous money never ties.
+The honest structure is the **product order on ℝⁿ₊ — which is exactly
+Pareto dominance**, and it is *partial*. Most workflow pairs are
+**incomparable**, and saying so beats inventing a weight. Two exceptions:
+summing within one dimension across providers is legitimate; and an
+operator-supplied exchange rate may produce a derived scalar **at report
+time only, never at the gate**.
+
+**X6 · DRF is not the model. [E + I]**
+Dominant Resource Fairness (Ghodsi et al., NSDI 2011) is an **allocation
+mechanism among competing users** — its strategy-proofness and
+envy-freeness apparatus is about lying agents, and there are no agents in
+`nika check`. Worse, its central move is a **max over normalised shares**,
+i.e. precisely the collapse-to-a-scalar this vector exists to avoid. It
+becomes relevant only if we ever schedule *concurrent workflows* against
+a shared GPU, a shared rate-limit budget and a shared human reviewer.
+
+**X7 · The architectural precedent is EnergyAnalyzer, not AARA. [E]**
+AbsInt's EnergyAnalyzer *"utilises techniques usually used for worst-case
+execution time (WCET) analysis together with bespoke energy models"* —
+**one analysis engine, N pluggable cost models**, shipping, in the
+TeamPlay project whose stated goal is *"a toolchain where energy
+properties are first-class citizens."* That is exactly the
+one-traversal-N-semirings design.
+And a correction to a likely misreading: **"multivariate" in *Multivariate
+Amortized Resource Analysis* means multivariate in the ARGUMENT SIZES,
+not multiple resource metrics.** RAML is metric-*parametric* — one metric
+per pass, pluggable — which is still the right architecture, just
+instantiated N times.
+
+**X8 · The prefill quadratic does not dominate at our sizes. [E + derived]**
+Per transformer layer with hidden dim `d` and sequence `S`:
+`projections + FFN ≈ 24·d²·S` versus `attention ≈ 4·d·S²`, so the ratio
+is **`S / (6·d)`**. Checked against published measurement (Llama-2-7B,
+d=4096, S=2048, A6000): attention is 68 G of 899 G ops = **8.2%**;
+`S/(6d) = 8.3%`. Crossover is ~24k tokens for `d=4096`, ~49k for
+`d=8192`. So "prefill is quadratic" is folk shorthand, not a usable model
+below ~24k context.
+
+**X9 · Wall-clock time is the wrong shape for a scalar. [E]**
+Measured p99/p50 of LLM API latency is **3–5×**; on real coding-agent
+traces the **mean is 7× the median** (avg 4.3 min, median 38 s, p90
+6.4 min). Nineteen endpoints serving the *same model* spread TTFT p99 by
+**2.9×**. And no provider publishes an enforceable per-request p99
+guarantee. So a single "estimated time" is not merely imprecise — it is
+the wrong shape. Publish **span-in-tokens** (a pure graph+bound property)
+and convert to seconds only against a named, dated calibration.
+
 ### 3.1 Three natures, not one
 
 Not every constraint is a fold over the DAG.
