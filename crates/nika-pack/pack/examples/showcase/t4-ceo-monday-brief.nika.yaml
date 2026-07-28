@@ -39,7 +39,7 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 permits:
-  tools: ["nika:convert", "nika:date", "nika:fetch", "nika:inspect", "nika:jq", "nika:notify", "nika:read", "nika:write"]
+  tools: ["nika:convert", "nika:date", "nika:emit", "nika:fetch", "nika:inspect", "nika:jq", "nika:notify", "nika:read", "nika:write"]
   exec: ["git"]
 
 tasks:
@@ -133,13 +133,18 @@ tasks:
   ping:
     with:
       day: ${{ tasks.stamp.day }}    # hoisted once · the body AND the cleanup below read this binding
-      cost: ${{ tasks.bill.output.total_usd }}
+      # The meter WHOLE, never a field of it. `nika:inspect view: cost`
+      # answers `{ available: false, reason, view }` until the runtime
+      # exposes its live cost to the in-workflow builtin — reaching for
+      # `.total_usd` reads a key that is not there yet, and `check` cannot
+      # warn you because no builtin declares its output shape.
+      cost: ${{ tasks.bill.output }}
     invoke:
       tool: "nika:notify"
       args:
         channel: webhook
         target: "${{ secrets.founders_webhook }}"
-        message: "Monday brief ready · briefs/${{ with.day }}-monday.md · run cost $${{ with.cost }}"
+        message: "Monday brief ready · briefs/${{ with.day }}-monday.md · meter ${{ with.cost }}"
         severity: info
     on_finally:
       - invoke:
@@ -151,4 +156,4 @@ tasks:
 
 outputs:
   brief: ${{ tasks.brief.output }}
-  cost_usd: ${{ tasks.bill.output.total_usd }}
+  cost: ${{ tasks.bill.output }}   # the meter as the builtin answers it

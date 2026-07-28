@@ -398,8 +398,9 @@ tasks:
     #[test]
     fn loop_local_outside_for_each_message_is_not_double_backticked() {
         // Same double-backtick class for NIKA-VAR-001's loop-local error:
-        // `loop-local `item` used in task `a` which has no `for_each:``,
-        // never `task `task `a```.
+        // the task id renders ONCE, wrapped once — never `task `task `a```.
+        // The wording moved when `when:`/`for_each:` stopped admitting the
+        // locals; what this test protects is the rendering, not the prose.
         let yaml = "\
 nika: v1
 workflow:
@@ -415,7 +416,7 @@ tasks:
             .map(std::string::ToString::to_string)
             .expect("a loop-local finding");
         assert!(
-            rendered.contains("in task `a` which has no"),
+            rendered.contains("in task `a` here"),
             "the id renders once, cleanly: {rendered}"
         );
         assert!(

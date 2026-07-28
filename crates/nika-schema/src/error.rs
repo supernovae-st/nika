@@ -477,7 +477,11 @@ pub enum SchemaError {
     ///
     /// Spec `04-variables.md` · « They are **loop-scoped locals**, alive
     /// only within that task's body. »
-    #[error("loop-local `{local}` used in task `{task}` which has no `for_each:`")]
+    #[error(
+        "loop-local `{local}` is not bound in task `{task}` here — `item` and \
+         `index` live only inside a `for_each:` task's BODY, and `when:` / \
+         `for_each:` are evaluated BEFORE the fan-out"
+    )]
     LoopLocalOutsideForEach {
         /// `item` or `index`.
         local: String,

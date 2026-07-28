@@ -22,7 +22,8 @@ nika: v1
 workflow:
   id: exec-pipeline
 permits:
-  exec: ["./deploy.sh"]
+  exec: true
+  tools: ["nika:emit"]
 
 tasks:
   test:

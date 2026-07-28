@@ -129,9 +129,11 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
     match code {
         // F4: the unresolved-vars class is fixable from the CLI.
         "NIKA-VAR-001" => Some(
-            "an unbound workflow var is supplied on the CLI — `nika run <file> \
-             --var <key>=<value>` (repeatable) — or given a `default:` in the \
-             workflow `vars:` block",
+            "an unbound `inputs:` entry is supplied on the CLI — `nika run <file> \
+             --var <key>=<value>` (repeatable) — or given a `default:` in its \
+             `inputs:` declaration. Other roots have other fixes: `config:` and \
+             `const:` resolve only from their own declared block, and `item` / \
+             `index` exist only inside a `for_each` task",
         ),
         // The high-traffic conformance codes whose fix is one obvious
         // YAML edit teach it concretely (#145 P1 — the failure states

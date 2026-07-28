@@ -209,6 +209,23 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         allow_loop_locals: has_for_each,
     };
 
+    // The two surfaces evaluated BEFORE the fan-out, where the loop
+    // locals are simply not bound yet. `when:` decides whether an
+    // ADMITTED TASK runs (spec 03 §when · post-gate means after the
+    // `after:` gate, not after the fan-out), and `for_each:` IS the
+    // collection the fan-out reads, so reaching for `item` there would
+    // be circular. Both used the body context, which admits the locals
+    // whenever the task carries a `for_each:` — so `when: ${{ item }}`
+    // passed check and then died at run with NIKA-VAR-001, and the
+    // audit-before-run promise broke in the one place it is loudest.
+    let pre_fanout_ctx = |surface: &'static str| ScanCtx {
+        location: format!("task `{id}`"),
+        task_id: id,
+        task_rule: TaskRefRule::Body(surface),
+        with_names: Some(&with_names),
+        allow_loop_locals: false,
+    };
+
     // `when:` — the expression form is a single boolean-shaped island
     // over local namespaces (POST-gate · spec 03 §when) · the YAML
     // boolean literal has nothing to scan.
@@ -217,7 +234,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     {
         let spanned = Spanned::new(expr.clone(), when.span);
         check_single_island(&spanned, "when", id, true, errors);
-        scan_string(&spanned, &body_ctx("when:"), index, errors);
+        scan_string(&spanned, &pre_fanout_ctx("when:"), index, errors);
     }
     // `for_each:` — a PRE-fan-out body surface (the collection crosses
     // the boundary through with: · spec 03 §for_each).
@@ -226,11 +243,11 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
             ForEachValue::Expression(expr) => {
                 let spanned = Spanned::new(expr.clone(), for_each.span);
                 check_single_island(&spanned, "for_each", id, false, errors);
-                scan_string(&spanned, &body_ctx("for_each:"), index, errors);
+                scan_string(&spanned, &pre_fanout_ctx("for_each:"), index, errors);
             }
             ForEachValue::List(list) => {
                 let spanned = Spanned::new(list.clone(), for_each.span);
-                scan_json(&spanned, &body_ctx("for_each:"), index, errors);
+                scan_json(&spanned, &pre_fanout_ctx("for_each:"), index, errors);
             }
             #[allow(
                 clippy::unreachable,

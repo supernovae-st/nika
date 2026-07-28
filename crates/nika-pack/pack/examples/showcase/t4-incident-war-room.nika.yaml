@@ -39,8 +39,8 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 permits:
-  tools: ["nika:assert", "nika:emit", "nika:fetch", "nika:read", "nika:wait", "nika:write"]
   exec: ["journalctl"]
+  tools: ["nika:assert", "nika:emit", "nika:fetch", "nika:notify", "nika:read", "nika:wait", "nika:write"]
 
 tasks:
   # ── the gather wave · all three run in parallel ──

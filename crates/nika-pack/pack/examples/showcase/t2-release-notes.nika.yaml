@@ -34,9 +34,11 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 permits:
-  tools: ["nika:edit", "nika:notify"]
+  fs:
+    read: ["./CHANGELOG.md"]
+    write: ["./CHANGELOG.md"]
   exec: ["git"]
-  fs: { write: ["./CHANGELOG.md"] }
+  tools: ["nika:edit", "nika:notify"]
 
 tasks:
   history:

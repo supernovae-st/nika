@@ -371,7 +371,7 @@ invoke:
 ```
 Workflow introspection · 1 builtin · 4 `view:` enum modes (Rams collapse per ADR-088 · 2026-05-27) ·
 
-- `view: cost` → `{ total_usd, by_task, by_provider }`. Running workflow cost.
+- `view: cost` → `{ total_usd, by_task, by_provider }` ONCE the runtime exposes its live cost to the in-workflow builtin. Until then it answers `{ available: false, reason, view }` — bind the result WHOLE and read it, never a field of it.
 - `view: records` → `{ tasks: [{ id, status, duration_ms, ... }] }`. Full execution record. (Per-task status is also read directly via the `${{ tasks.X.status }}` namespace, same shape.)
 - `view: dag_info` → `{ nodes, edges, waves }`. DAG topology.
 - `view: threads` → `{ active, queued, completed }`. Engine task-pool state · **advisory** · counts reflect the engine's concurrency model (impl-dependent · use for coarse adaptive-throttling · not a portable contract-precise number).
