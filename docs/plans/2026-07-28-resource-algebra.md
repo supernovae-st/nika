@@ -153,7 +153,78 @@ builtin answers `available: false`. The rationale rests on a capability
 that does not exist and has to be rewritten whichever way the budget
 question is decided.
 
-### 1.7 The MCP catalog
+### 1.7 The security gates
+
+| # | Question | Method | Result |
+|---|---|---|---|
+| G1 | Does leg ② of the trifecta need a READ, or a declared permit? | 3 variants, one parameter moved | see below |
+| G2 | Does removing an unused `fs.read` permit clear SEC-009? | variant v4 | **yes** — green |
+| G3 | Does narrowing the read to the single file the flow wrote clear it? | variant v5 | **no** — still SEC-009 |
+| G4 | Does `exec curl` bypass SEC-009 where `nika:fetch` does not? | matched pair | **yes** — bare `check` exit 0 |
+| G5 | Does `--native-strict` close that bypass? | same pair | **yes** — `native-first/001`, exit 2 |
+| G6 | Why? | `content_flow.rs:140` | `RawAction::Exec(_) => (false, true)` — an exec is `writes_fs`, never `born_ingress` |
+
+**G1-G3 is the sharpest finding of the session.** Three variants, one
+parameter moved:
+
+```
+v1  fetch + write(./tmp) + read(./tmp)                 → SEC-009
+v2  fetch + write(./tmp) · NO read task at all         → SEC-009   ← ??
+v4  identical to v2, permits.fs.read REMOVED           → clean
+v5  identical to v2, read narrowed to the written file → SEC-009
+```
+
+`v2` reads nothing. Leg ② is armed by the **declaration**, not by the
+body. And the same report says so, eight lines below its own refusal:
+
+```
+✖ TRIFECTA [NIKA-SEC-009] … while private re[ad in scope]
+↳ HINT     [NIKA-DRIFT-001] `permits.fs.read` entry `./tmp/**`
+           matches no path the body reads — remove the entry
+```
+
+Two subsystems, one output, opposite conclusions. DRIFT knows nothing
+reads; TRIFECTA counts the read anyway. This is the seventh instance of
+the false-green class, and the one that fires SEC-009 on ordinary work.
+
+**The consequence is an incentive, and it is the wrong one.** The way to
+pass the gate today is to *remove a permit you legitimately hold* (G2).
+The security gate rewards under-declaring your authority — while
+`permits:` exists precisely to be declared honestly.
+
+**G4-G6 is the same shape on the other leg.** Replacing `nika:fetch`
+with `exec curl` makes SEC-009 go quiet, because an exec is never an
+ingress ORIGIN. The compensating rule two frames up (`content_flow.rs:80`)
+re-taints an exec that reads a file a tainted writer produced — the
+file-mediated channel argv cannot see — but it does not make `exec curl`
+untrusted content. Measured on a matched pair:
+
+| | bare `check` | `--native-strict` |
+|---|---|---|
+| `nika:fetch` (native) | 0 | **0** |
+| `exec curl` (the bypass) | **0 — SEC-009 silent** | **2** |
+
+So the flag wired onto the checking surfaces this session closes the
+**incentive** — an author cannot reach the bypass through any surface
+that checks on their behalf, and cannot run the file either. It does not
+close the **classification**. Both repairs still stand.
+
+### 1.8 The engine's own gates
+
+| # | Question | Method | Result |
+|---|---|---|---|
+| R1 | Does `check-fn-length.sh` measure correctly? | it refused a 24-line test | reported **212 lines** |
+| R2 | Why? | read the script | its literal stripper is **line-local**: a backslash-continued Rust string has no closing quote on its opening line, so the YAML braces inside it count as code |
+| R3 | Does fixing it help? | rewrote it to carry string state across lines, then diffed **every** function in the repo | **1 false positive became 5** — a multi-line `r#"…"#` closes with a bare quote, which the scanner reads as an opening one |
+| R4 | Verdict | reverted | the script declares itself *"Phase 0 heuristic … a proper `syn` AST walk"* is the fix; a half-corrected heuristic is worse than a documented one |
+
+Recorded because it is the same defect class one level up: **a gate that
+reports on a domain it does not observe**, and whose wrong number also
+named the wrong culprit. And because the attempted repair is a worked
+example of the discipline — the fix was measured against the whole corpus
+before being kept, and it was not kept.
+
+### 1.9 The MCP catalog
 
 | # | Question | Method | Result |
 |---|---|---|---|
@@ -411,6 +482,347 @@ overruns. The correct primitive is the **escrow method** (O'Neil, ACM
 TODS 11(4), 1986): `reserve(worst_case) → execute → settle(actual)`,
 atomic, against every ancestor, acquired in a fixed root-to-leaf order.
 
+### 2.6 The other constructs
+
+**T18 · Retry — the deadline dominates, not the attempt count. [E]**
+gRPC gRFC A6 caps `maxAttempts` at **5 client-side regardless of config**
+and states *"gRPC's call deadline applies across all attempts"*. Temporal
+says the same independently: bound the total with a timeout, not with
+`Maximum Attempts`. Full jitter always: `sleep = rand(0, min(cap,
+base·2^(n−1)))`; server pushback (`Retry-After`) takes absolute priority
+and resets the exponent.
+
+**T19 · The commit point, not the error taxonomy. [E]**
+gRPC A6: *"An RPC becomes committed … the client receives
+Response-Headers"*, and committed ⇒ retry is invalid whatever the status.
+This is the only **semantic** (non-taxonomic) retryability rule in the
+literature — "is this error transient?" is a hand-maintained list
+everywhere, but "was the effect possibly applied?" is decidable from
+transport state. Per verb: `infer` commits at first token; `exec` commits
+once the child is spawned; `invoke` commits unless the tool declares
+idempotence.
+
+**T20 · A depth cap bounds a call; only a budget bounds amplification. [E]**
+Google SRE ch.21 ships two: 3 attempts per request **and** a per-client
+retry ratio ≤10%, with the arithmetic — *"a threefold increase in requests
+… layering on the per-client retry budget (a 10% retry ratio) reduces the
+growth to just 1.1x"*. And the nesting rule: retry at exactly one level,
+because N levels × k attempts is `k^N`. **An exhausted child must hand
+its parent a non-retryable error.** This is the most likely latent bug in
+any engine that lets both parent and child carry `retry:` — untested here
+(§4).
+
+**T21 · Caching: the Frankenbuild. [E]**
+(Mokhov, Mitchell, Peyton Jones, *Build Systems à la Carte*, ICFP 2018,
+§6.4) *"Deep constructive traces combined with task non-determinism can
+lead to very subtle bugs … caching build results based only on the hashes
+of terminal task inputs … the resulting store is incorrect according to
+**all three** definitions of correctness."* Also: *"volatile tasks cannot
+be cached"*, and Buck is named as the implementation that *"relies on
+deterministic tasks"*.
+Applied here: key a downstream task on the workflow's ROOT inputs, put one
+`infer` upstream, and you can serve a downstream result that was never
+produced from the upstream value in the store — and the hash chain records
+it. **Shallow constructive traces only.** For an engine whose whole claim
+is a checkable trace this is not a trade-off.
+
+**T22 · The cache precondition is a pair, not purity. [E]**
+Bazel establishes hermeticity by **sandboxing, not analysis** — an
+undeclared input becomes a build failure, not a silent wrong cache hit.
+REAPI's key is the Action digest over `{command, input_root, timeout,
+platform, salt, do_not_cache}`; non-OK results MUST NOT be cached.
+`salt` exists *"to disown an entire set of ActionResults that might have
+been poisoned"*. Nix's fixed-output derivation is the transferable idea:
+an impure fetch becomes cacheable **and** may hold network permits,
+because the author declares the output hash — *"the name of the output
+path only depends on the `outputHash*` and `name` attributes"*.
+`permits:` is our version of Bazel's sandbox, declared at parse time
+rather than discovered by debugging cache misses.
+
+**T23 · Deadline propagation is the same meet as the budget. [E]**
+SRE ch.22: *"servers should employ deadline propagation … The tree of RPCs
+emanating from an initial request will all have the same absolute
+deadline."* So `effective(child) = min(parent_deadline, now + own_timeout)`
+— the identical semilattice as T17, over instants instead of dollars. It
+is also what makes revocation real: on deadline or failure, cancel the
+subtree and release its escrow. SRE names the leak: *"the initial call
+continues to use server resources until it eventually times out, despite
+being doomed to failure."*
+
+**T24 · Sagas — and a lint we can ship today. [E]**
+(Garcia-Molina & Salem, 1987) *"either the sequence [T₁…Tₙ] or [T₁…T_j,
+C_j…C₁] is executed"*, compensations in **reverse order**. The
+transferable consequence: **`permits:` tells us statically which tasks
+need one.** A task with `write:`/`net:` permits and no declared
+compensation is a workflow that cannot be safely aborted — a check-time
+lint available today. Honest limit: an `infer` cannot be compensated (you
+cannot unspend tokens) and an email cannot be unsent, so the guarantee is
+weaker than the saga guarantee and must not be oversold.
+
+### 2.7 The exemption design
+
+**T25 · Every shipped suppression trusts its justification. [E]**
+SPARK's own user guide, of `pragma Annotate (GNATprove, …)`: *"The
+Category currently has **no impact on the behavior of the tool** but
+serves a documentation purpose"*, and the reason is *"a string provided
+by the user as a justification **for reviews**"*. Checker Framework:
+*"The code is correct only if the checker issues no warnings **and** each
+`@SuppressWarnings` is correct"* — a human audit obligation. SARIF's
+`justification` is a `string`. No deployed counterexample was found.
+
+**T26 · Relevance ≠ reason. [E]**
+There IS a check in the wild, on a different axis. *"Does this suppression
+suppress anything?"* is widely deployed — GNATprove (on by default), Rust
+`#[expect]`, ESLint `--report-unused-disable-directives`, Checker
+Framework `-AwarnUnneededSuppressions`. *"Is the stated reason true?"* is
+deployed nowhere. Naming the axis is necessary or "GNATprove already
+checks justifications" is a one-line rebuttal.
+
+**T27 · The `assume` family is checked for sufficiency, never truth. [E]**
+SPARK's `pragma Assume`, Checker Framework's `@AssumeAssertion`, Dafny's
+`assume {:axiom}` + `dafny audit`: all enter the proof context and are
+checked for what they DISCHARGE, never for whether they HOLD. Frama-C's
+framing is the closest classical analogue — *"a plug-in's assumption is
+another plug-in's goal"* — but ACSL has no suppression construct at all.
+
+**T28 · The novel cell, stated precisely. [I, after a targeted search]**
+Two 2026 systems do the semantic core on a different subject: **LeanGuard**
+(arXiv:2607.03963) names *"premature discharge of safety obligations"*,
+has typed protection kinds with a per-class entailment relation, and a
+Lean-checked coverage predicate — *"a fluent justification is not a
+proof"*. **Evident** (arXiv:2606.15122): *"dismissing a report requires
+establishing that the reported error state is unreachable, not merely
+offering a plausible explanation."* **In both, the justification is
+produced by a triage LLM, not authored by a developer as a durable
+suppression.** Machine-checking a *human-authored* exemption reason is the
+unoccupied cell — and it is exactly the hole SPARK's own documentation
+identifies.
+
+**T29 · Design it like VEX, not like `# nosec`. [E]**
+OpenVEX is the only mechanism that made justification mandatory, and it
+did so with a **closed enum**, explicitly for machine-checkability. Its
+own ruling on the free-text alternative: *"This field is not intended to
+be machine readable so its use is highly discouraged for automated
+systems."*
+Empirical backing for scoping it to security: Liargkovas, Panourgia &
+Spinellis (arXiv:2311.07482), 1,425 Java projects, 11,240 suppressions —
+only ~5% were genuine false positives, but **security-category warnings
+were suppressed markedly less** (4% of configs, <1% via annotation).
+*"Developers take security-related warnings more seriously."*
+
+**T30 · The PCA attack, and the adoption lesson. [E]**
+Appel & Felten's CCS'99 proof-carrying authentication is the right
+academic ancestor — the requester supplies a proof, the monitor only
+checks it. The CMU implementation had to reject proofs containing illegal
+axioms: *"the client could respond to a challenge by sending an axiom that
+asserted the proposition it needed to prove."* **No exemption class may
+ever assert its own conclusion** — a test every future class must pass.
+And the failure story matters: Grey (SOUPS 2007) measured 6.6 s vs 14.7 s
+unlock times — Grey was *faster* — yet 5 of 8 users said it felt slower.
+PCA failed on **expressiveness**, not on the certificate idea. **A small,
+closed, decidable vocabulary is adoptable; an open proof language is not.**
+
+**T31 · Runtime approval is not the escape. [E]**
+Willison, who coined the lethal trifecta (June 2025), does **not**
+recommend human approval: *"The only way to stay safe there is to avoid
+that lethal trifecta combination entirely."* Meta's Agents Rule of Two
+puts it last and names its own failure: *"a user blindly confirming a
+warning interstitial."* Anthropic's production telemetry: **users approve
+93% of permission prompts**, and their response was not a better prompt
+but a tiered allowlist plus a classifier — and in headless mode, they
+terminate. Every production HITL system (Step Functions `waitForTaskToken`,
+Temporal signals, LangGraph `interrupt()`, OpenAI Agents `RunState`) is an
+out-of-band durable token; **none requires a tty**. And MCP elicitation is
+capability-gated with **no specified fallback**, so building the escape on
+it relocates the unreachability rather than fixing it.
+
+### 2.8 What an LLM call actually costs
+
+**T32 · `max_tokens` caps output only, and not even a whole turn. [E]**
+Anthropic: *"`max_tokens` is a hard cap on total output for the request,
+thinking and response text combined … **In a tool-use loop, each request
+in the turn has its own `max_tokens`, so it doesn't bound the whole
+turn's spend.**"* OpenAI's `max_output_tokens` likewise limits reasoning
++ visible + formatting output. **Nothing caps input.** C1 is therefore
+not a rounding error: the omitted term is the unbounded one.
+
+**T33 · The agent loop is Θ(n²) on the term we omit. [E]**
+(arXiv:2606.14945, measured on 3 seeds) With `s` = system + tools resent
+every turn, `t̄` = mean assistant output, `r̄` = mean tool result:
+
+```
+I(n) = n·s + (t̄+r̄)·n(n−1)/2        O(n) = n·t̄
+C(n) = p_in·I(n) + p_out·O(n)
+```
+
+**The leading term is `p_in·(t̄+r̄)·n²/2` — the quadratic sits on the
+input price, the one our formula omits entirely.** Measured: 15
+iterations → 24,465 vs 2,492 tokens (9.8×); 40 iterations → 1.28M vs
+627k. Caching multiplies the quadratic coefficient by 0.1; it does **not**
+change the asymptotics. Only a bounded window does.
+
+**T34 · Output is ~10% of the bill. [E]**
+(arXiv:2607.12161 — 2,848 provider-billed Claude Code runs, reconstruction
+matching individual bills to a ~1% median residual)
+
+| Component | Share of bill |
+|---|---|
+| cache creation | **44.3%** |
+| cache read | **35.4%** |
+| generated output | **10.4%** |
+| uncached input | 1.3% |
+| unattributed | 8.7% |
+
+So the ceiling models one term worth ~10% of the bill, and models it
+~50× too loose. The two errors point opposite ways and do not cancel.
+
+**T35 · The unsoundness has a measured exploit. [E]**
+(arXiv:2601.10955) A protocol-compliant malicious MCP server steers an
+agent into long tool chains **while preserving task success**, inflating
+cost **up to 658× with `max_tokens` unchanged**. The framing is exact:
+single-turn attacks are bounded by `≤ M`; the tool-loop attack is bounded
+by `≤ n·M` where **`n` is unbounded**. A ceiling that can be exceeded by
+658× is not a ceiling.
+
+**T36 · `max_tokens` is the ONLY sound output bound — and that is a
+theorem, not a limitation. [E + I]**
+(arXiv:2604.00499 — 1,000 prompts × 100 generations) Output length is a
+stopping time with a power-law tail: `P(L > n) ~ c·Γ(α)/n^α`. Empirically
+skewness 3.10, CV 1.09, **P99/P50 = 10.77**. Best-fitting family is
+**log-t** (93.1% KS pass, vs 60.3% log-normal, 10.7% exponential).
+
+Two consequences, both mine by derivation:
+- Fitting a Pareto tail to P99/P50 gives **α ≈ 1.65 < 2 ⟹ infinite
+  variance**. No Chebyshev bound. And a sum over `N` tasks scales as
+  `N^(1/α) = N^0.61`, so DAG cost **does not concentrate** — it is
+  dominated by the single worst call.
+- For `X = exp(μ + σY)` with `Y ~ t(ν)`, `E[X^k] = M_Y(kσ)`, and the
+  Student-t MGF **does not exist for any nonzero argument**. So
+  **`E[X^k] = ∞` for every `k > 0`** — the log-t has no finite mean.
+
+**The empirical mean output length is an artifact of the truncation cap,
+not a property of the model.** Everything other than the cap is a
+quantile. Best predictor accuracy in the literature is R² ≈ 0.82 on the
+*distribution parameters*, not the realisation.
+
+**T37 · Caching breaks compositionality on four axes. [E]**
+Not just existence (0.1× read vs 1.25× write — a **12.5× swing**), but:
+**wall-clock timing** (a tool call longer than the 5-minute TTL re-bills
+the whole Θ(n²) prefix at write rate), **concurrency** (*"a cache entry
+only becomes available after the first response begins … wait for the
+first response before sending subsequent requests"* — so **fan-out
+destroys caching**), and **byte identity** (a documented invalidation
+table: tool definitions, `tool_choice`, images, thinking params each
+invalidate a different cache scope).
+So cost is not a function of the DAG. It is a function of (DAG, schedule,
+wall-clock, concurrency policy, cache history). **A sound ceiling must
+assume the cache-pessimal case: every call writes, none reads.**
+
+**T38 · Long context is a step function on the whole request. [E]**
+Bedrock: *"For requests exceeding 200K input tokens, the long context rate
+applies to the entire request, not just the tokens above the threshold."*
+Google above 200k: input ×2.0, output ×1.5. The cost function is
+**discontinuous in input length**; a sound bound evaluates on the worse
+side of every threshold the input range straddles.
+
+**T39 · Tool definitions are billed input, and the constants are
+published. [E]**
+Anthropic tabulates the tool-use system-prompt overhead per model
+(Opus 5: 286 `auto` / 406 `any`; Sonnet 5: 354 / 474) plus per-tool
+constants (bash 325, text editor 700, computer use 735). Structured-output
+schemas are billed input too (*"serves as a prefix to the system
+message"*). **All of this is exactly computable from the workflow file
+and is absent from our formula.**
+
+And a class no token formula can express: web search **$10 / 1,000
+searches**, file-search calls $2.50/1k, code-interpreter containers
+$0.03–$1.92 per session, Anthropic code execution **$0.05/hour**, Google
+explicit cache **$1.00–$4.50 per 1M tokens per hour**. Dollars per call
+and dollars per wall-clock hour.
+
+**T40 · Rate limits split exactly along the static/runtime line. [E]**
+Provable conformance is available on RPM/RPD (cost = 1) and on **ITPM**
+(input tokens are exactly computable before dispatch — tokenize), via
+GCRA over a token bucket; Anthropic confirms *"the API uses the token
+bucket algorithm"*. Not provable on **OTPM** (settled on actuals) nor on
+Google's rolling 10-minute **dollar** window (which needs the cost model
+we are trying to build).
+Two vendor asymmetries worth encoding: OpenAI reserves
+`max(max_tokens, estimate)` at admission and **429s consume quota**;
+Anthropic states `max_tokens` *"does not factor into OTPM"*, so it costs
+nothing in quota and buys nothing in predictability.
+And the ablation that decides the design (HiveMind, arXiv:2604.17111):
+**admission control alone still produces 81.8% failure**; transparent
+retry is the critical primitive. Their diagnosis of an 11-agent run that
+lost 3: *"The problem is not capacity — it is coordination."*
+
+**T41 · The solved analogue is GraphQL, and its answer is
+declare-and-settle. [E]**
+Same problem shape: a declarative query language that must bound cost
+before execution, where true cost is data-dependent. Static analysis
+exists (arXiv:2009.05632) and its follow-up admits it was too loose in
+practice (arXiv:2108.11139). **The industry resolution is not prediction.**
+GitHub's GraphQL API makes `first: n` **mandatory on every connection**,
+computes the estimate from the declaration, charges against it, and
+refunds the difference. Bedrock does the same server-side: reserve
+`input + max_tokens`, settle to actual, replenish the unused.
+**This independently validates Q6** — declare the slice, do not predict
+the data.
+
+**T42 · No published sound static cost bound for LLM pipelines exists. [I,
+after a six-framing search]**
+The correct formalism exists and is unapplied: expected-cost analysis for
+*probabilistic* programs via the potential method (arXiv:2006.14010),
+which is the right frame precisely because output length is a random
+variable. The cost-aware routing literature (FrugalGPT, RouteLLM,
+TREACLE, SCOPE) **minimises expected cost subject to a budget; none
+produces a sound per-run ceiling.**
+
+#### The corrected formula
+
+```
+C(c) = Θ(c)·[ p_in·( U_c + μ_w·W_c + μ_r·R_c ) + p_out·K_c ] + Λ(c)
+
+  Θ(c) = τ·γ·χ                    tier × geo × long-context step
+  Λ(c) = per-call server-tool charges
+  U+W+R = S_c + T_c + Σ_c + D_c(N_c)
+
+    S_c    tokenize(system + template literals)      STATIC EXACT
+    T_c    tokenize(tools JSON + output schema)      STATIC EXACT
+    Σ_c    tool-use overhead constants(model)        STATIC EXACT — published
+    D_c(N) (K_c + r_max)·N(N−1)/2                    ← THE QUADRATIC, absent today
+
+Ceiling = Σ_c A_c·F_c·C(c)  +  Σ_h ρ_h·Δt_h
+```
+
+| Term | Class |
+|---|---|
+| prices, cache multipliers, tier, geo | **static** — pin the price-table version into the promise |
+| `S_c`, `T_c`, `Σ_c` | **static exact** — tokenize the file; free accuracy |
+| `K_c` (`max_tokens`) | **static**; sound; irreducible (T36) — but make it **per-task declared** |
+| `A_c` retries | **static** — report separately, never folded into the headline |
+| `F_c` fan-out | static if literal, **unbounded if data-dependent** — must be declared |
+| `N_c` agent turns | **UNBOUNDED — must be declared.** Absent today = the unsoundness |
+| `r_max` tool-result cap | **UNBOUNDED — must be declared.** A `grep` is not bounded |
+| `U/W/R` split | **runtime** (schedule + TTL + concurrency) — assume all-write |
+| `χ` crossing | **runtime** — evaluate on the worse side |
+| `Λ`, `ρ_h·Δt_h` | **runtime wall-clock** — no token formula expresses these |
+
+#### Decomposing the 126×, and where it flips sign
+
+```
+Ratio = (max_tokens / E[out]) × (retries / E[attempts])
+        × (fan_out / E[fan_out]) × output_share_of_bill
+```
+For a short-output task (`max_tokens` 16,384, actual ≈ 400, retries 3,
+output ≈ 75% of a small bill): `41 × 3 × 1 × 0.75 ≈ 92`; at 32,768,
+≈ 184. **126× sits squarely in that band**, dominated by `max_tokens`
+slack (~40–50×) and an unconditional retry multiplier (3×).
+
+**On an agent loop the same formula flips sign**: `output_share = 0.104`
+and the missing input term grows Θ(n²). The ceiling under-estimates,
+without bound.
+
 ---
 
 ## 3 · The resource vector
@@ -520,6 +932,75 @@ Ranked by (damage closed × confidence), mechanical first.
 | 7 | `pc` label on control ancestors | T14 — four channels, one mechanism, zero annotations | check |
 | 8 | Per-provider concurrency class | S7, T1's exogenous-duration hypothesis | runtime |
 | 9 | Cardinality bound (`take:` / declared size) | V3-V5, T15 — makes the ceiling computable **and** the leak quantifiable | language |
+| 10 | `max_turns` on every `agent`, `max_result_bytes` on every tool — and **refuse to emit a ceiling without them** | T33, T35 — the refusal is the feature; without them the number is unsound, not loose | language |
+| 11 | Report THREE numbers: `Ceiling` (sound, cache-pessimal, retries excluded), `Ceiling+R`, `Estimate p95` — plus the price-table version hash | T34, T36 — promise the first, plan against the second, never conflate them | check |
+| 12 | Declare-and-settle: reserve the ceiling, meter actuals, release the difference, abort at the promise | T41 — GitHub GraphQL and Bedrock burndown both do exactly this; it converts an unachievable prediction problem into an achievable enforcement one | runtime |
+| 13 | GCRA admission on RPM + ITPM per (provider, model); reactive on OTPM | T40 — provable where the debit is statically known, reactive where it is not. **Retry is the critical primitive, not admission** (81.8% failure with admission alone) | runtime |
+
+### 5.1 Ratified this session
+
+Recorded so they are not re-litigated. Each was decided after the
+research that supports it, and each has a named counter-argument.
+
+| # | Question | Ratified | Basis · counter |
+|---|---|---|---|
+| Q1 | Where does the human decision live? | **AUTHORED**, load-bearing; runtime approval is a convenience and **never** the security boundary | T31 · counter: an authored exception is granted before the attacker's payload exists, so it catches 0% of live payloads *unless* the class is verified (T28) |
+| Q2 | What arms leg ② of the trifecta? | **PROVENANCE** — reading what this run itself wrote introduces no new information, so it arms nothing | G1-G3 · counter: `permits:` declares *authority*, and a future edit adding a real private read would pass under body-analysis. Answered by the fact that check re-runs at every edit and at the run gate |
+| Q3 | What shape is the exemption? | **CLOSED ENUM, each class a machine-VERIFIED precondition** + a mandatory `because:` for the diff reader. No `other`, no free-text escape | T25-T29 · counter: an optional declaration nobody writes is a guarantee nobody gets (Kubernetes' own documented failure) |
+| Q4 | Which classes ship? | **`egress_destination_controlled`** only. `human_validates_payload` is gated on a TTY prompter existing; `content_not_interpreted` does **not** ship; `data_not_sensitive` is withdrawn | T16 · non-interpretation ≠ non-influence, so it is a partial condition and cannot discharge a whole refusal — my own law |
+| Q5 | Failure policy under dataflow | **DRAIN** — release on structural eligibility only, let every released task settle, append in declaration-index order, causal failure = lowest declaration index | the trilemma (§5.2) · counter: a wide fan-out keeps spending after the run is doomed. Bounded by numbers we control statically; the nondeterminism of the alternative is not |
+| Q6 | Cost bound on dynamic fan-out | **`take: N`** — a decision about the work, not a prediction about the data — over a required `max_items:`, which the ecosystem would satisfy with `1000000` | Mitchell's arc, three times: ban → proclaim → find it clunky → restore. Rust RFC 2834's predictor: a rule sticks when the fix is local and mechanical; `max_items` is mechanically trivial and semantically impossible |
+
+### 5.2 The scheduling trilemma
+
+Stated because it forecloses the option that looks most attractive.
+
+```
+   ① eager release        a task starts the instant ITS predecessors settle
+   ② global gating        admission conditioned on "has anything failed yet"
+   ③ deterministic chain
+
+   at most TWO.
+
+   wave barrier      ② + ③   sacrifices ①    ← today
+   dataflow drain    ① + ③   sacrifices ②    ← ratified
+   cancel-on-first   ① + ②   sacrifices ③
+   Argo/GitLab quiesce  ①+②+almost ③ — the residual race is which eligible
+                        tasks were released in the instant the gate closed
+```
+
+② is fatal because *"has anything failed yet"* is a function of settle
+order, i.e. of I/O timing. A gate reading only *"did MY predecessors
+succeed"* is a pure function of the DAG plus per-task outcomes.
+
+Corroboration that the sacrificed option really does sacrifice ③: OpenJDK's
+`StructuredTaskScopeImpl` **drops** a sibling's exception when the scope
+is already cancelled — `if (scope.isCancelled()) return;` before the
+exception is ever stored. Which task wins is pure timing. Go's `errgroup`
+author gives the reason it is defensible there and not here: *"After
+[cancellation] happens, it can be difficult to tell whether subsequent
+errors are errors in their own right, or secondary effects of that
+cancellation."*
+
+What must be recorded, per task, appended in ascending declaration index:
+
+```
+{ decl_index, task_id, outcome }
+outcome ∈ Ok{result_digest} | Err{error_class, payload_digest}
+        | NotRun{blocking_edge, blocking_task_decl_index}
+```
+
+No `Cancelled` and no `Unobserved` state may exist — both are timing
+artefacts by construction, so under this design they are
+**unrepresentable**. The type system holds the determinism, not the
+discipline.
+
+And the reporting consequence, which is the operator's 21 identical `⊘`
+lines: Airflow separates `failed` from `upstream_failed`. All 21 are the
+second kind. **None of them is a failure** — they are the shadow of one.
+The honest report is `1 failure: task X. 20 tasks not run (predecessor X
+failed).` Under cancel-on-first that sentence cannot be written: it would
+have to read `1 failure, N unobserved`, the one line nobody can act on.
 
 Deliberately **not** on this list, with the reason:
 
@@ -539,3 +1020,111 @@ Deliberately **not** on this list, with the reason:
   signal disappears. This is the Special J failure (Necula's PCC: a
   23,000-line VCgen with a confirmed soundness hole that the certificate
   did not catch).
+
+---
+
+## 6 · Retracted
+
+Six claims I made in this session and then withdrew, with what killed
+each. Recorded because the reasoning that produced them is plausible and
+will be produced again.
+
+**R1 · "A workflow engine needs a query optimiser."**
+The analogy: SQL derives the plan, nobody hand-writes one, so an author
+moving tasks by hand means an optimiser is missing.
+*Killed by:* the DAG is the **query**, not the plan. Nobody hand-writes a
+query plan, and everybody hand-writes a Makefile — both are correct.
+Graham's `2 − 1/m` caps the entire ordering prize and blind greedy already
+collects it; Leis et al. (VLDB 2015) find the cost model is the *least*
+valuable optimiser component, and tuning it with true cardinalities
+**degraded 35%** of queries; Bazel, Buck2, Nix, Ninja and Make do not
+rewrite their graphs, and Buck2's headline 2× came from *"avoiding any
+phases"*.
+
+**R2 · "Use the hash-chained history to plan the next run better."**
+*Killed by:* **"fleeing from knowledge to ignorance"** (LEO, VLDB 2001).
+History gives exact costs on paths actually taken and optimistic priors
+on every alternative, so the optimiser abandons the plan it has evidence
+for. *The better the measurement, the worse the decision.* Named,
+documented, and it targets precisely the asset that looked like our
+advantage.
+
+**R3 · "`check` emits a signed certificate; `run` executes only what it
+authorises."**
+*Killed by:* it deletes our best bug detector. Today a wrong check is
+caught by a dead run and an operator writes a report — that is literally
+how this session's work began. Under a certificate, a *permissively*
+wrong check authorises the effect with the plan's blessing and the signal
+disappears. The Special J precedent: Necula's PCC shipped a 23,000-line
+VCgen with a soundness hole that League found and Necula confirmed — the
+certificate did not catch it, *the certificate is why nobody was looking*.
+Also: the certificate is **orthogonal to the reported defect**, which is a
+completeness bug, not an enforcement one. What survives is capability
+threading (a permit type with a private constructor — a compile-time
+guarantee, strictly better than a runtime signature) plus an unsigned,
+content-addressed plan as a debugging record.
+
+**R4 · "The wave decomposition is the coarsest series-parallel
+over-approximation; the 2× is the N-freeness defect."**
+*Killed by:* a four-node counterexample. `a1→a2 ‖ b1→b2` **is**
+series-parallel, contains no N, and loses 1.998× with
+`d = (1000,1,1,1000)`. Also "coarsest SP" is degenerate (a linear order is
+SP) and minimum SP extensions are **not unique** — the N poset has three,
+pairwise incomparable. The true statement is W7: waves are the depth-2
+weak order, the Foata normal form, and the penalty is one application of
+the CKA exchange law.
+
+**R5 · "The cost ceiling and the critical path are the same computation."**
+*Killed by:* `cost.rs:94` — `for task in &wf.tasks`, a flat sum. And the
+code is right: money is additive under parallelism, time is not. The real
+unification is finer and better — same traversal, different semiring:
+`(+, ×)` for money, `(max, +)` for time.
+
+**R6 · "A required cardinality bound makes the conformance promise true."**
+*Killed by:* Terraform is six years into paying its way out of exactly
+this refusal (`-allow-deferral`, alpha through 1.16), and Dhall's own
+author on the totality claim: *"The absence of Turing completeness per se
+does not provide many safety guarantees … you can craft compact Dhall
+functions that can take longer than the age of the universe."* The
+predicted equilibrium of a required bound is `max_items: 1000000`
+everywhere — a *true* ceiling with no operational content, **worse than
+today's honest warning**. What survives is `take: N`, which is a decision
+about the work rather than a prediction about the data, and therefore
+always answerable.
+
+**One retraction I did NOT make, and the evidence for it.** An audit agent
+claimed my wave benchmark did not match its own mechanism — that two
+independent 5 s tasks form one wave, so waves predict 5 s, not 10. The
+plan dump refutes it:
+
+```
+✔ PLAN  4 waves · 5 tasks
+   wave 1  slow_early (5s) · c1 (~0ms)
+   wave 2  c2 · wave 3  c3 · wave 4  slow_late (5s)
+```
+
+`slow_late` sits at depth 3 behind the `c1→c2→c3` chain, so the durations
+are heterogeneous and W3 does not apply. `T_wave = 5 + 0 + 0 + 5 = 10`,
+measured 10.1 s.
+
+---
+
+## 7 · The method that produced this
+
+Stated because it is the transferable part.
+
+1. **Measure before believing, including your own claims.** Every row of
+   §1 exists because a claim was checked. Three of the six retractions in
+   §6 are mine, killed by my own probes.
+2. **A gate's repair is measured against the whole corpus before it is
+   kept.** The `fn-length` fix looked right, turned one false positive
+   into five, and was reverted (R1-R4 in §1.8).
+3. **The fix lands in the source, never in the mirror.** Five examples
+   were repaired in `crates/nika-pack/pack/` — the vendored copy, pinned
+   by `SPEC_PIN` and re-vendored daily. They would have been overwritten
+   at the next bump while the source kept teaching the defect.
+4. **A gated operation is the last command in its chain.** A `git log`
+   after a `git commit` returns 0 over the commit's failure; that masked
+   two failures this session before the pattern was named.
+5. **Cite a file:line or a URL, or mark it inference.** Everything in §2
+   carries one or the other.
