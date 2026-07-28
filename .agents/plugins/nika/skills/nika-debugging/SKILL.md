@@ -70,14 +70,24 @@ exact failing task.
 - **Model does not resolve**: `nika check <file> --json` →
   `models_resolve` says whether every `model:` runs in THIS binary;
   `nika catalog` names the env var each provider needs.
-- **Missing credential**: secrets ride `${{ secrets.X }}` /
-  `${{ env.KEY }}` — the trace shows the task, the shell shows the
-  env. `nika doctor` audits the machine side.
+- **Missing credential**: secrets ride `${{ secrets.X }}`, declared in
+  the `secrets:` block (`source: env` + `key:`) — the trace shows the
+  task, the shell shows the variable. `nika doctor` audits the machine
+  side. Non-sensitive settings ride `config:`.
 - **Timeout too tight**: local providers need `timeout: "300s"` or
   more — thinking models routinely think past 30s.
 - **Permits violation**: the run was blocked by its own declared
   boundary — read the finding, then either the task is wrong or the
-  boundary is (widen it consciously, never delete it).
+  boundary is (widen it consciously, never delete it). Every permit
+  decision is recorded in the journal, GRANTED and REFUSED alike, so
+  the trace names the exact boundary the run actually rode — read it
+  there instead of guessing. A workflow with NO `permits:` block has
+  zero authority (`NIKA-AUTH-006`), and check refuses it before the
+  run ever starts.
+- **A child process cannot see a variable**: the environment is
+  composed from a cleared slate, so an unnamed variable simply is not
+  there. Name it in `permits: { env: [NAME] }` or in the task's own
+  `env:` map.
 - **Cost cap hit**: `--max-cost-usd` blocks BEFORE the call that would
   cross the cap — that is the feature working, not a bug. Raise the
   cap deliberately or shrink the task.
@@ -86,8 +96,17 @@ exact failing task.
 
 `nika trace verify <trace>` checks the hash chain: any edited,
 inserted, dropped or reordered line breaks every hash after it.
-Exit 0 intact · 2 broken · 3 unchained (pre-chain journal). Cite the
-trace in any report — a verified chain is proof, prose is not.
+Exit 0 intact · 2 broken · 3 unchained (pre-chain journal). The
+verdict also names the highest tier honestly attained — chain OK ·
+**SEALED** (the `run_sealed` signature verifies against a custody
+key) · **ANCHORED** (the detached sidecar verifies fully offline) ·
+**REPLAYED** (`--replay` compares a fresh run; verify never
+re-executes). A journal that never reached a lifecycle-terminal frame
+verifies **INCOMPLETE**: the verifier's finding about a run that died
+mid-flight — not a pass, and not a tamper claim. Say which one you
+have. Cite the trace in any report — a verified chain is proof, prose
+is not; `nika evidence <trace>` exports the pack an auditor reads
+without trusting you.
 
 ## Honesty lines
 

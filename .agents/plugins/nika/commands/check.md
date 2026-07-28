@@ -22,8 +22,11 @@ runs, several ask).
    - **Cost** — the ceiling (`≤ $X`) or the floor (`≥ $X FLOOR` — name
      WHY it is unbounded: missing `max_tokens`, uncataloged model,
      expression fan-out). A local model is **unpriced, never free**.
-   - **Permits** — declared boundary, or « engine floor only »
-     (suggest `nika check $ARGUMENTS --infer-permits` to write one).
+   - **Permits** — the declared boundary, or ZERO AUTHORITY when no
+     block is present: absent is the EMPTY boundary, never the
+     unconfined floor, so an effect under it is `NIKA-AUTH-006`.
+     Suggest `nika check $ARGUMENTS --infer-permits` to write the
+     tightest one.
 3. Exit code 2 with findings is the NORMAL red path — repair from the
    diagnostics and re-check. Never hand the human a file that does not
    pass. Only report a broken oracle (exit 3) as an error.

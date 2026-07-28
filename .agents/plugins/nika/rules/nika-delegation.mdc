@@ -43,5 +43,7 @@ or pure code edits.
   `--max-cost-usd` when spend matters), never execute it unasked.
 - Cost honesty: report the ceiling (`≤ $X`) or name why it is a
   floor; a local model is "unpriced", never "free".
+- Every effect needs a `permits:` block: absent means ZERO authority
+  (`NIKA-AUTH-006`), never the unconfined floor.
 - Missing binary: `brew install supernovae-st/tap/nika` — never
   improvise YAML from memory when the oracle is unavailable.

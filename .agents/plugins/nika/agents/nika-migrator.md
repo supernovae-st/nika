@@ -25,12 +25,14 @@ parity is the proof.
    `invoke: mcp:<server>/<tool>` → `exec:` last. HTTP → `nika:fetch` ·
    JSON shaping → `nika:jq` or an `output:` binding · file plumbing →
    `nika:read`/`nika:write` · LLM calls → `infer:` with `max_tokens` ·
-   loops → `for_each:` · conditionals → `when:` · parameters →
-   `vars:` + `${{ env.KEY }}` · credentials → `${{ secrets.X }}`
+   loops → `for_each:` · conditionals → `when:` · caller parameters →
+   an `inputs:` declaration · baked values → `const:` · non-sensitive
+   settings → `config:` · credentials → `${{ secrets.X }}`
    declared with an `egress:` sink. Every task that reads another's
    output binds it — `with: { alias: "${{ tasks.A.output }}" }` (the
    binding IS the edge) — and reads `${{ with.alias }}`; pure ordering
-   without data is `after: { A: succeeded }`.
+   without data is `after: { A: success }` (the predicate set is
+   closed: `success` · `failure` · `skipped` · `terminal`).
 4. **Guard the irreversible.** Any step the source author would have
    hovered over before hitting enter (deploy · publish · send · rm)
    gets a `nika:prompt` confirm gate before it.
@@ -39,9 +41,13 @@ parity is the proof.
    `--native-strict`. Every surviving `exec:` (git, build tools, a
    CLI with no MCP surface) gets its exec-ledger row in the header
    comment.
-6. **Declare the boundary.** `nika check <file> --infer-permits` →
-   paste the `permits:` block in. The script trusted its author; the
-   workflow is default-deny.
+6. **Declare the boundary.** `permits:` is mandatory — an effect under
+   no block refuses `NIKA-AUTH-006` at check.
+   `nika check <file> --infer-permits` prints the tightest block;
+   paste it in. The script trusted its author; the workflow is
+   default-deny. A script that leaned on an ambient variable must now
+   name it in `permits: { env: [NAME] }` — a spawned child inherits
+   nothing from the engine.
 7. **Hand off with parity.** Report: the mapping (source step →
    task) · what stayed `exec:` and why · the parity plan (run old
    and new on the same input once, compare artifacts, then

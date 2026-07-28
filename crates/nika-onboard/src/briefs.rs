@@ -34,7 +34,9 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 
 ## The loop
 - **Author** · `nika new --from <template> <file>.nika.yaml` (or write one —
-  the envelope is `nika: v1` + `workflow: <kebab-id>` + `tasks:`).
+  the envelope is `nika: v1` + a `workflow:` OBJECT carrying `id:` (kebab-case)
+  + a `tasks:` MAP keyed by task id. A scalar `workflow:` refuses
+  `NIKA-PARSE-020`, a `tasks:` sequence refuses `NIKA-PARSE-022`).
 - **Check** · `nika check <file>` — the static audit BEFORE any run (schema ·
   DAG · CEL · effects · permits · cost). Exit `0` clean · `2` findings.
   `--fix` applies the machine-applicable repairs (typed did-you-mean renames —
@@ -42,7 +44,8 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   `depends_on` → `with:`/`after:` migration and `tasks.*` hoists) and
   re-audits; ambiguity is skipped with a note, never guessed.
 - **Run** · `nika run <file>` — execute · live render. Exit `0` ok · `1` failed.
-  Inputs ride `--var key=value` (repeatable · unknown keys refused); a run
+  Inputs ride `--var key=value` (repeatable · the flag names an `inputs:`
+  declaration · unknown keys refused); a run
   paused on a `nika:prompt` resumes with `--resume <trace> --answer
   <task>=<value>` (confirm gates take booleans: `--answer approve=true`).
 - **Pin** · `nika test <file> --update` writes `<file>.golden.json` from an
@@ -61,11 +64,19 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   servers).
 
 ## The four verbs (exactly one per task)
-`infer` (an LLM call) · `exec` (a shell command) · `invoke` (a `nika:` builtin
-or MCP tool) · `agent` (a multi-turn ReAct loop).
+`infer` (an LLM call) · `exec` (a subprocess — `command:` is argv, one token per
+element, run via execve · no implicit shell: pipes, redirects and globs go in
+`shell:` explicitly) · `invoke` (a `nika:` builtin or MCP tool) · `agent` (a
+multi-turn ReAct loop).
 
 ## Hard rules (the validator enforces these — they catch ~90% of LLM errors)
 - One verb per task · the verb IS the task key (never a `verb:` field).
+- Values live in FOUR authorities, a closed family: `inputs:` (typed · caller-
+  supplied) · `config:` (typed · deployment-supplied) · `const:` (fixed in the
+  file) · `secrets:` (governed store references). `vars:` and `env:` are dead
+  envelope fields (`NIKA-VALUES-001` · `NIKA-VALUES-002`) and any other
+  namespace is `NIKA-VALUES-003` — classify each entry by the role it plays;
+  `check --fix` migrates the `vars:` half, `env:` is a human classification.
 - `tasks.X` crosses a task boundary only through `with:` (the binding IS the
   data edge — the body reads `${{ with.<name> }}`, never `tasks.*` directly)
   or `after: {X: success}` (control · predicates `success` · `failure` ·
@@ -116,41 +127,29 @@ as tools) · `nika completions <shell>` generates shell completions.
 prints the build recipe).
 
 ## Discipline
-- Every effect is gated by `permits:` (default-deny · `nika check --infer-permits`
-  prints the tightest boundary).
+- `permits:` IS the boundary, and ABSENT MEANS ZERO AUTHORITY: an effect under
+  no block refuses `NIKA-AUTH-006` at check, before a token is spent. A pure-
+  compute body states the zero explicitly as `permits: {}`.
+  `nika check --infer-permits` prints the tightest block; a bound is always a
+  literal, never an interpolation (`NIKA-AUTH-007`).
+- A spawned child inherits NOTHING from the engine: its environment is the
+  runner floor ∪ the names in `permits: { env: [NAME] }` ∪ the task's own
+  `env:` map. A variable the child needs must be named.
 - Secrets come from the environment (`${{ secrets.X }}`) — never inline.
 - `nika check` must be clean before `nika run` (audit-before-run is enforced).
 ";
 
 /// `.cursor/rules/nika.mdc` — the agent-facing authoring floor for Cursor.
-/// Generated from the same 4-verb canon as AGENTS.md; kept compact so it is
-/// cheap enough to auto-load on every `.nika.yaml` edit.
-const CURSOR_RULES: &str = r#"---
-description: Nika workflow language rules for AI assistance
-globs: ["**/*.nika.yaml", "**/*.nika.yml"]
-alwaysApply: false
----
-
-# Nika Workflow Language
-
-Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canonical) and `.nika.yml`.
-
-## 4 Verbs (locked forever)
-- `infer:` LLM call (`prompt`, `system?`, `temperature?`, `schema?`, `max_tokens?`, `model?`)
-- `exec:` subprocess (`command`, `cwd?`, `capture: text|structured`)
-- `invoke:` builtin/MCP tool (`tool`, `args`) — HTTP fetch = `tool: nika:fetch` (a tool, not a verb)
-- `agent:` multi-turn loop (`prompt`, `tools`, `max_turns`, `max_tokens_total`)
-
-## Authoring Discipline
-- Interpolation uses `${{ inputs.x }}` · `${{ const.x }}` · `${{ config.KEY }}` · `${{ tasks.id.output }}` · `${{ with.alias }}`.
-- Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
-- Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
-- Edges are declared, never restated: a `with:` binding reading `${{ tasks.id.output }}` IS the data edge · `after: { task_id: success }` is the control edge (predicates: `success` · `failure` · `skipped` · `terminal`). `depends_on` is dead — `nika check --fix` migrates it.
-- Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; non-sensitive configuration declares `config:` and reads `${{ config.KEY }}`.
-- After every edit, run `nika check <file>` — `--fix` heals the mechanical
-  renames, the diagnostics teach the rest.
-- Unknown code? Run `nika explain NIKA-XXXX`.
-"#;
+/// The kit's own language rule, `include_str!`d like its nine siblings —
+/// one source, byte parity by construction. It was the LAST scaffolded
+/// surface still duplicated as a literal, and it is the one that drifted:
+/// the kit copy still taught `vars:`/`${{ env.X }}`/`succeeded` three
+/// releases after the engine refused them (2026-07-28 audit). Kept compact
+/// so it stays cheap enough to auto-load on every `.nika.yaml` edit.
+const CURSOR_RULES: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/rules/nika-workflow-language.mdc"
+));
 
 /// `.cursor/mcp.json` — the project-scoped MCP wiring for Cursor: the
 /// read-only oracle (9 tools) reaches the agent without any manual setup.
@@ -353,6 +352,179 @@ mod tests {
             CURSOR_RULES.contains("**/*.nika.yml"),
             "the yml glob stays — the prose now matches it"
         );
+    }
+
+    /// Every teaching surface in the kit, as (kit-relative path, body).
+    /// Append-only history is never rewritten (cross-source §2.7), so the
+    /// CHANGELOG stays out of the sweep.
+    fn kit_teaching_surfaces() -> Vec<(String, String)> {
+        const HISTORY: &[&str] = &["CHANGELOG.md"];
+        let kit =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.agents/plugins/nika");
+        let mut stack = vec![kit.clone()];
+        let mut out = Vec::new();
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).expect("the kit directory is readable") {
+                let path = entry.expect("a readable dir entry").path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                if !matches!(ext, "md" | "mdc" | "sh") {
+                    continue;
+                }
+                let rel = path
+                    .strip_prefix(&kit)
+                    .expect("under the kit root")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if HISTORY.contains(&rel.as_str()) {
+                    continue;
+                }
+                out.push((
+                    rel,
+                    std::fs::read_to_string(&path).expect("a utf-8 surface"),
+                ));
+            }
+        }
+        out
+    }
+
+    /// The kit may never TEACH a form the live engine refuses.
+    ///
+    /// Found empirically 2026-07-28: three releases after the engine
+    /// began refusing them, the kit still taught `vars:`, `${{ env.X }}`,
+    /// `after: { t: succeeded }`, a scalar `workflow:` and
+    /// `capture: text` — so a file written from the plugin's own
+    /// instructions died at PARSE. The pattern behind it is the lesson:
+    /// every scaffolded surface that had a parity test (AGENTS.md vs the
+    /// live clap tree) stayed current, and every surface without one
+    /// rotted. This is that test for the rest of the kit — a denylist of
+    /// forms the engine refuses, plus a REAL `nika check` over every
+    /// complete workflow the kit prints.
+    ///
+    /// A migration surface may NAME a dead form (porting is its job); it
+    /// may never USE one. That asymmetry is the whole exemption.
+    #[test]
+    fn the_kit_never_teaches_a_form_the_engine_refuses() {
+        // Banned in every teaching surface — no exemption, ever.
+        const DEAD_USAGE: &[(&str, &str)] = &[
+            (
+                "${{ vars.",
+                "NIKA-VALUES-001 · dead namespace — read `inputs:` or `const:`",
+            ),
+            (
+                "${{ env.",
+                "NIKA-VALUES-002 · dead namespace — read `config:` or `secrets:`",
+            ),
+            (
+                "capture: text",
+                "capture is stdout · stderr · combined · structured",
+            ),
+            (
+                "workflow: <",
+                "NIKA-PARSE-020 · the envelope is an OBJECT carrying `id:`",
+            ),
+        ];
+        // NAMING a retired form is not TEACHING it: a port table whose
+        // left column is « dead form » has to spell the dead form, and a
+        // language surface earns its keep by inoculating a model that
+        // still carries 0.105 priors. So these are banned everywhere the
+        // subject is HOW TO WRITE ONE WORKFLOW (the commands, the
+        // task-shaped skills) and allowed on the surfaces whose subject
+        // is the LANGUAGE ITSELF or the port.
+        const DEAD_NAMING: &[(&str, &str)] = &[
+            (
+                "`vars:`",
+                "NIKA-VALUES-001 · classify into `inputs:`/`const:`",
+            ),
+            ("`depends_on`", "dead edge form — `with:` / `after:`"),
+            (": succeeded", "NIKA-DAG-005 · the predicate is `success`"),
+            (": failed", "NIKA-DAG-005 · the predicate is `failure`"),
+        ];
+        const MAY_NAME_THE_RETIRED: &[&str] = &[
+            "skills/nika-migration/SKILL.md",
+            "agents/nika-migrator.md",
+            "agents/nika-author.md",
+            "skills/nika-authoring/SKILL.md",
+            "rules/nika-workflow-language.mdc",
+        ];
+        let surfaces = kit_teaching_surfaces();
+        let mut sins: Vec<String> = Vec::new();
+
+        for (rel, body) in &surfaces {
+            for (needle, why) in DEAD_USAGE {
+                if body.contains(needle) {
+                    sins.push(format!("{rel} USES the dead form `{needle}` — {why}"));
+                }
+            }
+            if !MAY_NAME_THE_RETIRED.contains(&rel.as_str()) {
+                for (needle, why) in DEAD_NAMING {
+                    if body.contains(needle) {
+                        sins.push(format!("{rel} teaches `{needle}` — {why}"));
+                    }
+                }
+            }
+
+            // Every COMPLETE workflow the kit prints audits for real.
+            for block in body.split("```").skip(1).step_by(2) {
+                let yaml = block.split_once('\n').map_or("", |(_, rest)| rest);
+                if !yaml.trim_start().starts_with("nika: v1") {
+                    continue;
+                }
+                match nika_schema::parse(
+                    yaml,
+                    nika_schema::FileId::new(0),
+                    nika_schema::ParseMode::Strict,
+                ) {
+                    Err(e) => {
+                        sins.push(format!("{rel}: a taught workflow does not PARSE: {e:?}"));
+                    }
+                    Ok(wf) => {
+                        if !nika_check::check(&wf).is_clean() {
+                            sins.push(format!(
+                                "{rel}: a taught workflow does not audit CLEAN — the kit must \
+                                 never print YAML a user cannot run"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(sins.is_empty(), "the kit drifted:\n  {}", sins.join("\n  "));
+        assert!(
+            surfaces.len() >= 14,
+            "expected the whole kit scanned (skills · agents · commands · rules · scripts), got {}",
+            surfaces.len()
+        );
+    }
+
+    /// The flag-day vocabulary must be PRESENT, not merely un-rotten: a
+    /// silent deletion would pass the denylist above while leaving an
+    /// agent unable to write a legal envelope.
+    #[test]
+    fn the_kit_teaches_the_four_value_authorities_and_the_boundary() {
+        for (name, body) in [
+            ("the language rule", CURSOR_RULES),
+            ("the authoring skill", AGENT_SKILL),
+        ] {
+            for needle in ["inputs:", "config:", "const:", "secrets:"] {
+                assert!(
+                    body.contains(needle),
+                    "{name} must name the `{needle}` authority"
+                );
+            }
+            assert!(
+                body.contains("NIKA-AUTH-006"),
+                "{name} must teach that an absent `permits:` block is zero authority"
+            );
+            assert!(
+                body.contains("permits: {}"),
+                "{name} must teach the legal zero for a pure-compute body"
+            );
+        }
     }
 
     #[test]

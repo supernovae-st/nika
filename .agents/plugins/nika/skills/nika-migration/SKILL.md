@@ -35,12 +35,16 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | a retry/backoff loop around a flaky call | `retry:` on the task — `max_attempts` + `backoff_strategy: exponential` + `jitter: true` (transient provider/network errors only; a wrong prompt never heals by retry) |
 | `for item in …` | `for_each:` fan-out |
 | `if <condition>` | a `when:` gate |
-| `$1`, `$ENV_VAR` parameters | `vars:` + `--var key=value` · `${{ env.KEY }}` |
+| `$1` positional parameters | an `inputs:` declaration · supplied with `--var key=value` |
+| a value baked into the script | a `const:` entry · read as `${{ const.x }}` |
+| `$SOME_SETTING` (non-sensitive) | a `config:` declaration · read as `${{ config.KEY }}` |
+| an env var a CHILD process must see | `permits: { env: [NAME] }` — a child inherits nothing |
 | `API_KEY=…` literals | `${{ secrets.X }}` + `secrets:` block with its `egress:` sink |
 | step B reads step A's output | `with: { a: "${{ tasks.A.output }}" }` on B — the binding IS the edge — then `${{ with.a }}` in the body |
-| step B only waits for step A (no data) | `after: { A: succeeded }` (`terminal` for cleanup/notify paths) |
+| step B only waits for step A (no data) | `after: { A: success }` (predicates: `success` · `failure` · `skipped` · `terminal`) |
 | the irreversible step (deploy, send, publish) | a confirm gate before it (`nika:prompt`) — human answers at run time |
-| what no builtin/MCP covers (git, build tools) | `exec:` + a row in the exec ledger |
+| what no builtin/MCP covers (git, build tools) | `exec:` with `command:` as ARGV (`["git", "log", "-1"]`) + a row in the exec ledger |
+| a pipe, redirect or glob inside the command | `shell:` explicitly — `command:` has no implicit shell |
 
 ## The port protocol
 
@@ -58,9 +62,12 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 4. **Shape under mock**: `model: mock/echo` while the structure
    settles — `nika check <file>` after every change, repair from the
    diagnostics until exit 0, then `--native-strict`.
-5. **Declare the boundary**: `nika check <file> --infer-permits` →
-   paste the `permits:` block. The script trusted its author; the
-   workflow trusts nobody by default.
+5. **Declare the boundary**: `permits:` is mandatory — an effect under
+   no block refuses `NIKA-AUTH-006` at check.
+   `nika check <file> --infer-permits` prints the tightest block;
+   paste it in. The script trusted its author; the workflow trusts
+   nobody by default (a pure-compute port still declares
+   `permits: {}`).
 6. **Prove parity once**: run the old script and
    `nika run <file> --model mock/echo` (or a local model) side by
    side on the same input; compare the artifacts. Then pin:
@@ -68,6 +75,32 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 7. **Hand off honestly**: the workflow file + the golden + the run
    line (`nika run <file> --var … --max-cost-usd <n>`). The human
    decides when the old script retires — never delete it yourself.
+
+## Porting a pre-0.106 workflow file
+
+A `.nika.yaml` written before 0.106 can refuse to check today — the
+flag day changed what an existing file MEANS. Run `nika check <file>
+--fix` first: it migrates three classes mechanically, comment-
+preserving and idempotent.
+
+| Dead form | Becomes | Repair |
+|---|---|---|
+| `vars:` entry, caller-supplied | `inputs:` (typed · `required:` · `default:`) | `--fix` |
+| `vars:` entry, fixed value | `const:` | `--fix` |
+| scalar `workflow:` + `tasks:` list | `workflow:` object + `tasks:` map | `--fix` |
+| `after: { t: succeeded / failed }` | `success` / `failure` | `--fix` |
+| `env:` entry, non-sensitive | `config:` (typed) | **yours** |
+| `env:` entry, a credential | `secrets:` (a store reference) | **yours** |
+| `env:` name a child must see | `permits: { env: [NAME] }` | **yours** |
+| no `permits:` block, any effect | the inferred block (`--infer-permits`) | **yours** |
+
+`--fix` is atomic-or-nothing per class: on a credential-shaped name, a
+typed-only declaration, a flow-style `vars: {…}` header or an empty
+block it leaves the file UNTOUCHED and names the reason — it never
+guesses. `env:` has NO mechanical repair by design: re-shaping a flat
+string map into typed declarations is a classification, and only you
+know whether a name is configuration, a credential, or something a
+child process needs to see.
 
 ## Traps
 

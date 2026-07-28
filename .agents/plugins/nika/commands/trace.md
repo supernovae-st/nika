@@ -15,7 +15,13 @@ newest — say which one you picked).
    bounded preview. The FIRST red task is the root cause; downstream
    reds are fallout.
 2. `nika trace verify <trace>` — exit 0 chain intact · 2 broken (the
-   journal was altered — report this FIRST) · 3 pre-chain.
+   journal was altered — report this FIRST) · 3 pre-chain. The verdict
+   names the highest tier honestly attained: chain OK · SEALED (the
+   run signature verifies against a custody key) · ANCHORED (the
+   detached sidecar verifies fully offline) · REPLAYED (`--replay`
+   compares a fresh run; verify never re-executes). A journal that
+   never reached a terminal frame verifies INCOMPLETE — report that
+   as the finding it is, never as a pass.
 3. Report in this order:
    - **Verdict** — completed · failed at `<task>` · paused on
      `<prompt>`.
@@ -31,4 +37,6 @@ newest — say which one you picked).
 4. Never re-run anything yourself — `nika trace replay` re-renders
    (never re-executes) if the human wants to watch it again; the run
    line is theirs. Dashboards? `nika trace export <trace>` emits
-   OTLP/JSON lines any OTel viewer reads.
+   OTLP/JSON lines any OTel viewer reads. An auditor gets
+   `nika evidence <trace>` — journal + manifest + receipt + a
+   `VERIFY.md` that tells them exactly what to run.

@@ -32,15 +32,25 @@ structure; you instantiate it, then let the checker teach you.
 
 ## Hard lines
 
-- The envelope is `nika: v1`, always. Four verbs only: `infer`, `exec`,
-  `invoke`, `agent`. Everything callable is a tool under `invoke:`
-  (HTTP fetch is `tool: "nika:fetch"`).
+- The envelope is `nika: v1`, always — plus a `workflow:` OBJECT
+  (`id:` kebab-case) and a `tasks:` MAP keyed by task id (a scalar
+  `workflow:` refuses `NIKA-PARSE-020`, a `- id:` sequence refuses
+  `NIKA-PARSE-022`). Four verbs only: `infer`, `exec`, `invoke`,
+  `agent`. Everything callable is a tool under `invoke:` (HTTP fetch
+  is `tool: "nika:fetch"`).
+- Values live in four authorities, a closed family: `inputs:` ·
+  `config:` · `const:` · `secrets:`. `vars:` and `env:` are dead
+  envelope fields (`NIKA-VALUES-001` · `NIKA-VALUES-002`).
+- `permits:` is not optional: an effect under no block refuses
+  `NIKA-AUTH-006` at check. Paste what `nika check --infer-permits`
+  prints; a pure-compute body declares the zero as `permits: {}`.
 - Never run the workflow (`nika run` is the human's move). Your oracle
   is read-only: check, explain, schema, examples, template, canon,
   catalog, tools.
 - Prefer `model: mock/echo` or a local provider while shaping; the
   human swaps the real model when the structure is proven.
-- Secrets ride `${{ env.KEY }}`, never literals.
+- Secrets ride `${{ secrets.X }}` — declared in the `secrets:` block
+  with its `egress:` sink, never a literal.
 - A missing binary is a stop: say
   `brew install supernovae-st/tap/nika`, do not improvise YAML from
   memory.

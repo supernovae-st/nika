@@ -20,7 +20,13 @@ credentials, a model you chose, and a journal you can export.
 - A local model is **unpriced compute, not free** — say "unpriced",
   never "$0".
 
-## Permits (declare the blast radius)
+## Permits (the boundary is mandatory)
+
+**Absent is not the unconfined floor — it is ZERO authority.** A body
+carrying any effect with no `permits:` block refuses `NIKA-AUTH-006`
+at check, before a token is spent, and the runtime gates refuse before
+any spawn. A pure-compute body states the zero explicitly:
+`permits: {}`.
 
 ```
 nika check <file> --infer-permits
@@ -30,6 +36,19 @@ prints the tightest `permits:` block the workflow needs — paste it
 into the file. From then on the boundary is default-deny: a new host,
 path or tool must be added consciously, in a reviewable diff. Permits
 are data, not config — they travel with the file through PR review.
+
+Three refusals to expect while tightening: a bound that is an
+interpolation instead of a literal (`NIKA-AUTH-007` — a self-serve
+boundary is no boundary) · a `*.` subdomain wildcard
+(`NIKA-AUTH-010` — it hands the boundary to the zone operator; name
+exact hosts) · a `permits: { env: … }` entry naming a dangerous-floor
+variable the engine strips unconditionally (`NIKA-AUTH-009` — an
+inert dead grant).
+
+A spawned child inherits NOTHING from the engine: its environment is
+composed from a cleared slate — the runner floor ∪ the names in
+`permits: { env: [NAME] }` ∪ the task's own `env:` map. A workflow
+that leaned on an ambient variable must now name it.
 
 ## Secrets (masked, declared, sunk)
 
@@ -55,7 +74,7 @@ are data, not config — they travel with the file through PR review.
   The checker names the exact chain when one is missing
   (`secrets.X → tasks.A.output → tasks.B.output`).
 - A `host:`-scoped egress cannot be proven against an interpolated
-  URL (`${{ vars.repo }}` in the address) — the checker refuses
+  URL (`${{ inputs.repo }}` in the address) — the checker refuses
   conservatively. Pin the URL, or drop the `host:` scope and keep
   the tool-level sink.
 - Values come from the environment at run time; CI injects them the
@@ -90,8 +109,18 @@ are data, not config — they travel with the file through PR review.
   embedded builtin covers fails the gate (the exec ledger documents
   the survivors).
 - Schedule with the scheduler you already have (cron · CI · a
-  systemd timer): the engine is a binary, the workflow is a file,
-  `--var key=value` carries the parameters.
+  systemd timer): the engine is a binary, the workflow is a file, and
+  `--var key=value` carries the `inputs:` the file declares.
+
+## MCP servers (the pin IS the trust)
+
+A configured MCP server that changes its tool definitions after you
+approved them is the rug pull. Nika pins every tool on first contact
+(TOFU) into `.nika/mcp_pins.json` beside a reviewable snapshot: first
+contact enrolls loudly, a match proceeds silently, ANY drift fails
+closed with a diff naming the CHANGED field and returns no tools. A
+hand-edited lockfile is `NIKA-MCP-004`, never a silent re-TOFU.
+Re-pin after human review: `nika mcp approve <server>`.
 
 ## Observability (the journal is exportable, not captive)
 
@@ -101,16 +130,37 @@ are data, not config — they travel with the file through PR review.
 - `nika trace ls` shows the store; retention never collects the `★`
   newest trace of each workflow. `nika trace rm --older-than <dur>`
   prunes deliberately.
-- Audits cite `nika trace verify <trace>` (hash-chain intact), never
-  a log screenshot.
+- Audits cite `nika trace verify <trace>`, which reports the highest
+  tier honestly attained: chain OK · SEALED (the `run_sealed`
+  signature verifies against a custody key) · ANCHORED (the detached
+  sidecar verifies fully offline) · REPLAYED (`--replay` compares a
+  fresh run). A journal that never reached a terminal frame verifies
+  INCOMPLETE. Never a log screenshot.
+- `nika evidence <trace>` exports the auditor's pack — journal +
+  manifest + receipt + a `VERIFY.md` naming the exact commands. Hand
+  THAT over, not a summary you wrote.
+- `nika trace anchor <trace>` notarizes the journal head OUTSIDE the
+  journal (public transparency log + an RFC 3161 timestamp, written
+  to a detached sidecar). An explicit NETWORK act — the verb IS the
+  opt-in, never a default.
+- Author-binding: `nika sign <file>` mints a detached
+  `<file>.minisig` (`--check` verifies) and
+  `nika run --require-signature` refuses an unsigned or
+  invalidly-signed workflow at exit 2. `nika key` is the run-signing
+  key lifecycle (mint · TOFU fingerprint · rotate — old public halves
+  stay verifiable).
 
 ## Production checklist
 
 1. `nika check <file>` — clean, ceiling not floor.
 2. `nika check <file> --native-strict` — exec ledger complete.
-3. `permits:` pasted from `--infer-permits` — default-deny.
+3. `permits:` declared — absent is ZERO authority, not a floor; a
+   pure-compute body still says `permits: {}`.
 4. Secrets in `secrets:` with sinks — env-injected, never literal.
 5. Golden pinned (`nika test <file> --update`, committed).
 6. Spend cap on the run line (`--max-cost-usd`).
 7. Trace store known (`.nika/traces/`) — export wired if anyone
    watches dashboards.
+8. For a run someone will audit: signed (`nika sign`), verified to its
+   highest honest tier (`nika trace verify`), packed
+   (`nika evidence`).
