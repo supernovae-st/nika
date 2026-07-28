@@ -101,20 +101,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/nika-check-split`                                      |
-| HEAD             | `1acc3e42a` (`1acc3e42ad3959c3a50d65dc01ce27a98320429f`)             |
+| branch           | `feat/check-wasm`                                      |
+| HEAD             | `51f9fec4e` (`51f9fec4e8be742181ad12894336feb5f65d6848`)             |
 | workspace        | v0.106.0                                  |
-| crates (workspace)| 56                                              |
+| crates (workspace)| 57                                              |
 | crates (admitted)| 54                                             |
-| crates (WIP)     | 2 — nika-chart nika-fx                                  |
+| crates (WIP)     | 3 — nika-chart nika-fx nika-check-wasm                                  |
 | L0               | 18                                              |
 | L0.5             | 6                                              |
 | L1               | 14                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
-| L4               | 8                                              |
-| lib tests        | 4714 passed, 0 failed                              |
+| L4               | 9                                              |
+| lib tests        | 4926 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
