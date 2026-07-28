@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job: [clippy, tests, no-default-features]
+        job: [clippy, tests, no-default-features, wasm]
     env:
       JOB: ${{ matrix.job }}
     steps:
@@ -95,8 +95,8 @@ jobs:
       # every engine branch the moment a spec change merges ahead of its
       # engine cascade — the cross-repo drift class. spec-pin-heal.yml
       # advances the pin by PR; this CI judges at the pin.
-      - name: Checkout nika-spec (conformance fixtures · tests leg)
-        if: matrix.job == 'tests'
+      - name: Checkout nika-spec (conformance fixtures · tests + wasm legs)
+        if: matrix.job == 'tests' || matrix.job == 'wasm'
         run: |
           set -euo pipefail
           pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"

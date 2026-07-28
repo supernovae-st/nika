@@ -96,4 +96,26 @@ timeout · 1 missed**.
 
 ## Gate 11 · swarm findings and resolutions
 
-(appended at prep close)
+### Leg 1 · spn-nika reviewer (one-voice · zero-unwrap · I/O · layers)
+
+Verdict: hard rules ALL PASS (one-voice: only `spec_code()` + `Display` +
+`ERROR_DOCS_BASE` reach the wire, `.nika_code()` never called · zero unwrap
+outside `cfg(test)` · zero I/O so the kernel seam is correctly vacuous · L4
+defensible under the registry's own sort test). Changes requested on
+PROCESS, and the reviewer was right:
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| **No CI job ever built wasm32** — the crate's own reason to exist was verified only by hand | Critical | **FIXED at prep** · `scripts/ci/check-wasm.sh` + the `wasm` matrix leg in diamond-ci.yml: clippy `-D warnings` on the target, `--profile wasm-release` build, and differential Leg B |
+| Leg B (`NIKA_DIFF_CLI=1`) wired nowhere — silently no-ops unless a human remembers | Warning | **FIXED at prep** · the same CI leg exports it; the spec-fixtures checkout step now serves `tests` and `wasm` legs both |
+| No `docs/crate-specs/nika-check-wasm.md` | Warning | **already landed in parallel** during prep (the reviewer read the pre-edit tree) — live-anchored at 234 LOC |
+| `wasm-bindgen`/`getrandom`/`getrandom-02` pinned crate-side against the pin-once workspace rule | Warning | **FIXED at prep** · all three centralised in `[workspace.dependencies]` with attribution comments; the crate goes `.workspace = true` |
+| `crate-layer-registry.md` L4 rows not updated — and the two PRE-EXISTING near-duplicate L4 table rows (166/167, differing only by `nika-onboard` vs `nika-models`) | Warning | **FIXED at prep** · the duplicate rows merged into one honest row carrying both crates, `nika-check-wasm` seated in the row and the ASCII map (marked WIP · ADR-107) |
+| README owed-list numbering skipped an item | Suggestion | **FIXED at prep** |
+| The span arithmetic deserves a proptest | Suggestion | **already landed in parallel** — `line_col` vs an independent char-walker under arbitrary unicode (Gate 6) |
+| A typed verdict (`tsify`/hand `.d.ts`) at the TS boundary | Suggestion | **DECLINED with rationale** · the verdict's contract is CLI parity, held by the differential pair and the site's node gate; a second typed assembly would be a second thing able to drift — the exact divergence class Leg B exists to kill. The consumer types what it consumes (`oracle.ts` `WasmRow`), and the gate proves it against the artifact. |
+| L4 carries no `layer-bans` entry | Note | **HELD for the ceremony** · what L4 may never depend on is a policy decision, the operator's; the CI wasm leg already provides the practical stop the finding wanted (a wasm32-incompatible dep now reddens every push) |
+
+### Leg 2 · rust-security — (appended on the agent's return)
+
+### Leg 3 · correctness — (appended on the agent's return)

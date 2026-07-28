@@ -336,6 +336,9 @@ feed-rs       = "2.3"    # nika-extract L1.5 — mode feed RSS/Atom/JSON-Feed no
 quick-xml     = "0.41"   # nika-extract L1.5 — mode sitemap urlset+index parse (MIT)
 encoding_rs   = "0.8"    # nika-builtin L1.5 — nika:fetch charset-aware decode for extraction modes (Apache-2.0/MIT/BSD-3 · the encoding the web actually uses · same crate reqwest text() uses)
 ego-tree      = "0.11"   # nika-extract L1.5 — scraper public tree API (Edge traversal for the text-mode walk · ISC · pinned aligned with scraper 0.27)
+wasm-bindgen = "0.2"    # nika-check-wasm L4 — the browser transport boundary (bindgen CLI pinned to the lock minor at build)
+getrandom    = "0.3"    # nika-check-wasm L4 — wasm32 entropy backend door (features chosen crate-side per target)
+getrandom-02 = { package = "getrandom", version = "0.2" }  # nika-check-wasm L4 — the OLDER getrandom generation still in the graph, same door
 uuid     = { version = "1", features = ["v7", "v4", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0) · v4 for nika:builtin nika:uuid
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
 clap_complete = "4.5"   # L4 CLI — shell completions generated from the clap tree (nika-cli spec §9)

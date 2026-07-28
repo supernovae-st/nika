@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 nika-schema = { path = "../nika-schema", version = "0.106.0" } # parse + SchemaError → spec_code()/span() (the one error voice)
 nika-check  = { path = "../nika-check", version = "0.106.0" }  # analyze() + ERROR_DOCS_BASE + REPORT_VERSION (the judgment hub)
 serde_json  = { workspace = true }
-wasm-bindgen = "0.2"
+wasm-bindgen = { workspace = true }
 
 # THE ONE WALL, and its standard door. Every crate in this workspace hits the
 # same first error on wasm32-unknown-unknown: `uuid` (structural in nika-types,
@@ -31,8 +31,8 @@ wasm-bindgen = "0.2"
 # build-wasm.sh beside this manifest).
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 uuid         = { workspace = true, features = ["js"] }
-getrandom    = { version = "0.3", features = ["wasm_js"] }
-getrandom-02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom    = { workspace = true, features = ["wasm_js"] }
+getrandom-02 = { workspace = true, features = ["js"] }
 
 [lints]
 workspace = true

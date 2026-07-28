@@ -67,5 +67,5 @@ corpus (125 fixtures):
    into a shared library seam rather than re-implemented here. Re-assembly in
    two places is the exact divergence class the check↔run oracle exists to
    kill.
-3. **The 12-gate admission.** This crate rides a branch; joining `main` means
+2. **The 12-gate admission.** This crate rides a branch; joining `main` means
    the ceremony, like every crate before it.
