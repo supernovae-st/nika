@@ -391,3 +391,8 @@ debug = false
 lto = true
 opt-level = "z"
 codegen-units = 1
+# A trapped wasm instance never comes back (the jq-bomb work made that
+# literal — the shadow stack does not restore), so unwinding machinery in
+# the artifact would be dead weight implying a recovery the crate refuses
+# to promise. No catch_unwind exists anywhere in the wasm dependency tree.
+panic = "abort"

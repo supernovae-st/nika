@@ -42,6 +42,8 @@ without an explicit operator decision.
 | `multiple.intoto.jsonl` | SLSA provenance asset, offline-verifiable (proof 3) |
 | `ghcr.io/supernovae-st/nika:{<ver>,latest}` | multi-arch image, bit-identical to the tarballs |
 | Homebrew formula bump | `supernovae-st/homebrew-tap` (deploy-key scoped) |
+| `supernovae-st-nika-check-wasm-<ver>.tgz` (+ `.sha256`) | the npm tarball, byte-identical to what `npm publish` ships — attested like the binaries |
+| `@supernovae-st/nika-check-wasm` on npm | the browser checker, published with npm provenance (token present; loud-skipped otherwise, the tarball stays publish-ready) |
 
 The release body is rendered by `scripts/release/render-notes.sh`: the
 curated **What / Install / Verify / Provenance** front page from the
@@ -55,6 +57,8 @@ gh attestation verify nika-<platform>-<ver>.tar.gz --repo supernovae-st/nika
 slsa-verifier verify-artifact nika-<platform>-<ver>.tar.gz \
   --provenance-path multiple.intoto.jsonl \
   --source-uri github.com/supernovae-st/nika --source-tag v<ver>
+gh attestation verify supernovae-st-nika-check-wasm-<ver>.tgz --repo supernovae-st/nika
+npm audit signatures                                # in a project depending on the package
 ```
 
 Three independent chains: the checksum manifest, GitHub's signed

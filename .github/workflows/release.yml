@@ -358,6 +358,91 @@ jobs:
             git push
           fi
 
+  npm-wasm:
+    # The browser half of `nika check` rides the same tag as the binaries —
+    # one tree, one version, two artifact families. package.json is projected
+    # from cargo metadata at pack time, and an untagged tree can only produce
+    # a -dev prerelease (npm-pack.sh · the lineage-lie guard). The tarball is
+    # attached + attested BEFORE the publish attempt so a credential-less run
+    # still ships the exact publish-ready bytes. Plan:
+    # docs/plans/2026-07-28-check-wasm-npm-distribution.md
+    name: npm package (nika-check-wasm)
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # attach the npm tarball + sha256 to the release
+      id-token: write # npm --provenance + build attestation (Sigstore OIDC)
+      attestations: write # publish the tarball's build-provenance attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - name: Install the wasm toolchain (binder at the lock's version · pinned binaryen)
+        run: |
+          set -euo pipefail
+          rustup target add wasm32-unknown-unknown
+          # the binder follows Cargo.lock — npm-pack.sh refuses a mismatch,
+          # so this install reads the version FROM the lock (one source).
+          # cargo install over a prebuilt fetch: slower, but a release train
+          # pays minutes for certainty (three first-exercise failures in
+          # this file's history argue the point).
+          v="$(grep -A1 'name = "wasm-bindgen"$' Cargo.lock | sed -n 's/version = "\(.*\)"/\1/p')"
+          cargo install wasm-bindgen-cli@"$v" --locked
+          # binaryen pinned by sha — wasm-opt is mandatory for a shipped artifact
+          curl -sSL -o binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_131/binaryen-version_131-x86_64-linux.tar.gz
+          echo "b5bf1f0eaf17c63ee588ff7a5954dc8f6ce2c26989051c66f24dfe9ece3e46db  binaryen.tar.gz" | sha256sum -c
+          tar xzf binaryen.tar.gz
+          echo "$PWD/binaryen-version_131/bin" >> "$GITHUB_PATH"
+      - name: Checkout nika-spec (Leg A differential corpus · judged at SPEC_PIN)
+        # npm-pack.sh runs the crate's full test suite, whose Leg A
+        # differential is NOT env-gated — without a spec checkout it panics
+        # on this runner (the distribution review's second blocking find;
+        # same idiom as diamond-ci's tests + wasm legs).
+        run: |
+          set -euo pipefail
+          pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"
+          git clone --filter=blob:none https://github.com/supernovae-st/nika-spec "$GITHUB_WORKSPACE/nika-spec"
+          git -C "$GITHUB_WORKSPACE/nika-spec" checkout --detach "$pin"
+      - name: Pack (tests · wasm-release build · bindgen · wasm-opt · projected manifest)
+        env:
+          NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
+        run: bash crates/nika-check-wasm/npm-pack.sh
+      - name: Attach the tarball + sha256 to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" crates/nika-check-wasm/dist-npm/*.tgz crates/nika-check-wasm/dist-npm/*.tgz.sha256
+      - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: 'crates/nika-check-wasm/dist-npm/*.tgz'
+      - name: Publish to npm — loud-skip without a credential
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::warning::NPM_TOKEN unset — npm publish skipped. The tarball on the release is publish-ready (npm publish <tgz> --provenance --access public), or add the credential and re-dispatch this tag."
+            echo "npm publish **skipped** (no credential) — the attached tarball is publish-ready" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
+          cd crates/nika-check-wasm/dist-npm
+          # defense-in-depth: a -dev prerelease is unreachable here today
+          # (the tag↔manifest gate interposes), but if one ever arrived it
+          # would land under the `latest` dist-tag — refuse it outright
+          if ls ./*-dev.*.tgz > /dev/null 2>&1; then
+            echo "::error::refusing to publish a -dev prerelease tarball"
+            exit 1
+          fi
+          # publish the TARBALL, not the directory — the bytes on npm are
+          # byte-identical to the attached + attested release asset
+          npm publish ./*.tgz --provenance --access public
+          echo "published \`@supernovae-st/nika-check-wasm@${VERSION}\` (npm provenance attached)" >> "$GITHUB_STEP_SUMMARY"
+
   docker:
     # The official multi-arch image (#442) — one image unblocks Dokploy /
     # Coolify / Railway templates + the Docker MCP Registry. Fed from the
