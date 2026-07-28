@@ -586,3 +586,34 @@ function away in a crate I had already opened. The research pass that found it
 was sent to check my fix, not to look for this.
 
 **Send the adversarial pass before the fix feels finished, not after.**
+
+---
+
+## F12 · the contradictory-advice pair · CLOSED by F11, verified
+
+The research pass flagged a third defect alongside the two fail-opens: on one
+input the report printed two instructions that contradicted each other.
+
+```
+✖ PERMITS  [NIKA-SEC-004 · fs] path `./data/sales.csv` is outside permits.fs.read
+           · fix: add "./data/sales.csv" to permits.fs.read
+↳ HINT     [NIKA-DRIFT-001 · drift] `permits.fs.read` entry `data/**` matches no
+           path the body reads — remove the entry
+```
+
+One line said widen the boundary; the next said delete the grant that was
+already correct. Both were downstream of the matcher: `data/**` genuinely did
+not match `./data/sales.csv`, so SEC-004 fired AND the drift detector correctly
+observed that the entry matched nothing.
+
+Re-measured after the shared predicate landed, same input:
+
+```
+✔ PERMITS  body fits the declared boundary
+✔ audited · 1 task · 1 wave · permits declared · est ≤$0.0000 · 0 hints
+```
+
+No repair of its own was needed. Worth recording because the failure mode is
+not "a bad message" — it is a matcher defect surfacing as ADVICE, and the
+advice pointed at widening a security boundary. A diagnostic is only as sound
+as the predicate underneath it, and a wrong predicate does not stay quiet.
