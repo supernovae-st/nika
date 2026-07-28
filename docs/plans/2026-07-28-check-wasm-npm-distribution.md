@@ -186,8 +186,20 @@ checker that cannot run the environmental legs must not claim them.
 
 ## 4 · The release train (what the machine does per tag)
 
-`release.yml` gains one job, `npm-wasm`, alongside the existing
-build → release → provenance → bump-formula → docker chain:
+`release.yml` gains two jobs, `npm-wasm-pack` → `npm-wasm-publish`,
+alongside the existing build → release → provenance → bump-formula →
+docker chain — **two**, because the supply-chain pass caught the shape
+the file's own build → release split exists to prevent: the packing job
+compiles third-party code (`cargo install`, build scripts, proc macros),
+and compiled code must never share a job with `id-token: write` or a
+writable token — a hostile `build.rs` there could mint Sigstore
+attestations in the repo's name. So the pack job holds `contents: read`
+with `persist-credentials: false` and hands the tarball over as an
+artifact; the publish job holds the elevated scopes and runs zero
+third-party code. Between them, the packed version is asserted equal to
+the released version **before** anything is uploaded or attested, and
+every downstream checkout uses the sha the release job resolved once —
+never a re-resolution of the (mutable) tag:
 
 1. Check out the tag (same discipline as the build matrix).
 2. `rustup target add wasm32-unknown-unknown`; install `wasm-bindgen-cli`
@@ -226,11 +238,15 @@ build — the artifact consumed is the artifact attested.
 
 ## 6 · What only the operator can do
 
-One move: add an `NPM_TOKEN` secret to the engine repo (an automation
-token for the `@supernovae-st` scope). Everything else in this plan is
+One move: add an `NPM_TOKEN` secret to the engine repo — a **granular**
+token for the `@supernovae-st` scope (classic tokens no longer exist;
+granular write tokens expire within 90 days, which is fine for what this
+is: a bootstrap, since npm's own tracker says a package's first-ever
+publish cannot use OIDC anyway). Everything else in this plan is
 automated and lands without it — tarball-on-release is the no-credential
-fallback. Configuring **trusted publishing** on npmjs.com becomes
-worthwhile once the §7 OIDC follow-up wires the job for it.
+fallback. After the debut, the §7 OIDC follow-up retires the token
+class entirely; the publish job already pins the OIDC-capable toolchain
+(node 24 → npm ≥ 11.5.1, the component that generates the provenance).
 
 ---
 

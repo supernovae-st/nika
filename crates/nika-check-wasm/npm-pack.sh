@@ -38,10 +38,15 @@ if [ "$lock_bindgen" != "$have_bindgen" ]; then
   exit 2
 fi
 
+# the tag must BE this version's tag — `--exact-match` alone accepts any
+# tag on HEAD (a stray `wip` would mint a release-versioned tarball on a
+# dev box, one `npm publish` away from permanent)
+crate_version="$(cargo metadata --no-deps --format-version 1 \
+  | python3 -c 'import json,sys;print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"]=="nika-check-wasm"))')"
 suffix=""
-if ! git describe --tags --exact-match >/dev/null 2>&1; then
+if [ "$(git describe --tags --exact-match 2>/dev/null || true)" != "v${crate_version}" ]; then
   suffix="-dev.g$(git rev-parse --short=12 HEAD)"
-  echo "untagged tree — packing a ${suffix} prerelease (a release version never leaves an untagged tree)"
+  echo "HEAD is not v${crate_version} — packing a ${suffix} prerelease (a release version only ever leaves its own tag)"
 fi
 
 bash ./build-wasm.sh
