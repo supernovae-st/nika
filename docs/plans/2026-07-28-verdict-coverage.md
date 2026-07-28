@@ -617,3 +617,162 @@ No repair of its own was needed. Worth recording because the failure mode is
 not "a bad message" — it is a matcher defect surfacing as ADVICE, and the
 advice pointed at widening a security boundary. A diagnostic is only as sound
 as the predicate underneath it, and a wrong predicate does not stay quiet.
+
+---
+
+# F13 · a `nika:notify` send passes check and is refused at run
+
+Reported by a repair agent mid-swarm, reproduced here.
+
+```yaml
+secrets:
+  hook: { source: env, key: H, egress: [{ to: "nika:notify", host_from_self: true }] }
+permits:
+  tools: ["nika:notify"]        # and NO net.http at all
+tasks:
+  send: { invoke: { tool: "nika:notify", args: { channel: webhook, target: "${{ secrets.hook }}", message: "x" } } }
+```
+
+```
+CHECK : ✔ PERMITS  body fits the declared boundary
+RUN   : ✖ NIKA-SEC-004 · `hooks.slack.com` resolves outside the declared net.http boundary
+```
+
+Measured across all three arms — `net.http` absent, empty, and naming a
+DIFFERENT host — check is green and run is refused in every one. Seven
+showcase files in the spec are in this state.
+
+## The decidable half
+
+The naive reading is that this is unknowable statically: the host lives inside
+a secret, so `check` cannot know it. That is true of one question and not the
+other.
+
+```
+"which host?"         UNDECIDABLE at check · the secret carries it
+"is there ANY host?"  DECIDABLE · an empty or absent net.http means every
+                      host is outside it, so the run CANNOT succeed
+```
+
+The first two arms are certainties, not guesses. A net-effecting builtin
+invoked under a `net.http` that grants nothing is a guaranteed run failure and
+belongs in PERMITS as a finding. The third arm stays a hint, because there the
+static pass genuinely does not know.
+
+This is the F11 lesson used as a tool rather than learned again: when a check
+is waived as undecidable, look for the sub-question that IS decidable and write
+its procedure down. One engine repair kills the class; seven file repairs would
+grow back.
+
+## The teaching defect underneath it
+
+One repair, caught by a sibling agent before it shipped, added this comment:
+
+> The webhook is NOT listed here: its host is inside the secret, and the
+> `egress:` above (`host_from_self`) is what sanctions that one send.
+
+**False**, and the spec says so at `01-envelope.md:377`: *"`egress:` NARROWS the
+capability boundary, never widens it. `host_from_self` (host unknown
+statically) degrades to the runtime `permits` check."*
+
+Two blocks, two questions:
+
+```
+egress:            sanctions the FLOW       may this secret go there
+permits.net.http   grants the CAPABILITY    may this workflow reach that host at all
+```
+
+A webhook send needs BOTH. There is no configuration in which naming the host
+is optional. This sentence goes in the authoring skill — a wrong model taught
+in an example people copy costs more than a wrong file.
+
+Cheap verification without a real webhook: point the env var at a host outside
+`net.http` and run. `NIKA-SEC-004` means the boundary refused it;
+`NIKA-BUILTIN-NOTIFY-002` (DNS) means it got through.
+
+---
+
+# F14 · the edit hook judged with the wrong binary, silently
+
+`.agents/plugins/nika/scripts/check-on-edit.sh` resolved `NIKA="${NIKA_BIN:-nika}"`.
+With the variable unset that is the PATH build — which, mid-session, was one
+release behind the tree and still deferred `${{ const.x }}` paths to run time.
+Same file, same flag:
+
+```
+brew 0.106.1  ✔ PERMITS  body fits the declared boundary
+engine main   ✖ NIKA-SEC-004 ./secret/keys.txt is outside permits.fs.read
+```
+
+The hook fires on its own after every edit. So agents working ON the engine
+were handed a green from the release they were in the middle of fixing, on
+exactly the class the fix addresses, with no way to see which binary answered.
+
+**Fixed structurally, not by asking people to remember an env var.** The hook
+now names its oracle in every finding, and breaks its silence in exactly one
+configuration: a build exists in this tree and the hook is not using it.
+Verified both ways — inside the engine tree with `NIKA_BIN` unset it prints the
+export line; outside any such tree it stays quiet even on a clean verdict.
+
+This is the governing law applied to the tooling rather than the workflows: a
+verdict that does not name the oracle behind it claims more than it covers.
+
+---
+
+# F15 · `--infer-permits` and `check` disagree about the same file
+
+Mine, and a consequence of scoping the const-resolution lane to `permits_fit`
+and not `permits_infer`. In one binary:
+
+```
+check           calls a `${{ const.x }}` path "a literal path" and judges it
+--infer-permits calls the same path "too dynamic to pin statically"
+```
+
+So the block `--infer-permits` prints never round-trips clean on any file that
+routes a path or url through `const:` — which is every file the templates teach.
+The tool contradicts itself, and the half that is wrong is the half authors
+paste. Wiring `judgeable_arg` into `permits_infer` closes it.
+
+---
+
+# OPEN · the lethal-trifecta gate may over-approximate, and two agents hit it independently
+
+Not a finding: a question that needs an owner, with the evidence attached.
+
+Declaring an HONEST boundary can now complete the trifecta on files that were
+green only because they declared nothing. An empty `permits:` block switches off
+legs ① and ③, so under-declaration was DISABLING the security judge. Fixing the
+under-declaration turns it on — which is correct in general and looks wrong on
+these two files.
+
+Both agents refused to add a blocking `nika:prompt` to silence it, and both were
+right to: adding ceremony to quiet a security message is the failure mode, and on
+a canonical example it teaches the reflex to everyone who copies it.
+
+The argument that the firing is an over-approximation, as the agents made it:
+
+- **Leg ①** is satisfied by a workflow reading its OWN state file. NEP-0002 says
+  so itself: *"v2 refinement: a sensitivity classification over read paths; v1
+  treats any declared read as ①."*
+- **Leg ③** is satisfied only via `net.http`, whose sole consumer is an INBOUND
+  `nika:fetch`. Probed: three legs plus a fetch with no write sink comes back
+  clean, so a fetch is never itself the egress witness. Yet the witness chosen is
+  an in-workspace `nika:write` — which leg ③'s own text excludes
+  (*"a `permits.fs.write` glob ESCAPES the declared workspace"*). The workflow
+  has no path by which data leaves the machine.
+
+Three options, and this is an operator decision because it changes what the gate
+means:
+
+```
+(a) apply leg ③'s workspace test to witness selection
+    release-radar goes green with zero file changes · agents recommend this
+(b) land the NEP-0002 v2 sensitivity classification over read paths
+    the principled fix · larger
+(c) accept the gate and add the human prompt
+    turns an unattended weekly radar into a two-command ceremony
+```
+
+Left RED pending the decision. A red gate that reports something true is the
+honest state; a green one bought with ceremony is not.
