@@ -693,9 +693,20 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     } else {
         (mark(t, true), "worst-case ceiling".to_owned())
     };
+    // The price table's date rides WITH the number. A ceiling is a
+    // promise, and a promise computed against prices that have since
+    // moved is a promise about the past — the `--json` lane has carried
+    // `pricing.snapshot.as_of` since the models rung shipped, but the
+    // human lane never showed it, so the one reader who cannot query the
+    // payload was the one who could not tell.
+    //
+    // This is not hypothetical drift: vendor intro pricing expires on
+    // announced dates, so a workflow audited in one month can bill more
+    // in the next with the file unchanged.
+    let snap = nika_catalog::pricing_snapshot();
     let _ = writeln!(
         out,
-        " {cost_mark} {}     {} {bound}",
+        " {cost_mark} {}     {} {bound} {}",
         t.paint(Role::Strong, "COST"),
         t.paint(
             Role::Strong,
@@ -704,6 +715,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
                 report.cost.min_path_total_usd, report.cost.bounded_total_usd
             )
         ),
+        t.paint(Role::Dim, &format!("· prices {}", snap.as_of)),
     );
     for c in &report.cost.tasks {
         let model = c.model.as_deref().unwrap_or("?");

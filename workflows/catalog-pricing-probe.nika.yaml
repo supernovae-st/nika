@@ -1,0 +1,112 @@
+# The pricing catalog's provenance, produced by the engine it feeds.
+#
+# WHY THIS FILE EXISTS. `nika check` prints a cost ceiling and the spec
+# calls it a promise. A promise computed from a number nobody can trace
+# is a promise about nothing. This workflow fetches the upstream price
+# source, hashes the exact bytes it received, and writes a provenance
+# record — so the catalog ships WITH the evidence for its own values.
+#
+# WHY IT IS A NIKA WORKFLOW AND NOT A SCRIPT. The hash-chained trace is
+# the artifact. A bash script that curls and hashes leaves a log; this
+# leaves a receipt: which URL, which digest, which day, in a chain that
+# breaks if a line is edited, inserted, dropped or reordered. The engine
+# that publishes the catalog is audited by the engine it publishes.
+#
+# WHAT IT DOES NOT DO. It does not WRITE the catalog. The TOML emission
+# (provider-id canonicalisation, pattern-length ordering, TOML float
+# formatting) lives in scripts/refresh-pricing.sh and is subtle enough
+# that porting it belongs in its own change with its own tests. This
+# workflow produces the provenance half — the half that was missing.
+#
+#   nika check  workflows/catalog-pricing-probe.nika.yaml
+#   nika run    workflows/catalog-pricing-probe.nika.yaml
+nika: v1
+
+workflow:
+  id: catalog-pricing-probe
+  description: "fetch the upstream price source · hash it · record the provenance"
+
+const:
+  source_url: "https://models.dev/api.json"
+  out: "./target/pricing-provenance.json"
+
+permits:
+  tools: ["nika:fetch", "nika:hash", "nika:date", "nika:write"]
+  net:
+    http: ["models.dev"]
+  fs:
+    write: ["./target/**"]
+
+tasks:
+  # ── the fetch · the only step that touches the world ──────────────
+  # `mode: raw` because the DIGEST must be over the bytes the upstream
+  # actually served. Any shaping before the hash would anchor the
+  # provenance to our own transform rather than to the source.
+  upstream:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.source_url }}"
+        mode: raw
+
+  # ── the shape · fetched a SECOND time, through the native jq mode ──
+  # `nika:jq` takes a VALUE; a raw fetch hands back TEXT, so piping one
+  # into the other asks jq to key into a string. `nika:fetch` carries
+  # `mode: jq` for exactly this, which keeps the parse inside the tool
+  # that owns the bytes. The cost is one extra request; the alternative
+  # is a decode step whose failure mode is a wall of escaped JSON.
+  shape:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.source_url }}"
+        mode: jq
+        jq: "{ providers: (keys | length) }"
+
+  # ── the anchor · sha256 over the bytes we actually received ───────
+  # sha256 and not blake3 on purpose: the refresh script records
+  # `source_sha256_16` in the TOML's [meta], and a provenance record
+  # that cannot be compared to the catalog it describes is decoration.
+  digest:
+    with:
+      body: "${{ tasks.upstream.output }}"
+    invoke:
+      tool: "nika:hash"
+      args:
+        content: "${{ with.body }}"
+        algo: sha256
+        encoding: hex
+
+  stamp:
+    invoke:
+      tool: "nika:date"
+      args:
+        op: now
+
+  record:
+    with:
+      sha: "${{ tasks.digest.output }}"
+      day: "${{ tasks.stamp.output }}"
+      shape: "${{ tasks.shape.output }}"
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ const.out }}"
+        # Every scalar interpolation is QUOTED. `${{ }}` substitutes the
+        # value, not a JSON literal — an unquoted string field yields
+        # `"fetched": 2026-07-28T19:38:39Z`, which is malformed, and
+        # nothing catches it: check is green, the run is green, and the
+        # artifact is broken. `with.shape` alone stays bare because it
+        # is already an object.
+        content: |
+          {
+            "source": "${{ const.source_url }}",
+            "fetched": "${{ with.day }}",
+            "digest": "${{ with.sha }}",
+            "upstream": ${{ with.shape }}
+          }
+
+outputs:
+  digest: ${{ tasks.digest.output }}
+  fetched: ${{ tasks.stamp.output }}
+  upstream: ${{ tasks.shape.output }}

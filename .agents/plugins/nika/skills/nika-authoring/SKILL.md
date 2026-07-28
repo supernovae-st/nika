@@ -375,3 +375,46 @@ the human at handoff, not to expect a green.
 - Auth rides `headers: { x-api-key: "${{ secrets.KEY }}" }` (masked ·
   declared in `secrets:` with its `egress:` sink) — never `exec: curl`
   for the sake of a header.
+
+## When the language pushes back, that is a finding
+
+Every friction you meet writing a workflow is a datum about the spec or
+the engine. Do not route around it silently — a workaround written once
+is a workaround written forever, and the next author meets the same wall
+with no trace that you were here.
+
+**The triggers.** Any one of these is enough:
+
+```
+  a green `nika check` whose run dies
+  a diagnostic that does not name the remedy that WORKS
+  a builtin that returns a plausible, wrong answer
+  a form you had to guess because no surface teaches it
+  a workaround you write "just this once"
+  two lines of the SAME output that disagree
+  a green run that produces a malformed artifact
+```
+
+**The move, in order.**
+
+1. **Reproduce** it small. Never "I think it does X" — the exact file and
+   the exact command.
+2. **Locate** it: a `file:line` in the engine, or a `§` in the spec.
+3. **Write it down** where it survives the session — an issue, or a plan
+   entry if it is a class rather than a point.
+4. **Fix at the source.** The spec repo, not a vendored copy of it: a
+   mirror is re-vendored and your fix disappears.
+5. **Leave a ratchet** — a test, a hint, a gate. Without one the class
+   comes back.
+
+**Why this earns its place in an authoring skill.** Writing a five-task
+provenance workflow on 2026-07-28 surfaced three defects in twenty
+minutes, none of them being looked for: a builtin's required arg missing
+from the example that taught it, a `fetch → jq` pipe that hands text to a
+tool expecting a value, and a scalar interpolated into literal JSON that
+produced an unquoted field — green check, green run, unreadable artifact.
+
+That is the ordinary rate. The language is good and it is not finished,
+and the only reason it converges is that the people using it report what
+they hit. **A workflow you had to fight is worth more as a bug report
+than as a file.**
