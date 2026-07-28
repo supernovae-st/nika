@@ -326,7 +326,22 @@ enum Command {
     Dap,
     /// Run the language server over stdio (drives the editor extension).
     #[command(display_order = 61)]
-    Lsp,
+    Lsp {
+        /// LSP-host convention flag: vscode-languageclient, nvim and
+        /// helix spawn `<server> --stdio` by habit. Stdio is this
+        /// server's ONLY transport, so the flag is a no-op — but
+        /// refusing it killed every spawn from a client that passes it,
+        /// with exit 2 before the first byte of JSON-RPC (the v0.106.0
+        /// extension post-mortem: the language server had never once
+        /// run in production because of this refusal). Hidden: it
+        /// teaches nothing a human needs to type.
+        #[arg(long, hide = true)]
+        stdio: bool,
+        /// Same convention family: hosts pass their own PID so a server
+        /// can watchdog its parent. Accepted, currently unread.
+        #[arg(long = "clientProcessId", hide = true)]
+        client_process_id: Option<u32>,
+    },
     /// Run the MCP server (validate: check/explain · learn:
     /// schema/examples/templates/canon — the in-binary Model Context Protocol
     /// surface for Cursor · Claude Desktop · agents). Default transport:
@@ -612,7 +627,7 @@ fn main() -> std::process::ExitCode {
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
         Command::Dap => nika_dap::run_stdio(),
-        Command::Lsp => match nika_lsp::run_stdio() {
+        Command::Lsp { .. } => match nika_lsp::run_stdio() {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
                 eprintln!("nika lsp: {err}");
@@ -1118,6 +1133,40 @@ mod tests {
             assert!(
                 help.contains(limit),
                 "--max-cost-usd help must name `{limit}`"
+            );
+        }
+    }
+
+    /// The LSP-host convention flags parse as no-ops. Refusing them was
+    /// the v0.106.0 extension post-mortem: vscode-languageclient spawns
+    /// `nika lsp --stdio`, the unknown flag exited 2 before the first
+    /// byte of JSON-RPC, and the language server had never once run in
+    /// production. nvim and helix pass the same flags by habit.
+    #[test]
+    fn lsp_accepts_the_host_convention_flags() {
+        for argv in [
+            vec!["nika", "lsp"],
+            vec!["nika", "lsp", "--stdio"],
+            vec!["nika", "lsp", "--clientProcessId=42"],
+            vec!["nika", "lsp", "--stdio", "--clientProcessId=42"],
+        ] {
+            let cli = Cli::try_parse_from(&argv).expect("host convention parses");
+            assert!(
+                matches!(cli.command, Some(Command::Lsp { .. })),
+                "{argv:?} lands on Lsp"
+            );
+        }
+        // The transports this server does NOT speak stay refused — a
+        // client asking for ipc/pipe/socket must learn immediately, not
+        // hang on a stdio server that will never dial back.
+        for argv in [
+            vec!["nika", "lsp", "--node-ipc"],
+            vec!["nika", "lsp", "--pipe=/tmp/x"],
+            vec!["nika", "lsp", "--socket=9257"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&argv).is_err(),
+                "{argv:?} must stay refused"
             );
         }
     }
