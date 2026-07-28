@@ -884,25 +884,36 @@ mod tests {
     }
 
     /// The clean verdict is the audited CARD line: tasks · waves ·
-    /// permits state · the cost floor · the hint count — with full
-    /// ASCII parity (`ok audited` · `>=`).
+    /// permits state · the cost CEILING · the hint count — with full
+    /// ASCII parity (`ok audited` · `<=`).
+    ///
+    /// The ceiling is the point. This line used to read `est ≥$X` over
+    /// the cheapest-path total, which bounds nothing from below: every
+    /// task in that total is priced at its own token cap, so a run bills
+    /// under it routinely (measured: $0.000242 against `≥$0.0305`). It
+    /// also contradicted the COST section three lines above, which says
+    /// `≤N tk` per task and labels its range "worst-case ceiling".
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
         let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains(
-                "✔ audited · 2 tasks · 2 waves · permits declared · est ≥$0.0000 · 0 hints"
+                "✔ audited · 2 tasks · 2 waves · permits declared · est ≤$0.0000 · 0 hints"
             ),
             "the audited card line: {text}"
         );
+        assert!(
+            !text.contains("est ≥"),
+            "the card must not claim a floor it cannot hold: {text}"
+        );
         let ascii = checked_text("audited-card-ascii.nika.yaml", yaml, true);
         assert!(
-            ascii.contains("ok audited") && ascii.contains("est >=$0.0000"),
-            "ascii parity (ok · >=): {ascii}"
+            ascii.contains("ok audited") && ascii.contains("est <=$0.0000"),
+            "ascii parity (ok · <=): {ascii}"
         );
         assert!(
-            !ascii.contains('≥'),
+            !ascii.contains('≤'),
             "no unicode leaks into --ascii: {ascii}"
         );
         // Hint pluralization: 0 hints here (the boundary is declared).
