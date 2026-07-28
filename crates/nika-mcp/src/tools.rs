@@ -27,7 +27,56 @@ use serde_json::{Value, json};
 pub(crate) fn catalog() -> Value {
     let mut all = validate_tools().as_array().cloned().unwrap_or_default();
     all.extend(learn_tools().as_array().cloned().unwrap_or_default());
+    for tool in &mut all {
+        let Some(obj) = tool.as_object_mut() else {
+            continue;
+        };
+        let name = obj
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        obj.insert("title".into(), json!(display_title(&name)));
+        obj.insert("annotations".into(), read_only_annotations());
+    }
     Value::Array(all)
+}
+
+/// The behaviour hints every tool in this oracle carries, stamped in ONE
+/// place because they are true of ALL of them: each answers from the
+/// binary's embedded canon (schema · examples · templates · catalogs) or
+/// from a static audit of workflow text it was handed. Nothing mutates,
+/// nothing spawns, nothing opens a socket — running a workflow is a
+/// separate, explicit human act on the CLI.
+///
+/// Clients read these to decide whether to interrupt the human on every
+/// call (MCP 2025-06-18 · tool annotations). Leaving them unset is what
+/// made a read-only oracle feel as dangerous as a shell.
+fn read_only_annotations() -> Value {
+    json!({
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+    })
+}
+
+/// The human-facing name a client shows beside the wire id. A tool with
+/// no title falls back to its id, and the parity test below refuses it —
+/// a tenth tool must name itself rather than inherit a blank.
+fn display_title(name: &str) -> &'static str {
+    match name {
+        "nika_check" => "Audit a workflow",
+        "nika_inspect" => "Project the workflow graph",
+        "nika_explain" => "Explain an error code",
+        "nika_schema" => "The workflow JSON Schema",
+        "nika_examples" => "Browse runnable examples",
+        "nika_template" => "Fetch a template skeleton",
+        "nika_canon" => "The spec canon",
+        "nika_catalog" => "Providers and models",
+        "nika_tools" => "The builtin catalog",
+        _ => "",
+    }
 }
 
 /// The VALIDATE half — audit and project a workflow before a token.
@@ -353,6 +402,30 @@ fn explain(args: &Value) -> Result<String, String> {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// Every tool the oracle serves declares its behaviour, and names
+    /// itself. The hints are what a client reads to stop interrupting a
+    /// human on a read-only call; a blank title is a tool that never
+    /// introduced itself. Found 2026-07-28: all nine served NONE, so a
+    /// pure-read oracle felt exactly as dangerous as a shell.
+    #[test]
+    fn every_served_tool_declares_read_only_behaviour_and_a_title() {
+        let catalog = catalog();
+        let tools = catalog.as_array().expect("the catalog is an array");
+        assert!(!tools.is_empty(), "the oracle serves no tools at all");
+        for tool in tools {
+            let name = tool["name"].as_str().expect("every tool has a name");
+            assert!(
+                !tool["title"].as_str().unwrap_or_default().is_empty(),
+                "{name} serves no display title — add it to display_title()"
+            );
+            let hints = &tool["annotations"];
+            assert_eq!(hints["readOnlyHint"], json!(true), "{name} readOnlyHint");
+            assert_eq!(hints["destructiveHint"], json!(false), "{name} destructive");
+            assert_eq!(hints["idempotentHint"], json!(true), "{name} idempotent");
+            assert_eq!(hints["openWorldHint"], json!(false), "{name} openWorld");
+        }
+    }
 
     /// `nika_inspect` serves the projection VERBATIM — byte-equal with
     /// `nika_graph::project` on the same source (one projector, three
