@@ -44,3 +44,14 @@ workspace = true
 # exactly that shape. getrandom-02 escapes by its rename already.
 [package.metadata.cargo-machete]
 ignored = ["getrandom", "uuid"]
+
+[dev-dependencies]
+proptest = { workspace = true }  # Gate 6 · the line/col boundary arithmetic under arbitrary unicode
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "kodama-scribe"
+spirit_role   = "le scribe porté jusqu'au navigateur · le même jugement, la même voix, dans l'onglet du lecteur · la couverture se dit, jamais ne se laisse deviner"
+voice_pattern = "spoken"
+layer         = "L4"
+err_prefix    = "none"

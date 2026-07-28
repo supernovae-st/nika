@@ -60,19 +60,32 @@ fn finding_row(kind: &str, gate: &str, source: &str, e: &SchemaError) -> serde_j
     });
     if let Some(span) = e.span() {
         row["span"] = serde_json::json!({ "start": span.start, "end": span.end });
-        /* the parser's offsets land on char boundaries; a mid-char offset
-        would be an engine bug, and truncating at the last boundary keeps
-        this a rendering aid rather than a new failure mode */
-        let mut at = (span.start.0 as usize).min(source.len());
-        while at > 0 && !source.is_char_boundary(at) {
-            at -= 1;
-        }
-        let head = &source[..at];
-        let line_start = head.rfind('\n').map_or(0, |i| i + 1);
-        row["line"] = serde_json::json!(head.matches('\n').count() + 1);
-        row["col"] = serde_json::json!(head[line_start..].chars().count() + 1);
+        let (line, col) = line_col(source, span.start.0 as usize);
+        row["line"] = serde_json::json!(line);
+        row["col"] = serde_json::json!(col);
     }
     row
+}
+
+/// 1-based line and CHARACTER column for a byte offset — the CLI's own
+/// arithmetic, kept beside the source so no JS consumer ever re-derives it
+/// from the byte span (the two disagree the moment a multi-byte character
+/// sits left of the caret).
+///
+/// The parser's offsets land on char boundaries; a mid-char or past-end
+/// offset would be an engine bug, and clamping to the last boundary keeps
+/// this a rendering aid rather than a new failure mode.
+fn line_col(source: &str, byte: usize) -> (usize, usize) {
+    let mut at = byte.min(source.len());
+    while at > 0 && !source.is_char_boundary(at) {
+        at -= 1;
+    }
+    let head = &source[..at];
+    let line_start = head.rfind('\n').map_or(0, |i| i + 1);
+    (
+        head.matches('\n').count() + 1,
+        head[line_start..].chars().count() + 1,
+    )
 }
 
 /// The verdict payload. `legs` is the closed list of passes this build
@@ -124,6 +137,38 @@ pub fn check(source: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_version_is_the_manifest_not_a_string_someone_typed() {
+        // kills the two engine_version mutants (String::new() · "xyzzy"):
+        // consumers PIN this value against their captured provenance, so a
+        // wrong version is a lie with a receipt attached.
+        assert_eq!(engine_version(), env!("CARGO_PKG_VERSION"));
+        assert!(!engine_version().is_empty());
+    }
+
+    proptest::proptest! {
+        /// Gate-6 property · for ANY unicode source and ANY byte offset,
+        /// line_col agrees with a naive char-walking reference and never
+        /// panics — mid-char offsets, past-end offsets, empty sources,
+        /// newline-at-offset included. The walker is a DIFFERENT algorithm
+        /// (one pass over chars, counting) so a shared blind spot would
+        /// need the same bug written twice.
+        #[test]
+        fn line_col_agrees_with_a_char_walker(
+            source in "\\PC{0,120}",
+            raw_offset in 0usize..200,
+        ) {
+            let (line, col) = line_col(&source, raw_offset);
+            let mut at = raw_offset.min(source.len());
+            while at > 0 && !source.is_char_boundary(at) { at -= 1; }
+            let (mut rl, mut rc) = (1usize, 1usize);
+            for c in source[..at].chars() {
+                if c == '\n' { rl += 1; rc = 1; } else { rc += 1; }
+            }
+            proptest::prop_assert_eq!((line, col), (rl, rc));
+        }
+    }
 
     #[test]
     fn a_valid_file_is_clean_and_says_what_it_covered() {

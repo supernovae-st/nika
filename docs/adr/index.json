@@ -1073,5 +1073,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-107",
+      "title": "Admit nika-check-wasm — the static half of nika check, compiled to the browser",
+      "status": "proposed",
+      "date": "2026-07-28",
+      "filename": "adr-107-nika-check-wasm-admission.md",
+      "tags": ["wasm","check","L4","conformance","browser","diamond","admission"],
+      "affects_crates": ["nika-check-wasm","nika-schema","nika-check"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-020","ADR-032","ADR-038"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }
   ]
 }
