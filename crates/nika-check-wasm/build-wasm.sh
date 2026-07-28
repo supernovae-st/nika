@@ -13,11 +13,16 @@ command -v cargo >/dev/null || {
 cargo test -p nika-check-wasm --lib
 
 RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
-  cargo build -p nika-check-wasm --target wasm32-unknown-unknown --release
+  cargo build -p nika-check-wasm --target wasm32-unknown-unknown --profile wasm-release
 
 if command -v wasm-bindgen >/dev/null; then
   wasm-bindgen --target web --out-dir pkg \
-    ../../target/wasm32-unknown-unknown/release/nika_check_wasm.wasm
+    ../../target/wasm32-unknown-unknown/wasm-release/nika_check_wasm.wasm
+  if command -v wasm-opt >/dev/null; then
+    wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
+      -o pkg/nika_check_wasm_bg.wasm.opt pkg/nika_check_wasm_bg.wasm
+    mv pkg/nika_check_wasm_bg.wasm.opt pkg/nika_check_wasm_bg.wasm
+  fi
   echo "pkg/ written · $(du -h pkg/nika_check_wasm_bg.wasm | cut -f1) raw"
 else
   echo "wasm-bindgen-cli absent — the .wasm is built, bindings skipped"

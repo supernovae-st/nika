@@ -36,3 +36,11 @@ getrandom-02 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [lints]
 workspace = true
+
+# getrandom/uuid are FEATURE DOORS, never imports: the wasm32 target section
+# exists to switch on their js entropy backends (uuid's own compile_error!
+# names the fix) so the graph LINKS on the browser target. machete reads
+# imports, not feature unification — this is its documented escape for
+# exactly that shape. getrandom-02 escapes by its rename already.
+[package.metadata.cargo-machete]
+ignored = ["getrandom", "uuid"]

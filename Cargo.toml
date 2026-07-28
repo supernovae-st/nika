@@ -371,3 +371,16 @@ incremental     = false
 [profile.bench]
 inherits        = "release"
 debug           = true
+
+# The browser artifact's own profile (nika-check-wasm · additive, harms no
+# other build): the workspace release keeps debuginfo for native profiling,
+# which a served .wasm must not carry — measured 4.6M with it, and the fat
+# LTO + size-opt pass exists to prune the L0 judgment hub's heavy corners
+# (jaq · jsonschema) out of a parse+conform artifact.
+[profile.wasm-release]
+inherits = "release"
+strip = "debuginfo"
+debug = false
+lto = true
+opt-level = "z"
+codegen-units = 1
