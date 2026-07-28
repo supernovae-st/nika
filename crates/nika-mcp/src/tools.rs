@@ -90,6 +90,16 @@ fn validate_tools() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "native_strict": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Fail on native-first hints — an `exec` of a \
+                                        helper script that a builtin already covers. \
+                                        ON by default: this oracle is what an agent \
+                                        consults before handing a file to a human, and \
+                                        the gate in front of `nika run` uses the same \
+                                        posture. Pass false to see the advisory verdict."
+                    },
                     "workflow": {
                         "type": "string",
                         "description": "The *.nika.yaml workflow source."
@@ -226,6 +236,35 @@ pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
 }
 
 /// `nika_check` — parse + the static check ladder over the supplied YAML.
+/// The verdict for a workflow that passed all TEN finding surfaces but
+/// may still leave the native path. Split out of `check` to stay under
+/// the house function cap.
+fn native_first_verdict(native: &[&str], strict: bool) -> Result<String, String> {
+    if native.is_empty() {
+        return Ok("✔ clean — audited before a single token was spent".to_owned());
+    }
+    let rows = native
+        .iter()
+        .map(|advice| format!("  · {advice}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let n = native.len();
+    if strict {
+        return Err(format!(
+            "✖ native-first — schema, DAG, effects and permits are clean, but {n} \
+             call(s) leave the native path. Replace each with the builtin its hint \
+             names; the exec ledger documents intent without clearing this. The gate \
+             in front of `nika run` uses the same posture, so this file cannot be run \
+             as written:\n{rows}"
+        ));
+    }
+    Ok(format!(
+        "✔ clean (advisory) — audited before a single token was spent. {n} \
+         native-first hint(s) are NOT enforced because native_strict=false; the same \
+         file fails `nika check --native-strict` and the run gate:\n{rows}"
+    ))
+}
+
 fn check(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
@@ -250,8 +289,30 @@ fn check(args: &Value) -> Result<String, String> {
                 .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
         })
         .collect();
+    // The is_clean mirror law, applied to the native-first lane. `hints`
+    // are NOT part of `is_clean()`, so a workflow whose real work sits in
+    // `exec python3 helper.py` used to come back here as a bare "✔ clean"
+    // that named nothing at all — while the same file failed
+    // `nika check --native-strict` in the shell AND was refused by the
+    // hook in front of `nika run`. That is the false green the operator
+    // met in Cursor: the agent consults THIS oracle, reads clean, and
+    // hands over a file that cannot run.
+    //
+    // Strict is the DEFAULT here (unlike the CLI, where the bare verb is
+    // the human's advisory read). This tool is the agent-facing oracle,
+    // and an oracle laxer than the gate it feeds is worse than none.
+    let native_strict = args
+        .get("native_strict")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let native: Vec<&str> = report
+        .hints
+        .iter()
+        .filter(|h| h.kind == "native-first")
+        .map(|h| h.advice.as_str())
+        .collect();
     if report.is_clean() && model_findings.is_empty() {
-        return Ok("✔ clean — audited before a single token was spent".to_owned());
+        return native_first_verdict(&native, native_strict);
     }
     // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
     // egresses · capability escapes · schema findings + lints · unknown/missing
@@ -542,6 +603,63 @@ mod tests {
         let wf = "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
         assert!(out.contains("clean"), "{out}");
+    }
+
+    /// The workflow that leaves the native path: every one of the TEN
+    /// finding surfaces is clean, and it still must not read as green.
+    ///
+    /// This is the false green the operator met in Cursor. An agent
+    /// consults THIS oracle before handing a file over; it used to get a
+    /// bare "✔ clean" that named nothing, while the identical file
+    /// failed `nika check --native-strict` in the shell and was refused
+    /// by the hook in front of `nika run`. The `is_clean` mirror law — a
+    /// check that fails the shell must not read as success over MCP —
+    /// is what this pins.
+    const LEAVES_THE_NATIVE_PATH: &str = "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"curl\"] }\ntasks:\n  grab:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+
+    #[test]
+    fn check_is_strict_about_the_native_path_by_default() {
+        let err = execute("nika_check", &json!({ "workflow": LEAVES_THE_NATIVE_PATH }))
+            .expect_err("an exec a builtin covers is not a green by default");
+        assert!(err.contains("native-first"), "{err}");
+        assert!(
+            err.contains("nika:fetch"),
+            "the refusal must name the builtin that replaces it: {err}"
+        );
+    }
+
+    #[test]
+    fn advisory_mode_still_names_what_it_did_not_enforce() {
+        // Opting out must not hand back the SAME sentence a genuinely
+        // clean workflow gets — that would just relocate the false
+        // green behind a flag.
+        let out = execute(
+            "nika_check",
+            &json!({ "workflow": LEAVES_THE_NATIVE_PATH, "native_strict": false }),
+        )
+        .expect("advisory mode returns a verdict");
+        assert!(out.contains("advisory"), "{out}");
+        assert!(out.contains("native-first"), "{out}");
+        assert!(
+            out.contains("--native-strict"),
+            "advisory mode must say which posture WOULD refuse it: {out}"
+        );
+    }
+
+    #[test]
+    fn the_strict_flag_is_declared_on_the_tool_that_honours_it() {
+        let listed = catalog();
+        let tools = listed.as_array().expect("a tool array");
+        let check_tool = tools
+            .iter()
+            .find(|t| t["name"] == "nika_check")
+            .expect("nika_check is served");
+        let strict = &check_tool["inputSchema"]["properties"]["native_strict"];
+        assert_eq!(
+            strict["default"],
+            json!(true),
+            "the agent-facing oracle defaults to the posture its run gate uses"
+        );
     }
 
     #[test]
