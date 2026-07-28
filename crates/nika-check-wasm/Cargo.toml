@@ -1,0 +1,38 @@
+[package]
+name          = "nika-check-wasm"
+description   = "The static half of `nika check`, compiled to the browser — parse + conformance judgment over a workflow source, emitting findings in the report's own row shape. The spec reserved this seat (07-conformance.md Level 2 · « custom engines for specialized environments (embedded · WASM) »); this crate is the checker taking it. No runtime, no I/O, no model: what WASM cannot do is exactly what the report's environmental legs must not claim in a browser."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Ships as an npm pack via wasm-bindgen, never on crates.io.
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nika-schema = { path = "../nika-schema", version = "0.106.0" } # parse + SchemaError → spec_code()/span() (the one error voice)
+nika-check  = { path = "../nika-check", version = "0.106.0" }  # analyze() + ERROR_DOCS_BASE + REPORT_VERSION (the judgment hub)
+serde_json  = { workspace = true }
+wasm-bindgen = "0.2"
+
+# THE ONE WALL, and its standard door. Every crate in this workspace hits the
+# same first error on wasm32-unknown-unknown: `uuid` (structural in nika-types,
+# ADR-033 UUIDv7 ids) needs an entropy source the bare target does not have —
+# its own compile_error! names the fix: « specify a source of randomness using
+# one of the `js`, `rng-getrandom`, or `rng-rand` features ». uuid's `js`
+# feature carries its whole door (getrandom 0.4 + js-sys) — additive feature
+# unification, zero change to any existing crate. The 0.2/0.3 getrandom shims
+# below cover the OTHER generations elsewhere in the lock; 0.3 additionally
+# wants RUSTFLAGS='--cfg getrandom_backend="wasm_js"' at build time (see
+# build-wasm.sh beside this manifest).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid         = { workspace = true, features = ["js"] }
+getrandom    = { version = "0.3", features = ["wasm_js"] }
+getrandom-02 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[lints]
+workspace = true
