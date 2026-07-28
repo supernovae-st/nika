@@ -1077,7 +1077,7 @@
     {
       "id": "ADR-107",
       "title": "Admit nika-check-wasm — the static half of nika check, compiled to the browser",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-07-28",
       "filename": "adr-107-nika-check-wasm-admission.md",
       "tags": ["wasm","check","L4","conformance","browser","diamond","admission"],

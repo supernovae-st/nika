@@ -1,7 +1,7 @@
 ---
 id: ADR-107
 title: "Admit nika-check-wasm — the static half of nika check, compiled to the browser"
-status: proposed
+status: accepted
 date: "2026-07-28"
 phase: "post-0.106 · the compiler-wedge arc (nika.sh /play oracle)"
 deciders: ["@ThibautMelen"]
@@ -18,7 +18,7 @@ fci: []
 inv: []
 shadow_zones: []
 nika_codes: []
-timeline: "built 2026-07-28 on feat/check-wasm · admission at the operator's ceremony"
+timeline: "built 2026-07-28 on feat/check-wasm · accepted 2026-07-28 by the operator (Gate 12 = the squash-merge that lands this file)"
 follow_ups:
   - "Extract the remaining static legs (COST…TRIFECTA) from nika-cli into a shared seam — never re-assemble them here (leg B is the tripwire)"
   - "Feature-gate jaq/jsonschema out of nika-check for the wasm diet (3.1M → the parse+conform floor)"
@@ -65,7 +65,7 @@ seat: it exposes, it never judges), moving it out of `wip = [...]`.
 | 9 | Canary E2E | ✅ (consumer-side) | nika.sh `check-wasm-oracle.test.ts` loads the real artifact in node and re-judges the SERVED hero twins against the CLI-captured truth |
 | 10 | Golden parity | ✅ | the differential pair: leg A (assembly vs library, 125-fixture corpus, always) · leg B (rows vs same-tree CLI, `NIKA_DIFF_CLI=1`) — both seen red before green |
 | 11 | 3-agent swarm | ✅ | three legs returned, every finding resolved or declined-with-rationale below — including one BLOCKING engine bug (the jq nesting bomb) the corpus could never have found |
-| 12 | Atomic commit | ⏳ | the ceremony itself: squash-merge of `feat/check-wasm` with this ADR flipped to `accepted` |
+| 12 | Atomic commit | ✅ | this squash-merge — the ADR flipped to `accepted` on the operator's explicit word, 2026-07-28 |
 
 ## Consequences
 
