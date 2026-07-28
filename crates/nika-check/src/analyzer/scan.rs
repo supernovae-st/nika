@@ -187,28 +187,35 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
 }
 
 /// Scan one task's surfaces.
+/// One task's scan context. Three surfaces need it, differing on two
+/// axes only: which `tasks.*` rule applies, and whether the loop locals
+/// are in scope. Built here so the shape lives in ONE place and
+/// `scan_task` stays about the surfaces rather than about struct
+/// literals.
+fn task_ctx<'a>(
+    id: &'a str,
+    with_names: &'a BTreeSet<&'a str>,
+    task_rule: TaskRefRule,
+    allow_loop_locals: bool,
+) -> ScanCtx<'a> {
+    ScanCtx {
+        location: format!("task `{id}`"),
+        task_id: id,
+        task_rule,
+        with_names: Some(with_names),
+        allow_loop_locals,
+    }
+}
+
 fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaError>) {
     let id = task.id.value.as_str();
     let with_names: BTreeSet<&str> = task.with.iter().map(|(k, _)| k.value.as_str()).collect();
     let has_for_each = task.for_each.is_some();
 
     // `with:` — the data boundary (the binding IS the edge).
-    let boundary_ctx = ScanCtx {
-        location: format!("task `{id}`"),
-        task_id: id,
-        task_rule: TaskRefRule::Boundary,
-        with_names: Some(&with_names),
-        allow_loop_locals: has_for_each,
-    };
+    let boundary_ctx = task_ctx(id, &with_names, TaskRefRule::Boundary, has_for_each);
     // Body surfaces read LOCAL names only (04 §the reference boundary).
-    let body_ctx = |surface: &'static str| ScanCtx {
-        location: format!("task `{id}`"),
-        task_id: id,
-        task_rule: TaskRefRule::Body(surface),
-        with_names: Some(&with_names),
-        allow_loop_locals: has_for_each,
-    };
-
+    let body_ctx = |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), has_for_each);
     // The two surfaces evaluated BEFORE the fan-out, where the loop
     // locals are simply not bound yet. `when:` decides whether an
     // ADMITTED TASK runs (spec 03 §when · post-gate means after the
@@ -218,13 +225,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     // whenever the task carries a `for_each:` — so `when: ${{ item }}`
     // passed check and then died at run with NIKA-VAR-001, and the
     // audit-before-run promise broke in the one place it is loudest.
-    let pre_fanout_ctx = |surface: &'static str| ScanCtx {
-        location: format!("task `{id}`"),
-        task_id: id,
-        task_rule: TaskRefRule::Body(surface),
-        with_names: Some(&with_names),
-        allow_loop_locals: false,
-    };
+    let pre_fanout_ctx = |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), false);
 
     // `when:` — the expression form is a single boolean-shaped island
     // over local namespaces (POST-gate · spec 03 §when) · the YAML
