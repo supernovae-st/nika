@@ -69,6 +69,21 @@ opposite way from C10.
 | S6 | Is a redundant (transitive) `after:` detected? | same | **0 hints** |
 | S7 | Is there a per-provider concurrency counter? | grep `nika-verb-infer`, `nika-providers` | **none** |
 | S8 | Is 429 handled? | `nika-providers/src/wire/mod.rs:114,133` | **yes** — `Retry-After` honoured |
+| S9 | **How wide are real DAGs?** | longest-path layering computed from the YAML over 43 corpus workflows | **max 4 · median 2 · mean 1.8 · 100% ≤ 4** |
+
+**S9 closes the hypothesis T1 rests on.** `wave_parallelism` defaults to
+wave-width, i.e. unbounded (S3), and the widest workflow in the corpus is
+4. **The cap does not bind, and on this evidence will not.** So we are
+permanently in the `P∞` regime where greedy is *exactly* optimal — not
+`2 − 1/m`-approximate. Every theorem below the `P∞` line (Graham's bound,
+Ullman's NP-completeness, the anomalies) is inert for this corpus.
+
+*Coverage caveat:* the parser recognised `tasks:` in 43 files of the ~76
+in the teaching corpus; files using an inline or otherwise-shaped task
+map were skipped. The claim is therefore "max width 4 over 43 workflows",
+not over all of them. Two earlier attempts to measure this by invoking the
+binary per file timed out at 10 minutes; parsing the YAML directly runs in
+under a second, which is the reusable lesson.
 
 **S3 + S4 together are the whole fix.** The concurrency is already there
 and already has the shape the literature recommends (one decision loop,
@@ -1035,9 +1050,9 @@ Stated plainly so nothing here is over-trusted.
   never run. It is the one operator finding I have not reproduced.
 - **Retry amplification `k^N`** under parent/child composition. My probe
   was malformed (no child file); the class is not cleared.
-- **DAG width across the corpus.** Two attempts timed out. Until it is
-  measured, "the cap never binds in practice" is an assumption, not a
-  fact — and it is the hypothesis T1 rests on.
+- ~~**DAG width across the corpus.**~~ **CLOSED — see S9.** Max 4, median
+  2, over 43 workflows. The cap does not bind, so `P∞` holds and greedy
+  is exactly optimal. Residual: 33 corpus files the parser skipped.
 - **Provider billing on mid-stream failure.** Anthropic documents that
   SSE errors arrive *after* a 200, which implies generation occurred and
   was billed, but no primary billing statement was found either way.
