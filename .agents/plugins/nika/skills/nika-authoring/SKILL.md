@@ -94,6 +94,76 @@ composed from a cleared slate — the runner floor ∪ the names declared
 in `permits: { env: [NAME] }` ∪ the task's own `env:` map. A variable
 the child needs must be named.
 
+## The whole surface (nothing else exists)
+
+Thirteen envelope keys, one verb per task, and a fixed set of modifiers.
+`nika spec --schema` is the machine truth; this is the map.
+
+**Envelope** · `nika` · `workflow` · `model` · `types` · `inputs` ·
+`config` · `const` · `secrets` · `permits` · `run` · `policy` ·
+`tasks` · `outputs`. Two are easy to miss:
+
+- `types:` — named type declarations (PascalCase · acyclic), so a shape
+  is declared once and referenced everywhere.
+- `policy:` — named workflow law. The HARD families (`require` ·
+  `forbid` · `allow` · `limits`) are judged at check
+  (`NIKA-POLICY-001`); the SOFT families (`prefer` · `optimize`) are
+  recorded and never judged.
+
+**Task modifiers**, beside the one verb:
+
+| Field | What it does |
+|---|---|
+| `with:` | the DATA edge — bind another task's output, body reads `${{ with.alias }}` |
+| `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` |
+| `when:` | a CEL boolean gate (`size()` is the only function) |
+| `for_each:` | fan out over a collection · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
+| `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
+| `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) · `fail_workflow:` — with an optional `on_codes:` filter |
+| `on_finally:` | cleanup mini-tasks that ALWAYS run (success · failure · timeout · cancel) · sequential · best-effort |
+| `output:` | named jq bindings → `${{ tasks.X.<name> }}` |
+| `returns:` | the task's output contract — exclusive with a verb-level `schema:` (`NIKA-TYPE-003`) |
+| `timeout:` | a quoted Go duration |
+| `inert:` | declares a `nika:fetch` payload code-bearing but never loaded — the non-empty string IS the justification. Lifts the data-as-code sink law ONLY, never the net boundary |
+| `declassify:` | the one door through the permit-parameterization taint · raises ONE binding from untrusted to trusted, check-visible and receipt-recorded. Never a permit bypass — the value is still matched against the declared boundary |
+
+## The one way (take the default, and the checker goes quiet)
+
+Every authoring decision has a default. Take it unless the job forces
+otherwise, in this order:
+
+1. **Shape before content.** Route to a template or an example; never
+   start from a blank file. The outer shape decides the task graph
+   before a single prompt is written.
+2. **One job, one task, one verb.** If a task needs an "and then", it is
+   two tasks. The verb IS the key.
+3. **Pick the verb by execution model, not convenience.** `invoke:` when
+   something callable already does it · `infer:` when a model must
+   produce judgement or language · `agent:` when the number of steps
+   cannot be known in advance and must be bounded · `exec:` only when
+   the first three genuinely cannot.
+4. **Classify every value before writing it.** Caller-supplied →
+   `inputs:` · deployment-supplied → `config:` · fixed here → `const:` ·
+   credential → `secrets:`. If you cannot name the class, you do not yet
+   know what the value is.
+5. **Bind, never reach.** A task needing another's output binds it in
+   `with:`. Reaching for `tasks.*` anywhere else is `NIKA-VAR-021`.
+6. **Order only when no data flows.** `after:` is pure sequencing; if
+   data flows the `with:` binding already IS the edge. Never both.
+7. **Bound the spend where it is spent.** Every `infer:` carries
+   `max_tokens`; every `agent:` carries `max_turns` and
+   `max_tokens_total`. A ceiling the checker can compute beats a cap
+   someone has to remember to pass.
+8. **Declare the boundary LAST, from the body.** Write the tasks, then
+   `nika check --infer-permits` and paste. A boundary derived from the
+   body is tight; one written from intent is wishful.
+9. **Fail on purpose.** Transient failure → `retry:` · expected absence
+   → `on_error: on_codes + recover:` · cleanup that must always happen →
+   `on_finally:`. Swallowing an error is never the plan.
+10. **Prove it before handing it over.** `nika check` clean, then
+    `--native-strict`, then a golden pin if the workflow is hermetic.
+    Only then does the human get the run line.
+
 ## Cost honesty (never hide unknown spend)
 
 - `nika check` prints the cost ceiling BEFORE any token: `≤ $X` is a
@@ -126,16 +196,35 @@ the child needs must be named.
 The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
 `exec:`. Before writing ANY `exec:`, answer in your head:
 
-1. **Which builtin replaces it?** `nika catalog --tools --json` is the catalog.
-   HTTP (curl/wget/helper fetch) → `nika:fetch` · uploads →
-   `multipart:` · site crawls → `traverse:` · file plumbing
-   (cat/tee/cp/mkdir) → `nika:read`/`nika:write` (`create_dirs: true`) ·
-   JSON shaping (jq/sed) → `nika:jq` (or an `output:` binding) ·
-   in-place edits → `nika:edit` · image/speech provider calls →
-   `nika:image_generate`/`nika:tts_generate` · image styling
-   (ImageMagick convert / PIL filters / dither scripts) →
-   `nika:image_fx` (deterministic — same input+args = same bytes,
-   the artifact sha256 joins the trace chain).
+1. **Which builtin replaces it?** The embedded set spans SIX families.
+   Assume one exists before assuming it does not — most `exec:` lines
+   written by agents are a builtin the author never looked for.
+
+   | Family | Every builtin in it |
+   |---|---|
+   | CORE | `nika:log` · `nika:emit` · `nika:assert` · `nika:prompt` · `nika:done` · `nika:wait` |
+   | FILE | `nika:read` · `nika:write` · `nika:edit` · `nika:glob` · `nika:grep` |
+   | DATA | `nika:jq` · `nika:json_diff` · `nika:json_merge_patch` · `nika:validate` · `nika:convert` · `nika:uuid` · `nika:date` · `nika:hash` · `nika:decide` |
+   | NETWORK | `nika:fetch` · `nika:notify` |
+   | INTROSPECTION | `nika:compose` · `nika:inspect` |
+   | MEDIA | `nika:chart` · `nika:image_generate` · `nika:image_fx` · `nika:tts_generate` |
+
+   The NAMES above are canon — that is the whole set. The argument
+   CONTRACTS are not: read them from `nika catalog --tools`
+   (`--json` for the model-facing JSON Schemas) before calling one,
+   and never guess an arg name.
+
+   The reflexes worth memorising: HTTP (curl/wget/helper fetch) →
+   `nika:fetch` · file plumbing (cat/tee/cp/mkdir) →
+   `nika:read`/`nika:write` (`create_dirs: true`) · JSON shaping
+   (jq/sed) → `nika:jq` or an `output:` binding · in-place edits →
+   `nika:edit` · finding files (`find`/`ls`) → `nika:glob` · searching
+   them (`grep`/`rg`) → `nika:grep` · `date`/`uuidgen`/`shasum` →
+   `nika:date`/`nika:uuid`/`nika:hash` · format conversion →
+   `nika:convert` · schema checks → `nika:validate` · image styling
+   (ImageMagick / PIL / dither scripts) → `nika:image_fx`
+   (deterministic — same input+args = same bytes, the artifact sha256
+   joins the trace chain).
 2. **Which MCP tool replaces it?** A product API deserves an MCP
    server, never a helper script.
 3. **Neither?** Name the exact gap — then `exec:` is legitimate
