@@ -91,6 +91,12 @@ fn line_col(source: &str, byte: usize) -> (usize, usize) {
 /// The verdict payload. `legs` is the closed list of passes this build
 /// actually ran — the in-band honesty marker a rendering surface must
 /// carry through (the browser half never claims the binary's coverage).
+///
+/// Gate-accurate, with one nuance worth stating: the CONFORM leg's
+/// analyzer also compile-checks embedded jq programs and JSON Schemas
+/// (the deep-static tier the CLI files under the same gate), so this
+/// artifact does run two compilers over the user's file — both behind
+/// the same pre-flight caps the parser's other recursion doors carry.
 fn verdict(clean: bool, findings: &[serde_json::Value]) -> String {
     let payload = serde_json::json!({
         "report_version": nika_check::REPORT_VERSION,
@@ -99,7 +105,30 @@ fn verdict(clean: bool, findings: &[serde_json::Value]) -> String {
         "clean": clean,
         "findings": findings,
     });
-    format!("{payload:#}")
+    escape_for_embedding(&format!("{payload:#}"))
+}
+
+/// Defense in depth for a JSON text whose `message` fields echo attacker
+/// bytes (Gate-11 security finding F3): serde escapes every C0 control, but
+/// `<` `>` `&` U+2028 U+2029 are legal in JSON strings and hostile in the
+/// contexts a website inlines JSON into (a `</script`> ends the element ·
+/// U+2028/9 break a JS parse). These five only ever occur INSIDE string
+/// literals of the emitted text, so a whole-text `\uXXXX` rewrite is
+/// exactly equivalent JSON — escaping is still every consumer's duty; this
+/// removes the class at the source for all of them.
+fn escape_for_embedding(json: &str) -> String {
+    let mut out = String::with_capacity(json.len());
+    for c in json.chars() {
+        match c {
+            '<' => out.push_str("\\u003c"),
+            '>' => out.push_str("\\u003e"),
+            '&' => out.push_str("\\u0026"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// The engine version these findings speak for — a consumer pins it the
@@ -137,6 +166,90 @@ pub fn check(source: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_hostile_jq_bomb_is_refused_not_a_stack_overflow() {
+        // Gate-11 security F1, as a regression: 470 nested brackets — a
+        // 1,047-byte paste — overflowed the 1 MiB wasm stack through jaq's
+        // unlimited recursion, and a trapped instance never recovers. The
+        // pre-flight depth guard refuses it as a finding instead. Depth
+        // 5000 here: if the guard ever stops running first, this test does
+        // not fail, it dies — which is the point.
+        let bomb = format!(
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: \"{{}}\"\n        expression: '{}'\n",
+            "[".repeat(5000) + &"]".repeat(5000)
+        );
+        let v: serde_json::Value = serde_json::from_str(&check(&bomb)).unwrap();
+        assert_eq!(v["clean"], false);
+        let msgs: Vec<&str> = v["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|f| f["message"].as_str())
+            .collect();
+        assert!(
+            msgs.iter().any(|m| m.contains("nesting depth exceeds")),
+            "the depth guard names itself: {msgs:?}"
+        );
+        // and the instance SURVIVES: a clean file still judges clean after
+        let ok = check(
+            "nika: v1\nworkflow:\n  id: k\ntasks:\n  a:\n    exec:\n      command: [\"echo\"]\n",
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&ok).unwrap()["clean"],
+            true
+        );
+    }
+
+    #[test]
+    fn past_the_suggestion_budget_the_finding_still_fires_without_guessing() {
+        // Gate-11 security F2: did_you_mean is O(n²·L²) across all ids —
+        // 28s of sync CPU at the task cap. Past 256 candidates the
+        // unresolved-ref finding keeps firing but stops guessing.
+        use std::fmt::Write as _;
+        let mut yaml = String::from("nika: v1\nworkflow:\n  id: t\ntasks:\n");
+        for i in 0..300 {
+            let _ = writeln!(yaml, "  t{i}:\n    exec:\n      command: [\"echo\"]");
+        }
+        yaml.push_str("  bad:\n    with:\n      d: ${{ tasks.t9999x.output }}\n    exec:\n      command: [\"echo\"]\n");
+        let v: serde_json::Value = serde_json::from_str(&check(&yaml)).unwrap();
+        let dag: Vec<&str> = v["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["code"] == "NIKA-DAG-002")
+            .filter_map(|f| f["message"].as_str())
+            .collect();
+        assert!(!dag.is_empty(), "the finding must still fire");
+        assert!(
+            dag.iter().all(|m| !m.contains("did you mean")),
+            "past the budget it stops guessing: {dag:?}"
+        );
+    }
+
+    #[test]
+    fn hostile_bytes_in_identifiers_never_reach_the_text_unescaped() {
+        // Gate-11 security F3: messages echo user identifiers verbatim, and
+        // < > & U+2028/9 are hostile in every context a site inlines JSON
+        // into. The emitted TEXT carries none of the five, ever; parsing it
+        // back yields the identifier intact (escaping, not mangling).
+        let hostile = "nika: v1\nworkflow:\n  id: t\n\"</script><img src=x>\": 1\ntasks:\n  a:\n    exec:\n      command: [\"echo\"]\n";
+        let out = check(hostile);
+        for needle in ["<", ">", "&", "\u{2028}", "\u{2029}"] {
+            assert!(!out.contains(needle), "raw {needle:?} in the emitted text");
+        }
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let joined = v["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|f| f["message"].as_str())
+            .collect::<String>();
+        assert!(
+            joined.contains("</script>"),
+            "the identifier survives the round-trip"
+        );
+    }
 
     #[test]
     fn the_version_is_the_manifest_not_a_string_someone_typed() {

@@ -64,7 +64,7 @@ seat: it exposes, it never judges), moving it out of `wip = [...]`.
 | 8 | Zero doc warnings | ✅ | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p nika-check-wasm` clean |
 | 9 | Canary E2E | ✅ (consumer-side) | nika.sh `check-wasm-oracle.test.ts` loads the real artifact in node and re-judges the SERVED hero twins against the CLI-captured truth |
 | 10 | Golden parity | ✅ | the differential pair: leg A (assembly vs library, 125-fixture corpus, always) · leg B (rows vs same-tree CLI, `NIKA_DIFF_CLI=1`) — both seen red before green |
-| 11 | 3-agent swarm | ⏳ | run at prep (spn-nika reviewer · rust-security · correctness) — findings + resolutions appended below |
+| 11 | 3-agent swarm | ✅ | three legs returned, every finding resolved or declined-with-rationale below — including one BLOCKING engine bug (the jq nesting bomb) the corpus could never have found |
 | 12 | Atomic commit | ⏳ | the ceremony itself: squash-merge of `feat/check-wasm` with this ADR flipped to `accepted` |
 
 ## Consequences
@@ -116,6 +116,42 @@ PROCESS, and the reviewer was right:
 | A typed verdict (`tsify`/hand `.d.ts`) at the TS boundary | Suggestion | **DECLINED with rationale** · the verdict's contract is CLI parity, held by the differential pair and the site's node gate; a second typed assembly would be a second thing able to drift — the exact divergence class Leg B exists to kill. The consumer types what it consumes (`oracle.ts` `WasmRow`), and the gate proves it against the artifact. |
 | L4 carries no `layer-bans` entry | Note | **HELD for the ceremony** · what L4 may never depend on is a policy decision, the operator's; the CI wasm leg already provides the practical stop the finding wanted (a wasm32-incompatible dep now reddens every push) |
 
-### Leg 2 · rust-security — (appended on the agent's return)
+### Leg 2 · rust-security (hostile input · determinism · supply surface)
 
-### Leg 3 · correctness — (appended on the agent's return)
+Method: the reviewer built the real artifact and fed it 125 conformance
+fixtures plus ~50 crafted hostile inputs under V8 and a 1 MiB-stack native
+harness. PASSES earned, not assumed: the char walk survived every probe
+(mid-char, past-EOF, BOM, NUL, emoji — `badspan=0` across the corpus) ·
+billion-laughs closed · determinism structural (BTreeMap throughout, 25
+processes → 1 output hash, zero entropy consumed on the check path) · SSRF
+closed at the schema compiler (`default-features = false`, no fetch). Then
+the verdict that mattered: *« nothing in the 12 gates proves panic-freedom
+on hostile input — F1 was found in the first ten minutes of feeding it
+garbage. »*
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| **F1 · a 1,047-byte paste stack-overflows the checker** — jaq's parser recurses per nesting level with no limit; a trapped wasm instance never recovers, and the installed CLI aborts (exit 134) on the same file | **Blocking** | **FIXED in `nika-check`** · pre-flight `jq_nesting_over` guard (string-aware O(n) scan · ceiling 128, the house's own cap, precedents `MAX_VALUE_DEPTH`/`nika-tmpl`) before `jq_compiles`, covering all three doors (`nika:jq` · `nika:fetch` jq · `on_finally`) · regression proves the bomb refuses AND the instance survives · fuzz corpus seeded with the 470-bracket shape |
+| **F2 · 28s of synchronous CPU inside the declared caps** — `did_you_mean` is O(n²·L²) across all task ids | High | **FIXED in `nika-check`** · a suggestion budget (256 candidates): past it the DAG-002 finding still fires, it just stops guessing · regression proves finding-without-suggestion at 300 ids · the Worker seat for the site consumer stays a named follow-up |
+| F3 · `<` `>` `&` U+2028/9 legal in JSON strings, hostile in every context a site inlines JSON into | Medium | **FIXED** · `escape_for_embedding` rewrites the five to `\uXXXX` over the emitted text (only ever inside string literals → equivalent JSON) · regression proves zero raw occurrences and an intact round-trip |
+| F4 · `build-wasm.sh` could package a wasm it did not build (`CARGO_TARGET_DIR` + hardcoded path) · `--lib` skipped the differential · no `--locked` | Low | **FIXED** · artifact path derived from `cargo metadata` · full `--locked` test run |
+| F5 · no `--` terminator before the fixture path in the leg-B spawn | Low | **FIXED** |
+| F6 · emitted `span` not clamped (only the line/col walk is) | Low | **DECLINED with rationale** · the emitted span must stay byte-equal to the CLI's (leg A asserts it against the library accessor — clamping would manufacture divergence); `line`/`col` are the sanctioned consumer fields, and the reviewer could not produce an out-of-range span across the corpus |
+| F7 · `legs:` under-declares (the CONFORM analyzer also compile-checks jq + JSON Schema) | Info | **FIXED** · the nuance stated in the verdict doc comment; the legs list stays gate-named |
+| F8 · miette's terminal stack is pure payload in a browser | Info | already the named diet follow-up (feature-gating the judgment hub's heavy corners) |
+
+### Leg 3 · correctness (contract fit · docs honesty)
+
+PASSES earned: the line/col arithmetic verified at every boundary the hand
+can reach, and its property test judged « real coverage, not tautological »
+· CRLF self-consistency argued from the shared source string · the leg-B
+bin-target and fixture-path resolutions verified against the real
+filesystem · the consumer's `line ?? 1` fallback matches the port's own
+convention.
+
+| Finding | Confidence | Resolution |
+|---|---|---|
+| README's Build section documented a WORSE recipe than `build-wasm.sh` (wrong profile · wrong path · no wasm-opt) — a contributor copying it from the crate dir gets a file-not-found, or an unstripped artifact | 88 | **FIXED** · the section is now a pointer at the script («a pointer cannot drift»), with the drift named |
+| `severity` · `kind` · the `docs_url` separator asserted NOWHERE — three plausible one-token mutants passed every test in the repo | 85 | **FIXED** · leg A asserts all three per row (exact-format `docs_url`); severity joins leg B's comparison tuple |
+| `PROVENANCE.json` « missing » beside pkg/ · no `estate.yaml` row for the vendored artifact | 80 | **HALF-STALE, HALF-PAID** · the file exists one level up (`src/lib/check-wasm/PROVENANCE.json`, beside the pkg it describes — the reviewer walked pkg/ only); the REAL half — the site's estate ledger had no row — is paid site-side with this resolution |
+

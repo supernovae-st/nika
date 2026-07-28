@@ -25,7 +25,7 @@
 //! truth is the exact divergence class the check↔run oracle exists to
 //! kill, so diff them: same tree (`cargo run -p nika-cli`), same
 //! fixtures, rows filtered to the legs both run (PARSE · CONFORM),
-//! compared on (gate, code, message). Env-gated because it builds the
+//! compared on (gate, severity, code, message). Env-gated because it builds the
 //! full CLI; CI wires it, a laptop run stays fast without it.
 
 use std::path::{Path, PathBuf};
@@ -119,6 +119,21 @@ fn leg_a_the_wasm_assembly_never_diverges_from_the_library() {
             );
             let expected_gate = if parse_fatal { "PARSE" } else { "CONFORM" };
             assert_eq!(row["gate"], expected_gate, "gate diverges at {at}");
+            // the fields NO gate watched (Gate-11 correctness #2): a mutant
+            // flipping severity, swapping the parse/conformance literals, or
+            // dropping the docs_url separator passed every test in the repo
+            // before these three assertions
+            assert_eq!(row["severity"], "error", "severity diverges at {at}");
+            assert_eq!(
+                row["kind"],
+                if parse_fatal { "parse" } else { "conformance" },
+                "kind diverges at {at}"
+            );
+            assert_eq!(
+                row["docs_url"].as_str().unwrap(),
+                format!("{}/{}", nika_check::ERROR_DOCS_BASE, err.spec_code()),
+                "docs_url shape diverges at {at}"
+            );
             match err.span() {
                 Some(span) => {
                     assert_eq!(
@@ -157,13 +172,14 @@ fn leg_b_the_wasm_rows_equal_the_cli_rows_on_the_shared_legs() {
         let yaml = std::fs::read_to_string(input).expect("fixture readable");
         let v: serde_json::Value =
             serde_json::from_str(&check(&yaml)).expect("check() emits valid JSON");
-        let mine: Vec<(String, String, String)> = v["findings"]
+        let mine: Vec<(String, String, String, String)> = v["findings"]
             .as_array()
             .unwrap()
             .iter()
             .map(|r| {
                 (
                     r["gate"].as_str().unwrap_or("").to_owned(),
+                    r["severity"].as_str().unwrap_or("").to_owned(),
                     r["code"].as_str().unwrap_or("").to_owned(),
                     r["message"].as_str().unwrap_or("").to_owned(),
                 )
@@ -175,14 +191,14 @@ fn leg_b_the_wasm_rows_equal_the_cli_rows_on_the_shared_legs() {
         // target is `nika-cli`; only packaging renames it `nika`.
         let out = std::process::Command::new("cargo")
             .args(["run", "-q", "-p", "nika-cli", "--bin", "nika-cli", "--"])
-            .args(["check", "--json"])
+            .args(["check", "--json", "--"])
             .arg(input)
             .output()
             .expect("cargo run nika-cli");
         let stdout = String::from_utf8_lossy(&out.stdout);
         let cli: serde_json::Value = serde_json::from_str(stdout.trim())
             .unwrap_or_else(|_| panic!("CLI emitted no JSON at {}", input.display()));
-        let theirs: Vec<(String, String, String)> = cli["findings"]
+        let theirs: Vec<(String, String, String, String)> = cli["findings"]
             .as_array()
             .map(|rows| {
                 rows.iter()
@@ -190,6 +206,7 @@ fn leg_b_the_wasm_rows_equal_the_cli_rows_on_the_shared_legs() {
                     .map(|r| {
                         (
                             r["gate"].as_str().unwrap_or("").to_owned(),
+                            r["severity"].as_str().unwrap_or("").to_owned(),
                             r["code"].as_str().unwrap_or("").to_owned(),
                             r["message"].as_str().unwrap_or("").to_owned(),
                         )

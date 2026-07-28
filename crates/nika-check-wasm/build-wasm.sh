@@ -10,14 +10,21 @@ command -v cargo >/dev/null || {
   exit 2
 }
 
-cargo test -p nika-check-wasm --lib
+cargo test --locked -p nika-check-wasm
 
 RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
-  cargo build -p nika-check-wasm --target wasm32-unknown-unknown --profile wasm-release
+  cargo build --locked -p nika-check-wasm --target wasm32-unknown-unknown --profile wasm-release
+
+# the artifact path is DERIVED, never assumed: with CARGO_TARGET_DIR set the
+# hardcoded ../../target/... points at whatever stale file sits there, and
+# wasm-bindgen would silently package a wasm this run did not build
+# (Gate-11 security finding F4)
+target_root="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"
+artifact="$target_root/wasm32-unknown-unknown/wasm-release/nika_check_wasm.wasm"
 
 if command -v wasm-bindgen >/dev/null; then
   wasm-bindgen --target web --out-dir pkg \
-    ../../target/wasm32-unknown-unknown/wasm-release/nika_check_wasm.wasm
+    "$artifact"
   if command -v wasm-opt >/dev/null; then
     wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
       -o pkg/nika_check_wasm_bg.wasm.opt pkg/nika_check_wasm_bg.wasm

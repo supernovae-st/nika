@@ -27,21 +27,13 @@ they describe the machine, not the file.
 
 ## Build
 
-```sh
-# native tests (the row shape · the spec codes · the verbatim voice)
-cargo test -p nika-check-wasm --lib
-
-# the browser target (the getrandom 0.3 backend needs the cfg at build time)
-RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
-  cargo build -p nika-check-wasm --target wasm32-unknown-unknown --release
-
-# bindings (wasm-bindgen-cli · matches the wasm-bindgen minor in Cargo.lock)
-wasm-bindgen --target web --out-dir pkg \
-  target/wasm32-unknown-unknown/release/nika_check_wasm.wasm
-```
-
-`./build-wasm.sh` runs the three in order and refuses politely when a tool is
-absent.
+`./build-wasm.sh` is the canonical recipe — native tests, the
+`wasm-release` profile build (the workspace `--release` keeps debuginfo a
+served artifact must not carry), `wasm-bindgen` at the lock's minor, and
+the `wasm-opt -Oz` pass that takes the artifact 4.6M → 3.1M. An earlier
+version of this section hand-listed three commands that had drifted from
+the script (wrong profile, wrong path, no wasm-opt) — the Gate-11 review
+caught it, and a pointer cannot drift.
 
 ## The differential gate (`tests/differential.rs`)
 
