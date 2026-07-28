@@ -817,12 +817,12 @@ mod tests {
     /// as the remedy, and say what the ledger is actually for.
     #[test]
     fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
-        let ledgered = "# EXEC LEDGER ·\n\
-             # | task | command | why no native path | unlock |\n\
-             # | crawl | curl | legacy auth | nika:fetch oauth |\n\
-             nika: v1\nworkflow:\n  id: ledgered\n\
-             permits: { exec: [\"curl\"] }\n\
-             tasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        // One line, like every other fixture here. A backslash-continued
+        // string reads better but defeats the fn-length ratchet: its
+        // literal stripper is line-local, so the YAML braces inside the
+        // continuation count as code and the reported length runs to the
+        // end of the module. Measured: this 24-line test reported as 212.
+        let ledgered = "# EXEC LEDGER ·\n# | task | command | why no native path | unlock |\n# | crawl | curl | legacy auth | nika:fetch oauth |\nnika: v1\nworkflow:\n  id: ledgered\npermits: { exec: [\"curl\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         let out = checked_output("ledgered.nika.yaml", ledgered, true);
         assert_eq!(
             out.code, 2,
