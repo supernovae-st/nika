@@ -43,16 +43,24 @@ wasm-bindgen --target web --out-dir pkg \
 `./build-wasm.sh` runs the three in order and refuses politely when a tool is
 absent.
 
+## The differential gate (`tests/differential.rs`)
+
+Two legs, two divergence classes, both proven over the whole conformance
+corpus (125 fixtures):
+
+- **Leg A · assembly vs library** — always on. `check()` re-run beside the
+  same `parse` + `analyze` calls it wraps; every row byte-compared (code ·
+  message · gate · span). Catches the only thing this crate can get wrong:
+  its own assembly.
+- **Leg B · rows vs the CLI** — `NIKA_DIFF_CLI=1` (builds the full CLI, so
+  env-gated; CI should wire it). The SAME TREE's `nika-cli` run over every
+  fixture, rows filtered to the shared legs (PARSE · CONFORM), compared on
+  (gate, code, message). First real run went red on a wrong bin-target name
+  and green after — the gate has been seen to bite.
+
 ## Owed before any public surface consumes this
 
-1. **The differential gate.** A finding this crate emits must equal the
-   binary's `check --json` finding for the same file, byte for byte, on the
-   legs both run. The claim holds by construction today (same `SchemaError`,
-   same `Display`, same `spec_code()`) — but *held by construction* is how
-   drift starts. The gate runs both over the conformance fixture corpus and
-   diffs the rows; it does not exist yet, and this crate must not be wired
-   into nika.sh before it does.
-2. **The remaining static legs.** COST · SECRETS · TYPES · TOOLS · ARGS ·
+1. **The remaining static legs.** COST · SECRETS · TYPES · TOOLS · ARGS ·
    SCHEMA · GATES · PERMITS · TRIFECTA are all pure (`nika-check`'s own
    dependency comments say so, and the wasm build proves them compilable) —
    the CLI's orchestration of them lives in `nika-cli` and must be extracted
