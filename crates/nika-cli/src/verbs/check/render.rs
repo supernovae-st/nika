@@ -420,15 +420,43 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
     } else {
         "none"
     };
-    let floor = crate::display::vocab::at_least(t.ascii);
     let mark = if t.ascii { "ok" } else { "✔" };
+    // The COST section speaks CEILING throughout — `≤N tk` per task, and
+    // the range labelled "worst-case ceiling". This line used to speak
+    // FLOOR (`est ≥$X`) over `min_path_total_usd`, and the two
+    // contradicted each other in the same output.
+    //
+    // The floor was never true. `min_path_total_usd` is the cheapest PATH
+    // with every task priced at its own token ceiling, so it bounds
+    // nothing from below: measured, a run billed $0.000242 under an
+    // announced `est ≥$0.0305` — 126× the other way. Users provision
+    // against this number before they launch.
+    //
+    // Bounded: quote the ceiling the section already computed, with `≤`.
+    // Unbounded: no ceiling exists, and no floor is computable either
+    // (every bounded task is itself priced at its cap), so claim neither
+    // — name the uncapped tasks instead.
+    let uncapped = report
+        .cost
+        .tasks
+        .iter()
+        .filter(|c| c.unbounded_reason.is_some())
+        .count();
+    let est = if report.cost.has_unbounded {
+        format!(
+            "est unbounded · {}",
+            crate::text::count(uncapped, "uncapped task")
+        )
+    } else {
+        let at_most = crate::display::vocab::at_most(t.ascii);
+        format!("est {at_most}${:.4}", report.cost.bounded_total_usd)
+    };
     t.paint(
         Role::Good,
         &format!(
-            "{mark} audited · {} · {} · permits {permits} · est {floor}${:.4} · {}",
+            "{mark} audited · {} · {} · permits {permits} · {est} · {}",
             crate::text::count(tasks, "task"),
             crate::text::count(report.waves.len(), "wave"),
-            report.cost.min_path_total_usd,
             crate::text::count(hints, "hint"),
         ),
     )

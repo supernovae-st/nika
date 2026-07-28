@@ -18,10 +18,23 @@ pub fn arrow(ascii: bool) -> &'static str {
 }
 
 /// The comparison mark for "at least" (`≥` · `>=` under `--ascii`) —
-/// the audited card's cost floor.
+/// for a genuine LOWER bound.
+///
+/// It used to carry the audited card's cost line, which was never a
+/// floor: that number is the cheapest PATH with every task priced at its
+/// own token cap, so a run bills under it routinely (measured: $0.000242
+/// against an announced `≥$0.0305`). That line now speaks [`at_most`].
 #[must_use]
 pub fn at_least(ascii: bool) -> &'static str {
     if ascii { ">=" } else { "≥" }
+}
+
+/// The comparison mark for "at most" (`≤` · `<=` under `--ascii`) — for
+/// a genuine UPPER bound, the shape the whole COST section already
+/// speaks (`≤N tk` per task, "worst-case ceiling" on the range).
+#[must_use]
+pub fn at_most(ascii: bool) -> &'static str {
+    if ascii { "<=" } else { "≤" }
 }
 
 /// One actionable hint: `label: command` — painted dim as a unit. The
@@ -70,6 +83,8 @@ mod tests {
         assert_eq!(arrow(true), "->");
         assert_eq!(at_least(false), "≥");
         assert_eq!(at_least(true), ">=");
+        assert_eq!(at_most(false), "≤");
+        assert_eq!(at_most(true), "<=");
     }
 
     /// One reads singular, the rest plural — noun tail included, and
