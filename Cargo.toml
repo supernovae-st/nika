@@ -14,7 +14,7 @@ exclude = [
 ]
 
 [workspace.package]
-version      = "0.106.0"
+version      = "0.106.1"
 edition      = "2024"
 license      = "AGPL-3.0-or-later"
 authors      = ["Thibaut Melen <thibaut@supernovae.studio>"]
@@ -58,8 +58,8 @@ layers.nika-models = "L4"
 layers.nika-lsp = "L4"
 layers.nika-check-wasm = "L4"
 # nika-check-wasm · the static check surface compiled to the browser (parse +
-# conformance over nika-schema/nika-check · wasm-bindgen transport · branch
-# feat/check-wasm · differential-gated vs the CLI · 12-gate admission owed).
+# conformance over nika-schema/nika-check · wasm-bindgen transport ·
+# differential-gated vs the CLI · admitted ADR-107 · npm via the release train).
 # nika-mcp · the in-binary MCP server (announce floor `nika mcp`) · hand-rolled
 # newline-delimited JSON-RPC 2.0 over stdio (serde_json only · zero SDK) ·
 # exposes the static read-only surface (nika_check · nika_explain) as MCP tools.
