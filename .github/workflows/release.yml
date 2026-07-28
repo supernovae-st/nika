@@ -274,14 +274,24 @@ jobs:
           # rendered from CHANGELOG.md; --generate-notes keeps the full PR
           # list appended below it (gh prepends provided notes to generated).
           bash scripts/release/render-notes.sh "$REF_NAME" > "$RUNNER_TEMP/release-notes.md"
-          gh release create "$REF_NAME" \
-            --repo "$REPO" \
-            --title "$REF_NAME" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" \
-            --generate-notes \
-            --verify-tag \
-            --discussion-category "Announcements" \
-            artifacts/nika-*.tar.gz artifacts/SHA256SUMS
+          # idempotent on a workflow_dispatch rebuild (a documented path in
+          # this file): an existing release keeps its body + discussion —
+          # the LINEAGE LAW (never rewrite a live release retroactively) —
+          # and only the assets refresh (--clobber)
+          if gh release view "$REF_NAME" --repo "$REPO" > /dev/null 2>&1; then
+            echo "::notice::release ${REF_NAME} already exists — refreshing assets only"
+            gh release upload "$REF_NAME" --repo "$REPO" --clobber \
+              artifacts/nika-*.tar.gz artifacts/SHA256SUMS
+          else
+            gh release create "$REF_NAME" \
+              --repo "$REPO" \
+              --title "$REF_NAME" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --generate-notes \
+              --verify-tag \
+              --discussion-category "Announcements" \
+              artifacts/nika-*.tar.gz artifacts/SHA256SUMS
+          fi
       - name: Attest build provenance (SLSA · verifiable via `gh attestation verify`)
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
@@ -423,6 +433,15 @@ jobs:
           echo "b5bf1f0eaf17c63ee588ff7a5954dc8f6ce2c26989051c66f24dfe9ece3e46db  $RUNNER_TEMP/binaryen.tar.gz" | sha256sum -c
           tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/binaryen-version_131/bin" >> "$GITHUB_PATH"
+      - name: Fetch the release tag (first-exercise find №4 — the version assert caught it)
+        # the sha checkout above is the supply-chain fix (immutable ref) but
+        # it carries ZERO tags — npm-pack.sh's honesty gate then reads the
+        # tree as untagged and packs a -dev prerelease, and the version
+        # assert below refuses it (proven on v0.106.1's first run: packed
+        # 0.106.1-dev.g… ≠ released 0.106.1). One tag, fetched explicitly.
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: git fetch origin tag "$TAG" --no-tags
       - name: Pack (tests · wasm-release build · bindgen · wasm-opt · projected manifest)
         env:
           NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
