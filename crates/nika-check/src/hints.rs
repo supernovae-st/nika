@@ -171,6 +171,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     // condition — this lane cannot see the escape scan).
     push_unresolvable_secret_hints(&mut hints, wf);
     push_unwrapped_output_ref_hints(&mut hints, wf);
+    push_swallowed_exit_hints(&mut hints, wf);
     push_run_clock_hint(&mut hints, wf);
     hints
 }
@@ -321,6 +322,75 @@ fn push_unwrapped_output_ref_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
                 ),
             ));
         }
+    }
+}
+
+/// The `swallowed-exit` hint: `capture: structured` turns a non-zero exit
+/// into DATA — the task SUCCEEDS and `exit_code` is the branch (spec 02
+/// §exec · the one-obvious-way split). That is coherent when someone
+/// reads the branch, and a silent failure when nobody does.
+///
+/// Reported 2026-07-28: a run showed 23/23 green while four tasks had
+/// failed. Two of them exited non-zero under `structured` and were
+/// reported as successes; the error surfaced three waves later on an
+/// unrelated `jq` that indexed an empty string, so the diagnosis pointed
+/// at the wrong task entirely.
+///
+/// The narrower `exec-json-capture` hint above fires only on the
+/// `.stdout | fromjson` shape. This one asks the question that actually
+/// matters: does ANYONE read `exit_code`, here or downstream? If not,
+/// the task cannot fail on the command failing, and the author almost
+/// never meant that.
+///
+/// Advisory: branching on the code is legitimate, and so is deliberately
+/// ignoring it. The hint names what was traded away, it does not refuse.
+fn push_swallowed_exit_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    // Every text surface of the workflow, once — a read of `exit_code`
+    // anywhere (this task's own `output:` bindings, a downstream `with:`
+    // binding, an `outputs:` entry) means the branch is being used.
+    let mut corpus = String::new();
+    for task in &wf.tasks {
+        for field in task_text_fields(&task.value) {
+            corpus.push_str(field);
+            corpus.push('\n');
+        }
+        for (_, binding) in &task.value.output {
+            corpus.push_str(&binding.value);
+            corpus.push('\n');
+        }
+    }
+    for (_, decl) in &wf.outputs {
+        corpus.push_str(&decl.value().value);
+        corpus.push('\n');
+    }
+    if corpus.contains("exit_code") {
+        return;
+    }
+    for task in &wf.tasks {
+        let t = &task.value;
+        let RawAction::Exec(action) = &t.action else {
+            continue;
+        };
+        if !matches!(
+            action.capture.as_ref().map(|capture| capture.value),
+            Some(CaptureMode::Structured)
+        ) {
+            continue;
+        }
+        let id = t.id.value.as_str();
+        hints.push(hint(
+            "swallowed-exit",
+            id,
+            format!(
+                "`capture: structured` on `{id}` makes a non-zero exit DATA, not a \
+                 failure — the task reports success whatever the command returns, and \
+                 nothing in this workflow reads `exit_code`. A command that fails here \
+                 is invisible until something downstream chokes on its empty output. \
+                 Read the branch (`${{{{ tasks.{id}.output.exit_code }}}}`, or a \
+                 `nika:assert` on it), or use a text capture mode so a non-zero exit \
+                 fails the task as NIKA-EXEC-001"
+            ),
+        ));
     }
 }
 
@@ -833,6 +903,36 @@ mod tests {
 
     fn hints_of(yaml: &str) -> Vec<Hint> {
         scan_hints(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn a_structured_capture_nobody_branches_on_names_what_it_swallows() {
+        // Reported 2026-07-28: a run showed 23/23 green with four tasks
+        // failed. Under `structured` a non-zero exit is DATA, so the task
+        // succeeds whatever the command returns; the error surfaced three
+        // waves later on an unrelated jq and pointed at the wrong task.
+        let blind = hints_of(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  s:\n    exec: { command: [\"false\"], capture: structured }\n",
+        );
+        let hit = blind
+            .iter()
+            .find(|h| h.kind == "swallowed-exit")
+            .expect("a structured capture nobody branches on names what it swallows");
+        assert_eq!(hit.task, "s");
+        assert!(
+            hit.advice.contains("NIKA-EXEC-001"),
+            "the hint names the failure the author gave up: {}",
+            hit.advice
+        );
+
+        // Reading the branch IS the legitimate use — nothing to say.
+        let branched = hints_of(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  s:\n    exec: { command: [\"false\"], capture: structured }\n  guard:\n    with:\n      code: ${{ tasks.s.output.exit_code }}\n    exec: { command: [\"true\"] }\n",
+        );
+        assert!(
+            !branched.iter().any(|h| h.kind == "swallowed-exit"),
+            "a workflow that reads exit_code is using structured on purpose"
+        );
     }
 
     #[test]
