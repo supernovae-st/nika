@@ -15,7 +15,7 @@ foundation:
   - file: examples/04-schema-retry.nika.yaml
     sha256_16: 66fcb15a72a614a5
   - file: examples/05-fetch-chain.nika.yaml
-    sha256_16: 28b0e7d1f176a212
+    sha256_16: 2c297c72d4fda7ec
   - file: examples/06-code-review.nika.yaml
     sha256_16: 9874de5c173422e4
   - file: examples/07-for-each-locales.nika.yaml
@@ -65,7 +65,7 @@ showcase:
     tier: T1
     description: ""
     constructs: [on_error, output, outputs, secrets, when, with]
-    sha256_16: fc7e9264fdb79e99
+    sha256_16: 86b93792b7dfe67a
   - file: examples/showcase/t1-social-repurpose.nika.yaml
     workflow: {'id': 'social-repurpose', 'description': 'One post → thread + LinkedIn + newsletter, in parallel'}
     tier: T1
@@ -83,7 +83,7 @@ showcase:
     tier: T2
     description: ""
     constructs: [fail_fast, for_each, max_parallel, on_error, outputs, retry, with]
-    sha256_16: abb12303bcb3789c
+    sha256_16: 5e564da244d3f02d
   - file: examples/showcase/t2-contract-guard.nika.yaml
     workflow: {'id': 'contract-guard', 'description': 'Local-model clause extraction → schema gate → risk memo'}
     tier: T2
@@ -125,19 +125,19 @@ showcase:
     tier: T2
     description: ""
     constructs: [local_model, on_error, output, outputs, when, with]
-    sha256_16: c00475d8e746e955
+    sha256_16: d84170c293f05bfe
   - file: examples/showcase/t2-seo-content-brief.nika.yaml
     workflow: {'id': 'seo-content-brief', 'description': 'Competitor sitemap → top page → gap analysis → typed brief'}
     tier: T2
     description: ""
     constructs: [local_model, output, outputs, schema, with]
-    sha256_16: c09ce5877b6d4e9e
+    sha256_16: 282e3de34e86cde1
   - file: examples/showcase/t2-support-triage.nika.yaml
     workflow: {'id': 'support-triage', 'description': 'Ticket queue → typed triage → urgent escalation → triage board'}
     tier: T2
     description: ""
     constructs: [local_model, outputs, schema, secrets, when, with]
-    sha256_16: b2b964a79e871aed
+    sha256_16: 2bc463c3a09faa79
   - file: examples/showcase/t2-transcript-shownotes.nika.yaml
     workflow: {'id': 'transcript-shownotes', 'description': 'Raw transcript → typed show-notes (chapters · quotes · summary) · one bounded infer'}
     tier: T2
@@ -155,13 +155,13 @@ showcase:
     tier: T3
     description: ""
     constructs: [local_model, on_error, outputs, retry, secrets, when, with]
-    sha256_16: ff799324cb7eef7c
+    sha256_16: 33a4584f06f4b53e
   - file: examples/showcase/t3-localization-factory.nika.yaml
     workflow: {'id': 'localization-factory', 'description': 'glob docs → parallel read → parallel translate → mirror tree'}
     tier: T3
     description: ""
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, with]
-    sha256_16: 6d2532b9b809978f
+    sha256_16: 1c2d383c54ad26e4
   - file: examples/showcase/t3-pr-review-fanout.nika.yaml
     workflow: {'id': 'pr-review-fanout', 'description': 'changed files → one read-only review agent each → merged REVIEW.md'}
     tier: T3

@@ -36,7 +36,7 @@ secrets:
 permits:
   tools: ["nika:edit", "nika:notify"]
   exec: ["git"]
-  fs: { write: ["./CHANGELOG.md"] }
+  fs: { read: ["./CHANGELOG.md"], write: ["./CHANGELOG.md"] }
 
 tasks:
   history:

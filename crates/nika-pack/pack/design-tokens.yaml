@@ -140,6 +140,66 @@ presentation:
     - google
     - xai
 
+# ── the semantic ROLES a key carries ─────────────────────────────────────────
+# A generic YAML highlighter colours by SYNTAX class (key · string · number)
+# because it does not know the language. Nika is a closed contract: the schema
+# declares, for every word, the scopes it may legally appear in. So a surface
+# can colour by MEANING instead — `command` belongs to exec because it cannot
+# live anywhere else, and that is information rather than decoration.
+#
+# MEMBERSHIP IS DERIVED, NEVER LISTED. The projector reads
+# schemas/workflow.schema.json and closes each role over the schema's own
+# scopes; only the seeds below are authored, because they are the three
+# judgments the schema cannot state about itself. Add a word to the schema and
+# its role follows on the next projection.
+#
+# AND NO ROLE INVENTS A HUE. The seven layer hues already collide with the four
+# verb hues by construction (flow IS infer's blue, reach IS invoke's cyan,
+# boundary IS exec's orange), so a fourth palette would either clash or leave
+# this SSOT. Each role reuses a mark that already means what it says, and each
+# surface binds that mark in its own vocabulary — a React span, a vscode
+# semantic token, a terminal glyph are not the same object, and pretending
+# they are is how false coherence starts.
+roles:
+  boundary:
+    means: "the declarations that bound what a plan may touch"
+    # heads; every descendant inherits by SCOPE at tokenize time, because
+    # `tools` under permits: is the boundary while `tools` under agent: is the
+    # verb's, and only position can tell them apart
+    seed: ["permits", "secrets"]
+    inherit: "descendants"
+    # a SHIELD, not a hue: icons.features.permits is already 'shield' here, and
+    # a glyph stays legible in forced-colors and in a monochrome terminal
+    mark: "glyph"
+    codicon: "shield"
+    web_token: "--cf-key"
+    web_weight: 600
+    vscode_semantic: "keyword.control"
+  wire:
+    means: "the keys that DECLARE an edge — the same fact as the ${{ }} they introduce"
+    seed: ["after", "with"]
+    inherit: "none"
+    # the ref ink the interpolation already wears; `with:` and `after:` ARE the
+    # edge, so they are not a second colour
+    mark: "ref-ink"
+    codicon: "arrow-right"
+    web_token: "--cf-ref"
+    vscode_semantic: "variable.other.link"
+  fail:
+    means: "the declared failure grammar"
+    seed: ["on_error", "on_finally", "retry", "recover"]
+    # the closure: a word whose ONLY scopes are recovery scopes is failure
+    # grammar, however deep it sits (backoff_ms · jitter · on_codes · skip …)
+    inherit: "scopes_closed_under"
+    recovery_scopes: ["on_error", "on_finally", "retry"]
+    # refusals — the one layer hue no verb claims, and the exact hue /errors
+    # and the danger ring already speak
+    mark: "danger"
+    codicon: "error"
+    web_token: "--danger"
+    web_mix_pct: 78
+    vscode_semantic: "invalid.deprecated"
+
 rules:
   # Mermaid classDef fill = verb color + this alpha suffix. Derived at
   # projection time, never stored as a 5th value per verb.

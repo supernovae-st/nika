@@ -26,6 +26,8 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the c
 const:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"
   state_path: "./state/release-radar.json"
+permits:
+  tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:read", "nika:write"]
 
 tasks:
   # First run has no state file · recover to an empty list.

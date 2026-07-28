@@ -39,7 +39,7 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 permits:
-  tools: ["nika:convert", "nika:date", "nika:fetch", "nika:inspect", "nika:jq", "nika:notify", "nika:read", "nika:write"]
+  tools: ["nika:convert", "nika:date", "nika:fetch", "nika:inspect", "nika:jq", "nika:emit", "nika:notify", "nika:prompt", "nika:read", "nika:write"]
   exec: ["git"]
 
 tasks:
@@ -111,7 +111,27 @@ tasks:
     output:
       day: ".[:10]"                  # nika:date returns the ISO string itself · slice YYYY-MM-DD
 
+  # ── the human gate · the trifecta judge demands it ──
+  # Untrusted content (the fetched news) reaches the write and the ping
+  # while the KPI sheet grants a private read: the lethal trifecta. The
+  # brief therefore lands on a human first — nika:prompt blocks until
+  # answered, and the save fires only on approval (NIKA-SEC-009).
+  approve:
+    with:
+      brief: ${{ tasks.brief.output }}
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: |
+          The Monday brief is ready to land:
+
+          ${{ with.brief }}
+
+          Save it and ping the founders? [yes/no]
+
   save:
+    after:
+      approve: success
     with:
       day: ${{ tasks.stamp.day }}
       brief: ${{ tasks.brief.output }}

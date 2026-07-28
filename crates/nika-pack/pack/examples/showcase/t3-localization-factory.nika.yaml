@@ -25,6 +25,8 @@ model: ollama/qwen3.5:4b   # local default · swap for mistral/mistral-large (EU
 const:
   lang: "fr"
   source_glob: "./docs/**/*.md"
+permits:
+  tools: ["nika:glob", "nika:jq", "nika:read", "nika:write"]
 
 tasks:
   files:

@@ -39,7 +39,7 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 permits:
-  tools: ["nika:assert", "nika:emit", "nika:fetch", "nika:read", "nika:wait", "nika:write"]
+  tools: ["nika:notify", "nika:assert", "nika:emit", "nika:fetch", "nika:read", "nika:wait", "nika:write"]
   exec: ["journalctl"]
 
 tasks:
