@@ -387,6 +387,13 @@ docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika check hello.
 docker run -i --rm ghcr.io/supernovae-st/nika mcp
 ```
 
+Embedding the checker in a page or a JS tool? Every release attaches the
+wasm half of `nika check` as an npm tarball — on the registry as
+[`@supernovae-st/nika-check-wasm`](https://github.com/supernovae-st/nika/tree/main/crates/nika-check-wasm)
+— the same rows, codes and character-exact spans as the binary, judged
+before a token is spent. It powers the live playground at
+[nika.sh/play](https://nika.sh/play).
+
 Your first workflow runs with **zero setup**: no model, no API key:
 
 ```sh

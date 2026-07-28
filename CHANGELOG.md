@@ -10,6 +10,59 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.106.1](https://github.com/supernovae-st/nika/compare/v0.106.0..v0.106.1) - 2026-07-28
+
+**The browser release.** The checker takes the seat the spec reserved for it
+(07-conformance Level 2 · « custom engines for specialized environments »):
+the parse + conformance half of `nika check` compiled to WebAssembly, admitted
+through the full 12-gate ceremony (ADR-107) — including a three-leg adversarial
+review that found a real engine bug before any browser saw it (a jq nesting
+bomb that killed the checking instance for good; the guard now refuses at
+depth 128 on every surface). The artifact debuts on npm as
+`@supernovae-st/nika-check-wasm`, packed by this release train itself:
+manifest projected from cargo metadata, host paths remapped out of the bytes,
+the tarball attached to this release + attested whether or not the registry
+credential exists. In-band honesty rides every verdict — `wasm: true` and a
+closed `legs:` list, so the browser half can never be mistaken for the full
+binary. Around it the ladder keeps tightening: `when:`/`for_each:` stop
+admitting the loop locals (the runtime pin collected its own documented
+sunset), and the audited card stops calling a ceiling a floor.
+
+### ✨ Features
+- **catalog** — The pricing provenance is produced by the engine it feeds ([a30080600](https://github.com/supernovae-st/nika/commit/a300806002c5aea4bfe1990105275ba3cc16025f))
+- **check** — A prompt with no default names its headless cost ([acdb032ab](https://github.com/supernovae-st/nika/commit/acdb032abc352f8fb561660a2600e5a4c48409a4))
+- **check** — A structured capture nobody branches on names what it swallows ([5ea8cf2dd](https://github.com/supernovae-st/nika/commit/5ea8cf2dd02f90cb176dc68e214b623d9fc70d62))
+- **check-wasm** — Admit the browser half of nika check (ADR-107 · 12 gates) ([3a8e2e843](https://github.com/supernovae-st/nika/commit/3a8e2e84369e3028d9b6221d77090dc628c81d7f))
+- **cli** — Nika lsp accepts the host convention flags as no-ops ([a3c4950e2](https://github.com/supernovae-st/nika/commit/a3c4950e251d5047987592a312d32617d6751f28))
+- **mcp** — The five slash commands reach every client, not three ([e7f1f5284](https://github.com/supernovae-st/nika/commit/e7f1f5284f8ef3a18d22d4079937a47dde87513b))
+- **mcp** — The agent-facing oracle stops handing back a green the run gate refuses ([62ba2406e](https://github.com/supernovae-st/nika/commit/62ba2406eca3c87b332ee1e6615180198dc1af80))
+- **plugin** — The codex manifest carries its public listing card ([56d6dc3e5](https://github.com/supernovae-st/nika/commit/56d6dc3e57175bbb7a9cb367781125d3b1d53766))
+
+### 🐛 Bug Fixes
+- **check** — `when:` and `for_each:` stop admitting the loop locals ([f7b680366](https://github.com/supernovae-st/nika/commit/f7b680366eea1025c9f0fd0b18405b775d14cbf9))
+- **check** — Every surface that judges for the author judges like the run gate ([74d230254](https://github.com/supernovae-st/nika/commit/74d230254f2641957456c8d582ff3e13c2d5f2d4))
+- **check** — The audited card stops calling a ceiling a floor ([a77078707](https://github.com/supernovae-st/nika/commit/a770787070a186033c023bf7431fc6568bae41b4))
+- **kit** — The plugin taught a syntax the engine refuses ([0b362db42](https://github.com/supernovae-st/nika/commit/0b362db42fd42cd9d41865f3ff514223a0399c22))
+- **mcp** — The read-only oracle says so on the wire ([a6bdf3e54](https://github.com/supernovae-st/nika/commit/a6bdf3e54b88c4322690f88740c9f6c7f07d336b))
+
+### 🔨 Refactors
+- **check** — Scan_task stops building its contexts by hand ([16bb12b97](https://github.com/supernovae-st/nika/commit/16bb12b97a191e4a32dc4db28d4266cc95b4652c))
+- **check** — The traversal half of the hint lane earns its own file ([12add44a3](https://github.com/supernovae-st/nika/commit/12add44a31474f0f94f0badb7599834877a92dc9))
+
+### 📚 Documentation
+- **kit** — The kit teaches the whole language, not a third of it ([a94360f2c](https://github.com/supernovae-st/nika/commit/a94360f2c644171e544d540a4d5e4ad3ca53d1f9))
+- **kit** — Composition was a whole chapter the kit never mentioned ([9cc9d6002](https://github.com/supernovae-st/nika/commit/9cc9d60025091b5133c331b01f442b473df7c42f))
+- **kit** — The native-first law gains the recipe it was missing ([0b5040ca1](https://github.com/supernovae-st/nika/commit/0b5040ca196260088f9a0bcf1ef3f2e4da0c525f))
+- **plans** — The false-green class, six findings and their law ([2aaa80881](https://github.com/supernovae-st/nika/commit/2aaa8088102750163945a1855889efc529ffe4dc))
+- **plans** — The resource algebra — what a workflow costs and what check can prove ([71c67da3f](https://github.com/supernovae-st/nika/commit/71c67da3fdbda0e238737a49888a04a340f5a511))
+- **plans** — The cost ceiling is unsound on agent loops, and the reason is a theorem ([1ca813fbb](https://github.com/supernovae-st/nika/commit/1ca813fbb1625201fa11a72cbfd59295673c74f3))
+- **plans** — The resource-vector research corrects four of my own rows ([a7cd93b28](https://github.com/supernovae-st/nika/commit/a7cd93b2863ea6b820067fb320c5f2261e73eaad))
+- **plans** — The DAG width is measured, and it closes the hypothesis T1 rests on ([9b172979e](https://github.com/supernovae-st/nika/commit/9b172979e0fe5de9601f970ad6aa95bef92542d8))
+- **plans** — An adversarial pass killed 17 of 33 claims — the corrections lead the document ([b40839d16](https://github.com/supernovae-st/nika/commit/b40839d16ea91f38b81da451ffb7cd76d3ed5aba))
+
+### 🧪 Tests
+- **check** — The ledger fixture goes on one line, and says why ([14a14b1d5](https://github.com/supernovae-st/nika/commit/14a14b1d52d43c045aa2d46c9dc25147f135ebf3))
+
 ## [0.106.0](https://github.com/supernovae-st/nika/compare/v0.105.0..v0.106.0) - 2026-07-27
 
 **The authority release.** Two flag-days land in the same window, and both
