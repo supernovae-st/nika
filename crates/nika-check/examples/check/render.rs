@@ -332,7 +332,7 @@ fn types(out: &mut String, report: &CheckReport, t: Theme) {
         section_ok(
             out,
             "TYPES",
-            "every deep output reference fits its declared shape",
+            "deep references fit the shapes tasks declare · builtin output has none",
             t,
         );
         return;
@@ -617,7 +617,7 @@ mod tests {
             "   w1 ○ second exec     ← first\n",
             " COST     no inference tasks · $0.00\n",
             " ✔ SECRETS  no information-flow escapes\n",
-            " ✔ TYPES    every deep output reference fits its declared shape\n",
+            " ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none\n",
             " ✔ PERMITS  body fits the declared boundary\n",
             " ✔ REACH    every when: gate is satisfiable\n",
             " ✔ CERT     terminates · span ≤ 2 · ≤ 2 task-attempts · 0 LLM calls · ≤ 2 effect calls · $0 spend\n",
@@ -641,7 +641,7 @@ mod tests {
             "   w1 . second exec     <- first\n",
             " COST     no inference tasks - $0.00\n",
             " ok SECRETS  no information-flow escapes\n",
-            " ok TYPES    every deep output reference fits its declared shape\n",
+            " ok TYPES    deep references fit the shapes tasks declare · builtin output has none\n",
             " ok PERMITS  body fits the declared boundary\n",
             " ok REACH    every when: gate is satisfiable\n",
             " ok CERT     terminates - span <= 2 - <= 2 task-attempts - 0 LLM calls - <= 2 effect calls - $0 spend\n",

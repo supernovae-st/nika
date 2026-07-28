@@ -60,8 +60,15 @@ if [ ! -f "$file" ] || ! command -v "$NIKA" >/dev/null 2>&1; then
   done_quiet
 fi
 
+# --native-strict, not a bare check. The bare verdict passes a workflow
+# whose real work happens inside `exec python3 helper.py` — the shape an
+# agent reaches for the moment a builtin refuses it, and the one that
+# leaves nothing for the permits boundary to bound. Under the flag that
+# hint becomes rc=2 and lands here, at the edit, where the reflex forms.
+# Measured before wiring: a script wrapper fails, `exec git` passes with
+# or without a ledger entry. The flag costs legitimate execs nothing.
 set +e
-findings="$("$NIKA" check "$file" --color never 2>&1)"
+findings="$("$NIKA" check "$file" --native-strict --color never 2>&1)"
 rc=$?
 set -e
 
@@ -71,6 +78,10 @@ if [ "$rc" -ne 2 ]; then
 fi
 
 printf '%s\n' "$findings" | head -c 2000 >&2
+# Name the FLAG, not just the verb. A reader told to "re-run nika check"
+# runs the bare form, reads a green that this hook does not accept, and
+# loops against a gate it cannot see.
+printf '\nre-check with the same oracle this hook used:\n  nika check --native-strict %s\n' "$file" >&2
 if [ -n "$cc" ]; then
   # PostToolUse exit 2 = stderr fed to Claude, edit already applied.
   exit 2

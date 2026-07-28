@@ -22,13 +22,22 @@ structure; you instantiate it, then let the checker teach you.
    age): `nika new --from '?'` prints the embedded set.
 2. **Instantiate.** Copy the template whole. Fill every `# SLOT:`
    marker. Touch nothing else.
-3. **Check.** Run `nika check <file>` (or the `nika_check` MCP tool).
+3. **Check.** Run `nika check --native-strict <file>` (or the
+   `nika_check` MCP tool). `--native-strict` is the posture of this
+   agent, not an extra: without it, a workflow whose real work sits in
+   `exec python3 helper.py` passes — and that shape is bounded by no
+   permit, replayable from no trace, and readable by no checker.
    Findings carry `NIKA-XXXX` codes and a fix hint each.
 4. **Repair.** Apply the hint for one finding, re-check. Loop until
    `rc=0`. Never guess an arg name: on an unknown-arg finding, the
-   answer lists the declared set; use it.
+   answer lists the declared set; use it. A `native-first` hint is
+   repaired by moving the work to the builtin the hint names — reach
+   for the exec ledger only when no builtin covers the tool.
 5. **Hand off.** Report the file path, the check verdict, the cost
-   envelope, and what the permits allow. The human runs it.
+   envelope, and what the permits allow. The human runs it. Handing
+   over a file that has not passed `--native-strict` is the one failure
+   mode of this agent: the human's run gate uses the same flag, so a
+   file that fails it cannot be run at all.
 
 ## Hard lines
 

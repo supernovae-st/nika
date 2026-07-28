@@ -32,8 +32,13 @@ oracle; the human runs it.
    the diagnostics — they name the exact task, reference and fix.
    Unknown code? `nika explain NIKA-XXXX`.
 5. Repeat 3–4 until clean. **Never hand a file to the human that does
-   not pass `nika check`** — and pass `--native-strict` too, unless
-   every remaining `exec:` is in the exec ledger (below).
+   not pass `nika check --native-strict`.** That flag is the bar, not an
+   extra: the hooks that check on your behalf and the gate in front of
+   `nika run` both use it, so a file that fails it cannot be run at all.
+   The exec ledger does NOT buy an exemption (measured: a `.py` wrapper
+   fails with a complete ledger) — it documents intent for a reviewer.
+   What passes is an `exec:` of a real tool (`git`, `docker`); what
+   fails is an `exec:` of a `.py`/`.mjs`/`.sh` wrapper, ledger or not.
 6. The human (or CI) runs it: `nika run <file>`. Preview offline with
    `--model mock/echo`; run locally with `--model ollama/<model>` —
    or fully in-binary: `nika model pull <owner/repo-GGUF>` then
@@ -277,19 +282,39 @@ bin/thing.py …`) that wraps HTTP/files/JSON — that is
 Two refusals send authors reaching for a scripting language. Neither
 one wants a script; both have a native recipe.
 
-**`NIKA-SEC-004` — a tainted value cannot ride `exec` argv.** An
-`inputs:`-supplied or fetched value on a command line is a shell-shaped
-injection surface, so the boundary refuses it. The move is NOT a reader
-script. **Stage the value to a file, and pass the PATH as argv:**
+**`NIKA-SEC-004` — an untrusted value reached an effect argument.** An
+`inputs:`-supplied or fetched value that check cannot resolve DEFERS to
+a mandatory run-time re-gate; escaping that re-gate is SEC-004. The
+diagnostic talks about the capability boundary, so the reflex is to
+widen `permits:` — **that reflex is the trap, and it dead-ends.**
 
-1. shape it with `nika:jq` if it needs a form,
-2. land it with `nika:write` (a `const:` path),
-3. call the CLI with that path — `exec: { command: [cli, render, "./tmp/job.yaml"] }`.
+**The door is `declassify:`** — a task-level key, the ONLY sanctioned
+lift (spec 10 · NEP-0004 law 5):
 
-Every argv element is now a literal the boundary can verify, and the
-tainted value never touches a command line. Most CLIs already have this
-door: a template, a config file, a `@file` argument. Prefer it over any
-flag that takes the value inline.
+```yaml
+tasks:
+  load:
+    invoke: { tool: nika:read, args: { path: "${{ inputs.p }}" } }
+    declassify:
+      - from: inputs.p          # ONE binding
+        to: trusted             # the one raise v1 knows
+        because: "deployment-controlled path, reviewed at release time"
+```
+
+All three fields are required and `because:` must be non-empty — it is
+recorded in the receipt with the taint path and the value digest. It
+lifts the TAINT law only: the value is still matched against the
+declared boundary, so this is never a permit bypass.
+
+**Why the staging recipe is the wrong first move.** Landing the value
+in a file with `nika:write` and passing the PATH as argv looks safe, and
+it is — until the CLI has to READ that file back. That read adds
+`fs.read`, which completes the lethal trifecta, which makes a dominating
+human gate mandatory. Measured in a real session: the chain runs shim →
+`fs.read` → trifecta → mandatory gate → a gate that cannot be answered
+(see the run notes on `nika:prompt`). Reach for `declassify:` first.
+Staging remains correct where the value genuinely must not touch a
+command line AND nothing reads the file back inside the same workflow.
 
 **`NIKA-SEC-009` — the trifecta.** Untrusted input, private data and an
 egress in one task is refused as a shape, not as an accident. The move
@@ -310,7 +335,11 @@ Every surviving `exec:` gets a row in the workflow's header comment:
 # | task | command | why no native path | unlock that removes it |
 ```
 
-`--native-strict` + a complete ledger = a reviewable workflow.
+The ledger is for the REVIEWER, not for the checker — it never silences
+a finding. `--native-strict` judges the SHAPE of the exec: a real tool
+passes, a script wrapper fails, and a row in the ledger changes neither.
+If the wrapper is genuinely unavoidable, the honest move is to say so to
+the human at handoff, not to expect a green.
 
 ## Discipline
 

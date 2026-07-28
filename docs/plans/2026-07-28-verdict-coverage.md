@@ -1,8 +1,36 @@
 # Verdict coverage · the false-green class
 
-> Status: prepared, not executed. Six findings verified on 2026-07-28
+> Status: partially executed. Six findings verified on 2026-07-28
 > against the 0.106.0 binary. Every repro below was run; nothing here is
 > inferred from reading code alone.
+>
+> **Shipped since** (each verified by repro, not by reading):
+>
+> | Item | What landed |
+> |---|---|
+> | F1 step 1 | `nika check` hints when a `capture: structured` exit code is read by nobody |
+> | F3 interim | the `TYPES` line narrowed to what it covers — see the correction below |
+> | F4 partial | a `nika:prompt` with no `default:` now names its headless cost at check |
+> | (new) | `--native-strict` wired into the two hooks, the `/nika:check` command and the `nika-author` subagent |
+>
+> **Correction to F3 as written below.** "Nothing — no builtin declares
+> an output shape" understates the scan. `schema_typing.rs` is sound by
+> construction: it validates deep references against the shapes tasks
+> DO declare (`schema:` on infer/agent, `output:` bindings on jq) and
+> resolves an opaque shape to "unknown — no finding", never a guess.
+> The real gap is narrower and structural — there is no `output_schema`
+> mechanism in the catalog at all, so a builtin CANNOT declare a shape
+> and references into builtin output are unchecked. The rendered line
+> was the dishonest part, and it is the part that was repaired.
+>
+> **The `--native-strict` wiring, and why it is not in the six.** The
+> operator reported agents reaching for Python glue whenever a builtin
+> refused them. The enforcement already existed and already hard-failed
+> (`exec python3 helper.py` → rc=2; `exec git` passes, ledger or not) —
+> nothing ran it. It is now the posture of every surface that checks on
+> the author's behalf. One trap avoided: a hook that judges with the
+> flag must NAME the flag in its message, or the reader re-checks with
+> the bare form, reads a green the gate does not accept, and loops.
 
 ## The law this plan exists to restore
 
@@ -86,6 +114,36 @@ The perverse incentive is the finding: **replacing `nika:fetch` with
 `exec curl` makes SEC-009 disappear**, because `exec` ingress is not
 counted as untrusted. The gate pushes authors off the native path — the
 exact inverse of native-first.
+
+**Confirmed in the source, 2026-07-28.** `content_flow.rs:140` —
+`RawAction::Exec(_) => (false, true)`: an exec is `writes_fs`, never
+`born_ingress`. The compensating rule two frames up
+(`content_flow.rs:80`) re-taints an exec that reads a file a tainted
+writer already produced, under a declared `fs.read` — the file-mediated
+channel argv cannot see. It does NOT make `exec curl` an ORIGIN of
+untrusted content, so leg ① of the trifecta simply does not hold and
+SEC-009 goes quiet.
+
+**The incentive is closed; the classification is not.** Measured on the
+same pair of workflows:
+
+| | bare `check` | `--native-strict` |
+|---|---|---|
+| `nika:fetch` (native) | 0 | **0** |
+| `exec curl` (the bypass) | **0 — SEC-009 silent** | **2 · native-first/001** |
+
+So under `--native-strict` the native form passes and the bypass fails:
+the payoff points the right way again. Since that flag is now the
+posture of both hooks, the `/nika:check` command and the `nika-author`
+subagent, an author cannot reach the bypass through any surface that
+checks on their behalf — and cannot run the file either, because the
+run gate uses the same flag.
+
+This is a fix to the INCENTIVE, not to the classification. An author
+who never passes the flag still gets a silent bypass, so the two
+repairs below stand. It does buy the time to make them carefully: a
+security-semantics change that adds findings to workflows already in
+the field is exactly the kind that should not ship unannounced.
 
 Two independent repairs, both needed:
 

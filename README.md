@@ -59,7 +59,7 @@ $ nika check brief.nika.yaml
       wave 1 fetch_notes (exec · sh -c)
       wave 2 brief (infer · ollama/llama3.2:3b)
  ✔ SECRETS  no information-flow escapes
- ✔ TYPES    every deep output reference fits its declared shape
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
  ✔ TOOLS    every nika: tool names a canonical builtin
  ✔ ARGS     every invoke arg key is declared + every required arg is present
  ✔ SCHEMA   every authored schema: is satisfiable

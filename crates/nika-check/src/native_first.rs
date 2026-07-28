@@ -137,7 +137,9 @@ pub fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
                  file I/O → `nika:read`/`nika:write` · JSON shaping → `nika:jq` · \
                  YAML/TOML/CSV in or out → `nika:convert` (then `nika:jq`) · \
                  a product API → wrap it as an MCP server (`mcp:<server>/<tool>`); \
-                 keep `exec:` only for a genuine subprocess and record it in the exec ledger"
+                 a helper script is not a genuine subprocess — under `--native-strict` \
+                 this fails, and a row in the exec ledger records the intent \
+                 without clearing it"
             ),
         ));
     }

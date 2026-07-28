@@ -88,8 +88,13 @@ esac
 [ -f "$file" ] || allow
 command -v nika >/dev/null 2>&1 || allow
 
+# --native-strict: the gate before a run is the last place to catch a
+# workflow whose real work sits inside an `exec` of a helper script —
+# nothing there is bounded by permits, replayable from the trace, or
+# visible to check. Verified before wiring: only script wrappers fail;
+# `exec git` passes ledger or not, so no legitimate run is refused.
 set +e
-findings="$(nika check "$file" --color never 2>&1)"
+findings="$(nika check "$file" --native-strict --color never 2>&1)"
 rc=$?
 set -e
 
@@ -106,8 +111,11 @@ if command -v python3 >/dev/null 2>&1; then
   printf '%s' "$findings" | CC="$cc" python3 -c '
 import json, os, sys
 findings = sys.stdin.read()
-msg = ("nika check failed on this workflow - repair the findings, "
-       "re-run nika check until it passes, then run again.\n\n" + findings)
+msg = ("nika check failed on this workflow - repair the findings, then "
+       "re-check with the SAME oracle this gate used:\n"
+       "  nika check --native-strict <file>\n"
+       "The bare form passes workflows this gate refuses, so a green "
+       "from it will not open the door.\n\n" + findings)
 if os.environ.get("CC"):
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",

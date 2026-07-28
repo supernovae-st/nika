@@ -181,9 +181,19 @@ pub fn run(
             " {}",
             theme.paint(
                 Role::Bad,
+                // NOT "or record them in the exec ledger". Measured: a
+                // ledgered `.py` wrapper still fails this gate, because
+                // the gate judges the SHAPE of the subprocess, not
+                // whether it was written down. Offering the ledger as
+                // an alternative sends the reader to write one, re-run,
+                // and meet the identical red — a diagnostic that costs
+                // a cycle and buys nothing. The ledger is for the
+                // reviewer; only replacing the call clears this line.
                 &format!(
                     "✖ native-strict · {native_hints} native-first {hint_word} above — \
-                     replace the exec(s) or record them in the exec ledger"
+                     replace each one with the builtin its hint names \
+                     (the exec ledger documents intent for a reviewer; \
+                     it does not clear this gate)"
                 ),
             )
         );
@@ -794,6 +804,41 @@ mod tests {
         let twin = checked_output("native-twin.nika.yaml", native_twin, true);
         assert_eq!(twin.code, 0, "the native twin passes strict: {}", twin.text);
         assert!(!twin.text.contains("native-strict ·"), "{}", twin.text);
+    }
+
+    /// The strict refusal must not offer a remedy that does not work.
+    ///
+    /// It used to read "replace them or record them in the exec ledger",
+    /// and the second half was false: the gate judges the SHAPE of the
+    /// subprocess, so a ledgered `.py` wrapper fails exactly as hard as
+    /// an un-ledgered one. A reader who took the offer wrote a ledger,
+    /// re-ran, and met the identical red — the diagnostic spent a cycle
+    /// and returned nothing. This pins the honest form: name the builtin
+    /// as the remedy, and say what the ledger is actually for.
+    #[test]
+    fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
+        let ledgered = "# EXEC LEDGER ·\n\
+             # | task | command | why no native path | unlock |\n\
+             # | crawl | curl | legacy auth | nika:fetch oauth |\n\
+             nika: v1\nworkflow:\n  id: ledgered\n\
+             permits: { exec: [\"curl\"] }\n\
+             tasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        let out = checked_output("ledgered.nika.yaml", ledgered, true);
+        assert_eq!(
+            out.code, 2,
+            "a ledger does not clear the strict gate: {}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("or record them in the exec ledger"),
+            "the refusal still offers the ledger as an alternative: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("does not clear this gate"),
+            "the refusal must say what the ledger is NOT: {}",
+            out.text
+        );
     }
 
     /// The COST section names a DISTINCT reason per unbounded task — a deleted

@@ -115,7 +115,15 @@ pub(super) fn render(
         &mut out,
         t,
         "TYPES",
-        "every deep output reference fits its declared shape",
+        // Narrowed on purpose. The scan is sound (schema_typing.rs: an
+        // opaque shape resolves to "unknown — no finding", never a
+        // guess), but the old line — "every deep output reference fits
+        // its declared shape" — read as universal. It is not: a builtin
+        // has no way to declare an output shape, so `output.total_usd`
+        // on a `nika:inspect` task is UNCHECKED, not checked-and-fine.
+        // A green that means less than it says spends trust and returns
+        // nothing; this one now claims exactly what it covers.
+        "deep references fit the shapes tasks declare · builtin output has none",
         report
             .schema_findings
             .iter()
