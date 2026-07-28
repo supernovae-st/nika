@@ -133,12 +133,62 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
     if program.contains("${{") {
         return;
     }
+    // THE PRE-FLIGHT DEPTH GUARD (Gate-11 security finding F1). jaq's parser
+    // recurses once per nesting level with no limit of its own: 470 nested
+    // brackets — a 1,047-byte paste — overflow a 1 MiB stack (the wasm32
+    // budget), and a trapped wasm instance never recovers. The house already
+    // caps recursion three times over (MAX_VALUE_DEPTH · nika-tmpl MAX_DEPTH ·
+    // the compact-dash cap), all at 128; the jq door gets the same ceiling,
+    // paid with one O(n) byte scan BEFORE the recursive compile.
+    if let Some(depth) = jq_nesting_over(program, MAX_JQ_NESTING) {
+        errors.push(SchemaError::ExpressionViolation {
+            reason: format!(
+                "jq compile error — nesting depth exceeds {MAX_JQ_NESTING} (measured ≥{depth}); \
+                 the runtime enforces the same ceiling"
+            ),
+            span: Some(span),
+        });
+        return;
+    }
     if let Err(reason) = jq_compiles(program) {
         errors.push(SchemaError::ExpressionViolation {
             reason: format!("jq compile error — {reason}"),
             span: Some(span),
         });
     }
+}
+
+/// The nesting ceiling for a jq program at CHECK time — aligned with the
+/// house's other recursion caps (`MAX_VALUE_DEPTH` 128 · `nika-tmpl`
+/// `MAX_DEPTH` 128): deep enough for any real program, an order of magnitude
+/// under the ~470 levels that overflow a 1 MiB stack.
+const MAX_JQ_NESTING: usize = 128;
+
+/// One O(n) scan: the maximum bracket/paren nesting depth, string-aware
+/// (brackets inside jq string literals do not nest). Returns `Some(depth)`
+/// the moment the cap is crossed — the caller refuses without ever handing
+/// the program to a recursive parser.
+fn jq_nesting_over(program: &str, cap: usize) -> Option<usize> {
+    let (mut depth, mut in_str, mut escaped) = (0usize, false, false);
+    for c in program.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' if in_str => escaped = true,
+            '"' => in_str = !in_str,
+            '[' | '(' | '{' if !in_str => {
+                depth += 1;
+                if depth > cap {
+                    return Some(depth);
+                }
+            }
+            ']' | ')' | '}' if !in_str => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    None
 }
 
 #[cfg(test)]

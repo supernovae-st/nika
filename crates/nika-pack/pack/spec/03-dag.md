@@ -1125,7 +1125,7 @@ linter (the reference `native-first` rule set) warns on each class ·
 | `native-first/002 exec-file` | `cat` · `tee` · `cp` · `mv` · `mkdir` · `touch` · `head` · `tail` · `ls` | `nika:read` / `nika:write` (`create_dirs: true`) / `nika:glob` |
 | `native-first/003 exec-data` | `jq` · `sed` · `awk` | `nika:jq` (or an `output:` binding) for JSON · `nika:edit` for in-place literal file edits |
 | `native-first/004 exec-media` | an image/speech provider endpoint in the command (`images/generations` · `/v1/audio/speech` · …) | `nika:image_generate` / `nika:tts_generate` |
-| `native-first/005 exec-helper` | an interpreter (`node` · `python` · `sh` · …) running a script file | inventory the helper · HTTP→`nika:fetch` · files→`nika:read`/`nika:write` · JSON→`nika:jq` · YAML/TOML/CSV in or out→`nika:convert` (then `nika:jq`) · a product API→an MCP server (`mcp:<server>/<tool>`) · keep only a genuine subprocess, recorded in the exec ledger |
+| `native-first/005 exec-helper` | an interpreter (`node` · `python` · `sh` · …) running a script file | inventory the helper · HTTP→`nika:fetch` · files→`nika:read`/`nika:write` · JSON→`nika:jq` · YAML/TOML/CSV in or out→`nika:convert` (then `nika:jq`) · a product API→an MCP server (`mcp:<server>/<tool>`) · a helper script is not one of the genuine subprocesses that stay silent below, so a ledger row records the intent without clearing this rule |
 
 Rules are DETERMINISTIC on literal fragments (a templated command head
 makes no claim) · at most one warning per task, most specific first

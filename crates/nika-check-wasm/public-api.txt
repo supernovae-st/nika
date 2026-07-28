@@ -1,0 +1,3 @@
+pub mod nika_check_wasm
+pub fn nika_check_wasm::check(source: &str) -> alloc::string::String
+pub fn nika_check_wasm::engine_version() -> alloc::string::String

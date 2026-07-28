@@ -7,17 +7,34 @@
 # `terminal:` is the nika extension (a first — no design system ships a
 # terminal motion target today).
 #
-# Gates (CI · the design-parity family · wired with the projector wave):
-#   1. every terminal frame is exactly ONE cell wide
-#   2. interval_ms == duration_ms / len(frames) · integer · >= 80
-#   3. css_keyframes exists verbatim site-side
-#   4. ascii_fallback is pure 0x20-0x7E
-#   5. rest/done glyphs identical across families (one vocabulary)
+# Gates · WIRED 2026-07-28 in scripts/design-projector.py `check_motion()`,
+# after this file spent its whole life claiming five gates and having none.
+# That is exactly how `slow` below came to disagree with the website's `slow`
+# (see the duration note): a source of truth nobody reads is a draft.
+#   1. every terminal frame is exactly ONE cell wide          ✅ wired
+#      (scoped to `frames` · `exec.edge_frames` is a 4-cell rail window)
+#   2. duration_ms divides evenly by the frame count, and the
+#      resulting cadence is never faster than duration.fast    ✅ wired
+#   3. css_keyframes exists verbatim site-side                 ❌ NOT WIRED,
+#      and not claimed: `nika-motion-*` appears nowhere on the website. The
+#      names below are a DECLARED binding awaiting its first consumer, not a
+#      description of something shipping.
+#   4. ascii_fallback is pure 0x20-0x7E                        ✅ wired
+#   5. rest/done glyphs identical across families              ✅ wired
 motion:
   version: 1
   # The named duration scale (ms · DTCG duration type). ONE quantum:
-  # `fast` is both the terminal frame floor (gate 2's >= 80) and the UI
-  # frame cadence below. Consumers speak the names, never raw ms.
+  # `fast` is both the terminal frame floor (gate 2) and the UI frame
+  # cadence below. Consumers speak the names, never raw ms.
+  #
+  # ⚠ NAME COLLISION, deliberate and load-bearing. The website owns a SECOND
+  # scale, also spelling `fast/base/slow`, in scripts/lens/graph/sets.yaml —
+  # where `slow` is 600ms. These are not the same quantity and neither is
+  # wrong: this scale is a FRAME CADENCE (a spinner tick, a braille step),
+  # that one is a REVEAL duration (a section rising into view). 240 and 600
+  # are both correct for what they measure. Do not "reconcile" them; the fix
+  # if this keeps confusing readers is to rename one scale, not to average
+  # two unrelated clocks into one wrong number.
   duration:
     fast: 80
     base: 160

@@ -21,6 +21,8 @@ fn         = "fn"
 # Researcher / author names in academic citations (docs reference tables)
 Wil        = "Wil"       # Wil M. P. van der Aalst (process-mining researcher)
 Ba         = "Ba"        # Jinsheng Ba (paper author)
+Thm        = "Thm"       # standard math citation shorthand (« Thm 3 » · resource-algebra plan)
+Comput     = "Comput"    # journal-name abbreviation (« J. Comput. » · citation tables)
 # Code identifiers in helper scripts (not prose)
 lits       = "lits"      # `strip_str_lits` — string-literal stripping helper
 criticals  = "criticals" # shell variable name in an audit script

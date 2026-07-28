@@ -1199,17 +1199,17 @@ tasks:
     assert_eq!(var_code, "NIKA-VAR-006");
 }
 
-// ─── 11 · the for_each when-gate scope hazard (pinned) ──────────────────
+// ─── 11 · the for_each when-gate scope hazard (statically refused) ──────
 
-/// Spec-drift pin: the checker ACCEPTS `item` inside a `for_each`
-/// task's `when:` (statically clean — probed 2026-06-13) but the
-/// engine evaluates the gate ONCE before the fan-out (spec 03's
-/// normative bullet) where `item` is NOT in scope — the task fails
-/// LOUDLY (NIKA-1702 · never a silently-closed gate). This pins the
-/// loud lane until the checker grows the matching static rule
-/// (flagged in the crate spec §3.7 + the run-verb plan).
-#[tokio::test]
-async fn for_each_when_gate_referencing_item_fails_loudly() {
+/// The sunset this test's earlier form named in its own docstring
+/// arrived: « pins the loud lane until the checker grows the matching
+/// static rule ». The rule landed (`when:`/`for_each:` stop admitting
+/// the loop locals), so the refusal moved from the first evaluated
+/// gate to BEFORE anything runs — and it kept the wire code: the
+/// spec-plane NIKA-VAR-001 (spec 05 §142), never the engine-internal
+/// NIKA-1702. Same law, enforced one stage earlier.
+#[test]
+fn for_each_when_gate_referencing_item_is_refused_statically() {
     let yaml = r#"
 nika: v1
 workflow:
@@ -1223,35 +1223,27 @@ tasks:
     when: ${{ item != 'skip' }}
     exec: { command: ["do", "${{ item }}"] }
 "#;
-    let (outcome, events) = run_to_events(
-        yaml,
-        MockShell::new(),
-        MockToolExecutor::new(),
-        MockProvider::new("mock"),
-        RuntimeConfig::default(),
-    )
-    .await;
-
-    assert!(!outcome.ok, "the unresolvable gate fails the workflow");
-    assert_eq!(outcome.records["fan"].status, TaskStatus::Failure);
-    let err = outcome.records["fan"].error.as_ref().expect("typed error");
-    assert_eq!(
-        err.code, "NIKA-VAR-001",
-        "item out of gate scope = the unresolved-reference class · the wire \
-         code is the spec-plane NIKA-VAR-001, never the engine-internal \
-         NIKA-1702 (spec 05 §142): {}",
-        err.code
-    );
+    let (_wf, report) = parse_and_check(yaml);
     assert!(
-        !err.code.contains("1702") && !err.message.contains("1702"),
-        "no engine-internal code leaks into the workflow-visible error: {} · {}",
-        err.code,
-        err.message
+        !report.is_clean(),
+        "the static rule refuses the gate before any dispatch"
     );
-    // LOUD before start: no TaskStarted frame · no iteration dispatched.
+    let v = report
+        .conformance
+        .iter()
+        .find(|v| v.code == "NIKA-VAR-001")
+        .expect("the refusal carries the spec-plane unresolved-reference code");
     assert!(
-        !events.iter().any(|e| e.kind == EventKind::TaskStarted),
-        "the gate failure precedes any dispatch"
+        !v.code.contains("1702") && !v.message.contains("1702"),
+        "no engine-internal code leaks into the author-visible finding: {} · {}",
+        v.code,
+        v.message
+    );
+    // no valid DAG order exists for a refused workflow — nothing could
+    // ever dispatch, which is the whole point of the earlier stage
+    assert!(
+        report.waves.is_empty(),
+        "no plan exists for a refused workflow"
     );
 }
 

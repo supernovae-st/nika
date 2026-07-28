@@ -26,7 +26,11 @@ rm -rf "${DEST}"
 mkdir -p "${DEST}/schemas" "${DEST}/examples/showcase" "${DEST}/templates" "${DEST}/spec" "${DEST}/stdlib"
 
 cp "${SPEC}/VERSION" "${SPEC}/canon.yaml" "${SPEC}/QUICKSTART.md" "${DEST}/"
-cp "${SPEC}/schemas/workflow.schema.json" "${DEST}/schemas/"
+# ALL published schemas, not a named one: the single-file form of this line
+# silently DELETED law.schema.json + registries.schema.json on re-sync
+# (the same rm-rf + copy-list blind spot the coverage-matrix comment below
+# documents — third instance of the class, so the line becomes a glob)
+cp "${SPEC}"/schemas/*.json "${DEST}/schemas/"
 cp "${SPEC}/examples/manifest.yaml" "${SPEC}"/examples/*.nika.yaml "${DEST}/examples/"
 cp "${SPEC}"/examples/showcase/*.nika.yaml "${DEST}/examples/showcase/"
 cp "${SPEC}"/templates/*.nika.yaml "${DEST}/templates/"

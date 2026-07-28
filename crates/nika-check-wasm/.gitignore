@@ -1,0 +1,3 @@
+# build-wasm.sh writes pkg/ · npm-pack.sh writes dist-npm/ — artifacts never committed
+pkg/
+dist-npm/

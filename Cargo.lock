@@ -4074,6 +4074,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-check-wasm"
+version = "0.106.0"
+dependencies = [
+ "getrandom 0.2.17",
+ "getrandom 0.3.4",
+ "nika-check",
+ "nika-schema",
+ "proptest",
+ "serde_json",
+ "uuid",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "nika-cli"
 version = "0.106.0"
 dependencies = [

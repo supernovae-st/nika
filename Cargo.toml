@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-source", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-cli", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-cli", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -56,6 +56,10 @@ layers.nika-onboard = "L4"
 # the nika-onboard/nika-display precedents).
 layers.nika-models = "L4"
 layers.nika-lsp = "L4"
+layers.nika-check-wasm = "L4"
+# nika-check-wasm · the static check surface compiled to the browser (parse +
+# conformance over nika-schema/nika-check · wasm-bindgen transport · branch
+# feat/check-wasm · differential-gated vs the CLI · 12-gate admission owed).
 # nika-mcp · the in-binary MCP server (announce floor `nika mcp`) · hand-rolled
 # newline-delimited JSON-RPC 2.0 over stdio (serde_json only · zero SDK) ·
 # exposes the static read-only surface (nika_check · nika_explain) as MCP tools.
@@ -332,6 +336,9 @@ feed-rs       = "2.3"    # nika-extract L1.5 — mode feed RSS/Atom/JSON-Feed no
 quick-xml     = "0.41"   # nika-extract L1.5 — mode sitemap urlset+index parse (MIT)
 encoding_rs   = "0.8"    # nika-builtin L1.5 — nika:fetch charset-aware decode for extraction modes (Apache-2.0/MIT/BSD-3 · the encoding the web actually uses · same crate reqwest text() uses)
 ego-tree      = "0.11"   # nika-extract L1.5 — scraper public tree API (Edge traversal for the text-mode walk · ISC · pinned aligned with scraper 0.27)
+wasm-bindgen = "0.2"    # nika-check-wasm L4 — the browser transport boundary (bindgen CLI pinned to the lock minor at build)
+getrandom    = "0.3"    # nika-check-wasm L4 — wasm32 entropy backend door (features chosen crate-side per target)
+getrandom-02 = { package = "getrandom", version = "0.2" }  # nika-check-wasm L4 — the OLDER getrandom generation still in the graph, same door
 uuid     = { version = "1", features = ["v7", "v4", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0) · v4 for nika:builtin nika:uuid
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
 clap_complete = "4.5"   # L4 CLI — shell completions generated from the clap tree (nika-cli spec §9)
@@ -371,3 +378,21 @@ incremental     = false
 [profile.bench]
 inherits        = "release"
 debug           = true
+
+# The browser artifact's own profile (nika-check-wasm · additive, harms no
+# other build): the workspace release keeps debuginfo for native profiling,
+# which a served .wasm must not carry — measured 4.6M with it, and the fat
+# LTO + size-opt pass exists to prune the L0 judgment hub's heavy corners
+# (jaq · jsonschema) out of a parse+conform artifact.
+[profile.wasm-release]
+inherits = "release"
+strip = "debuginfo"
+debug = false
+lto = true
+opt-level = "z"
+codegen-units = 1
+# A trapped wasm instance never comes back (the jq-bomb work made that
+# literal — the shadow stack does not restore), so unwinding machinery in
+# the artifact would be dead weight implying a recovery the crate refuses
+# to promise. No catch_unwind exists anywhere in the wasm dependency tree.
+panic = "abort"

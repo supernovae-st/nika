@@ -221,6 +221,7 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
       hashes: ${{ steps.meta.outputs.hashes }}
+      sha: ${{ steps.meta.outputs.sha }}
     steps:
       # The checkout this job never had. The front-page step below runs
       # scripts/release/render-notes.sh FROM THE REPO, and this job started
@@ -243,8 +244,15 @@ jobs:
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${REF_NAME#v}"
+            echo "tag=${REF_NAME}"
+            # the tag resolved ONCE to an immutable sha — downstream jobs
+            # check out this, never re-resolve the (mutable) tag ref, so a
+            # tag moved mid-train cannot make an attestation name a commit
+            # that did not produce the bytes
+            echo "sha=$(git rev-parse "${REF_NAME}^{commit}")"
+          } >> "$GITHUB_OUTPUT"
           (cd artifacts && cat ./*.tar.gz.sha256 | sort > SHA256SUMS)
           # Subjects for the SLSA generator job below — sha256 of every
           # shipped tarball, base64 one-line, per the generator contract.
@@ -358,6 +366,159 @@ jobs:
             git push
           fi
 
+  npm-wasm-pack:
+    # The browser half of `nika check` rides the same tag as the binaries —
+    # one tree, one version, two artifact families. This is the COMPILING
+    # half of the npm train and it deliberately holds nothing: the house
+    # invariant across this file is compile at contents:read, elevate only
+    # where nothing compiles (build → release), and `cargo install` +
+    # build scripts are exactly the third-party code that must never see
+    # an OIDC token or a writable GITHUB_TOKEN. package.json is projected
+    # from cargo metadata at pack time, and an untagged tree can only
+    # produce a -dev prerelease (npm-pack.sh · the lineage-lie guard).
+    # Plan: docs/plans/2026-07-28-check-wasm-npm-distribution.md
+    name: npm pack (nika-check-wasm)
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # this job compiles third-party code — lowest privilege
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha }}
+          # no token persisted into .git/config while build.rs code runs
+          persist-credentials: false
+      - name: Checkout nika-spec (Leg A differential corpus · judged at SPEC_PIN)
+        # npm-pack.sh runs the crate's full test suite, whose Leg A
+        # differential is NOT env-gated — without a spec checkout it panics
+        # on this runner (same idiom as diamond-ci's tests + wasm legs).
+        run: |
+          set -euo pipefail
+          pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"
+          # the corpus must stay content-addressed — a branch name here
+          # would make the judged input float
+          [[ "$pin" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::SPEC_PIN is not a commit sha"
+            exit 1
+          }
+          git clone --filter=blob:none https://github.com/supernovae-st/nika-spec "$GITHUB_WORKSPACE/nika-spec"
+          git -C "$GITHUB_WORKSPACE/nika-spec" checkout --detach "$pin"
+      - name: Install the wasm toolchain (binder at the lock's version · pinned binaryen)
+        run: |
+          set -euo pipefail
+          rustup target add wasm32-unknown-unknown
+          # the binder follows Cargo.lock — npm-pack.sh refuses a mismatch,
+          # so this install reads the version FROM the lock (one source).
+          # cargo install over a prebuilt fetch: slower, but a release train
+          # pays minutes for certainty (three first-exercise failures in
+          # this file's history argue the point).
+          v="$(grep -A1 'name = "wasm-bindgen"$' Cargo.lock | sed -n 's/version = "\(.*\)"/\1/p')"
+          cargo install wasm-bindgen-cli@"$v" --locked
+          # binaryen pinned by sha, unpacked OUTSIDE the checkout — a PATH
+          # entry rooted in repo content would let any tree carrying
+          # binaryen-version_131/bin/<name> shadow system tools. -f matters:
+          # without it an HTTP error body lands in the file and surfaces as
+          # a confusing checksum mismatch instead of a named failure.
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/binaryen.tar.gz" https://github.com/WebAssembly/binaryen/releases/download/version_131/binaryen-version_131-x86_64-linux.tar.gz
+          echo "b5bf1f0eaf17c63ee588ff7a5954dc8f6ce2c26989051c66f24dfe9ece3e46db  $RUNNER_TEMP/binaryen.tar.gz" | sha256sum -c
+          tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_131/bin" >> "$GITHUB_PATH"
+      - name: Pack (tests · wasm-release build · bindgen · wasm-opt · projected manifest)
+        env:
+          NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
+        run: bash crates/nika-check-wasm/npm-pack.sh
+      - name: The packed version IS the released version
+        # asserted BEFORE anything leaves this job — npm versions are
+        # immutable and release assets are public, so a wrong version must
+        # die here, not after an upload. Equality subsumes the -dev case
+        # (a suffixed version can never equal the tag's).
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          packed="$(python3 -c 'import json;print(json.load(open("crates/nika-check-wasm/dist-npm/package.json"))["version"])')"
+          [ "$packed" = "$VERSION" ] || {
+            echo "::error::packed ${packed} ≠ released ${VERSION}"
+            exit 1
+          }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-tarball
+          path: |
+            crates/nika-check-wasm/dist-npm/*.tgz
+            crates/nika-check-wasm/dist-npm/*.tgz.sha256
+          if-no-files-found: error
+
+  npm-wasm-publish:
+    # The ELEVATED half — runs zero third-party code: download, gh, npm on
+    # a pinned toolchain. The tarball is attached + attested BEFORE the
+    # publish attempt so a credential-less run still ships the exact
+    # publish-ready bytes.
+    name: npm publish (nika-check-wasm)
+    needs: [release, npm-wasm-pack]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # attach the npm tarball + sha256 to the release
+      id-token: write # npm --provenance (Sigstore OIDC) + build attestation
+      attestations: write # publish the tarball's build-provenance attestation
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          # node 24 bundles npm ≥ 11.5.1 — npm is the component that
+          # GENERATES the provenance attestation, and the runner default
+          # (npm 10) is both unpinned and too old for the OIDC follow-up.
+          # setup-node also writes the .npmrc as an env REFERENCE, so the
+          # token never touches the filesystem in cleartext.
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Attach the tarball + sha256 to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # --clobber: a workflow_dispatch rebuild of a tag is a supported
+          # path in this file — a re-run must not go red on its own assets
+          gh release upload "$TAG" --repo "$REPO" --clobber ./*.tgz ./*.tgz.sha256
+      - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: '*.tgz'
+      - name: Publish to npm — loud-skip without a credential
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::warning::NPM_TOKEN unset — npm publish skipped. The tarball on the release is publish-ready (npm publish <tgz> --access public — provenance only exists on this train), or add the credential and re-dispatch this tag."
+            echo "npm publish **skipped** (no credential) — the attached tarball is publish-ready" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # idempotent on re-dispatch: an already-published version is a
+          # notice, not a failure (npm versions are immutable anyway)
+          if npm view "@supernovae-st/nika-check-wasm@${VERSION}" version > /dev/null 2>&1; then
+            echo "::notice::@supernovae-st/nika-check-wasm@${VERSION} already on npm — nothing to publish"
+            exit 0
+          fi
+          # publish the TARBALL, not a directory — the bytes on npm are
+          # byte-identical to the attached + attested release asset (and a
+          # tarball publish runs zero lifecycle scripts, by npm's own code)
+          npm publish ./*.tgz --provenance --access public
+          # the byte-equality claim, gated instead of asserted: registry
+          # integrity must equal the tarball we attested
+          want="$(npm view "@supernovae-st/nika-check-wasm@${VERSION}" dist.integrity)"
+          have="sha512-$(openssl dgst -sha512 -binary ./*.tgz | base64 -w 0)"
+          [ "$want" = "$have" ] || {
+            echo "::error::registry bytes ≠ published tarball"
+            exit 1
+          }
+          echo "published \`@supernovae-st/nika-check-wasm@${VERSION}\` (npm provenance attached · registry bytes verified)" >> "$GITHUB_STEP_SUMMARY"
+
   docker:
     # The official multi-arch image (#442) — one image unblocks Dokploy /
     # Coolify / Railway templates + the Docker MCP Registry. Fed from the
@@ -377,6 +538,8 @@ jobs:
       packages: write # push to ghcr.io — scoped to THIS job only
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts

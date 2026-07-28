@@ -26,6 +26,11 @@ use nika_schema::raw::RawTask;
 use nika_schema::source::Spanned;
 use nika_schema::types::OnErrorAction;
 
+/// Above this many candidate ids, unresolved-edge findings stop carrying a
+/// did-you-mean (the O(n²·L²) wall — see the budget note in the function).
+/// Real workflows sit far under it; only adversarial generators cross it.
+const MAX_SUGGEST_CANDIDATES: usize = 256;
+
 /// `NIKA-DAG-002` — collect unresolved edge targets (`after:` entries
 /// and `with:` references naming a task that does not exist).
 pub(super) fn check_edge_targets_resolve(
@@ -33,17 +38,28 @@ pub(super) fn check_edge_targets_resolve(
     ids: &BTreeMap<String, usize>,
     errors: &mut Vec<SchemaError>,
 ) {
+    // THE SUGGESTION BUDGET (Gate-11 security finding F2). did_you_mean runs
+    // Damerau-Levenshtein against EVERY task id; n unknown refs × n ids is
+    // O(n²·L²), and MAX_TASKS is 10,000 — measured 28s of synchronous CPU
+    // native, ~80s in wasm, inside the declared caps. The suggestion is a
+    // NICETY, never the verdict: past the budget the finding still fires,
+    // it just stops guessing. 256 ids × a typo'd ref stays instant; a
+    // 10,000-task adversarial file stops being a CPU bomb.
+    let suggest: &dyn Fn(&str) -> Option<String> = if ids.len() <= MAX_SUGGEST_CANDIDATES {
+        &|target| {
+            nika_types::suggest::did_you_mean(target, ids.keys().map(String::as_str))
+                .map(str::to_owned)
+        }
+    } else {
+        &|_| None
+    };
     for task in tasks {
         for (target, _pred) in &task.value.after {
             if !ids.contains_key(&target.value) {
                 errors.push(SchemaError::UnknownDependency {
                     from: task.value.id.value.clone(),
                     to: target.value.clone(),
-                    suggestion: nika_types::suggest::did_you_mean(
-                        &target.value,
-                        ids.keys().map(String::as_str),
-                    )
-                    .map(str::to_owned),
+                    suggestion: suggest(&target.value),
                     span: Some(target.span),
                 });
             }
@@ -58,11 +74,7 @@ pub(super) fn check_edge_targets_resolve(
                     errors.push(SchemaError::UnknownDependency {
                         from: task.value.id.value.clone(),
                         to: id.clone(),
-                        suggestion: nika_types::suggest::did_you_mean(
-                            &id,
-                            ids.keys().map(String::as_str),
-                        )
-                        .map(str::to_owned),
+                        suggestion: suggest(&id),
                         span: Some(value.span),
                     });
                 }
