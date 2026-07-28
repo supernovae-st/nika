@@ -186,10 +186,47 @@ otherwise, in this order:
   never break out) · no implicit shell: pipes, redirects and globs go
   in `shell:` explicitly · `capture: stdout|stderr|combined|structured`
   · **last resort**: run the native-first interrogation first (below)
-- `invoke:` — a builtin or MCP tool (`tool`, `args`) · HTTP fetch is
-  `tool: "nika:fetch"`, a tool, not a verb
+- `invoke:` — a tagged union carrying EXACTLY ONE of `tool:` or
+  `workflow:`, plus `args:`. `tool:` reaches a builtin or an MCP tool
+  (HTTP fetch is `tool: "nika:fetch"`, a tool, not a verb);
+  `workflow:` calls a whole other workflow (below). Both, or neither,
+  is a parse error — two targets is two meanings
 - `agent:` — a bounded multi-turn loop (`prompt`, `tools` allowlist,
   `max_turns`, `max_tokens_total`)
+
+## Composition (a workflow is callable)
+
+A job too big for one file becomes a parent that calls children. The
+child is a normal workflow; the parent reaches it through the verb it
+already knows:
+
+```yaml
+tasks:
+  audit:
+    invoke:
+      workflow: "./audits/site-audit.nika.yaml"
+      args:
+        url: "${{ inputs.target }}"
+    returns: AuditReport
+```
+
+Two laws make the call graph drawable before anything runs:
+
+- The target is STATIC — a literal path, or a pinned
+  `registry:owner/name@version`. A `${{ }}`-templated target refuses
+  `NIKA-COMP-001`: a call graph you cannot draw before the run is a
+  call graph you cannot bound.
+- `invoke:` carries exactly one target. `tool:` and `workflow:`
+  together is the same refusal class as two verbs on one task.
+
+The child's typed `outputs:` compose through `returns:` — declared
+once in the child, never re-declared in the parent. Effects, budgets
+and the permits boundary are inherited by the child, so a parent
+cannot widen what its children may touch by calling them.
+
+Reach for composition when a workflow has two audiences (a reusable
+audit any project can call) or when one file stops fitting in a
+reviewer's head. Do NOT reach for it to avoid writing a task.
 
 ## Native-first (the law)
 
