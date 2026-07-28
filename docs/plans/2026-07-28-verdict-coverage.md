@@ -257,3 +257,95 @@ verdict. Every finding above is an instance of that contradiction, and
 a corpus-level oracle is what makes the seventh one impossible to ship
 unnoticed — which is the only guarantee worth having, since all six of
 these shipped past reviewers who were reading carefully.
+
+---
+
+# F7 · the cost ceiling prices half the bill
+
+Found 2026-07-28, after the six above, while checking a claim about
+`max_turns` that turned out to be wrong. The correction found this.
+
+## What was claimed, and refuted
+
+I asserted that `07-conformance.md`'s cost ceiling was false because an
+`agent:` loop is unbounded. **Refuted at two lines:**
+
+- `spec/02-verbs.md:328` — `max_turns` carries a **default of 10**.
+- `crates/nika-check/src/cost.rs:141` — an `agent:` with no
+  `max_tokens_total` resolves to `UnboundedReason::NoTokenLimit`, and
+  the report says `est unbounded`. The engine was honest.
+
+The claim was wrong. Measuring it found the real one.
+
+## The defect
+
+`crates/nika-check/src/cost.rs:144-148` computes
+
+```rust
+let per_call = (tokens as f64) * price / 1_000_000.0;
+```
+
+where `price` comes from `output_price_per_million`. And
+`spec/02-verbs.md:93` defines the field it multiplies:
+
+> `max_tokens` — Max **output** tokens
+
+**`input_per_million` has zero occurrences in `crates/nika-check/src/`.**
+The prompt is not in the ceiling. Not underweighted — absent.
+
+## The measurement
+
+```yaml
+grab:      invoke: { tool: "nika:fetch", args: { url: models.dev/api.json, mode: raw } }
+summarise: infer:  { model: anthropic/claude-sonnet-4-5, max_tokens: 500,
+                     prompt: "Summarise this.\n\n${{ with.body }}" }
+```
+
+| | |
+|---|---|
+| document | 3 275 066 bytes |
+| ≈ input tokens | 818 766 |
+| `input_per_million` for that model | **3.0** — in the catalog, four lines above the output price the ceiling reads |
+| real input cost | **$2.4563** |
+| what check prints | `✔ COST  $0.0075 – $0.0075 worst-case ceiling` |
+| ratio | **328×** |
+
+The line carries a ✔ and the words *worst-case*.
+
+## The second defect in the same repro
+
+818 766 tokens against a 200 000-token context window: the call is 4.1×
+over and would be refused by the provider. Nothing in the report says
+so. `limit.context` is available for 653/653 of our models upstream and
+is not read either.
+
+## Why it is structural, not an oversight
+
+The ceiling is defined over what the AUTHOR declares (`max_tokens`), and
+the input size is a property of what the workflow FETCHES — a runtime
+value. Pricing it requires a static estimate of interpolated content,
+which is genuinely hard. Three honest options:
+
+1. **Narrow the claim.** The line says *output ceiling*, not
+   *worst-case spend*. Zero new machinery, and the promise stops lying.
+   Per the governing law this is always available and always correct.
+2. **Bound what is boundable.** A literal prompt has a known token
+   count; only interpolated content is unknown. Report
+   `output ceiling $X · input ≥ $Y (literal) · unbounded (2 interpolations)`.
+3. **Refuse the unbounded case.** An `infer:` whose prompt interpolates
+   an unbounded source declares a `max_input_tokens:`, or the ceiling
+   reports unbounded — the same discipline `max_tokens_total` already
+   imposes on the agent loop, applied to the other half.
+
+Option 1 ships today and is a prerequisite of the others: whatever the
+machinery becomes, a verdict must not claim the whole bill while
+covering one side of it. Option 3 is the end-state, and it is the same
+shape as every other bound in this language — declared in the file,
+checked before the run.
+
+## Rank
+
+**P0, above every previously ordered item.** It is money, it is a ✔, and
+the number it prints is off by two orders of magnitude on a shape
+(fetch a document, summarise it) that is the single most common thing a
+person writes first.
