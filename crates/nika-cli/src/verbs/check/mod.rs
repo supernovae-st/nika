@@ -892,7 +892,7 @@ mod tests {
     /// task in that total is priced at its own token cap, so a run bills
     /// under it routinely (measured: $0.000242 against `≥$0.0305`). It
     /// also contradicted the COST section three lines above, which says
-    /// `≤N tk` per task and labels its range "worst-case ceiling".
+    /// `≤N tk` per task and labels its range "worst-case output ceiling".
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
         let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
@@ -921,6 +921,37 @@ mod tests {
             text.contains("0 hints") && !text.contains("0 hint·"),
             "{text}"
         );
+    }
+
+    /// The report must not teach a form the engine refuses.
+    ///
+    /// A painted literal is an ARGUMENT to `writeln!`, not part of its
+    /// format string, so `{{}}` inside one is not unescaped — it reaches
+    /// the terminal doubled. The zero-authority PERMITS line shipped that
+    /// way, and `permits: {{}}` is refused by YAML itself (a mapping used
+    /// as a key), so one line taught an unparseable form while the HINT
+    /// one row below printed the right one: two lines of the same output
+    /// disagreeing.
+    ///
+    /// The kit already carries this law for what IT teaches
+    /// (`the_kit_never_teaches_a_form_the_engine_refuses` in
+    /// `nika-onboard`). The engine's own diagnostics were outside it.
+    /// This closes that half, and closes the CLASS rather than the
+    /// instance: no doubled brace anywhere in a rendered report.
+    #[test]
+    fn the_report_never_teaches_a_doubled_brace() {
+        let pure = "nika: v1\nworkflow:\n  id: pure\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        expr: \".n\"\n        input: { n: 1 }\n";
+        for ascii in [false, true] {
+            let text = checked_text("doubled-brace.nika.yaml", pure, ascii);
+            assert!(
+                text.contains("`permits: {}` states it"),
+                "the zero-authority line names the form YAML accepts (ascii={ascii}): {text}"
+            );
+            assert!(
+                !text.contains("{{") && !text.contains("}}"),
+                "no doubled brace reaches the terminal (ascii={ascii}): {text}"
+            );
+        }
     }
 
     /// When conformance FAILS there is no valid DAG, so PLAN announces the skip

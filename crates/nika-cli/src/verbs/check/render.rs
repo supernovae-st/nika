@@ -701,6 +701,26 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
         );
         return;
     }
+    // OUTPUT ceiling, and the word is load-bearing. `cost::ceiling` prices
+    // `max_tokens`, which the spec defines as "Max OUTPUT tokens"
+    // (02-verbs §infer), against `output_price_per_million`. The prompt is
+    // not underweighted in that sum — it is absent, and
+    // `input_per_million` has no reader anywhere in `nika-check`.
+    //
+    // The gap is not academic. Measured 2026-07-28 on the most common shape
+    // a person writes first — fetch a document, summarise it: a 3.2 MB body
+    // interpolated into one prompt is ~818k input tokens, $2.4563 at that
+    // model's published input rate, against a line reading $0.0075. 328x,
+    // under a green mark, with the input price sitting four lines above the
+    // output price the sum reads in the same catalog block.
+    //
+    // Pricing it properly needs a static bound on interpolated content,
+    // which is real work (the shape is the one `for_each` already uses:
+    // literal is known, expression is unbounded). Until that lands the
+    // verdict NARROWS instead of overreaching — a claim that covers what it
+    // computes is always available, and is the only honest thing to print
+    // while the other half has no bound.
+    //
     // Unbounded cost is a WARNING posture (is_clean ignores it): the
     // report stays honest about the floor without failing the file.
     let (cost_mark, bound) = if report.cost.has_unbounded {
@@ -709,7 +729,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             t.paint(Role::Warn, "FLOOR (unbounded tasks present)"),
         )
     } else {
-        (mark(t, true), "worst-case ceiling".to_owned())
+        (mark(t, true), "worst-case output ceiling".to_owned())
     };
     // The price table's date rides WITH the number. A ceiling is a
     // promise, and a promise computed against prices that have since
@@ -733,7 +753,10 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
                 report.cost.min_path_total_usd, report.cost.bounded_total_usd
             )
         ),
-        t.paint(Role::Dim, &format!("· prices {}", snap.as_of)),
+        t.paint(
+            Role::Dim,
+            &format!("· prompts unpriced · prices {}", snap.as_of)
+        ),
     );
     for c in &report.cost.tasks {
         let model = c.model.as_deref().unwrap_or("?");
@@ -784,9 +807,15 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
             " {} {}  {}",
             t.paint(Role::Dim, "○"),
             t.paint(Role::Strong, "PERMITS"),
+            // `{}` and NOT `{{}}`: this literal is an ARGUMENT to `writeln!`,
+            // not part of its format string, so braces are not unescaped
+            // here. The doubled form shipped, and it is not a cosmetic slip —
+            // `permits: {{}}` is refused by YAML itself, so the line taught a
+            // form no parser accepts while the HINT one row below printed the
+            // right one. Two lines of the same output disagreeing.
             t.paint(
                 Role::Dim,
-                "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {{}}` states it"
+                "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {}` states it"
             )
         );
         return;
