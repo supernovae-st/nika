@@ -268,9 +268,38 @@ The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
    (build tools · git · a product CLI with no MCP surface yet) and
    goes in the ledger.
 
-Never write a helper script (`node bin/helper.mjs …`) that wraps
-HTTP/files/JSON — that is `native-first/005`, the exact failure class
-this law exists for.
+Never write a helper script (`node bin/helper.mjs …`, `python3
+bin/thing.py …`) that wraps HTTP/files/JSON — that is
+`native-first/005`, the exact failure class this law exists for.
+
+### When the boundary pushes back (the reason glue gets written)
+
+Two refusals send authors reaching for a scripting language. Neither
+one wants a script; both have a native recipe.
+
+**`NIKA-SEC-004` — a tainted value cannot ride `exec` argv.** An
+`inputs:`-supplied or fetched value on a command line is a shell-shaped
+injection surface, so the boundary refuses it. The move is NOT a reader
+script. **Stage the value to a file, and pass the PATH as argv:**
+
+1. shape it with `nika:jq` if it needs a form,
+2. land it with `nika:write` (a `const:` path),
+3. call the CLI with that path — `exec: { command: [cli, render, "./tmp/job.yaml"] }`.
+
+Every argv element is now a literal the boundary can verify, and the
+tainted value never touches a command line. Most CLIs already have this
+door: a template, a config file, a `@file` argument. Prefer it over any
+flag that takes the value inline.
+
+**`NIKA-SEC-009` — the trifecta.** Untrusted input, private data and an
+egress in one task is refused as a shape, not as an accident. The move
+is to keep the trifecta INCOMPLETE rather than to smuggle a leg through
+a subprocess: take the fetched value as `nika:fetch` metadata or text
+and do NOT add an `fs.read` of local content in the same flow.
+
+If a genuine gap survives both recipes, `exec:` is legitimate — name the
+exact missing capability in the ledger. A helper that exists to dodge a
+refusal is the refusal winning.
 
 ## Exec ledger (mandatory when any exec remains)
 
