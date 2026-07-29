@@ -581,4 +581,98 @@ mod tests {
         assert!(!list(PLAIN).text.contains('\x1b'));
         assert!(!show("01-hello", PLAIN).text.contains('\x1b'));
     }
+
+    /// The coverage ratchet, constructs leg. Every construct the index
+    /// knows must have a corpus file showing it — a construct with no
+    /// example is, for an author who learns from examples, a construct
+    /// the language does not have (measured: examples beat the prose
+    /// reference 8 check-fix rounds to 0). At 16/16 since the four
+    /// zero-coverage lessons landed; the 17th key cannot ship uncovered
+    /// because this is what refuses.
+    #[test]
+    fn every_construct_has_a_showcase() {
+        let gaps: Vec<&str> = index()
+            .into_iter()
+            .filter(|(_, _, files)| files.is_empty())
+            .map(|(key, _, _)| key)
+            .collect();
+        assert!(
+            gaps.is_empty(),
+            "constructs with no example — write the lesson in the same arc as the key: {gaps:?}"
+        );
+    }
+
+    /// The coverage ratchet, builtins leg — the same gate the kit has
+    /// (`the_kit_never_teaches_a_form_the_engine_refuses`), pointed the
+    /// other way: the corpus must SHOW what the engine ships. Four ride a
+    /// named debt; a 29th builtin cannot join silently, and a debt paid
+    /// by a new lesson must be struck from the list in the same arc.
+    #[test]
+    fn every_builtin_is_shown_or_carries_a_named_debt() {
+        // Each entry: why the gap is tolerated TODAY + the showcase owed.
+        const OWED: &[(&str, &str)] = &[
+            (
+                "compose",
+                "the agent loop's self-verification intrinsic (ADR-096) — owes \
+                 the lesson where a loop checks the workflow it just wrote",
+            ),
+            (
+                "decide",
+                "the deterministic decision kernel (spec 11 · W-DEC) — the \
+                 costliest gap: an agent that never sees it pays a model call \
+                 for an `if`",
+            ),
+            (
+                "inspect",
+                "cost · records · dag_info · threads behind one door (ADR-088) \
+                 — owes the lesson where a run reads itself",
+            ),
+            (
+                "tts_generate",
+                "the audio graduate — a showcase gap, not a logic gap",
+            ),
+        ];
+        let mut bodies = String::new();
+        for slug in nika_pack::example_slugs() {
+            bodies.push_str(nika_pack::example(&slug).unwrap_or_default());
+            bodies.push('\n');
+        }
+        for name in nika_pack::template_names() {
+            bodies.push_str(nika_pack::template(&name).unwrap_or_default());
+            bodies.push('\n');
+        }
+        // Shown = the token `nika:<name>` anywhere in a corpus body, closed
+        // on the right so `nika:json_diff` never credits a longer name. A
+        // comment counts: naming the tool in a teaching comment still puts
+        // it in the reader's reach (same semantics as the 24/28 measure).
+        let shown = |name: &str| {
+            let tok = format!("nika:{name}");
+            bodies.match_indices(&tok).any(|(i, _)| {
+                !bodies[i + tok.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+            })
+        };
+        let mut orphans = Vec::new();
+        let mut paid = Vec::new();
+        for b in nika_catalog::all_builtins() {
+            let owed = OWED.iter().any(|(n, _)| *n == b.name);
+            match (shown(b.name), owed) {
+                (false, false) => orphans.push(b.name),
+                (true, true) => paid.push(b.name),
+                _ => {}
+            }
+        }
+        assert!(
+            orphans.is_empty(),
+            "builtins with no corpus showcase and no named debt — add the \
+             example or write the debt into OWED: {orphans:?}"
+        );
+        assert!(
+            paid.is_empty(),
+            "owed builtins that now HAVE a showcase — tighten the ratchet, \
+             strike them from OWED: {paid:?}"
+        );
+    }
 }
