@@ -29,6 +29,9 @@ pub(crate) struct Probe {
     pub config_path: Option<String>,
     pub providers: Vec<ProviderProbe>,
     pub clients: Vec<ClientProbe>,
+    /// Installed plugin-kit surfaces (found only — absence is silence,
+    /// the kit is optional).
+    pub kits: Vec<KitProbe>,
     /// The `nika:image_generate` plane — key/URL PRESENCE only.
     pub image: ImageProbe,
     /// The `nika:tts_generate` plane — key/URL PRESENCE only.
@@ -91,6 +94,16 @@ pub(crate) struct ImageProbe {
     pub local_url: Option<String>,
 }
 
+/// One installed plugin-kit surface (the nika-agents bundle a client
+/// cloned): which client landed it and the version its manifest
+/// declares. Found kits only — a client without the kit is not a
+/// finding (the MCP wire via `nika wire` needs no kit).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct KitProbe {
+    pub client: String,
+    pub version: String,
+}
+
 /// Agent/editor MCP wiring facts — config presence only, not file contents in
 /// the rendered report.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +134,7 @@ pub(crate) fn collect(ping: bool) -> Probe {
         config_path: config_path(),
         providers,
         clients: client_probes(),
+        kits: kit_probes(),
         image: ImageProbe {
             openai_key: env_present("NIKA_OPENAI_API_KEY") || env_present("OPENAI_API_KEY"),
             gemini_key: env_present("NIKA_GEMINI_API_KEY") || env_present("GEMINI_API_KEY"),
@@ -205,6 +219,118 @@ fn client_probes() -> Vec<ClientProbe> {
         &["servers", "nika"],
     ));
     probes
+}
+
+/// The known kit landings (`update-mirrors.sh` in nika-agents climbs the
+/// same ladder). Each client is probed at the rung its SESSIONS load —
+/// the install, not the clone — because that is the drift the operator
+/// lives (empirical 2026-07-29: a fresh clone sat next to a 0.105
+/// install on all three clients of one machine):
+///   cursor · the local drop manifest (marketplace installs self-manage)
+///   claude · `installed_plugins.json`, the install rung of record
+///            (fallback: the marketplace clone's manifest)
+///   codex  · the highest per-version cache dir under `plugins/cache`
+///            (fallback: the marketplace clone's manifest)
+/// Presence + one version string per client — nothing else is read, an
+/// unreadable surface is silence.
+fn kit_probes() -> Vec<KitProbe> {
+    let Some(home) = home_dir() else {
+        return Vec::new();
+    };
+    let kit = |client: &str, version: String| KitProbe {
+        client: client.to_owned(),
+        version,
+    };
+    let mut out = Vec::new();
+    if let Some(v) = manifest_version(
+        &home
+            .join(".cursor")
+            .join("plugins")
+            .join("local")
+            .join("nika")
+            .join(".claude-plugin")
+            .join("plugin.json"),
+    ) {
+        out.push(kit("cursor", v));
+    }
+    let claude_clone = home
+        .join(".claude")
+        .join("plugins")
+        .join("marketplaces")
+        .join("nika")
+        .join(".agents")
+        .join("plugins")
+        .join("nika")
+        .join(".claude-plugin")
+        .join("plugin.json");
+    if let Some(v) = claude_installed_version(&home.join(".claude").join("plugins"))
+        .or_else(|| manifest_version(&claude_clone))
+    {
+        out.push(kit("claude", v));
+    }
+    let codex_clone = home
+        .join(".codex")
+        .join(".tmp")
+        .join("marketplaces")
+        .join("nika")
+        .join(".agents")
+        .join("plugins")
+        .join("nika")
+        .join(".claude-plugin")
+        .join("plugin.json");
+    if let Some(v) = codex_cache_version(
+        &home
+            .join(".codex")
+            .join("plugins")
+            .join("cache")
+            .join("nika")
+            .join("nika"),
+    )
+    .or_else(|| manifest_version(&codex_clone))
+    {
+        out.push(kit("codex", v));
+    }
+    out
+}
+
+/// The `version` field of one plugin manifest — presence-only read.
+fn manifest_version(path: &Path) -> Option<String> {
+    read_json(path)?.get("version")?.as_str().map(str::to_owned)
+}
+
+/// Claude Code's install rung of record: `installed_plugins.json` maps
+/// `nika@nika` to its ACTIVE entries (the cache retains old version
+/// dirs, so the JSON — not a dir listing — is the truth).
+fn claude_installed_version(plugins_dir: &Path) -> Option<String> {
+    let json = read_json(&plugins_dir.join("installed_plugins.json"))?;
+    json.get("plugins")?
+        .get("nika@nika")?
+        .as_array()?
+        .iter()
+        .find_map(|e| Some(e.get("version")?.as_str()?.to_owned()))
+}
+
+/// Codex's install rung: the per-version cache keeps one dir per kit
+/// version — the highest semver dirname is what the next session loads.
+fn codex_cache_version(cache_dir: &Path) -> Option<String> {
+    let entries = std::fs::read_dir(cache_dir).ok()?;
+    entries
+        .filter_map(|e| {
+            let name = e.ok()?.file_name().into_string().ok()?;
+            version_key(&name).map(|key| (key, name))
+        })
+        .max()
+        .map(|(_, name)| name)
+}
+
+/// Lenient `(major, minor, patch)` ordering key — a dirname that does
+/// not start `N.N` is not a version dir (a missing patch reads 0).
+fn version_key(v: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = v.split('.');
+    let maj = parts.next()?.parse().ok()?;
+    let min = parts.next()?.parse().ok()?;
+    let patch = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+    Some((maj, min, patch))
 }
 
 pub(crate) fn client_probe_any(
@@ -354,6 +480,11 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
         .iter()
         .map(|c| serde_json::json!({ "id": c.id, "wired": c.current }))
         .collect();
+    let kits: Vec<serde_json::Value> = probe
+        .kits
+        .iter()
+        .map(|k| serde_json::json!({ "client": k.client, "version": k.version }))
+        .collect();
     let locals: Vec<&str> = probe
         .providers
         .iter()
@@ -368,6 +499,7 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
     let total = probe.providers.iter().filter(|p| p.requires_key).count();
     serde_json::json!({
         "clients": clients,
+        "kits": kits,
         "local_providers": locals,
         "models_pulled": probe.models.count,
         "models_bytes": probe.models.bytes,
@@ -390,6 +522,77 @@ fn config_path() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[allow(clippy::disallowed_methods)]
+    fn temp_dir(name: &str) -> PathBuf {
+        let base = std::env::var_os("CARGO_TARGET_TMPDIR").map_or_else(
+            || {
+                std::env::current_dir()
+                    .expect("current dir")
+                    .join("target")
+                    .join("tmp")
+            },
+            PathBuf::from,
+        );
+        let dir = base.join(format!("nika-probe-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    #[test]
+    fn manifest_version_reads_the_one_field() {
+        let dir = temp_dir("manifest");
+        let path = dir.join("plugin.json");
+        std::fs::write(&path, r#"{"name":"nika","version":"0.106.0"}"#).expect("fixture");
+        assert_eq!(manifest_version(&path).as_deref(), Some("0.106.0"));
+        assert_eq!(manifest_version(&dir.join("absent.json")), None);
+        std::fs::write(&path, "not json").expect("fixture");
+        assert_eq!(manifest_version(&path), None, "unreadable is silence");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn claude_install_rung_is_the_json_of_record() {
+        let dir = temp_dir("claude-install");
+        std::fs::write(
+            dir.join("installed_plugins.json"),
+            r#"{"version":2,"plugins":{"nika@nika":[{"scope":"user","version":"0.105.0"}],
+                "other@x":[{"version":"9.9.9"}]}}"#,
+        )
+        .expect("fixture");
+        assert_eq!(
+            claude_installed_version(&dir).as_deref(),
+            Some("0.105.0"),
+            "the ACTIVE entry, never another plugin's"
+        );
+        assert_eq!(claude_installed_version(&temp_dir("claude-empty")), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn codex_cache_picks_the_highest_version_numerically() {
+        let dir = temp_dir("codex-cache");
+        for d in ["0.9.0", "0.105.0", "0.104.2", "tmp", "0.105"] {
+            std::fs::create_dir_all(dir.join(d)).expect("fixture dir");
+        }
+        // 0.9.0 > 0.105.0 lexically — numeric ordering is the assertion.
+        assert_eq!(codex_cache_version(&dir).as_deref(), Some("0.105.0"));
+        assert_eq!(codex_cache_version(&dir.join("absent")), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn version_key_is_numeric_and_rejects_non_versions() {
+        assert!(version_key("0.105.0") > version_key("0.9.0"));
+        assert_eq!(
+            version_key("0.105"),
+            Some((0, 105, 0)),
+            "missing patch reads 0"
+        );
+        assert_eq!(version_key("tmp"), None);
+        assert_eq!(version_key("1"), None, "a version needs major.minor");
+    }
 
     #[test]
     fn iso_to_epoch_days_civil_math() {

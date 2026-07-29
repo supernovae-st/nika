@@ -425,6 +425,7 @@ mod tests {
                     stale: false,
                 },
             ],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -595,6 +596,7 @@ mod tests {
                 .into_iter()
                 .map(client)
                 .collect(),
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
