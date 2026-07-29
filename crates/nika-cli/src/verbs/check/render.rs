@@ -87,6 +87,7 @@ pub(super) fn render(
         section_list(&mut out, t, "SKILLS", &ok_msg, rows);
     }
     cost(&mut out, report, t);
+    energy(&mut out, report, t);
 
     narrowed_rungs(&mut out, report, t);
     composition_rung(&mut out, report, wf, t);
@@ -970,6 +971,231 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     }
 }
 
+/// One measured energy row — a task whose cap AND sourced figure both
+/// exist, so a ceiling is claimable (`cap × iterations × attempts ×
+/// Wh/Mtok` — the COST section's own worst-case shape).
+struct MeasuredEnergy {
+    task: String,
+    model: String,
+    per_call_tokens: u64,
+    wh: f64,
+    provenance: &'static str,
+    scope: &'static str,
+    measured_at: &'static str,
+}
+
+/// `≤ N Wh` at a ceiling-honest display grain: a tiny bound rounds UP
+/// to 0.001 — this rung never prints `0.0 Wh` (a zero would claim free
+/// inference · NEP-0018 « unknown stays unknown »).
+fn fmt_wh(wh: f64) -> String {
+    if wh >= 1.0 {
+        format!("{wh:.1}")
+    } else {
+        format!("{:.3}", (wh * 1000.0).ceil() / 1000.0)
+    }
+}
+
+/// The five sovereign local runtimes — their draw is the operator's
+/// wall, unpriced by design (never « free », never `0 Wh`).
+const LOCAL_PREFIXES: [&str; 5] = ["ollama/", "lmstudio/", "llamacpp/", "localai/", "vllm/"];
+
+/// The ENERGY reading (NEP-0018 · nika-spec `governance/`) — cost
+/// honesty transposed to watt-hours over the catalog's sourced facts
+/// (`ModelEnergy` · Wh per million OUTPUT tokens · provenance × scope
+/// axes). Same ladder as COST, same four words:
+///
+/// - a **ceiling** (`≤ N Wh`) only where BOTH a `max_tokens` cap and a
+///   sourced figure exist — measured rows render with their axes, so
+///   two honest numbers stay comparable;
+/// - **UNBOUNDED** tasks are counted here and NAMED at COST three lines
+///   up (same tasks, same reasons — one voice, no double list);
+/// - a model without a figure is **unpriced**, never `0 Wh`;
+/// - figures sum ONLY within one scope axis (a gpu-only figure is
+///   roughly half a fleet figure for the same model — a cross-scope sum
+///   is silently incomparable, so a mix names itself and claims no
+///   total).
+fn energy(out: &mut String, report: &CheckReport, t: Theme) {
+    if report.cost.tasks.is_empty() {
+        return; // no infer/agent tasks — the ladder says so at COST
+    }
+    let mut measured: Vec<MeasuredEnergy> = Vec::new();
+    let (mut unpriced, mut unpriced_local, mut uncapped) = (0usize, 0usize, 0usize);
+    for c in &report.cost.tasks {
+        let unknown_iters = matches!(c.unbounded_reason, Some(UnboundedReason::UnknownIterations));
+        let Some(tokens) = c.max_tokens.filter(|_| !unknown_iters) else {
+            uncapped += 1;
+            continue;
+        };
+        let model = c.model.as_deref().unwrap_or("?");
+        let figure = nika_catalog::find_pricing_for(model).and_then(|p| p.energy.as_ref());
+        let Some(e) = figure else {
+            unpriced += 1;
+            if LOCAL_PREFIXES.iter().any(|p| model.starts_with(p)) {
+                unpriced_local += 1;
+            }
+            continue;
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let wh = (tokens as f64)
+            * (c.iterations.max(1) as f64)
+            * (c.attempts as f64)
+            * e.wh_per_mtok_out
+            / 1_000_000.0;
+        measured.push(MeasuredEnergy {
+            task: c.task.clone(),
+            model: model.to_owned(),
+            per_call_tokens: tokens,
+            wh,
+            provenance: e.provenance,
+            scope: e.scope,
+            measured_at: e.measured_at,
+        });
+    }
+    energy_lines(
+        out,
+        &measured,
+        unpriced,
+        unpriced_local,
+        uncapped,
+        report.cost.tasks.len(),
+        t,
+    );
+}
+
+/// The headline + measured rows for [`energy`] (split for the 100-line
+/// function law — classification above, rendering here).
+fn energy_lines(
+    out: &mut String,
+    measured: &[MeasuredEnergy],
+    unpriced: usize,
+    unpriced_local: usize,
+    uncapped: usize,
+    total: usize,
+    t: Theme,
+) {
+    let label = t.paint(Role::Strong, "ENERGY");
+    let scopes: std::collections::BTreeSet<&str> = measured.iter().map(|m| m.scope).collect();
+    let counts = {
+        let mut parts = vec![format!("{} of {} tasks measured", measured.len(), total)];
+        if unpriced > 0 {
+            parts.push(format!("{unpriced} unpriced"));
+        }
+        if uncapped > 0 {
+            parts.push(format!("{uncapped} uncapped"));
+        }
+        parts.join(" · ")
+    };
+    if uncapped > 0 {
+        energy_unbounded_headline(out, measured, &scopes, &counts, t, &label);
+    } else if measured.is_empty() {
+        let local = if unpriced_local > 0 {
+            " · a local model draws your watts"
+        } else {
+            ""
+        };
+        let _ = writeln!(
+            out,
+            " {} {}   {}",
+            t.paint(Role::Dim, "○"),
+            label,
+            t.paint(
+                Role::Dim,
+                &format!(
+                    "unpriced — no sourced Wh figure for any task model{local} · never 0 Wh (NEP-0018)"
+                )
+            ),
+        );
+        return;
+    } else if scopes.len() > 1 {
+        let mix = scopes.iter().copied().collect::<Vec<_>>().join(" + ");
+        let _ = writeln!(
+            out,
+            " {} {}   {} {}",
+            t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
+            label,
+            t.paint(
+                Role::Warn,
+                &format!("mixed scopes ({mix}) — per-task ceilings only")
+            ),
+            t.paint(
+                Role::Dim,
+                &format!("· a cross-scope sum compares nothing · {counts}")
+            ),
+        );
+    } else {
+        let sum: f64 = measured.iter().map(|m| m.wh).sum();
+        let _ = writeln!(
+            out,
+            " {} {}   {} {}",
+            mark(t, true),
+            label,
+            t.paint(
+                Role::Strong,
+                &format!("≤ {} Wh worst-case OUTPUT ceiling", fmt_wh(sum))
+            ),
+            t.paint(
+                Role::Dim,
+                &format!(
+                    "· {} scope · {counts} · prompts unpriced",
+                    scopes.iter().next().copied().unwrap_or("?")
+                )
+            ),
+        );
+    }
+    for m in measured {
+        let _ = writeln!(
+            out,
+            "   {}  {}  ≤{} tk  ≤ {} Wh  {}",
+            m.task,
+            t.paint(Role::Dim, &m.model),
+            m.per_call_tokens,
+            fmt_wh(m.wh),
+            t.paint(
+                Role::Dim,
+                &format!("({} · {} · {})", m.provenance, m.scope, m.measured_at)
+            ),
+        );
+    }
+}
+
+/// The uncapped arm of [`energy_lines`] — the COST rows above already
+/// NAME each uncapped task and why, so this rung claims no total and
+/// says so (one voice, no double list).
+fn energy_unbounded_headline(
+    out: &mut String,
+    measured: &[MeasuredEnergy],
+    scopes: &std::collections::BTreeSet<&str>,
+    counts: &str,
+    t: Theme,
+    label: &str,
+) {
+    let bounded = if measured.is_empty() {
+        String::new()
+    } else if scopes.len() == 1 {
+        let sum: f64 = measured.iter().map(|m| m.wh).sum();
+        format!(
+            "{} ",
+            t.paint(
+                Role::Strong,
+                &format!(
+                    "bounded portion ≤ {} Wh ({} scope)",
+                    fmt_wh(sum),
+                    scopes.iter().next().copied().unwrap_or("?")
+                )
+            )
+        )
+    } else {
+        "per-task ceilings below (mixed scopes) ".to_owned()
+    };
+    let _ = writeln!(
+        out,
+        " {} {label}   {bounded}{} {}",
+        t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
+        t.paint(Role::Warn, "no total energy ceiling"),
+        t.paint(Role::Dim, &format!("· {counts} · never 0 Wh (NEP-0018)")),
+    );
+}
+
 pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     // F-O8 « absent = zero authority »: with no boundary declared AND
     // nothing escaping (pure compute), the panel states the zero —
@@ -1118,5 +1344,22 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
                 ),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod energy_tests {
+    use super::fmt_wh;
+
+    /// The display grain is ceiling-honest: rounding is UP, and the
+    /// floor of the grain is 0.001 — `0.000` would claim free
+    /// inference for a task that does spend.
+    #[test]
+    fn fmt_wh_never_prints_zero_for_a_positive_bound() {
+        assert_eq!(fmt_wh(0.0004), "0.001");
+        assert_eq!(fmt_wh(0.004), "0.004");
+        assert_eq!(fmt_wh(0.087), "0.087");
+        assert_eq!(fmt_wh(2.34), "2.3");
+        assert_eq!(fmt_wh(660.1), "660.1");
     }
 }
