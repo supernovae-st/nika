@@ -78,7 +78,7 @@ mod walk;
 use nika_schema::error::{SpecCategory, SpecCode};
 use nika_schema::raw::RawWorkflow;
 
-pub use analysis::{DagAnalysis, TaskBlast};
+pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
@@ -293,6 +293,14 @@ pub struct CheckReport {
     /// entropy source is used (a `retry:` jitter · the non-hermetic
     /// `nika:uuid` builtin). Additive: `report_version` stays 1.
     pub run_decl_findings: Vec<RunDeclFinding>,
+    /// Every write-write conflict (F-P15 · NEP-0014 law 1 ·
+    /// `NIKA-SEC-011`): two tasks incomparable in the DAG closure whose
+    /// literal `nika:write` paths collide, or a `for_each` fan writing
+    /// one constant path — the last-writer-wins race, refused (an
+    /// ordering edge discharges it). Judged on the derived graph —
+    /// empty when `conformance` has entries. Additive:
+    /// `report_version` stays 1.
+    pub write_conflicts: Vec<WriteConflict>,
     /// Every `nika:` tool that names no canonical builtin (the closed
     /// stdlib catalog — the count lives in `nika-builtin`, never here) —
     /// a runtime dispatch failure moved to check time, with the
@@ -375,6 +383,7 @@ impl CheckReport {
             && self.schema_lints.is_empty()
             && self.gate_findings.is_empty()
             && self.run_decl_findings.is_empty()
+            && self.write_conflicts.is_empty()
             && self.composition.is_empty()
     }
 
@@ -456,6 +465,13 @@ impl CheckReport {
                 .iter()
                 .map(|_| SpecCode::new("PARSE", 28, SpecCategory::ValidationError)),
         );
+        // F-P15 · the write-write law (NEP-0014 law 1) — the security
+        // class: an effect overlap the boundary never sanctioned.
+        codes.extend(
+            self.write_conflicts
+                .iter()
+                .map(|_| SpecCode::new("SEC", 11, SpecCategory::SecurityError)),
+        );
         // Composition lane (spec 14): COMP-002 is the security law
         // (child boundary ⊄ parent); 001/003/004 are validation.
         codes.extend(self.composition.iter().map(|f| match f.code {
@@ -494,6 +510,30 @@ fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, hints: &mut Vec<Hint>)
     }
 }
 
+/// Map one analyzer error to its report-row form (the canonical spec
+/// code · the docs URL · the did-you-mean pair) — extracted from
+/// [`check`] at the fn-length ratchet.
+fn conformance_violation(e: &nika_schema::error::SchemaError) -> ConformanceViolation {
+    let code = e.spec_code().to_string();
+    let docs_url = format!("{ERROR_DOCS_BASE}/{code}");
+    let (offending, suggestion) = match e.rename_repair() {
+        Some((o, s)) => (Some(o), Some(s)),
+        None => (None, None),
+    };
+    ConformanceViolation {
+        code,
+        message: e.to_string(),
+        span: e.span().map(|s| ByteSpan {
+            start: s.start.0,
+            end: s.end.0,
+        }),
+        severity: FindingSeverity::Error,
+        docs_url,
+        offending,
+        suggestion,
+    }
+}
+
 #[must_use]
 pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
@@ -501,29 +541,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             topo_waves, edges, ..
         }) => (Vec::new(), topo_waves, edges),
         Err(errors) => (
-            errors
-                .iter()
-                .map(|e| {
-                    let code = e.spec_code().to_string();
-                    let docs_url = format!("{ERROR_DOCS_BASE}/{code}");
-                    let (offending, suggestion) = match e.rename_repair() {
-                        Some((o, s)) => (Some(o), Some(s)),
-                        None => (None, None),
-                    };
-                    ConformanceViolation {
-                        code,
-                        message: e.to_string(),
-                        span: e.span().map(|s| ByteSpan {
-                            start: s.start.0,
-                            end: s.end.0,
-                        }),
-                        severity: FindingSeverity::Error,
-                        docs_url,
-                        offending,
-                        suggestion,
-                    }
-                })
-                .collect(),
+            errors.iter().map(conformance_violation).collect(),
             Vec::new(),
             Vec::new(),
         ),
@@ -533,7 +551,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     // the analysis is simply skipped, never wrong.
     let flow = flow::analyze_flow(wf, &topo_waves);
     // The engineering read shares the same gating: a valid order or no
-    // claim (its parallel-writers conflicts ride the hints, advisory).
+    // claim (its write-write conflicts ride the dedicated finding class
+    // — F-P15 · the law, never advisory).
     let dag_read = if conformance.is_empty() {
         analysis::read_dag(wf, &topo_waves)
     } else {
@@ -541,7 +560,6 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
-    hints.extend(dag_read.conflicts);
     // policy reads graph ancestors — valid order or no claim (IFC gating)
     let policy_findings = if conformance.is_empty() {
         policy::scan_policy(wf, &edges)
@@ -581,6 +599,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // F-P3 · the run: declaration's body-level law (entropy: none ×
         // a structural entropy source used)
         run_decl_findings: run_decl::scan_run_decl(wf),
+        // F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-011):
+        // the DAG read's conflicts, gated on a valid order like it
+        write_conflicts: dag_read.conflicts,
         // the PURE composition half (spec 14 law 1's textual part);
         // the resolved half needs a reader — `check_composed`
         composition: composition::scan_static(wf),
@@ -1153,5 +1174,83 @@ tasks:
             expected,
             "exactly one code per CHECK-ONLY finding across all four surfaces",
         );
+    }
+
+    // ── F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-011) ────
+
+    /// NEGATIVE — two incomparable tasks whose literal `nika:write`
+    /// paths collide is a REFUSAL: `is_clean` fails, the class-erased
+    /// findings carry the row with its wire code, the code map yields
+    /// NIKA-SEC-011, and NO advisory hint double-teaches (the error owns
+    /// the repair — the F-O8 precedent).
+    #[test]
+    fn write_write_overlap_without_an_edge_refuses() {
+        let r = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+        );
+        assert!(!r.is_clean(), "the unordered shared write is a finding");
+        assert_eq!(r.write_conflicts.len(), 1, "{r:?}");
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "write_conflict")
+            .expect("the row lands in findings[]");
+        assert_eq!(hit.gate, "WRITES");
+        assert_eq!(hit.code.as_deref(), Some("NIKA-SEC-011"));
+        assert_eq!(hit.task.as_deref(), Some("left"));
+        assert!(
+            hit.docs_url
+                .as_deref()
+                .is_some_and(|u| u.ends_with("/NIKA-SEC-011")),
+            "{hit:?}"
+        );
+        let rendered: Vec<String> = r
+            .extra_conformance_codes()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert!(
+            rendered.iter().any(|c| c == "NIKA-SEC-011"),
+            "write_conflict → NIKA-SEC-011: {rendered:?}"
+        );
+        assert!(
+            r.extra_conformance_codes()
+                .iter()
+                .any(|c| c.category == SpecCategory::SecurityError),
+            "the security class (NEP-0014 law 1): {:?}",
+            r.extra_conformance_codes()
+        );
+        // …and the advisory hint era is over: no `parallel-writers` hint
+        // double-teaches beside the refusal.
+        assert!(
+            !r.hints.iter().any(|h| h.kind == "parallel-writers"),
+            "{:?}",
+            r.hints
+        );
+    }
+
+    /// POSITIVE — the SAME shared path with an ordering edge (`after:`)
+    /// discharges the law: the writes are provably sequential, the
+    /// report stays clean.
+    #[test]
+    fn write_write_overlap_with_an_ordering_edge_passes() {
+        let r = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  first:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  second:\n    after: { first: success }\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+        );
+        assert!(r.is_clean(), "ordered writers are no race: {r:?}");
+        assert!(r.write_conflicts.is_empty());
+    }
+
+    /// NEGATIVE — the fan flavor: a `for_each` over one constant path
+    /// refuses (every iteration would overwrite the same file).
+    #[test]
+    fn write_write_for_each_same_path_refuses() {
+        let r = check_yaml(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: [1, 2, 3]\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
+        );
+        assert!(!r.is_clean(), "the fan-out overwrite is a finding");
+        assert_eq!(r.write_conflicts.len(), 1, "{r:?}");
+        assert_eq!(r.write_conflicts[0].task, "fan");
+        assert_eq!(r.write_conflicts[0].other, None);
     }
 }

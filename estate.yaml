@@ -18,11 +18,11 @@ classes:
   testimonial: "impl-owned test evidence — fixtures, corpora, batteries: proves behavior; neither shipped code nor derived output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4167
+  classified_files: 4169
   file_rows: 10
   pattern_rows: 22
   by_class:
-    authored: 1283
+    authored: 1285
     authored-pin: 1
     generated: 112
     pinned-copy: 75
@@ -130,7 +130,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 57
-  aggregate_sha256: a0f31c05c17d69da18dd4538eed22fdf1a50762f2738580a84131d7133ef5137
+  aggregate_sha256: 37b1de990ad8bd98cef86d03610df471ff84f9b65cd388133a3299c77622b429
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -141,13 +141,13 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 640
-  aggregate_sha256: 529a47e81df4c90c66a05e14877ae34c0720a8e7bd4b13dea04520daa3159d4f
+  match_count: 642
+  aggregate_sha256: ae4b39c74fdf80cf8f5b4255bdb8c9f76c0a015c602ad4359dd426ffc86103a2
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 111
-  aggregate_sha256: 73ef8e0e01e91a275c09c18957a65524d7f25e2d04cc19892a124a61eaef117d
+  aggregate_sha256: 5a94de0aeaed1c45529fc44474e489de0c5cc966f12896e1fd546624a636f167
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored

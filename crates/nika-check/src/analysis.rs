@@ -19,10 +19,13 @@
 //!   can run beside it.)
 //! - **blast radius** — AND-join makes failure analysis exact: a failed
 //!   task blocks EVERY transitive dependent;
-//! - **parallel-writers conflicts** — two tasks that CAN run
-//!   concurrently (incomparable) and both write the same literal
-//!   `nika:write` path: last-writer-wins is a race the author almost
-//!   never means. Surfaced as hints (advisory · deterministic).
+//! - **write-write conflicts** (F-P15 · NEP-0014 law 1) — two tasks that
+//!   CAN run concurrently (incomparable) and both write the same literal
+//!   `nika:write` path: last-writer-wins is a race the file never
+//!   declares. The LAW (a `NIKA-SEC-011` finding · deterministic) —
+//!   promoted from its advisory-hint era 2026-07-29: parallelism is safe
+//!   exactly where the effects are provably disjoint, and a hint is not
+//!   a boundary.
 //!
 //! Width can EXCEED the largest wave — witness `p→a1→x2 · p→x1 ·
 //! isolated x0`: waves peak at 2, width is 3 (`{x0, x1, x2}`). The
@@ -35,7 +38,39 @@ use std::collections::BTreeMap;
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use nika_schema::source::Spanned;
 
-use super::hints::Hint;
+/// The write-write law's wire code (F-P15 · NEP-0014 law 1) — the
+/// security class: two unordered writers racing one path is an effect
+/// overlap the boundary never sanctioned.
+const WRITE_CONFLICT_CODE: &str = "NIKA-SEC-011";
+
+/// One write-write conflict (F-P15 · NEP-0014 law 1): two tasks
+/// incomparable in the DAG closure whose literal `nika:write` paths
+/// collide, or a `for_each` fan writing one constant path — the
+/// last-writer-wins race, refused at check.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct WriteConflict {
+    /// The first writer's task id (the fan itself for the `for_each`
+    /// flavor).
+    pub task: String,
+    /// The second writer — `None` for the `for_each` flavor (the task
+    /// races its own iterations).
+    pub other: Option<String>,
+    /// The literal `nika:write` path both writes target.
+    pub path: String,
+    /// The witness sentence (the race, named).
+    pub detail: String,
+    /// The one repair.
+    pub fix: String,
+}
+
+impl WriteConflict {
+    /// The canonical spec code this finding stamps.
+    #[must_use]
+    pub fn wire_code(&self) -> &'static str {
+        WRITE_CONFLICT_CODE
+    }
+}
 
 /// The scheduler-independent DAG read (additive · `report_version`
 /// stays 1). `None` when conformance fails — no valid order exists, so
@@ -70,8 +105,8 @@ pub struct TaskBlast {
 pub(super) struct DagRead {
     /// The engineering read (`None` when no valid order exists).
     pub analysis: Option<DagAnalysis>,
-    /// Parallel-writers conflicts, as advisory hints.
-    pub conflicts: Vec<Hint>,
+    /// Write-write conflicts (F-P15 · the law, never advisory).
+    pub conflicts: Vec<WriteConflict>,
 }
 
 impl DagRead {
@@ -384,11 +419,14 @@ fn literal_write_path(task: &RawTask) -> Option<&str> {
         .filter(|p| !p.contains("${{"))
 }
 
-/// Write-write races, statically: two tasks that CAN run concurrently
-/// (incomparable in the closure) and both write the same literal path —
-/// plus the fan-out flavor (`for_each` over a constant path: every
-/// iteration overwrites the same file).
-fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<Hint> {
+/// Write-write races, statically (F-P15 · NEP-0014 law 1): two tasks
+/// that CAN run concurrently (incomparable in the closure) and both
+/// write the same literal path — plus the fan-out flavor (`for_each`
+/// over a constant path: every iteration overwrites the same file). The
+/// LAW: each conflict is a finding (an ordering edge — `after:` /
+/// `with:` — discharges it; parallelism is safe exactly where the
+/// writes are provably disjoint).
+fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<WriteConflict> {
     let writers: Vec<(usize, &str)> = wf
         .tasks
         .iter()
@@ -400,20 +438,23 @@ fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<Hint> {
         desc[a][b / 64] & (1u64 << (b % 64)) != 0 || desc[b][a / 64] & (1u64 << (a % 64)) != 0
     };
 
-    let mut hints = Vec::new();
+    let mut conflicts = Vec::new();
     for t in &wf.tasks {
         if t.value.for_each.is_some()
             && let Some(path) = literal_write_path(&t.value)
         {
-            hints.push(Hint {
-                kind: "parallel-writers",
-                task: t.value.id.value.clone(),
-                advice: format!(
-                    "every `for_each` iteration of `{}` writes the SAME literal \
-                     path `{path}` — the last iteration silently wins; derive the \
-                     path from `${{{{ item }}}}` or drop `for_each`",
-                    t.value.id.value
+            let task = t.value.id.value.clone();
+            conflicts.push(WriteConflict {
+                task: task.clone(),
+                other: None,
+                path: path.to_owned(),
+                detail: format!(
+                    "every `for_each` iteration of `{task}` writes the SAME literal \
+                     path `{path}` — the last iteration silently wins"
                 ),
+                fix: "derive the path from `${{ item }}` so each iteration writes \
+                      its own file · or drop `for_each`"
+                    .to_owned(),
             });
         }
     }
@@ -423,18 +464,21 @@ fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<Hint> {
                 continue;
             }
             let (first, second) = (&wf.tasks[ai].value.id.value, &wf.tasks[bi].value.id.value);
-            hints.push(Hint {
-                kind: "parallel-writers",
+            conflicts.push(WriteConflict {
                 task: first.clone(),
-                advice: format!(
+                other: Some(second.clone()),
+                path: ap.to_owned(),
+                detail: format!(
                     "`{first}` and `{second}` can run CONCURRENTLY and both write \
-                     `{ap}` — last-writer-wins is a race; order them with \
-                     `depends_on` or merge the writes"
+                     `{ap}` — last-writer-wins is a race the file never declares"
                 ),
+                fix: "order them with `after:` (one writer after the other) · or \
+                      merge the writes into one task"
+                    .to_owned(),
             });
         }
     }
-    hints
+    conflicts
 }
 
 #[cfg(test)]
@@ -599,15 +643,20 @@ mod tests {
     }
 
     #[test]
-    fn parallel_writers_same_literal_path_is_flagged() {
+    fn parallel_writers_same_literal_path_is_a_finding() {
+        // F-P15 · the law: two incomparable tasks writing one literal
+        // path is a REFUSAL-shaped conflict (never an advisory hint).
         let yaml = format!(
             "{HEADER}  left:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  right:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
         );
-        let hints = read(&yaml).conflicts;
-        assert_eq!(hints.len(), 1);
-        assert_eq!(hints[0].kind, "parallel-writers");
-        assert!(hints[0].advice.contains("out/report.md"));
-        assert!(hints[0].advice.contains("left") && hints[0].advice.contains("right"));
+        let conflicts = read(&yaml).conflicts;
+        assert_eq!(conflicts.len(), 1);
+        let c = &conflicts[0];
+        assert_eq!(c.task, "left");
+        assert_eq!(c.other.as_deref(), Some("right"));
+        assert_eq!(c.path, "out/report.md");
+        assert_eq!(c.wire_code(), "NIKA-SEC-011");
+        assert!(c.detail.contains("left") && c.detail.contains("right"));
     }
 
     #[test]
@@ -625,14 +674,20 @@ mod tests {
     }
 
     #[test]
-    fn for_each_over_a_constant_path_is_flagged() {
+    fn for_each_over_a_constant_path_is_a_finding() {
+        // F-P15 · the fan flavor: every iteration overwrites the same
+        // file — the task races its own fan-out (`other` is None).
         let yaml = format!(
             "{HEADER}  fan:\n    for_each: [1, 2, 3]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
         );
-        let hints = read(&yaml).conflicts;
-        assert_eq!(hints.len(), 1);
-        assert!(hints[0].advice.contains("for_each"));
-        assert!(hints[0].advice.contains("out/same.md"));
+        let conflicts = read(&yaml).conflicts;
+        assert_eq!(conflicts.len(), 1);
+        let c = &conflicts[0];
+        assert_eq!(c.task, "fan");
+        assert_eq!(c.other, None);
+        assert_eq!(c.path, "out/same.md");
+        assert!(c.detail.contains("for_each"));
+        assert!(c.fix.contains("${{ item }}"));
     }
 
     #[test]

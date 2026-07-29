@@ -501,3 +501,225 @@ fn an_answer_against_edited_content_halts_with_content_mismatch() {
         "the gated exec never starts:\n{stdout}"
     );
 }
+
+// ─── (d) the cross-version judgment (F-P21 · NEP-0014 law 4) ───────────
+
+/// Rewrite the trace's recorded `engine_version` (the `workflow_started`
+/// line) — the exact artifact a DIFFERENT engine's journal is.
+fn trace_with_engine_version(trace: &str, version: &str) -> String {
+    let started = trace
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("a started frame");
+    let recorded = field_str(started, "engine_version");
+    trace.replace(
+        &format!("\"key\":\"engine_version\",\"value\":\"{recorded}\""),
+        &format!("\"key\":\"engine_version\",\"value\":\"{version}\""),
+    )
+}
+
+/// F-P21 negative — a resume under a DIFFERENT engine refuses, naming
+/// both versions and the exact `--resume-compat` teaching; a WRONG
+/// compat token is its own named refusal (never a blanket force).
+#[test]
+fn a_cross_version_resume_refuses_naming_both_versions() {
+    let wf = fixture("fork.nika.yaml", FORK);
+    let run = bin()
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(run.status.code(), Some(0));
+    let stream = String::from_utf8(run.stdout).expect("utf8");
+    let started = stream
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("a started frame");
+    let current = field_str(started, "engine_version");
+    let older = trace_with_engine_version(&stream, "0.0.0-test");
+    assert!(older.contains("0.0.0-test"), "the version is doctored");
+    let trace = write_trace("older-engine.ndjson", &older);
+
+    // Undeclared → the refusal names BOTH versions + the teaching.
+    let refused = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8(refused.stderr).expect("utf8");
+    assert_eq!(refused.status.code(), Some(3), "the ENV refusal: {stderr}");
+    assert!(
+        stderr.contains("0.0.0-test"),
+        "the recorded version: {stderr}"
+    );
+    assert!(stderr.contains(&current), "this engine's version: {stderr}");
+    assert!(
+        stderr.contains("--resume-compat 0.0.0-test"),
+        "the exact teaching: {stderr}"
+    );
+    assert!(
+        refused.stdout.is_empty(),
+        "a judged resume never starts:\n{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+
+    // A WRONG token is its own named refusal.
+    let wrong = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--resume-compat",
+            "0.0.0-wrong",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8(wrong.stderr).expect("utf8");
+    assert_eq!(
+        wrong.status.code(),
+        Some(3),
+        "a wrong token refuses: {stderr}"
+    );
+    assert!(
+        stderr.contains("0.0.0-wrong") && stderr.contains("0.0.0-test"),
+        "both named: {stderr}"
+    );
+}
+
+/// F-P21 positive — the declared compat discharges the crossing, the
+/// run resumes, and the NEW run's boot manifest ATTESTS it
+/// (`resumed_from_engine` + `resume_compat: declared`).
+#[test]
+fn a_declared_compat_resumes_and_attests_the_crossing() {
+    let wf = fixture("fork.nika.yaml", FORK);
+    let run = bin()
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(run.status.code(), Some(0));
+    let older =
+        trace_with_engine_version(&String::from_utf8(run.stdout).expect("utf8"), "0.0.0-test");
+    let trace = write_trace("compat-engine.ndjson", &older);
+
+    let resumed = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--resume-compat",
+            "0.0.0-test",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(resumed.stdout).expect("utf8");
+    let stderr = String::from_utf8(resumed.stderr).expect("utf8");
+    assert_eq!(
+        resumed.status.code(),
+        Some(0),
+        "the declared compat proceeds: {stderr}"
+    );
+    assert!(
+        stderr.contains("cross-version compat declared"),
+        "the crossing is said: {stderr}"
+    );
+    let new_started = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("the new run's started frame");
+    assert_eq!(field_str(new_started, "resumed_from_engine"), "0.0.0-test");
+    assert_eq!(field_str(new_started, "resume_compat"), "declared");
+    assert!(
+        has_kind(&stdout, "workflow_completed"),
+        "the resume completes:\n{stdout}"
+    );
+}
+
+/// F-P21 — a pre-versioning trace (no `engine_version`) refuses with
+/// the `unrecorded` token; declared, it proceeds (the same law).
+#[test]
+fn a_versionless_trace_is_judged_with_the_unrecorded_token() {
+    let wf = fixture("fork.nika.yaml", FORK);
+    let run = bin()
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(run.status.code(), Some(0));
+    let stream = String::from_utf8(run.stdout).expect("utf8");
+    // Strip the engine_version field wholesale — a pre-A5 journal's shape.
+    let started = stream
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("a started frame");
+    let recorded = field_str(started, "engine_version");
+    let stripped = stream.replace(
+        &format!("{{\"key\":\"engine_version\",\"value\":\"{recorded}\"}},"),
+        "",
+    );
+    assert!(
+        !stripped.contains("engine_version"),
+        "the field is gone from every line"
+    );
+    let trace = write_trace("versionless.ndjson", &stripped);
+
+    let refused = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8(refused.stderr).expect("utf8");
+    assert_eq!(
+        refused.status.code(),
+        Some(3),
+        "judged, never assumed: {stderr}"
+    );
+    assert!(
+        stderr.contains("records no engine version"),
+        "the unrecorded class: {stderr}"
+    );
+    assert!(
+        stderr.contains("--resume-compat unrecorded"),
+        "the token teaching: {stderr}"
+    );
+
+    let declared = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--resume-compat",
+            "unrecorded",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        declared.status.code(),
+        Some(0),
+        "the unrecorded compat proceeds: {}",
+        String::from_utf8_lossy(&declared.stderr)
+    );
+}

@@ -1026,6 +1026,7 @@ pub nika_check::CheckReport::unknown_args: alloc::vec::Vec<nika_check::UnknownAr
 pub nika_check::CheckReport::unknown_tools: alloc::vec::Vec<nika_check::UnknownTool>
 pub nika_check::CheckReport::waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
 pub nika_check::CheckReport::workflow_semantic: core::option::Option<alloc::string::String>
+pub nika_check::CheckReport::write_conflicts: alloc::vec::Vec<nika_check::WriteConflict>
 impl nika_check::CheckReport
 pub fn nika_check::CheckReport::extra_conformance_codes(&self) -> alloc::vec::Vec<nika_schema::error::spec_code::SpecCode>
 pub fn nika_check::CheckReport::is_clean(&self) -> bool
@@ -2309,6 +2310,57 @@ impl<T> dyn_clone::DynClone for nika_check::UnknownTool where T: core::clone::Cl
 pub fn nika_check::UnknownTool::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::UnknownTool where T: 'static
 pub fn nika_check::UnknownTool::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::WriteConflict
+pub nika_check::WriteConflict::detail: alloc::string::String
+pub nika_check::WriteConflict::fix: alloc::string::String
+pub nika_check::WriteConflict::other: core::option::Option<alloc::string::String>
+pub nika_check::WriteConflict::path: alloc::string::String
+pub nika_check::WriteConflict::task: alloc::string::String
+impl nika_check::WriteConflict
+pub fn nika_check::WriteConflict::wire_code(&self) -> &'static str
+impl core::clone::Clone for nika_check::WriteConflict
+pub fn nika_check::WriteConflict::clone(&self) -> nika_check::WriteConflict
+impl core::cmp::Eq for nika_check::WriteConflict
+impl core::cmp::PartialEq for nika_check::WriteConflict
+pub fn nika_check::WriteConflict::eq(&self, other: &nika_check::WriteConflict) -> bool
+impl core::fmt::Debug for nika_check::WriteConflict
+pub fn nika_check::WriteConflict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::WriteConflict
+impl serde_core::ser::Serialize for nika_check::WriteConflict
+pub fn nika_check::WriteConflict::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::WriteConflict
+impl<Q, K> equivalent::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
+pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::WriteConflict where U: core::convert::From<T>
+pub fn nika_check::WriteConflict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::WriteConflict where U: core::convert::Into<T>
+pub type nika_check::WriteConflict::Error = core::convert::Infallible
+pub fn nika_check::WriteConflict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::WriteConflict where U: core::convert::TryFrom<T>
+pub type nika_check::WriteConflict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::WriteConflict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::WriteConflict where T: core::clone::Clone
+pub type nika_check::WriteConflict::Owned = T
+pub fn nika_check::WriteConflict::clone_into(&self, target: &mut T)
+pub fn nika_check::WriteConflict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::WriteConflict where T: 'static + ?core::marker::Sized
+pub fn nika_check::WriteConflict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::WriteConflict where T: ?core::marker::Sized
+pub fn nika_check::WriteConflict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::WriteConflict where T: ?core::marker::Sized
+pub fn nika_check::WriteConflict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::WriteConflict where T: core::clone::Clone
+pub unsafe fn nika_check::WriteConflict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::WriteConflict
+pub fn nika_check::WriteConflict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::WriteConflict where T: core::clone::Clone
+pub fn nika_check::WriteConflict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::WriteConflict where T: 'static
+pub fn nika_check::WriteConflict::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_check::REPORT_VERSION: u32
 pub const nika_check::STATUS_VOCAB: [&str; 4]
 pub fn nika_check::action_effect_fields(action: &nika_schema::raw::action::RawAction) -> alloc::vec::Vec<&str>

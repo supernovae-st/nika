@@ -147,6 +147,383 @@ pub fn build_run_receipt(
     )
 }
 
+// ── F-P16 · the readable receipt (NEP-0014 law 3) ────────────────────
+//
+// Every field of the receipt schema carries its human-readable
+// projection HERE — in the schema's own home, so a new field without a
+// projection is REFUSED by the ratchet (`unprojected_fields` · the
+// schema-level gate, exercised by this module's tests). The projection
+// is NEVER the evidence: `explain_receipt` is a READING (the digest is
+// not recomputed), [`verify`] is the proof — the two never share a
+// trust level.
+
+/// The fixed dotted-path projections (top-level receipt fields · the
+/// certificate's own fields · the engine-known `trace_verdict` keys ·
+/// the assertion rows). The four `Bound` axes share their sub-field
+/// sentences via [`projection_of`].
+const FIXED_PROJECTIONS: &[(&str, &str)] = &[
+    ("receipt_format", "the receipt schema version (spec 15)"),
+    (
+        "proves",
+        "the workflow identity this receipt attests (the semantic hash)",
+    ),
+    (
+        "certificate",
+        "the check-time resource certificate folded into this receipt",
+    ),
+    (
+        "certificate.task_attempts",
+        "upper bound on task-body executions (attempts × fan-out)",
+    ),
+    (
+        "certificate.llm_calls",
+        "upper bound on LLM calls (infer + agent turns)",
+    ),
+    (
+        "certificate.effect_calls",
+        "upper bound on effect calls (exec + invoke dispatches)",
+    ),
+    (
+        "certificate.usd_micros",
+        "the parametric spend bound in micro-USD (absent when unpriceable)",
+    ),
+    (
+        "certificate.span_attempts",
+        "the longest sequential dependency chain, in attempts (the span)",
+    ),
+    (
+        "certificate.derivation",
+        "the per-task witness rows the audit re-checks",
+    ),
+    (
+        "certificate.derivation.task",
+        "the task this witness row derives",
+    ),
+    (
+        "certificate.derivation.deps",
+        "the task's dependencies (the DAG edges the span folds over)",
+    ),
+    (
+        "certificate.derivation.attempts",
+        "the retry: max_attempts (1 when absent)",
+    ),
+    (
+        "certificate.derivation.fanout",
+        "the fan-out shape (a known multiplier · a runtime collection)",
+    ),
+    (
+        "certificate.derivation.fanout.known",
+        "the known multiplier of a literal/plain fan-out",
+    ),
+    (
+        "certificate.derivation.main_llm",
+        "LLM calls per body run (main action)",
+    ),
+    (
+        "certificate.derivation.main_effect",
+        "effect calls per body run (main action)",
+    ),
+    (
+        "certificate.derivation.main_spend_micros",
+        "spend per body run in micro-USD (null = unpriceable)",
+    ),
+    (
+        "certificate.derivation.finally_llm",
+        "LLM calls per iteration from on_finally cleanups",
+    ),
+    (
+        "certificate.derivation.finally_effect",
+        "effect calls per iteration from on_finally cleanups",
+    ),
+    (
+        "certificate.derivation.finally_spend_micros",
+        "on_finally spend per iteration (null = unpriceable)",
+    ),
+    (
+        "certificate.effects",
+        "the authority projection (spec 10 · re-derived at audit, never trusted)",
+    ),
+    (
+        "certificate.effects.boundary_declared",
+        "whether the workflow declares a permits: boundary",
+    ),
+    (
+        "certificate.effects.needed",
+        "the tightest boundary the body statically needs (the --infer-permits derivation)",
+    ),
+    (
+        "certificate.effects.escapes",
+        "statically-detected effects outside the declared boundary",
+    ),
+    (
+        "trace_verdict",
+        "the trace-verify result folded into this receipt",
+    ),
+    ("trace_verdict.outcome", "the run's terminal outcome"),
+    (
+        "trace_verdict.chain",
+        "the journal chain status the verdict names",
+    ),
+    ("trace_verdict.events", "the journaled event count"),
+    ("trace_verdict.head", "the chain head the verdict names"),
+    (
+        "trace_verdict.sealed",
+        "whether the journal is sealed (attributable)",
+    ),
+    (
+        "assertions",
+        "the assert: obligations, each judged at its honest level",
+    ),
+    (
+        "assertions.assert",
+        "the asserted property (the closed spec-15 vocabulary)",
+    ),
+    (
+        "assertions.level",
+        "the level the evidence supports (StaticProof · …)",
+    ),
+    (
+        "lock_digest",
+        "the nika.lock digest the run resolved under (unrecorded when the journal never carried it)",
+    ),
+    (
+        "digest",
+        "the self-binding digest — verify recomputes it over the folded fields",
+    ),
+];
+
+/// The four `Bound` axes of the certificate — their sub-fields share
+/// the degree-1-polynomial sentences (the axis row itself projects from
+/// [`FIXED_PROJECTIONS`]).
+const BOUND_AXES: &[&str] = &["task_attempts", "llm_calls", "effect_calls", "usd_micros"];
+
+/// The shared sub-field projections under one `Bound` axis
+/// (`certificate.<axis>.<suffix>`).
+const BOUND_SUFFIX_PROJECTIONS: &[(&str, &str)] = &[
+    ("constant", "the constant part of a degree-1 bound"),
+    (
+        "terms",
+        "the parametric terms (coeff × a task's for_each size)",
+    ),
+    (
+        "terms.task",
+        "the task whose for_each collection size parameterizes the term",
+    ),
+    ("terms.coeff", "the multiplier on that size"),
+];
+
+/// Paths whose projection covers the WHOLE subtree — the dynamic-key
+/// objects (projecting each runtime-named key would be a guess; the
+/// container sentence says what the map IS).
+const LEAF_PATHS: &[&str] = &["certificate.effects.needed"];
+
+/// The human-readable projection of one receipt field, by dotted path
+/// (`certificate.task_attempts.constant` · `assertions.assert` · …) —
+/// `None` for a field the schema does not know (the ratchet's refuse).
+#[must_use]
+pub fn projection_of(path: &str) -> Option<&'static str> {
+    if let Some(hit) = FIXED_PROJECTIONS.iter().find(|(key, _)| *key == path) {
+        return Some(hit.1);
+    }
+    if let Some(rest) = path.strip_prefix("certificate.")
+        && let Some((axis, suffix)) = rest.split_once('.')
+        && BOUND_AXES.contains(&axis)
+    {
+        return BOUND_SUFFIX_PROJECTIONS
+            .iter()
+            .find(|(key, _)| *key == suffix)
+            .map(|(_, sentence)| *sentence);
+    }
+    None
+}
+
+/// The ratchet walk (F-P16 law 3): every dotted key path of `receipt`
+/// that carries NO projection — a new field without one is REFUSED here
+/// (the schema-level gate: this list must be empty for a lawful
+/// receipt). Leaf paths (`LEAF_PATHS`) stop the descent — their
+/// projection covers the whole dynamic subtree.
+#[must_use]
+pub fn unprojected_fields(receipt: &Value) -> Vec<String> {
+    let mut missing = Vec::new();
+    walk_fields(receipt, "", &mut missing);
+    missing
+}
+
+/// The recursive half of [`unprojected_fields`] — array elements extend
+/// the container's path (an assertions row's `assert` projects as
+/// `assertions.assert`).
+fn walk_fields(value: &Value, prefix: &str, missing: &mut Vec<String>) {
+    if LEAF_PATHS
+        .iter()
+        .any(|leaf| prefix == *leaf || prefix.starts_with(&format!("{leaf}.")))
+    {
+        return;
+    }
+    if let Value::Object(map) = value {
+        for (key, child) in map {
+            let path = if prefix.is_empty() {
+                key.clone()
+            } else {
+                format!("{prefix}.{key}")
+            };
+            if projection_of(&path).is_none() {
+                missing.push(path.clone());
+            }
+            walk_fields(child, &path, missing);
+        }
+    } else if let Value::Array(items) = value {
+        for item in items {
+            walk_fields(item, prefix, missing);
+        }
+    }
+}
+
+/// Render a receipt's readable projection as STABLE text (F-P16 ·
+/// NEP-0014 law 3) — one row per field, the schema's own sentence
+/// beside the value, in the schema's fixed order. A READING, never a
+/// proof: the digest is not recomputed here (`verify` owns the proof),
+/// and an unprojected field is named, never silently dropped.
+#[must_use]
+pub fn explain_receipt(receipt: &Value) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::from(
+        "receipt · the one run receipt (receipt_format 1)\n  \
+         a READING, never a proof — the digest is NOT recomputed here · `verify` is the proof\n",
+    );
+    let Value::Object(map) = receipt else {
+        out.push_str("\nnot a receipt — expected a JSON object");
+        return out;
+    };
+    for (index, key) in ["proves", "digest", "lock_digest"].iter().enumerate() {
+        if let Some(value) = map.get(*key) {
+            let lead = if index == 0 { "\n" } else { "" };
+            let _ = writeln!(
+                out,
+                "{lead}{key:<12} {} — {}",
+                scalar_text(value),
+                projection_of(key).unwrap_or("·")
+            );
+        }
+    }
+    if let Some(certificate) = map.get("certificate") {
+        explain_certificate(&mut out, certificate);
+    }
+    if let Some(verdict) = map.get("trace_verdict").and_then(Value::as_object) {
+        let _ = writeln!(
+            out,
+            "\ntrace_verdict — {}",
+            projection_of("trace_verdict").unwrap_or("·")
+        );
+        for key in ["outcome", "chain", "events", "head", "sealed"] {
+            if let Some(value) = verdict.get(key) {
+                let path = format!("trace_verdict.{key}");
+                let _ = writeln!(
+                    out,
+                    "  {key:<10} {} — {}",
+                    scalar_text(value),
+                    projection_of(&path).unwrap_or("·")
+                );
+            }
+        }
+    }
+    if let Some(assertions) = map.get("assertions").and_then(Value::as_array) {
+        let _ = writeln!(
+            out,
+            "\nassertions  {} judged — {}",
+            assertions.len(),
+            projection_of("assertions").unwrap_or("·")
+        );
+        for entry in assertions {
+            let assert = entry["assert"].as_str().unwrap_or("?");
+            let level = entry["level"].as_str().unwrap_or("?");
+            let _ = writeln!(out, "  {assert}  {level}");
+        }
+    }
+    let missing = unprojected_fields(receipt);
+    if !missing.is_empty() {
+        let _ = writeln!(
+            out,
+            "\nunprojected fields (the schema refuses them): {}",
+            missing.join(" · ")
+        );
+    }
+    out
+}
+
+/// The certificate section of [`explain_receipt`] — the four `Bound`
+/// axes rendered as `≤ constant + coeff·|task|`, the span, the witness
+/// row count, and the authority summary.
+fn explain_certificate(out: &mut String, certificate: &Value) {
+    use std::fmt::Write as _;
+    let _ = writeln!(
+        out,
+        "\ncertificate — {}",
+        projection_of("certificate").unwrap_or("·")
+    );
+    for axis in BOUND_AXES {
+        let path = format!("certificate.{axis}");
+        let _ = writeln!(
+            out,
+            "  {axis:<14} {} — {}",
+            bound_text(certificate.get(*axis)),
+            projection_of(&path).unwrap_or("·")
+        );
+    }
+    let span = certificate["span_attempts"].as_u64().unwrap_or(0);
+    let _ = writeln!(
+        out,
+        "  span_attempts  {span} — {}",
+        projection_of("certificate.span_attempts").unwrap_or("·")
+    );
+    let rows = certificate["derivation"].as_array().map_or(0, Vec::len);
+    let _ = writeln!(
+        out,
+        "  derivation     {rows} witness rows — {}",
+        projection_of("certificate.derivation").unwrap_or("·")
+    );
+    let effects = &certificate["effects"];
+    let declared = effects["boundary_declared"].as_bool().unwrap_or(false);
+    let escapes = effects["escapes"].as_u64().unwrap_or(0);
+    let _ = writeln!(
+        out,
+        "  effects        boundary {} · {escapes} escapes — {}",
+        if declared { "declared" } else { "undeclared" },
+        projection_of("certificate.effects").unwrap_or("·")
+    );
+}
+
+/// The one-line form of a `Bound` value (`≤ 5 + 2·|fan|` ·
+/// `unpriceable` for the absent spend axis).
+fn bound_text(bound: Option<&Value>) -> String {
+    use std::fmt::Write as _;
+    let Some(bound) = bound else {
+        return "unpriceable".to_owned();
+    };
+    if bound.is_null() {
+        return "unpriceable".to_owned();
+    }
+    let constant = bound["constant"].as_u64().unwrap_or(0);
+    let mut text = format!("≤ {constant}");
+    if let Some(terms) = bound["terms"].as_array() {
+        for term in terms {
+            let task = term["task"].as_str().unwrap_or("?");
+            let coeff = term["coeff"].as_u64().unwrap_or(0);
+            let _ = write!(text, " + {coeff}·|{task}|");
+        }
+    }
+    text
+}
+
+/// The stable scalar render (strings verbatim · numbers/bools plain ·
+/// null named).
+fn scalar_text(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Null => "null".to_owned(),
+        other => other.to_string(),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

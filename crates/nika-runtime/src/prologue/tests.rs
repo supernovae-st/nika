@@ -14,6 +14,26 @@ use crate::*;
 /// Run the prologue over one yaml fixture and return the started
 /// event's string fields as (key, value) pairs.
 fn started_fields(yaml: &str, sandbox: Option<&str>) -> Vec<(String, String)> {
+    started_fields_with_origins(yaml, sandbox, &BTreeMap::new())
+}
+
+/// [`started_fields`] with the F-P13 input origins the composer would
+/// inject (empty = the no-claim posture).
+fn started_fields_with_origins(
+    yaml: &str,
+    sandbox: Option<&str>,
+    origins: &BTreeMap<String, InputOrigin>,
+) -> Vec<(String, String)> {
+    started_fields_full(yaml, sandbox, origins, None)
+}
+
+/// The full knob set (origins · the F-P21 declared compat).
+fn started_fields_full(
+    yaml: &str,
+    sandbox: Option<&str>,
+    origins: &BTreeMap<String, InputOrigin>,
+    resume_compat: Option<&str>,
+) -> Vec<(String, String)> {
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -29,6 +49,8 @@ fn started_fields(yaml: &str, sandbox: Option<&str>) -> Vec<(String, String)> {
         None,
         None,
         sandbox,
+        origins,
+        resume_compat,
         &book,
         &mut stamper,
         &mut sink,
@@ -95,4 +117,47 @@ fn prologue_omits_absent_boundary_and_backend() {
         get(&fields, "semantic_hash").is_some(),
         "the identity is always journaled"
     );
+}
+
+/// F-P13 (NEP-0014 law 2) — the boot manifest journals the origin of
+/// every input the run binds (`inputs` = one JSON map field), and a run
+/// without origins carries NO claim (absent is honest).
+#[test]
+fn prologue_journals_the_input_origins() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let origins = BTreeMap::from([
+        ("count".to_owned(), InputOrigin::CiContext),
+        ("region".to_owned(), InputOrigin::File),
+    ]);
+    let fields = started_fields_with_origins(yaml, None, &origins);
+    let inputs: serde_json::Value =
+        serde_json::from_str(get(&fields, "inputs").expect("the origins are journaled"))
+            .expect("inputs is valid JSON");
+    assert_eq!(
+        inputs,
+        serde_json::json!({ "count": "ci-context", "region": "file" }),
+        "each bound input names its channel"
+    );
+
+    // Empty = no claim (a run without inputs never speaks).
+    let bare = started_fields(yaml, None);
+    assert_eq!(get(&bare, "inputs"), None, "no origins = nothing journaled");
+}
+
+/// F-P21 (NEP-0014 law 4) — a resume under a DECLARED compat attests
+/// the crossing on the boot manifest (`resumed_from_engine` +
+/// `resume_compat: declared`); an exact resume journals no claim.
+#[test]
+fn prologue_attests_the_declared_cross_version_compat() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"));
+    assert_eq!(get(&fields, "resumed_from_engine"), Some("0.105.0"));
+    assert_eq!(get(&fields, "resume_compat"), Some("declared"));
+
+    // No crossing declared → both fields absent (never a guess).
+    let exact = started_fields(yaml, None);
+    assert_eq!(get(&exact, "resumed_from_engine"), None);
+    assert_eq!(get(&exact, "resume_compat"), None);
 }

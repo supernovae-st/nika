@@ -28,9 +28,10 @@ use super::{CheckReport, FindingSeverity};
 #[non_exhaustive]
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
-    /// `capability_escape` · `permit_taint` · `policy` · `schema_type` ·
-    /// `gate` · `unknown_tool` · `unknown_arg` · `missing_arg` ·
-    /// `schema_lint`).
+    /// `capability_escape` · `permit_taint` · `data_sink` · `policy` ·
+    /// `trifecta` · `schema_type` · `gate` · `run_decl` ·
+    /// `write_conflict` · `composition` · `unknown_tool` ·
+    /// `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
     /// The ladder section the human render files this under.
     pub gate: &'static str,
@@ -64,6 +65,24 @@ impl UnifiedFinding {
             task: None,
             span: None,
         }
+    }
+}
+
+/// The write-write class (F-P15 · NEP-0014 law 1 · NIKA-SEC-011) — the
+/// detail names the racing tasks + the colliding literal path, the fix
+/// carries the two repairs (order · merge). The fold follows the
+/// run-decl precedent (one arm, its own fn · the 100-line ratchet).
+fn fold_write_conflicts(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for w in &report.write_conflicts {
+        let mut f = UnifiedFinding::new(
+            "write_conflict",
+            "WRITES",
+            format!("{} (task `{}`) — fix: {}", w.detail, w.task, w.fix),
+        );
+        f.code = Some(w.wire_code().to_owned());
+        f.docs_url = Some(format!("{}/{}", super::ERROR_DOCS_BASE, w.wire_code()));
+        f.task = Some(w.task.clone());
+        out.push(f);
     }
 }
 
@@ -183,6 +202,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     fold_run_decl(report, &mut out);
+    fold_write_conflicts(report, &mut out);
     fold_composition(report, &mut out);
     fold_tools(report, &mut out);
     for l in &report.schema_lints {
@@ -412,6 +432,14 @@ mod tests {
                 "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
                 "trifecta",
                 "TRIFECTA",
+            ),
+            (
+                // write-write (F-P15 · NEP-0014 law 1): two incomparable
+                // writers on one literal path — the boundary declares the
+                // writes, the ORDER is what the file never declares
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+                "write_conflict",
+                "WRITES",
             ),
         ];
         for (yaml, kind, gate) in cases {

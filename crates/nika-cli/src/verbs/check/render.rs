@@ -163,6 +163,7 @@ pub(super) fn render(
         "every task is statically reachable · status literals in vocabulary",
         gate_rows(report),
     );
+    writes_rung(&mut out, report, t);
     permits(&mut out, report, wf, t);
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
@@ -243,6 +244,23 @@ fn run_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) 
                 .collect(),
         );
     }
+}
+
+/// WRITES rung (F-P15 · NEP-0014 law 1) · always present — a universal
+/// static law like GATES (parallelism is safe exactly where the writes
+/// are provably disjoint).
+fn writes_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    section_list(
+        out,
+        t,
+        "WRITES",
+        "no two unordered tasks write the same path",
+        report
+            .write_conflicts
+            .iter()
+            .map(|w| format!("[{}] {} · fix: {}", w.wire_code(), w.detail, w.fix))
+            .collect(),
+    );
 }
 
 /// Declared `inputs:` that the operator MUST pass at run time —

@@ -237,7 +237,7 @@ fn run_verdict(
             Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
-    let overrides = match inputs::validated_var_overrides(vars, &wf, output_json) {
+    let inputs = match inputs::validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -263,7 +263,7 @@ fn run_verdict(
         &wf,
         (file, &source),
         model_override,
-        overrides,
+        inputs,
         setup,
         json || output_json, // ADR-099 pause rider: NON-INTERACTIVE surfaces only
         max_cost_usd,
@@ -321,6 +321,10 @@ struct ResumeSetup {
     /// The F-P4 resume authority (NEP-0013) — the approval ticket folded
     /// from the paused trace (`None` on a fresh run or a pre-F-P4 trace).
     paused: Option<nika_runtime::approval::PausedApproval>,
+    /// The F-P21 declared compat (NEP-0014 law 4) — the recorded engine
+    /// version the operator allowed the crossing from (`Some` only when
+    /// a cross-version resume proceeds under `--resume-compat`).
+    compat: Option<String>,
 }
 
 /// Validate + fold the whole `--resume` surface (plan · `--from` ·
@@ -335,11 +339,11 @@ fn resume_setup(
     wf: &RawWorkflow,
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
-    let (plan, paused) = match resume {
-        None => (None, None),
+    let (plan, paused, compat) = match resume {
+        None => (None, None, None),
         Some(req) => {
-            let (plan, paused) = load_resume_plan(req, wf, output_json)?;
-            (Some(plan), paused)
+            let (plan, paused, compat) = load_resume_plan(req, wf, output_json)?;
+            (Some(plan), paused, compat)
         }
     };
     let answers =
@@ -353,14 +357,20 @@ fn resume_setup(
         plan,
         answers,
         paused,
+        compat,
     })
 }
 
 /// Read + fold the `--resume` trace into the runtime skip plan (ADR-099)
-/// plus the F-P4 paused ticket (NEP-0013). Honest degradation is the
-/// contract: a keyless trace (older engine) yields an EMPTY plan + a
-/// notice — never an error; an unreadable file or an unknown `--from`
-/// id is refused loudly (environment class).
+/// plus the F-P4 paused ticket (NEP-0013) plus the F-P21 version verdict
+/// (NEP-0014 law 4). The cross-version judgment comes FIRST: a resume
+/// under an engine different from the recording one is an explicit
+/// refusal naming both versions — or rides a declared compat
+/// (`--resume-compat` · attested on the run's boot manifest). Honest
+/// degradation stays the contract for the KEYS: a keyless trace (older
+/// engine) yields an EMPTY plan + a notice — never an error; an
+/// unreadable file or an unknown `--from` id is refused loudly
+/// (environment class).
 ///
 /// # Errors
 ///
@@ -369,7 +379,14 @@ fn load_resume_plan(
     req: &ResumeRequest,
     wf: &RawWorkflow,
     output_json: bool,
-) -> Result<(ResumePlan, Option<nika_runtime::approval::PausedApproval>), u8> {
+) -> Result<
+    (
+        ResumePlan,
+        Option<nika_runtime::approval::PausedApproval>,
+        Option<String>,
+    ),
+    u8,
+> {
     let label = req.trace.display().to_string();
     let refuse = |message: String| {
         eprintln!("nika run: {message}");
@@ -383,6 +400,30 @@ fn load_resume_plan(
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
+    // F-P21 (NEP-0014 law 4) — the version judgment BEFORE the fold:
+    // judged, never assumed (the silent cross-version degradation dies).
+    let judgment = nika_dap::resume::judge_version(&recovered.events, env!("CARGO_PKG_VERSION"));
+    let compat = match nika_dap::resume::judge_resume(&judgment, req.compat.as_deref()) {
+        nika_dap::resume::CompatVerdict::Proceed { compat_with } => {
+            if let Some(recorded) = &compat_with {
+                eprintln!(
+                    "nika run: --resume: cross-version compat declared — the trace was \
+                     recorded under engine {recorded}, this engine is {} (attested on \
+                     the run's boot manifest)",
+                    env!("CARGO_PKG_VERSION")
+                );
+            }
+            compat_with
+        }
+        nika_dap::resume::CompatVerdict::Refuse(message) => {
+            return Err(refuse(format!("--resume: {message}")));
+        }
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown compat verdict: {other:?}"),
+    };
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
@@ -399,7 +440,7 @@ fn load_resume_plan(
         nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
-    Ok((plan, fold.paused))
+    Ok((plan, fold.paused, compat))
 }
 
 /// The `--require-signature` trust gate: verify against an enrolled key
@@ -558,7 +599,7 @@ fn composed_runtime(
     wf: &RawWorkflow,
     (file, source): (&str, &str),
     model_override: Option<&str>,
-    overrides: BTreeMap<String, Value>,
+    inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
@@ -569,7 +610,12 @@ fn composed_runtime(
         plan: resume_plan,
         answers,
         paused,
+        compat,
     } = setup;
+    let inputs::ValidatedInputs {
+        values: overrides,
+        origins,
+    } = inputs;
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
@@ -584,12 +630,18 @@ fn composed_runtime(
                     !no_trace_file,
                 )))
                 .with_var_overrides(overrides)
+                // F-P13 · the input origins (NEP-0014 law 2) — the boot
+                // manifest journals where every bound input came from.
+                .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
                 // F-P4 · the folded resume authority (NEP-0013) — the
                 // `--answer` validates against the shown ticket.
                 .with_paused_approval(paused)
+                // F-P21 · the declared cross-version compat (NEP-0014
+                // law 4) — attested on the boot manifest.
+                .with_resume_compat(compat)
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
