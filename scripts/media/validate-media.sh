@@ -129,6 +129,16 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
             print(f" x {p.name}: teaches slug {slug!r} the released binary refuses")
             bad = 1
 
+# The README teaches slugs too (the pick-a-workflow table) — same law,
+# same executioner: a row the released binary refuses is a dead lesson.
+readme = pathlib.Path("README.md").read_text(encoding="utf-8")
+for slug in sorted(set(re.findall(r"nika examples run\s+([a-z0-9/_-]+)", readme))):
+    r = subprocess.run(["nika", "examples", "show", slug],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f" x README.md: teaches slug {slug!r} the released binary refuses")
+        bad = 1
+
 # The gallery's count claims derive from the released pack, never typed
 # free-hand: "N ... business jobs" must equal the showcase family count.
 gal = pathlib.Path("scripts/media/motion/workflow-gallery.html").read_text(encoding="utf-8")
