@@ -8,11 +8,20 @@ name: estate
 # distinguishable from the sibling gates' exit 1 in CI logs). The heavy
 # rail (diamond-ci.yml) is deliberately untouched.
 #
+# TWO JOBS, TWO POSTURES. `estate` observes and never blocks, as above.
+# `mirror` DOES block: it proves scripts/estate.py is byte-identical to
+# nika-estate at the rev in ESTATE_PIN. Editing a mirrored file is never an
+# observation, it is a bug, so it fails the run. That is why this workflow
+# also fires on push: main takes direct pushes here, and a gate that only
+# watches pull requests would not see one.
+#
 # SECURITY: no github.event data reaches the shell (house convention —
 # catalog-verify.yml security note).
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
