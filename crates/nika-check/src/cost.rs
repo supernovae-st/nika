@@ -22,7 +22,6 @@
 //! the floor of your *exposure*, not of the actual spend.
 
 use nika_schema::raw::{ForEachValue, RawAction, RawWorkflow};
-use nika_schema::types::VarDecl;
 
 /// Per-task cost envelope.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -267,38 +266,16 @@ pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
     nika_catalog::find_pricing_for(model).map(|p| p.output_per_million)
 }
 
-/// A `for_each:` count that is statically known: the expression is exactly
-/// `${{ <authority>.<name> }}` (inputs · config · const — the value
-/// authorities whose declared value is static) and that name declares a
-/// LITERAL array (an untyped array value, or a typed-array with a literal
-/// `default:`). Returns `None` for anything else — a task-output ref, a
+/// A `for_each:` count that is statically known: the expression resolves
+/// through the ONE shared resolver ([`crate::static_literal_of`] — a bare
+/// `${{ <authority>.<name> }}` whose declaration carries a literal) to an
+/// ARRAY literal. Returns `None` for anything else — a task-output ref, a
 /// computed/navigated expression, a typed input with no default, or a
 /// non-array value — which stays an unknown count (`UnknownIterations`).
 pub(super) fn static_vars_array_len(wf: &RawWorkflow, expr: &str) -> Option<u64> {
-    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let (authority, name) = ["const.", "inputs.", "config."]
-        .into_iter()
-        .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
-    // A BARE `<authority>.<name>` only — reject further navigation
-    // (`.field` · `[0]`) or operators, whose runtime value is not
-    // statically known.
-    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-        return None;
-    }
-    let block = match authority {
-        "const." => &wf.consts,
-        "inputs." => &wf.inputs,
-        _ => &wf.config,
-    };
-    let (_, decl) = block.iter().find(|(k, _)| k.value == name)?;
-    let value = match decl {
-        VarDecl::Untyped(v)
-        | VarDecl::Typed {
-            default: Some(v), ..
-        } => v,
-        VarDecl::Typed { default: None, .. } => return None,
-    };
-    value.as_array().map(|a| a.len() as u64)
+    crate::static_literal_of(wf, expr)?
+        .as_array()
+        .map(|a| a.len() as u64)
 }
 
 #[cfg(test)]
@@ -691,6 +668,7 @@ mod static_vars_array_len_unit {
     use super::*;
     use nika_schema::raw::RawWorkflow;
     use nika_schema::source::{Span, Spanned};
+    use nika_schema::types::VarDecl;
 
     fn var(name: &str, value: serde_json::Value) -> (Spanned<String>, VarDecl) {
         (
