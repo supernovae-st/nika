@@ -10,8 +10,21 @@
 # session's initial context. Exit 0 always; a workspace without Nika
 # gets silence ({}), never noise.
 #
-# The context string is STATIC — fixed content, hand-escaped once,
-# zero interpolation (nothing user-controlled can break the JSON).
+# Two health probes ride the same seed (the kit teaches, it never
+# installs):
+#   · binary probe — every surface of this kit (MCP oracle · commands
+#     · hooks · subagents) invokes the nika binary; without it the
+#     whole kit is dead, so the seed teaches the install line in EVERY
+#     workspace, nika-enabled or not. A broken install is the one
+#     state where silence costs more than noise.
+#   · version handshake — the kit is cut against a binary release
+#     train; when the two diverge at major.minor (patch drift is
+#     normal between trains) the seed names both versions and the
+#     exact align command, direction-aware.
+#
+# The context string is STATIC — fixed content, hand-escaped once.
+# The ONLY interpolated tokens are version strings sanitized to
+# [0-9.] (tr -cd), so nothing user-controlled can break the JSON.
 set -euo pipefail
 
 input="$(cat)"
@@ -22,6 +35,28 @@ input="$(cat)"
 # hookSpecificOutput.additionalContext).
 cc=""
 case "$input" in *hook_event_name*) cc=1 ;; esac
+
+emit() {
+  if [ -n "$cc" ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$1"
+  else
+    printf '{"additional_context":"%s"}\n' "$1"
+  fi
+}
+
+# Plugin root — resolved BEFORE any cd (a relative $0 dies after cd).
+# The host sets CLAUDE_PLUGIN_ROOT; standalone invocation falls back
+# to the script's own location.
+plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
+if [ -z "$plugin_root" ]; then
+  plugin_root="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || true)"
+fi
+
+# Binary probe — PATH-based, workspace-independent.
+bin_ok=""
+command -v nika >/dev/null 2>&1 && bin_ok=1
+
+install_teach='Nika kit note: the nika binary is not on PATH. Every surface of this kit (MCP oracle · /nika: commands · hooks · subagents) invokes it and stays dead until it lands. Install: brew install supernovae-st/tap/nika (other paths: nika.sh) · then restart the session.'
 
 # Workspace root: the payload cwd when present, else where the host ran us.
 if command -v python3 >/dev/null 2>&1; then
@@ -55,7 +90,12 @@ else
 fi
 
 if [ -z "$enabled" ]; then
-  printf '{}\n'
+  # No workspace map — but a dead kit still teaches its own repair.
+  if [ -z "$bin_ok" ]; then
+    emit "$install_teach"
+  else
+    printf '{}\n'
+  fi
   exit 0
 fi
 
@@ -63,9 +103,38 @@ fi
 # interpolation. Both envelopes carry the SAME text.
 map='This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml workflow files, audited BEFORE they run (nika check), cost-bounded while they run, hash-chain traced after (.nika/traces/). Laws: (1) nika check <file> must pass before proposing any run; running is the human'"'"'s move (propose the nika run line, with --max-cost-usd when spend matters). (2) Cost honesty: report the ceiling; a local model is unpriced, never free. (3) The boundary: an absent permits: block is ZERO authority, not a floor · any effect with no grant refuses NIKA-AUTH-006 at check. (4) Values ride four authorities · inputs (caller-supplied) · config (deployment-supplied) · const (baked in the file) · secrets (store references) · vars: and env: are dead envelope fields. Installed surfaces: read-only MCP oracle (nika_check, nika_inspect, nika_explain, nika_schema, nika_examples, nika_template, nika_canon, nika_catalog, nika_tools) · subagents nika-author (write a workflow), nika-debugger (root-cause a run from its trace), nika-migrator (port a script) · skills nika-authoring, nika-debugging, nika-operating, nika-migration · commands check, explain, new, trace, permits (slash-prefixed per your client). CLI: nika check|run|test|trace|evidence|explain|inspect|new|examples|catalog|doctor|welcome|wire|model|init|spec|sign|key|mcp|lsp|dap|completions. When the user describes repeatable or multi-step AI work, propose a Nika workflow.'
 
-if [ -n "$cc" ]; then
-  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$map"
-else
-  printf '{"additional_context":"%s"}\n' "$map"
+if [ -z "$bin_ok" ]; then
+  emit "$map $install_teach"
+  exit 0
 fi
+
+# Version handshake — kit manifest vs `nika --version`, major.minor
+# only (the kit follows release trains; patch drift is not a finding).
+# Both tokens sanitized to [0-9.]; unreadable on either side → silence
+# (never guess a version).
+drift=""
+kit_raw=""
+for m in .claude-plugin/plugin.json .codex-plugin/plugin.json .cursor-plugin/plugin.json; do
+  if [ -n "$plugin_root" ] && [ -f "$plugin_root/$m" ]; then
+    kit_raw="$(grep -m1 '"version"' "$plugin_root/$m" 2>/dev/null || true)"
+    [ -n "$kit_raw" ] && break
+  fi
+done
+kitv="$(printf '%s' "$kit_raw" | tr -cd '0-9.')"
+binv="$(nika --version 2>/dev/null | tr -cd '0-9.' || true)"
+if [ -n "$kitv" ] && [ -n "$binv" ]; then
+  kit_maj="$(printf '%s' "$kitv" | cut -d. -f1)"
+  kit_min="$(printf '%s' "$kitv" | cut -d. -f2)"
+  bin_maj="$(printf '%s' "$binv" | cut -d. -f1)"
+  bin_min="$(printf '%s' "$binv" | cut -d. -f2)"
+  if [ -n "$kit_maj" ] && [ -n "$kit_min" ] && [ -n "$bin_maj" ] && [ -n "$bin_min" ]; then
+    if [ "$bin_maj" -lt "$kit_maj" ] || { [ "$bin_maj" -eq "$kit_maj" ] && [ "$bin_min" -lt "$kit_min" ]; }; then
+      drift=' Version drift: plugin kit '"$kitv"' rides ahead of nika binary '"$binv"'. Align the binary: brew upgrade nika.'
+    elif [ "$bin_maj" -gt "$kit_maj" ] || { [ "$bin_maj" -eq "$kit_maj" ] && [ "$bin_min" -gt "$kit_min" ]; }; then
+      drift=' Version drift: nika binary '"$binv"' rides ahead of plugin kit '"$kitv"'. Refresh the kit from your marketplace (Codex: codex plugin marketplace upgrade nika · Claude Code: claude plugin marketplace update nika, then claude plugin update nika@nika).'
+    fi
+  fi
+fi
+
+emit "$map$drift"
 exit 0
