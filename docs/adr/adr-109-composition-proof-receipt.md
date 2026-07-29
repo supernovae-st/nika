@@ -19,7 +19,7 @@ inv: []
 shadow_zones: []
 nika_codes: ["NIKA-COMP-001", "NIKA-COMP-002", "NIKA-COMP-003", "NIKA-COMP-004", "NIKA-SEC-003"]
 timeline: "2026-07-29"
-follow_ups: ["demonstrate the cost half of law 6 at run level (a child that would outspend min(parent remaining, child declared) is cut)", "semantic resume across a composition (law 10 · rides W6 semantic IR)", "render a composition-family verdict in the rust-python differential (spec scripts/oracle-differential.py)"]
+follow_ups: ["the run-level metered budget cut (needs a metered provider · not hermetic · the static floor covers every bounded case)", "semantic resume across a composition (law 10 · rides W6 semantic IR)", "render a composition-family verdict in the rust-python differential (spec scripts/oracle-differential.py)"]
 ---
 
 # ADR-109: Publish the composition proof receipt — what this engine may claim on spec 14
@@ -45,16 +45,26 @@ verifier), plus a live run of the taught lesson
 ## Decision
 
 Publish the per-condition receipt below and bind the claim vocabulary to it.
-This engine claims composition is **specified, and demonstrated on 6 of the 9
-conditions (one more partial)**. It does **not** claim "proven" — that word
-stays locked until the three named owes close, and this ADR is re-issued.
+This engine claims composition is **specified, and demonstrated on 7 of the 9
+conditions**. It does **not** claim "proven" — that word stays locked until
+the two open conditions close (semantic resume · reference-model parity), and
+this ADR is re-issued.
+
+> **Amended 2026-07-29 (same day)** — condition 4 was published *partial*
+> ("the cost half is implemented, the run-level test is owed"), and the
+> owed test found something better than itself: the cost half is enforced
+> **statically**, at the parent's pre-flight, by law 5's own summation —
+> a child's floor refuses the parent's run before a single token. The
+> run-level metered cut survives as a named, non-hermetic residual rather
+> than a gap. The original wording stays above this line in git; the table
+> below carries the current claim.
 
 | # | condition (spec 14) | status | evidence |
 |---|---|---|---|
 | 1 | static resolution | **demonstrated** | `templated_target_is_refused_at_check` (`NIKA-COMP-001` · law 1); real relative-path resolution in every green test; the released 0.106.1 prints a dedicated `COMPOSITION` check line ("static, typed, contained and acyclic") |
 | 2 | typed I/O | **demonstrated** | `child_runs_for_real_and_typed_outputs_remount` (law 2, both halves, on a real `echo` subprocess: child typed output → parent task value → parent output); `missing_required_child_input_is_refused_at_check` (`NIKA-COMP-004` names the missing input) |
 | 3 | effect containment | **demonstrated** | `child_effect_outside_the_parent_boundary_is_refused` (`NIKA-COMP-002` · child `exec` under a net-only parent · laws 3/4) |
-| 4 | inherited budgets | **partial** | time half demonstrated: `parent_timeout_bounds_the_real_child` (the child future is dropped at the parent task's deadline · law 6). Cost half **implemented, not yet demonstrated at run level**: `nika-runtime/src/dispatch.rs` hands `child_budget` = the run ledger's remaining USD, the child runs under `min(this, its declared budget)` (`workflow_call.rs`) — the run-level cut test is owed |
+| 4 | inherited budgets | **demonstrated (static tier) · one residual named** | time half: `parent_timeout_bounds_the_real_child` (the child future is dropped at the parent task's deadline). Cost half: `the_childs_floor_bounds_the_parent_budget_before_any_token` — a parent with NO priced task of its own is refused BEFORE IT STARTS because the child's floor exceeds `--max-cost-usd` (rc 2 · no trace written · no provider touched · hermetic at $0), and the child alone under the same budget reports the SAME floor to the cent, so that floor is the child's own summed into the parent (law 5 at work). An unpriced child under the same tiny budget runs green — the gate reads the floor, never the mere presence of a budget. **Residual**: the run-level metered cut (`remaining_budget_usd` handed to the child runtime · `child_runner.rs:210`) is the backstop for spend the static floor cannot bound (an uncapped `infer:`), and demonstrating it requires a METERED provider — it cannot be shown hermetically, and is not claimed here |
 | 5 | cycle detection | **demonstrated** | `static_cycle_is_refused_at_check` (a two-file cycle · `NIKA-COMP-003` at check AND `run` refusing through the same gate · law 7); `acyclic_chain_beyond_the_depth_bound_fails_closed_at_run` (`NIKA-SEC-003` backstop at real 10-deep nesting — the case static acyclicity cannot cover) |
 | 6 | trace forest | **demonstrated** | `trace_forest_two_chains_and_the_parent_commits_to_the_child`: two journals on disk, each hash chain intact under an INDEPENDENT re-walk (the test's own sha256, genesis `nika-trace-v1`); live lesson run: 2 traces, `nika trace verify` rc=0 on both |
 | 7 | nested receipts | **demonstrated (chain-commit tier)** | the parent's hash-chained terminal frame embeds the child's chain head at commit time plus the child's `def_hash` — tamper with any earlier child line and the committed head no longer matches (law 9's Merkle commitment at the journal tier; the spec-15 receipt ladder above it is `nika-proof` territory) |

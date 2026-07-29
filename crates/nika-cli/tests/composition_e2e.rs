@@ -373,6 +373,111 @@ tasks:
     assert!(text.contains("NIKA-SEC-003"), "{text}");
 }
 
+/// LAW 6, COST half — and law 5 (resources summed) is how it is
+/// enforced: a parent carrying NO priced task of its own is refused
+/// BEFORE IT STARTS because the CHILD's floor exceeds the parent's
+/// `--max-cost-usd`. Block-before-spend, not a mid-run cut: nothing
+/// executes, no trace is written, no provider is touched (hermetic —
+/// the floor is static, so no key and no network are needed).
+///
+/// Three faces, because one would not distinguish the mechanisms:
+/// (a) the composed refusal names a floor the parent alone cannot
+/// explain; (b) the child ALONE under the same budget is refused with
+/// the SAME number to the cent — so that floor is the child's own,
+/// summed into the parent (law 5); (c) an UNPRICED child under the same
+/// tiny budget runs green — the gate reads the FLOOR, and composition
+/// never refuses spuriously.
+#[test]
+fn the_childs_floor_bounds_the_parent_budget_before_any_token() {
+    let dir = tmp_dir("comp-budget");
+    let priced = "\
+nika: v1
+workflow:
+  id: spender
+model: groq/qwen/qwen3-32b
+tasks:
+  think:
+    infer: { prompt: \"hi\", max_tokens: 60000 }
+";
+    let unpriced = priced.replace("groq/qwen/qwen3-32b", "mock/echo");
+    let parent_of = |child: &str| {
+        format!(
+            "nika: v1\nworkflow:\n  id: thrifty\ntasks:\n  call:\n    \
+             invoke: {{ workflow: \"./{child}\" }}\n"
+        )
+    };
+    write_fixture(&dir, "priced-child.nika.yaml", priced);
+    write_fixture(&dir, "unpriced-child.nika.yaml", &unpriced);
+    let p_priced = write_fixture(&dir, "p1.nika.yaml", &parent_of("priced-child.nika.yaml"));
+    let p_unpriced = write_fixture(&dir, "p2.nika.yaml", &parent_of("unpriced-child.nika.yaml"));
+
+    // (a) the composed floor refuses the run before it starts.
+    let (code, text) = run_in(
+        &dir,
+        &[
+            "run",
+            p_priced.to_str().expect("utf8"),
+            "--max-cost-usd",
+            "0.0001",
+        ],
+    );
+    assert_eq!(code, 2, "a refusal to START, not a failure:\n{text}");
+    assert!(
+        text.contains("refusing to start") && text.contains("cost floor"),
+        "the refusal names the floor:\n{text}"
+    );
+    let floor = text
+        .split("cost floor ")
+        .nth(1)
+        .and_then(|s| s.split_whitespace().next())
+        .expect("the floor figure")
+        .to_owned();
+    // Nothing ran: no journal, so not one token could have been spent.
+    assert!(
+        !dir.join(".nika").join("traces").exists()
+            || std::fs::read_dir(dir.join(".nika").join("traces"))
+                .into_iter()
+                .flatten()
+                .count()
+                == 0,
+        "block-before-spend writes no trace: {floor}"
+    );
+
+    // (b) the child ALONE, same budget → the SAME floor to the cent.
+    let (code, alone) = run_in(
+        &dir,
+        &[
+            "run",
+            dir.join("priced-child.nika.yaml").to_str().expect("utf8"),
+            "--max-cost-usd",
+            "0.0001",
+        ],
+    );
+    assert_eq!(code, 2, "{alone}");
+    assert!(
+        alone.contains(&floor),
+        "the parent's floor IS the child's own (law 5 · summed): parent said \
+         {floor}, child alone said:\n{alone}"
+    );
+
+    // (c) an unpriced child under the same tiny budget RUNS — the gate
+    // reads the floor, and composition never refuses spuriously.
+    let (code, cheap) = run_in(
+        &dir,
+        &[
+            "run",
+            p_unpriced.to_str().expect("utf8"),
+            "--max-cost-usd",
+            "0.0001",
+        ],
+    );
+    assert_eq!(code, 0, "an unpriced child costs no dollars:\n{cheap}");
+    assert!(
+        !cheap.contains("refusing to start"),
+        "no spurious refusal:\n{cheap}"
+    );
+}
+
 /// LAW 6, time half, on a REAL child: the parent task's `timeout:`
 /// bounds the whole nested run — the child (which would sleep 5s) is
 /// dropped at the deadline and the parent settles fast.
