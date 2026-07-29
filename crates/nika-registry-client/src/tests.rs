@@ -759,3 +759,277 @@ fn describe_speaks_fetch_and_cache() {
     assert!(hit.describe().contains("cache"));
     assert!(hit.describe().contains("offline"));
 }
+
+// -- NEP-0016 · provenance tiers + the operator admission floor --------
+
+/// A signed happy-path mock (index → signed entry → artifact), plus the
+/// publisher key the test machine will anchor TOFU.
+fn signed_mock(owner: &str, name: &str, version: &str, body: &[u8]) -> (MockHttp, String) {
+    let (pk, sk) = test_keypair();
+    let sig = sign_bytes(&sk, body);
+    let digest = sha256_hex(body);
+    let mock = MockHttp::new()
+        .enqueue_ok(
+            200,
+            index_json(&[artifact_json(
+                owner,
+                name,
+                version,
+                "workflow",
+                &digest,
+                &[],
+            )]),
+        )
+        .enqueue_ok(
+            200,
+            signed_entry_toml(owner, name, version, &digest, &sig, &pk),
+        )
+        .enqueue_ok(200, body.to_vec());
+    (mock, pk)
+}
+
+/// Write the operator policy beside the cache (`<root>/policy.toml`).
+fn write_policy(client: &RegistryClient<MockHttp>, content: &str) {
+    std::fs::create_dir_all(&client.cache_root).expect("cache root"); // seam-bypass-ok: test harness disk fixtures
+    std::fs::write(client.cache_root.join("policy.toml"), content).expect("policy writes"); // seam-bypass-ok: test harness disk fixtures
+}
+
+/// The on-disk cache record, as raw JSON (the tier/signed assertions).
+fn meta_json(client: &RegistryClient<MockHttp>, version: &str) -> serde_json::Value {
+    let path = client
+        .cache_root
+        .join(format!("acme/greet/{version}.meta.json"));
+    let raw = std::fs::read_to_string(path).expect("meta reads"); // seam-bypass-ok: test harness disk fixtures
+    serde_json::from_str(&raw).expect("meta parses")
+}
+
+/// Overwrite the on-disk cache record (the tampered/legacy fixtures).
+fn rewrite_meta(client: &RegistryClient<MockHttp>, version: &str, meta: &serde_json::Value) {
+    let path = client
+        .cache_root
+        .join(format!("acme/greet/{version}.meta.json"));
+    let body = serde_json::to_string_pretty(meta).expect("meta encodes");
+    std::fs::write(path, body).expect("meta writes"); // seam-bypass-ok: test harness disk fixtures
+}
+
+#[test]
+fn the_ladder_is_closed_and_totally_ordered() {
+    assert!(ProvenanceTier::Unprovenanced < ProvenanceTier::Provenanced);
+    assert!(ProvenanceTier::Provenanced < ProvenanceTier::StageClear);
+    assert!(ProvenanceTier::StageClear < ProvenanceTier::Verified);
+    for (raw, want) in [
+        ("unprovenanced", ProvenanceTier::Unprovenanced),
+        ("provenanced", ProvenanceTier::Provenanced),
+        ("stage-clear", ProvenanceTier::StageClear),
+        ("verified", ProvenanceTier::Verified),
+    ] {
+        assert_eq!(ProvenanceTier::parse(raw), Some(want));
+        assert_eq!(want.as_str(), raw, "the spelling round-trips");
+    }
+    for bad in ["", "UNSIGNED", "signed", "stage_clear", "verify", "trusted"] {
+        assert_eq!(
+            ProvenanceTier::parse(bad),
+            None,
+            "`{bad}` is outside the closed set — it refuses, never parses"
+        );
+    }
+}
+
+#[test]
+fn an_unsigned_fetch_below_a_provenanced_floor_refuses_and_writes_nothing() {
+    let mock = happy_mock("acme", "greet", "0.1.0", BODY);
+    let (client, _dir) = client(mock.clone());
+    write_policy(&client, "version = 1\nfloor = \"provenanced\"\n");
+
+    let err = resolve(&client, "registry:acme/greet@0.1.0").expect_err("must refuse");
+    assert_eq!(err.code(), Some("NIKA-REG-008"));
+    let text = err.to_string();
+    assert!(
+        text.contains("nothing was written") && text.contains("policy.toml"),
+        "teaches the refusal + the operator surface: {text}"
+    );
+    assert_eq!(
+        mock.sent_requests().len(),
+        3,
+        "the refusal lands AFTER verification (index + entry + artifact), before the store"
+    );
+    assert!(
+        !client.cache_root.join("acme").exists(),
+        "a below-floor fetch leaves NO residue — no artifact, no meta, no pin"
+    );
+}
+
+#[test]
+fn an_unknown_policy_version_or_floor_refuses_closed() {
+    // Each row: the policy text + the fragment its teaching text must
+    // carry. A typo'd or unversioned floor must never silently no-op.
+    let rows: &[(&str, &str)] = &[
+        ("version = 2\nfloor = \"unprovenanced\"\n", "version"),
+        ("version = 1\nfloor = \"bogus\"\n", "unknown tier"),
+        ("version = 1\nflor = \"provenanced\"\n", "unknown key"), // the typo'd floor
+        ("version = 1\n", "floor"),                               // missing floor
+        ("floor = \"provenanced\"\n", "version"),                 // missing version
+    ];
+    for (policy, teach) in rows {
+        let (client, _dir) = client(happy_mock("acme", "greet", "0.1.0", BODY));
+        write_policy(&client, policy);
+        let err = resolve(&client, "registry:acme/greet@0.1.0").expect_err(policy);
+        assert!(
+            err.code().is_none(),
+            "a broken operator file is the env class, not a registry refusal: {policy}"
+        );
+        let text = err.to_string();
+        assert!(
+            text.contains(teach) && text.contains("policy.toml"),
+            "{policy:?} must teach `{teach}` + the file · got: {text}"
+        );
+    }
+}
+
+#[test]
+fn a_record_claiming_a_tier_its_evidence_cannot_admit_is_tampered() {
+    // Each row: the tier string written over the record + the teaching
+    // fragment. The record keeps a digest that still matches — ONLY the
+    // tier over-claims (row 3 downgrades against `signed: true`).
+    let rows: &[(&str, &str)] = &[
+        ("verified", "reserved"),
+        ("bogus", "not a known tier"),
+        ("unprovenanced", "disagree"),
+    ];
+    for (raw_tier, teach) in rows {
+        let (mock, _pk) = signed_mock("acme", "greet", "0.1.0", BODY);
+        let (seeded, dir) = client(mock);
+        resolve(&seeded, "registry:acme/greet@0.1.0").expect("seed signed resolve");
+        let mut meta = meta_json(&seeded, "0.1.0");
+        meta["tier"] = serde_json::json!(raw_tier);
+        rewrite_meta(&seeded, "0.1.0", &meta);
+
+        let offline = RegistryClient::new(MockHttp::new(), dir.path().join("registry"));
+        let err = resolve(&offline, "registry:acme/greet@0.1.0").expect_err("must refuse");
+        assert_eq!(
+            err.code(),
+            Some("NIKA-REG-004"),
+            "a record that over-claims is the tampered class"
+        );
+        assert!(err.to_string().contains(teach), "teaches: {err}");
+    }
+}
+
+#[test]
+fn a_cache_hit_under_a_tightened_floor_refuses_without_grandfathering() {
+    // Fetched honestly under the default floor…
+    let (seeded, dir) = client(happy_mock("acme", "greet", "0.1.0", BODY));
+    resolve(&seeded, "registry:acme/greet@0.1.0").expect("seed resolve");
+
+    // …then the operator tightens the floor: the SAME hit must refuse.
+    let offline_mock = MockHttp::new();
+    let offline = RegistryClient::new(offline_mock.clone(), dir.path().join("registry"));
+    write_policy(&offline, "version = 1\nfloor = \"provenanced\"\n");
+    let err = resolve(&offline, "registry:acme/greet@0.1.0").expect_err("must refuse");
+    assert_eq!(err.code(), Some("NIKA-REG-008"));
+    let text = err.to_string();
+    assert!(
+        text.contains("grandfather") && text.contains("delete"),
+        "teaches the no-grandfather law + the heal: {text}"
+    );
+    assert!(
+        offline_mock.sent_requests().is_empty(),
+        "the refusal happens at the cache — zero network"
+    );
+
+    // Deleting the policy restores the honest default: the hit answers.
+    std::fs::remove_file(dir.path().join("registry/policy.toml")).expect("policy deletes"); // seam-bypass-ok: test harness disk fixtures
+    let got = resolve(&offline, "registry:acme/greet@0.1.0").expect("default floor admits");
+    assert_eq!(got.tier, ProvenanceTier::Unprovenanced);
+}
+
+#[test]
+fn legacy_records_read_their_boolean_as_the_tier() {
+    // A pre-NEP-0016 record carries `signed` and no `tier` — simulate it
+    // by stripping the field from a freshly written record.
+    let (mock, _pk) = signed_mock("acme", "greet", "0.1.0", BODY);
+    let (signed_seed, signed_dir) = client(mock);
+    resolve(&signed_seed, "registry:acme/greet@0.1.0").expect("seed signed");
+    let mut meta = meta_json(&signed_seed, "0.1.0");
+    meta.as_object_mut()
+        .expect("meta is an object")
+        .remove("tier");
+    rewrite_meta(&signed_seed, "0.1.0", &meta);
+
+    let offline = RegistryClient::new(MockHttp::new(), signed_dir.path().join("registry"));
+    let got = resolve(&offline, "registry:acme/greet@0.1.0").expect("legacy hit");
+    assert!(got.signed, "the boolean survives untouched");
+    assert_eq!(
+        got.tier,
+        ProvenanceTier::Provenanced,
+        "`signed: true` denotes `provenanced` — no migration"
+    );
+    assert!(
+        got.describe().contains("provenanced"),
+        "the hit re-tells the recorded tier: {}",
+        got.describe()
+    );
+
+    let (unsigned_seed, unsigned_dir) = client(happy_mock("acme", "greet", "0.1.0", BODY));
+    resolve(&unsigned_seed, "registry:acme/greet@0.1.0").expect("seed unsigned");
+    let mut meta = meta_json(&unsigned_seed, "0.1.0");
+    meta.as_object_mut()
+        .expect("meta is an object")
+        .remove("tier");
+    rewrite_meta(&unsigned_seed, "0.1.0", &meta);
+
+    let offline = RegistryClient::new(MockHttp::new(), unsigned_dir.path().join("registry"));
+    let got = resolve(&offline, "registry:acme/greet@0.1.0").expect("legacy hit");
+    assert!(!got.signed);
+    assert_eq!(
+        got.tier,
+        ProvenanceTier::Unprovenanced,
+        "`signed: false` denotes `unprovenanced`"
+    );
+}
+
+#[test]
+fn a_signed_fetch_at_a_provenanced_floor_resolves_and_records_the_tier() {
+    let (mock, _pk) = signed_mock("acme", "greet", "0.1.0", BODY);
+    let (floored, _dir) = client(mock);
+    write_policy(&floored, "version = 1\nfloor = \"provenanced\"\n");
+
+    let got = resolve(&floored, "registry:acme/greet@0.1.0").expect("signed resolves at floor");
+    assert_eq!(got.tier, ProvenanceTier::Provenanced);
+    assert!(got.signed, "`signed` stays `tier >= provenanced`");
+    let meta = meta_json(&floored, "0.1.0");
+    assert_eq!(meta["tier"], "provenanced", "the record carries the tier");
+    assert_eq!(meta["signed"], true, "…and the legacy boolean beside it");
+
+    // The honest default: no policy file at all — the v0.1 floor admits
+    // the unsigned entry, and the record says exactly that.
+    let (plain, _dir2) = client(happy_mock("acme", "greet", "0.1.0", BODY));
+    let got = resolve(&plain, "registry:acme/greet@0.1.0").expect("default resolves");
+    assert_eq!(got.tier, ProvenanceTier::Unprovenanced);
+    assert!(!got.signed);
+    let meta = meta_json(&plain, "0.1.0");
+    assert_eq!(meta["tier"], "unprovenanced");
+    assert!(
+        got.describe().contains("unprovenanced"),
+        "describe() speaks the tier: {}",
+        got.describe()
+    );
+}
+
+#[test]
+fn a_below_floor_fetch_anchors_no_tofu_key() {
+    // The strict reading of "NOTHING is written": a signed fetch whose
+    // tier is below a `stage-clear` floor refuses — and the first-sight
+    // TOFU key must NOT anchor either.
+    let (mock, _pk) = signed_mock("acme", "greet", "0.1.0", BODY);
+    let (client, _dir) = client(mock);
+    write_policy(&client, "version = 1\nfloor = \"stage-clear\"\n");
+
+    let err = resolve(&client, "registry:acme/greet@0.1.0").expect_err("must refuse");
+    assert_eq!(err.code(), Some("NIKA-REG-008"));
+    assert!(
+        !client.cache_root.join("keys/acme.pub").exists(),
+        "a refused fetch anchors no key — nothing is written, of any kind"
+    );
+    assert!(!client.cache_root.join("acme").exists());
+}

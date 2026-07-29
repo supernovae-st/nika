@@ -34,6 +34,15 @@
 //!    digest record; a cache hit re-verifies and runs OFFLINE. A bare
 //!    ref writes a pin record so later bare refs never float
 //!    (ADR-106 "pin by default").
+//! 6. **Provenance tier + admission floor** (NEP-0016) — every
+//!    resolution carries a closed-ladder tier (`unprovenanced <
+//!    provenanced < stage-clear < verified`) admitted by the EVIDENCE
+//!    the fetch observed, never by a claim; the operator's floor
+//!    (`policy.toml` beside the cache) refuses anything below it
+//!    (`NIKA-REG-008`, before the store — nothing is written), and the
+//!    tier is recorded beside the digest so a cache hit re-tells the
+//!    same truth (no grandfathering: a tightened floor refuses a hit
+//!    too).
 //!
 //! The fetch happens at CLI-level resolution, BEFORE the workflow is
 //! even parsed — a workflow's `permits:` govern the run's effects, not
@@ -103,6 +112,9 @@ impl RegistryRef {
 }
 
 mod sign;
+mod tier;
+
+pub use tier::ProvenanceTier;
 
 // ---------------------------------------------------------------------
 // Errors — one opaque type, teaching Display, greppable NIKA-REG codes.
@@ -150,6 +162,22 @@ enum ErrKind {
     /// (NIKA-REG-007 · a rewritten index cannot re-key a publisher we
     /// already trust).
     KeyChanged { publisher: String },
+    /// The admitted tier is below the operator's admission floor
+    /// (NIKA-REG-008 · NEP-0016 law 4: the artifact VERIFIED — the
+    /// policy refuses it, after verification, before the store; a cache
+    /// hit under a tightened floor refuses identically).
+    BelowFloor {
+        coordinate: String,
+        tier: ProvenanceTier,
+        floor: ProvenanceTier,
+        cache_hit: bool,
+    },
+    /// The cache record names a tier this engine cannot admit — an
+    /// unknown tier string, a reserved tier no v1 evidence can prove,
+    /// or a `signed`/`tier` disagreement (NEP-0016 laws 1+6: the
+    /// NIKA-REG-004 tampered class — a record that over-claims is
+    /// treated as tampered, never trusted).
+    CacheTierInvalid { path: PathBuf, why: String },
     /// The ref names an artifact that is not a workflow.
     NotAWorkflow { coordinate: String, kind: String },
     /// Cache miss and the network did not answer — the honest offline story.
@@ -183,18 +211,21 @@ impl RegistryError {
     }
 
     /// The contract-allocated refusal code, when this refusal has one
-    /// (`NIKA-REG-001..005` · ADR-106). Parse/transport/environment
-    /// failures carry none.
+    /// (`NIKA-REG-001..008` · ADR-106 + NEP-0016). Parse/transport/
+    /// environment failures carry none.
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match &self.kind {
             ErrKind::NotFound { .. } => Some("NIKA-REG-001"),
             ErrKind::Advisory { .. } => Some("NIKA-REG-002"),
             ErrKind::HashMismatch { .. } => Some("NIKA-REG-003"),
-            ErrKind::CacheTampered { .. } => Some("NIKA-REG-004"),
+            ErrKind::CacheTampered { .. } | ErrKind::CacheTierInvalid { .. } => {
+                Some("NIKA-REG-004")
+            }
             ErrKind::IndexShape { .. } => Some("NIKA-REG-005"),
             ErrKind::SignatureInvalid { .. } => Some("NIKA-REG-006"),
             ErrKind::KeyChanged { .. } => Some("NIKA-REG-007"),
+            ErrKind::BelowFloor { .. } => Some("NIKA-REG-008"),
             _ => None,
         }
     }
@@ -252,6 +283,27 @@ impl std::fmt::Display for RegistryError {
                 f,
                 "[NIKA-REG-007] the publisher key for {publisher} differs from this machine's TOFU record (~/.nika/registry/keys/{publisher}.pub)\n  a key rotation is an OPERATOR decision — if it was deliberate, delete that record and re-run to re-anchor; otherwise the registry may be compromised"
             ),
+            ErrKind::BelowFloor {
+                coordinate,
+                tier,
+                floor,
+                cache_hit,
+            } => {
+                let line2 = if *cache_hit {
+                    "the policy changed under the cache — the cache does not grandfather\n  fix: delete the cached record and re-run; it re-fetches and re-proves against today's registry (a registry-side upgrade rewrites nothing on its own)"
+                } else {
+                    "the artifact VERIFIED — the policy refuses it, and nothing was written"
+                };
+                write!(
+                    f,
+                    "[NIKA-REG-008] {coordinate} resolves at tier `{tier}`, below this machine's admission floor `{floor}`\n  {line2}\n  the floor is operator data: ~/.nika/registry/policy.toml — lower it (or delete the file for the `unprovenanced` default) only if you accept what the lower tiers do not prove"
+                )
+            }
+            ErrKind::CacheTierInvalid { path, why } => write!(
+                f,
+                "[NIKA-REG-004] the cache record {} claims a provenance tier this engine cannot admit: {why}\n  a record that over-claims is treated as tampered, never trusted\n  fix: delete that file and re-run — it will re-fetch and re-verify",
+                path.display()
+            ),
             ErrKind::NotAWorkflow { coordinate, kind } => write!(
                 f,
                 "{coordinate} is a {kind}, not a workflow — check and run consume workflows"
@@ -294,36 +346,45 @@ pub struct Resolved {
     pub pinned: bool,
     /// `true` when the artifact's minisign verified (registry-v0.2) —
     /// recorded at fetch, so a cache-hit receipt tells the same truth.
-    /// `false` on an unsigned entry (the v0.1 digest floor).
+    /// `false` on an unsigned entry (the v0.1 digest floor). Kept beside
+    /// `tier` for the pre-NEP-0016 readers: it is exactly
+    /// `tier >= provenanced`.
     pub signed: bool,
+    /// The provenance tier the fetch's EVIDENCE admitted (NEP-0016) —
+    /// recorded beside the digest, so a cache hit re-tells the truth of
+    /// the day it was fetched (evidence is not re-sought on a hit). v1
+    /// admits `unprovenanced` (digest floor) and `provenanced`
+    /// (minisign + TOFU) only.
+    pub tier: ProvenanceTier,
 }
 
 impl Resolved {
     /// The one/two-line stderr note the CLI prints — where the artifact
-    /// lives and that it is digest-verified (stdout stays machine-pure).
+    /// lives, its verified digest, and its provenance tier (stdout
+    /// stays machine-pure).
     #[must_use]
     pub fn describe(&self) -> String {
         let short = self.sha256.get(..16).unwrap_or(&self.sha256);
+        let evidence = match self.tier {
+            ProvenanceTier::Unprovenanced => "unsigned entry (v0.1 digest floor)",
+            ProvenanceTier::Provenanced => "signed (minisign + TOFU)",
+            // v1 admits the reserved tiers nowhere — a Resolved cannot
+            // carry one (the floor gate + the tampered class see to it).
+            ProvenanceTier::StageClear | ProvenanceTier::Verified => {
+                "reserved evidence (never admitted in v1)"
+            }
+        };
         if self.fetched {
-            let proof = if self.signed {
-                "digest verified + signed (minisign)"
-            } else {
-                "digest verified · unsigned entry (v0.1 floor)"
-            };
             format!(
-                "→ registry {} · fetched + {proof} (sha256 {short}…)\n  cached: {} — later runs use this copy, offline included",
+                "→ registry {} · fetched + digest verified · tier {} · {evidence} (sha256 {short}…)\n  cached: {} — later runs use this copy, offline included",
                 self.coordinate,
+                self.tier,
                 self.path.display()
             )
         } else {
-            let proof = if self.signed {
-                " · signed (minisign, recorded at fetch)"
-            } else {
-                ""
-            };
             format!(
-                "→ registry {} · cache · digest re-verified (sha256 {short}…) · offline{proof}",
-                self.coordinate
+                "→ registry {} · cache · digest re-verified (sha256 {short}…) · offline · tier {} · {evidence} (recorded at fetch)",
+                self.coordinate, self.tier,
             )
         }
     }
@@ -372,9 +433,70 @@ struct Meta {
     coordinate: String,
     source: SourcePin,
     /// Whether the artifact's minisign verified at fetch (v0.2 records —
-    /// absent on older records = unsigned floor, `false`).
+    /// absent on older records = unsigned floor, `false`). Still written
+    /// beside `tier` so a pre-NEP-0016 engine reads the record as the
+    /// boolean it speaks (a downgrade is the safe direction).
     #[serde(default)]
     signed: bool,
+    /// The tier the fetch's evidence admitted (NEP-0016 records —
+    /// absent on pre-NEP records, which read as the tier `signed`
+    /// denotes). Validated at hit time: an unknown string, a reserved
+    /// tier, or a `signed`/`tier` disagreement is the tampered class.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tier: Option<String>,
+}
+
+/// The tier a cache record tells (NEP-0016 laws 1+6): a `tier` string
+/// must be known AND admissible by v1 evidence AND agree with the
+/// legacy boolean — anything else is the tampered class (a record that
+/// over-claims never floats). A pre-NEP record (no `tier`) reads as
+/// the tier its `signed` denotes.
+fn meta_tier(meta: &Meta, meta_path: &Path) -> Result<ProvenanceTier, RegistryError> {
+    let invalid = |why: String| {
+        RegistryError::new(ErrKind::CacheTierInvalid {
+            path: meta_path.to_path_buf(),
+            why,
+        })
+    };
+    match &meta.tier {
+        None => Ok(if meta.signed {
+            ProvenanceTier::Provenanced
+        } else {
+            ProvenanceTier::Unprovenanced
+        }),
+        Some(raw) => {
+            let tier = ProvenanceTier::parse(raw).ok_or_else(|| {
+                invalid(format!(
+                    "`{raw}` is not a known tier (the closed ladder is unprovenanced < provenanced < stage-clear < verified)"
+                ))
+            })?;
+            if !tier.admissible_by_v1_evidence() {
+                return Err(invalid(format!(
+                    "`{}` is reserved — no evidence v1 can observe admits it, so no honest v1 fetch recorded it",
+                    tier.as_str()
+                )));
+            }
+            if meta.signed != tier.denotes_signed() {
+                return Err(invalid(format!(
+                    "`signed: {}` and `tier: \"{}\"` disagree — a record speaks one truth",
+                    meta.signed,
+                    tier.as_str()
+                )));
+            }
+            Ok(tier)
+        }
+    }
+}
+
+/// What the network lane proved: the verified bytes plus the tier
+/// THEIR evidence admits (NEP-0016 law 2 — observed, never claimed).
+struct Fetched {
+    bytes: Vec<u8>,
+    tier: ProvenanceTier,
+    /// A first-sight TOFU key (`publisher`, `pubkey`) that verified but
+    /// is not anchored yet — the write waits for the floor gate
+    /// (NIKA-REG-008 writes NOTHING, the anchor included).
+    pending_key: Option<(String, String)>,
 }
 
 // ---------------------------------------------------------------------
@@ -399,23 +521,41 @@ impl<H: HttpGetDyn> RegistryClient<H> {
     /// Order of authority: explicit version, else the local pin record
     /// (a bare ref never floats — ADR-106), else the network's newest
     /// `SemVer`. The cache answers before the network; a hit re-verifies
-    /// its digest record.
+    /// its digest record. The operator's admission floor (NEP-0016)
+    /// gates BOTH lanes: a hit whose recorded tier is below the floor
+    /// refuses, and a fetch whose evidence admits less than the floor
+    /// refuses after verification, before the store — nothing written,
+    /// the TOFU anchor included.
     pub async fn resolve(&self, arg: &str) -> Result<Resolved, RegistryError> {
         let r = parse_ref(arg)?;
+        let policy = tier::Policy::load(&self.cache_root)?;
         let (version, pinned) = match &r.version {
             Some(v) => (Some(v.clone()), false),
             None => (self.read_pin(&r)?, true),
         };
         if let Some(v) = &version
-            && let Some(hit) = self.cached(&r, v, pinned)?
+            && let Some(hit) = self.cached(&r, v, pinned, policy.floor)?
         {
             return Ok(hit);
         }
         let index = self.fetch_index().await?;
         let art = select_artifact(&index, &r, version.as_deref())?;
         let parsed = self.entry_digest(&art).await?;
-        let bytes = self.fetch_artifact(&art, &parsed).await?;
-        self.store(&r, &art, &parsed.digest, &bytes, parsed.signature.is_some())
+        let fetched = self.fetch_artifact(&art, &parsed).await?;
+        if fetched.tier < policy.floor {
+            return Err(RegistryError::new(ErrKind::BelowFloor {
+                coordinate: r.coordinate(&art.version),
+                tier: fetched.tier,
+                floor: policy.floor,
+                cache_hit: false,
+            }));
+        }
+        // The floor passed — only now may anything be written: the
+        // first-sight TOFU key anchors (it verified), then the store.
+        if let Some((publisher, pubkey)) = &fetched.pending_key {
+            sign::tofu_record(&self.keys_dir(), publisher, pubkey)?;
+        }
+        self.store(&r, &art, &parsed.digest, &fetched)
     }
 
     // -- cache lane ----------------------------------------------------
@@ -459,13 +599,19 @@ impl<H: HttpGetDyn> RegistryClient<H> {
 
     /// The cache probe: artifact + digest record present → re-hash the
     /// bytes against the record (a local record pins bytes; a mismatch
-    /// fails, never floats — NIKA-REG-004). Anything missing → `None`
-    /// (the network lane heals it).
+    /// fails, never floats — NIKA-REG-004) and re-tell its recorded tier
+    /// (evidence is not re-sought on a hit — the record IS the evidence
+    /// of what that fetch proved; a tier the record cannot admit is the
+    /// tampered class). A hit whose tier is below the operator's floor
+    /// refuses (NIKA-REG-008 — the policy changed under the cache; the
+    /// cache does not grandfather). Anything missing → `None` (the
+    /// network lane heals it).
     fn cached(
         &self,
         r: &RegistryRef,
         version: &str,
         pinned: bool,
+        floor: ProvenanceTier,
     ) -> Result<Option<Resolved>, RegistryError> {
         let dir = self.dir_of(r);
         let artifact = dir.join(format!("{version}.nika.yaml"));
@@ -486,6 +632,15 @@ impl<H: HttpGetDyn> RegistryClient<H> {
                 actual,
             }));
         }
+        let tier = meta_tier(&meta, &meta_path)?;
+        if tier < floor {
+            return Err(RegistryError::new(ErrKind::BelowFloor {
+                coordinate: r.coordinate(version),
+                tier,
+                floor,
+                cache_hit: true,
+            }));
+        }
         Ok(Some(Resolved {
             path: artifact,
             coordinate: r.coordinate(version),
@@ -493,6 +648,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             fetched: false,
             pinned,
             signed: meta.signed,
+            tier,
         }))
     }
 
@@ -552,7 +708,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         &self,
         art: &IndexArtifact,
         parsed: &ParsedEntry,
-    ) -> Result<Vec<u8>, RegistryError> {
+    ) -> Result<Fetched, RegistryError> {
         let coordinate = format!("{}/{}@{}", art.publisher, art.name, art.version);
         let url = format!(
             "{RAW_BASE}/{}/{}/{}",
@@ -575,13 +731,24 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             }));
         }
         // v0.2 — the authenticity half: a signed entry must VERIFY (the
-        // digest already proved consistency; the minisign proves origin),
-        // and only a key that verifies may anchor the TOFU record.
-        if let Some(block) = &parsed.signature {
-            sign::verify_detached(&coordinate, block, &bytes)?;
-            sign::tofu_check_and_record(&self.keys_dir(), &art.publisher, &block.pubkey)?;
-        }
-        Ok(bytes)
+        // digest already proved consistency; the minisign proves origin).
+        // The tier is what the OBSERVED evidence admits (NEP-0016 law 2 —
+        // never a claim), and a first-sight TOFU key comes back PENDING:
+        // the anchor write waits for the floor gate (a refused fetch
+        // writes nothing, the key record included).
+        let (tier, pending_key) = match &parsed.signature {
+            Some(block) => {
+                sign::verify_detached(&coordinate, block, &bytes)?;
+                let pending = sign::tofu_check(&self.keys_dir(), &art.publisher, &block.pubkey)?;
+                (ProvenanceTier::Provenanced, pending)
+            }
+            None => (ProvenanceTier::Unprovenanced, None),
+        };
+        Ok(Fetched {
+            bytes,
+            tier,
+            pending_key,
+        })
     }
 
     /// One capped GET with the honest failure taxonomy: transport error
@@ -625,14 +792,13 @@ impl<H: HttpGetDyn> RegistryClient<H> {
 
     /// Write the VERIFIED bytes + digest record (atomic: temp sibling +
     /// rename), and the pin when the ref was bare. Nothing lands here
-    /// unless the hash already matched.
+    /// unless the hash already matched AND the tier passed the floor.
     fn store(
         &self,
         r: &RegistryRef,
         art: &IndexArtifact,
         digest: &str,
-        bytes: &[u8],
-        signed: bool,
+        fetched: &Fetched,
     ) -> Result<Resolved, RegistryError> {
         let dir = self.dir_of(r);
         let made = std::fs::create_dir_all(&dir); // seam-bypass-ok: local cache · #512 follow-up
@@ -647,12 +813,13 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             sha256: digest.to_owned(),
             coordinate: coordinate.clone(),
             source: art.source.clone(),
-            signed,
+            signed: fetched.tier.denotes_signed(),
+            tier: Some(fetched.tier.as_str().to_owned()),
         };
         let meta_json = serde_json::to_string_pretty(&meta)
             .map_err(|e| RegistryError::env(format!("cannot encode the digest record: {e}")))?;
         let artifact = dir.join(format!("{}.nika.yaml", art.version));
-        write_atomic(&artifact, bytes)?;
+        write_atomic(&artifact, &fetched.bytes)?;
         write_atomic(
             &dir.join(format!("{}.meta.json", art.version)),
             meta_json.as_bytes(),
@@ -666,7 +833,8 @@ impl<H: HttpGetDyn> RegistryClient<H> {
             sha256: digest.to_owned(),
             fetched: true,
             pinned: false,
-            signed,
+            signed: fetched.tier.denotes_signed(),
+            tier: fetched.tier,
         })
     }
 }

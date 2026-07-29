@@ -18,11 +18,11 @@ classes:
   testimonial: "impl-owned test evidence — fixtures, corpora, batteries: proves behavior; neither shipped code nor derived output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4166
+  classified_files: 4167
   file_rows: 10
   pattern_rows: 22
   by_class:
-    authored: 1282
+    authored: 1283
     authored-pin: 1
     generated: 112
     pinned-copy: 75
@@ -63,7 +63,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 366edd52e514e7c6965b944e1704cd765fe134d7ecfa178902428bc64daeafa8
+  sha256: c0471c6144190bd6763edc55ed943ebd026601bdc52c8cf71ac5e750b31030b4
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -104,7 +104,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 75
-  aggregate_sha256: 3d4ad4035453296369991208af8bdaa71c6020ccd91dc0c1418bf8d1453703f1
+  aggregate_sha256: 940ae674dc747f1d4abea03ffc399a85e38712e7a785a5add95b8a28117a175b
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -141,8 +141,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 639
-  aggregate_sha256: 39e1a9ccdb10581c4ef72f07517b649afa35034a8441c3848fda2291e7f856c5
+  match_count: 640
+  aggregate_sha256: 529a47e81df4c90c66a05e14877ae34c0720a8e7bd4b13dea04520daa3159d4f
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
