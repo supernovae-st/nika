@@ -101,21 +101,21 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `release/v0.106.1`                                      |
-| HEAD             | `f5c1d23eb` (`f5c1d23eb26eb029bf8438ee162c11eebe180aeb`)             |
+| branch           | `feat/f-p6-preview-commit`                                      |
+| HEAD             | `01cc64266` (`01cc64266925d7f57e72ea3df8dca9a2259efec9`)             |
 | workspace        | v0.106.1                                  |
-| crates (workspace)| 57                                              |
+| crates (workspace)| 58                                              |
 | crates (admitted)| 55                                             |
-| crates (WIP)     | 2 — nika-chart nika-fx                                  |
-| L0               | 18                                              |
+| crates (WIP)     | 3 — nika-chart nika-fx nika-proof                                  |
+| L0               | 19                                              |
 | L0.5             | 6                                              |
 | L1               | 14                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 9                                              |
-| lib tests        | 4931 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| lib tests        | (skipped — pass --no-quick to compute)                              |
+| clippy           | (skipped)                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the

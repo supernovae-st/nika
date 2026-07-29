@@ -1089,5 +1089,21 @@
       "requires": ["ADR-003"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-108",
+      "title": "Split the spec-15 proof primitives out of nika-runtime into nika-proof (L0)",
+      "status": "accepted",
+      "date": "2026-07-29",
+      "filename": "adr-108-nika-proof-split.md",
+      "tags": ["proof","receipt","L0","crate-size","diamond","split"],
+      "affects_crates": ["nika-proof","nika-runtime","nika-dap"],
+      "affects_layers": ["L0","L3"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-022","ADR-090"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

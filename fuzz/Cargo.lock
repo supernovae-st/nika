@@ -2420,6 +2420,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-proof"
+version = "0.106.1"
+dependencies = [
+ "blake3",
+ "nika-check",
+ "nika-schema",
+ "serde_json",
+]
+
+[[package]]
 name = "nika-providers"
 version = "0.106.1"
 dependencies = [
@@ -2453,6 +2463,7 @@ dependencies = [
  "nika-fs",
  "nika-http",
  "nika-kernel",
+ "nika-proof",
  "nika-providers",
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",

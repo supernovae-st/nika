@@ -357,6 +357,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
             record: error("NIKA-EXEC-001", "exit 1"),
             cost_usd: None,
             cost_unpriced: None,
+            evidence: None,
         },
         render_error: error("NIKA-VAR-001", "unresolved reference `tasks.ghost.output`"),
         awaiting: std::collections::BTreeSet::from(["ghost".to_owned()]),
@@ -364,14 +365,15 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     };
     let finish = task::Finish {
         id: "risky".to_owned(),
-        settle: task::SettleAs::Ran(task::RanTask {
+        settle: task::SettleAs::Ran(Box::new(task::RanTask {
             decisions: Vec::new(),
             note: "exec · sh".to_owned(),
             retries: Vec::new(),
             agent_events: Vec::new(),
+            evidence: None,
             duration_ms: 0,
             result: task::RunResult::PendingRecovery(Box::new(pending)),
-        }),
+        })),
         named: BTreeMap::new(),
         resume: None,
         integrity: nika_cap::Integrity::trusted(),

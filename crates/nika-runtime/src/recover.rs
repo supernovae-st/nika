@@ -249,9 +249,10 @@ fn try_park(
         retries,
         agent_events,
         decisions,
+        evidence,
         duration_ms,
         result,
-    } = ran;
+    } = *ran;
     let pending = match result {
         RunResult::PendingRecovery(pending) => pending,
         other => {
@@ -260,10 +261,11 @@ fn try_park(
                 retries,
                 agent_events,
                 decisions,
+                evidence,
                 duration_ms,
                 result: other,
             };
-            let settle = SettleAs::Ran(ran);
+            let settle = SettleAs::Ran(Box::new(ran));
             let done = finish_with(id, settle, named, resume, integrity, declassified, approval);
             return Some(done);
         }
@@ -301,6 +303,8 @@ fn try_park(
         retries,
         agent_events,
         decisions,
+        // F-P6 · the parked failure's evidence rides back out.
+        evidence: failed.evidence,
         duration_ms,
         result: RunResult::Failed {
             error: render_error,
@@ -308,7 +312,7 @@ fn try_park(
             cost_unpriced: failed.cost_unpriced,
         },
     };
-    let settle = SettleAs::Ran(ran);
+    let settle = SettleAs::Ran(Box::new(ran));
     Some(finish_with(
         id,
         settle,
@@ -461,6 +465,7 @@ fn resolve_parked(
         record,
         cost_usd,
         cost_unpriced,
+        evidence,
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
@@ -501,14 +506,16 @@ fn resolve_parked(
             cost_unpriced,
         },
     };
-    let mut settled_as = SettleAs::Ran(RanTask {
+    let mut settled_as = SettleAs::Ran(Box::new(RanTask {
         note,
         retries,
         agent_events,
         decisions,
+        // F-P6 · the parked failure's evidence rides back out.
+        evidence,
         duration_ms,
         result,
-    });
+    }));
     let named = match scope.wf.tasks.get(task_index) {
         Some(task) => bind_outputs(&task.value, &mut settled_as),
         None => BTreeMap::new(),
