@@ -123,7 +123,7 @@ cross-run replay is refused · (3) **rate-limited** — at most N=5
 approvals per run; identical prompts dedup (the same content hash rides
 one ticket, attested `dedup`); a heterogeneous batch is refused at
 check (one prompt gates one action of one class); the N+1th prompt is a
-typed HALT (`security_error`), never a queue · (4) **attested** — every
+typed HALT (`NIKA-SEC-010` · `security_error`), never a queue · (4) **attested** — every
 decision emits a hash-chained `approval_decided` event (ticket digest ·
 shown hash · decision · remaining TTL · scope), and the digests rise to
 the receipt · (5) **revocable before execution only** — never after:
