@@ -129,15 +129,15 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/f-p6-preview-commit`                                      |
-| HEAD             | `01cc64266` (`01cc64266925d7f57e72ea3df8dca9a2259efec9`)             |
+| branch           | `feat/f-p8-signed-memory`                                      |
+| HEAD             | `1fc344a2f` (`1fc344a2f649a32365694beb4a07dddb8be03267`)             |
 | workspace        | v0.106.1                                  |
-| crates (workspace)| 58                                              |
+| crates (workspace)| 59                                              |
 | crates (admitted)| 55                                             |
-| crates (WIP)     | 3 — nika-chart nika-fx nika-proof                                  |
+| crates (WIP)     | 4 — nika-chart nika-fx nika-proof nika-store                                  |
 | L0               | 19                                              |
 | L0.5             | 6                                              |
-| L1               | 14                                              |
+| L1               | 15                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |

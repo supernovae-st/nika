@@ -357,8 +357,9 @@ pub fn seal_event(
 /// attests BEYOND the chain: the receipt the run folded at teardown
 /// (its digest rides; the body stays the evidence pack's surface), the
 /// budgets ρ consumed against the certificate's ceiling, the
-/// effects ε exercised against the declared bound, and the failed
-/// run's quarantine fold (F-P14 · la dette du run). Every field is
+/// effects ε exercised against the declared bound, the signed-memory
+/// fold (F-P8 · the admitted digests + the rejection count), and the
+/// failed run's quarantine fold (F-P14 · la dette du run). Every field is
 /// ADDITIVE — `seal_format` stays 1: the verify tier reads `covers`
 /// tolerantly (unknown keys are ignored, verified by the tier tests),
 /// and the signature's canonicalization covers the whole object either
@@ -380,6 +381,22 @@ pub struct SealTeardown {
     pub budgets: Option<serde_json::Value>,
     /// The effects ε fold (exercised vs declared), pre-shaped by the caller.
     pub effects: Option<serde_json::Value>,
+    /// The memory fold (F-P8 · SMSR signed memory): `{"v": 1, "stores":
+    /// [{store, admitted: [digest…], rejected: n} | {store, error}]}` —
+    /// the admitted set NAMED by digest, the rejections counted (unsigned
+    /// · bad signature · relabel = rejected, never filtered) and named
+    /// one `memory_entry_rejected` journal event each BEFORE this seal
+    /// (the chain covers them), a failed store walk NAMED in place.
+    /// Pre-shaped by the caller from `nika_store::seal_fold`. Rides ONLY
+    /// when the run's CWD holds a `.nika/memory/` store — `None` keeps
+    /// the key OUT (absent is honest).
+    pub memory: Option<serde_json::Value>,
+    /// The named per-entry rejections the `memory` fold counts (the
+    /// law's third leg): [`crate::journal::seal_journal_with`] journals
+    /// one `memory_entry_rejected` event per entry BEFORE the seal event
+    /// mints, so the chain the seal signs covers the names the fold
+    /// counts. Empty without a store — nothing to name.
+    pub memory_rejected: Vec<crate::memory::RejectedEntry>,
     /// The quarantine fold (F-P14 · NEP-0017 · « obligation de fin — la
     /// dette du run »): where the failed run's semi-written outputs
     /// moved (`{dir, outputs: [{path, quarantined_to} | {path, error,
@@ -490,6 +507,12 @@ fn extend_covers(
     }
     if let Some(effects) = &teardown.effects {
         covers["effects"] = effects.clone();
+    }
+    // F-P8 · the signed-memory fold rides verbatim: the seal pins the
+    // verified SET (the admitted digests) and the rejection count beside
+    // it; `None` keeps the key OUT (absent is honest).
+    if let Some(memory) = &teardown.memory {
+        covers["memory"] = memory.clone();
     }
     // F-P14 · la dette du run: the failed run's quarantine fold rides
     // verbatim (the moves happened BEFORE this seal — the end attested
@@ -881,6 +904,120 @@ mod tests {
         assert!(
             covers.get("quarantine").is_none(),
             "absent is honest — a clean run attests nothing: {covers}"
+        );
+    }
+
+    /// F-P8 (SMSR signed memory) · the memory fold rides `covers`
+    /// additively — the admitted digests + the rejection count — and the
+    /// signature verifies over the extended object; a `None` keeps the
+    /// key OUT (no `.nika/memory/` in the run's CWD ⇒ nothing to attest).
+    #[test]
+    fn the_memory_fold_rides_the_covers_and_verifies() {
+        let (pk, sk) = keypair();
+        let mut teardown = SealTeardown::new();
+        teardown.memory = Some(serde_json::json!({
+            "v": 1,
+            "stores": [
+                {
+                    "store": "default",
+                    "admitted": [
+                        "b2f1a0c94e6d41f8a0d3c5b7e9f1a2c4b6d8e0f2a4c6b8d0e2f4a6c8b0d2e4f6",
+                    ],
+                    "rejected": 1,
+                },
+            ],
+        }));
+        let ev = seal_event_with(
+            EventId::generate(),
+            Timestamp::from_unix_ms(1_700_000_000_000),
+            "ab12cd",
+            142,
+            "wf-hash-7c2a",
+            "0.105.0",
+            Some(&teardown),
+            &sk,
+            &pk,
+        )
+        .expect("the seal mints");
+        let get = |key: &str| {
+            ev.fields
+                .iter()
+                .find(|f| f.key == key)
+                .and_then(|f| match &f.value {
+                    nika_types::resource::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+        };
+        let covers: serde_json::Value =
+            serde_json::from_str(&get("covers").expect("covers present")).expect("covers parses");
+
+        // The classic four ride unchanged; the memory fold joins them
+        // VERBATIM (the admitted digests AND the rejection count).
+        assert_eq!(covers["head"], serde_json::json!("ab12cd"));
+        assert_eq!(
+            covers["memory"]["stores"][0]["store"],
+            serde_json::json!("default")
+        );
+        assert_eq!(
+            covers["memory"]["stores"][0]["admitted"][0]
+                .as_str()
+                .expect("the digest rides")
+                .len(),
+            64,
+            "the admitted set is NAMED by full digest"
+        );
+        assert_eq!(
+            covers["memory"]["stores"][0]["rejected"],
+            serde_json::json!(1),
+            "the rejection count rides beside the admitted set"
+        );
+
+        // The signature verifies over the EXTENDED covers.
+        let preimage =
+            nika_runtime::proof::preimage(nika_runtime::proof::HashDomain::Trace, 1, &covers);
+        let sig_box = minisign::SignatureBox::from_string(&get("sig").expect("sig present"))
+            .expect("sig parses");
+        let pk_box = minisign::PublicKeyBox::from_string(&pk).expect("pk box parses");
+        let pk_key = pk_box.into_public_key().expect("pk decodes");
+        minisign::verify(
+            &pk_key,
+            &sig_box,
+            std::io::Cursor::new(preimage.as_bytes()),
+            true,
+            false,
+            false,
+        )
+        .expect("the memory seal verifies");
+
+        // The no-fake-zero posture: a teardown WITHOUT the fold seals a
+        // covers with no `memory` key at all.
+        let clean = seal_event_with(
+            EventId::generate(),
+            Timestamp::from_unix_ms(1_700_000_000_001),
+            "ab12cd",
+            142,
+            "wf-hash-7c2a",
+            "0.105.0",
+            Some(&SealTeardown::new()),
+            &sk,
+            &pk,
+        )
+        .expect("the seal mints");
+        let covers: serde_json::Value = serde_json::from_str(
+            &clean
+                .fields
+                .iter()
+                .find(|f| f.key == "covers")
+                .and_then(|f| match &f.value {
+                    nika_types::resource::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .expect("covers present"),
+        )
+        .expect("covers parses");
+        assert!(
+            covers.get("memory").is_none(),
+            "absent is honest — a run with no memory store attests nothing: {covers}"
         );
     }
 

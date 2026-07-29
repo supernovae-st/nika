@@ -158,6 +158,21 @@ pub enum EventKind {
     /// terminal frame; a blocking prompt that pauses the run carries its
     /// mint on the `workflow_paused` frame instead (no decision yet).
     ApprovalDecided,
+    // ── additive cohort 2026-07-29 · F-P8 (SMSR · signed memory) · a
+    //    rejected memory entry is NAMED, never silently filtered. MINOR-bump
+    //    additive per the header law. ──
+    /// A memory-store entry failed recall verification (`store` + `entry` +
+    /// `reason` fields — `unsigned` · `malformed` · `key_mismatch` ·
+    /// `store_mismatch` · `bad_signature` · the reason set grows
+    /// additively with `nika_store::RejectReason`, e.g.
+    /// `unsupported_version` · `name_mismatch`): the SMSR no-provenance-
+    /// free-filter theorem made observable — an entry that cannot prove
+    /// its provenance is REJECTED at recall, and the rejection is
+    /// journaled (the seal's `covers["memory"]` pins the count beside the
+    /// admitted set; the events land BEFORE the seal, so the chain covers
+    /// the names). Diagnostic, like the agent-telemetry cohort: the recall
+    /// verdict itself rides the recall API.
+    MemoryEntryRejected,
 }
 
 impl EventKind {
@@ -198,6 +213,7 @@ impl EventKind {
             Self::RunSealed => "run_sealed",
             Self::Declassify => "declassify",
             Self::ApprovalDecided => "approval_decided",
+            Self::MemoryEntryRejected => "memory_entry_rejected",
         }
     }
 
@@ -268,7 +284,10 @@ impl EventKind {
             Self::CheckpointWritten | Self::RunSealed => EventClass::Durability,
             Self::CostIncurred => EventClass::Cost,
             Self::InferChunk => EventClass::Stream,
-            Self::PermitChecked | Self::Declassify | Self::ApprovalDecided => EventClass::Security,
+            Self::PermitChecked
+            | Self::Declassify
+            | Self::ApprovalDecided
+            | Self::MemoryEntryRejected => EventClass::Security,
             Self::AgentToolsSelected
             | Self::AgentNudge
             | Self::AgentStalled
@@ -350,6 +369,7 @@ mod tests {
         EventKind::RunSealed,
         EventKind::Declassify,
         EventKind::ApprovalDecided,
+        EventKind::MemoryEntryRejected,
     ];
 
     #[test]
@@ -386,10 +406,11 @@ mod tests {
                 | EventKind::WorkflowPaused
                 | EventKind::RunSealed
                 | EventKind::Declassify
-                | EventKind::ApprovalDecided => {}
+                | EventKind::ApprovalDecided
+                | EventKind::MemoryEntryRejected => {}
             }
         }
-        assert_eq!(ALL.len(), 28, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 29, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -466,7 +487,9 @@ mod tests {
                 "checkpoint_written" | "run_sealed" => Some(EventClass::Durability),
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
-                "permit_checked" | "declassify" | "approval_decided" => Some(EventClass::Security),
+                "permit_checked" | "declassify" | "approval_decided" | "memory_entry_rejected" => {
+                    Some(EventClass::Security)
+                }
                 s if s.starts_with("agent_") => Some(EventClass::Agent),
                 _ => None,
             };
@@ -490,6 +513,19 @@ mod tests {
             assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");
             assert_eq!(k.class(), EventClass::Agent);
         }
+    }
+
+    #[test]
+    fn memory_entry_rejected_is_diagnostic_security_evidence() {
+        // F-P8 (SMSR): a rejected memory entry is a trust-boundary VERDICT,
+        // not a lifecycle state — the recall API carries the verdict, the
+        // event is the journal's evidence. Diagnostic like the agent
+        // cohort: never terminal, never a lifecycle failure.
+        let k = EventKind::MemoryEntryRejected;
+        assert!(!k.is_terminal(), "{k:?} must not be terminal");
+        assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");
+        assert_eq!(k.class(), EventClass::Security);
+        assert_eq!(k.as_str(), "memory_entry_rejected");
     }
 
     #[test]

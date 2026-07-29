@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-proof", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-cli", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-store", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-proof", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-cli", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -34,7 +34,7 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-chart", "nika-fx", "nika-proof"]
+wip = ["nika-chart", "nika-fx", "nika-proof", "nika-store"]
 # nika-pack · the embedded language pack (spec snapshot + manifest hashes ·
 # proposal branch feat/nika-pack · pure data · include_dir · zero I/O).
 layers.nika-chart = "L0"
@@ -183,6 +183,10 @@ layers.nika-kernel-mock = "L0.5"
 # binding · spec docs/crate-specs/nika-bm25.md · `kernel` feature default-on
 # Diamond-internal · external crates.io consumers `--no-default-features`
 layers.nika-bm25 = "L1"
+# nika-store · F-P8 signed-memory substrate (SMSR · spec docs/crate-specs/nika-store.md) ·
+# signed-write/verified-recall over `.nika/memory/<store>/` · minisign over the JCS
+# envelope · the run-signing key INJECTED (custody stays L4) · NIKA-605.
+layers.nika-store = "L1"
 # nika-screen · M2.1 first computer-use L1 effect crate (ADR-081 guards 6+7) ·
 # implements kernel io::screen ScreenCapture · xcap backend (B.3) · NIKA-1000..1099.
 layers.nika-screen = "L1"
@@ -277,6 +281,7 @@ bare_urls                  = "warn"
 [workspace.dependencies]
 # Pin once here, downstream uses `.workspace = true` (RUST_ENFORCEMENT §2).
 thiserror  = "2.0"
+minisign   = { version = "0.7", default-features = false }   # the seal/signature primitive (nika-dap custody · nika-store F-P8 envelopes)
 regex      = "1.11"     # nika-builtin L1.5 — nika:grep pattern engine (RE2-class · no backrefs · the portable subset)
 include_dir = "0.7"   # nika-pack L0 · compile-time spec-pack embedding
 sha2 = "0.10"         # nika-pack dev · manifest integrity hashing + nika-event L0 · the source-identity hash
