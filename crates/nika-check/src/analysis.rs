@@ -68,7 +68,7 @@ pub struct WriteConflict {
     /// both keys reduce to it) · the key as spelled (the `for_each`
     /// flavor — nothing is compared). A key is a literal path, or the
     /// canonical bare-ref form (`${{ inputs.f }}`) when the shared
-    /// value is not statically known ([`static_write_key`]).
+    /// value is not statically known (`static_write_key`).
     pub path: String,
     /// The witness sentence (the race, named — both spellings when the
     /// literals differ textually).
