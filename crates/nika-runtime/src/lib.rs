@@ -48,6 +48,7 @@
 
 mod admit;
 mod agent_events;
+pub mod approval;
 pub mod child;
 pub mod compose;
 pub mod config;
@@ -241,6 +242,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// (`NIKA-SEC-003` · spec 14 §errors — the runtime backstop behind
     /// the static acyclicity proof).
     run_depth: u32,
+    /// F-P4 · the approval book (NEP-0013): the per-run ticket state the
+    /// `nika:prompt` gate mints/dedups/rate-limits against, plus the
+    /// folded resume authority the composer injects. Per-runtime = per
+    /// run (a child run keeps its own journal — and its own book).
+    approvals: approval::ApprovalBook,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -288,6 +294,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             skills: BTreeMap::new(),
             child_runner: None,
             run_depth: 0,
+            approvals: approval::ApprovalBook::new(),
         }
     }
 
@@ -387,6 +394,19 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
+    /// Inject the F-P4 resume authority (NEP-0013): the approval ticket
+    /// folded from the paused trace (its `workflow_paused` frame) plus
+    /// the trace's own run identity. At the answered task's dispatch the
+    /// ticket validates BEFORE the answer binds — nonce (cross-run) ·
+    /// TTL (re-prompt) · shown hash (`approval.content_mismatch`).
+    /// `None` on a fresh run: every `--answer` then mints a fresh
+    /// ticket and attests against the content computed now.
+    #[must_use]
+    pub fn with_paused_approval(self, paused: Option<approval::PausedApproval>) -> Self {
+        self.approvals.set_paused(paused);
+        self
+    }
+
     /// Inject the COMPOSER-resolved Agent Skills (spec 02 §agent skills):
     /// each `skills:` path, exactly as written, mapped to its SKILL.md
     /// raw text. The composer (CLI) owns the file reads — `nika check`
@@ -427,13 +447,17 @@ pub(crate) fn i(v: i64) -> FieldValue {
 }
 
 /// Emit the run's opening frames · `WorkflowStarted` + one
-/// `TaskScheduled` per task (the storyboard's fixed prologue).
+/// `TaskScheduled` per task (the storyboard's fixed prologue) — then
+/// open the F-P4 approval book on the opening frame's id (the run
+/// nonce every ticket this run mints is scoped to · NEP-0013 law 2).
+#[allow(clippy::too_many_arguments)] // the prologue parts + the pens
 fn emit_prologue(
     wf: &RawWorkflow,
     workflow_name: &str,
     source_sha256: Option<&str>,
     source_sha256_lf: Option<&str>,
     sandbox_backend: Option<&str>,
+    approvals: &approval::ApprovalBook,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -495,7 +519,14 @@ fn emit_prologue(
     // F-P2 · the boot attestation (spec pin · the declaration-resolved
     // entropy seam · the seed under a determinism demand).
     opening.extend(boot_attestation_fields(wf));
-    emit(stamper, sink, EventKind::WorkflowStarted, &opening);
+    // Stamped by hand (not via `emit`) so the opening frame's id comes
+    // back as the run nonce — the F-P4 approval scope.
+    let (nonce, ts) = stamper.next();
+    let mut event = Event::new(nonce, ts, EventKind::WorkflowStarted);
+    for (key, value) in opening {
+        event = event.with_field(KeyValue::new(key, value));
+    }
+    sink.emit(event);
     for task in &wf.tasks {
         emit(
             stamper,
@@ -504,6 +535,11 @@ fn emit_prologue(
             &[("task", s(&task.value.id.value))],
         );
     }
+    // F-P4 · the approval book opens with the run: the nonce is the
+    // opening frame's id, and every prompt's unleashed closure is
+    // precomputed over THESE bytes (the resumed run recomputes the same
+    // closure — the shown hash stays comparable).
+    approvals.begin_run(wf, nonce.uuid.to_string());
 }
 
 /// The spec commit this engine's conformance is proven at (F-P2 · the
@@ -719,6 +755,7 @@ where
             self.source_sha256.as_deref(),
             self.source_sha256_lf.as_deref(),
             self.config.sandbox_backend.as_deref(),
+            &self.approvals,
             stamper,
             sink,
         );
@@ -958,6 +995,7 @@ where
                     config,
                     consts,
                     resume_ctx.markers(),
+                    &self.approvals,
                 )
             {
                 paused = Some(p);
@@ -986,7 +1024,10 @@ where
 /// Emit the `workflow_paused` terminal frame (ADR-099 rider) — the
 /// prompt payload rides as fields (`task` · `mode` · `message` ·
 /// `choices` as compact JSON text), secret-masked by construction (the
-/// payload renders over the marker scope, never resolved values).
+/// payload renders over the marker scope, never resolved values). The
+/// F-P4 approval ticket rides additively (`approval_*` · NEP-0013): the
+/// pause serializes the capability the resumed run validates the
+/// `--answer` against — shown-hash · digest · nonce · mint · TTL.
 fn emit_paused(
     workflow_name: &str,
     pause: &WorkflowPause,
@@ -1011,6 +1052,15 @@ fn emit_paused(
         .then(|| serde_json::to_string(&pause.choices).unwrap_or_else(|_| "[]".to_owned()));
     if let Some(text) = choices_text.as_deref() {
         fields.push(("choices", s(text)));
+    }
+    if let Some(ticket) = pause.approval.as_ref() {
+        fields.push(("approval_shown_hash", s(&ticket.content_hash)));
+        if let Some(digest) = ticket.digest() {
+            fields.push(("approval_digest", s(&digest)));
+        }
+        fields.push(("approval_nonce", s(&ticket.run_nonce)));
+        fields.push(("approval_minted_at_ms", i(ticket.minted_at_ms)));
+        fields.push(("approval_ttl_seconds", i(i64::from(ticket.ttl_seconds))));
     }
     emit(stamper, sink, EventKind::WorkflowPaused, &fields);
 }

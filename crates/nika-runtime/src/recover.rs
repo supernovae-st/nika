@@ -197,6 +197,7 @@ pub(crate) fn settle_or_park(
 
 /// Reassemble a `Finish` around a settle — the shared tail of every
 /// park path (declined · not-parkable · resolved).
+#[allow(clippy::too_many_arguments)] // the Finish parts, one slot each
 fn finish_with(
     id: String,
     settle: SettleAs,
@@ -204,6 +205,7 @@ fn finish_with(
     resume: Option<crate::resume::ResumeStamp>,
     integrity: nika_cap::Integrity,
     declassified: Vec<crate::task::DeclassifyEvidence>,
+    approval: Option<crate::approval::ApprovalAttestation>,
 ) -> Finish {
     Finish {
         id,
@@ -212,6 +214,7 @@ fn finish_with(
         resume,
         integrity,
         declassified,
+        approval,
     }
 }
 
@@ -232,11 +235,12 @@ fn try_park(
         resume,
         integrity,
         declassified,
+        approval,
     } = finish;
     let ran = match settled_as {
         SettleAs::Ran(ran) => ran,
         other => {
-            let done = finish_with(id, other, named, resume, integrity, declassified);
+            let done = finish_with(id, other, named, resume, integrity, declassified, approval);
             return Some(done);
         }
     };
@@ -260,7 +264,7 @@ fn try_park(
                 result: other,
             };
             let settle = SettleAs::Ran(ran);
-            let done = finish_with(id, settle, named, resume, integrity, declassified);
+            let done = finish_with(id, settle, named, resume, integrity, declassified, approval);
             return Some(done);
         }
     };
@@ -312,6 +316,7 @@ fn try_park(
         resume,
         integrity,
         declassified,
+        approval,
     ))
 }
 
@@ -513,16 +518,35 @@ fn resolve_parked(
             .and_then(|v| serde_json::to_string(v).ok())
             .is_none_or(|text| !scope.resume_ctx.leaks_secret(&text))
     });
-    // F-O1 — recomputed against the FINAL view: the recover template's
-    // own reads propagate (the recovered output embeds what it saw).
-    let integrity = scope
+    let integrity = parked_integrity(scope, task_index, view);
+    finish_with(
+        id,
+        settled_as,
+        named,
+        resume,
+        integrity,
+        declassified,
+        // A recovered prompt's answer came from the recovery, never the
+        // prompter — there is no approval decision to attest (NEP-0013).
+        None,
+    )
+}
+
+/// The F-O1 label over the FINAL view (the recover template's own reads
+/// propagate — the recovered output embeds what it saw). Split out of
+/// [`resolve_parked`] for the 100-line fn ratchet · semantics unchanged.
+fn parked_integrity(
+    scope: &ResolveScope<'_>,
+    task_index: usize,
+    view: &BTreeMap<String, TaskRecord>,
+) -> nika_cap::Integrity {
+    scope
         .wf
         .tasks
         .get(task_index)
         .map_or_else(nika_cap::Integrity::trusted, |task| {
             crate::integrity::task_integrity(&task.value, view)
-        });
-    finish_with(id, settled_as, named, resume, integrity, declassified)
+        })
 }
 
 /// The declared recover template of `wf.tasks[index]`, when it is one.

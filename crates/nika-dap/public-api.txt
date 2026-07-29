@@ -1936,6 +1936,7 @@ pub fn nika_dap::reproduce::workflow_of(events: &[nika_event::event::Event]) -> 
 pub mod nika_dap::resume
 #[non_exhaustive] pub struct nika_dap::resume::PlanFold
 pub nika_dap::resume::PlanFold::keyless: usize
+pub nika_dap::resume::PlanFold::paused: core::option::Option<nika_runtime::approval::PausedApproval>
 pub nika_dap::resume::PlanFold::plan: nika_runtime::resume::ResumePlan
 pub nika_dap::resume::PlanFold::unreadable: usize
 impl<D> owo_colors::OwoColorize for nika_dap::resume::PlanFold

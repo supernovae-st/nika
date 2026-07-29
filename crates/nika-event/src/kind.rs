@@ -145,6 +145,19 @@ pub enum EventKind {
     /// between `task_started` and the terminal frame, so the receipt
     /// commits to WHAT was lifted and WHY).
     Declassify,
+    // ── additive cohort 2026-07-29 · F-P4 (NEP-0013) · the human
+    //    approval is a bounded capability, attested like every other
+    //    boundary decision. MINOR-bump additive per the header law. ──
+    /// A `nika:prompt` approval ticket was DECIDED (`step` + `mode` +
+    /// `decision` (`allow`/`deny`/`dedup`) + `shown_hash` + `digest` +
+    /// `run_nonce` + `ttl_seconds` fields — the WYSIWYS attestation: the
+    /// journal swears WHICH content hash was answered, under WHICH ticket
+    /// digest, with what TTL remaining · NEP-0013 law 4 · the same
+    /// conformance-not-wire-bump posture as `permit_checked`, so
+    /// `trace_format` stays 2). Emitted between `task_started` and the
+    /// terminal frame; a blocking prompt that pauses the run carries its
+    /// mint on the `workflow_paused` frame instead (no decision yet).
+    ApprovalDecided,
 }
 
 impl EventKind {
@@ -184,6 +197,7 @@ impl EventKind {
             Self::WorkflowPaused => "workflow_paused",
             Self::RunSealed => "run_sealed",
             Self::Declassify => "declassify",
+            Self::ApprovalDecided => "approval_decided",
         }
     }
 
@@ -254,7 +268,7 @@ impl EventKind {
             Self::CheckpointWritten | Self::RunSealed => EventClass::Durability,
             Self::CostIncurred => EventClass::Cost,
             Self::InferChunk => EventClass::Stream,
-            Self::PermitChecked | Self::Declassify => EventClass::Security,
+            Self::PermitChecked | Self::Declassify | Self::ApprovalDecided => EventClass::Security,
             Self::AgentToolsSelected
             | Self::AgentNudge
             | Self::AgentStalled
@@ -335,6 +349,7 @@ mod tests {
         EventKind::WorkflowPaused,
         EventKind::RunSealed,
         EventKind::Declassify,
+        EventKind::ApprovalDecided,
     ];
 
     #[test]
@@ -370,10 +385,11 @@ mod tests {
                 | EventKind::TaskCacheHit
                 | EventKind::WorkflowPaused
                 | EventKind::RunSealed
-                | EventKind::Declassify => {}
+                | EventKind::Declassify
+                | EventKind::ApprovalDecided => {}
             }
         }
-        assert_eq!(ALL.len(), 27, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 28, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -450,7 +466,7 @@ mod tests {
                 "checkpoint_written" | "run_sealed" => Some(EventClass::Durability),
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
-                "permit_checked" | "declassify" => Some(EventClass::Security),
+                "permit_checked" | "declassify" | "approval_decided" => Some(EventClass::Security),
                 s if s.starts_with("agent_") => Some(EventClass::Agent),
                 _ => None,
             };

@@ -59,9 +59,10 @@ mod finally;
 pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};
 
 /// Assemble the `Finish` of a RAN task (the output bindings spec 04 ·
-/// the resume filter · the F-O1 declassify evidence) — split out of
-/// `run_task_pipeline` for the 100-line fn ratchet · semantics unchanged.
-// REASON: the ran assembly threads the task + its computed parts — 9
+/// the resume filter · the F-O1 declassify evidence · the F-P4 approval
+/// attestation) — split out of `run_task_pipeline` for the 100-line fn
+/// ratchet · semantics unchanged.
+// REASON: the ran assembly threads the task + its computed parts — 10
 // params, each one a distinct pipeline product (same trade as the caller).
 #[allow(clippy::too_many_arguments)]
 fn assemble_ran_finish(
@@ -74,6 +75,7 @@ fn assemble_ran_finish(
     config: &BTreeMap<String, Value>,
     records: &BTreeMap<String, TaskRecord>,
     integrity: nika_cap::Integrity,
+    approval: Option<crate::approval::ApprovalAttestation>,
 ) -> Finish {
     // `output:` named bindings (spec 04 §Output binding) — evaluated
     // over the task's FINAL raw output, BEFORE settle emits the
@@ -95,6 +97,7 @@ fn assemble_ran_finish(
         resume,
         integrity,
         declassified,
+        approval,
     }
 }
 
@@ -124,6 +127,13 @@ pub(crate) struct Finish {
     /// was used). Empty everywhere else (a skipped/cancelled/cache-hit
     /// task never opened it).
     pub declassified: Vec<DeclassifyEvidence>,
+    /// The F-P4 approval attestation (NEP-0013 law 4) — `Some` when a
+    /// prompt's ticket DECIDED (allow · deny · dedup · an engine
+    /// refusal), emitted as `approval_decided` beside the terminal
+    /// frame. `None` everywhere else (a blocked prompt carries its mint
+    /// on `workflow_paused`; a recovered prompt's answer came from the
+    /// recovery, never the prompter — nothing to attest).
+    pub approval: Option<crate::approval::ApprovalAttestation>,
 }
 
 /// How the task settles (spec 03 §task states).
@@ -337,22 +347,7 @@ where
         let boundary_with =
             match render_boundary_with(task, records, inputs, config, consts, secrets) {
                 Ok(ns) => ns,
-                Err(err) => {
-                    return Finish {
-                        id,
-                        settle: SettleAs::FailedBeforeStart {
-                            stage: "with",
-                            error: runtime_error_record(&err),
-                        },
-                        named: null_bindings(task),
-                        resume: None,
-                        // Never started — no content flowed (the F-O1
-                        // label is trusted by default · the door never
-                        // opened either).
-                        integrity: nika_cap::Integrity::trusted(),
-                        declassified: Vec::new(),
-                    };
-                }
+                Err(err) => return with_error_finish(id, task, &err),
             };
         if let Some(finish) = when_finish(
             task,
@@ -381,17 +376,15 @@ where
             return finish;
         }
 
-        // ── `--answer task=value` (ADR-099 rider) — bind the supplied
-        //    answer as the prompt's `default:` (the answered branch of
-        //    the stdlib contract · dispatch-only, never the identity) ──
-        let answered;
-        let task = match self.task_with_prompt_answer(task) {
-            Some(bound) => {
-                answered = bound;
-                &answered
-            }
-            None => task,
-        };
+        // ── F-P4 · the approval ticket (NEP-0013) — mint BEFORE the
+        //    ask · dedup + rate-limit · the resumed `--answer` validated
+        //    against the shown hash BEFORE it binds. ──
+        let gated =
+            match self.approval_gated_task(task, records, inputs, config, consts, resume_ctx) {
+                Ok(gated) => gated,
+                Err(refusal) => return *refusal,
+            };
+        let task = &*gated;
 
         // ── `for_each:` fan-out or the single lane ──────────────────
         let settle = self
@@ -406,8 +399,13 @@ where
                 &integrity,
             )
             .await;
+        // F-P4 · the ask RESOLVED (or not) — the attestation assembles
+        // here and the settle spine journals it (`approval_decided`).
+        let approval = self
+            .approvals
+            .attest_outcome(&id, &settle, self.now_unix_ms());
         assemble_ran_finish(
-            task, id, settle, resume, resume_ctx, inputs, config, records, integrity,
+            task, id, settle, resume, resume_ctx, inputs, config, records, integrity, approval,
         )
     }
 
@@ -443,6 +441,33 @@ where
             finish
         });
         (resume, skip)
+    }
+
+    /// The F-P4 gate segment (NEP-0013) — split out of the pipeline for
+    /// the 100-line fn ratchet: `Ok` is the task to run (borrowed unless
+    /// an answer/dedup bound a clone — the binding rides the answered
+    /// branch, dispatch-only, never the resume identity), `Err` is the
+    /// typed refusal's Finish (boxed — the happy path stays slim).
+    /// Semantics unchanged.
+    #[allow(clippy::too_many_arguments)] // the run-scoped reads
+    fn approval_gated_task<'a>(
+        &self,
+        task: &'a RawTask,
+        records: &BTreeMap<String, TaskRecord>,
+        inputs: &BTreeMap<String, Value>,
+        config: &BTreeMap<String, Value>,
+        consts: &BTreeMap<String, Value>,
+        resume_ctx: &crate::resume::ResumeContext,
+    ) -> Result<std::borrow::Cow<'a, RawTask>, Box<Finish>> {
+        match self.approval_gate(task, records, inputs, config, consts, resume_ctx) {
+            crate::approval::Gate::NotPrompt => Ok(std::borrow::Cow::Borrowed(task)),
+            crate::approval::Gate::Run(bound) => Ok(std::borrow::Cow::Owned(*bound)),
+            crate::approval::Gate::Refused(refusal) => Err(Box::new(approval_refusal_finish(
+                task.id.value.clone(),
+                task,
+                *refusal,
+            ))),
+        }
     }
 
     /// The execution lane split: `for_each:` fan-out when declared ·
@@ -524,42 +549,10 @@ where
             // A cache hit never ran HERE — the original run recorded the
             // door (no new `declassify` event).
             declassified: Vec::new(),
+            // Nor was any approval decided HERE — the original run's
+            // `approval_decided` rides its own chain (ADR-099 §4).
+            approval: None,
         })
-    }
-
-    /// Bind a supplied `--answer` to this task's `nika:prompt` as its
-    /// `default:` (the answered branch of the stdlib contract — the
-    /// builtin validates the TYPE per mode, so a bad answer fails with
-    /// the same honest PROMPT-001/002 diagnostics). `None` = no answer
-    /// for this task, or not a direct prompt invocation — unchanged.
-    fn task_with_prompt_answer(&self, task: &RawTask) -> Option<RawTask> {
-        let answer = self.prompt_answers.get(&task.id.value)?;
-        let RawAction::Invoke(invoke) = &task.action else {
-            return None;
-        };
-        if invoke.tool().map(|t| t.value.as_str()) != Some("nika:prompt") {
-            return None;
-        }
-        let mut bound = task.clone();
-        let RawAction::Invoke(invoke) = &mut bound.action else {
-            return None; // unreachable — same variant as above
-        };
-        if let Some(args) = invoke.args.as_mut() {
-            // Non-object args fail the builtin's own validation — never
-            // silently rewritten here.
-            if let Value::Object(map) = &mut args.value {
-                map.insert("default".to_owned(), answer.clone());
-            }
-        } else {
-            // No args at all (message missing → the builtin refuses
-            // loudly anyway) — still bind, one behavior.
-            let span = task.id.span;
-            invoke.args = Some(nika_schema::Spanned::new(
-                serde_json::json!({ "default": answer }),
-                span,
-            ));
-        }
-        Some(bound)
     }
 
     /// The single-execution lane (no `for_each:`).
@@ -999,6 +992,56 @@ fn null_bindings(task: &RawTask) -> BTreeMap<String, Value> {
         .collect()
 }
 
+/// The boundary `with:` render's failure Finish (spec 03 · a boundary
+/// error settles failure OUTSIDE `on_error` scope — the armor covers
+/// the verb, not the boundary) — split out of `run_task_pipeline` for
+/// the 100-line fn ratchet · semantics unchanged.
+fn with_error_finish(id: String, task: &RawTask, err: &crate::errors::RuntimeError) -> Finish {
+    Finish {
+        id,
+        settle: SettleAs::FailedBeforeStart {
+            stage: "with",
+            error: runtime_error_record(err),
+        },
+        named: null_bindings(task),
+        resume: None,
+        // Never started — no content flowed (the F-O1 label is trusted
+        // by default · the door never opened either).
+        integrity: nika_cap::Integrity::trusted(),
+        declassified: Vec::new(),
+        approval: None,
+    }
+}
+
+/// The F-P4 refusal's Finish (NEP-0013 · the gate's `Refused` arm) —
+/// split out of `run_task_pipeline` for the 100-line fn ratchet: the
+/// task never starts (the capability was refused before dispatch), the
+/// typed `NIKA-SEC-010` cascades, and the deny attestation rides to the
+/// settle spine. Semantics unchanged.
+fn approval_refusal_finish(
+    id: String,
+    task: &RawTask,
+    refusal: crate::approval::Refusal,
+) -> Finish {
+    Finish {
+        id,
+        settle: SettleAs::FailedBeforeStart {
+            stage: "approval",
+            error: TaskErrorRecord {
+                code: crate::approval::APPROVAL_CODE.to_owned(),
+                message: refusal.detail,
+                transient: false,
+            },
+        },
+        named: null_bindings(task),
+        resume: None,
+        // Never started — no content flowed.
+        integrity: nika_cap::Integrity::trusted(),
+        declassified: Vec::new(),
+        approval: Some(refusal.attestation),
+    }
+}
+
 /// The success raw output of a settled task (the value bindings extract
 /// from), or `None` when the task did not settle as a plain success.
 /// `pub(crate)`: the recover-await resolution re-applies the pipeline's
@@ -1135,6 +1178,7 @@ fn gate_finish(
                 // Never ran — the output is `Null`, no content flowed.
                 integrity: nika_cap::Integrity::trusted(),
                 declassified: Vec::new(),
+                approval: None,
             });
         }
     }
@@ -1194,6 +1238,7 @@ fn when_finish(
         // output is `Null`, no content flowed.
         integrity: nika_cap::Integrity::trusted(),
         declassified: Vec::new(),
+        approval: None,
     })
 }
 

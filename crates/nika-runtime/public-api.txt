@@ -1,4 +1,179 @@
 pub mod nika_runtime
+pub mod nika_runtime::approval
+#[non_exhaustive] pub enum nika_runtime::approval::ApprovalDecision
+pub nika_runtime::approval::ApprovalDecision::Allow
+pub nika_runtime::approval::ApprovalDecision::Dedup
+pub nika_runtime::approval::ApprovalDecision::Deny
+pub nika_runtime::approval::ApprovalDecision::Pending
+impl nika_runtime::approval::ApprovalDecision
+pub const fn nika_runtime::approval::ApprovalDecision::as_str(self) -> &'static str
+impl core::clone::Clone for nika_runtime::approval::ApprovalDecision
+pub fn nika_runtime::approval::ApprovalDecision::clone(&self) -> nika_runtime::approval::ApprovalDecision
+impl core::cmp::Eq for nika_runtime::approval::ApprovalDecision
+impl core::cmp::PartialEq for nika_runtime::approval::ApprovalDecision
+pub fn nika_runtime::approval::ApprovalDecision::eq(&self, other: &nika_runtime::approval::ApprovalDecision) -> bool
+impl core::fmt::Debug for nika_runtime::approval::ApprovalDecision
+pub fn nika_runtime::approval::ApprovalDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::approval::ApprovalDecision
+impl core::marker::StructuralPartialEq for nika_runtime::approval::ApprovalDecision
+impl<D> owo_colors::OwoColorize for nika_runtime::approval::ApprovalDecision
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::ApprovalDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalDecision::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalDecision::equivalent(&self, key: &K) -> bool
+pub fn nika_runtime::approval::ApprovalDecision::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::approval::ApprovalDecision where U: core::convert::From<T>
+pub fn nika_runtime::approval::ApprovalDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::approval::ApprovalDecision where U: core::convert::Into<T>
+pub type nika_runtime::approval::ApprovalDecision::Error = core::convert::Infallible
+pub fn nika_runtime::approval::ApprovalDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::approval::ApprovalDecision where U: core::convert::TryFrom<T>
+pub type nika_runtime::approval::ApprovalDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::approval::ApprovalDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::approval::ApprovalDecision where T: core::clone::Clone
+pub type nika_runtime::approval::ApprovalDecision::Owned = T
+pub fn nika_runtime::approval::ApprovalDecision::clone_into(&self, target: &mut T)
+pub fn nika_runtime::approval::ApprovalDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::approval::ApprovalDecision where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::approval::ApprovalDecision where T: ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::approval::ApprovalDecision where T: ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::approval::ApprovalDecision where T: core::clone::Clone
+pub unsafe fn nika_runtime::approval::ApprovalDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::approval::ApprovalDecision
+pub fn nika_runtime::approval::ApprovalDecision::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::approval::ApprovalDecision where T: core::clone::Clone
+pub fn nika_runtime::approval::ApprovalDecision::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::approval::ApprovalDecision where T: 'static
+pub fn nika_runtime::approval::ApprovalDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::approval::ApprovalDecision where T: core::marker::Copy
+pub fn nika_runtime::approval::ApprovalDecision::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::approval::ApprovalDecision where T: ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalDecision::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::approval::ApprovalDecision::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::approval::ApprovalDecision
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::approval::ApprovalDecision
+impl<T> typenum::type_operators::Same for nika_runtime::approval::ApprovalDecision
+pub type nika_runtime::approval::ApprovalDecision::Output = T
+#[non_exhaustive] pub struct nika_runtime::approval::ApprovalTicket
+pub nika_runtime::approval::ApprovalTicket::content_hash: alloc::string::String
+pub nika_runtime::approval::ApprovalTicket::decision: nika_runtime::approval::ApprovalDecision
+pub nika_runtime::approval::ApprovalTicket::minted_at_ms: i64
+pub nika_runtime::approval::ApprovalTicket::run_nonce: alloc::string::String
+pub nika_runtime::approval::ApprovalTicket::step: alloc::string::String
+pub nika_runtime::approval::ApprovalTicket::ttl_seconds: u32
+impl nika_runtime::approval::ApprovalTicket
+pub fn nika_runtime::approval::ApprovalTicket::digest(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_runtime::approval::ApprovalTicket::is_expired(&self, now_ms: i64) -> bool
+pub fn nika_runtime::approval::ApprovalTicket::new(content_hash: alloc::string::String, run_nonce: alloc::string::String, step: alloc::string::String, minted_at_ms: i64, ttl_seconds: u32) -> Self
+pub fn nika_runtime::approval::ApprovalTicket::ttl_remaining_seconds(&self, now_ms: i64) -> i64
+impl core::clone::Clone for nika_runtime::approval::ApprovalTicket
+pub fn nika_runtime::approval::ApprovalTicket::clone(&self) -> nika_runtime::approval::ApprovalTicket
+impl core::cmp::Eq for nika_runtime::approval::ApprovalTicket
+impl core::cmp::PartialEq for nika_runtime::approval::ApprovalTicket
+pub fn nika_runtime::approval::ApprovalTicket::eq(&self, other: &nika_runtime::approval::ApprovalTicket) -> bool
+impl core::fmt::Debug for nika_runtime::approval::ApprovalTicket
+pub fn nika_runtime::approval::ApprovalTicket::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_runtime::approval::ApprovalTicket
+impl<D> owo_colors::OwoColorize for nika_runtime::approval::ApprovalTicket
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::ApprovalTicket where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalTicket::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalTicket where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalTicket where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalTicket::equivalent(&self, key: &K) -> bool
+pub fn nika_runtime::approval::ApprovalTicket::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::approval::ApprovalTicket where U: core::convert::From<T>
+pub fn nika_runtime::approval::ApprovalTicket::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::approval::ApprovalTicket where U: core::convert::Into<T>
+pub type nika_runtime::approval::ApprovalTicket::Error = core::convert::Infallible
+pub fn nika_runtime::approval::ApprovalTicket::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::approval::ApprovalTicket where U: core::convert::TryFrom<T>
+pub type nika_runtime::approval::ApprovalTicket::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::approval::ApprovalTicket::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::approval::ApprovalTicket where T: core::clone::Clone
+pub type nika_runtime::approval::ApprovalTicket::Owned = T
+pub fn nika_runtime::approval::ApprovalTicket::clone_into(&self, target: &mut T)
+pub fn nika_runtime::approval::ApprovalTicket::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::approval::ApprovalTicket where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalTicket::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::approval::ApprovalTicket where T: ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalTicket::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::approval::ApprovalTicket where T: ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalTicket::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::approval::ApprovalTicket where T: core::clone::Clone
+pub unsafe fn nika_runtime::approval::ApprovalTicket::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::approval::ApprovalTicket
+pub fn nika_runtime::approval::ApprovalTicket::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::approval::ApprovalTicket where T: core::clone::Clone
+pub fn nika_runtime::approval::ApprovalTicket::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::approval::ApprovalTicket where T: 'static
+pub fn nika_runtime::approval::ApprovalTicket::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::approval::ApprovalTicket where T: ?core::marker::Sized
+pub fn nika_runtime::approval::ApprovalTicket::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::approval::ApprovalTicket::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::approval::ApprovalTicket
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::approval::ApprovalTicket
+impl<T> typenum::type_operators::Same for nika_runtime::approval::ApprovalTicket
+pub type nika_runtime::approval::ApprovalTicket::Output = T
+#[non_exhaustive] pub struct nika_runtime::approval::PausedApproval
+pub nika_runtime::approval::PausedApproval::ticket: nika_runtime::approval::ApprovalTicket
+pub nika_runtime::approval::PausedApproval::trace_nonce: alloc::string::String
+impl nika_runtime::approval::PausedApproval
+pub fn nika_runtime::approval::PausedApproval::new(ticket: nika_runtime::approval::ApprovalTicket, trace_nonce: alloc::string::String) -> Self
+impl core::clone::Clone for nika_runtime::approval::PausedApproval
+pub fn nika_runtime::approval::PausedApproval::clone(&self) -> nika_runtime::approval::PausedApproval
+impl core::cmp::Eq for nika_runtime::approval::PausedApproval
+impl core::cmp::PartialEq for nika_runtime::approval::PausedApproval
+pub fn nika_runtime::approval::PausedApproval::eq(&self, other: &nika_runtime::approval::PausedApproval) -> bool
+impl core::fmt::Debug for nika_runtime::approval::PausedApproval
+pub fn nika_runtime::approval::PausedApproval::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_runtime::approval::PausedApproval
+impl<D> owo_colors::OwoColorize for nika_runtime::approval::PausedApproval
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
+pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::approval::PausedApproval where U: core::convert::From<T>
+pub fn nika_runtime::approval::PausedApproval::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::approval::PausedApproval where U: core::convert::Into<T>
+pub type nika_runtime::approval::PausedApproval::Error = core::convert::Infallible
+pub fn nika_runtime::approval::PausedApproval::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::approval::PausedApproval where U: core::convert::TryFrom<T>
+pub type nika_runtime::approval::PausedApproval::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::approval::PausedApproval::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::approval::PausedApproval where T: core::clone::Clone
+pub type nika_runtime::approval::PausedApproval::Owned = T
+pub fn nika_runtime::approval::PausedApproval::clone_into(&self, target: &mut T)
+pub fn nika_runtime::approval::PausedApproval::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::approval::PausedApproval where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::approval::PausedApproval::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::approval::PausedApproval where T: ?core::marker::Sized
+pub fn nika_runtime::approval::PausedApproval::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::approval::PausedApproval where T: ?core::marker::Sized
+pub fn nika_runtime::approval::PausedApproval::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::approval::PausedApproval where T: core::clone::Clone
+pub unsafe fn nika_runtime::approval::PausedApproval::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::approval::PausedApproval
+pub fn nika_runtime::approval::PausedApproval::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::approval::PausedApproval where T: core::clone::Clone
+pub fn nika_runtime::approval::PausedApproval::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::approval::PausedApproval where T: 'static
+pub fn nika_runtime::approval::PausedApproval::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::approval::PausedApproval where T: ?core::marker::Sized
+pub fn nika_runtime::approval::PausedApproval::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::approval::PausedApproval::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::approval::PausedApproval
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::approval::PausedApproval
+impl<T> typenum::type_operators::Same for nika_runtime::approval::PausedApproval
+pub type nika_runtime::approval::PausedApproval::Output = T
+pub const nika_runtime::approval::APPROVAL_CODE: &str
+pub const nika_runtime::approval::APPROVAL_MAX_TICKETS_PER_RUN: u32
+pub const nika_runtime::approval::APPROVAL_TTL_SECONDS: u32
 pub mod nika_runtime::child
 pub struct nika_runtime::child::ChildCall
 pub nika_runtime::child::ChildCall::args: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
@@ -1106,6 +1281,7 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_paused_approval(self, paused: core::option::Option<nika_runtime::approval::PausedApproval>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: bool) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
@@ -1462,12 +1638,14 @@ impl<T> tracing::instrument::WithSubscriber for nika_runtime::VecSink
 impl<T> typenum::type_operators::Same for nika_runtime::VecSink
 pub type nika_runtime::VecSink::Output = T
 #[non_exhaustive] pub struct nika_runtime::WorkflowPause
+pub nika_runtime::WorkflowPause::approval: core::option::Option<nika_runtime::approval::ApprovalTicket>
 pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::WorkflowPause::message: core::option::Option<alloc::string::String>
 pub nika_runtime::WorkflowPause::mode: alloc::string::String
 pub nika_runtime::WorkflowPause::task: alloc::string::String
 impl nika_runtime::WorkflowPause
 pub fn nika_runtime::WorkflowPause::new(task: alloc::string::String, mode: alloc::string::String, message: core::option::Option<alloc::string::String>, choices: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_runtime::WorkflowPause::with_approval(self, ticket: nika_runtime::approval::ApprovalTicket) -> Self
 impl core::clone::Clone for nika_runtime::WorkflowPause
 pub fn nika_runtime::WorkflowPause::clone(&self) -> nika_runtime::WorkflowPause
 impl core::fmt::Debug for nika_runtime::WorkflowPause

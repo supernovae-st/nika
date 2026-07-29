@@ -264,8 +264,7 @@ fn run_verdict(
         (file, &source),
         model_override,
         overrides,
-        setup.plan,
-        setup.answers,
+        setup,
         json || output_json, // ADR-099 pause rider: NON-INTERACTIVE surfaces only
         max_cost_usd,
         skills,
@@ -319,6 +318,9 @@ struct ResumeSetup {
     plan: Option<ResumePlan>,
     /// The validated `--answer task=value` map (empty without answers).
     answers: BTreeMap<String, Value>,
+    /// The F-P4 resume authority (NEP-0013) — the approval ticket folded
+    /// from the paused trace (`None` on a fresh run or a pre-F-P4 trace).
+    paused: Option<nika_runtime::approval::PausedApproval>,
 }
 
 /// Validate + fold the whole `--resume` surface (plan · `--from` ·
@@ -333,9 +335,12 @@ fn resume_setup(
     wf: &RawWorkflow,
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
-    let plan = match resume {
-        None => None,
-        Some(req) => Some(load_resume_plan(req, wf, output_json)?),
+    let (plan, paused) = match resume {
+        None => (None, None),
+        Some(req) => {
+            let (plan, paused) = load_resume_plan(req, wf, output_json)?;
+            (Some(plan), paused)
+        }
     };
     let answers =
         nika_dap::resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
@@ -344,13 +349,18 @@ fn resume_setup(
                 epilogue::emit_error_envelope(&message, output_json);
                 exit::ENV
             })?;
-    Ok(ResumeSetup { plan, answers })
+    Ok(ResumeSetup {
+        plan,
+        answers,
+        paused,
+    })
 }
 
-/// Read + fold the `--resume` trace into the runtime skip plan (ADR-099).
-/// Honest degradation is the contract: a keyless trace (older engine)
-/// yields an EMPTY plan + a notice — never an error; an unreadable file
-/// or an unknown `--from` id is refused loudly (environment class).
+/// Read + fold the `--resume` trace into the runtime skip plan (ADR-099)
+/// plus the F-P4 paused ticket (NEP-0013). Honest degradation is the
+/// contract: a keyless trace (older engine) yields an EMPTY plan + a
+/// notice — never an error; an unreadable file or an unknown `--from`
+/// id is refused loudly (environment class).
 ///
 /// # Errors
 ///
@@ -359,7 +369,7 @@ fn load_resume_plan(
     req: &ResumeRequest,
     wf: &RawWorkflow,
     output_json: bool,
-) -> Result<ResumePlan, u8> {
+) -> Result<(ResumePlan, Option<nika_runtime::approval::PausedApproval>), u8> {
     let label = req.trace.display().to_string();
     let refuse = |message: String| {
         eprintln!("nika run: {message}");
@@ -389,7 +399,7 @@ fn load_resume_plan(
         nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
-    Ok(plan)
+    Ok((plan, fold.paused))
 }
 
 /// The `--require-signature` trust gate: verify against an enrolled key
@@ -549,13 +559,17 @@ fn composed_runtime(
     (file, source): (&str, &str),
     model_override: Option<&str>,
     overrides: BTreeMap<String, Value>,
-    resume_plan: Option<ResumePlan>,
-    answers: BTreeMap<String, Value>,
+    setup: ResumeSetup,
     pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
     skills: BTreeMap<String, String>,
     (no_trace_file, output_json): (bool, bool),
 ) -> Result<ProdRuntime, u8> {
+    let ResumeSetup {
+        plan: resume_plan,
+        answers,
+        paused,
+    } = setup;
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
@@ -573,6 +587,9 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
+                // F-P4 · the folded resume authority (NEP-0013) — the
+                // `--answer` validates against the shown ticket.
+                .with_paused_approval(paused)
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
