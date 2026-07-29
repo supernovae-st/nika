@@ -1578,14 +1578,19 @@ pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any:
 #[non_exhaustive] pub struct nika_catalog::model::ModelPricing
 pub nika_catalog::model::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::model::ModelPricing::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog::model::ModelPricing::context_window_tokens: core::option::Option<u32>
 pub nika_catalog::model::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::model::ModelPricing::input_per_million: f64
+pub nika_catalog::model::ModelPricing::max_output_tokens: core::option::Option<u32>
 pub nika_catalog::model::ModelPricing::model_pattern: &'static str
+pub nika_catalog::model::ModelPricing::open_weights: core::option::Option<bool>
 pub nika_catalog::model::ModelPricing::output_per_million: f64
 pub nika_catalog::model::ModelPricing::provider: &'static str
 pub nika_catalog::model::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
+pub nika_catalog::model::ModelPricing::status: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>) -> Self
+pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -3806,14 +3811,19 @@ pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any:
 #[non_exhaustive] pub struct nika_catalog::types::model::ModelPricing
 pub nika_catalog::types::model::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::types::model::ModelPricing::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog::types::model::ModelPricing::context_window_tokens: core::option::Option<u32>
 pub nika_catalog::types::model::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::types::model::ModelPricing::input_per_million: f64
+pub nika_catalog::types::model::ModelPricing::max_output_tokens: core::option::Option<u32>
 pub nika_catalog::types::model::ModelPricing::model_pattern: &'static str
+pub nika_catalog::types::model::ModelPricing::open_weights: core::option::Option<bool>
 pub nika_catalog::types::model::ModelPricing::output_per_million: f64
 pub nika_catalog::types::model::ModelPricing::provider: &'static str
 pub nika_catalog::types::model::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
+pub nika_catalog::types::model::ModelPricing::status: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>) -> Self
+pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -6110,14 +6120,19 @@ pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any:
 #[non_exhaustive] pub struct nika_catalog::types::ModelPricing
 pub nika_catalog::types::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog::types::ModelPricing::context_window_tokens: core::option::Option<u32>
 pub nika_catalog::types::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::input_per_million: f64
+pub nika_catalog::types::ModelPricing::max_output_tokens: core::option::Option<u32>
 pub nika_catalog::types::ModelPricing::model_pattern: &'static str
+pub nika_catalog::types::ModelPricing::open_weights: core::option::Option<bool>
 pub nika_catalog::types::ModelPricing::output_per_million: f64
 pub nika_catalog::types::ModelPricing::provider: &'static str
 pub nika_catalog::types::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
+pub nika_catalog::types::ModelPricing::status: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>) -> Self
+pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -8225,14 +8240,19 @@ pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any:
 #[non_exhaustive] pub struct nika_catalog::ModelPricing
 pub nika_catalog::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog::ModelPricing::context_window_tokens: core::option::Option<u32>
 pub nika_catalog::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::input_per_million: f64
+pub nika_catalog::ModelPricing::max_output_tokens: core::option::Option<u32>
 pub nika_catalog::ModelPricing::model_pattern: &'static str
+pub nika_catalog::ModelPricing::open_weights: core::option::Option<bool>
 pub nika_catalog::ModelPricing::output_per_million: f64
 pub nika_catalog::ModelPricing::provider: &'static str
 pub nika_catalog::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
+pub nika_catalog::ModelPricing::status: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>) -> Self
+pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing

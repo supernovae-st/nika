@@ -33,7 +33,18 @@ pub const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
 /// `@1.1` (2026-07-07): required `[meta]` table — snapshot provenance
 /// (`source` · `as_of` · `source_sha256_16`) promoted from TOML comments to
 /// machine-readable fields, emitted as `PRICING_SNAPSHOT`.
-pub const PRICING_SCHEMA: &str = "nika/model-pricing@1.1";
+///
+/// `@1.2` (2026-07-28): the four upstream model facts the import used to
+/// drop — `max_output_tokens` · `context_window_tokens` · `open_weights` ·
+/// `status` — now ride the same row and the same provenance.
+///
+/// The four fields are optional, so by the additive rule above this would
+/// not need a bump. It gets one because what ABSENCE means changed: under
+/// `@1.1` a missing limit meant "the generator never carried limits"; under
+/// `@1.2` it means "upstream did not disclose one". A consumer can only
+/// treat absence as a fact about the model once the version guarantees the
+/// generator would have emitted it. The bump is what makes absence readable.
+pub const PRICING_SCHEMA: &str = "nika/model-pricing@1.2";
 
 /// Hard-fail when the file's `schema = "..."` field doesn't match `expected`.
 ///
@@ -111,6 +122,6 @@ mod tests {
         assert_eq!(LLM_PROVIDERS_SCHEMA, "nika/llm-providers@1.0");
         assert_eq!(EMBEDDINGS_SCHEMA, "nika/embeddings@1.0");
         assert_eq!(CAPABILITIES_SCHEMA, "nika/model-capabilities@1.0");
-        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.1");
+        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.2");
     }
 }

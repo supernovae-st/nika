@@ -93,6 +93,18 @@ pub(crate) fn opt_f64(v: Option<f64>) -> String {
     }
 }
 
+/// Format any `Display` scalar as an `Option` Rust literal — `u32` token
+/// limits and `bool` flags, where the plain `Display` form is already valid
+/// Rust source. `None` stays `None`: the emitted source must never turn an
+/// undisclosed fact into a zero or a `false`.
+#[must_use]
+pub(crate) fn opt_plain<T: std::fmt::Display>(v: Option<T>) -> String {
+    match v {
+        Some(x) => format!("Some({x})"),
+        None => "None".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,6 +161,16 @@ mod tests {
         let v: Vec<String> = vec![];
         write_str_slice(&mut out, "aliases", &v, 8);
         assert_eq!(out, "        aliases: &[],\n");
+    }
+
+    #[test]
+    fn opt_plain_emits_scalars_and_preserves_none() {
+        assert_eq!(opt_plain(Some(64_000_u32)), "Some(64000)");
+        assert_eq!(opt_plain(Some(true)), "Some(true)");
+        assert_eq!(opt_plain(Some(false)), "Some(false)");
+        // The load-bearing case: absent must not become 0 / false.
+        assert_eq!(opt_plain(None::<u32>), "None");
+        assert_eq!(opt_plain(None::<bool>), "None");
     }
 
     #[test]

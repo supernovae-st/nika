@@ -1,0 +1,173 @@
+# What the upstream carries, and what our import actually reads.
+#
+# WHY THIS FILE EXISTS. The pricing import reads FOUR fields per model —
+# cost.input, cost.output, cost.cache_read, cost.cache_write. Upstream
+# publishes far more, and nobody knew how much more until someone spent
+# an afternoon with jq. That afternoon is this file. One run answers it,
+# and answers it again next month when the shape has moved.
+#
+# WHY IT IS DATA-DRIVEN. The census enumerates the field paths it FINDS;
+# no hand-written list of interesting fields to go stale. A field upstream
+# adds tomorrow shows up in tomorrow's table without an edit here. The
+# two lists that ARE authored — which providers we price, which fields we
+# consume — live in `const:` because they are claims about US, not about
+# the upstream, and they belong where `nika check` can see them.
+#
+# WHAT IT DOES NOT DO. It does not read the catalog on disk. Deriving the
+# provider scope from model-pricing.toml would be the tidier source, but
+# it puts `fs.read` in the boundary next to a `nika:fetch` and a network
+# permit, and that is the lethal trifecta the engine refuses (NIKA-SEC-009
+# — correctly: private read + untrusted ingress + egress). The scope is
+# declared instead. drift-watch, which cannot avoid reading the TOML,
+# carries that judgement in full.
+#
+#   nika check  workflows/catalog/upstream-shape.nika.yaml
+#   nika run    workflows/catalog/upstream-shape.nika.yaml
+nika: v1
+
+workflow:
+  id: catalog-upstream-shape
+  description: "census the upstream model fields · mark the ones our import reads"
+
+const:
+  source_url: "https://models.dev/api.json"
+  out: "./target/catalog-upstream-shape.json"
+
+  # The providers the pricing import walks. SSOT for this list is the
+  # PROVIDERS map in scripts/refresh-pricing.sh; the report names any id
+  # it cannot find upstream, so a rename there surfaces as `missing`
+  # rather than as a silently shorter table.
+  scope:
+    - anthropic
+    - openai
+    - google
+    - deepseek
+    - mistral
+    - xai
+    - groq
+    - openrouter
+    - huggingface
+    - nvidia
+
+  # The upstream paths the import turns into TOML columns. Each maps to a
+  # `*_per_million` field on a [[rules]] row. Everything else upstream
+  # publishes is dropped on the floor — which is the point of the report.
+  consumed:
+    - cost.input
+    - cost.output
+    - cost.cache_read
+    - cost.cache_write
+
+permits:
+  tools: ["nika:fetch", "nika:date", "nika:jq", "nika:write"]
+  net:
+    http: ["models.dev"]
+  fs:
+    write: ["./target/**"]
+
+tasks:
+  # ── the census · one pass, every provider, no scope baked in ───────
+  # `mode: jq` keeps the parse inside the tool that owns the bytes: a raw
+  # fetch hands back TEXT and `nika:jq` takes a VALUE, so piping one into
+  # the other asks jq to key into a string.
+  #
+  # The path enumeration walks each model's own keys, and one level into
+  # any object-valued key — so `cost` yields `cost`, `cost.input`,
+  # `cost.reasoning`, whatever is there. Array-valued keys (modalities'
+  # lists, reasoning_options) stay flat: their contents are values, not
+  # fields. Counting happens per provider so the scope can be applied
+  # afterwards without a second request.
+  census:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.source_url }}"
+        mode: jq
+        jq: |
+          [ to_entries[]
+            | { provider: .key,
+                models: ((.value.models // {}) | length),
+                fields: ( [ (.value.models // {})[]
+                            | to_entries[]
+                            | if (.value | type) == "object"
+                              then (.key, (.key as $k | .value | keys[] | $k + "." + .))
+                              else .key
+                              end ]
+                          | group_by(.)
+                          | map({ (.[0]): length })
+                          | add // {} ) } ]
+
+  stamp:
+    invoke:
+      tool: "nika:date"
+      args:
+        op: now
+
+  # ── the join · the census meets what we claim to consume ──────────
+  # The two authored lists ride in through `input:` rather than being
+  # spliced into the jq program text, so `const:` stays the single place
+  # they are written and the program stays generic.
+  report:
+    with:
+      census: ${{ tasks.census.output }}
+      day: ${{ tasks.stamp.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          census: "${{ with.census }}"
+          measured_at: "${{ with.day }}"
+          source: "${{ const.source_url }}"
+          scope: "${{ const.scope }}"
+          consumed: "${{ const.consumed }}"
+        expression: |
+          . as $in
+          | $in.census as $c
+          | $in.scope as $ids
+          | $in.consumed as $consumed
+          | [ $c[] | . as $r | select($ids | index($r.provider) != null) ] as $sel
+          | ($sel | map(.models) | add // 0) as $n
+          | ( [ $sel[] | .fields | to_entries[] ]
+              | group_by(.key)
+              | map( . as $g
+                   | ($g | map(.value) | add) as $p
+                   | { field: $g[0].key,
+                       present: $p,
+                       pct: (if $n > 0 then ($p * 1000 / $n | round / 10) else 0 end),
+                       consumed: (($consumed | index($g[0].key)) != null) } )
+              | sort_by([(0 - .present), .field]) ) as $coverage
+          | { measured_at: $in.measured_at,
+              source: $in.source,
+              upstream: { providers: ($c | length),
+                          models: ($c | map(.models) | add // 0) },
+              scope: { requested: $ids,
+                       present: ($sel | map(.provider)),
+                       missing: [ $ids[] | . as $id
+                                  | select([ $c[] | .provider ] | index($id) == null) ],
+                       models: $n },
+              consumed_by_import: $consumed,
+              coverage: $coverage,
+              findings: {
+                cost_axes_ignored: [ $coverage[]
+                                     | select(.field | startswith("cost."))
+                                     | select(.consumed | not) ],
+                free_at_full_coverage: [ $coverage[]
+                                         | select(.pct == 100)
+                                         | select(.consumed | not)
+                                         | .field ] } }
+
+  save:
+    with:
+      report: ${{ tasks.report.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ const.out }}"
+        content: "${{ with.report }}"
+        create_dirs: true
+
+outputs:
+  models: ${{ tasks.report.output.scope.models }}
+  coverage: ${{ tasks.report.output.coverage }}
+  cost_axes_ignored: ${{ tasks.report.output.findings.cost_axes_ignored }}
+  artifact: ${{ tasks.save.output }}

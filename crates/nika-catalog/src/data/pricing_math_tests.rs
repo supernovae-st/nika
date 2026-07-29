@@ -29,6 +29,11 @@ mod cache_aware {
             Some(0.30),
             None,
             None,
+            // The 4 upstream model facts play no part in cost math.
+            None,
+            None,
+            None,
+            None,
         )
     }
 
@@ -55,7 +60,20 @@ mod cache_aware {
     fn split_without_disclosed_rates_falls_back_to_input_rate() {
         // No cache rates in the row → the subsets bill at the input rate:
         // exactly the cache-blind figure, never a silent different number.
-        let p = ModelPricing::new("demo", "demo-plain", 3.0, 15.0, None, None, None, None);
+        let p = ModelPricing::new(
+            "demo",
+            "demo-plain",
+            3.0,
+            15.0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
         let blind = usd_for_split(&p, 1000, 50, 0, 0);
         let split = usd_for_split(&p, 1000, 50, 700, 300);
         assert!((split - blind).abs() < 1e-12);

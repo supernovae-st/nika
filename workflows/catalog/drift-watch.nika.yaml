@@ -1,0 +1,151 @@
+# Is the vendored pricing snapshot still the upstream we pinned?
+#
+# WHY THIS FILE EXISTS. The catalog is a VENDORED SNAPSHOT, refreshed at
+# maintenance time and never at runtime — a static report must not depend
+# on a vendor endpoint being up. That doctrine buys determinism and pays
+# for it in staleness, and staleness is only safe if somebody watches it.
+# This is the watcher: it hashes what upstream serves TODAY and holds it
+# against the digest [meta] pinned when the snapshot was cut.
+#
+# WHY IT READS THE TOML. The pinned digest is a fact about the catalog on
+# disk, so it is read off the catalog on disk, through a TOML parser. A
+# digest typed into `const:` would make this a workflow that agrees with
+# itself; a regex over the text would be fooled by a comment.
+#
+# WHY THERE IS NO nika:write HERE. Reading a private path, fetching an
+# untrusted one and writing a file is the complete lethal trifecta, and
+# the engine refuses it (NIKA-SEC-009) unless a blocking human prompt
+# dominates the write — which would make a watcher un-runnable unattended
+# (that gate pauses the run at exit 4 and waits for `--resume --answer`).
+# Measured, not assumed: `declassify:` did not lift that taint at any of
+# the three placements tried (ingress consumer · sink · the binding
+# between), and dropping the `fs.read` permit only moves the failure to
+# run time (NIKA-SEC-004 — check goes green on a workflow that cannot
+# run). So the verdict rides the typed `outputs:`, and
+# the operator surface exports it — the artifact is written by the CLI,
+# outside the workflow's boundary, which is where that authority belongs:
+#
+#   nika check workflows/catalog/drift-watch.nika.yaml
+#   nika run --output json workflows/catalog/drift-watch.nika.yaml \
+#     > ./target/catalog-drift-watch.json
+#
+# WHAT IT DOES NOT DO. It does not refresh anything. A drift verdict is a
+# maintenance signal, not an upgrade — scripts/refresh-pricing.sh owns the
+# write, with its own shrink guard.
+nika: v1
+
+workflow:
+  id: catalog-drift-watch
+  description: "hash the live upstream · hold it against the digest pinned in [meta]"
+
+const:
+  source_url: "https://models.dev/api.json"
+  pricing_toml: "./crates/nika-catalog/data/model-pricing.toml"
+
+permits:
+  tools: ["nika:fetch", "nika:hash", "nika:read", "nika:convert", "nika:jq", "nika:date"]
+  net:
+    http: ["models.dev"]
+  fs:
+    read: ["./crates/nika-catalog/data/model-pricing.toml"]
+
+tasks:
+  # ── the live side · raw, because the digest must cover the bytes ────
+  # Any shaping before the hash would anchor the comparison to our own
+  # transform rather than to what upstream served — and the number on the
+  # other side was taken over raw bytes by scripts/refresh-pricing.sh.
+  upstream:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.source_url }}"
+        mode: raw
+    retry:
+      max_attempts: 3
+      backoff_strategy: exponential
+
+  digest:
+    with:
+      body: ${{ tasks.upstream.output }}
+    invoke:
+      tool: "nika:hash"
+      args:
+        content: "${{ with.body }}"
+        algo: sha256
+        encoding: hex
+
+  # ── the pinned side · read off the catalog, parsed as TOML ─────────
+  catalog_text:
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "${{ const.pricing_toml }}"
+
+  catalog:
+    with:
+      toml: ${{ tasks.catalog_text.output }}
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ with.toml }}"
+        from: toml
+        to: json
+
+  stamp:
+    invoke:
+      tool: "nika:date"
+      args:
+        op: now
+
+  # ── the verdict · built as a VALUE, never as JSON text ─────────────
+  # Assembling the record with jq rather than interpolating scalars into
+  # a literal JSON string removes the whole class where check is green,
+  # the run is green, and the record will not parse.
+  #
+  # The comparison is over the first 16 hex chars because that is the
+  # width [meta].source_sha256_16 stores; the full digest rides along so
+  # a reader can re-derive the truncation instead of trusting it.
+  verdict:
+    with:
+      live: ${{ tasks.digest.output }}
+      catalog: ${{ tasks.catalog.output }}
+      day: ${{ tasks.stamp.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          live_sha256: "${{ with.live }}"
+          catalog: "${{ with.catalog }}"
+          checked_at: "${{ with.day }}"
+        expression: |
+          . as $in
+          | $in.catalog.meta as $m
+          | ($in.live_sha256[0:16]) as $live16
+          | { checked_at: $in.checked_at,
+              source: $m.source,
+              pinned: { sha256_16: $m.source_sha256_16,
+                        as_of: $m.as_of,
+                        schema: $in.catalog.schema,
+                        rules: ($in.catalog.rules | length),
+                        providers: ($in.catalog.rules | map(.provider) | unique) },
+              live: { sha256_16: $live16,
+                      sha256: $in.live_sha256 },
+              drifted: ($m.source_sha256_16 != $live16),
+              verdict: (if $m.source_sha256_16 == $live16
+                        then "current · the snapshot is the upstream"
+                        else "drifted · upstream moved since " + $m.as_of
+                             + " · refresh with scripts/refresh-pricing.sh"
+                        end) }
+
+outputs:
+  drifted:
+    value: ${{ tasks.verdict.output.drifted }}
+    type: bool
+    description: "true when the live upstream no longer hashes to the pinned digest"
+  verdict:
+    value: ${{ tasks.verdict.output.verdict }}
+    type: string
+    description: "the one-line reading · current, or drifted with the refresh command"
+  pinned: ${{ tasks.verdict.output.pinned }}
+  live: ${{ tasks.verdict.output.live }}
+  checked_at: ${{ tasks.verdict.output.checked_at }}
