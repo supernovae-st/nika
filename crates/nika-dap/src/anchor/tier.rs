@@ -230,6 +230,57 @@ mod tests {
         )
     }
 
+    /// The audit's anchor-contract arm (2026-07-29 · run 2): `--anchored`
+    /// on an UNSEALED journal must REFUSE (ENV — the tier needs a seal to
+    /// build on, so it is unattainable), never exit Ok with the
+    /// requirement unevaluated. The unflagged path stays the quiet Ok it
+    /// always was.
+    #[test]
+    fn an_unsealed_journal_refuses_a_required_anchor_loudly() {
+        let (pk_box, _) = keypair();
+        let journal = sealed_journal(
+            &["workflow_started", "task_completed"],
+            &keypair().1,
+            &pk_box,
+        );
+        // Strip the seal line: an intact-chain, unsealed journal.
+        let unsealed: String = journal.lines().take(2).fold(String::new(), |mut s, l| {
+            use std::fmt::Write as _;
+            let _ = writeln!(s, "{l}");
+            s
+        });
+        let report = evaluate(
+            "unsealed.ndjson",
+            &unsealed,
+            2,
+            &"0".repeat(64),
+            true, // --anchored
+            None,
+            &[],
+        );
+        assert_eq!(report.exit, TierExit::Env, "the requirement refuses");
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|l| l.contains("REQUIRED") && l.contains("unsealed")),
+            "the refusal names why: {:?}",
+            report.lines
+        );
+        // The unflagged path: same journal, no requirement → quiet Ok.
+        let report = evaluate(
+            "unsealed.ndjson",
+            &unsealed,
+            2,
+            &"0".repeat(64),
+            false,
+            None,
+            &[],
+        );
+        assert_eq!(report.exit, TierExit::Ok);
+        assert!(report.lines.is_empty());
+    }
+
     /// A chained journal sealed with the given key — the seal line is
     /// the terminal event, chained like every other.
     fn sealed_journal(kinds: &[&str], sk: &minisign::SecretKey, pk_box: &str) -> String {
@@ -491,6 +542,31 @@ pub fn evaluate(
     let seal = seal_tier(last_complete_line(raw, events).as_ref(), events, candidates);
     let verdict = match &seal {
         SealTier::Unsealed => {
+            // The 2026-07-29 audit (run 2 · the anchor contract's silent
+            // arm): this early return used to swallow `require_anchor` —
+            // `--anchored` on an UNSEALED journal exited Ok without a
+            // word (measured: missing sidecar rc=0, forged sidecar rc=0,
+            // while the sealed path honors 3/2 exactly). The anchor
+            // verifies against the seal's key, so the tier is
+            // UNATTAINABLE here — the honest refusal: exit ENV (the
+            // `--anchored` contract's own class for a required tier that
+            // cannot be attained), the requirement named out loud.
+            if require_anchor {
+                lines.push(
+                    "ANCHORED — REQUIRED but the journal is unsealed (no run_sealed \
+                     line): the anchor verifies against the seal's key, so the \
+                     tier is unattainable"
+                        .to_owned(),
+                );
+                return TierReport {
+                    seal,
+                    anchor: AnchorTier::Required,
+                    replay: ReplayTier::NotAsked,
+                    attained: AttainedTier::Ok,
+                    exit: TierExit::Env,
+                    lines,
+                };
+            }
             return TierReport {
                 seal,
                 anchor: AnchorTier::NotPresent,

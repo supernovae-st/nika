@@ -766,6 +766,27 @@ mod tests {
         let _ = std::fs::remove_file(key);
     }
 
+    /// The audit's anchor contract, CLI level (2026-07-29 · run 2): an
+    /// UNSEALED journal under `--anchored` is the same ENV refusal as a
+    /// missing sidecar on a sealed one — the tier needs a seal to build
+    /// on, and the requirement used to vanish silently at the Unsealed
+    /// early return (measured rc=0 on both missing and forged sidecars).
+    #[test]
+    fn a_required_anchor_on_an_unsealed_journal_is_env() {
+        let journal = chained_with(&[("workflow_completed", &[])]);
+        let trace = stage("unsealed-required.ndjson", &journal);
+        let opts = VerifyOptions {
+            key: None,
+            anchored: true,
+            replay: None,
+        };
+        let out = verify_with(&trace.to_string_lossy(), &opts);
+        assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
+        assert!(out.text.contains("REQUIRED"), "{}", out.text);
+        assert!(out.text.contains("unsealed"), "{}", out.text);
+        let _ = std::fs::remove_file(trace);
+    }
+
     /// REPLAYED: the fixture journal compared against itself
     /// reproduces — the tier speaks; the exit stays 0.
     #[test]
