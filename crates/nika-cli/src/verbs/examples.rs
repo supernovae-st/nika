@@ -675,4 +675,60 @@ mod tests {
              strike them from OWED: {paid:?}"
         );
     }
+
+    /// The two sovereign builtin roots — `canon/builtins.yaml` (the
+    /// language, projected into the embedded canon.yaml) and
+    /// `ALL_BUILTINS` (the engine) — were "kept in step by hand" (SSOT
+    /// §5). This is the consumer-side gate that retires the hand: set
+    /// equality both ways, so a builtin added to either root without the
+    /// other refuses here. The scan reads the generated canon shape
+    /// (byte-gated upstream by ssot-compiler), not a YAML parser.
+    #[test]
+    fn the_two_builtin_roots_agree_at_the_seam() {
+        let canon = nika_pack::canon();
+        let mut in_block = false;
+        let mut in_items = false;
+        let mut names: Vec<String> = Vec::new();
+        for l in canon.lines() {
+            if l == "builtins:" {
+                in_block = true;
+                continue;
+            }
+            if !in_block {
+                continue;
+            }
+            if !l.starts_with(' ') && !l.trim().is_empty() {
+                break; // next top-level key · the block is over
+            }
+            if l.trim_start().starts_with("items:") {
+                in_items = true;
+                continue;
+            }
+            if in_items {
+                if let Some(n) = l.trim_start().strip_prefix("- ") {
+                    names.push(n.trim().to_owned());
+                } else if !l.trim().is_empty() {
+                    break; // a sibling key after items · the list is over
+                }
+            }
+        }
+        assert!(
+            !names.is_empty(),
+            "canon builtins block not found — the seam scan no longer \
+             matches the generated canon shape"
+        );
+        let canon_set: std::collections::BTreeSet<&str> =
+            names.iter().map(String::as_str).collect();
+        let engine_set: std::collections::BTreeSet<&str> = nika_catalog::all_builtins()
+            .iter()
+            .map(|b| b.name)
+            .collect();
+        let only_canon: Vec<&&str> = canon_set.difference(&engine_set).collect();
+        let only_engine: Vec<&&str> = engine_set.difference(&canon_set).collect();
+        assert!(
+            only_canon.is_empty() && only_engine.is_empty(),
+            "the builtin roots drifted — canon-only: {only_canon:?} · \
+             engine-only: {only_engine:?}"
+        );
+    }
 }
