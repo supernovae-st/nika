@@ -237,7 +237,7 @@ fn run_verdict(
             Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
-    let overrides = match inputs::validated_var_overrides(vars, &wf, output_json) {
+    let inputs = match inputs::validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -263,7 +263,7 @@ fn run_verdict(
         &wf,
         (file, &source),
         model_override,
-        overrides,
+        inputs,
         setup,
         json || output_json, // ADR-099 pause rider: NON-INTERACTIVE surfaces only
         max_cost_usd,
@@ -558,7 +558,7 @@ fn composed_runtime(
     wf: &RawWorkflow,
     (file, source): (&str, &str),
     model_override: Option<&str>,
-    overrides: BTreeMap<String, Value>,
+    inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
@@ -570,6 +570,10 @@ fn composed_runtime(
         answers,
         paused,
     } = setup;
+    let inputs::ValidatedInputs {
+        values: overrides,
+        origins,
+    } = inputs;
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
@@ -584,6 +588,9 @@ fn composed_runtime(
                     !no_trace_file,
                 )))
                 .with_var_overrides(overrides)
+                // F-P13 · the input origins (NEP-0014 law 2) — the boot
+                // manifest journals where every bound input came from.
+                .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)

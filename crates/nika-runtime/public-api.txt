@@ -926,6 +926,66 @@ pub type nika_runtime::resume::ResumeKey::Output = T
 pub const nika_runtime::resume::KEY_VERSION: u32
 pub fn nika_runtime::resume::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::resume::PriorSuccess>
+#[non_exhaustive] pub enum nika_runtime::InputOrigin
+pub nika_runtime::InputOrigin::CiContext
+pub nika_runtime::InputOrigin::CliOperator
+pub nika_runtime::InputOrigin::Env
+pub nika_runtime::InputOrigin::File
+impl nika_runtime::InputOrigin
+pub const fn nika_runtime::InputOrigin::as_str(self) -> &'static str
+impl core::clone::Clone for nika_runtime::InputOrigin
+pub fn nika_runtime::InputOrigin::clone(&self) -> nika_runtime::InputOrigin
+impl core::cmp::Eq for nika_runtime::InputOrigin
+impl core::cmp::PartialEq for nika_runtime::InputOrigin
+pub fn nika_runtime::InputOrigin::eq(&self, other: &nika_runtime::InputOrigin) -> bool
+impl core::fmt::Debug for nika_runtime::InputOrigin
+pub fn nika_runtime::InputOrigin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::InputOrigin
+impl core::marker::StructuralPartialEq for nika_runtime::InputOrigin
+impl serde_core::ser::Serialize for nika_runtime::InputOrigin
+pub fn nika_runtime::InputOrigin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_runtime::InputOrigin
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
+pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::InputOrigin where U: core::convert::From<T>
+pub fn nika_runtime::InputOrigin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::InputOrigin where U: core::convert::Into<T>
+pub type nika_runtime::InputOrigin::Error = core::convert::Infallible
+pub fn nika_runtime::InputOrigin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::InputOrigin where U: core::convert::TryFrom<T>
+pub type nika_runtime::InputOrigin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::InputOrigin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::InputOrigin where T: core::clone::Clone
+pub type nika_runtime::InputOrigin::Owned = T
+pub fn nika_runtime::InputOrigin::clone_into(&self, target: &mut T)
+pub fn nika_runtime::InputOrigin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::InputOrigin where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::InputOrigin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::InputOrigin where T: ?core::marker::Sized
+pub fn nika_runtime::InputOrigin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::InputOrigin where T: ?core::marker::Sized
+pub fn nika_runtime::InputOrigin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::InputOrigin where T: core::clone::Clone
+pub unsafe fn nika_runtime::InputOrigin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::InputOrigin
+pub fn nika_runtime::InputOrigin::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::InputOrigin where T: core::clone::Clone
+pub fn nika_runtime::InputOrigin::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::InputOrigin where T: 'static
+pub fn nika_runtime::InputOrigin::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::InputOrigin where T: core::marker::Copy
+pub fn nika_runtime::InputOrigin::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::InputOrigin where T: ?core::marker::Sized
+pub fn nika_runtime::InputOrigin::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::InputOrigin::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::InputOrigin
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::InputOrigin
+impl<T> typenum::type_operators::Same for nika_runtime::InputOrigin
+pub type nika_runtime::InputOrigin::Output = T
 #[non_exhaustive] pub enum nika_runtime::RuntimeError
 pub nika_runtime::RuntimeError::CelEval
 pub nika_runtime::RuntimeError::CelEval::code: &'static str
@@ -1279,6 +1339,7 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_ker
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::InputOrigin>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_paused_approval(self, paused: core::option::Option<nika_runtime::approval::PausedApproval>) -> Self
@@ -1700,6 +1761,7 @@ impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
 pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
+pub fn nika_runtime::input_origins(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, env_sourced: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, ci: bool) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::InputOrigin>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
 pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>

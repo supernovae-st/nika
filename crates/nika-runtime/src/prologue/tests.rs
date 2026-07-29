@@ -14,6 +14,16 @@ use crate::*;
 /// Run the prologue over one yaml fixture and return the started
 /// event's string fields as (key, value) pairs.
 fn started_fields(yaml: &str, sandbox: Option<&str>) -> Vec<(String, String)> {
+    started_fields_with_origins(yaml, sandbox, &BTreeMap::new())
+}
+
+/// [`started_fields`] with the F-P13 input origins the composer would
+/// inject (empty = the no-claim posture).
+fn started_fields_with_origins(
+    yaml: &str,
+    sandbox: Option<&str>,
+    origins: &BTreeMap<String, InputOrigin>,
+) -> Vec<(String, String)> {
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -29,6 +39,7 @@ fn started_fields(yaml: &str, sandbox: Option<&str>) -> Vec<(String, String)> {
         None,
         None,
         sandbox,
+        origins,
         &book,
         &mut stamper,
         &mut sink,
@@ -95,4 +106,30 @@ fn prologue_omits_absent_boundary_and_backend() {
         get(&fields, "semantic_hash").is_some(),
         "the identity is always journaled"
     );
+}
+
+/// F-P13 (NEP-0014 law 2) — the boot manifest journals the origin of
+/// every input the run binds (`inputs` = one JSON map field), and a run
+/// without origins carries NO claim (absent is honest).
+#[test]
+fn prologue_journals_the_input_origins() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let origins = BTreeMap::from([
+        ("count".to_owned(), InputOrigin::CiContext),
+        ("region".to_owned(), InputOrigin::File),
+    ]);
+    let fields = started_fields_with_origins(yaml, None, &origins);
+    let inputs: serde_json::Value =
+        serde_json::from_str(get(&fields, "inputs").expect("the origins are journaled"))
+            .expect("inputs is valid JSON");
+    assert_eq!(
+        inputs,
+        serde_json::json!({ "count": "ci-context", "region": "file" }),
+        "each bound input names its channel"
+    );
+
+    // Empty = no claim (a run without inputs never speaks).
+    let bare = started_fields(yaml, None);
+    assert_eq!(get(&bare, "inputs"), None, "no origins = nothing journaled");
 }

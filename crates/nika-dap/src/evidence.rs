@@ -120,6 +120,7 @@ struct StartedFacts {
     semantic_hash: Option<String>,
     sandbox: Option<String>,
     permits_json: Option<String>,
+    inputs_json: Option<String>,
 }
 
 /// The seal grade — `verifies: None` is the key-unavailable case
@@ -385,6 +386,7 @@ fn started_facts(events: &[Event]) -> StartedFacts {
         semantic_hash: get("semantic_hash"),
         sandbox: get("sandbox"),
         permits_json: get("permits_json"),
+        inputs_json: get("inputs"),
     }
 }
 
@@ -596,6 +598,7 @@ fn assemble(
     }
     let semantic = semantic_field(started, seal, file, &mut unavailable);
     let boundary = boundary_field(started, file, workflow_given, &mut unavailable);
+    let inputs = inputs_field(started, &mut unavailable);
     let trifecta = trifecta_field(file, workflow_given, &mut unavailable);
     let sandbox = sandbox_field(started, &mut unavailable);
     let engine = engine_field(started, &mut unavailable);
@@ -616,6 +619,7 @@ fn assemble(
             "semantic_hash_source": semantic.1,
         },
         "boundary": boundary,
+        "inputs": inputs,
         "trifecta": trifecta,
         "sandbox": sandbox,
         "engine": engine,
@@ -703,6 +707,30 @@ fn boundary_field(
         format!("this journal predates boundary journaling — {WORKFLOW_HINT}")
     };
     unavailable.insert("boundary".to_owned(), reason);
+    Value::Null
+}
+
+/// The input origins (F-P13 · NEP-0014 law 2): the journaled `inputs`
+/// map is the ONLY honest source (the origins exist at run start, never
+/// derivable after the fact — the `boundary_field` posture). Absent means
+/// a pre-F-P13 journal OR a workflow without inputs: both said, never
+/// guessed.
+fn inputs_field(started: &StartedFacts, unavailable: &mut BTreeMap<String, String>) -> Value {
+    if let Some(text) = &started.inputs_json {
+        if let Ok(origins) = serde_json::from_str::<Value>(text) {
+            return json!({ "origins": origins, "source": "journal" });
+        }
+        unavailable.insert(
+            "inputs".to_owned(),
+            "the journaled inputs field is not valid JSON".to_owned(),
+        );
+        return Value::Null;
+    }
+    unavailable.insert(
+        "inputs".to_owned(),
+        "this journal predates input-origin journaling, or the workflow declares no inputs"
+            .to_owned(),
+    );
     Value::Null
 }
 
@@ -1262,6 +1290,48 @@ mod tests {
         assert!(
             !nika_runtime::proof::receipt::verify(&receipt, "blake3:someother"),
             "a swapped proof is refused"
+        );
+        let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+    }
+
+    /// F-P13 (NEP-0014 law 2) — the input origins project with journal
+    /// provenance; absent on an older journal, said (never invented).
+    #[test]
+    fn the_pack_projects_the_input_origins() {
+        let sem = wf_semantic();
+        let inputs = serde_json::json!({ "count": "ci-context", "region": "file" }).to_string();
+        let events = vec![
+            event(
+                EventKind::WorkflowStarted,
+                &[
+                    ("workflow", "pay"),
+                    ("engine_version", "0.106.1"),
+                    ("semantic_hash", sem.as_str()),
+                    ("inputs", inputs.as_str()),
+                ],
+            ),
+            completed(),
+        ];
+        let (raw, _) = chained(&events);
+        let (out, pack) = pack_over("inputs", &raw, None, &[]);
+        assert_eq!(pack["inputs"]["origins"]["count"], json!("ci-context"));
+        assert_eq!(pack["inputs"]["origins"]["region"], json!("file"));
+        assert_eq!(pack["inputs"]["source"], json!("journal"));
+        let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+    }
+
+    /// The honest null: a journal without the `inputs` field (pre-F-P13
+    /// · or a no-input workflow) projects `null` and names why.
+    #[test]
+    fn absent_input_origins_are_said_not_invented() {
+        let (raw, _) = chained(&[started_v1(), completed()]);
+        let (out, pack) = pack_over("inputs-absent", &raw, None, &[]);
+        assert!(pack["inputs"].is_null(), "{pack}");
+        assert!(
+            pack["unavailable"]["inputs"]
+                .as_str()
+                .is_some_and(|r| r.contains("predates input-origin journaling")),
+            "the reason is named: {pack}"
         );
         let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
     }

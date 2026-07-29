@@ -57,6 +57,7 @@ mod dispatch;
 mod emit_task;
 mod errors;
 mod expr;
+mod input_origins;
 mod integrity;
 mod jq;
 mod ledger;
@@ -102,6 +103,7 @@ pub use compose::{
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
+pub use input_origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub use secret::{
@@ -194,6 +196,12 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// wins and a `required: true` var without a default becomes
     /// runnable. Empty by default (envelope defaults only).
     var_overrides: BTreeMap<String, Value>,
+    /// F-P13 (NEP-0014 law 2) — the ORIGIN of every input the run binds
+    /// (cli-operator · ci-context · env · file), computed by the composer
+    /// (it owns the caller context: CI detection · the declared `@env:`
+    /// reads) and journaled on `workflow_started`. Empty = no claim (a
+    /// run without inputs never speaks).
+    input_origins: BTreeMap<String, InputOrigin>,
     /// ADR-099 `--resume` skip plan — task id → the journaled success it
     /// may match (BOTH hashes · §1). Empty by default (a fresh run
     /// executes every task — `task.cache_hit` fires only under resume).
@@ -285,6 +293,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             config,
             secrets: Arc::new(secret::NoSecrets),
             var_overrides: BTreeMap::new(),
+            input_origins: BTreeMap::new(),
             resume_plan: resume::ResumePlan::new(),
             pause_on_prompt: false,
             prompt_answers: BTreeMap::new(),
@@ -328,6 +337,17 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_var_overrides(mut self, overrides: BTreeMap<String, Value>) -> Self {
         self.var_overrides = overrides;
+        self
+    }
+
+    /// Stamp the input ORIGINS (F-P13 · NEP-0014 law 2): the composer
+    /// computed each bound input's channel (cli-operator · ci-context ·
+    /// env · file — [`input_origins`]); the boot manifest journals them
+    /// so the run's attested record names where every value came from.
+    /// Builder form — empty (the default) journals no claim.
+    #[must_use]
+    pub fn with_input_origins(mut self, origins: BTreeMap<String, InputOrigin>) -> Self {
+        self.input_origins = origins;
         self
     }
 
@@ -457,6 +477,7 @@ fn emit_prologue(
     source_sha256: Option<&str>,
     source_sha256_lf: Option<&str>,
     sandbox_backend: Option<&str>,
+    input_origins: &BTreeMap<String, InputOrigin>,
     approvals: &approval::ApprovalBook,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -498,6 +519,19 @@ fn emit_prologue(
     }
     if let Some(backend) = sandbox_backend {
         opening.push(("sandbox", s(backend)));
+    }
+    // F-P13 · the input origins (NEP-0014 law 2): every input the run
+    // binds names its channel on the boot manifest (`{"name":"origin"}`
+    // — the permits_json idiom: one JSON string field). Additive: older
+    // readers ignore it, a run without inputs carries no claim.
+    if !input_origins.is_empty() {
+        let map: BTreeMap<&str, &str> = input_origins
+            .iter()
+            .map(|(name, origin)| (name.as_str(), origin.as_str()))
+            .collect();
+        if let Ok(json) = serde_json::to_string(&map) {
+            opening.push(("inputs", s(&json)));
+        }
     }
     // The trace-format marker (spec 13 §trace · the graph_format: 2
     // precedent): format-2 lines carry `outcome: {class, cause}` on
@@ -755,6 +789,7 @@ where
             self.source_sha256.as_deref(),
             self.source_sha256_lf.as_deref(),
             self.config.sandbox_backend.as_deref(),
+            &self.input_origins,
             &self.approvals,
             stamper,
             sink,
