@@ -2555,6 +2555,7 @@ pub nika_dap::seal::SealTeardown::certificate: core::option::Option<serde_json::
 pub nika_dap::seal::SealTeardown::effects: core::option::Option<serde_json::value::Value>
 pub nika_dap::seal::SealTeardown::outcome: core::option::Option<alloc::string::String>
 pub nika_dap::seal::SealTeardown::proves: core::option::Option<alloc::string::String>
+pub nika_dap::seal::SealTeardown::quarantine: core::option::Option<serde_json::value::Value>
 impl nika_dap::seal::SealTeardown
 pub fn nika_dap::seal::SealTeardown::new() -> Self
 impl core::clone::Clone for nika_dap::seal::SealTeardown
@@ -2872,6 +2873,7 @@ impl<T> tracing::instrument::Instrument for nika_dap::store::TraceMeta
 impl<T> tracing::instrument::WithSubscriber for nika_dap::store::TraceMeta
 impl<T> typenum::type_operators::Same for nika_dap::store::TraceMeta
 pub type nika_dap::store::TraceMeta::Output = T
+pub const nika_dap::store::QUARANTINE_DIR: &str
 pub const nika_dap::store::TRACE_DIR: &str
 pub fn nika_dap::store::fold_facts(events: &[nika_event::event::Event]) -> (alloc::string::String, nika_dap::store::TraceState, core::option::Option<alloc::string::String>)
 pub fn nika_dap::store::latest_in(dir: &std::path::Path) -> core::option::Option<std::path::PathBuf>

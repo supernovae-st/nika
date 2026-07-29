@@ -28,6 +28,14 @@ use crate::recover::recover_events;
 /// directory, and the trace writer appends here).
 pub const TRACE_DIR: &str = ".nika/traces";
 
+/// Where a FAILED run's semi-written outputs are quarantined (F-P14 ·
+/// NEP-0014 · la dette du run), relative to the run's CWD — one
+/// `<run-stamp>/` child per failed run, the stamp tying the debt to the
+/// journal that attests it. Beside the journals on purpose: the
+/// `run_sealed` line that carries the quarantine fold lives under
+/// `traces/`, and the v2 cross-run finding reads both from here.
+pub const QUARANTINE_DIR: &str = ".nika/quarantine";
+
 /// A trace's terminal state — the LAST workflow-level terminal event
 /// decides (ADR-100 · the ADR-099 journal vocabulary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -356,8 +356,9 @@ pub fn seal_event(
 /// The run's teardown facts (F-P2 · LOT-1) — what the seal's `covers`
 /// attests BEYOND the chain: the receipt the run folded at teardown
 /// (its digest rides; the body stays the evidence pack's surface), the
-/// budgets ρ consumed against the certificate's ceiling, and the
-/// effects ε exercised against the declared bound. Every field is
+/// budgets ρ consumed against the certificate's ceiling, the
+/// effects ε exercised against the declared bound, and the failed
+/// run's quarantine fold (F-P14 · la dette du run). Every field is
 /// ADDITIVE — `seal_format` stays 1: the verify tier reads `covers`
 /// tolerantly (unknown keys are ignored, verified by the tier tests),
 /// and the signature's canonicalization covers the whole object either
@@ -379,6 +380,13 @@ pub struct SealTeardown {
     pub budgets: Option<serde_json::Value>,
     /// The effects ε fold (exercised vs declared), pre-shaped by the caller.
     pub effects: Option<serde_json::Value>,
+    /// The quarantine fold (F-P14 · NEP-0014 · « obligation de fin — la
+    /// dette du run »): where the failed run's semi-written outputs
+    /// moved (`{dir, outputs: [{path, quarantined_to} | {path, error,
+    /// action}]}`), pre-shaped by the caller. Rides the FAILURE lane
+    /// only — a clean or paused run attests nothing (the key stays
+    /// OUT); the saga/compensation palier is declared P2.
+    pub quarantine: Option<serde_json::Value>,
 }
 
 impl SealTeardown {
@@ -392,7 +400,8 @@ impl SealTeardown {
 
 /// The seal event with the run's teardown facts folded into `covers`
 /// (F-P2): the receipt's digest (folded HERE — the chain head and count
-/// it binds are this seal's own), the budgets ρ, and the effects ε.
+/// it binds are this seal's own), the budgets ρ, the effects ε, and the
+/// failed run's quarantine fold (F-P14).
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn seal_event_with(
@@ -481,6 +490,13 @@ fn extend_covers(
     }
     if let Some(effects) = &teardown.effects {
         covers["effects"] = effects.clone();
+    }
+    // F-P14 · la dette du run: the failed run's quarantine fold rides
+    // verbatim (the moves happened BEFORE this seal — the end attested
+    // here includes them); a clean/paused run folded `None` and the key
+    // stays OUT (absent is honest).
+    if let Some(quarantine) = &teardown.quarantine {
+        covers["quarantine"] = quarantine.clone();
     }
 }
 
@@ -761,6 +777,111 @@ mod tests {
             false,
         )
         .expect("the extended seal verifies");
+    }
+
+    /// F-P14 (NEP-0014 · la dette du run) · the failed run's quarantine
+    /// fold rides `covers` additively and the signature verifies over
+    /// the extended object; a `None` keeps the key OUT (a clean run
+    /// attests nothing — absent is honest).
+    #[test]
+    fn the_quarantine_fold_rides_the_covers_and_verifies() {
+        let (pk, sk) = keypair();
+        let mut teardown = SealTeardown::new();
+        teardown.quarantine = Some(serde_json::json!({
+            "dir": ".nika/quarantine/2026-07-29T13-40-01Z-a3f2",
+            "outputs": [
+                { "path": "out.txt", "quarantined_to": ".nika/quarantine/2026-07-29T13-40-01Z-a3f2/out.txt" },
+                { "path": "gone.txt", "error": "No such file or directory (os error 2)", "action": "left_in_place" }
+            ]
+        }));
+        let ev = seal_event_with(
+            EventId::generate(),
+            Timestamp::from_unix_ms(1_700_000_000_000),
+            "ab12cd",
+            142,
+            "wf-hash-7c2a",
+            "0.105.0",
+            Some(&teardown),
+            &sk,
+            &pk,
+        )
+        .expect("the seal mints");
+        let get = |key: &str| {
+            ev.fields
+                .iter()
+                .find(|f| f.key == key)
+                .and_then(|f| match &f.value {
+                    nika_types::resource::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+        };
+        let covers: serde_json::Value =
+            serde_json::from_str(&get("covers").expect("covers present")).expect("covers parses");
+
+        // The classic four ride unchanged; the quarantine fold joins them
+        // VERBATIM (moved entries AND the stated miss).
+        assert_eq!(covers["head"], serde_json::json!("ab12cd"));
+        assert_eq!(
+            covers["quarantine"]["dir"],
+            serde_json::json!(".nika/quarantine/2026-07-29T13-40-01Z-a3f2")
+        );
+        assert_eq!(
+            covers["quarantine"]["outputs"][0]["quarantined_to"],
+            serde_json::json!(".nika/quarantine/2026-07-29T13-40-01Z-a3f2/out.txt")
+        );
+        assert_eq!(
+            covers["quarantine"]["outputs"][1]["action"],
+            serde_json::json!("left_in_place"),
+            "the stated miss rides too — never silent"
+        );
+
+        // The signature verifies over the EXTENDED covers.
+        let preimage =
+            nika_runtime::proof::preimage(nika_runtime::proof::HashDomain::Trace, 1, &covers);
+        let sig_box = minisign::SignatureBox::from_string(&get("sig").expect("sig present"))
+            .expect("sig parses");
+        let pk_box = minisign::PublicKeyBox::from_string(&pk).expect("pk box parses");
+        let pk_key = pk_box.into_public_key().expect("pk decodes");
+        minisign::verify(
+            &pk_key,
+            &sig_box,
+            std::io::Cursor::new(preimage.as_bytes()),
+            true,
+            false,
+            false,
+        )
+        .expect("the quarantine seal verifies");
+
+        // The no-fake-zero posture: a teardown WITHOUT the fold seals a
+        // covers with no `quarantine` key at all.
+        let clean = seal_event_with(
+            EventId::generate(),
+            Timestamp::from_unix_ms(1_700_000_000_001),
+            "ab12cd",
+            142,
+            "wf-hash-7c2a",
+            "0.105.0",
+            Some(&SealTeardown::new()),
+            &sk,
+            &pk,
+        )
+        .expect("the seal mints");
+        let covers: serde_json::Value = serde_json::from_str(
+            &clean
+                .fields
+                .iter()
+                .find(|f| f.key == "covers")
+                .and_then(|f| match &f.value {
+                    nika_types::resource::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .expect("covers present"),
+        )
+        .expect("covers parses");
+        assert!(
+            covers.get("quarantine").is_none(),
+            "absent is honest — a clean run attests nothing: {covers}"
+        );
     }
 
     /// (a) The pair probe hands back the public box + a 16-hex
