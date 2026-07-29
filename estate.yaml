@@ -14,17 +14,17 @@ classes:
   authored: "a human writes here"
   authored-pin: "a hand-meaningful pin a bot lane advances via PR-only — never HEAD; the derivations' INPUT"
   generated: "derived by a tool from declared inputs — regenerate, never hand-edit"
-  pinned-copy: "byte-copy vendored from an upstream repo by a declared lane, integrity-gated"
-  testimonial: "impl-owned test evidence — fixtures, corpora, batteries: proves behavior; neither shipped code nor derived output"
+  pinned-copy: "byte-copy vendored from an upstream source by a declared lane, provenance declared, integrity-gated"
+  testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4210
+  classified_files: 4214
   file_rows: 10
   pattern_rows: 22
   by_class:
-    authored: 1297
+    authored: 1300
     authored-pin: 1
-    generated: 112
+    generated: 113
     pinned-copy: 104
     testimonial: 2696
     foreign: 0
@@ -67,7 +67,7 @@ files:
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
-  sha256: 6692ce574fc27836b06e2ee3996249a3a513d59315b55ac262d3010db99f5521
+  sha256: d6fdb109e291d349ee4dbfd68a6b9fb28b8641ce38c044b6cefba2c76920cfce
   evidence: "in-file marker '── GENERATED · do not hand-edit' + [meta] source=https://models.dev/api.json · as_of · source_sha256_16 — a vendored snapshot, refreshed at maintenance time, never a runtime fetch"
   derivation:
     tool: "bash scripts/refresh-pricing.sh (emission laws matched to src/data/models.rs lookup semantics)"
@@ -98,7 +98,7 @@ files:
   evidence: "the authored rules for the media lanes ('No fake commands · No fake output · budgets · Never edit exports by hand')"
 - path: "scripts/estate.py"
   class: authored
-  sha256: aad29290f909ccf379f68cd9d2fedea329a1e7020cd6888f8fcf0a89a008429b
+  sha256: 813dbb99a2be46a6d1709346b46c0ffa3a2b8717b7d9cb8e183a35b096770b6d
   evidence: "hand-written estate projector (this manifest's generator)"
 patterns:
 - glob: "crates/nika-pack/pack/**"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 125
-  aggregate_sha256: 412e6ea25402cd5e4e71f9cb6227a4bb354ded85ba5a97c2e877855066f3f54a
+  aggregate_sha256: a247922812da54ab87522fc960f7233b34f61d45ed27ee60b339800847ca594a
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -172,8 +172,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 126
-  aggregate_sha256: 8bbf127d32b621d2e73ec9abed2410cea502df418bb838b5afff847bd4c91974
+  match_count: 129
+  aggregate_sha256: 4d5d15f0c0f358cdcc79e1292182c2dae1454a7d5f4eb4fb7e4c91df2401d4f4
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -207,8 +207,8 @@ patterns:
   evidence: "cargo config · audit.toml · mutants.toml — hand-kept workspace policy"
 - glob: "media/**"
   class: generated
-  match_count: 50
-  aggregate_sha256: d6720625e89c918a28789041fb585fd6629e23e41f58e827e1726ec92e21ba1a
+  match_count: 51
+  aggregate_sha256: f169eb2f7ec751d5fbfd15d688de61c6818422b7efdac7ed06bc2304c758bf40
   evidence: "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary"
   derivation:
     tool: "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)"
@@ -227,7 +227,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 5ac5b87b952238a13d9afe1e73cf48a22416e18d8dcf64fd1e915ffb6e30d152
+  aggregate_sha256: 97183349748d9f93ac2e28f0605d21d40f890dcfd50a2fa2982491af78ba6e3b
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
