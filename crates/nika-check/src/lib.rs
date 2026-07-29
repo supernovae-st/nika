@@ -121,6 +121,7 @@ mod cost;
 mod data_sink;
 mod declass;
 mod effective;
+mod energy;
 mod findings;
 mod flow;
 mod hints;
@@ -148,6 +149,7 @@ pub use composition::CompositionFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
 pub use data_sink::SinkFinding;
 pub use effective::{EffectivePermits, PermitsSource};
+pub use energy::{EnergyCounts, EnergyReading, EnergyTask};
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::Hint;
@@ -282,6 +284,11 @@ pub struct CheckReport {
     pub waves: Vec<Vec<usize>>,
     /// Worst-case cost ceiling across all `infer:`/`agent:` tasks.
     pub cost: CostCeiling,
+    /// The ENERGY reading (NEP-0018) — the cost honesty transposed to
+    /// watt-hours over the catalog's sourced figures (the static half;
+    /// the CLI's check renderer reads it). Additive: `report_version`
+    /// stays 1.
+    pub energy: EnergyReading,
     /// The termination + parametric resource certificate (ADR-092 #7 ·
     /// AARA degree-1) — ALWAYS exists (acyclic + every loop/retry/turn
     /// capped makes termination a theorem of the language); the bounds
@@ -642,10 +649,12 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
+    let cost = cost::ceiling(wf);
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
-        cost: cost::ceiling(wf),
+        energy: energy::reading(&cost),
+        cost,
         certificate: certificate::certify(wf),
         requirements: requirements::collect(wf),
         permits: effective::collect(wf),

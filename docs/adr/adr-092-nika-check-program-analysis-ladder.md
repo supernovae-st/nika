@@ -152,9 +152,11 @@ design, not a leak; the model response is not a verbatim echo).
 - `crates/nika-check/src/schema_lint.rs` -- authored `schema:` verification
   (the static half of structured-output reliability: required∉properties · type
   names · empty enum, with fixes)
-- `crates/nika-check/examples/check/` -- `--infer-permits` + `--json` runnable
-  surface (the agent repair loop: check → apply emitted fixes → re-check → clean,
-  e2e-proven convergent)
+- the examples/check/ scaffold (retired 2026-07-29 · step 19 shipped) --
+  `--infer-permits` + `--json` runnable
+  surface at ADR time (the agent repair loop: check → apply emitted fixes → re-check → clean,
+  e2e-proven convergent); the living surface is `nika check` in
+  `crates/nika-cli/src/verbs/check/`
 - Commit `9a0c20510` -- the review that exposed the one-hop + N-walks ceiling
 - `docs/crate-specs/nika-schema.md` §11bis -- the shipped surface + honest gaps
 

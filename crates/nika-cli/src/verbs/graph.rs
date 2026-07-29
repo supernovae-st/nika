@@ -10,7 +10,6 @@
 use std::fmt::Write as _;
 
 use nika_check::CheckReport;
-use nika_schema::raw::RawWorkflow;
 
 pub use nika_graph::{GraphDoc, Node, project};
 
@@ -183,33 +182,15 @@ pub fn run(path: &str, format: GraphFormat, theme: crate::display::theme::Theme)
 /// in from the binary's ONE resolution chain, so a pipe still gets
 /// escape-free bytes (colour auto-resolves off) while a TTY finally
 /// sees the art it was owed.
-/// The themed wire art for ONE checked workflow — the same map `graph
-/// --format ascii` prints, exposed so sibling verbs (`check`) can show
-/// the DAG beside their verdict without re-deriving the projection.
-pub(crate) fn ascii_art(
-    wf: &RawWorkflow,
+/// The drawing over an already-projected doc (the verb's own
+/// `--format ascii` arm) — the drawing lives in `nika_display::dag_art`
+/// (the 15k descent, 2026-07-29); the sibling surfaces ride it there.
+pub(crate) fn to_ascii(
+    doc: &GraphDoc,
     report: &CheckReport,
     theme: crate::display::theme::Theme,
 ) -> String {
-    to_ascii(&project(wf, report), report, theme)
-}
-
-fn to_ascii(doc: &GraphDoc, report: &CheckReport, theme: crate::display::theme::Theme) -> String {
-    if let Some(art) = crate::wires::render(doc, &report.waves, theme) {
-        return format!("{art}\n");
-    }
-    // Honest fallback: one row per wave — order without invented wires.
-    let mut text = String::new();
-    let mut cursor = 0usize;
-    for (i, wave) in report.waves.iter().enumerate() {
-        let ids: Vec<&str> = doc.nodes[cursor..cursor + wave.len()]
-            .iter()
-            .map(|n| n.id.as_str())
-            .collect();
-        cursor += wave.len();
-        let _ = writeln!(text, "  wave {} · {}", i + 1, ids.join(" · "));
-    }
-    text
+    nika_display::dag_art::to_ascii(doc, report, theme)
 }
 
 #[cfg(test)]

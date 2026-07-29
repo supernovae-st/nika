@@ -43,7 +43,7 @@
 //! metacharacter) also admits its `SQLite` journal family — `<db>-wal`,
 //! `<db>-shm` (WAL mode) and `<db>-journal` (rollback mode) — as three
 //! exact-path `literal` filters on the same rule, access class inherited
-//! ([`write_journal_sidecars`]). `SQLite`'s atomicity model creates, locks,
+//! (the `write_journal_sidecars` helper). `SQLite`'s atomicity model creates, locks,
 //! mmaps and unlinks these same-stem siblings on every write, so a grant
 //! naming only the main file dies with `SQLITE_CANTOPEN` (14) the moment a
 //! journal materializes — verified live 2026-07-29 (macOS 15.6.1 · sqlite

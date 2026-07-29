@@ -3,20 +3,16 @@
 
 //! The MODELS rung of the check ladder (#320) + the pricing preflight
 //! (#213) — split from `check/mod.rs` at the 1500-LOC file cap; the
-//! bodies moved verbatim.
+//! bodies moved verbatim. The finding TYPE lives beside its renderer
+//! (`nika_display::check_render` · the 15k descent).
 
-/// One MODELS-rung finding — a `model:` this binary cannot run (#320).
-pub(super) struct ModelFinding {
-    pub(super) model: String,
-    pub(super) tasks: Vec<String>,
-    pub(super) why: String,
-}
+pub(crate) use nika_display::check_render::ModelFinding;
 
 /// Cross `requirements.models` against the RESOLVER (the runnable
 /// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor
 /// catalog, which advertises providers this binary cannot drive (the
 /// azure class: cataloged, unresolvable, green until the run died).
-pub(super) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<ModelFinding> {
+pub(crate) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<ModelFinding> {
     report
         .requirements
         .models
@@ -50,11 +46,7 @@ pub(super) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<Model
             // the two machine surfaces consult the same fn beside the
             // resolver — they cannot drift apart again).
             let why = nika_providers::resolve_refusal(&m.model)?;
-            Some(ModelFinding {
-                model: m.model.clone(),
-                tasks: m.tasks.clone(),
-                why,
-            })
+            Some(ModelFinding::new(m.model.clone(), m.tasks.clone(), why))
         })
         .collect()
 }
@@ -72,7 +64,7 @@ pub(super) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<Model
 /// `snapshot` = the vendored catalog's provenance (source · `as_of` ·
 /// sha) + derived counts — the machine-readable answer to « priced
 /// against WHAT, from WHEN? » (no surveyed tool ships this · 2026-07).
-pub(super) fn pricing_section(
+pub(crate) fn pricing_section(
     report: &nika_check::CheckReport,
     model_findings: &[ModelFinding],
 ) -> serde_json::Value {
