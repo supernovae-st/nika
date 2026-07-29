@@ -1,0 +1,26 @@
+Weekly planning · 2026-07-14 · 34 min
+
+MAYA: Right, the migration. Where are we?
+DEV: Backfill is done for EMEA. AMER is still running, maybe two more days.
+MAYA: So we can't cut over Thursday.
+DEV: Not safely. I'd say Monday.
+MAYA: Fine, Monday. Dev, you own the cutover runbook — have it in the repo by
+Friday so Priya can review it over the weekend.
+DEV: Got it.
+
+PRIYA: One thing on the runbook — last time the rollback step was three
+paragraphs of prose and nobody could follow it at 2am. Can we make it a
+numbered list with the exact commands?
+DEV: Yes.
+MAYA: Priya, can you also take the customer comms? Draft something short for
+the status page, we publish it the morning of.
+PRIYA: Sure. I'll have a draft by Thursday.
+
+SAM: The invoice thing is still open. Finance asked again yesterday.
+MAYA: What's blocking?
+SAM: I need the new tax rates from Léa and she's on leave until the 20th.
+MAYA: Then it slips. Sam, ping her the day she's back and pick it up then, no
+deadline before that.
+SAM: Works.
+
+MAYA: Anything else? ... Good. Same time next week.

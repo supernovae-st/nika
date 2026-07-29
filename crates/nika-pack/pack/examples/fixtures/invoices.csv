@@ -1,0 +1,6 @@
+invoice_id,client,amount,currency,due,status
+INV-2041,Northwind Studio,2400.00,EUR,2026-06-30,overdue
+INV-2042,Harbour Labs,980.00,EUR,2026-07-15,paid
+INV-2043,Meridian Press,5150.00,USD,2026-06-12,overdue
+INV-2044,Cobalt Foundry,760.00,GBP,2026-08-01,sent
+INV-2045,Northwind Studio,1320.00,EUR,2026-05-28,overdue

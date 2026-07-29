@@ -72,6 +72,53 @@ findings="$("$NIKA" check "$file" --native-strict --color never 2>&1)"
 rc=$?
 set -e
 
+# WHICH oracle answered. A verdict that does not name the binary behind it
+# claims more than it covers — the same law this hook exists to enforce on
+# workflows, applied to the hook.
+#
+# Not hypothetical. Measured 2026-07-28, mid-session: `NIKA_BIN` unset
+# resolves to the PATH's brew build, which was one release behind the tree
+# and still deferred `${{ const.x }}` paths to run time. On the same file:
+#
+#   brew 0.106.1  ✔ PERMITS  body fits the declared boundary
+#   engine main   ✖ NIKA-SEC-004 ./secret/keys.txt is outside permits.fs.read
+#
+# The hook fires on its own after every edit, so an agent working ON the
+# engine was handed a green from the release it was in the middle of
+# fixing — and had no way to see which binary said it. Printing the
+# resolved path and version costs one line and makes the divergence
+# self-evident the moment it exists.
+oracle="$(command -v "$NIKA" 2>/dev/null || printf '%s' "$NIKA")"
+# The PATH is the identity. The version string is a TAG, and a tag does not
+# order builds by what they contain: measured 2026-07-29, this tree's
+# target/debug/nika-cli reports 0.106.0 and carries the fs-permit FIX, while
+# the PATH's brew build reports 0.106.1 and carries the FAIL-OPEN. A debug
+# build's version tracks the last tag, not the tree, so the higher patch
+# number was the vulnerable one. Printing the version first inverted the
+# safety ordering for a reader — that was this hook's own repair, one
+# iteration ago, and an agent sent to audit something else caught it.
+tag="$("$NIKA" --version 2>/dev/null | head -1)"
+
+if [ "$rc" -eq 0 ] && [ -n "${NIKA_CHECK_ANNOUNCE_CLEAN:-}" ]; then
+  printf 'nika check --native-strict · clean · %s (tag %s)\n' "$oracle" "${tag:-unknown}" >&2
+fi
+
+# The one case worth breaking silence for: a build of the engine sits in this
+# tree and the hook is NOT using it. That is the exact configuration that
+# hands a stale green to someone editing the engine, and it is the only
+# configuration where the default is wrong — so it is the only one that
+# speaks. Everywhere else (no local build, or NIKA_BIN already set) stays
+# quiet, including on a clean verdict.
+if [ -z "${NIKA_BIN:-}" ]; then
+  root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null || true)"
+  local_build="$root/target/debug/nika-cli"
+  if [ -n "$root" ] && [ -x "$local_build" ] && [ "$oracle" != "$local_build" ]; then
+    printf 'nika: judged with %s (tag %s), but this tree builds its own:\n  export NIKA_BIN=%s\n' \
+      "$oracle" "${tag:-unknown}" "$local_build" >&2
+    printf '  the tag does not order them — a debug build tracks the last tag, not the tree\n' >&2
+  fi
+fi
+
 if [ "$rc" -ne 2 ]; then
   # Clean (0) or broken oracle (3): nothing to teach — silence.
   done_quiet
@@ -81,7 +128,10 @@ printf '%s\n' "$findings" | head -c 2000 >&2
 # Name the FLAG, not just the verb. A reader told to "re-run nika check"
 # runs the bare form, reads a green that this hook does not accept, and
 # loops against a gate it cannot see.
-printf '\nre-check with the same oracle this hook used:\n  nika check --native-strict %s\n' "$file" >&2
+printf '\nre-check with the same oracle this hook used:\n  %s check --native-strict %s\n' "$oracle" "$file" >&2
+printf 'oracle: %s (tag %s · a tag does not say what the build contains)\n' \
+  "$oracle" "${tag:-unknown}" >&2
+printf 'working ON the engine? point the hook at your build:\n  export NIKA_BIN=<repo>/target/debug/nika-cli\n' >&2
 if [ -n "$cc" ]; then
   # PostToolUse exit 2 = stderr fed to Claude, edit already applied.
   exit 2

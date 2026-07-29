@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · engineering / any team
+#
+# Your standup note writes itself, from what you actually committed. The
+# smallest useful shape in the corpus: two independent facts gathered in
+# parallel, one model call that turns them into words, one file on disk.
+#
+# Demonstrates ·
+#   - implicit parallelism · `today` + `history` have no deps, so they run
+#     together — you never write a scheduler
+#   - `nika:date` · the timestamp comes from a builtin, not the model's
+#     imagination
+#   - `exec:` → `infer:` · the bread-and-butter chain (real data in, words out)
+#   - `permits.exec:` naming ONE program · `git` and nothing else
+#   - `nika:write` · ALWAYS pass `content:` (a write without content writes
+#     an empty file)
+#
+# Needs · a git repo with commits since yesterday — the digest reads YOUR
+#   history. Run it from a repo you have been working in; an empty range is
+#   green and produces an empty note, which is honest but dull.
+#
+# Run · nika run examples/standup-digest.nika.yaml
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+
+nika: v1
+workflow:
+  id: standup-digest
+  description: "Read yesterday's commits, write today's standup note"
+
+model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (a fast one-liner job)
+
+permits:
+  tools: ["nika:date", "nika:write"]
+  exec: ["git"]              # the ONE program this workflow may run
+  fs: { write: ["out/standup-note.md"] }
+
+tasks:
+  # No deps between these two → the engine runs them in parallel.
+  today:
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
+
+  history:
+    exec:
+      command: ["git", "log", "--since=yesterday", "--oneline", "--no-merges"]
+
+  digest:
+    with:
+      today: ${{ tasks.today.output }}
+      history: ${{ tasks.history.output }}
+    infer:
+      max_tokens: 400          # a standup note is short · the ceiling says so
+      prompt: |
+        Date · ${{ with.today }}
+        Commits since yesterday ·
+        ${{ with.history }}
+
+        Write my standup note · 3 bullets · done / doing / blocked.
+        Plain words · no fluff. If there are no commits, say so in one line.
+
+  save:
+    with:
+      digest: ${{ tasks.digest.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/standup-note.md
+        create_dirs: true
+        content: "${{ with.digest }}"
+
+outputs:
+  note: ${{ tasks.digest.output }}

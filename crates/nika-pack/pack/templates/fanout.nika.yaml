@@ -5,13 +5,37 @@
 #
 #   [discover]──▶[process ∥×N]───▶[survivors]──▶[merge]
 #   nika:glob     for_each·infer    nika:jq        infer
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# The "do this for EVERY one of them" job, where you do not know how many there
+# are until the run starts. Discovery yields a collection, `for_each` fans it
+# out under a real leash (bounded parallelism, per-item timeout, retries), one
+# bad item cannot sink the batch, and the survivors merge into a single answer.
+#
+# Demonstrates ·
+#   - `for_each:` over a RUNTIME collection · the fan width is discovered, never
+#     written down
+#   - the full leash · `max_parallel` + `timeout` + `retry` + `fail_fast: false`
+#   - `on_error: recover: null` + a null-aware fan-in · a failed item becomes a
+#     hole at its index, order is preserved, the batch survives
+#
+# Needs · nothing. Scaffolds and runs green in an empty directory — an empty
+#   discovery skips the fan-out and the fan-in still returns a value.
+#
+# Run · nika run <file> --model mock/echo    # offline rehearsal
 nika: v1
 workflow:
   id: fanout-template           # SLOT: kebab-case workflow id
   description: "discover N items · process in parallel · merge"   # SLOT
 
-model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
+# SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`.
+# `--model mock/echo` needs no seat and is the path this file guarantees.
+model: ollama/llama3.2:3b
+
+run:
+  # A `timeout:` is a deadline, and a deadline needs a clock. Declaring it says
+  # out loud which one: `system` is the ambient wall clock (the honest default);
+  # `virtual` drives a simulated clock for deterministic tests.
+  clock: system
 
 const:
   collection_source: "./items"      # SLOT: where the collection comes from
@@ -19,7 +43,19 @@ const:
 permits:
   tools: ["nika:glob", "nika:jq"]
   fs:
-    read: ["./items/**"]
+    # `nika:glob` is gated on the DIRECTORY it walks, not on the files it
+    # returns — measured: with `./items/*.md` here (the pattern) the run dies
+    # `NIKA-SEC-004 · ./items resolves outside the declared permits.fs.read
+    # boundary`, because `*` never crosses `/` and so never matches `./items`
+    # itself. Grant the directory. A deeper pattern (`./items/**/*.md`) walks
+    # deeper and needs `./items/**`.
+    #
+    # HONEST HINT · `check` reports NIKA-DRIFT-001 here ("matches no path the
+    # body reads") because its drift detector does not model a glob as a read.
+    # The runtime does. Following that hint deletes the entry and kills the run
+    # — keep it. Coverage decision:
+    # the nika engine repo · docs/plans/2026-07-28-verdict-coverage.md
+    read: ["./items"]
 
 tasks:
   discover:
@@ -41,6 +77,7 @@ tasks:
     on_error:
       recover: null                 # a failed item yields null at its index · the batch lives
     infer:                          # SLOT: the per-item job (any verb)
+      max_tokens: 500               # SLOT: the per-ITEM ceiling · multiply by the fan width
       prompt: |
         Process this item · ${{ item }}
 
@@ -59,8 +96,10 @@ tasks:
     with:
       survivors: ${{ tasks.survivors.output }}
     infer:
+      max_tokens: 800               # SLOT: the fan-in ceiling
+      # SLOT: the fan-in · the survivors array (failed items filtered). Keep
+      # slot markers out of the block below — it is prompt TEXT, not YAML.
       prompt: |
-        # SLOT: the fan-in · the survivors array (failed items filtered)
         Merge these results into one report · ${{ with.survivors }}
 
 outputs:

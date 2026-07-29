@@ -1,0 +1,271 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T4 epic · founders / executives
+#
+# The Monday brief that assembles itself · market signal, engineering pulse
+# and the KPI sheet gathered in parallel, joined into one synthesis, saved
+# under a date the engine computed. It is also the smallest complete example
+# of the lethal trifecta — private numbers, untrusted news, an outbound ping —
+# so the human decision sits at the root and authorizes the whole envelope.
+#
+# Demonstrates ·
+#   - 3-branch parallel gather · fetch + exec + read→convert→jq, one wave
+#   - jq arithmetic · `add` sums the revenue column WITHOUT a model call
+#   - the root human gate · NEP-0002, and WHY it cannot sit anywhere else
+#   - `on_error: recover:` · the offline rehearsal for the untrusted leg
+#   - the always-pattern · `after: {save: terminal}`, so an armed ping fires on
+#     every settled outcome — landed, failed, or declined. It is a TASK and not
+#     an `on_finally:` hook because 03 §on_finally makes cleanup failures
+#     LOG-ONLY: an alert that cannot fail loudly is not an alert.
+#
+# Needs · a git repo (the pulse reads YOUR week; anywhere else it recovers to a
+# labelled stand-in and the brief is told the pulse is missing). The KPI sheet
+# ships with the corpus — run from the repo root so the default path resolves.
+# It runs green but PAUSES at `approve` (exit 4, not a failure) —
+#   nika run <file> --resume <trace> --answer approve=true
+#
+# Run · nika run examples/ceo-monday-brief.nika.yaml
+#       · rehearse with no keys and no network · add --model mock/echo
+#       · arm the founders ping · add --var alert=true (see permits.net.http)
+
+nika: v1
+workflow:
+  id: ceo-monday-brief
+  description: "news + repo pulse + KPIs → one synthesis → dated brief → a ping on every outcome"
+
+model: ollama/qwen3.5:4b   # local · zero key · `--model mock/echo` rehearses the whole file
+
+inputs:
+  alert:
+    type: bool
+    default: false
+    description: "Send the founders ping. OFF by default so a rehearsal touches no webhook."
+  kpi_sheet:
+    type: string
+    default: "./examples/fixtures/ceo-kpis.csv"
+    description: "The weekly numbers · columns incl. weekly_revenue"
+
+const:
+  watch_query: "AI workflow engines"
+
+secrets:
+  founders_webhook:
+    source: env
+    key: FOUNDERS_WEBHOOK_URL
+    egress:                       # sanction the one send · the secret IS the URL
+      - to: "nika:notify"
+        host_from_self: true
+permits:
+  exec: ["git"]
+  tools: ["nika:convert", "nika:date", "nika:fetch", "nika:jq", "nika:notify", "nika:prompt", "nika:read", "nika:write"]
+  net:
+    http:
+      - "hn.algolia.com"          # the market-signal search · the only host this brief READS
+      # `host_from_self:` above sanctions the FLOW (the secret may be the URL) —
+      # it does not grant the capability. The host stays unknown at check, so it
+      # is judged at RUN against this bound: name the escalation host here or the
+      # send is refused mid-run, after the tokens are already spent.
+      - "hooks.slack.com"         # swap for wherever FOUNDERS_WEBHOOK_URL points
+  fs:
+    # The sheet arrives as an INPUT, so `check` reads past it — and the wall does
+    # not move when the input does: point --var kpi_sheet at anything else and the
+    # run refuses it NIKA-SEC-004. That asymmetry is the point of a permits block.
+    read: ["./examples/fixtures/ceo-kpis.csv"]
+    # One dated brief per run, written DIRECTLY in ./briefs/. `*` matches a single
+    # segment and never crosses `/`, so nothing here can steer the write into a
+    # subtree — which is why this is not `./briefs/**`.
+    write: ["./briefs/*-monday.md"]
+
+tasks:
+  # ── the human gate · FIRST, before anything untrusted enters ──
+  #
+  # This run holds all three legs of the lethal trifecta: a private read (the
+  # numbers), untrusted ingress (a public news API), and external egress (a
+  # write and a webhook). NEP-0002 asks for one blocking human decision that
+  # DOMINATES every path to every egress-capable task — which forces it here,
+  # at the root, not in front of the save.
+  #
+  # A gate placed after the fetch could never dominate: the brief still reaches
+  # `save` along its own data edge, a path the human is not standing on. And a
+  # human skimming a model's summary of an attacker's page is a weak check
+  # anyway — by then the payload is already inside the run. So the decision
+  # taken here is the honest one: authorize the CAPABILITY ENVELOPE up front.
+  approve:
+    invoke:
+      # blocking · no `default:` · a gate with a default is not a gate, and the
+      # checker enforces both directions: add `default: false` here and this
+      # file turns RED with NIKA-SEC-009, because a defaulted prompt dominates
+      # nothing. Leaving it blocking costs one [headless-prompt] hint instead —
+      # that hint is the price of a real gate, not a defect to paper over.
+      # The run pauses (exit 4, not a failure) — answer and resume with
+      #   nika run <file> --resume <trace> --answer approve=true
+      tool: "nika:prompt"
+      args:
+        message: |
+          This Monday brief will:
+            · fetch public news from hn.algolia.com
+            · run git in this repo
+            · read ${{ inputs.kpi_sheet }}
+            · write ./briefs/<date>-monday.md
+            · ping the founders webhook (armed: ${{ inputs.alert }})
+
+          Proceed? [yes/no]
+
+  # ── branch 1 · market signal · the untrusted leg ──
+  news:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://hn.algolia.com/api/v1/search?query=${{ const.watch_query }}"
+        mode: jq
+        jq: ".hits[:10] | map(.title)"
+    on_error:
+      # The honest dry run · offline the host resolves nowhere and this literal
+      # takes over, so the join below is exercised on both paths with the same
+      # binding. It is labelled in the brief so nobody mistakes it for signal.
+      recover: ["(offline rehearsal · no market signal was fetched)"]
+
+  # ── branch 2 · engineering pulse ──
+  pulse:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
+    exec:
+      # Default capture (stdout), so a non-zero exit FAILS the task and the
+      # recovery below is what handles it. The tempting alternative — `capture:
+      # structured` — turns the exit code into data and the task reports success
+      # whatever happened; that is only honest when something downstream reads
+      # `exit_code`, and the checker flags the case where nothing does
+      # ([swallowed-exit]). Here the failure is visible in the run (« 1
+      # recovered ») and labelled in the brief, which is the same information
+      # with none of the silence.
+      command: ["git", "--no-pager", "shortlog", "-sn", "--since=1 week ago", "HEAD"]
+    on_error:
+      recover: "(no engineering pulse · git could not be read here)"
+
+  # ── branch 3 · the numbers · the private leg ──
+  sheet:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ inputs.kpi_sheet }}" }
+
+  rows:
+    with:
+      csv: ${{ tasks.sheet.output }}
+    # A SKIPPED producer hands its consumer `null`, and the consumer runs anyway.
+    # Measured: without this line a « no » at the gate reaches nika:convert with
+    # nothing and the run FAILS (NIKA-BUILTIN-CONVERT-002) instead of landing
+    # nothing — a refusal must be a quiet no-op, never an error. Every task
+    # downstream of a gated one carries its own admission test.
+    when: ${{ with.csv != null }}
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ with.csv }}"
+        from: csv
+        to: json
+        has_header: true
+
+  revenue:
+    with:
+      rows: ${{ tasks.rows.output }}
+    when: ${{ with.rows != null }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        # CSV cells arrive as STRINGS whatever they look like, so `tonumber`
+        # before `add`. Money is arithmetic, never a model's opinion of it.
+        input: "${{ with.rows }}"
+        expression: "map(.weekly_revenue | tonumber) | add"
+
+  # ── the join · three branches land here, one call ──
+  brief:
+    with:
+      go: ${{ tasks.approve.output }}
+      # Every binding is SHALLOW (`.output`, never `.output.field`). Measured:
+      # a skipped producer's `.output` reads as `null` and the join survives it,
+      # while a deep field of the same skipped producer is NIKA-VAR-001 ·
+      # unresolved template reference — bindings resolve before `when:` decides,
+      # so a deep read into a « no » path kills the run the gate was meant to
+      # spare. Reach one level, gate, then reach deeper downstream.
+      news: ${{ tasks.news.output }}
+      pulse: ${{ tasks.pulse.output }}
+      rows: ${{ tasks.rows.output }}
+      revenue: ${{ tasks.revenue.output }}
+    when: ${{ with.go == true }}
+    infer:
+      max_tokens: 1200               # the cost report becomes a ceiling, not UNBOUNDED
+      prompt: |
+        Market signal · ${{ with.news }}
+        Engineering pulse · ${{ with.pulse }}
+        Weekly rows · ${{ with.rows }}
+        Revenue, summed by the engine · ${{ with.revenue }}
+
+        Write my Monday brief · 5 sections · market · product · numbers ·
+        risks · the ONE decision this week needs.
+      thinking:
+        # A reasoning budget, honoured by seats that support extended thinking
+        # and ignored by the ones that do not — declaring it never fails a run.
+        enabled: true
+        budget_tokens: 4000
+
+  stamp:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
+    output:
+      day: ".[:10]"                  # nika:date returns the ISO string itself · slice YYYY-MM-DD
+
+  save:
+    with:
+      go: ${{ tasks.approve.output }}   # every effect re-reads the decision · a « no » lands nothing
+      day: ${{ tasks.stamp.day }}
+      brief: ${{ tasks.brief.output }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./briefs/${{ with.day }}-monday.md"
+        content: "${{ with.brief }}"
+        create_dirs: true
+
+  # ── the ping · a TASK, not a cleanup hook ──
+  #
+  # `after: {save: terminal}` admits all four settled states, so this fires
+  # whether the brief landed, failed, or was skipped by a « no » at the gate.
+  # It is deliberately not an `on_finally:` hook: cleanup errors are LOGGED and
+  # DO NOT PROPAGATE (03 §on_finally · best-effort lane), so a webhook that
+  # dies there dies in silence — measured: an unresolved secret in a cleanup
+  # hook leaves the run green with nothing sent. An alert you cannot trust to
+  # fail loudly is not an alert.
+  alert:
+    after:
+      save: terminal
+    with:
+      armed: ${{ inputs.alert }}
+      outcome: ${{ tasks.save.status }}   # observe WHAT happened · same pass-set as the after edge
+      day: ${{ tasks.stamp.day }}
+    when: ${{ with.armed == true }}       # OFF by default · a rehearsal touches no webhook
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.founders_webhook }}"
+        message: "Monday brief · ${{ with.outcome }} · briefs/${{ with.day }}-monday.md"
+        severity: info
+
+outputs:
+  brief: ${{ tasks.brief.output }}
+  revenue:
+    value: ${{ tasks.revenue.output }}
+    description: "Total weekly revenue, summed by jq — the number nobody guessed"

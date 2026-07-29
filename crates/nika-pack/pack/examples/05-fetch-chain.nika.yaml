@@ -1,31 +1,48 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 05 · Fetch → bind → summarize, with graceful fallback.
+# 05 · Fetch → bind → summarize, with a fallback that keeps the shape.
+#
+# The first file that reaches outside the process. Two things follow from
+# that: the workflow has to say which host it may reach, and it has to have
+# an answer for the day that host is down. Both are declarations, not code.
 #
 # Demonstrates ·
-#   - `invoke:` the `nika:fetch` builtin (HTTP + extraction · fetch is a TOOL, not a verb)
-#   - `output:` named jq bindings → `${{ tasks.X.<name> }}`
-#   - `on_error: recover:` · a LITERAL recovery value — when the fetch
-#     fails, this value substitutes the raw output BEFORE extraction, so
-#     it must mirror the API's shape ({ data: { title, body } }) and the
-#     SAME output: bindings work on both paths (05-errors §recovery)
-#   - chaining an `invoke:` result into an `infer:` prompt
+#   - `invoke:` · calling a TOOL · fetching is `nika:fetch`, not a verb
+#   - `permits.net.http` · the hosts this workflow may reach, named exactly
+#   - `output:` · named jq bindings → `${{ tasks.<id>.<name> }}`
+#   - `on_error: recover:` · a literal fallback that substitutes the raw
+#     output BEFORE extraction, so the SAME bindings work on both paths
+#   - chaining a tool result into an `infer:` prompt
+#
+# Runs green offline: the placeholder host resolves nowhere, the recovery
+# value takes over, the summary still lands. That is the point — the
+# rehearsal exercises the failure path, which is the one you cannot test
+# by waiting for it.
 #
 # Run · nika run examples/05-fetch-chain.nika.yaml
-# Runs green offline · the placeholder API resolves nowhere, the recover
-# value takes over, the summary still lands (swap --model mock/echo in
-# too and the whole file is a zero-setup rehearsal).
 
 nika: v1
 workflow:
   id: fetch-chain
 
-model: mock/echo
+model: mock/echo   # the dry twin · the lesson here is the tool call, not the prose
+
 const:
   api_url: "https://api.example.com/v1/articles/latest"
+
 permits:
   tools: ["nika:fetch"]
+  net:
+    # The one host `const.api_url` names. A `const` is the one authority a run
+    # cannot move, so the host is knowable while checking and the bound is
+    # written here rather than deferred.
+    #
+    # Worth knowing before you build on this: when a URL arrives from a secret
+    # or an input instead, `check` cannot see the host and stays green — the
+    # boundary is then judged mid-run, after tokens are spent. Exact names
+    # only; this list never takes globs.
+    http: ["api.example.com"]
 
 tasks:
   fetch_article:
@@ -33,15 +50,19 @@ tasks:
       tool: nika:fetch
       args:
         url: "${{ const.api_url }}"
-        mode: jq                    # extract structured fields, not markdown
+        mode: jq    # extract structured fields · not a markdown dump
         jq: "."
-    output:                         # named bindings, extracted via jq
+    output:
+      # Named jq bindings over the tool's result. Downstream reads
+      # `${{ tasks.fetch_article.title }}` — not `.output.data.title`.
       title: ".data.title"
       body: ".data.body"
     on_error:
-      # A LITERAL fallback · same shape as the live response, so the
-      # output: bindings above extract from it identically. (A recover
-      # can also reference another task — 05-errors §recovery.)
+      # The literal fallback. It substitutes the RAW result before the
+      # bindings above run, which is the whole reason it has to mirror the
+      # live response shape — `{ data: { title, body } }`. Get the shape
+      # wrong and the recovery succeeds while the bindings come back empty.
+      # (A recover can also point at another task · 05-errors §recovery.)
       recover:
         data:
           title: "Cached fallback article"
@@ -49,10 +70,17 @@ tasks:
 
   summarize:
     with:
-      fetch_article_title: ${{ tasks.fetch_article.title }}
-      fetch_article_body: ${{ tasks.fetch_article.body }}
+      title: ${{ tasks.fetch_article.title }}
+      body: ${{ tasks.fetch_article.body }}
     infer:
       prompt: |
         Summarize this article in 3 bullets.
-        Title · ${{ with.fetch_article_title }}
-        Body · ${{ with.fetch_article_body }}
+        Title · ${{ with.title }}
+        Body · ${{ with.body }}
+      max_tokens: 512
+
+# `title` is here so a reader can see WHICH path ran: offline it reads
+# "Cached fallback article". Read with `--output json`.
+outputs:
+  title: ${{ tasks.fetch_article.title }}
+  summary: ${{ tasks.summarize.output }}

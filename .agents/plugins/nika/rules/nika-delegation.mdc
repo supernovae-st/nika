@@ -34,6 +34,9 @@ or pure code edits.
 - **Quick oracle, no shell**: the read-only MCP tools — `nika_check` · `nika_inspect` ·
   `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` ·
   `nika_canon` · `nika_catalog` · `nika_tools`.
+- **Environment health**: `/nika:doctor` (or `nika doctor --json`) —
+  binary · installed plugin kits (train drift) · provider keys ·
+  client wiring, every problem with its exact fix command.
 
 ## The laws that always apply
 

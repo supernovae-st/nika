@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 11 · Declassify — the one door through the taint.
+#
+# A permit-relevant argument fed by an UNTRUSTED value (`inputs.*` ·
+# `config.*` · anything fetched) is the parameterisation taint. When the
+# check can resolve the value and it ESCAPES the bound, it refuses with
+# `NIKA-AUTH-008` — and the reflex that refusal provokes (widen the
+# boundary until the message stops) is the wrong door. The right one is
+# authored: `declassify:` on the task, with a reviewable `because:`
+# (spec/10-authority.md · "The only door is the authored one").
+#
+# Demonstrates · every claim below was run against this exact file
+#   - the wall · flip this file's `default:` to "../outside/secrets.csv"
+#     and the check refuses ✖ NIKA-AUTH-008; the door below turns that
+#     SAME variant check-green — the static question is deferred, not
+#     answered
+#   - never a bypass · that deferred variant still dies `NIKA-SEC-004` at
+#     run, and `--var path=README.md` on THIS file dies the same way — the
+#     boundary confines every value, door or no door
+#     (spec/10-authority.md · "Declassify is never a permit bypass")
+#   - `declassify:` · task-level, `from:` a dotted binding · `to: trusted`
+#     (the only value v1 knows) · `because:` non-empty, the review record
+#   - what the door yields on an ADMITTED value · the vouching lands in
+#     the signed trace — one `Declassify` frame per entry, holding the
+#     `because:`
+#   - a wall with no door at all · a permit BOUND can never interpolate
+#     (`NIKA-AUTH-007` · a bound is a literal you can read)
+#
+# Run · nika run examples/11-declassify-the-door.nika.yaml
+#   another vendor file · --var path=examples/fixtures/inventory-q3.csv
+
+nika: v1
+workflow:
+  id: declassify-the-door
+
+permits:
+  tools: ["nika:jq", "nika:read"]
+  fs:
+    # The bound is the DOMAIN the operator grants: any fixture csv, one
+    # path segment, nothing nested. `*` never crosses `/` — a caller aiming
+    # at `fixtures/deep/x.csv` or `../secrets.csv` is refused by the
+    # boundary itself, before the taint question even comes up.
+    read: ["examples/fixtures/*.csv"]
+
+inputs:
+  path:
+    type: string
+    default: "examples/fixtures/inventory-q3.csv"
+    required: true
+    description: "WHICH vendor csv to load · must sit inside the fs.read bound"
+
+tasks:
+  load:
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "${{ inputs.path }}"
+    # The door. `from:` names the exact tainted binding; `because:` is the
+    # sentence a reviewer holds you to. What it buys, measured: a
+    # resolvable ESCAPING value stops refusing at check (the question is
+    # handed to the run), and every run writes one `Declassify` frame into
+    # the signed trace carrying this exact sentence. What it does not buy,
+    # measured: the boundary — an out-of-bound path dies `NIKA-SEC-004` at
+    # run with the door in place.
+    declassify:
+      - from: inputs.path
+        to: trusted
+        because: "the caller picks WHICH fixture csv, never an arbitrary path — the one-segment *.csv bound confines every value this input can take, and the run refuses anything outside it"
+
+  shape:
+    with:
+      raw: ${{ tasks.load.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.raw }}"
+        expression: '{rows: (split("\n") | map(select(. != "")) | length - 1)}'
+
+outputs:
+  summary:
+    value: ${{ tasks.shape.output }}
+    description: "How many data rows the vendor file carries (header excluded)"

@@ -48,7 +48,7 @@ pub use effect::{
 pub use env::{
     DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,
 };
-pub use fit::lexically_normalize;
+pub use fit::{glob_admits, lexically_normalize};
 pub use sink::code_bearing_path_class;
 // F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's
 // trifecta Value) + the shared untrusted-ingress source predicates

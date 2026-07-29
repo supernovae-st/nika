@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 08 · Config — the deployment's authority.
+#
+# Four authorities can put a value in a workflow. The path has shown two:
+# `inputs:` (the caller, per run) and `const:` (the author, fixed in the
+# file). `config:` is the third: non-sensitive knobs that belong to the
+# DEPLOYMENT — a region, a verbosity switch — read as `${{ config.x }}`.
+# The fourth, `secrets:`, needs a real credential and lives with the jobs
+# (CONVENTIONS §3).
+#
+# Demonstrates ·
+#   - `config:` · typed, `default:`-carrying deployment knobs
+#   - declared-only resolution · an undeclared `${{ config.x }}` is
+#     `NIKA-VAR-001` — the engine NEVER falls back to the OS environment
+#     (spec/01-envelope.md §config)
+#   - `when:` on a config flag · a quiet run and a verbose run, one file
+#   - who supplies what · the caller's `--var` reaches `inputs:` ONLY
+#
+# Run · nika run examples/08-config-values.nika.yaml
+#   The verbose twin · flip `verbose.default` to true and run again.
+#   Supplying config at launch is an engine-launch concern
+#   (spec/01-envelope.md §config); the reference engine resolves `config:`
+#   from its declared `default:`.
+
+nika: v1
+workflow:
+  id: config-values
+
+permits:
+  tools: ["nika:jq", "nika:log"]
+
+inputs:
+  team:
+    type: string
+    default: "atelier"
+    required: true
+    description: "Whose report this is — the CALLER's value · --var team=…"
+
+config:
+  # The deployment's knobs. `type:` is required; `default:` is what makes
+  # this file runnable everywhere. The caller cannot reach these — measured:
+  # `--var region=us` refuses with `unknown input — the workflow declares:
+  # team`. Never a credential here: config values appear in logs and traces
+  # (spec/01-envelope.md §config-vs-secrets) — a value that must stay
+  # masked belongs to `secrets:`.
+  region:
+    type: string
+    default: "eu"
+    description: "Which region label the report carries"
+  verbose:
+    type: bool
+    default: false
+    description: "Emit the debug dump task when true"
+
+const:
+  # The author's number — fixed in the file, never supplied by anyone.
+  window_days: 7
+
+tasks:
+  report:
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          team: "${{ inputs.team }}"
+          region: "${{ config.region }}"
+          window_days: "${{ const.window_days }}"
+        expression: '. + {title: "\(.team) · \(.region) · last \(.window_days) days"}'
+
+  debug_dump:
+    with:
+      report: ${{ tasks.report.output }}
+    # A config flag routes WORK — it never stands in for a human decision
+    # (spec/10-authority.md · "a `when:` on a config flag is not a gate").
+    # False by default: this task settles `skipped`, and nothing downstream
+    # reads it, so the quiet run stays quiet. The shape rule (cel-subset)
+    # wants an explicit relation — `== true`, never the bare flag.
+    when: ${{ config.verbose == true }}
+    invoke:
+      tool: "nika:log"
+      args:
+        level: debug
+        message: "full report object"
+        data: "${{ with.report }}"
+
+outputs:
+  report:
+    value: ${{ tasks.report.output }}
+    description: "The shaped report · title carries team + region + window"

@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · data engineering
+#
+# The nightly ETL that never dies at row 14,203 · bad batches degrade
+# to a quarantine file instead of killing the pipeline · `on_error:
+# recover:` is the difference between « re-run the whole night » and
+# « fix three rows tomorrow morning ».
+#
+# Demonstrates ·
+#   - `on_error: recover:` · graceful degradation to a fallback value ·
+#     the skipped branch reads as null: guard `size()` with `!= null`
+#   - `nika:convert` CSV→JSON + `nika:validate` as the schema gate
+#   - jq `group_by` aggregation · stats without a model call
+#   - the quarantine pattern · bad data is DATA, not an exception
+#
+# Run · nika run examples/etl-quarantine.nika.yaml
+#   The sample batch ships with the repo and is DELIBERATELY dirty — one row
+#   carries a currency outside the enum — so the run takes the quarantine
+#   branch and writes out/quarantine/orders-rejected.json. Fix that row (CHF
+#   → EUR) and re-run to watch the good branch aggregate instead. Both
+#   branches are green: that is the whole lesson.
+
+nika: v1
+workflow:
+  id: etl-quarantine
+  description: "CSV batch → schema gate → quarantine the bad · aggregate the good"
+
+const:
+  batch_csv: "examples/fixtures/orders.csv"
+permits:
+  tools: ["nika:convert", "nika:jq", "nika:read", "nika:validate", "nika:write"]
+  # The batch comes in at ONE path and leaves at TWO · each named exactly.
+  # Note what is NOT granted: `out/**` would have handed the whole artifact
+  # tree to a pipeline that only ever writes these two files.
+  fs:
+    read: ["examples/fixtures/orders.csv"]
+    write: ["out/quarantine/orders-rejected.json", "out/reports/daily-totals.json"]
+
+tasks:
+  # A deterministic empty fallback · the recover target when parsing dies.
+  empty_batch:
+    invoke:
+      tool: "nika:jq"
+      args: { input: [], expression: "." }
+
+  raw:
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ const.batch_csv }}" }
+
+  rows:
+    with:
+      csv: ${{ tasks.raw.output }}
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ with.csv }}"
+        from: csv
+        to: json
+        has_header: true
+    on_error:
+      recover: ${{ tasks.empty_batch.output }}    # malformed CSV → empty batch · pipeline lives
+
+  check:
+    with:
+      rows: ${{ tasks.rows.output }}
+    invoke:
+      tool: "nika:validate"
+      args:
+        data: "${{ with.rows }}"
+        format: json
+        schema:
+          type: array
+          items:
+            type: object
+            required: [order_id, amount, currency]
+            properties:
+              order_id: { type: string }
+              amount: { type: string }
+              currency: { type: string, enum: [EUR, USD, GBP] }
+
+  good:
+    with:
+      rows: ${{ tasks.rows.output }}
+      valid: ${{ tasks.check.output.valid }}
+    when: ${{ with.valid == true }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.rows }}"
+        expression: 'group_by(.currency) | map({currency: .[0].currency, orders: length, total: (map(.amount | tonumber) | add)})'
+
+  quarantine:
+    with:
+      valid: ${{ tasks.check.output.valid }}
+      errors: ${{ tasks.check.output.errors }}
+    when: ${{ with.valid == false }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/quarantine/orders-rejected.json
+        content: "${{ with.errors }}"
+        create_dirs: true
+
+  report:
+    with:
+      totals: ${{ tasks.good.output }}
+    when: ${{ with.totals != null && size(with.totals) > 0 }}   # good is SKIPPED (null) on the quarantine path · guard before size()
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/reports/daily-totals.json
+        content: "${{ with.totals }}"
+        create_dirs: true
+
+outputs:
+  # Deliberately untyped · on the quarantine path `good` is SKIPPED and
+  # this is null — a declared `type: array` would refuse the branch the
+  # file exists to demonstrate.
+  totals: ${{ tasks.good.output }}

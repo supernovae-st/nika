@@ -1,4 +1,4 @@
-schema = "nika/model-pricing@1.1"
+schema = "nika/model-pricing@1.2"
 
 [meta]
 source = "https://models.dev/api.json"

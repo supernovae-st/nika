@@ -1439,3 +1439,97 @@ Stated because it is the transferable part.
    two failures this session before the pattern was named.
 5. **Cite a file:line or a URL, or mark it inference.** Everything in §2
    carries one or the other.
+
+---
+
+## 8 · Ratified · 2026-07-28, operator
+
+Four forks were put to the operator with the measurement behind each.
+All four went to the recommended branch. Recorded here because a
+decision whose reasoning is not written is a decision that gets
+relitigated.
+
+### R1 · The dimension names are RESERVED in the spec now
+
+Not implemented — **reserved**. The name is taken, the semantics come
+when there is a measurement behind them.
+
+The reasoning is the one the standard-maturity audit surfaced as the
+recurring regret of every language that shipped: *irreparable
+representation, and space not reserved*. A field added after the fact
+breaks; a reserved field that gets filled does not. The cost of
+reserving is a line of table; the cost of not reserving is a major
+version.
+
+Scope: the vector of §3. `duration` · `hardware` · `operator` ·
+`energy` · and the rest, with the composition rules under `;` and `‖`
+already written in §2 as the semantics they will carry.
+
+The discipline that binds it: a reserved name MUST NOT be emitted, MUST
+NOT be claimed by tooling, and MUST refuse if authored — the same
+contract `01-envelope.md:761` already gives bare `.nika`.
+
+### R2 · Measured data is LOCAL-ONLY, first
+
+A user's traces enrich **their** catalog. Nothing leaves the machine.
+
+This is not a limitation accepted reluctantly — it is the shape that
+ships tomorrow instead of after a governance document. Zero retention
+policy to write, zero withdrawal mechanism to build, zero question
+about who sees what. It is `supernovae-alignment.md` Rule 1 applied
+without an exception clause, and it means the MEASURED tier is real on
+day one for the only person whose numbers are certainly relevant to
+them: the person running the workflow.
+
+Pooling stays a separate decision, taken later, with local data in hand
+to argue from. The precedent in both directions is clear — crates.io
+and Homebrew both ship analytics opt-in, and both took years to
+converge on terms.
+
+### R3 · `max_turns` becomes REQUIRED
+
+The bound is declared in the file, or check refuses. The default of 10
+goes away.
+
+**The reasoning changed during the asking.** The fork was posed as a
+repair to a false promise; measuring found the promise was not false in
+that way (`cost.rs:141` already reports an agent with no
+`max_tokens_total` as unbounded — see F7 in the verdict-coverage
+record). What the measurement leaves standing is the weaker but real
+argument, and it is the one this language makes everywhere else:
+
+> A bound that matters is written in the file. A default is a bound
+> nobody chose, and the file does not say what it is.
+
+Every other budget in this language is authored — `max_tokens`,
+`max_tokens_total`, `retry.max_attempts`, `max_parallel`. `max_turns`
+defaulting to 10 is the one place a spend limit appears from nowhere.
+A reader auditing the file cannot see it; a reviewer diffing the file
+cannot see it change when the default changes.
+
+Breaking, and taken as breaking: the window where the spec can move is
+open, and it closes at 1.0.
+
+### R4 · The arena is a REPRODUCIBLE HARNESS, not a leaderboard
+
+We publish the **suite** — fixtures, scoring rubric, goldens. Anyone
+replays it and gets their own numbers. We do not publish a podium.
+
+Three reasons, in order of weight:
+
+1. **We measure providers we compete with.** A ranking authored by a
+   competitor is contestable on its face, whatever its rigour. A
+   harness anyone can run is not — the argument moves from *trust us*
+   to *run it*.
+2. It is the MLPerf form, and MLPerf is the one benchmark in this
+   industry whose numbers survive contact with the vendors it measures.
+3. The row already exists: `Eval / NikaBench suite ⭐` in the
+   marketplace canon, listed as a starred shareable with
+   *fixtures + scoring rubric + golden outputs* as its content — which
+   is exactly this decision, written before the question was asked.
+
+And it composes with R2 without tension: the harness is what a
+local-only measurement runs, so a user's private numbers and a
+published claim are produced by the same artifact. That is the property
+that makes a benchmark trustworthy — the publisher and the sceptic run
+the same code.

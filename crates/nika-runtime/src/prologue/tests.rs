@@ -190,8 +190,8 @@ fn prologue_pins_the_pricing_table_identity() {
         }),
         "the pin IS the compile-time table identity, no more, no less"
     );
-    // The schema marker is the @1.1 law's own — locked, never drifted.
-    assert_eq!(pin["schema"], "nika/model-pricing@1.1");
+    // The schema marker is the @1.2 law's own — locked, never drifted.
+    assert_eq!(pin["schema"], "nika/model-pricing@1.2");
 }
 
 /// F-P18 — the resolved operator budget rides the boot frame as

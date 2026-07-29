@@ -188,6 +188,6 @@ mod tests {
         // F-P18 · the run's boot pin and the verify judge's cost-replay
         // leg speak this exact string — a schema bump is a deliberate,
         // law-level event, never a drift.
-        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.1");
+        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.2");
     }
 }

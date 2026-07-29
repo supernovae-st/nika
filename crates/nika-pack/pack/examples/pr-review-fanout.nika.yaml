@@ -1,0 +1,195 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T3 fan-out · engineering
+#
+# A review SWARM · one small agent per changed file, each one granted the
+# right to READ and nothing else, all of them running at once. jq flattens
+# their findings into one severity-ordered list and a single model writes
+# the summary a human actually reads.
+#
+# Demonstrates ·
+#   - `for_each` + `agent:` · a bounded swarm of single-purpose agents, one
+#     per item, instead of one agent trying to hold the whole diff
+#   - LEAST PRIVILEGE, twice · the agent's own `tools:` list is read-only,
+#     and the workflow `permits:` block gates every call it makes anyway
+#   - `agent.schema:` · the swarm returns TYPED findings, not prose to parse
+#   - `nika:grep` · a deterministic TODO sweep running beside the LLM pass —
+#     the cheap check does not need a model
+#   - the fan-in · jq flattens [[finding]] → [finding], attributes each to
+#     its file, and orders by an EXPLICIT severity rank
+#   - a clean diff is a green run · the swarm skips and the report says so
+#
+# Needs · a git repo with changed files under ./src, and a `const.base_ref`
+#   that exists to diff against. Nothing is fixtured: this workflow reads
+#   YOUR working branch, which is the whole point of it.
+#
+# Needs · `git` able to run WITHOUT a global config. `exec:` runs inside the
+#   same filesystem boundary as everything else, and git opens
+#   `$HOME/.gitconfig` — which no sane `permits.fs.read` in this file names.
+#   Measured on macOS: the run dies `NIKA-EXEC-001 · fatal: unable to access
+#   '/Users/…/.gitconfig': Operation not permitted`. CI runners usually have
+#   no global config and just work; locally, `HOME=$(mktemp -d) nika run …`
+#   is the one-liner. Granting the path instead means granting its EFFECTIVE
+#   path — a grant naming a symlink is refused, not followed (NEP-0009).
+#
+# Run · nika run examples/pr-review-fanout.nika.yaml
+#         (from the root of the repo under review · add --model mock/echo
+#          to rehearse the wiring without a model)
+
+nika: v1
+workflow:
+  id: pr-review-fanout
+  description: "changed files → one read-only review agent each → merged REVIEW.md"
+
+model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
+
+const:
+  base_ref: "main"
+  review_root: "src/"      # the swarm's territory · keep in step with permits.fs.read
+
+permits:
+  tools: ["nika:done", "nika:grep", "nika:jq", "nika:read", "nika:write"]
+  # The argv form (`exec.command:`) runs one named program with its arguments
+  # and no shell between them, which is what makes a program allowlist mean
+  # something. A `exec.shell:` task is refused against a list — measured:
+  # `NIKA-SEC-004 · a shell-string command cannot be verified against a
+  # permits.exec program allowlist (a pipeline can launch any program) — use
+  # the array form`. Only `exec: true` admits a shell, and this workflow
+  # deliberately never needs one.
+  #
+  # An allowlisted program is not an unconfined one: `git` runs inside the
+  # `fs:` boundary below, which is why the header's second `Needs ·` line is
+  # about git's global config rather than about git.
+  exec: ["git"]
+  fs:
+    # `./src/**` covers the directory AND every descendant at any depth, which
+    # is what both consumers need: `nika:grep` opens `./src` itself, and the
+    # swarm reads files nested under it. A bare `./src` would cover only the
+    # directory entry and refuse every file inside it.
+    #
+    # This bound is why `files` below filters the diff down to `const.review_root`:
+    # `git diff` happily reports `Cargo.toml` or `.github/workflows/ci.yml`, and
+    # an agent handed one of those would die `NIKA-SEC-004` mid-swarm. The claim
+    # and the territory are kept equal on purpose.
+    read: ["./src/**"]
+    write: ["./REVIEW.md"]
+
+tasks:
+  # `--diff-filter=d` drops deletions: a file that no longer exists cannot be
+  # reviewed, and asking an agent to read it just burns a turn on an error.
+  changed:
+    exec:
+      command: ["git", "diff", "--name-only", "--diff-filter=d", "${{ const.base_ref }}...HEAD"]
+
+  files:
+    with:
+      changed: ${{ tasks.changed.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.changed }}"
+        expression: >-
+          split("\n")
+          | map(select(length > 0))
+          | map(select(startswith("${{ const.review_root }}")))
+
+  # The deterministic pass. Debt does not need a model to be found, and this
+  # runs whether or not anything changed.
+  todo_sweep:
+    invoke:
+      tool: "nika:grep"
+      args:
+        pattern: "TODO|FIXME|HACK"
+        path: "./src"
+
+  reviews:
+    with:
+      files: ${{ tasks.files.output }}
+    for_each: ${{ with.files }}
+    max_parallel: 4                    # four reviewers in flight · not forty
+    fail_fast: false                   # one reviewer's bad day is not the swarm's
+    on_error:
+      recover: null                    # a budget-exhausted review yields null · filtered below
+    agent:
+      system: >-
+        You are a precise code reviewer. Read the file, then finish with ONLY
+        the schema'd object ({file, findings: [{severity, message, line}]} ·
+        severity exactly one of blocker|high|med|low), then call nika:done.
+      prompt: "Review ${{ item }} · bugs first, then risky patterns. Read it before judging."
+      tools:
+        - "nika:read"                  # read-only swarm · least privilege
+        - "nika:done"
+      max_turns: 6                     # read · think · answer · a little slack
+      max_tokens_total: 30000          # per reviewer · the swarm's ceiling is this × the file count
+      # `additionalProperties: false` on BOTH object nodes. Without it on the
+      # inner one, a provider may add keys to a finding and the sort below is
+      # ordering a shape that changed between runs.
+      schema:
+        type: object
+        additionalProperties: false
+        required: [file, findings]
+        properties:
+          file: { type: string }
+          findings:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [severity, message]
+              properties:
+                severity: { type: string, enum: [blocker, high, med, low] }
+                message: { type: string }
+                line: { type: integer }
+
+  # The fan-in.
+  #   `. // []`      · a clean diff SKIPS the swarm (an empty for_each resolves
+  #                    null), and the fan-in has to survive its own good news.
+  #   `select(. != null)` · the reviewers that recovered leave here, by value.
+  #   `.findings[] + {file}` · flatten [[finding]] → [finding], each carrying
+  #                    the file it came from.
+  #   the rank object · `sort_by(.severity)` would be ALPHABETICAL, which puts
+  #                    `low` above `med`. Severity order is a decision, so it is
+  #                    written down.
+  merged:
+    with:
+      reviews: ${{ tasks.reviews.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.reviews }}"
+        expression: >-
+          (. // [])
+          | map(select(. != null))
+          | map(.findings[] + { file: .file })
+          | sort_by({ blocker: 0, high: 1, med: 2, low: 3 }[.severity])
+
+  summary:
+    with:
+      merged: ${{ tasks.merged.output }}
+      todo_sweep: ${{ tasks.todo_sweep.output }}
+    infer:
+      max_tokens: 2500                 # a review page · not the whole diff back
+      prompt: |
+        Merge these review findings into REVIEW.md · blockers first ·
+        ${{ with.merged }}
+        Open TODO debt found by grep ·
+        ${{ with.todo_sweep }}
+        End with a verdict · ship / fix-first / redesign.
+
+  save:
+    with:
+      summary: ${{ tasks.summary.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./REVIEW.md"
+        content: "${{ with.summary }}"
+
+outputs:
+  findings:
+    value: ${{ tasks.merged.output }}
+    description: "Every finding, blockers first, each attributed to its file"
+  review:
+    value: ${{ tasks.summary.output }}
+    description: "The page a human reads · also written to ./REVIEW.md"

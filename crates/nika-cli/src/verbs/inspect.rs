@@ -68,10 +68,18 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
     let doc = project(&wf, &report);
 
     let ceiling = if report.cost.tasks.is_empty() {
-        "no inference tasks · $0.00".to_owned()
+        // One voice with the COST rung (`check/render.rs`), narrowed for
+        // the same measured reason: this lane prices `infer:`/`agent:`
+        // and nothing else, so `$0.00` was a claim about a bill it never
+        // saw. A lone `exec: ["claude", "-p", …]` reaches here.
+        "no infer/agent tasks · $0.00 · exec + mcp spend unpriced".to_owned()
     } else if report.cost.has_unbounded {
+        // One voice with the COST rung (check/render.rs): `≥` claimed a
+        // floor over a number that bounds nothing from below — render.rs
+        // documents the 126× measurement. Claim neither bound; show the
+        // priced portion.
         format!(
-            "≥ ${:.4} (floor — unbounded tasks)",
+            "est unbounded · bounded portion ${:.4}",
             report.cost.bounded_total_usd
         )
     } else {

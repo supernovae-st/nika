@@ -10,6 +10,22 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika doctor` speaks the kit↔binary handshake.** Installed plugin kits
+  get one row each, probed at the rung their sessions actually load
+  (Cursor local drop · Claude Code install of record · Codex per-version
+  cache — marketplace clones as fallback): green on the binary's release
+  train, ⚠ with the
+  exact per-client refresh command when a kit lags (Claude Code names BOTH
+  rungs — the half-climbed ladder is the proven trap), ⚠ with `brew upgrade
+  nika` when a kit rides ahead. Patch drift is not a finding (kits are cut
+  per train). The session-context hook grows the same two probes client-side:
+  a missing binary teaches the install line, a train divergence names the
+  direction-aware align command. `nika welcome`'s machine mirror names
+  train drift in one line and routes to doctor — aligned or absent kits
+  stay silent (carry information, never a lecture).
+
 ## [0.106.1](https://github.com/supernovae-st/nika/compare/v0.106.0..v0.106.1) - 2026-07-28
 
 **The browser release.** The checker takes the seat the spec reserved for it

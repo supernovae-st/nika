@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · every office job
+#
+# A meeting transcript goes in. Owners, tasks and deadlines come out — as
+# typed JSON your tracker can actually import, instead of a paragraph
+# somebody has to re-read and re-type.
+#
+# Demonstrates ·
+#   - typed `inputs:` with a `default:` · the file runs with no arguments,
+#     and `--var transcript_path=…` points it at your own meeting
+#   - `infer.schema:` · structured output — the model MUST return this shape
+#   - `additionalProperties: false` · the shape is closed, so the same call
+#     returns the same keys across providers
+#   - `${{ tasks.X.output.actions }}` · indexing into a schema-validated object
+#   - `nika:log` · human-readable diagnostics on the event stream
+#
+# Run · nika run examples/meeting-actions.nika.yaml
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+
+nika: v1
+workflow:
+  id: meeting-actions
+  description: "Transcript → typed action items {owner, task, due}"
+
+# A NON-thinking local model, deliberately: a thinking model can spend the
+# whole `max_tokens` budget in its think block and return before the JSON
+# (engine#428). Schema showcases pick a model that answers directly.
+model: ollama/llama3.2:3b
+
+inputs:
+  transcript_path:
+    type: string
+    default: "examples/fixtures/meeting-transcript.txt"
+    description: "Path to the raw meeting transcript"
+permits:
+  tools: ["nika:log", "nika:read", "nika:write"]
+  fs:
+    # The sample transcript, named as a LITERAL. `permits:` cannot interpolate
+    # (NIKA-AUTH-007), so this line does not follow `inputs.transcript_path`
+    # around: pointing the var at your own file means editing this entry too,
+    # or the read is refused at run with NIKA-SEC-004. That is the wall doing
+    # its job — a boundary you can read is a boundary a reviewer can check.
+    read: ["examples/fixtures/meeting-transcript.txt"]
+    write: ["out/action-items.json"]
+
+tasks:
+  transcript:
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ inputs.transcript_path }}" }
+
+  extract:
+    with:
+      transcript: ${{ tasks.transcript.output }}
+    infer:
+      max_tokens: 900                  # a ceiling makes the cost report a number, not UNBOUNDED
+      prompt: |
+        Extract every action item from this meeting transcript ·
+        ${{ with.transcript }}
+        One entry per commitment somebody actually made. `due` only when a
+        date or deadline was stated — never invent one.
+      schema:                          # the contract the model must satisfy
+        type: object
+        additionalProperties: false
+        required: [actions]
+        properties:
+          actions:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [owner, task]
+              properties:
+                owner: { type: string }
+                task: { type: string }
+                due: { type: string }
+
+  save:
+    with:
+      extract_actions: ${{ tasks.extract.output.actions }}
+    invoke:
+      tool: "nika:write"
+      args:
+        # `.json` content is ONE interpolation of a real value — the engine
+        # serializes it. Typing `{ "actions": ${{ … }} }` by hand emits
+        # unquoted fields and the artifact stops being JSON.
+        path: out/action-items.json
+        content: "${{ with.extract_actions }}"
+        create_dirs: true
+
+  trace:
+    after:
+      extract: success
+    invoke:
+      tool: "nika:log"
+      args:
+        level: info
+        message: "Action items extracted to out/action-items.json"
+
+outputs:
+  actions:
+    value: ${{ tasks.extract.output.actions }}
+    description: "Typed action items, tracker-ready"

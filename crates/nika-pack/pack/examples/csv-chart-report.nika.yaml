@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · data → picture → report
+#
+# A CSV of rows becomes a rendered bar chart plus a one-page markdown
+# report — the « paste-the-spreadsheet, get-the-slide » job, fully
+# offline and byte-deterministic: the same CSV renders the same SVG
+# forever (no model call anywhere on the path).
+#
+# Demonstrates ·
+#   - `nika:chart` · a declarative chart → a deterministic SVG artifact
+#     (the FIRST showcase for the builtin) · `semantics:` names each
+#     column's meaning, the renderer is a pure function of the rows
+#   - `nika:convert` CSV→JSON + jq `group_by` aggregation · the numbers
+#     are computed, never guessed
+#   - the artifact-plus-report pattern · one picture + one page, both
+#     receipts the run's trace attests (`nika trace verify`)
+#   - a declared `permits.fs.write` tree · the report + the chart land
+#     under `out/**` and nowhere else
+#
+# Run · nika run examples/csv-chart-report.nika.yaml
+#   A sample sales CSV ships with the repo. Point `const.sales_csv` at your
+#   own (columns · region,revenue) and move the read permit with it.
+
+nika: v1
+workflow:
+  id: csv-chart-report
+  description: "CSV → aggregate → rendered bar chart + markdown report · offline · deterministic"
+
+const:
+  sales_csv: "examples/fixtures/sales.csv" # columns · region,revenue (revenue a plain number)
+
+permits:
+  exec: false
+  tools: ["nika:chart", "nika:convert", "nika:jq", "nika:read", "nika:write"]
+  fs:
+    # The one CSV this reads, named exactly. `data/**` would have granted a
+    # whole tree to a workflow that opens a single file.
+    read: ["examples/fixtures/sales.csv"]
+    # Two artifacts land here — the SVG and the report page. `**` because the
+    # chart and the report are written by two different builtins into the
+    # same tree, and both are covered by one honest entry.
+    write: ["out/**"]
+
+tasks:
+  raw:
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ const.sales_csv }}" }
+
+  rows:
+    with:
+      raw: ${{ tasks.raw.output }}
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ with.raw }}"
+        from: csv
+        to: json
+        has_header: true
+
+  # Sum revenue per region · a deterministic reduce, no model.
+  by_region:
+    with:
+      rows: ${{ tasks.rows.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.rows }}"
+        expression: 'group_by(.region) | map({ region: .[0].region, revenue: (map(.revenue | tonumber) | add) })'
+
+  # The picture · one SVG, its sha lands in the trace.
+  chart:
+    with:
+      by_region: ${{ tasks.by_region.output }}
+    invoke:
+      tool: "nika:chart"
+      args:
+        data: "${{ with.by_region }}"
+        semantics: { region: category, revenue: usd }
+        chart: { type: bar, x: region, y: revenue, title: "Revenue by region" }
+        out: out/revenue-by-region.svg
+
+  # The rows as MARKDOWN · a report renders lines, never a JSON blob
+  # (region names are user data — the esc guards a `|` in them).
+  rows_md:
+    with:
+      by_region: ${{ tasks.by_region.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.by_region }}"
+        expression: >-
+          def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
+          map("| \(.region | esc) | \(.revenue) |") | join("\n")
+
+  # The page · the report references the picture beside it.
+  report:
+    with:
+      rows_md: ${{ tasks.rows_md.output }}
+    after:
+      chart: success
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/revenue-report.md
+        content: |
+          # Revenue by region
+
+          ![Revenue by region](revenue-by-region.svg)
+
+          | region | revenue |
+          | --- | --- |
+          ${{ with.rows_md }}
+
+          *Generated offline by [nika](https://nika.sh) · the chart's sha is in the run trace (`nika trace verify`).*
+
+outputs:
+  by_region:
+    value: ${{ tasks.by_region.output }}
+    description: "Per-region revenue totals · the chart + report render from this"

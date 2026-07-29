@@ -247,6 +247,24 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) 
         "  keys       {present}/{total} cloud keys present {}",
         theme.paint(Role::Dim, "· details + fixes → nika doctor"),
     );
+    // The plugin-kit lane — ONLY on train drift (an aligned or absent
+    // kit is silence; the same carry-information-never-lecture law as
+    // the models row · the per-client fix lives in doctor).
+    let drifted: Vec<String> = probe
+        .kits
+        .iter()
+        .filter(|k| crate::verbs::probe::train_differs(&k.version, &probe.version))
+        .map(|k| format!("{} {}", k.client, k.version))
+        .collect();
+    if !drifted.is_empty() {
+        let _ = writeln!(
+            s,
+            "  kits       {} vs binary {} {}",
+            drifted.join(" · "),
+            probe.version,
+            theme.paint(Role::Dim, "· fixes → nika doctor"),
+        );
+    }
     let _ = writeln!(
         s,
         "  workspace  git {} · {} · agents {}",
@@ -425,6 +443,7 @@ mod tests {
                     stale: false,
                 },
             ],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -493,6 +512,39 @@ mod tests {
             "the sovereign lane is in the mirror:\n{shown}"
         );
         assert!(shown.contains("nika model list"), "{shown}");
+    }
+
+    /// The kit lane obeys the same law: an aligned (or absent) plugin
+    /// kit is silence — only TRAIN drift earns a line, and the line
+    /// routes to doctor (the per-client fix lives there, not here).
+    #[test]
+    fn mirror_names_kit_drift_and_stays_silent_when_aligned() {
+        let glance = Glance {
+            git: true,
+            workflows: 0,
+            agents_md: false,
+        };
+        let silent = render_human(&synthetic_probe(), glance, counts(), plain());
+        assert!(!silent.contains("  kits"), "no kits = no line:\n{silent}");
+
+        let mut probe = synthetic_probe();
+        probe.kits = vec![
+            crate::verbs::probe::KitProbe {
+                client: "codex".to_owned(),
+                version: "0.0.7".to_owned(), // same 0.0 train as the binary
+            },
+            crate::verbs::probe::KitProbe {
+                client: "claude".to_owned(),
+                version: "0.105.0".to_owned(), // another train — drift
+            },
+        ];
+        let shown = render_human(&probe, glance, counts(), plain());
+        assert!(
+            shown.contains("kits       claude 0.105.0 vs binary 0.0.0-test"),
+            "only the DRIFTED kit is named, the aligned one is silent:\n{shown}"
+        );
+        assert!(!shown.contains("codex"), "aligned kit stays out:\n{shown}");
+        assert!(shown.contains("fixes → nika doctor"), "{shown}");
     }
 
     #[test]
@@ -595,6 +647,7 @@ mod tests {
                 .into_iter()
                 .map(client)
                 .collect(),
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),

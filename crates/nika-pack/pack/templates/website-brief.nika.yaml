@@ -5,17 +5,44 @@
 #
 #   [crawl_site]────▶[brief]────▶[persist]
 #   nika:fetch        infer       nika:write
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# "Here is a URL, tell me what this company actually does." One bounded crawl,
+# one typed model pass, one JSON file downstream tools can read. The output is
+# a SHAPE, not prose — which is what makes it composable.
+#
+# Demonstrates ·
+#   - `traverse:` · a bounded same-origin crawl from a single URL · one fetch
+#     task, N pages, no loop to write
+#   - `schema:` on `infer` · the brief is typed, so the next workflow can bind
+#     `.colors` without parsing anything
+#   - a JSON artifact written as a VALUE · `content:` takes one `${{ … }}`, never
+#     hand-typed braces
+#
+# Needs · nothing to rehearse. For a REAL brief: network access and a live site
+#   in `const.site_url` — then delete the `on_error:` block so a dead host is loud.
+#
+# Run · nika run <file> --model mock/echo    # offline rehearsal · no network
 nika: v1
 workflow:
   id: website-brief-template    # SLOT: kebab-case workflow id
   description: "crawl → brief → persist"   # SLOT: one honest sentence
 
-model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
+# SLOT: provider/model · local · zero key. The schema below has five required
+# fields, so give it a seat that holds structure — `ollama/qwen2.5:14b` is
+# measured on this shape. `--model mock/echo` needs no seat at all.
+model: ollama/qwen2.5:14b
 
 const:
   site_url: "https://example.com"   # SLOT: the site to understand
   out_path: "./out/brief.json"      # SLOT: where the brief lands
+
+permits:                            # the blast radius · default-deny once present
+  tools: ["nika:fetch", "nika:write"]
+  net: { http: ["example.com"] }    # SLOT: the host from const.site_url. ONE entry is
+                                    #   enough — `traverse:` is a same-origin BFS (+ the
+                                    #   robots probe), so the crawl never leaves this host.
+  fs: { write: ["./out/brief.json"] }   # SLOT: the one file · keep in step with const.out_path
+                                        #   (the infer step needs no grant — it is pure compute)
 
 tasks:
   crawl_site:
@@ -24,14 +51,20 @@ tasks:
       args:
         url: "${{ const.site_url }}"
         traverse: { max_pages: 5 }  # SLOT: crawl bound · 1..=25 (robots honored)
+    on_error:
+      # Offline rehearsal · a literal standing in for the crawl digest, so the
+      # brief step runs with no network at all. Delete once the site is real.
+      recover: "REHEARSAL DIGEST · Example Co · a small tool company · plain blue and white pages · buttons, a pricing table, one logo."
 
   brief:
     with:
       crawl_site: ${{ tasks.crawl_site.output }}
     infer:
       max_tokens: 1200
+      # SLOT: the one model job · what should the brief capture? Keep slot
+      # markers out of the block below — it is prompt TEXT, not YAML, so a
+      # stray comment line is sent to the model verbatim.
       prompt: |
-        # SLOT: the one model job · what should the brief capture?
         From this site crawl, produce a creative brief: the domain of
         activity, the dominant visual theme, the audience, the usable
         colors and image assets.
@@ -55,7 +88,10 @@ tasks:
       args:
         path: "${{ const.out_path }}"
         create_dirs: true
-        content: "${{ with.brief }}"   # ALWAYS pass content
+        # The path ends `.json`, so `content:` is ONE interpolation of a value
+        # the engine serializes. Typing `{ "domain": ${{ … }} }` by hand emits
+        # unquoted fields and the artifact stops being JSON.
+        content: "${{ with.brief }}"
 
 outputs:
   brief: ${{ tasks.brief.output }}   # SLOT: the callable contract

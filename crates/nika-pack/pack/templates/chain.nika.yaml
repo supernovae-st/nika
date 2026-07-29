@@ -5,35 +5,72 @@
 #
 #   [gather]────▶[think]────▶[persist]
 #   nika:read     infer       nika:write
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# The everyday shape: pull in something real, run exactly ONE model job over
+# it, write the result somewhere you can find it again. Most useful workflows
+# are this and nothing more — reach for a bigger skeleton only when this one
+# genuinely cannot hold the job.
+#
+# Demonstrates ·
+#   - the three-verb spine · invoke → infer → invoke
+#   - `with:` as the DAG edge · a task reads its input from a binding, and the
+#     binding IS what orders the graph (nobody writes the arrows)
+#   - `on_error: recover:` · the skeleton rehearses green in an empty
+#     directory, before it is pointed at real data
+#
+# Needs · nothing. Scaffolds and runs green in an empty directory.
+#
+# Run · nika run <file> --model mock/echo    # offline rehearsal · zero keys
 nika: v1
 workflow:
   id: chain-template            # SLOT: kebab-case workflow id
   description: "gather → think → persist"   # SLOT: one honest sentence
 
-model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
+# SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`
+# answers this prompt in ~50s. `--model mock/echo` needs no seat at all and is
+# the path this file guarantees.
+model: ollama/llama3.2:3b
 
 const:
-  source: "./README.md"             # SLOT: your input — README.md exists in ANY repo, so the
-permits:
-  tools: ["nika:read", "nika:write"]
-  fs: { read: ["./README.md"], write: ["./output.md"] }
+  source: "./README.md"             # SLOT: your input · README.md exists in most repos
+  destination: "./output.md"        # SLOT: where the result lands
 
-                                    # skeleton runs green BEFORE you point it at real data
+permits:                            # the blast radius · default-deny once present
+  tools: ["nika:read", "nika:write"]
+  # Two literal paths, one each way. `check` can read these (they come from
+  # `const:`) and proves them against the boundary before anything runs — keep
+  # them in step with the two `const:` entries above.
+  fs:
+    read: ["./README.md"]
+    write: ["./output.md"]
 
 tasks:
   gather:
     invoke:                         # SLOT: the fact source · nika:read / nika:fetch / exec
       tool: "nika:read"
       args: { path: "${{ const.source }}" }
+    on_error:
+      # Offline rehearsal. A freshly scaffolded directory has no README, and a
+      # skeleton that dies on its first run teaches nothing — so a not-found
+      # recovers into a literal standing in for the real document. `on_codes:`
+      # keeps that narrow: ONLY not-found is forgiven, a permission error
+      # still fails loudly. Delete this block once the source really exists.
+      on_codes: [NIKA-BUILTIN-READ-001]
+      recover: "REHEARSAL · no source document here yet."
 
   think:
     with:
       gather: ${{ tasks.gather.output }}
     infer:
+      max_tokens: 800               # SLOT: the spend ceiling · sized for the SEAT, not the answer
+      # SLOT: the one model job. Keep slot markers OUT of the block below —
+      # everything indented under `prompt: |` is prompt TEXT, so a stray
+      # `# SLOT:` line is sent to the model verbatim (visible in the mock
+      # echo). Comments belong out here, where YAML eats them.
       prompt: |
-        # SLOT: the one model job · interpolate ${{ with.gather }}
-        Summarize · ${{ with.gather }}
+        Summarize the following in a short paragraph.
+
+        ${{ with.gather }}
 
   persist:
     with:
@@ -41,8 +78,8 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./output.md"         # SLOT: destination
-        content: "${{ with.think }}"   # ALWAYS pass content · a write without it writes nothing
+        path: "${{ const.destination }}"   # SLOT: destination · same path as permits.fs.write
+        content: "${{ with.think }}"       # ALWAYS pass content · a write without it writes nothing
 
 outputs:
   result: ${{ tasks.think.output }}  # SLOT: the callable contract

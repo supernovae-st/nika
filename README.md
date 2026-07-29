@@ -53,21 +53,32 @@ nika examples run 01-hello --model ollama/llama3.2:3b   # got Ollama? the same r
 Nika audits a workflow **before a single token is spent** (plan, cost
 ceiling, secret flows, types, tool args), then runs it:
 
+Every line says what it looked at. A rung that covers less than its
+name suggests narrows itself rather than borrowing your trust — `TYPES`
+names the shapes it could not see, `PERMITS` names what defers to the
+run, `COST` names the half of the bill it prices.
+
 ```text
 $ nika check brief.nika.yaml
- ✔ PLAN     2 wave(s) · 2 task(s) · max parallelism 1
-      wave 1 fetch_notes (exec · sh -c)
+ ✔ PLAN     2 waves · 2 tasks · max parallelism 1
+      wave 1 fetch_notes (invoke · nika:read)
       wave 2 brief (infer · ollama/llama3.2:3b)
- ✔ SECRETS  no information-flow escapes
+ ✔ MODELS   1 model resolves in this binary
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
+   brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
  ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
- ✔ TOOLS    every nika: tool names a canonical builtin
- ✔ ARGS     every invoke arg key is declared + every required arg is present
- ✔ SCHEMA   every authored schema: is satisfiable
- ✔ audited · 2 task(s) · 2 wave(s) · permits none · est ≥$0.0000
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ PERMITS  literal + const: args fit the boundary · computed + symlinks at run
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ audited · 2 tasks · 2 waves · permits declared · est unbounded · 1 uncapped task · 0 hints
 
 $ nika run brief.nika.yaml
   🦋 nika · daily-brief · 2 tasks
-  ✔  fetch_notes  exec · cat
+  ✔  fetch_notes  invoke · nika:read
   ✔  brief        infer · ollama/llama3.2:3b
   ── 2/2 done · $0.000 · elapsed 16.2s ───────────────────────────
 ```

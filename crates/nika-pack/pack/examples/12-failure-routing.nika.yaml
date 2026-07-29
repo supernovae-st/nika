@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 12 · Failure routing — the paths a run takes when it breaks.
+#
+# 03 drew control edges with `after:` and `success`/`skipped`. This lesson
+# adds the arm nobody rehearses: a task that runs ONLY when its producer
+# fails, and a cleanup hook in its full form. The file is a drill — flip
+# one flag and watch the failure path fire, offline, deterministically.
+#
+# Demonstrates ·
+#   - `after: { deploy: failure }` · the pass-set is strictly {failure} —
+#     it admits neither `success` nor `cancelled` (the whatever-happens
+#     word is `terminal`)
+#   - a skipped arm is a VALUE · on the green run the failure arm settles
+#     `cancelled`, which is dead-path elimination, not an error
+#   - real WORK on the failure path · the sanctioned use — `retry:` covers
+#     transient errors, `on_error: recover:` covers a fallback value, a
+#     failure-edge task is for work (one-obvious-way/003 · /004)
+#   - `on_finally:` in its FULL mini form · `when:` + `timeout:` + verb
+#     (03 showed the minimal form) · cleanup errors are logged, never
+#     propagated · a task that never STARTED runs no cleanup at all
+#
+# Run · nika run examples/12-failure-routing.nika.yaml
+#   the drill · nika run examples/12-failure-routing.nika.yaml --var drill=true
+#     — the deploy fails ON PURPOSE, the run exits red, and out/incident.md
+#     is the artifact that proves the failure arm ran.
+
+nika: v1
+workflow:
+  id: failure-routing
+
+permits:
+  exec: false
+  tools: ["nika:assert", "nika:log", "nika:write"]
+  fs:
+    write: ["out/incident.md", "out/release-note.md"]
+
+inputs:
+  drill:
+    type: bool
+    default: false
+    required: true
+    description: "true = rehearse the failure path · the deploy fails on purpose"
+
+tasks:
+  deploy:
+    # The assert stands in for the risky step so the drill stays offline
+    # and deterministic — in a real file this is the release command. When
+    # `--var drill=true` the condition is false and the task settles
+    # `failure`, which is exactly what the two arms below route on.
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ inputs.drill == false }}"
+        message: "drill requested · the deploy step fails on purpose"
+    on_finally:
+      # The FULL mini-task form: `when:` + `timeout:` + exactly one verb —
+      # the closed shape (03 showed the minimal one). It runs once the
+      # parent has STARTED, on every settle — and its errors are logged,
+      # never propagated: a cleanup can never turn a green run red.
+      - when: ${{ tasks.deploy.status != "success" }}
+        timeout: "10s"
+        invoke:
+          tool: "nika:log"
+          args:
+            level: warn
+            message: "deploy settled ${{ tasks.deploy.status }} · lock released"
+
+  publish:
+    after: { deploy: success }
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "out/release-note.md"
+        content: "release went out · deploy green\n"
+        create_dirs: true
+        overwrite: true
+
+  rollback:
+    # Strictly the failure arm. On the green run this task settles
+    # `cancelled` — its producer never entered the pass-set, so the path is
+    # eliminated as a value, not reported as an error; the render says so
+    # in one line: `⊘ rollback  gate: an edge did not admit`. On the drill
+    # run it does real work: the incident record IS the reason this is a
+    # task and not a `recover:`.
+    after: { deploy: failure }
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "out/incident.md"
+        content: "deploy failed · rollback engaged · see the trace for the settle order\n"
+        create_dirs: true
+        overwrite: true

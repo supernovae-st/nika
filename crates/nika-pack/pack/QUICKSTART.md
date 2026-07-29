@@ -223,7 +223,7 @@ a caller receives).
   skeleton (6 valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
 - **[stdlib/](./stdlib/)**: the <!-- canon:providers -->17<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->28<!-- /canon --> builtins
-- **[examples/](./examples/)**: 7 foundation + 20 showcase workflows, all shipped and CI-gated
+- **[examples/](./examples/)**: the numbered path + the jobs, all shipped and CI-gated (the count lives in [examples/manifest.yaml](./examples/manifest.yaml))
 - **[README.md](./README.md)**: why a language · repo layout · governance
 
 ---

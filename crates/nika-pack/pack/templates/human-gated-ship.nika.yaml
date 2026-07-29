@@ -2,10 +2,31 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · human-gated-ship · gates in parallel → a human signs → ship · evidence always lands.
+#
 #   [check_a]─┐                             ┌──▶[act]──▶[record]
 #   [check_b]─┴─▶[gates]──▶[human ⏸]──yes──┘    exec     nika:notify (always)
 #   exec ×2       assert     nika:prompt
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# Anything you cannot take back — a deploy, a send, a publish. The machine
+# proves the preconditions in parallel, an assert refuses to even ASK when a
+# gate is red, the human decides once with the full picture, and the evidence
+# lands whether the answer was yes, no, or the ship blew up.
+#
+# Demonstrates ·
+#   - `nika:assert` before the question · never ask a human to rubber-stamp a
+#     red board
+#   - `after: <task>: success` · a STATE edge (ordering, no data) vs `with:` (a
+#     value edge) — two different kinds of arrow
+#   - `after: <task>: terminal` · the always-runs pattern · evidence on success,
+#     failure OR refusal
+#   - fail-closed defaults · unattended, the answer is NO
+#
+# Needs · nothing to rehearse. To ship FOR REAL: TEAM_WEBHOOK_URL in the
+#   environment, real commands in the three `exec:` slots — then delete the
+#   `on_error:` on `record` so a lost audit trail is loud.
+#
+# Run · nika run <file>                    # unattended · gates run, the answer defaults to NO
+#     · nika run <file> --output json      # durable pause · resume with the line it prints
 nika: v1
 workflow:
   id: human-gated-ship-template  # SLOT: kebab-case workflow id
@@ -14,6 +35,10 @@ workflow:
 permits:                            # SLOT: the blast radius · default-deny once present
   exec: ["echo"]                    # SLOT: ONLY the programs the gates + act run (argv form)
   tools: ["nika:assert", "nika:prompt", "nika:notify"]
+  # `host_from_self` below sanctions the FLOW (the secret may BE the URL) — it
+  # does not grant the capability to reach anyone. The host stays unknown at
+  # check, so it is judged at RUN against this list: name the webhook host here
+  # or the record is refused mid-run, after the ship already happened.
   net: { http: ["hooks.slack.com"] }   # SLOT: the webhook host · nothing else may leave
 
 secrets:
@@ -49,11 +74,15 @@ tasks:
     after:
       gates: success              # state, no data · no question until the board is green
     invoke:
-      # the prompt PAUSES the run (exit 4 · not a failure) — answer and resume:
-      #   nika run --resume <trace> --answer human=yes
+      # On a terminal this ASKS. Headless, it answers with `default:` below.
+      # Under `--output json` the run PAUSES durably (exit 4 · not a failure)
+      # and prints its own resume line:
+      #   nika run <file> --resume <trace> --answer human=true
       tool: "nika:prompt"
       args:
         message: "All gates GREEN. Proceed?"   # SLOT: the decision, fully informed
+        # Fail CLOSED. The unattended answer to "should I do the irreversible
+        # thing" is no — `default: true` would hand CI a rubber stamp.
         default: false
 
   act:
@@ -78,6 +107,13 @@ tasks:
         target: "${{ secrets.webhook }}"
         message: "Run finished · act=${{ with.acted }}"   # SLOT · success | failure | skipped
         severity: info
+    on_error:
+      # Rehearsal only. With TEAM_WEBHOOK_URL unset the reference cannot resolve
+      # and this task fails NIKA-VAR-001 (measured) — which would make the
+      # skeleton red on a machine that has no webhook. Recovering keeps the
+      # scaffold runnable; DELETE this block for real use, because a ship whose
+      # audit trail silently vanished is exactly what this task exists to prevent.
+      recover: "REHEARSAL · no webhook configured · nothing was sent"
 
 outputs:
   acted: ${{ tasks.act.status }}

@@ -31,7 +31,7 @@ pub fn at_least(ascii: bool) -> &'static str {
 
 /// The comparison mark for "at most" (`≤` · `<=` under `--ascii`) — for
 /// a genuine UPPER bound, the shape the whole COST section already
-/// speaks (`≤N tk` per task, "worst-case ceiling" on the range).
+/// speaks (`≤N tk` per task, "worst-case output ceiling" on the range).
 #[must_use]
 pub fn at_most(ascii: bool) -> &'static str {
     if ascii { "<=" } else { "≤" }

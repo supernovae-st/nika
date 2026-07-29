@@ -9,11 +9,70 @@ Nika turns repeatable AI work into files: one `.nika.yaml`, four verbs,
 audited **before** it runs. You author the file; `nika check` is the
 oracle; the human runs it.
 
+## Read two examples before you write (measured: 8 rounds → 0)
+
+**This file is the map. The examples are the territory.** A map this
+detailed is exactly why authors skip the ground, and the ground is where
+the shapes live. Nothing below replaces reading two real files.
+
+The cost of skipping it was measured on 2026-07-28. Six authors each
+wrote one workflow from a real intention with this skill loaded and
+nothing else. **None reached a green check one-shot: 45 check→fix rounds
+between them, 7.5 on average, 11 at worst.** One of those authors spent
+**eight** rounds on their file, then ran `nika examples show` twice, on
+two files, and wrote their NEXT workflow **one-shot green. Zero
+rounds.**
+
+Eight to zero, and the delta was two commands. Two `examples show` calls
+are two reads; the measured alternative is 7.5 check→fix rounds. Reading
+them is not diligence, it is the cheapest move on the board.
+
+**The order, every time. Never write first and look second:**
+
+```
+nika examples list                 # the shelf · the path, then T1 to T4
+nika examples show <slug>          # the one matching your intent (table below)
+nika examples show <second-slug>   # the one covering what the first did not
+                                   # only now open your file
+```
+
+Read for SHAPE, not for prose. Four things, in this order: which verb
+each task carries · where the `with:` edges are · what the `permits:`
+block ended up containing · how the last task lands the artifact. Those
+four are the decisions that cost rounds when guessed instead of copied.
+
+### Which example answers which intent
+
+| Your intent | Read this |
+|---|---|
+| one model call, nothing around it | `01-hello` |
+| independent steps, then a merge | `02-parallel-fanout` |
+| shell out to a real binary (git · docker) | `03-exec-pipeline` |
+| a model must return JSON fitting a shape | `04-schema-retry` |
+| fetch a URL and shape what comes back | `05-fetch-chain` |
+| open-ended work, step count unknown up front | `06-code-review` |
+| the same task for every item of a collection | `07-for-each-locales` |
+| land a typed artifact on disk | `t1-meeting-actions` |
+| poll something, act only when a condition holds | `t1-price-watch` |
+| rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
+| a batch where bad items must not kill the run | `t2-etl-quarantine` |
+| a folder of files, one job per file | `t3-localization-factory` |
+| a human signs before an irreversible step | `t4-release-train` |
+| a job too big for one file | §Composition below, then `01-hello` for the child |
+
+Second column verified against `nika examples list` on 2026-07-28. Any
+slug works with or without its `showcase/` prefix and with or without
+the `.nika.yaml` extension. `nika examples copy <slug>` makes one yours;
+`nika new --from <name>` does the same from the template side
+(`nika new --from '?'` prints that set).
+
 ## The loop (always)
 
-1. **Start from a template or example**, never from scratch:
-   `nika examples list` · `nika examples show <slug>` ·
-   `nika new --from <template> <file>.nika.yaml`
+1. **Start from the example you just read**, never from a blank file.
+   The section above is not advice, it is step zero: `nika examples list`
+   · `nika examples show <slug>` ·
+   `nika new --from <template> <file>.nika.yaml`. An author who writes
+   first and reads second pays the measured 7.5 rounds.
 2. **Write the file.** The envelope is `nika: v1` + a `workflow:` OBJECT
    (`id:` kebab-case · optional `description:`) + a `tasks:` MAP keyed
    by task id — the key IS the identity, never a `- id:` sequence. Pick
@@ -94,6 +153,43 @@ A permit bound is always a literal, never an interpolation
 wildcard hands the boundary to the zone operator; name exact hosts
 (`NIKA-AUTH-010`).
 
+**Two places check goes quiet and the run does not. Declare the
+boundary anyway.** Measured against `nika 0.106.0` on 2026-07-28:
+
+- **An interpolated effect argument hides the effect from the static
+  gate.** `url: "https://api.github.com/…"` under an absent `permits:`
+  refuses `NIKA-AUTH-006` at check, as advertised. The same fetch
+  written `url: "${{ const.api_url }}"` passes `--native-strict` with
+  `PERMITS zero authority · pure compute · nothing escapes`, then dies
+  at run with `NIKA-SEC-004 · no permits: block declared`. The shipped
+  `05-fetch-chain` sits on the quiet side, so the example does not
+  correct the impression either. Never read a green PERMITS line as
+  proof a body has no effects; read the body.
+- **A host permit does not cover the host it redirects to.**
+  `net: { http: ["www.rust-lang.org"] }` is green at check and refused
+  at run: `NIKA-SEC-004 · rust-lang.org resolves outside the declared
+  net.http boundary`. The redirect target is not knowable statically.
+  Declare both hosts, or point at the final one.
+- **A dynamic path is the same hole, and a shipped example falls in
+  it.** `t3-localization-factory` declares `tools:` with no `fs:` block
+  and reads through `path: "${{ item }}"`. It passes `--native-strict`
+  with `PERMITS body fits the declared boundary`, then dies on its FIRST
+  task at run: `NIKA-SEC-004 · ./docs resolves outside the declared
+  permits.fs.read boundary`. Copy its SHAPE, never its `permits:`.
+  `--infer-permits` is honest about this and prints the gap as a review
+  note (`task texts uses a dynamic path · fs cannot express 'any path' ·
+  add the resolved path(s) before running`), so **the block it prints is
+  a starting point, not a finished boundary** whenever a path is
+  interpolated. Adding `fs: { read: ["./docs/**/*.md", "./docs"],
+  write: ["./i18n/**"] }` is what turns that example green end to end.
+- **The axes are conjunctive, and `fs` bounds take globs while hosts do
+  not.** `tools: ["nika:write"]` with no `fs.write` authorizes nothing:
+  the write refuses on the `fs` axis at check and at run. You need the
+  tool AND the path. `fs` bounds may be globs (`./docs/**/*.md` is
+  accepted); host bounds may not (`*.example.com` is `NIKA-AUTH-010`).
+  That asymmetry is deliberate and it is not guessable, so do not
+  reason from one to the other.
+
 A spawned child inherits NOTHING from the engine: its environment is
 composed from a cleared slate — the runner floor ∪ the names declared
 in `permits: { env: [NAME] }` ∪ the task's own `env:` map. A variable
@@ -122,7 +218,7 @@ Thirteen envelope keys, one verb per task, and a fixed set of modifiers.
 | `with:` | the DATA edge — bind another task's output, body reads `${{ with.alias }}` |
 | `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` |
 | `when:` | a CEL boolean gate (`size()` is the only function) |
-| `for_each:` | fan out over a collection · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
+| `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fifth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
 | `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
 | `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) · `fail_workflow:` — with an optional `on_codes:` filter |
 | `on_finally:` | cleanup mini-tasks that ALWAYS run (success · failure · timeout · cancel) · sequential · best-effort |
@@ -137,9 +233,10 @@ Thirteen envelope keys, one verb per task, and a fixed set of modifiers.
 Every authoring decision has a default. Take it unless the job forces
 otherwise, in this order:
 
-1. **Shape before content.** Route to a template or an example; never
-   start from a blank file. The outer shape decides the task graph
-   before a single prompt is written.
+1. **Shape before content.** Two `nika examples show` calls, then the
+   file (§Read two examples · measured 8 rounds → 0). Never a blank
+   file. The outer shape decides the task graph before a single prompt
+   is written, and copying a shape is free where guessing it is not.
 2. **One job, one task, one verb.** If a task needs an "and then", it is
    two tasks. The verb IS the key.
 3. **Pick the verb by execution model, not convenience.** `invoke:` when
@@ -161,7 +258,11 @@ otherwise, in this order:
    someone has to remember to pass.
 8. **Declare the boundary LAST, from the body.** Write the tasks, then
    `nika check --infer-permits` and paste. A boundary derived from the
-   body is tight; one written from intent is wishful.
+   body is tight; one written from intent is wishful. Expect a
+   `NIKA-AUTH-006` the moment you save the permit-less draft (the
+   write-time hook checks on your behalf): that finding is this step
+   working, not a mistake to patch around. Read the review notes the
+   inference prints and supply the paths it says it cannot compute.
 9. **Fail on purpose.** Transient failure → `retry:` · expected absence
    → `on_error: on_codes + recover:` · cleanup that must always happen →
    `on_finally:`. Swallowing an error is never the plan.
@@ -175,8 +276,28 @@ otherwise, in this order:
   ceiling · `≥ $X FLOOR` means at least one task is unbounded — name
   the reason (a missing `max_tokens`, an uncataloged model, an
   expression fan-out), never round it to $0.
+- **The ceiling covers OUTPUT tokens only. The prompt is not in it.**
+  `max_tokens` is the max OUTPUT tokens, and that is what the sum
+  prices; `input_per_million` has no reader in the checker. Measured
+  2026-07-28: a workflow that fetches a 3.2 MB document and
+  interpolates it into one prompt reports `$0.0075` and would bill
+  about `$2.46` in input alone. **When a prompt interpolates fetched or
+  file content, say so at handoff and do not quote the ceiling as the
+  bill** — quote it as the output half, and name the unpriced input.
+  (The same repro is 4x over that model's context window, which nothing
+  reports either: check the window yourself when a prompt carries a
+  document.)
 - A local model (`ollama/…`) is **unpriced compute, not « free »** —
   say "unpriced", never "$0" or "free".
+- **A `FLOOR` on a CLOUD model is not a cheap model, it is a missing
+  price row, and the short catalog id is often the reason.** Measured
+  2026-07-28: `mistral/small` (the id `nika catalog` prints) reports
+  `$0.0000 FLOOR · no catalog price (local/unknown model)` while
+  `mistral/mistral-small-latest`, the same model, reports a
+  `$0.0024 worst-case output ceiling`. The wording says "local/unknown" about
+  a cataloged cloud model. Try the full model string before believing a
+  cloud floor; if it still floors, hand the human the word "unpriced"
+  and never a number.
 - A spend cap rides the run: `nika run <file> --max-cost-usd <n>`
   blocks BEFORE the call that would cross the cap.
 - `nika explain <file>` narrates all of this (waves · cost · touches ·
@@ -203,31 +324,91 @@ otherwise, in this order:
 
 A job too big for one file becomes a parent that calls children. The
 child is a normal workflow; the parent reaches it through the verb it
-already knows:
+already knows. **The form is `workflow:` INSIDE `invoke:`, a sibling of
+`tool:`, never a tool name.** This fragment is a task excerpt, not a
+whole file (it needs the envelope and a `permits:` block around it):
 
 ```yaml
 tasks:
   audit:
     invoke:
-      workflow: "./audits/site-audit.nika.yaml"
+      workflow: "./audits/site-audit.nika.yaml"   # sibling of tool:, not a tool
       args:
         url: "${{ inputs.target }}"
-    returns: AuditReport
 ```
 
-Two laws make the call graph drawable before anything runs:
+**The decoy, and it is live.** `nika:compose` exists as a builtin, so
+`tool: compose` is the move an author reaches for. Both spellings fail,
+and both diagnostics point AWAY from the answer. Measured 2026-07-28:
 
-- The target is STATIC — a literal path, or a pinned
+| You write | You get | Why it misleads |
+|---|---|---|
+| `tool: compose` | `NIKA-PARSE-019` · "expected `nika:<path>` or `mcp:<server>/<tool>`" | reads as "prefix it" · which lands you on the decoy |
+| `tool: "nika:compose"` | `NIKA-BUILTIN-001` · compose is the agent-loop sub-workflow spawner, valid ONLY inside an `agent:` tools whitelist | correct refusal, and it never names `invoke: { workflow: … }` |
+| the same, again | `ARGS` · "no `workflow` arg · did you mean `workflow_yaml`?" | a second wrong turn · toward inlining a whole YAML string |
+
+Neither diagnostic teaches the right form today. That is why this
+section exists: `nika:compose` is for an AGENT to check a draft it
+wrote, not for a parent to call a child.
+
+**Four laws, all judged at check.**
+
+- **STATIC target.** A literal path or a pinned
   `registry:owner/name@version`. A `${{ }}`-templated target refuses
   `NIKA-COMP-001`: a call graph you cannot draw before the run is a
-  call graph you cannot bound.
-- `invoke:` carries exactly one target. `tool:` and `workflow:`
-  together is the same refusal class as two verbs on one task.
+  call graph you cannot bound. A relative path resolves from the PARENT
+  FILE's directory, not the shell's cwd.
+- **The child is READ at check time.** A path that does not resolve is
+  `NIKA-COMP-001` too, so a parent cannot pass check without its
+  children present on disk.
+- **One target per `invoke:`.** `tool:` and `workflow:` together is the
+  same refusal class as two verbs on one task.
+- **Containment, and the parent declares it (`NIKA-COMP-002`).** The
+  child's boundary must be a SUBSET of the parent's, and the parent does
+  not inherit anything by calling: a `permits: {}` parent calling a
+  child that writes a file is refused at check AND at the run gate, once
+  per effect: `child fs write <path> is outside the parent boundary` and
+  `child tool nika:write is outside the parent boundary` (spec 14 laws 3
+  and 4). The parent's `permits:` must be the union of what every child
+  touches. `nika check --infer-permits` will NOT compute that half for
+  you: it prints a review note saying the child's boundary is resolved
+  by the composition lane, never inferred. **Read that message with
+  suspicion**: `child tool X is outside the parent boundary` also fires
+  when the parent grants X and the CHILD's own `permits:` is the block
+  missing it. Check the child alone before widening the parent.
 
-The child's typed `outputs:` compose through `returns:` — declared
-once in the child, never re-declared in the parent. Effects, budgets
-and the permits boundary are inherited by the child, so a parent
-cannot widen what its children may touch by calling them.
+**What the parent reads back.** `${{ tasks.<id>.output }}` is the
+child's whole `outputs:` map, and `${{ tasks.<id>.output.<name> }}`
+reaches one entry (measured: a child declaring `greeting:` yields
+`{"greeting": …}` and the deep reference passes TYPES). Add `returns:`
+to pin the shape, with two traps: the name must be declared in the
+parent's `types:` block or it is `NIKA-TYPE-001` unknown type name, and
+`types:` is Nika's own grammar, not JSON Schema, so it is
+`{ object: { greeting: string } }` and never `{ type: object,
+properties: … }` (that spelling is `NIKA-TYPE-001` too, on the
+constructor). `schema:` on an `infer:` IS JSON Schema. Two type
+languages in one file, and only one of them takes `type:`.
+
+**What does NOT cross the boundary.** Measured gaps to plan around:
+
+- **The spend cap does not reach the child.** A child that alone refuses
+  to start under `--max-cost-usd` (`refusing to start: the workflow's
+  unavoidable cost floor $0.001120 exceeds --max-cost-usd $0.000100`)
+  is dispatched all the way to the provider call when a parent invokes
+  it with the same flag. Verified 2026-07-28 against `nika 0.106.0`;
+  reported separately as an engine defect. **Cap the child where the
+  child runs**, and never present a parent's `--max-cost-usd` to a human
+  as a bound on the whole tree.
+- **The parent's cost ceiling excludes its children, on every surface a
+  human reads.** A child that alone reports
+  `≤ $0.0011 worst case` reports, through its parent, `no inference
+  tasks · $0 model spend` in BOTH `nika check` and `nika explain`. The
+  handoff line the skill sends you to is the line that under-reports.
+  Read the child's own `nika check`, and quote the child's envelope to
+  the human alongside the parent's.
+- The child writes **its own trace file**. A parent run leaves two
+  chains in `.nika/traces/`; the parent's failure line names the child's
+  trace id, and that is the one to `nika trace show`.
 
 Reach for composition when a workflow has two audiences (a reusable
 audit any project can call) or when one file stops fitting in a
@@ -248,7 +429,7 @@ The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
    | FILE | `nika:read` · `nika:write` · `nika:edit` · `nika:glob` · `nika:grep` |
    | DATA | `nika:jq` · `nika:json_diff` · `nika:json_merge_patch` · `nika:validate` · `nika:convert` · `nika:uuid` · `nika:date` · `nika:hash` · `nika:decide` |
    | NETWORK | `nika:fetch` · `nika:notify` |
-   | INTROSPECTION | `nika:compose` · `nika:inspect` |
+   | INTROSPECTION | `nika:compose` (agent-loop only · calling a child is `invoke: { workflow: … }` · §Composition) · `nika:inspect` |
    | MEDIA | `nika:chart` · `nika:image_generate` · `nika:image_fx` · `nika:tts_generate` |
 
    The NAMES above are canon — that is the whole set. The argument
@@ -345,7 +526,8 @@ the human at handoff, not to expect a green.
 
 - References: `${{ inputs.x }}` · `${{ const.x }}` ·
   `${{ config.KEY }}` · `${{ secrets.X }}` · `${{ tasks.<id>.output }}`
-  · `${{ with.alias }}` (never inline a credential).
+  · `${{ with.alias }}` (never inline a credential) · and inside a
+  `for_each:` body only, the loop-scoped `${{ item }}` · `${{ index }}`.
 - Quote any scalar that STARTS with `${{` inside a FLOW mapping —
   `with: { body: "${{ tasks.a.output }}" }` — or YAML reads the `{{`
   as a nested map (`NIKA-PARSE-001`). In block style the quotes are
@@ -375,6 +557,72 @@ the human at handoff, not to expect a green.
 - Auth rides `headers: { x-api-key: "${{ secrets.KEY }}" }` (masked ·
   declared in `secrets:` with its `egress:` sink) — never `exec: curl`
   for the sake of a header.
+
+### Writing JSON: build the VALUE, never the braces
+
+Hand-writing JSON punctuation around an interpolation is the one way to
+get a green check, a green run, and an unreadable artifact. Both halves
+below were measured on 2026-07-28 with a value containing a quote and a
+newline. These are entries under `tasks:`, not whole files: they need
+the envelope, an `inputs:` declaration for `v`, and a `permits:` block
+granting `nika:jq` · `nika:write` · the write path.
+
+```yaml
+  # ✗ green everywhere, and the artifact does not parse.
+  naive:
+    with: { v: "${{ inputs.v }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/naive.json", content: '{"value": "${{ with.v }}"}' }
+      # writes  {"value": "he said "hi"
+      # and a newline"}                       ← malformed. Nothing warned.
+
+  # ✓ build the object as a VALUE, then write the value whole.
+  build:
+    with: { v: "${{ inputs.v }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { expression: "{ value: .v }", input: { v: "${{ with.v }}" } }
+  safe:
+    with: { obj: "${{ tasks.build.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/safe.json", content: "${{ with.obj }}", create_dirs: true }
+      # writes  {"value":"he said \"hi\"\nand a newline"}   ← parses.
+```
+
+**The law: an interpolation may be a whole JSON value or a whole string,
+never a fragment welded between quotes you typed.** A structured value
+interpolated into a string argument is serialized as JSON by the engine,
+with escaping. Two ways to get one: `nika:jq` (any reshaping), or an
+`infer:` carrying a `schema:` (a model's typed output, the shape
+`t1-meeting-actions` uses to land its artifact).
+
+**Then validate the artifact twice, because well-formed is not right.**
+Parse it, AND spot-check one value against a number you computed by
+hand. A green run that emits malformed JSON is a failure with a
+checkmark on it; a green run that emits well-formed JSON full of wrong
+values is the same failure wearing a better disguise, and `json.loads`
+cannot see it.
+
+**`nika:jq` diverges from stock jq on `scan`, silently.** Measured
+2026-07-28 on `"one two three"`, one workflow, four expressions:
+
+```
+[.s | scan("\\S+")]          →  ["one"]                    ✗ first match only
+[.s | splits(" ")]           →  ["one","two","three"]      ✓
+[.s | match("\\S+";"g")|.string] →  ["one","two","three"]  ✓
+(.s / " ")                   →  ["one","two","three"]      ✓
+```
+
+So the idiomatic word count `[$s | scan("\\S+")] | length` is `1` for
+every input: check green, run green, artifact well-formed, every number
+wrong. `scan` is the one that lies; `splits`, a global `match` and the
+`/` split operator all stream correctly and are the fix. The general
+lesson outranks the specific bug: **prove any `nika:jq` expression
+against an input whose answer you already know**, because this is the
+"builtin that returns a plausible, wrong answer" trigger below and it
+is live.
 
 ## When the language pushes back, that is a finding
 

@@ -26,7 +26,8 @@ use std::fmt::Write as _;
 // this module's tests (and historical importers) keep their names.
 use crate::display::theme::{Role, Theme};
 pub(crate) use crate::verbs::probe::{
-    ClientProbe, ImageProbe, ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
+    ClientProbe, ImageProbe, KitProbe, ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe,
+    TtsProbe,
 };
 use crate::verbs::{VerbOutput, exit};
 
@@ -117,6 +118,10 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
 
     for client in &probe.clients {
         out.push(client_finding(client));
+    }
+
+    for kit in &probe.kits {
+        out.push(kit_finding(kit, &probe.version));
     }
 
     // Display order practices the presentation lock (teaching surface ·
@@ -358,6 +363,75 @@ fn retention_findings(
         });
     }
     out
+}
+
+/// `major.minor` from a semver-ish string — the kit handshake compares
+/// TRAINS, not patches (the kit is cut per release train; a patch
+/// release ships binary-only, so patch drift is not a finding).
+fn major_minor(v: &str) -> Option<(u64, u64)> {
+    let mut parts = v.split('.');
+    let maj = parts.next()?.parse().ok()?;
+    let min = parts.next()?.parse().ok()?;
+    Some((maj, min))
+}
+
+/// One installed plugin-kit row — the kit↔binary handshake nothing
+/// client-side used to surface (the drift contract lived only in the
+/// nika-agents CI). Same train → ✔. A lagging kit names the refresh
+/// command for ITS client (Claude Code climbs TWO rungs); a kit riding
+/// ahead names the binary upgrade. An unparseable manifest version
+/// warns and never guesses a train.
+fn kit_finding(kit: &KitProbe, bin_version: &str) -> Finding {
+    let (Some(k), Some(b)) = (major_minor(&kit.version), major_minor(bin_version)) else {
+        return Finding {
+            level: Level::Warn,
+            label: "kit".to_owned(),
+            detail: format!(
+                "{} plugin kit — unparseable version ({})",
+                kit.client, kit.version
+            ),
+            fix: None,
+        };
+    };
+    if k == b {
+        return Finding {
+            level: Level::Ok,
+            label: "kit".to_owned(),
+            detail: format!(
+                "{} plugin kit {} — on the binary's train",
+                kit.client, kit.version
+            ),
+            fix: None,
+        };
+    }
+    if k < b {
+        let fix = match kit.client.as_str() {
+            "claude" => {
+                "claude plugin marketplace update nika, then claude plugin update nika@nika"
+            }
+            "codex" => "codex plugin marketplace upgrade nika",
+            "cursor" => "re-sync the local drop: scripts/update-mirrors.sh (nika-agents checkout)",
+            _ => "refresh the nika plugin from its marketplace",
+        };
+        return Finding {
+            level: Level::Warn,
+            label: "kit".to_owned(),
+            detail: format!(
+                "{} plugin kit {} lags the binary ({bin_version})",
+                kit.client, kit.version
+            ),
+            fix: Some(fix.to_owned()),
+        };
+    }
+    Finding {
+        level: Level::Warn,
+        label: "kit".to_owned(),
+        detail: format!(
+            "{} plugin kit {} rides ahead of the binary ({bin_version})",
+            kit.client, kit.version
+        ),
+        fix: Some("brew upgrade nika".to_owned()),
+    }
 }
 
 fn client_finding(client: &ClientProbe) -> Finding {
@@ -642,6 +716,7 @@ mod tests {
             config_path: Some("~/.nika/config.toml".to_owned()),
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
             clients: vec![],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -672,6 +747,7 @@ mod tests {
                 local("ollama"),
             ],
             clients: vec![],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -707,6 +783,7 @@ mod tests {
             config_path: None,
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
             clients: vec![],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -732,6 +809,7 @@ mod tests {
             config_path: None,
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
             clients: vec![],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -752,6 +830,7 @@ mod tests {
             config_path: None,
             providers: vec![local("ollama"), local("vllm")],
             clients: vec![],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -853,6 +932,7 @@ mod tests {
             config_path: None,
             providers: vec![local("ollama")],
             clients: vec![],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -937,6 +1017,7 @@ mod tests {
                 current: false,
                 stale: true,
             }],
+            kits: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -947,6 +1028,118 @@ mod tests {
         let text = render(&diagnose(&probe), PLAIN);
         assert!(text.contains("stale MCP args"), "{text}");
         assert!(text.contains("fix: nika wire cursor"), "{text}");
+    }
+
+    // ── The kit↔binary handshake (the drift surface CI alone carried) ──
+
+    fn kit(client: &str, version: &str) -> KitProbe {
+        KitProbe {
+            client: client.to_owned(),
+            version: version.to_owned(),
+        }
+    }
+
+    #[test]
+    fn kit_on_the_binary_train_is_ok_and_patch_drift_is_not_a_finding() {
+        // 0.106.0 kit vs 0.106.1 binary — same train, patch releases
+        // ship binary-only, the row stays green with no fix.
+        let f = kit_finding(&kit("codex", "0.106.0"), "0.106.1");
+        assert_eq!(f.level, Level::Ok);
+        assert_eq!(f.label, "kit");
+        assert!(f.detail.contains("on the binary's train"), "{}", f.detail);
+        assert!(f.fix.is_none());
+    }
+
+    #[test]
+    fn lagging_kit_names_the_refresh_for_its_own_client() {
+        // Codex climbs ONE rung; Claude Code climbs TWO — the fix is
+        // per-client, never generic when the client is known.
+        let f = kit_finding(&kit("codex", "0.104.0"), "0.106.1");
+        assert_eq!(f.level, Level::Warn);
+        assert!(
+            f.detail.contains("lags the binary (0.106.1)"),
+            "{}",
+            f.detail
+        );
+        assert_eq!(
+            f.fix.as_deref(),
+            Some("codex plugin marketplace upgrade nika")
+        );
+
+        let f = kit_finding(&kit("claude", "0.104.0"), "0.106.1");
+        assert_eq!(
+            f.fix.as_deref(),
+            Some("claude plugin marketplace update nika, then claude plugin update nika@nika"),
+            "both rungs are named — the half-climbed ladder is the proven trap"
+        );
+
+        let f = kit_finding(&kit("cursor", "0.104.0"), "0.106.1");
+        assert!(
+            f.fix
+                .as_deref()
+                .is_some_and(|x| x.contains("update-mirrors.sh")),
+            "{:?}",
+            f.fix
+        );
+
+        let f = kit_finding(&kit("someclient", "0.104.0"), "0.106.1");
+        assert!(
+            f.fix.as_deref().is_some_and(|x| x.contains("marketplace")),
+            "unknown client still gets a generic refresh: {:?}",
+            f.fix
+        );
+    }
+
+    #[test]
+    fn kit_ahead_of_the_binary_names_the_binary_upgrade() {
+        let f = kit_finding(&kit("claude", "0.108.0"), "0.106.1");
+        assert_eq!(f.level, Level::Warn);
+        assert!(f.detail.contains("rides ahead"), "{}", f.detail);
+        assert_eq!(f.fix.as_deref(), Some("brew upgrade nika"));
+    }
+
+    #[test]
+    fn unparseable_kit_version_warns_without_guessing_a_train() {
+        let f = kit_finding(&kit("codex", "garbage"), "0.106.1");
+        assert_eq!(f.level, Level::Warn);
+        assert!(f.detail.contains("unparseable"), "{}", f.detail);
+        assert!(f.fix.is_none(), "no fix can be honest without a train");
+    }
+
+    #[test]
+    fn diagnose_carries_one_kit_row_per_found_surface() {
+        let probe = Probe {
+            models: ModelsProbe::default(),
+            version: "0.106.1".to_owned(),
+            config_path: None,
+            providers: vec![local("ollama")],
+            clients: vec![],
+            kits: vec![kit("codex", "0.106.0"), kit("claude", "0.104.0")],
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
+        };
+        let findings = diagnose(&probe);
+        let kits: Vec<_> = findings.iter().filter(|f| f.label == "kit").collect();
+        assert_eq!(kits.len(), 2, "one row per found kit, absence is silence");
+        assert_eq!(kits[0].level, Level::Ok);
+        assert_eq!(kits[1].level, Level::Warn);
+    }
+
+    #[test]
+    fn major_minor_parses_trains_and_rejects_junk() {
+        assert_eq!(major_minor("0.106.1"), Some((0, 106)));
+        assert_eq!(
+            major_minor("1.0.0-rc.2"),
+            Some((1, 0)),
+            "an rc rides its release's train — the tag lives in the patch slot"
+        );
+        assert_eq!(major_minor("garbage"), None);
+        assert_eq!(major_minor(""), None);
+        assert_eq!(major_minor("7"), None, "a train needs both components");
     }
 
     #[test]
@@ -1149,6 +1342,7 @@ mod tests {
                 structured_native: true,
             }],
             clients: Vec::new(),
+            kits: Vec::new(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1208,6 +1402,7 @@ mod tests {
             "sidecar",
             "traces",
             "agent",
+            "kit",
             "provider",
             "providers",
             "local",

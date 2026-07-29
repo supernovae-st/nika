@@ -297,10 +297,20 @@ mod model_capabilities_tests {
     }
 }
 
-/// Pricing for a known model pattern.
+/// One row of the vendored upstream model snapshot, keyed by pattern.
 ///
 /// Two-pass matching: exact match first, then `contains()` fallback.
 /// More specific patterns MUST appear before less specific ones.
+///
+/// # What this row carries (schema `@1.2`)
+///
+/// The type is named for its original and still-primary job — pricing —
+/// but a row is what the upstream snapshot says about a model, and since
+/// `@1.2` that includes four non-price facts (see *Upstream model facts*
+/// below). They ride here rather than in a parallel table because they
+/// come from the same payload, on the same day, under the same
+/// [`PricingSnapshot`] provenance: splitting them would create a second
+/// thing to keep in sync with no second source to sync it against.
 ///
 /// # Pricing axes (5 axes, Session 4a Phase E2)
 ///
@@ -315,6 +325,15 @@ mod model_capabilities_tests {
 /// - **Reasoning tokens** — per-million rate for thinking tokens. Used by
 ///   o-series, `GPT-5`, `Claude` thinking, `DeepSeek` `R1`. `None` = billed
 ///   at the `output_per_million` rate.
+///
+/// # Upstream model facts (4 fields, schema `@1.2`)
+///
+/// [`Self::max_output_tokens`] · [`Self::context_window_tokens`] ·
+/// [`Self::open_weights`] · [`Self::status`] — carried verbatim from the
+/// snapshot. Every one is `Option`: `None` means *upstream did not
+/// disclose*, and MUST NOT be read as a zero, a `false`, or a default.
+/// A caller that needs a number when the snapshot is silent has to supply
+/// its own and say so.
 ///
 /// Generated from `data/model-pricing.toml` at build time.
 #[derive(Debug, Clone, PartialEq)]
@@ -340,14 +359,55 @@ pub struct ModelPricing {
     /// Price per million reasoning / thinking tokens in USD. `None` means
     /// reasoning tokens are billed at the `output_per_million` rate.
     pub reasoning_tokens_per_million: Option<f64>,
+    /// Most tokens the model will emit in one response, as upstream
+    /// declares it. `None` = not disclosed (never "unlimited", never 0).
+    ///
+    /// This is the ceiling a workflow's `max_tokens` has to fit under.
+    ///
+    /// Not comparable to [`Self::context_window_tokens`] in general — see
+    /// that field. Zero is never stored: upstream writes `0` for models
+    /// where the limit does not apply (image · video · speech), and the
+    /// generator drops it rather than assert a false ceiling of nothing.
+    pub max_output_tokens: Option<u32>,
+    /// Context window in tokens, as upstream declares it. `None` = not
+    /// disclosed. Zero is never stored (same reason as above).
+    ///
+    /// For text models this bounds input + output together, so
+    /// `max_output_tokens <= context_window_tokens` normally holds — but
+    /// it is NOT an invariant here and is deliberately not enforced. On
+    /// non-text models the two count different units (a speech model's
+    /// output tokens are audio), and 10 of the 633 rules in the vendored
+    /// 2026-07-28 snapshot legitimately have output > context — count them:
+    /// `max_output_tokens > context_window_tokens`. Enforcing the
+    /// relationship would fail the build on a truthful snapshot. The
+    /// invariant belongs to our hand-authored capability rules
+    /// (`NIKA-014`), which describe models we chose to support, not to a
+    /// mirror of somebody else's catalog.
+    pub context_window_tokens: Option<u32>,
+    /// Whether the weights are published, as upstream declares it.
+    /// `None` = not disclosed.
+    ///
+    /// This is what separates "costs nothing to call" from "we have no
+    /// price for it". An open-weights model run locally has a real cost
+    /// that this table cannot know; a missing price is not a free model.
+    pub open_weights: Option<bool>,
+    /// Lifecycle marker from upstream — `"deprecated"` and `"beta"` are
+    /// the values seen so far. `None` = upstream said nothing, which for
+    /// this field is the ordinary case (5% of rows carry one).
+    ///
+    /// Deliberately a string, not an enum: this vocabulary belongs to
+    /// upstream and grows without asking us. A closed enum would turn
+    /// "they added a value" into a failed refresh. Match on
+    /// [`Self::is_deprecated`] for the predicate that matters.
+    pub status: Option<&'static str>,
 }
 
 impl ModelPricing {
     /// Explicit constructor — required because [`ModelPricing`] is
     /// `#[non_exhaustive]` (invariant #19).
     ///
-    /// 8 args: the 4 base axes plus four `Option<f64>` for cache write,
-    /// cache read, image, and reasoning tokens.
+    /// 12 args: identity (2) · the 2 base rates · 4 optional rate axes ·
+    /// the 4 upstream model facts added in schema `@1.2`.
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub const fn new(
@@ -359,6 +419,10 @@ impl ModelPricing {
         cache_read_per_million: Option<f64>,
         image_per_million: Option<f64>,
         reasoning_tokens_per_million: Option<f64>,
+        max_output_tokens: Option<u32>,
+        context_window_tokens: Option<u32>,
+        open_weights: Option<bool>,
+        status: Option<&'static str>,
     ) -> Self {
         Self {
             provider,
@@ -369,7 +433,21 @@ impl ModelPricing {
             cache_read_per_million,
             image_per_million,
             reasoning_tokens_per_million,
+            max_output_tokens,
+            context_window_tokens,
+            open_weights,
+            status,
         }
+    }
+
+    /// Whether upstream marks this model as deprecated.
+    ///
+    /// The one [`Self::status`] value worth a typed predicate: teaching or
+    /// defaulting to a model its own provider has retired is a live defect,
+    /// and callers should not have to know the spelling to catch it.
+    #[must_use]
+    pub fn is_deprecated(&self) -> bool {
+        matches!(self.status, Some("deprecated"))
     }
 }
 
@@ -480,6 +558,10 @@ mod model_pricing_tests {
             Some(0.30),
             None,
             None,
+            None,
+            None,
+            None,
+            None,
         );
         assert_eq!(p.provider, "Anthropic");
         assert_eq!(p.model_pattern, "sonnet-4");
@@ -489,5 +571,54 @@ mod model_pricing_tests {
         assert_eq!(p.cache_read_per_million, Some(0.30));
         assert_eq!(p.image_per_million, None);
         assert_eq!(p.reasoning_tokens_per_million, None);
+    }
+
+    #[test]
+    fn new_builds_the_four_upstream_facts() {
+        let p = ModelPricing::new(
+            "anthropic",
+            "claude-haiku-4-5",
+            1.0,
+            5.0,
+            None,
+            None,
+            None,
+            None,
+            Some(64_000),
+            Some(200_000),
+            Some(false),
+            Some("beta"),
+        );
+        assert_eq!(p.max_output_tokens, Some(64_000));
+        assert_eq!(p.context_window_tokens, Some(200_000));
+        assert_eq!(p.open_weights, Some(false));
+        assert_eq!(p.status, Some("beta"));
+    }
+
+    #[test]
+    fn absent_upstream_facts_stay_none_not_zero() {
+        // The inversion this whole schema bump exists to prevent: a row
+        // upstream is silent about must never read as 0 / false, which
+        // would report the least-known model as the most-bounded one.
+        let p = ModelPricing::new(
+            "ollama", "qwen3", 0.0, 0.0, None, None, None, None, None, None, None, None,
+        );
+        assert_eq!(p.max_output_tokens, None);
+        assert_eq!(p.context_window_tokens, None);
+        assert_eq!(p.open_weights, None);
+        assert_eq!(p.status, None);
+        assert!(!p.is_deprecated(), "unknown status is not deprecated");
+    }
+
+    #[test]
+    fn is_deprecated_only_fires_on_the_upstream_spelling() {
+        let mk = |s: Option<&'static str>| {
+            ModelPricing::new(
+                "openai", "gpt-4", 30.0, 60.0, None, None, None, None, None, None, None, s,
+            )
+        };
+        assert!(mk(Some("deprecated")).is_deprecated());
+        assert!(!mk(Some("beta")).is_deprecated());
+        assert!(!mk(None).is_deprecated());
     }
 }

@@ -11,6 +11,16 @@ structure; you instantiate it, then let the checker teach you.
 
 ## The protocol (follow exactly)
 
+0. **Read two examples. Before anything else, every time.**
+   `nika examples list`, then `nika examples show <slug>` twice: the one
+   matching the intent, then the one covering what the first did not.
+   This is step zero because it was measured on 2026-07-28: six authors
+   writing from intent with the skill loaded took 45 check→fix rounds
+   between them (7.5 mean · 11 worst · none green one-shot), and the one
+   who then read two examples wrote their next workflow one-shot green.
+   Read for shape: the verb per task · the `with:` edges · what landed in
+   `permits:` · how the last task writes the artifact. The routing table
+   from intent to slug lives in the `nika-authoring` skill.
 1. **Route.** Match the intent to a template
    (`nika_template` MCP tool, or `nika new --from <name>`):
    chain (take data, produce words, save them) · gate-and-act (watch X,
@@ -53,6 +63,33 @@ structure; you instantiate it, then let the checker teach you.
 - `permits:` is not optional: an effect under no block refuses
   `NIKA-AUTH-006` at check. Paste what `nika check --infer-permits`
   prints; a pure-compute body declares the zero as `permits: {}`.
+  Do not read a green PERMITS line as proof of no effects: measured on
+  `0.106.0`, a fetch whose url is `${{ const.x }}` rather than a literal
+  passes `--native-strict` as « pure compute » and is refused at run
+  with `NIKA-SEC-004`. Declare the boundary from the BODY, always.
+- A parent calls a child with `workflow:` INSIDE `invoke:`, a sibling of
+  `tool:`. `tool: compose` and `tool: "nika:compose"` both fail and both
+  diagnostics point elsewhere (`nika:compose` is the agent-loop draft
+  checker, not the call verb). The parent's `permits:` must CONTAIN the
+  union of every child's, or `NIKA-COMP-002` refuses; `--infer-permits`
+  does not compute that half. At handoff, name the child's own cost
+  envelope: the parent's ceiling excludes it, and `--max-cost-usd` on
+  the parent does not gate the child (measured, `nika 0.106.0`).
+- A JSON artifact is built as a VALUE (`nika:jq`, or an `infer:` with
+  `schema:`) and interpolated whole. Typing `{"k": "${{ … }}"}` by hand
+  passes check and run and writes malformed JSON the first time a value
+  carries a quote or a newline.
+- `nika:jq` diverges from stock jq on `scan`: it yields the FIRST match,
+  not a stream, so `[$s | scan("\\S+")] | length` is `1` for every
+  input (measured `0.106.0` · `splits`, a global `match` and `/` are
+  correct). Prove any jq expression against an input whose answer you
+  know. Green check plus green run is not evidence the numbers are
+  right; say so at handoff rather than implying correctness.
+- `permits:` axes are conjunctive (a `tools:` grant without the matching
+  `fs:` path authorizes nothing) · `fs` bounds accept globs, host bounds
+  refuse them (`NIKA-AUTH-010`) · and `--infer-permits` prints review
+  notes instead of a path when the path is interpolated. The block it
+  prints is a starting point, not a finished boundary.
 - Never run the workflow (`nika run` is the human's move). Your oracle
   is read-only: check, explain, schema, examples, template, canon,
   catalog, tools.

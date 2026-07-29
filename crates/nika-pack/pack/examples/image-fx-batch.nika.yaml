@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 fan-out · the batch darkroom
+#
+# A folder of PNG files becomes a matching folder of stylized ones — one
+# deterministic effect chain per image, in parallel, fully offline.
+# `nika:image_fx` is a pure function of (input bytes · ops · seed): the same
+# photo renders the same art forever — byte-identical, CI-provable.
+#
+# Demonstrates ·
+#   - `nika:glob` · the folder IS the work list (drop a photo in, re-run)
+#   - `nika:jq` deriving the output paths · string work belongs in a builtin,
+#     not in a shell call
+#   - `for_each` + `max_parallel` · the whole folder at once, bounded
+#   - `nika:image_fx` · an ORDERED ops chain (grayscale → bayer dither →
+#     pixelate) · every op deterministic, no model, no network
+#   - the glob read boundary · see the comment on `permits.fs.read`: it is
+#     the one shape `check` cannot prove for you
+#
+# Run · nika run examples/image-fx-batch.nika.yaml
+
+nika: v1
+workflow:
+  id: image-fx-batch
+  description: "Folder of PNG files → deterministic art (grayscale · dither · pixelate) · offline batch"
+
+const:
+  # Two sample photos ship with the repo. Point this at your own folder and
+  # move `permits.fs.read` with it — a const is baked in, never caller-supplied,
+  # so the two lines stay in step by editing, not by magic.
+  photos: "examples/fixtures/photos"
+
+permits:
+  exec: false
+  tools: ["nika:glob", "nika:image_fx", "nika:jq"]
+  fs:
+    # ONE entry that has to cover TWO different reads, and this is the trap:
+    #   · `nika:glob` gates its WALK ROOT — the directory itself
+    #   · `nika:image_fx` gates each MATCHED FILE underneath it
+    # Measured against 0.106.0: granting only `…/photos` passes `check` with
+    # zero hints and then dies at run — NIKA-SEC-004 on the first photo.
+    # Granting only `…/photos/*.png` is worse: `check` calls the entry drift
+    # (it matches no literal the body names) and the glob is refused at run.
+    # `**` covers the directory AND every descendant, so one entry is honest
+    # here; `["…/photos", "…/photos/*.png"]` is the two-entry equivalent.
+    read: ["examples/fixtures/photos/**"]
+    # The renders land FLAT in one directory, so `*` is enough: it matches a
+    # single path segment and never crosses `/`, which means a photo whose
+    # name contained a slash could not steer a write into a subtree.
+    write: ["out/darkroom/*"]
+
+tasks:
+  # The folder is the work list — no hand-maintained array to drift.
+  shots:
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "${{ const.photos }}/*.png" }
+
+  # Derive {src, out} pairs · jq does the string work, natively.
+  jobs:
+    with:
+      shots: ${{ tasks.shots.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.shots }}"
+        expression: 'map({ src: ., out: ("out/darkroom/" + (split("/") | last)) })'
+
+  # One deterministic darkroom pass per photo · the ops run IN ORDER.
+  stylize:
+    with:
+      jobs: ${{ tasks.jobs.output }}
+    for_each: ${{ with.jobs }}
+    max_parallel: 4
+    invoke:
+      tool: "nika:image_fx"
+      args:
+        input: "${{ item.src }}"
+        out: "${{ item.out }}"
+        seed: 0                       # explicit · the render is a function of (bytes · ops · seed)
+        ops:
+          - grayscale: {}
+          - dither: { mode: bayer4 }
+          - pixelate: { block: 4 }
+
+outputs:
+  rendered:
+    # an empty folder skips the fan-out (its output is null) — the guard keeps
+    # the typed contract honest on the very first exploratory run
+    value: "${{ tasks.stylize.output != null ? tasks.stylize.output : [] }}"
+    description: "The stylized artifact receipts · one per input photo · path + sha256"

@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · legal / compliance
+#
+# A contract review where the contract NEVER leaves the machine · the model
+# is local, the clause extraction is schema-typed, and a validate + assert
+# pair refuses to build a memo on top of a bad extraction.
+#
+# Demonstrates ·
+#   - sovereignty · a local `model:`, so sensitive documents stay on disk;
+#     there is no `permits.net` here at all, which is the strongest possible
+#     statement about where this contract goes: nowhere
+#   - `nika:validate` · re-check the extraction against a stricter schema
+#   - `nika:assert` · the FAIL-FAST guard — contrast `when:`, the skip-guard:
+#     one stops the run, the other quietly takes a branch
+#   - `after: success` · the memo is control-gated on the assert (state, not
+#     data — no value crosses that edge)
+#   - belt-and-braces · schema at infer time + validate + assert downstream
+#
+# Run · nika run examples/contract-guard.nika.yaml
+#   A sample MSA ships with the repo. `--var contract_path=./yours.md` points
+#   it elsewhere — and then `permits.fs.read` has to name that file too.
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+
+nika: v1
+workflow:
+  id: contract-guard
+  description: "Local-model clause extraction → schema gate → risk memo"
+
+# Local · the whole review runs offline, zero cloud. Also a NON-thinking
+# model on purpose: a thinking model can spend the whole `max_tokens` budget
+# in its think block and return before the JSON (engine#428).
+model: ollama/llama3.2:3b
+
+inputs:
+  contract_path:
+    type: string
+    default: "examples/fixtures/contract.md"
+    description: "Path to the contract (markdown or plain text)"
+permits:
+  tools: ["nika:assert", "nika:read", "nika:validate", "nika:write"]
+  fs:
+    # `permits:` cannot interpolate (NIKA-AUTH-007), so this literal does not
+    # follow `inputs.contract_path` around: passing --var without editing this
+    # line is refused at run with NIKA-SEC-004. Deliberate — a reviewer can
+    # see every file this workflow may open by reading four words.
+    read: ["examples/fixtures/contract.md"]
+    write: ["out/risk-memo.md"]
+
+tasks:
+  contract:
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ inputs.contract_path }}" }
+
+  clauses:
+    with:
+      contract: ${{ tasks.contract.output }}
+    infer:
+      max_tokens: 1600
+      prompt: |
+        Extract every risk-bearing clause from this contract ·
+        ${{ with.contract }}
+        Quote each clause verbatim · classify its risk.
+      schema:
+        type: object
+        additionalProperties: false
+        required: [clauses]
+        properties:
+          clauses:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [quote, type, risk]
+              properties:
+                quote: { type: string }
+                type: { type: string, enum: [liability, termination, ip, payment, data, other] }
+                risk: { type: string, enum: [low, medium, high] }
+
+  check:
+    with:
+      clauses: ${{ tasks.clauses.output }}
+    invoke:
+      tool: "nika:validate"
+      args:
+        data: "${{ with.clauses }}"
+        format: json
+        schema:
+          type: object
+          required: [clauses]
+          properties:
+            clauses:
+              type: array
+              minItems: 1        # an empty extraction is a FAILED extraction
+
+  gate:
+    with:
+      extraction_ok: ${{ tasks.check.output.valid == true }}   # the whole condition crosses as ONE boundary expression
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ with.extraction_ok }}"
+        message: "Clause extraction failed the schema gate: refusing to write the memo"
+
+  memo:
+    with:
+      clauses: ${{ tasks.clauses.output.clauses }}
+    after:
+      gate: success              # state, no data · the assert passed or the memo is cancelled
+    infer:
+      max_tokens: 1200
+      prompt: |
+        Write a one-page risk memo from these clauses ·
+        ${{ with.clauses }}
+        Order by risk · high first · cite the quoted text.
+
+  save:
+    with:
+      memo: ${{ tasks.memo.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/risk-memo.md
+        content: "${{ with.memo }}"
+        create_dirs: true
+
+outputs:
+  clauses:
+    value: ${{ tasks.clauses.output.clauses }}
+    description: "Typed risk-bearing clauses, verbatim quotes"
+  memo: ${{ tasks.memo.output }}

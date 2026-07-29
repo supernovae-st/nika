@@ -1,0 +1,125 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 diamond · engineering / model selection
+#
+# The same question, three local models, one honest table — latency and
+# answer length are MEASURED (the flight recorder's clock, not vibes);
+# the answers sit side by side for your own eyes. Zero keys, zero cloud,
+# zero spend: the bench you run BEFORE picking a default model.
+#
+# Demonstrates ·
+#   - per-task `infer.model:` override · one workflow, N engines
+#   - `tasks.X.duration_ms` · the run's own clock as a data source
+#   - `nika:jq` fan-in · three answers → one markdown table, no model call
+#   - `nika:write` · the report lands on disk, diffable run over run
+#
+# Honesty note · the first call to each model pays its load time — run
+# the bench twice and read the WARM numbers. Judgment stays yours: the
+# table measures facts (latency · length); it never scores "quality".
+# Two findings this bench surfaced on its own authoring run (live) · a
+# THINKING model with a bounded max_tokens spends the budget reasoning
+# and returns an EMPTY answer — a bench result, not a bug · on a
+# --resume, rehydrated rows say "cached" — a latency that was not
+# re-measured is never re-printed as fresh.
+#
+# Needs · ollama running with the three seats pulled (qwen2.5:14b ·
+# llama3.2:3b · qwen2.5:0.5b) — per-task `model:` seats are the bench,
+# the CLI --model override deliberately doesn't touch them.
+#
+# Run · nika run examples/model-bench.nika.yaml
+#       models · ollama pull qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b
+#       (swap any seat for the models YOU have — or for mistral/… ·
+#        anthropic/… · openai/… · the table doesn't care who competes)
+# Exercise · seat a THINKING model (ollama/qwen3.5:4b) and re-run: at
+#       small max_tokens it spends the whole budget reasoning and returns
+#       an empty row — the finding above, reproduced on your own machine.
+
+nika: v1
+workflow:
+  id: model-bench
+  description: "One question → three local models → a measured comparison table"
+
+model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
+
+const:
+  question:
+    # A TYPED constant is `{ type, value }` — both keys, exactly those two.
+    # `{ type, default }` is not a declaration at all (01-envelope.md §const:
+    # an object missing either key is a bare literal object), so the prompt
+    # below would receive the whole `{type, default}` map instead of the
+    # question. Measured: the model gets a JSON blob and the bench is junk.
+    type: string
+    value: "Explain, in five lines, why a workflow should be audited before it runs."
+permits:
+  tools: ["nika:jq", "nika:write"]
+  fs: { write: ["out/model-bench.md"] }
+
+tasks:
+  ask_incumbent:
+    infer:
+      model: ollama/qwen2.5:14b # the quality bar · the seat to beat
+      prompt: "${{ const.question }}"
+      max_tokens: 600
+
+  ask_challenger:
+    infer:
+      model: ollama/llama3.2:3b # another family · same size class
+      prompt: "${{ const.question }}"
+      max_tokens: 600
+
+  ask_tiny:
+    infer:
+      model: ollama/qwen2.5:0.5b # the "is small enough?" probe
+      prompt: "${{ const.question }}"
+      max_tokens: 600
+
+  tabulate:
+    with:
+      ask_incumbent_duration_ms: ${{ tasks.ask_incumbent.duration_ms }}
+      ask_incumbent: ${{ tasks.ask_incumbent.output }}
+      ask_challenger_duration_ms: ${{ tasks.ask_challenger.duration_ms }}
+      ask_challenger: ${{ tasks.ask_challenger.output }}
+      ask_tiny_duration_ms: ${{ tasks.ask_tiny.duration_ms }}
+      ask_tiny: ${{ tasks.ask_tiny.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          - model: "ollama/qwen2.5:14b"
+            ms: "${{ with.ask_incumbent_duration_ms }}"
+            answer: "${{ with.ask_incumbent }}"
+          - model: "ollama/llama3.2:3b"
+            ms: "${{ with.ask_challenger_duration_ms }}"
+            answer: "${{ with.ask_challenger }}"
+          - model: "ollama/qwen2.5:0.5b"
+            ms: "${{ with.ask_tiny_duration_ms }}"
+            answer: "${{ with.ask_tiny }}"
+        expression: >-
+          "| model | latency | chars | answer (first 160) |\n|---|---|---|---|\n"
+          + (map("| " + .model + " | "
+               + (if .ms == null then "cached" else (.ms | tostring) + "ms" end) + " | "
+               + (.answer | length | tostring) + " | "
+               + (.answer | gsub("\n"; " ") | .[0:160]) + " |")
+             | join("\n"))
+
+  persist:
+    with:
+      tabulate: ${{ tasks.tabulate.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/model-bench.md
+        create_dirs: true
+        content: |
+          # Model bench — same question, measured
+
+          ${{ with.tabulate }}
+
+          Facts only: latency from the run's clock, length in characters.
+          The answers are side by side — the quality call is yours.
+
+outputs:
+  table:
+    value: ${{ tasks.tabulate.output }}
+    description: "The measured comparison table · latency + length per seat"

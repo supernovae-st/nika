@@ -1,0 +1,186 @@
+# The models we price that the vendor has already retired.
+#
+# WHY THIS FILE EXISTS. Upstream marks a minority of models `status:
+# deprecated` and the pricing import reads none of it — so a model can be
+# retired by its vendor and keep a priced row in our catalog, keep
+# appearing in a cost ceiling, keep being handed to users. This lists
+# them, and reports the live counts rather than quoting a number that
+# drifts the day after it is written.
+#
+# TWO LENSES, ranked by how much it costs to be wrong ·
+#   PRICED  · a [[rules]] row exists for a model upstream calls deprecated.
+#             The row is not wrong today — a retired model still has a
+#             last known price — but it is a row that will go stale
+#             silently, and it is the population to review at refresh.
+#   TAUGHT  · worse. The model is a provider's `default_model` or
+#             `cheap_model` in llm-providers.toml — the id the engine puts
+#             in a user's hands when they name a provider and no model.
+#             A deprecated default is an outage with a countdown.
+#
+# WHY IT DERIVES ITS SCOPE. The provider set comes from the pricing rules
+# themselves (`map(.provider) | unique`), never from a list retyped here.
+# The two lists this workflow joins are the two files the import writes;
+# if one grows a provider, the report follows without an edit.
+#
+# WHY THERE IS NO nika:write. Private read + untrusted fetch + a file
+# write is the complete lethal trifecta, refused at check (NIKA-SEC-009)
+# unless a blocking human prompt dominates the write. The verdict rides
+# the typed `outputs:` and the operator surface exports it:
+#
+#   nika check workflows/catalog/deprecated-models.nika.yaml
+#   nika run --output json workflows/catalog/deprecated-models.nika.yaml \
+#     > ./target/catalog-deprecated-models.json
+nika: v1
+
+workflow:
+  id: catalog-deprecated-models
+  description: "join upstream model status against the rows we price and the ids we teach"
+
+const:
+  source_url: "https://models.dev/api.json"
+  pricing_toml: "./crates/nika-catalog/data/model-pricing.toml"
+  providers_toml: "./crates/nika-catalog/data/llm-providers.toml"
+
+permits:
+  tools: ["nika:fetch", "nika:read", "nika:convert", "nika:jq", "nika:date"]
+  net:
+    http: ["models.dev"]
+  fs:
+    read:
+      - "./crates/nika-catalog/data/model-pricing.toml"
+      - "./crates/nika-catalog/data/llm-providers.toml"
+
+tasks:
+  # ── every status upstream declares, provider by provider ──────────
+  # No scope in the query: the join downstream applies ours. Providers
+  # that flag nothing are dropped, which keeps the payload to the models
+  # that actually carry a status (~5% of the catalogue).
+  flagged:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.source_url }}"
+        mode: jq
+        jq: |
+          [ to_entries[]
+            | { provider: .key,
+                models: [ (.value.models // {})
+                          | to_entries[]
+                          | select(.value.status != null)
+                          | { id: .key, status: .value.status, name: .value.name } ] }
+            | select((.models | length) > 0) ]
+    retry:
+      max_attempts: 3
+      backoff_strategy: exponential
+
+  pricing_text:
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "${{ const.pricing_toml }}"
+
+  pricing:
+    with:
+      toml: ${{ tasks.pricing_text.output }}
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ with.toml }}"
+        from: toml
+        to: json
+
+  providers_text:
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "${{ const.providers_toml }}"
+
+  providers:
+    with:
+      toml: ${{ tasks.providers_text.output }}
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ with.toml }}"
+        from: toml
+        to: json
+
+  stamp:
+    invoke:
+      tool: "nika:date"
+      args:
+        op: now
+
+  # ── the join · two lookup indexes, two lenses ─────────────────────
+  # Keys are `provider + "/" + id`. Model ids carry slashes of their own
+  # (moonshotai/kimi-k2.6) but provider ids never do, so the first slash
+  # is an unambiguous boundary and the composite cannot collide.
+  report:
+    with:
+      flagged: ${{ tasks.flagged.output }}
+      pricing: ${{ tasks.pricing.output }}
+      providers: ${{ tasks.providers.output }}
+      day: ${{ tasks.stamp.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          flagged: "${{ with.flagged }}"
+          pricing: "${{ with.pricing }}"
+          providers: "${{ with.providers }}"
+          checked_at: "${{ with.day }}"
+          source: "${{ const.source_url }}"
+        expression: |
+          . as $in
+          | $in.pricing.rules as $rules
+          | $in.providers.providers as $provs
+          | ($rules | map(.provider) | unique) as $scope
+          | [ $in.flagged[] | .provider as $p | .models[]
+              | { provider: $p, id: .id, name: .name, status: .status } ] as $all
+          | ($all | map(select(.status == "deprecated"))) as $dead
+          | [ $dead[] | . as $d | select($scope | index($d.provider) != null) ] as $dead_in_scope
+          | (reduce $rules[] as $r ({}; .[$r.provider + "/" + $r.model_pattern] = true)) as $priced
+          | (reduce $dead[] as $d ({}; .[$d.provider + "/" + $d.id] = true)) as $dead_index
+          | [ $dead_in_scope[] | . as $d | select($priced[$d.provider + "/" + $d.id]) ] as $priced_dead
+          | [ $provs[]
+              | . as $p
+              | ({ provider: $p.id, role: "default_model", model: $p.default_model },
+                 { provider: $p.id, role: "cheap_model",   model: $p.cheap_model })
+              | select(.model != null) ] as $taught
+          | [ $taught[] | . as $t | select($dead_index[$t.provider + "/" + $t.model]) ] as $taught_dead
+          | { checked_at: $in.checked_at,
+              source: $in.source,
+              upstream: { providers_flagging: ($in.flagged | length),
+                          flagged: ($all | length),
+                          by_status: ($all | group_by(.status)
+                                           | map({ (.[0].status): length }) | add // {}) },
+              catalog: { pinned_as_of: $in.pricing.meta.as_of,
+                         rules: ($rules | length),
+                         providers_priced: $scope,
+                         providers_declared: ($provs | length) },
+              priced: { count: ($priced_dead | length),
+                        deprecated_in_scope: ($dead_in_scope | length),
+                        models: ($priced_dead | sort_by([.provider, .id])) },
+              taught: { count: ($taught_dead | length),
+                        models: ($taught_dead | sort_by([.provider, .role])) },
+              verdict: (if ($taught_dead | length) > 0
+                        then "ACT · " + (($taught_dead | length) | tostring)
+                             + " provider default/cheap model is deprecated upstream"
+                        elif ($priced_dead | length) > 0
+                        then "REVIEW · " + (($priced_dead | length) | tostring)
+                             + " priced rows name a deprecated model · no taught default affected"
+                        else "clear · nothing we price is marked deprecated upstream"
+                        end) }
+
+outputs:
+  verdict:
+    value: ${{ tasks.report.output.verdict }}
+    type: string
+    description: "ACT when a taught default is dead · REVIEW when only priced rows are · else clear"
+  taught:
+    value: ${{ tasks.report.output.taught }}
+    description: "provider default_model/cheap_model ids upstream marks deprecated — the sharp end"
+  priced: ${{ tasks.report.output.priced }}
+  upstream: ${{ tasks.report.output.upstream }}
+  catalog: ${{ tasks.report.output.catalog }}
+  checked_at: ${{ tasks.report.output.checked_at }}

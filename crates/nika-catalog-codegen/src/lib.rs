@@ -518,11 +518,17 @@ mod tests {
             input_rate in 0.0_f64..1000.0,
             output_rate in 0.0_f64..1000.0,
         ) {
+            // Schema + [meta] come from the canonical constant: the literal
+            // that used to sit here said `@1.0`, so every generated case
+            // died at the schema gate and the test passed by comparing two
+            // identical Errs — 200 cases that never once reached emission.
+            let schema = crate::schema::PRICING_SCHEMA;
             let toml = format!(
-                "schema = \"nika/model-pricing@1.0\"\n\n[[rules]]\nprovider = \"{provider}\"\nmodel_pattern = \"{model}\"\ninput_per_million = {input_rate}\noutput_per_million = {output_rate}\n"
+                "schema = \"{schema}\"\n\n[meta]\nsource = \"https://models.dev/api.json\"\nas_of = \"2026-07-28\"\nsource_sha256_16 = \"0123456789abcdef\"\n\n[[rules]]\nprovider = \"{provider}\"\nmodel_pattern = \"{model}\"\ninput_per_million = {input_rate}\noutput_per_million = {output_rate}\n"
             );
             let a = codegen_pricing(toml.as_bytes());
             let b = codegen_pricing(toml.as_bytes());
+            proptest::prop_assert!(a.is_ok(), "must reach emission, got: {:?}", a.err());
             proptest::prop_assert_eq!(&a.is_ok(), &b.is_ok());
             if let (Ok(a_src), Ok(b_src)) = (a, b) {
                 proptest::prop_assert_eq!(&a_src, &b_src);

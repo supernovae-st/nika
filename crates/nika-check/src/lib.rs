@@ -33,6 +33,70 @@
 //! rejects any non-canonical verb field, so a workflow that parses uses
 //! only provider-agnostic fields and runs identically on all providers by
 //! construction. `check` is read-only and never executes a verb.
+//!
+//! # The two laws every rung in here obeys
+//!
+//! Both were paid for. A 2026-07-28/29 audit of this crate and its
+//! runtime counterpart found 23 defects across three domains, and they
+//! were not 23 mistakes — they were two mistakes made repeatedly.
+//!
+//! ## 1 · Cover the claim, or narrow the claim to what you cover
+//!
+//! A rung's sentence is a promise, and a green that means less than it
+//! says is worse than no green: it spends the reader's trust and returns
+//! nothing. Measured instances, all shipped, all now narrowed —
+//!
+//! - `TYPES` said every deep reference fits its declared shape. No
+//!   builtin can declare an output shape, so references into builtin
+//!   output were UNCHECKED, not checked-and-fine.
+//! - `COST` said *worst-case spend* while pricing `max_tokens`, which the
+//!   spec defines as max OUTPUT tokens. On the commonest first workflow —
+//!   fetch a document, summarise it — a 3.2 MB body interpolated into one
+//!   prompt is ~818k input tokens and $2.46, under a green line reading
+//!   $0.0075. 328×.
+//! - `PERMITS` said the body fits the declared boundary while judging
+//!   literal arguments only, so a `const:`-backed path was invisible.
+//!
+//! The repair is usually in the words, not the machinery. When you cannot
+//! widen the coverage, narrow the sentence and NAME what defers — that
+//! option is always available and always correct.
+//!
+//! ## 2 · An undecidable question almost always contains a decidable one
+//!
+//! > When a proof obligation is waived as undecidable, NAME the decision
+//! > procedure it would have needed. If you can write it down, the waiver
+//! > is a hole.
+//!
+//! Four instances, three rungs, three independent authors —
+//!
+//! - The fs-boundary differential excluded mid-pattern globs, citing
+//!   *"glob-pattern ⊆ permits-glob inclusion is not soundly decidable"*.
+//!   True, and about containment between two PATTERNS; both sides matched
+//!   a CONCRETE path against ONE pattern, which is ordinary glob matching.
+//!   **The waiver is where a shipped fail-open lived**: `data/*.csv`
+//!   granted `data/**`, and a permit naming CSV files read a private key
+//!   three directories down.
+//! - A `nika:notify` host lives inside a secret, so the whole question
+//!   looked closed. *Which* host is unknowable; *is there ANY host* is a
+//!   set-emptiness test, and an empty `net.http` makes the run certainly
+//!   fail.
+//! - A tool-authority conjunct was dropped along with a dynamic argument
+//!   it never depended on.
+//!
+//! It recurs because a true impossibility result FEELS like a complete
+//! answer, so the search stops there. It is not carelessness — every one
+//! was written by someone who had the theory right. The prompt that finds
+//! these is not "be careful", it is:
+//!
+//! > *What is the strongest claim I CAN decide here, and does the code
+//! > make it?*
+//!
+//! **So: a comment in this crate that waives a check must name the
+//! sub-question it considered and why that one does not survive either.**
+//! A waiver with no named alternative is reviewable as incomplete, and
+//! four times out of four the alternative existed.
+//!
+//! Full record, with every repro: `docs/plans/2026-07-28-verdict-coverage.md`.
 
 #![cfg_attr(
     test,

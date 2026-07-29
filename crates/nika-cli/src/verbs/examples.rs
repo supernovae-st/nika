@@ -37,15 +37,113 @@ fn chips(verbs: &[&str], theme: Theme) -> String {
     verbs.iter().map(|v| theme.verb_glyph(v)).collect()
 }
 
-/// The showcase tiers, in reading order — the tier prefix is the spec's
-/// own taxonomy (the filenames carry it); only the reading label lives
-/// here.
-const TIERS: [(&str, &str); 4] = [
-    ("t1", "T1 · starters — one obvious win"),
-    ("t2", "T2 · daily ops — gates · retries · state"),
-    ("t3", "T3 · parallel intelligence — fan-out · agent tools"),
-    ("t4", "T4 · autonomous — budgets · await · recovery"),
+/// The language CONSTRUCTS a corpus file can teach, in the order a reader
+/// meets them — the axis the corpus is indexed on.
+///
+/// This replaced a four-tier taxonomy (`t1-`…`t4-`) the filenames used to
+/// carry. The tiers were nominally sizes, but read their own labels back:
+/// « gates · retries · state », « fan-out · agent tools », « budgets ·
+/// await · recovery ». They were never sizes. They were an approximation
+/// of the question a reader actually asks — *which file shows me
+/// `for_each`?* — and the approximation cost a prefix on every filename
+/// plus a fourth word in the vocabulary.
+///
+/// So the approximation is not renamed, it is REPLACED by what it
+/// approximated: the index is derived from the files, at call time, from
+/// the embedded pack. Nothing is stored, so nothing can drift.
+///
+/// One computation serves three needs — grouping the list, routing
+/// `--teaches`, and reporting the gaps. A grouping that only decorated a
+/// list would not have earned its place.
+const CONSTRUCTS: [(&str, &str); 16] = [
+    ("infer:", "ask a model"),
+    ("exec:", "run a program"),
+    ("invoke:", "call a tool"),
+    ("agent:", "a bounded loop"),
+    ("for_each:", "fan out over a collection"),
+    ("when:", "a skip gate"),
+    ("after:", "an explicit edge"),
+    ("retry:", "absorb a transient failure"),
+    ("on_error:", "recover, or route the failure"),
+    ("on_finally:", "cleanup that always runs"),
+    ("schema:", "structured output"),
+    ("returns:", "a typed task output"),
+    // The four the corpus does not cover, deliberately listed so the gap
+    // is visible rather than absent. Measured 2026-07-29 against the spec
+    // prose, which discusses each at length: composition 36 mentions,
+    // returns: 47, config: 16, declassify: 3 — and the spec calls that
+    // last one « the ONLY door » through the permit taint. An author who
+    // meets that wall with no example widens a boundary instead.
+    ("workflow:", "call another workflow"),
+    ("config:", "a value authority"),
+    ("declassify:", "the door through a taint"),
+    ("inputs:", "a runtime parameter"),
 ];
+
+/// Which constructs a file body teaches.
+///
+/// A file teaches a construct by USING it, so the match is on the YAML
+/// key at a line start and a comment never counts.
+///
+/// TWO keys need their nesting checked, and getting this wrong is not a
+/// cosmetic miss — it inverts the answer:
+///
+/// - `workflow:` at column 0 is the ENVELOPE every file carries. Only an
+///   INDENTED one is a call to another workflow. Counted flat, composition
+///   read as « 33 files » when the true answer is zero, and the corpus
+///   would have reported full coverage of the construct it covers least.
+/// - `inputs:` is the same shape: the top-level authority block, not a
+///   nested key.
+///
+/// The rule that generalises: an envelope field and a task field can share
+/// a name, and indentation is the only thing that tells them apart.
+fn teaches(body: &str) -> Vec<&'static str> {
+    CONSTRUCTS
+        .iter()
+        .filter(|(key, _)| {
+            body.lines().any(|l| {
+                let t = l.trim_start();
+                if !t.starts_with(key) || t.starts_with('#') {
+                    return false;
+                }
+                let indented = l.len() > t.len();
+                match *key {
+                    // nested only — the envelope form is a different thing
+                    "workflow:" => indented,
+                    // top level only — the authority block
+                    "inputs:" | "config:" => !indented,
+                    _ => true,
+                }
+            })
+        })
+        .map(|(key, _)| *key)
+        .collect()
+}
+
+/// The whole corpus indexed by construct — `(construct, label, files)`,
+/// including the constructs NO file teaches.
+///
+/// The empty rows are the point. A construct with no example is, for any
+/// reader who learns from examples, a construct the language does not
+/// have: measured 2026-07-29, six authors writing from the reference
+/// prose alone took 45 check-fix rounds between them and none went green
+/// first try, while one who read TWO EXAMPLES wrote their next workflow
+/// green in zero. Keeping the gaps in the same computation that serves
+/// the list means they cannot be quietly forgotten.
+fn index() -> Vec<(&'static str, &'static str, Vec<String>)> {
+    let slugs = nika_pack::example_slugs();
+    CONSTRUCTS
+        .iter()
+        .map(|(key, label)| {
+            let files: Vec<String> = slugs
+                .iter()
+                .filter(|s| nika_pack::example(s).is_some_and(|b| teaches(b).contains(key)))
+                .map(|s| meta(s, nika_pack::example(s).unwrap_or_default()).file)
+                .collect();
+            (*key, *label, files)
+        })
+        .collect()
+}
 
 /// `nika examples list` — the corpus, organized: the foundation path
 /// (numbered steps · full filenames · titles · verb chips), then the
@@ -53,7 +151,16 @@ const TIERS: [(&str, &str); 4] = [
 #[must_use]
 pub fn list(theme: Theme) -> VerbOutput {
     let slugs = nika_pack::example_slugs();
-    let foundation: Vec<&String> = slugs.iter().filter(|s| !s.contains('/')).collect();
+    // A LESSON is a numbered file, read in order, each introducing one
+    // construct. This used to be « has no slash », which worked only while
+    // the jobs lived under `showcase/`; once that directory was nuked the
+    // filter admitted everything and the path claimed 33 steps. The number
+    // is the real signal, and it is the same rule the spec's projector
+    // uses to exclude lessons from its use-case targets.
+    let is_lesson = |s: &str| {
+        s.len() >= 3 && s.as_bytes()[..2].iter().all(u8::is_ascii_digit) && s.as_bytes()[2] == b'-'
+    };
+    let foundation: Vec<&String> = slugs.iter().filter(|s| is_lesson(s)).collect();
     let mut text = String::new();
 
     let _ = writeln!(
@@ -87,29 +194,28 @@ pub fn list(theme: Theme) -> VerbOutput {
         );
     }
 
-    for (prefix, label) in TIERS {
-        let members: Vec<&String> = slugs
-            .iter()
-            .filter(|s| {
-                s.strip_prefix("showcase/")
-                    .is_some_and(|r| r.starts_with(prefix))
-            })
-            .collect();
-        if members.is_empty() {
-            continue;
-        }
-        let _ = writeln!(text, "{}", chrome::rail_head(theme, label));
-        let tier_width = members
+    // The jobs — every example that is not a numbered lesson — listed once,
+    // by name. The tier grouping that used to sit here is gone: it sorted 26
+    // files into four buckets a reader could not act on, and the useful
+    // question it approximated now has its own verb below.
+    let jobs: Vec<&String> = slugs.iter().filter(|s| !foundation.contains(s)).collect();
+    if !jobs.is_empty() {
+        let _ = writeln!(
+            text,
+            "{}",
+            chrome::rail_head(theme, &format!("the jobs — {} of them", jobs.len()))
+        );
+        let job_width = jobs
             .iter()
             .map(|s| s.chars().count() + ".nika.yaml".len())
             .max()
             .unwrap_or(0);
-        for slug in members {
+        for slug in jobs {
             let Some(body) = nika_pack::example(slug) else {
                 continue;
             };
             let m = meta(slug, body);
-            let pad = " ".repeat(tier_width.saturating_sub(m.file.chars().count()));
+            let pad = " ".repeat(job_width.saturating_sub(m.file.chars().count()));
             let _ = writeln!(
                 text,
                 "{}",
@@ -128,7 +234,106 @@ pub fn list(theme: Theme) -> VerbOutput {
 
     let _ = write!(
         text,
-        "\nnext ·\n  nika examples show 01-hello.nika.yaml            # read one (the extension is optional)\n  nika examples run 01-hello --model mock/echo     # offline proof · zero keys\n  nika examples copy 01-hello                      # make any of these yours"
+        "\nnext ·\n  nika examples show 01-hello.nika.yaml            # read one (the extension is optional)\n  nika examples teaches for_each:                  # which file shows a construct\n  nika examples run 01-hello --model mock/echo     # offline proof · zero keys\n  nika examples copy 01-hello                      # make any of these yours"
+    );
+    VerbOutput::ok(text)
+}
+
+/// `nika examples teaches [construct]` — the corpus indexed by what its
+/// files USE, and with no argument, the coverage of that index.
+///
+/// The measured need this answers: an author who read TWO examples — « the
+/// one matching the intent, then the one covering what the first did not »
+/// — went from 8 check-fix rounds to 0. A flat list does not answer *which
+/// two*; a size-tier does not either. What a reader asks is which file
+/// shows a given construct, and that is a question with an exact answer.
+///
+/// With no argument it prints every construct, gaps included, because a
+/// verdict that shows only what it covers claims more than it holds. The
+/// empty rows are the corpus telling on itself.
+#[must_use]
+pub fn teaches_verb(construct: Option<&str>, theme: Theme) -> VerbOutput {
+    let idx = index();
+    let mut text = String::new();
+
+    if let Some(want) = construct {
+        // A bare `for_each` means `for_each:` — the colon is how the spec
+        // writes a key, and typing it is not a hazing ritual.
+        let key = want.trim_end_matches(':');
+        let Some((c, label, files)) = idx
+            .iter()
+            .find(|(k, _, _)| k.trim_end_matches(':').eq_ignore_ascii_case(key))
+        else {
+            let known = idx
+                .iter()
+                .map(|(k, _, _)| *k)
+                .collect::<Vec<_>>()
+                .join(" · ");
+            return VerbOutput {
+                text: format!("examples: `{want}` is not an indexed construct\n  known: {known}\n"),
+                code: crate::verbs::exit::ENV,
+            };
+        };
+        if files.is_empty() {
+            let _ = write!(
+                text,
+                "{}\n  {}\n",
+                chrome::rail_head(theme, &format!("{c} — {label}")),
+                theme.paint(
+                    Role::Bad,
+                    "no example teaches this · the corpus does not cover it yet"
+                )
+            );
+            return VerbOutput::ok(text);
+        }
+        let _ = writeln!(
+            text,
+            "{}",
+            chrome::rail_head(theme, &format!("{c} — {label} · {} files", files.len()))
+        );
+        for f in files {
+            let _ = writeln!(
+                text,
+                "{}",
+                chrome::rail_line(theme, &format!(" {}", theme.paint(Role::Strong, f)))
+            );
+        }
+        return VerbOutput::ok(text);
+    }
+
+    let covered = idx.iter().filter(|(_, _, f)| !f.is_empty()).count();
+    let _ = writeln!(
+        text,
+        "{}",
+        chrome::rail_head(
+            theme,
+            &format!("constructs — {covered} of {} covered", idx.len())
+        )
+    );
+    let width = idx
+        .iter()
+        .map(|(k, _, _)| k.chars().count())
+        .max()
+        .unwrap_or(0);
+    for (key, label, files) in &idx {
+        let pad = " ".repeat(width.saturating_sub(key.chars().count()));
+        let right = if files.is_empty() {
+            theme.paint(Role::Bad, "no example — not covered")
+        } else {
+            theme.paint(Role::Dim, &format!("{} files · {label}", files.len()))
+        };
+        let _ = writeln!(
+            text,
+            "{}",
+            chrome::rail_line(
+                theme,
+                &format!(" {}{pad}  {right}", theme.paint(Role::Strong, key))
+            )
+        );
+    }
+    let _ = write!(
+        text,
+        "\nnext ·\n  nika examples teaches for_each:   # the files that show one construct\n"
     );
     VerbOutput::ok(text)
 }
@@ -252,19 +457,27 @@ mod tests {
     /// Every listing row speaks the FULL filename — what you see is
     /// what you type (and the resolver tolerates it back).
     #[test]
-    fn list_speaks_full_filenames_grouped_by_tier() {
+    fn list_speaks_full_filenames_in_two_groups() {
         let out = list(PLAIN);
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("the path"), "{}", out.text);
         assert!(out.text.contains("01-hello.nika.yaml"), "{}", out.text);
+        // Two groups, not five. The tier headings are gone with the
+        // prefix that fed them; what a reader wanted from them lives in
+        // `nika examples teaches` and is derived rather than declared.
         assert!(
-            out.text.contains("T1 · starters"),
-            "showcase tiers group: {}",
+            out.text.contains("the jobs"),
+            "the second group: {}",
             out.text
         );
         assert!(
-            out.text.contains("showcase/t4-release-train.nika.yaml"),
-            "{}",
+            !out.text.contains("T1 ·") && !out.text.contains("T4 ·"),
+            "no tier heading survives: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("release-train.nika.yaml") && !out.text.contains("t4-release-train"),
+            "jobs are named, not ranked: {}",
             out.text
         );
         assert!(out.text.contains("next ·"), "the clear path: {}", out.text);
@@ -295,8 +508,8 @@ mod tests {
         assert_eq!(m.verbs, vec!["infer"], "hello is one infer");
         assert_eq!(m.tasks, 1);
 
-        let standup = nika_pack::example("showcase/t1-standup-digest").expect("embedded");
-        let ms = meta("showcase/t1-standup-digest", standup);
+        let standup = nika_pack::example("standup-digest").expect("embedded");
+        let ms = meta("standup-digest", standup);
         assert!(
             ms.title.to_lowercase().contains("standup"),
             "showcase pitch line: {}",
@@ -367,5 +580,165 @@ mod tests {
     fn sober_register_stays_escape_free() {
         assert!(!list(PLAIN).text.contains('\x1b'));
         assert!(!show("01-hello", PLAIN).text.contains('\x1b'));
+    }
+
+    /// The coverage ratchet, constructs leg. Every construct the index
+    /// knows must have a corpus file showing it — a construct with no
+    /// example is, for an author who learns from examples, a construct
+    /// the language does not have (measured: examples beat the prose
+    /// reference 8 check-fix rounds to 0). At 16/16 since the four
+    /// zero-coverage lessons landed; the 17th key cannot ship uncovered
+    /// because this is what refuses.
+    #[test]
+    fn every_construct_has_a_showcase() {
+        let gaps: Vec<&str> = index()
+            .into_iter()
+            .filter(|(_, _, files)| files.is_empty())
+            .map(|(key, _, _)| key)
+            .collect();
+        assert!(
+            gaps.is_empty(),
+            "constructs with no example — write the lesson in the same arc as the key: {gaps:?}"
+        );
+    }
+
+    /// The coverage ratchet, builtins leg — the same gate the kit has
+    /// (`the_kit_never_teaches_a_form_the_engine_refuses`), pointed the
+    /// other way: the corpus must SHOW what the engine ships. Four ride a
+    /// named debt; a 29th builtin cannot join silently, and a debt paid
+    /// by a new lesson must be struck from the list in the same arc.
+    #[test]
+    fn every_builtin_is_shown_or_carries_a_named_debt() {
+        // Each entry: why the gap is tolerated TODAY + the showcase owed.
+        const OWED: &[(&str, &str)] = &[
+            (
+                "compose",
+                "the agent loop's self-verification intrinsic (ADR-096) — owes \
+                 the lesson where a loop checks the workflow it just wrote",
+            ),
+            (
+                "decide",
+                "the deterministic decision kernel (spec 11 · W-DEC) — the \
+                 costliest gap: an agent that never sees it pays a model call \
+                 for an `if`",
+            ),
+            (
+                "inspect",
+                "cost · records · dag_info · threads behind one door (ADR-088) \
+                 — owes the lesson where a run reads itself",
+            ),
+            (
+                "tts_generate",
+                "the audio graduate — a showcase gap, not a logic gap",
+            ),
+        ];
+        let mut bodies = String::new();
+        for slug in nika_pack::example_slugs() {
+            bodies.push_str(nika_pack::example(&slug).unwrap_or_default());
+            bodies.push('\n');
+        }
+        for name in nika_pack::template_names() {
+            bodies.push_str(nika_pack::template(&name).unwrap_or_default());
+            bodies.push('\n');
+        }
+        // Shown = the token `nika:<name>` anywhere in a corpus body, closed
+        // on the right so `nika:json_diff` never credits a longer name. A
+        // comment counts: naming the tool in a teaching comment still puts
+        // it in the reader's reach (recomputed both ways 2026-07-29 — with
+        // and without comments the split is the same 24 shown / 4 owed, so
+        // the choice is not load-bearing today; it will matter the day a
+        // tool is ONLY comment-named, and reach is the honest criterion).
+        let shown = |name: &str| {
+            let tok = format!("nika:{name}");
+            bodies.match_indices(&tok).any(|(i, _)| {
+                !bodies[i + tok.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+            })
+        };
+        assert!(
+            !nika_catalog::all_builtins().is_empty(),
+            "no builtins — the ratchet would pass by vacuity"
+        );
+        let mut orphans = Vec::new();
+        let mut paid = Vec::new();
+        for b in nika_catalog::all_builtins() {
+            let owed = OWED.iter().any(|(n, _)| *n == b.name);
+            match (shown(b.name), owed) {
+                (false, false) => orphans.push(b.name),
+                (true, true) => paid.push(b.name),
+                _ => {}
+            }
+        }
+        assert!(
+            orphans.is_empty(),
+            "builtins with no corpus showcase and no named debt — add the \
+             example or write the debt into OWED: {orphans:?}"
+        );
+        assert!(
+            paid.is_empty(),
+            "owed builtins that now HAVE a showcase — tighten the ratchet, \
+             strike them from OWED: {paid:?}"
+        );
+    }
+
+    /// The two sovereign builtin roots — `canon/builtins.yaml` (the
+    /// language, projected into the embedded canon.yaml) and
+    /// `ALL_BUILTINS` (the engine) — were "kept in step by hand" (SSOT
+    /// §5). This is the consumer-side gate that retires the hand: set
+    /// equality both ways, so a builtin added to either root without the
+    /// other refuses here. The scan reads the generated canon shape
+    /// (byte-gated upstream by ssot-compiler), not a YAML parser.
+    #[test]
+    fn the_two_builtin_roots_agree_at_the_seam() {
+        let canon = nika_pack::canon();
+        let mut in_block = false;
+        let mut in_items = false;
+        let mut names: Vec<String> = Vec::new();
+        for l in canon.lines() {
+            if l == "builtins:" {
+                in_block = true;
+                continue;
+            }
+            if !in_block {
+                continue;
+            }
+            if !l.starts_with(' ') && !l.trim().is_empty() {
+                break; // next top-level key · the block is over
+            }
+            if l.trim_start().starts_with("items:") {
+                in_items = true;
+                continue;
+            }
+            if in_items {
+                if l.trim_start().starts_with('#') {
+                    continue; // a comment inside items must not end the scan
+                }
+                if let Some(n) = l.trim_start().strip_prefix("- ") {
+                    names.push(n.trim().to_owned());
+                } else if !l.trim().is_empty() {
+                    break; // a sibling key after items · the list is over
+                }
+            }
+        }
+        assert!(
+            !names.is_empty(),
+            "canon builtins block not found — the seam scan no longer \
+             matches the generated canon shape"
+        );
+        let canon_set: std::collections::BTreeSet<&str> =
+            names.iter().map(String::as_str).collect();
+        let engine_set: std::collections::BTreeSet<&str> = nika_catalog::all_builtins()
+            .iter()
+            .map(|b| b.name)
+            .collect();
+        let only_canon: Vec<&&str> = canon_set.difference(&engine_set).collect();
+        let only_engine: Vec<&&str> = engine_set.difference(&canon_set).collect();
+        assert!(
+            only_canon.is_empty() && only_engine.is_empty(),
+            "the builtin roots drifted — canon-only: {only_canon:?} · \
+             engine-only: {only_engine:?}"
+        );
     }
 }

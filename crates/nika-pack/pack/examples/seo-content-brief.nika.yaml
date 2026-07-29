@@ -1,0 +1,141 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · SEO / content marketing
+#
+# A competitor's sitemap goes in. A ready-to-write content brief comes out ·
+# title, angle, outline, keywords — grounded in what they actually published,
+# not vibes.
+#
+# Demonstrates ·
+#   - `mode: sitemap` then `mode: article` · two fetch extractions chained,
+#     the second one reading a URL the first one found
+#   - `output:` jq bindings · `.[:5] | map(.loc)` slices the sitemap's ROOT
+#     ARRAY down to the URLs, so the next task gets a list, not a document
+#   - `on_error: recover:` on BOTH fetches · a recovered value stands in for
+#     the RAW response and the `output:` jq still runs over it, so the sample
+#     below mirrors a sitemap's shape, not the binding's. Get that backwards
+#     and the recovery itself dies NIKA-VAR-004 · jq runtime error (measured,
+#     while writing this file). Same bindings on both paths — so the file runs
+#     with no network at all
+#   - CEL indexing · `${{ tasks.map.top[0] }}` reaches into a binding
+#   - `infer.schema:` · the brief is typed, not a blob
+#
+# Run · nika run examples/seo-content-brief.nika.yaml
+#   Green with no network: the placeholder competitor host resolves nowhere
+#   and the recovered samples take over. Point `const.competitor_sitemap` at a
+#   REAL sitemap (and put that host in `permits.net.http`) for a real brief.
+#   `--var topic=your-keyword` picks the target (slug-shaped · see `inputs:`).
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+
+nika: v1
+workflow:
+  id: seo-content-brief
+  description: "Competitor sitemap → top page → gap analysis → typed brief"
+
+# A NON-thinking local model, deliberately: a thinking model can spend the
+# whole `max_tokens` budget in its think block and return before the JSON
+# (engine#428). Schema showcases pick a model that answers directly.
+model: ollama/llama3.2:3b
+
+inputs:
+  topic:
+    type: string
+    # Slug-shaped on purpose: this value lands in a FILENAME below, and a
+    # caller-supplied string that reaches a path is the tainted-value case the
+    # checker polices (NIKA-AUTH-008). Keep it to one path segment — `*` in
+    # the write bound never crosses `/`, so `a/b` is refused, by design.
+    default: "rust-async-runtimes"
+    description: "The keyword/topic you want to rank for (one path segment)"
+const:
+  competitor_sitemap: "https://competitor.example.com/sitemap.xml"
+permits:
+  tools: ["nika:fetch", "nika:write"]
+  fs:
+    # One brief per topic, written DIRECTLY in out/briefs/. `*` matches a
+    # single path segment and never crosses `/`, so a topic carrying a slash
+    # is refused instead of steering the write into a subtree — which is
+    # exactly why this is `out/briefs/*.json` and not `out/briefs/**`.
+    write: ["out/briefs/*.json"]
+  net:
+    # Both fetches stay on the competitor's own host: the sitemap, then a URL
+    # that same sitemap listed. Net entries are exact host names, never globs —
+    # add YOUR competitor's host here when you point the const at it, or the
+    # fetch is refused at run and the recover path quietly takes over.
+    http: ["competitor.example.com"]
+
+tasks:
+  map:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.competitor_sitemap }}"
+        mode: sitemap
+    output:
+      top: ".[:5] | map(.loc)"
+    on_error:
+      # The recovery stands in for the RAW response, so it has the shape a
+      # sitemap fetch returns — a root array of {loc, …} — and the `output:`
+      # jq above slices it exactly as it would slice the live one. Recover the
+      # BINDING's shape instead and the jq runs against the wrong thing and
+      # throws NIKA-VAR-004.
+      recover:
+        - { loc: "https://competitor.example.com/blog/async-runtimes-compared" }
+        - { loc: "https://competitor.example.com/blog/tokio-vs-smol" }
+        - { loc: "https://competitor.example.com/blog/choosing-an-executor" }
+
+  top_page:
+    with:
+      map_top: ${{ tasks.map.top[0] }}
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ with.map_top }}"
+        mode: article
+    on_error:
+      recover: |
+        Async runtimes compared — we benchmarked four executors on the same
+        workload. Tokio wins on ecosystem breadth; smol wins on binary size.
+        We did not cover structured concurrency, cancellation safety, or how
+        any of this behaves under a blocking call, which is where most teams
+        actually get hurt.
+
+  brief:
+    with:
+      map_top: ${{ tasks.map.top }}
+      top_page: ${{ tasks.top_page.output }}
+    infer:
+      max_tokens: 1200
+      prompt: |
+        Topic to rank for · ${{ inputs.topic }}
+        Competitor's top URLs · ${{ with.map_top }}
+        Their best page on it ·
+        ${{ with.top_page }}
+
+        Write a content brief that BEATS this page · find the gaps they
+        missed · angle for search intent.
+      schema:
+        type: object
+        additionalProperties: false
+        required: [title, angle, outline, keywords]
+        properties:
+          title: { type: string }
+          angle: { type: string }
+          outline: { type: array, items: { type: string } }
+          keywords: { type: array, items: { type: string } }
+
+  save:
+    with:
+      brief: ${{ tasks.brief.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        # `.json` content is ONE interpolated value — the engine serializes it.
+        path: "out/briefs/${{ inputs.topic }}.json"
+        content: "${{ with.brief }}"
+        create_dirs: true
+
+outputs:
+  brief:
+    value: ${{ tasks.brief.output }}
+    description: "The typed content brief"

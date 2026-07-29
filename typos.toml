@@ -74,6 +74,9 @@ OLY        = "OLY"       # OLY- prefix in a negative test (wrong-prefix rejectio
 YELLO      = "YELLO"     # part of YELLOW in a hygiene-color comment
 # Valid alternative spelling
 unparseable = "unparseable"
+# File-format plural in vendored corpus prose (« two PNGs » · README-jobs) —
+# the tokenizer splits the acronym and reads `PN` as a typo of `ON`.
+PN         = "PN"
 # in-toto attestation format — the SLSA generator's release asset is literally
 # named `multiple.intoto.jsonl` (RELEASING.md + release notes teach the
 # slsa-verifier command against it).

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "TKT-4821",
+    "subject": "Card declined but I was charged twice",
+    "body": "I tried to upgrade to the team plan last night. The page said the card was declined, so I tried again. This morning there are two charges on my statement and my account is still on the free plan. Please refund one of them.",
+    "opened_at": "2026-07-13T23:41:00Z"
+  },
+  {
+    "id": "TKT-4822",
+    "subject": "How do I invite someone read-only?",
+    "body": "I want my accountant to see the invoices but not change anything. I can only find owner and member roles in the settings page.",
+    "opened_at": "2026-07-14T06:12:00Z"
+  },
+  {
+    "id": "TKT-4823",
+    "subject": "Export button does nothing on Safari",
+    "body": "Clicking Export on the reports page does nothing at all on Safari 18. No download, no error. Works in Firefox. Three people here have the same thing.",
+    "opened_at": "2026-07-14T07:02:00Z"
+  },
+  {
+    "id": "TKT-4824",
+    "subject": "Production is down for our whole org",
+    "body": "Every API call has returned 503 for the last twenty minutes. Our checkout is offline. This is affecting customers right now. Org id 88214.",
+    "opened_at": "2026-07-14T07:55:00Z"
+  },
+  {
+    "id": "TKT-4825",
+    "subject": "Cancel my subscription",
+    "body": "We are not using this any more, please cancel at the end of the current period. No refund needed.",
+    "opened_at": "2026-07-14T08:20:00Z"
+  }
+]

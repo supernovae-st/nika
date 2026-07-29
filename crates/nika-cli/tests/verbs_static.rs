@@ -265,13 +265,14 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
         assert!(out.text.contains(section), "missing section {section}");
     }
     // The clean verdict is the audited card line: what was proven, at a
-    // glance (tasks · waves · permits state · cost floor · hint count).
+    // glance (tasks · waves · permits state · cost line · hint count).
     assert!(
         out.text.contains("audited ·") && out.text.contains("wave") && out.text.contains("permits"),
         "the audited card line closes a clean report: {}",
         out.text
     );
-    // mock/echo is unpriced: the cost lane says FLOOR, never invents.
+    // mock/echo is unpriced: the cost lane names the uncapped task,
+    // never invents a bound.
     assert!(out.text.contains("UNBOUNDED"), "{}", out.text);
 }
 

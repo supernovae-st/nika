@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · e-commerce / personal
+#
+# A price-drop alert in ~20 lines with ZERO model calls. Not every workflow
+# needs an LLM — one fetch, one CEL comparison and a webhook do the whole
+# job, deterministically and for nothing.
+#
+# Demonstrates ·
+#   - `nika:fetch` with `mode: jq` · pull ONE structured field out of an API
+#   - `output:` · named jq bindings → `${{ tasks.check.price }}`
+#   - `with:` + `when:` · the price crosses as a value edge and a single CEL
+#     comparison gates the alert task
+#   - `secrets:` + `egress:` + `permits.net.http` · the two-part rule for
+#     sending anything anywhere (see the comment on `net:` below — it is the
+#     one thing people get wrong)
+#
+# Run · nika run examples/price-watch.nika.yaml
+#   Green with nothing installed and no keys: the placeholder shop host
+#   resolves nowhere, the `recover:` sample takes over ABOVE the target, so
+#   the gate stays closed and the alert is skipped. To watch it FIRE · point
+#   `const.product_api` at a real endpoint (adding that host to
+#   `permits.net.http`) and export ALERTS_WEBHOOK_URL.
+
+nika: v1
+workflow:
+  id: price-watch
+  description: "Watch a product price, ping me when it drops below my target"
+
+const:
+  product_api: "https://api.shop.example.com/v1/products/macbook-air"
+  alert_below: 899
+
+secrets:
+  alerts_webhook:
+    source: env
+    key: ALERTS_WEBHOOK_URL
+    egress:                       # sanction the one send · the secret IS the URL
+      - to: "nika:notify"
+        host_from_self: true
+permits:
+  tools: ["nika:fetch", "nika:notify"]
+  net:
+    # TWO hosts, for two different reasons.
+    #
+    # `api.shop.example.com` is what `const.product_api` names — a literal
+    # `check` can read, so a mismatch here is caught before the run.
+    #
+    # `hooks.slack.com` is the ALERT host, and it is the entry people leave
+    # out. `host_from_self:` above sanctions the FLOW (this secret may be the
+    # URL) — it does not grant the capability. The host stays unknown at
+    # check, so it is judged at RUN against this bound: name the escalation
+    # host here or the send is refused mid-run, the first time the price
+    # actually drops. Swap it for wherever YOUR webhook lives.
+    http: ["api.shop.example.com", "hooks.slack.com"]
+
+tasks:
+  check:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.product_api }}"
+        mode: jq
+        jq: "."
+    output:                           # named jq bindings over the raw response
+      price: ".price"
+      name: ".name"
+    on_error:
+      # Offline rehearsal · a sample ABOVE the target, so the gate below stays
+      # closed and the dry run ends green with the alert skipped. The alert
+      # path is therefore NOT exercised offline — which is exactly why the
+      # `net:` bound above has to be right by reading, not by running.
+      recover: { price: 949, name: "MacBook Air (offline sample)" }
+
+  alert:
+    with:
+      price: ${{ tasks.check.price }}     # value edges · the named bindings cross the boundary here
+      name: ${{ tasks.check.name }}
+    when: ${{ with.price < const.alert_below }}
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.alerts_webhook }}"
+        message: "Price drop · ${{ with.name }} is now ${{ with.price }} (target ${{ const.alert_below }})"
+        severity: info
+
+outputs:
+  price: ${{ tasks.check.price }}

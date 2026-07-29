@@ -50,6 +50,21 @@ https://docs.nika.sh/guides/agent-authoring.
 - Files greater than 1,500 LOC must be split. Crates greater than 15,000 LOC are rejected.
 - Every public error enum is `#[non_exhaustive]` from day one.
 - Every I/O is behind a kernel trait (ADR-006, ADR-014).
+- **A verdict COVERS its claim, or NARROWS its claim to what it covers.** A green
+  that means less than it says spends the reader's trust and returns nothing.
+  When you cannot widen the coverage, narrow the sentence and name what defers —
+  that option is always available. (Measured: `COST` said "worst-case spend"
+  while pricing output tokens only — 328× understated on the commonest first
+  workflow.)
+- **A comment that waives a check as undecidable MUST name the sub-question it
+  considered and why that one does not survive either.** A waiver with no named
+  alternative is reviewable as incomplete, and four times out of four the
+  alternative existed — including the one that hid a shipped fail-open, where a
+  true theorem about containment between two *patterns* was used to excuse
+  matching a *concrete path* against one. Ask: what is the strongest claim I CAN
+  decide here, and does the code make it? Both laws with their repros:
+  `crates/nika-check/src/lib.rs` module doc and
+  `docs/plans/2026-07-28-verdict-coverage.md`.
 - Commits are atomic: one logical change per commit. Co-authored by `Nika <nika@supernovae.studio>` (never "Claude").
 - No `--no-verify`, no `git add -A` / `git add .`, no `cargo test --test` (use `--lib` to avoid macOS Keychain popups).
 

@@ -12,7 +12,7 @@
 //! need the runtime canonicalize-then-confine check (`NIKA-SEC-004`) — a
 //! static pass cannot resolve a link.
 
-use crate::{Permits, permits::glob_matches};
+use crate::Permits;
 
 impl Permits {
     /// Whether `host` matches the declared `permits.net.http` allowlist.
@@ -46,20 +46,107 @@ impl Permits {
 /// glob's prefix no longer string-matches it.
 #[must_use]
 pub(crate) fn path_glob_matches(glob: &str, path: &str) -> bool {
+    // BOTH sides fold, then ONE walk decides. The three-armed shape this
+    // replaced (`/**` prefix test · trailing-star `glob_matches` · literal
+    // equality) folded the glob in one arm and not the others, so the same
+    // pair got different answers depending on where the star sat.
     let path = lexically_normalize(path);
-    let path = path.as_str();
-    if let Some(prefix) = glob.strip_suffix("/**") {
-        let prefix = lexically_normalize(prefix);
-        return path == prefix || path.starts_with(&format!("{prefix}/"));
+    let glob = lexically_normalize(glob);
+    // An escaping path (`../x`) must never satisfy an in-tree glob. After the
+    // fold an escape is the ONLY thing that keeps a leading `..`, and segment
+    // walking would happily match `..` against a `*`, so the guard is here and
+    // not inside the walker: a glob may only admit an escape by declaring one.
+    if path.starts_with("..") && !glob.starts_with("..") {
+        return false;
     }
-    if glob.contains('*') {
-        return glob_matches(glob, path);
-    }
-    lexically_normalize(glob) == path
+    glob_admits(&glob, &path)
 }
 
-/// Fold `.`/`..` segments textually, preserving a leading `/` or `./`. Purely
-/// lexical — symlinks are the runtime's job.
+/// Whether one path SEGMENT matches one glob segment. `*` matches any run of
+/// characters, and — the load-bearing part — never a `/`, because a segment
+/// by construction contains none.
+fn segment_matches(pat: &str, seg: &str) -> bool {
+    match pat.split_once('*') {
+        None => pat == seg,
+        Some((pre, post)) => {
+            seg.len() >= pre.len() + post.len() && seg.starts_with(pre) && seg.ends_with(post)
+        }
+    }
+}
+
+/// Walk a segmented glob against a segmented path.
+///
+/// `**` matches any number of segments INCLUDING zero; every other segment
+/// matches exactly one. So `data/**` admits `data` itself and any descendant,
+/// while `data/*` admits exactly one level and `data/*.csv` admits one level
+/// whose name ends `.csv`.
+fn walk(pats: &[&str], segs: &[&str]) -> bool {
+    match pats.split_first() {
+        None => segs.is_empty(),
+        Some((&"**", rest)) => {
+            // A trailing `**` takes whatever is left, at any depth.
+            rest.is_empty() || (0..=segs.len()).any(|i| walk(rest, &segs[i..]))
+        }
+        Some((pat, rest)) => match segs.split_first() {
+            Some((seg, more)) if segment_matches(pat, seg) => walk(rest, more),
+            _ => false,
+        },
+    }
+}
+
+/// Split on `/`, dropping empties so `a//b` and `a/b` segment identically.
+fn segments(s: &str) -> Vec<&str> {
+    s.split('/')
+        .filter(|p| !p.is_empty() && *p != ".")
+        .collect()
+}
+
+/// Whether `path` (already segmented) is inside the fs permit `glob`.
+///
+/// THE single fs boundary predicate. It is `pub` for the same reason
+/// `nika_types::net::host_glob_matches` is: the runtime re-gate
+/// (`NIKA-SEC-004`) MUST decide with the same function the static check
+/// decides with, or the two verdicts drift — and when they drift it is the
+/// permissive one that is authoritative.
+///
+/// They did drift. Measured 2026-07-28 on the published `nika 0.106.1`, with
+/// no attacker, no symlink and no traversal:
+///
+/// ```text
+/// permits.fs.read:  ["data/*.csv"]  →  read  data/sub/deeper/private.key
+/// permits.fs.write: ["out/*.md"]    →  wrote out/sub/pwned.sh
+/// ```
+///
+/// Both printed `PERMITS body fits the declared boundary` and `0 hints`, and
+/// the read's content landed in the signed trace. The runtime
+/// (`nika-builtin::permits::confines`) split a glob at its first wildcard
+/// component, kept the literal prefix, and admitted ANY descendant of it —
+/// the wildcard half was discarded and never re-applied, so `data/*.csv`
+/// meant `data/**` and the extension was decoration. Its own comment said so
+/// (`<root>/**` · `<root>/*` etc. — any descendant), which is why a test
+/// pinned the behaviour rather than catching it.
+///
+/// The static side was no better, differently: its matcher was a
+/// trailing-star prefix test, so `data/*` also crossed `/`, and any glob
+/// whose star was not final (`*.csv`, `data/*.md`) matched nothing at all —
+/// a silently inert grant.
+///
+/// Both are one function now, and `*` stops at a separator on both sides.
+#[must_use]
+pub fn glob_admits(glob: &str, path: &str) -> bool {
+    let mut pattern = segments(glob);
+    // Collapse runs of `**`. Without this, `**/**/**/…` against a long path
+    // backtracks exponentially, and permits come from a file we did not write.
+    pattern.dedup_by(|a, b| *a == "**" && *b == "**");
+    walk(&pattern, &segments(path))
+}
+
+/// Fold `.`/`..` segments textually into ONE canonical form. Purely lexical —
+/// symlinks are the runtime's job.
+///
+/// Every relative path that stays in-tree comes back `./`-rooted whether or not
+/// the caller wrote the `./`, so the two spellings of one file compare equal.
+/// The tree root itself is `"."`, never the empty string.
 ///
 /// A `..` cancels the preceding real segment. When there is none to cancel it
 /// climbs *above* the root: for an **absolute** path that is a filesystem no-op
@@ -73,7 +160,6 @@ pub(crate) fn path_glob_matches(glob: &str, path: &str) -> bool {
 #[must_use]
 pub fn lexically_normalize(path: &str) -> String {
     let absolute = path.starts_with('/');
-    let dot_rooted = path.starts_with("./");
     let mut out: Vec<&str> = Vec::new();
     for seg in path.split('/') {
         match seg {
@@ -93,12 +179,43 @@ pub fn lexically_normalize(path: &str) -> String {
     let joined = out.join("/");
     if absolute {
         format!("/{joined}")
-    } else if dot_rooted && !joined.starts_with("..") {
-        // Keep the `./` root only when the result stays at-or-below it; an escaping
-        // result (`../…`) is returned bare so it matches a `../**` glob, never `./**`.
-        format!("./{joined}")
-    } else {
+    } else if joined.starts_with("..") {
+        // An escaping result is returned bare: it must match a `../**` glob and
+        // never a `./**` one. This is the load-bearing half of the marker.
         joined
+    } else if joined.is_empty() {
+        // The tree root itself. It MUST have a token — the empty string is not
+        // a path, and `"anything".starts_with("")` is true in Rust, so encoding
+        // the root as `""` makes a root-level glob admit `../secret`. Measured:
+        // before this, `./**` and `./*` matched NOTHING (prefix `"."` folded to
+        // `""`, and `path.starts_with("/")` is false for every relative path),
+        // so the most natural way to write "everything under here" was a
+        // silently inert grant with no diagnostic.
+        ".".to_owned()
+    } else {
+        // UNCONDITIONALLY `./`-rooted, and this is the fix for F9.
+        //
+        // The marker was previously applied only when the AUTHOR wrote `./`
+        // (`dot_rooted`), which made it a preserved spelling rather than an
+        // invariant — so `./data/x` and `data/x`, the same file, normalized to
+        // different strings and a boundary admitted one and refused the other.
+        // Measured 2026-07-28, a perfect diagonal:
+        //
+        //     glob data/**    path ./data/x   REFUSED
+        //     glob ./data/**  path ./data/x   admitted
+        //     glob data/**    path data/x     admitted
+        //     glob ./data/**  path data/x     REFUSED
+        //
+        // Nine shipped example workflows sat in that diagonal: every one writes
+        // `const: "./data/x"` against `read: ["data/**"]`, which is the natural
+        // pairing and was refused. The repair the message proposed was to add a
+        // SECOND entry for the same directory.
+        //
+        // Applying the marker to every non-escaping relative path keeps the
+        // escape property intact (an escaping path still lacks it, so a `./`
+        // glob still cannot match one) while collapsing the two spellings of
+        // one path onto one canonical form — which is what a normalizer is for.
+        format!("./{joined}")
     }
 }
 

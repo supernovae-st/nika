@@ -138,9 +138,18 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                         "no task or output consumes `tasks.{id}.output` — every token this infer spends is unread; consume it or remove the task"
                     )));
                 }
-                if deep_referenced.contains(id) && a.schema.is_none() && t.output.is_empty() {
+                // `returns:` is a declared shape too — and the PREFERRED one
+                // (one-obvious-way/011): advising `schema:` on a task that
+                // already carries `returns:` would advise the exact pair
+                // NIKA-TYPE-003 refuses. Measured 2026-07-29 on a corpus
+                // lesson: `returns: Entities` + a deep ref drew this hint.
+                if deep_referenced.contains(id)
+                    && a.schema.is_none()
+                    && t.returns.is_none()
+                    && t.output.is_empty()
+                {
                     hints.push(hint("typing", id, format!(
-                        "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no `schema:` — declare one and `nika check` starts proving those field names"
+                        "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no output shape — declare `returns:` and `nika check` starts proving those field names"
                     )));
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
