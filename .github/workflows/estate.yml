@@ -57,4 +57,8 @@ jobs:
             diff -u /tmp/estate-canonical.py scripts/estate.py | head -60
             exit 1
           fi
-          echo "✓ scripts/estate.py is byte-identical to nika-estate@${pin}"
+          if [ ! -x scripts/estate.py ]; then
+            echo "::error file=scripts/estate.py::has a shebang but is not executable · cmp compares content and raw.githubusercontent serves no modes, so the mirror carries the bit itself"
+            exit 1
+          fi
+          echo "✓ scripts/estate.py is byte-identical to nika-estate@${pin} and executable"

@@ -215,8 +215,8 @@ def render() -> str:
         f"repo: {REPO}",
         "classes:",
     ]
-    for c in CLASSES:
-        lines.append(f"  {c}: {q(CLASSES[c])}")
+    for c, description in CLASSES.items():
+        lines.append(f"  {c}: {q(description)}")
     lines.append("summary:")
     lines.append(f"  classified_files: {len(universe)}")
     lines.append(f"  file_rows: {len(FILES)}")
