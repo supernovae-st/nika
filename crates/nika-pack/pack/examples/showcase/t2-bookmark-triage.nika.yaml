@@ -17,6 +17,10 @@
 #   - the fan-in · one jq fold separates live rows from dead ones and
 #     renders the table · zero model on the whole path
 #
+# Needs · network to reach the two live hosts. With no network at all the run
+#   is STILL green — every row takes the recover path and the table is all
+#   dead rows, which is precisely the resilience this file is about.
+#
 # Run · nika run examples/showcase/t2-bookmark-triage.nika.yaml
 
 nika: v1
@@ -26,12 +30,20 @@ workflow:
 
 const:
   bookmarks:
+    # The saved-links pile to triage.
+    #
+    # A TYPED constant is `{ type, value }` — both keys, exactly those two
+    # (`description:` here is NIKA-PARSE-005 · unknown field). The
+    # discriminator is normative (01-envelope.md §const): an object missing
+    # either key is a bare literal object constant. So `{ type, default }` is
+    # not a declaration at all — `${{ const.bookmarks }}` would yield the whole
+    # `{type, default}` map and `for_each` would die NIKA-VAR-006 ·
+    # « for_each collection must be an array · got object ».
     type: { array: string }
-    default:
+    value:
       - "https://example.com"
       - "https://github.com/supernovae-st/nika"
       - "https://this-domain-does-not-exist-0000.invalid" # the dead one · the recover path IS the demo
-    description: "The saved-links pile to triage"
 
 permits:
   exec: false

@@ -4,8 +4,8 @@
 # showcase · T2 chain · customer support
 #
 # The overnight ticket queue, triaged before coffee · every ticket
-# classified + a first reply drafted, the urgent ones escalated to a
-# webhook, the full board written to disk under a batch id.
+# classified + a first reply drafted, the urgent ones escalated to the
+# on-call Slack webhook, the full board written to disk under a batch id.
 #
 # Demonstrates ·
 #   - `nika:uuid` · v7 batch ids: sortable, timestamped, no collisions
@@ -13,19 +13,29 @@
 #   - `nika:jq` post-filter · urgency slicing WITHOUT another model call
 #   - conditional `notify` · the escalation fires only when needed
 #
-# Needs · ./support/overnight-queue.json (your ticket export).
+# Needs · ONCALL_WEBHOOK_URL, but only on the escalation path — an unresolved
+#   secret fails loudly with NIKA-VAR-001, which is the behaviour you want.
+#   Swap the host in `permits.net.http` if you escalate somewhere else.
 #
 # Run · nika run examples/showcase/t2-support-triage.nika.yaml
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`:
+#   the sample queue ships with the repo and mock grades every ticket `low`,
+#   so the escalation gate stays closed and the run is green with no key at
+#   all. The sample DOES carry an outage ticket, so a real model opens that
+#   gate — which is when the secret above starts to matter.
 
 nika: v1
 workflow:
   id: support-triage
   description: "Ticket queue → typed triage → urgent escalation → triage board"
 
-model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
+# A NON-thinking local model, deliberately: a thinking model can spend the
+# whole `max_tokens` budget in its think block and return before the JSON
+# (engine#428). Schema showcases pick a model that answers directly.
+model: ollama/llama3.2:3b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
 
 const:
-  queue_path: "./support/overnight-queue.json"
+  queue_path: "examples/showcase/fixtures/support-queue.json"
 
 secrets:
   oncall_webhook:
@@ -36,6 +46,18 @@ secrets:
         host_from_self: true
 permits:
   tools: ["nika:jq", "nika:notify", "nika:read", "nika:uuid", "nika:write"]
+  fs:
+    read: ["examples/showcase/fixtures/support-queue.json"]
+    # One board per batch id. `*` matches a single segment and never crosses
+    # `/`, so the uuid can never steer the write out of out/ — `out/**` would
+    # let it.
+    write: ["out/triage-*.json"]
+  net:
+    # `host_from_self:` above sanctions the FLOW (the secret may be the URL) —
+    # it does not grant the capability. The host stays unknown at check, so it
+    # is judged at RUN against this bound: name the escalation host here or the
+    # send is refused mid-run, after the tokens are already spent.
+    http: ["hooks.slack.com"]
 
 tasks:
   batch:
@@ -52,18 +74,21 @@ tasks:
     with:
       queue: ${{ tasks.queue.output }}
     infer:
+      max_tokens: 1500                 # the whole queue in one call · a ceiling, not UNBOUNDED
       prompt: |
         Triage every ticket in this queue ·
         ${{ with.queue }}
         For each · classify category and urgency, draft a 2-sentence first reply.
       schema:
         type: object
+        additionalProperties: false    # a deterministic shape across providers
         required: [tickets]
         properties:
           tickets:
             type: array
             items:
               type: object
+              additionalProperties: false
               required: [id, category, urgency, first_reply]
               properties:
                 id: { type: string }
@@ -100,8 +125,12 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./support/triage-${{ with.batch }}.json"
+        # A `.json` artifact takes ONE interpolated value as `content:` and
+        # lets the engine serialize it. Typing `{ "tickets": ${{ … }} }` by
+        # hand emits unquoted fields and the board stops being JSON.
+        path: "out/triage-${{ with.batch }}.json"
         content: "${{ with.tickets }}"
+        create_dirs: true
 
 outputs:
   tickets:

@@ -1,0 +1,18 @@
+{
+  "service": "checkout-api",
+  "replicas": 6,
+  "log_level": "info",
+  "feature_flags": {
+    "beta_ui": false,
+    "instant_refunds": true,
+    "queue_v2": false
+  },
+  "limits": {
+    "request_timeout_ms": 2500,
+    "max_body_bytes": 1048576
+  },
+  "upstreams": {
+    "ledger": "https://ledger.internal.example.com",
+    "risk": "https://risk.internal.example.com"
+  }
+}

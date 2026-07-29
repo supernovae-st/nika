@@ -3,42 +3,90 @@
 #
 # showcase · T4 epic · research / consulting / VC
 #
-# Plan → investigate → synthesize · a three-stage research pipeline.
-# A fast model plans the queries, an AGENT works the web under explicit
-# budgets, a thinking model writes the executive brief. Each stage is
-# auditable: the plan, the sources and the findings all land on disk.
+# Plan → investigate → synthesize. A fast pass turns a topic into four
+# non-overlapping queries, an AGENT works them under an explicit leash, and a
+# thinking pass writes the executive brief. The agent is the only part of this
+# file that decides what to do next — everything around it is a contract: what
+# it may call, how far it may go, what shape it must come back in, and which
+# hosts exist as far as it is concerned.
 #
 # Demonstrates ·
-#   - plan-then-execute · `infer.schema:` plans · `agent:` executes the plan
-#   - budgets · `max_turns` + `max_tokens_total`: agents have a leash
-#   - `thinking:` · extended reasoning budget for the synthesis stage
+#   - plan-then-execute · `infer.schema:` plans, `agent:` executes the plan
+#   - budgets · `max_turns` + `max_tokens_total` · an agent has a leash
+#   - the boundary applies INSIDE the loop · an agent tool absent from
+#     `permits.tools` is refused, and there is no glob for hosts: naming the
+#     research corpus is a decision you make BEFORE the agent starts
+#   - a DERIVED slug · a free-text input never reaches a path unescaped
 #   - typed `outputs:` · the workflow is CALLABLE: another workflow can
 #     consume {brief, sources} as a contract
 #
-# Run · nika run examples/showcase/t4-deep-research-brief.nika.yaml --var topic="local-first AI runtimes"
+# Needs · nothing to rehearse — the whole file, agent loop included, runs
+# offline under `--model mock/echo` (measured: the loop completes in one turn
+# and honours its schema). Real research needs a tool-calling model and the
+# hosts named in `permits.net.http` to be reachable.
+#
+# Run · nika run examples/showcase/t4-deep-research-brief.nika.yaml \
+#         --var topic="local-first AI runtimes"
+#       · rehearse with no keys and no network · add --model mock/echo
 
 nika: v1
 workflow:
   id: deep-research-brief
   description: "plan → budgeted research agent → thinking synthesis → brief on disk"
 
-model: ollama/qwen3.5:4b   # local default · per-task overrides below pick stronger models
+model: ollama/qwen3.5:4b   # local · zero key · `--model mock/echo` rehearses the whole file
 
 inputs:
   topic:
     type: string
-    required: true
-    description: "What to research"
+    default: "local-first AI runtimes"
+    description: "What to research · free text (--var topic=…), and it never touches a path directly"
+
 permits:
-  tools: ["nika:done", "nika:fetch", "nika:write"]
+  tools: ["nika:done", "nika:fetch", "nika:jq", "nika:write"]
+  net:
+    # There is no `*` here and there never will be: `net.http` entries are exact
+    # host names. An agent told to « research the web » therefore cannot — the
+    # corpus it may reach is a decision taken HERE, before the loop starts,
+    # rather than discovered afterwards in a trace. Add the sources you actually
+    # trust; the agent's fetch is judged against this list at RUN, and `check`
+    # cannot see it coming because the agent chooses its own URLs.
+    http:
+      - "arxiv.org"
+      - "export.arxiv.org"
+      - "en.wikipedia.org"
+      - "hn.algolia.com"
+  fs:
+    # One brief per topic, written DIRECTLY in ./research/. `*` matches a single
+    # segment and never crosses `/`, so even a slug that somehow kept a slash is
+    # refused rather than steered into a subtree — `./research/**` would let it
+    # through. The slug task below makes that doubly hard; the wall makes it
+    # impossible, and only one of the two is a guarantee.
+    write: ["./research/*.md"]
 
 tasks:
+  # The topic is free text — « Local-First AI Runtimes: a survey/2026 » — and it
+  # ends up in a filename. Deriving the slug in jq keeps that arithmetic out of
+  # the model AND out of the path: the expression is total, so there is no input
+  # for which it returns something containing a separator.
+  slug:
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ inputs.topic }}"
+        expression: 'ascii_downcase | gsub("[^a-z0-9]+"; "-") | gsub("^-|-$"; "")'
+
   plan:
     infer:
-      model: anthropic/claude-haiku-4-5    # planning is a fast-model job
+      max_tokens: 400              # planning is short · cap it and the cost report is a ceiling
       prompt: "Break '${{ inputs.topic }}' into 4 sharp research queries · no overlap."
       schema:
+        # `additionalProperties: false` on every object node — without it the
+        # shape is a suggestion and each provider answers with a slightly
+        # different object. `plan.output.queries` is read below, so it has to be
+        # a promise, not a hope.
         type: object
+        additionalProperties: false
         required: [queries]
         properties:
           queries:
@@ -47,21 +95,28 @@ tasks:
 
   investigate:
     with:
-      plan_queries: ${{ tasks.plan.output.queries }}
+      queries: ${{ tasks.plan.output.queries }}
     agent:
       system: |
-        You are a rigorous researcher. Work the queries one by one ·
-        fetch sources · keep verbatim quotes · note what each source
-        actually supports. Call nika:done when the plan is exhausted.
-      prompt: "Research plan · ${{ with.plan_queries }}"
+        You are a rigorous researcher. Work the queries one by one · fetch
+        sources · keep verbatim quotes · note what each source actually
+        supports, and what it does not. If a fetch is refused, record that the
+        source was out of bounds rather than substituting another.
+        Call nika:done when the plan is exhausted.
+      prompt: "Research plan · ${{ with.queries }}"
       tools:
-        - "nika:fetch"                 # the web
-        - "nika:write"                 # scratch notes
+        # Every id here must also appear in `permits.tools` above — `check`
+        # refuses the mismatch statically (NIKA-SEC-004 · agent tool … is
+        # outside permits.tools). Note what is NOT granted: `nika:write`. The
+        # agent's product is the typed object it returns, so it never needs a
+        # file of its own, and the workflow keeps the only pen in the room.
+        - "nika:fetch"                 # the corpus named in permits.net.http
         - "nika:done"                  # the loop-completion sentinel
-      max_turns: 25
-      max_tokens_total: 150000
+      max_turns: 25                    # the leash · a loop that cannot end is a bill
+      max_tokens_total: 150000         # and the second leash, in tokens
       schema:
         type: object
+        additionalProperties: false
         required: [findings, sources]
         properties:
           findings:
@@ -73,25 +128,30 @@ tasks:
 
   brief:
     with:
-      investigate_findings: ${{ tasks.investigate.output.findings }}
-      investigate_sources: ${{ tasks.investigate.output.sources }}
+      findings: ${{ tasks.investigate.output.findings }}
+      sources: ${{ tasks.investigate.output.sources }}
     infer:
+      max_tokens: 2000
       prompt: |
-        Findings · ${{ with.investigate_findings }}
-        Sources · ${{ with.investigate_sources }}
-        Write the executive brief · what's true · what's contested ·
-        what it means · what to do. Two pages max.
+        Findings · ${{ with.findings }}
+        Sources · ${{ with.sources }}
+        Write the executive brief · what's true · what's contested · what it
+        means · what to do. Two pages max. Anything the sources do not support
+        goes in « contested », never in « true ».
       thinking:
+        # A reasoning budget, honoured by seats that support extended thinking
+        # and ignored by the ones that do not — declaring it never fails a run.
         enabled: true
         budget_tokens: 8000
 
   save:
     with:
+      slug: ${{ tasks.slug.output }}
       brief: ${{ tasks.brief.output }}
     invoke:
       tool: "nika:write"
       args:
-        path: "./research/${{ inputs.topic }}.md"
+        path: "./research/${{ with.slug }}.md"
         content: "${{ with.brief }}"
         create_dirs: true
 
@@ -100,3 +160,6 @@ outputs:
   sources:
     value: ${{ tasks.investigate.output.sources }}
     description: "Every source the agent actually used"
+  slug:
+    value: ${{ tasks.slug.output }}
+    description: "The filename stem the brief landed under · ./research/<slug>.md"

@@ -1,17 +1,41 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · api-upload-and-create · upload a file → create a resource from it.
+# TEMPLATE · api-upload-and-create · upload a file and create the resource in one authenticated call.
 #
-#   [upload]────▶[create]
-#   nika:fetch    nika:fetch
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#   [create]
+#   nika:fetch · multipart
+#
+# The product-API job: push the bytes AND the metadata that describe them, get
+# the created resource back, keep only the fields you need. One round trip —
+# `multipart:` carries a file part and text parts together, which is what most
+# create-with-upload endpoints actually want.
+#
+# Demonstrates ·
+#   - `multipart:` · a file part (`path:`) and text parts (`value:`) in one
+#     request · exactly one of the two per part
+#   - a masked `secrets:` entry in a header, with `egress:` naming the two
+#     places it may travel (the call, and the returned value)
+#   - `mode: jq` response narrowing · the workflow carries fields, not payloads
+#   - `on_error: recover:` · rehearses green with no key and no endpoint, and
+#     the same bindings work once it is wired
+#
+# WHY ONE CALL, not upload-then-create · a file part is `permits.fs.read`-gated,
+#   and a private read + untrusted ingress + an onward authenticated POST is the
+#   lethal trifecta (NEP-0002): chaining a second call onto the first response
+#   fails NIKA-SEC-009 and demands a human gate. Measured both orderings. One
+#   round trip needs no ceremony — reach for `human-gated-ship` when the job
+#   genuinely wants a person in the loop.
+#
+# Needs · nothing to rehearse. To run it FOR REAL: a reachable API, the file at
+#   `const.asset_path`, and EXAMPLE_API_KEY in the environment — then delete the
+#   `on_error:` block so a genuine failure is loud.
+#
+# Run · nika run <file>          # offline rehearsal · no key, no endpoint
 nika: v1
 workflow:
   id: api-upload-and-create-template  # SLOT: kebab-case workflow id
-  description: "upload → create → result"   # SLOT: one honest sentence
-
-model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
+  description: "upload + create in one authenticated call"   # SLOT: one honest sentence
 
 const:
   api_base: "https://api.example.com"     # SLOT: the product API base
@@ -25,35 +49,48 @@ secrets:
       - to: "nika:fetch"            # the send · default-deny otherwise
       - to: "outputs"               # the return value derives from the authed response
 
+permits:                            # the blast radius · default-deny once present
+  tools: ["nika:fetch"]
+  # `egress:` above sanctions the FLOW (this secret may ride a fetch); it does
+  # NOT grant the capability to reach anyone. The host is the separate, required
+  # half — an unlisted host is refused at RUN, mid-flight, with the bytes
+  # already on the wire.
+  net: { http: ["api.example.com"] }   # SLOT: the host from const.api_base
+  fs:
+    # A `multipart:` file part names a path, and that read crosses the boundary
+    # like any other: measured, without this entry the call dies `NIKA-SEC-004 ·
+    # ./out/assets/asset-1.png resolves outside the declared permits.fs.read
+    # boundary`. One exact file, never the tree it sits in.
+    #
+    # HONEST HINT · `check` reports NIKA-DRIFT-001 here ("matches no path the
+    # body reads") because its drift detector does not model a multipart part as
+    # a read. The runtime does. Following that hint deletes the entry and kills
+    # the run — keep it. Coverage decision:
+    # the nika engine repo · docs/plans/2026-07-28-verdict-coverage.md
+    read: ["./out/assets/asset-1.png"]   # SLOT: keep in step with const.asset_path
+
 tasks:
-  upload:
+  create:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ const.api_base }}/upload"   # SLOT: the upload endpoint
+        url: "${{ const.api_base }}/items"   # SLOT: the create endpoint
         method: POST
         headers:
           x-api-key: "${{ secrets.API_KEY }}"  # SLOT: the auth header name
         multipart:
+          # Exactly one of `path:` (file) or `value:` (text) per part — a part
+          # carrying both, or neither, is refused before anything is sent.
           - { name: file, path: "${{ const.asset_path }}" }
-          # SLOT: extra text fields · { name: directory, value: "assets" }
-        mode: jq
-        jq: ".url"                  # SLOT: where the response carries the asset URL
-
-  create:
-    with:
-      upload: ${{ tasks.upload.output }}
-    invoke:
-      tool: "nika:fetch"
-      args:
-        url: "${{ const.api_base }}/create"   # SLOT: the create endpoint
-        method: POST
-        headers:
-          x-api-key: "${{ secrets.API_KEY }}"
-        body:                       # SLOT: the create payload (objects auto-JSON)
-          asset_url: "${{ with.upload }}"
+          - { name: title, value: "Rehearsal item" }   # SLOT: the metadata fields
         mode: jq
         jq: "{ id: .id, url: .url }"   # SLOT: the fields downstream needs
+    on_error:
+      # Offline rehearsal · a literal shaped EXACTLY like what the jq above
+      # projects, so `outputs.result` has the same shape on both paths. It also
+      # absorbs the unset key: a `secrets:` entry whose env var is missing fails
+      # NIKA-VAR-001, and a recover catches that too (measured).
+      recover: { id: "rehearsal-0001", url: "https://app.example.com/items/rehearsal-0001" }
 
 outputs:
   result: ${{ tasks.create.output }}   # SLOT: the callable contract

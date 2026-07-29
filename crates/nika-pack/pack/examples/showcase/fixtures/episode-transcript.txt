@@ -1,0 +1,45 @@
+[00:00] HOST: Welcome back. Today we're talking about something boring that
+turns out to matter a lot — how teams keep automated work honest once there's
+more of it than one person can read.
+
+[00:41] GUEST: The framing I'd push back on is "boring". The moment you have
+fifty automations, the interesting question stops being "does it work" and
+becomes "can I tell whether it worked without running it".
+
+[01:55] HOST: Say more about that.
+
+[02:03] GUEST: A script either runs or it doesn't, and you find out by running
+it. That's fine at five scripts. At fifty, you want a class of question you can
+answer statically. What does this touch. What can it reach. What's the ceiling
+on what it spends. If you can answer those from the file, you can review a
+change in ninety seconds instead of staging it.
+
+[04:12] HOST: And if you can't?
+
+[04:15] GUEST: Then your review is theatre. You approve it because the person
+who wrote it seems competent. I've done that. Everyone has.
+
+[07:30] HOST: Let's talk about the failure you mentioned before we started.
+
+[07:38] GUEST: We had a job that read a folder of CSVs. The permission said
+CSVs. It turned out the pattern we'd written also matched a private key three
+directories down, because of how the glob crossed directory separators. Nothing
+bad happened — we found it in an audit. But the thing that found it wasn't a
+person reading the file. It was a test that asked "does this permission cover
+exactly what this job does, and nothing else".
+
+[10:02] HOST: So the lesson is write better globs?
+
+[10:07] GUEST: The lesson is that a permission is a claim, and claims need
+tests like any other. We were fine at writing the claim. We had nothing
+checking that the claim matched the job.
+
+[13:20] HOST: What would you tell someone starting today?
+
+[13:26] GUEST: Write the boundary first, before the logic. It's uncomfortable
+because you don't know what you need yet. Do it anyway — you'll find out you
+need less than you thought. That's the whole trick, and it isn't a trick.
+
+[15:44] HOST: Good place to stop. Thanks for coming on.
+
+[15:47] GUEST: Thanks for having me.

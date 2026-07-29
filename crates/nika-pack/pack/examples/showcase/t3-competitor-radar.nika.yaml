@@ -3,83 +3,196 @@
 #
 # showcase · T3 fan-out · strategy / product marketing
 #
-# Monday 8am · everything your competitor shipped last week, read in
-# parallel, digested into one brief on your desk. N pages is decided at
-# RUNTIME by their sitemap, not hardcoded.
+# Monday 8am · what a competitor actually shipped last week, read in
+# parallel, digested into one brief on your desk. Their sitemap says which
+# pages changed and when; a computed cutoff decides what counts as « last
+# week ». Nothing here is hardcoded — not the page count, not the date.
 #
 # Demonstrates ·
-#   - `for_each` over a runtime collection · the matrix / fan-out pattern
-#   - `max_parallel: 4` + `fail_fast: false` · bounded, resilient crawling
-#   - `retry:` + `timeout:` · per-iteration resilience (flaky web is normal)
-#   - the fan-in · `${{ tasks.pages.output }}` is the ARRAY of page summaries
+#   - `for_each` over a RUNTIME collection · the fan-out width is decided by
+#     their sitemap on the morning it runs, not by this file
+#   - `nika:date` `now` → `subtract` → `format` · « last week » is COMPUTED
+#     on the morning it runs. Slicing the first N sitemap entries instead
+#     would make the header's promise false the first time they reorder it
+#   - `max_parallel:` + `fail_fast: false` + `retry:` + `timeout:` · the four
+#     dials that make crawling somebody else's site survivable
+#   - `on_error: recover: null` then `select(. != null)` · a dead page leaves
+#     the batch by VALUE, after the fact — it never aborts the fan-out
+#   - `nika:emit` · the « it is ready » signal as a LOCAL event · no webhook,
+#     no secret, nothing leaves the machine
 #
-# Needs · a REAL sitemap URL (--var competitor_sitemap=…) + TEAM_WEBHOOK_URL.
+# Needs · network reachability for the site you point it at. The default
+#   points at our own sitemap so the file runs as-is; there is no key and
+#   no secret anywhere in it.
 #
 # Run · nika run examples/showcase/t3-competitor-radar.nika.yaml
+#         (add --model mock/echo for a zero-key rehearsal)
+#
+#       To watch someone else, change `inputs.sitemap_url` AND the host in
+#       `permits.net.http` TOGETHER: a permit is a literal you can read, it
+#       cannot interpolate an input (`NIKA-AUTH-007`).
 
 nika: v1
 workflow:
   id: competitor-radar
-  description: "Sitemap → parallel page reads → one competitive brief + ping"
+  description: "sitemap → what changed this window → parallel page reads → one brief"
 
-model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-sonnet-4-6
+model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-sonnet-4-6 for a sharper read
 
-const:
-  competitor_sitemap: "https://competitor.example.com/sitemap.xml"
+run:
+  clock: system            # `pages` declares a `timeout:` · name the clock it rides
 
-secrets:
-  team_webhook:
-    source: env
-    key: TEAM_WEBHOOK_URL
-    egress:                       # sanction the one send · the secret IS the URL
-      - to: "nika:notify"
-        host_from_self: true
+inputs:
+  sitemap_url:
+    type: string
+    default: "https://nika.sh/sitemap.xml"
+    description: "Whose sitemap to read · must agree with the host in permits.net.http"
+  window_days:
+    type: integer
+    default: 7
+    description: "How far back « recently » reaches"
+  max_pages:
+    type: integer
+    default: 6
+    description: "Politeness cap · the fan-out never exceeds this many fetches"
+
 permits:
-  tools: ["nika:fetch", "nika:notify", "nika:write"]
-  fs: { write: ["./radar/competitor-brief.md"] }
+  tools: ["nika:date", "nika:emit", "nika:fetch", "nika:jq", "nika:write"]
+  net:
+    # ONE host covers BOTH fetches, and that is a claim worth being explicit
+    # about: `map` reads the sitemap, then `pages` fetches whatever `.loc`
+    # values came back — runtime URLs this file never sees. A sitemap is
+    # single-host by protocol, so the site's own host is the honest wall: if
+    # their sitemap ever points somewhere else, that fetch is refused instead
+    # of followed. Change `inputs.sitemap_url` and this line changes with it.
+    http: ["nika.sh"]
+  fs:
+    # ONE file, named exactly, because the path IS a literal — there is no
+    # uuid or date in it, so there is nothing for a wildcard to stand in for.
+    # A bound is only as wide as the uncertainty it has to cover.
+    #
+    # `create_dirs: true` below makes the missing `./radar/` without needing
+    # a grant of its own: measured, with only this line, the directory is
+    # created and the brief lands. (Builtins that take an `output_dir:`
+    # instead — `nika:image_generate` and family — are the opposite case:
+    # `check` judges the directory ARGUMENT while the run gates each final
+    # file path, so those need the directory AND its children. The bound
+    # follows what the builtin names.)
+    write: ["./radar/competitor-brief.md"]
 
 tasks:
+  # ── how far back does « recently » reach ───────────────────────────
+  # Three date ops rather than a hardcoded string, because a radar that ships
+  # with a date baked in is wrong the day after you write it. `format` to
+  # %Y-%m-%d puts the cutoff in the same shape sitemaps use for `lastmod`,
+  # which is what makes the string comparison below sound.
+  now:
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
+
+  cutoff:
+    with:
+      now: ${{ tasks.now.output }}
+    invoke:
+      tool: "nika:date"
+      args:
+        op: subtract
+        base: "${{ with.now }}"
+        duration: "${{ inputs.window_days }}d"
+
+  cutoff_day:
+    with:
+      cutoff: ${{ tasks.cutoff.output }}
+    invoke:
+      tool: "nika:date"
+      args:
+        op: format
+        input: "${{ with.cutoff }}"
+        format: "%Y-%m-%d"
+
+  # ── what they publish, and when it last moved ──────────────────────
   map:
     invoke:
       tool: "nika:fetch"
       args:
-        url: "${{ const.competitor_sitemap }}"
-        mode: sitemap
-    output:
-      recent: ".[:8] | map(.loc)"     # sitemap = the root array of {loc, …} · cap at 8, keep the URLs
+        url: "${{ inputs.sitemap_url }}"
+        mode: sitemap                  # → [{loc, lastmod, changefreq, priority}, …]
 
+  # `lastmod` is optional in the sitemap protocol, so `// ""` sends an entry
+  # without one outside the window instead of crashing the filter. Newest
+  # first, then the politeness cap — the fan-out width is decided here and
+  # nowhere else.
+  recent:
+    with:
+      entries: ${{ tasks.map.output }}
+      cutoff: ${{ tasks.cutoff_day.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { entries: "${{ with.entries }}", cutoff: "${{ with.cutoff }}" }
+        expression: >-
+          .cutoff as $c
+          | .entries
+          | map(select((.lastmod // "") >= $c))
+          | sort_by(.lastmod) | reverse
+          | .[:${{ inputs.max_pages }}]
+          | map(.loc)
+
+  # ── read them all at once ──────────────────────────────────────────
   pages:
     with:
-      map_recent: ${{ tasks.map.recent }}
-    for_each: ${{ with.map_recent }}
-    max_parallel: 4                    # be polite · 4 fetches in flight max
+      urls: ${{ tasks.recent.output }}
+    for_each: ${{ with.urls }}
+    max_parallel: 4                    # be a good guest · four in flight, no more
     fail_fast: false                   # one dead page must not kill the radar
     on_error:
-      recover: null                    # a dead page yields null at its index · the radar lives
-    timeout: "30s"
+      recover: null                    # that page yields null at its index · the batch lives
+    timeout: "30s"                     # somebody else's server, somebody else's bad day
     retry:
       max_attempts: 3
       backoff_strategy: exponential
-      jitter: true
+      jitter: true                     # a swarm that retries in lockstep is a small DDoS
     invoke:
       tool: "nika:fetch"
       args:
         url: "${{ item }}"
-        mode: article
+        mode: article                  # readability extraction · the prose, not the chrome
+
+  # ── the fan-in · a for_each output is an array in ITEM ORDER ───────
+  # which is what lets `transpose` put each page's text back beside its own
+  # URL. The `select` is where the pages that never answered leave.
+  readable:
+    with:
+      urls: ${{ tasks.recent.output }}
+      pages: ${{ tasks.pages.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: ["${{ with.urls }}", "${{ with.pages }}"]
+        expression: >-
+          transpose
+          | map(select(.[1] != null))
+          | map({ url: .[0], text: .[1] })
 
   digest:
     with:
-      pages: ${{ tasks.pages.output }}
+      readable: ${{ tasks.readable.output }}
+      cutoff: ${{ tasks.cutoff_day.output }}
+    when: ${{ size(with.readable) > 0 }}   # a quiet week costs nothing
     infer:
+      max_tokens: 1500                     # one page · a ceiling, not a hope
       prompt: |
-        These are the pages a competitor published recently ·
-        ${{ with.pages }}
-        Write the Monday brief · what they shipped · what it signals ·
-        what we should watch. One page, plain words.
+        These are the pages a competitor published or changed since
+        ${{ with.cutoff }} ·
+        ${{ with.readable }}
+        Write the Monday brief · what they shipped · what it signals · what
+        we should watch. One page, plain words, no filler.
 
   save:
     with:
       digest: ${{ tasks.digest.output }}
+    when: ${{ with.digest != null }}   # a skipped task reads null downstream · gate on the VALUE
     invoke:
       tool: "nika:write"
       args:
@@ -87,16 +200,31 @@ tasks:
         content: "${{ with.digest }}"
         create_dirs: true
 
-  ping:
-    after:
-      save: success
+  # The « it is ready » signal, as a LOCAL journal event. No webhook, no
+  # secret, no host: the brief is on disk and the event says so. A radar that
+  # needed an outbound credential to tell you it had finished would be a
+  # strictly larger blast radius for no extra information.
+  record:
+    with:
+      urls: ${{ tasks.recent.output }}
+      readable: ${{ tasks.readable.output }}
+      cutoff: ${{ tasks.cutoff_day.output }}
     invoke:
-      tool: "nika:notify"
+      tool: "nika:emit"
       args:
-        channel: webhook
-        target: "${{ secrets.team_webhook }}"
-        message: "Competitor radar is ready · ./radar/competitor-brief.md"
-        severity: info
+        event_type: "competitor.radar.scan"
+        payload:
+          since: ${{ with.cutoff }}
+          selected: ${{ with.urls }}
+          read_ok: ${{ with.readable }}
 
 outputs:
-  brief: ${{ tasks.digest.output }}
+  since:
+    value: ${{ tasks.cutoff_day.output }}
+    description: "The computed window start · what « recently » meant on this run"
+  pages:
+    value: ${{ tasks.recent.output }}
+    description: "The URLs the sitemap said had changed inside that window"
+  brief:
+    value: ${{ tasks.digest.output }}
+    description: "The Monday brief · null when the week was quiet"

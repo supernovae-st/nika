@@ -3,19 +3,30 @@
 #
 # showcase · T3 fan-out · HR / recruiting
 #
-# Forty CVs, one rubric, zero cloud · candidate data is PII, so the
-# whole screen runs on a LOCAL model. Every candidate gets the same
-# typed rubric (enums · no vibes), jq ranks deterministically, and the
-# shortlist explains itself.
+# Forty CVs, one rubric, zero cloud. Candidate data is other people's
+# personal data, so the whole screen runs on a LOCAL model and this file
+# declares no network capability at all — there is no host a hijacked
+# prompt could send a CV to, because none is granted. Every candidate is
+# scored against the same typed rubric, jq does the ranking, and the
+# shortlist explains itself with quotes.
 #
 # Demonstrates ·
-#   - sovereignty by default · `ollama/…` because CVs are PII
-#   - `nika:glob` → `for_each` + `recover: null` · an unreadable CV doesn't
-#     stop the batch · downstream gates by VALUE (`!= null`)
-#   - one rubric, schema-enforced · enums kill « kinda-strong » ratings
-#   - jq `sort_by` ranking · the ORDER is deterministic, not model mood
+#   - sovereignty as a STRUCTURE, not a promise · no `net:` category in
+#     `permits:`, so the CVs cannot leave this machine
+#   - one rubric, schema-enforced · an `enum` kills « kinda-strong »
+#   - the model JUDGES, jq DECIDES · `sort_by` makes the order a function
+#     of the data, not of the model's mood on this run
+#   - `recover: null` + `select(. != null)` · an unreadable CV drops out of
+#     the batch by VALUE, after the fact — it never aborts the fan-out
+#   - `when:` cascading by value · an empty shortlist writes no brief
 #
 # Run · nika run examples/showcase/t3-resume-screener.nika.yaml
+#         (runs as-is from the repo root on three committed fixture CVs ·
+#          add --model mock/echo for a zero-key rehearsal)
+#
+#       To screen YOUR inbox, edit `const.cv_glob` AND the matching
+#       `permits.fs.read` entry TOGETHER: a permit is a literal you can
+#       read, it cannot interpolate a const (`NIKA-AUTH-007`).
 
 nika: v1
 workflow:
@@ -24,18 +35,38 @@ workflow:
 
 model: ollama/qwen3.5:4b   # PII stays on the machine · the whole screen is offline
 
-permits:                    # the file IS the blast radius · no net category at all:
-  fs:                       # CVs cannot leave this machine even if a prompt is hijacked
-    read: ["./hiring/inbox/**"]
-    write: ["./hiring/out/**", "./hiring/shortlist-brief.md"]
-  tools: ["nika:glob", "nika:read", "nika:jq", "nika:write"]
-
 const:
   role: "Senior Rust engineer"
-  cv_glob: "./hiring/inbox/*.md"
   shortlist_size: 5
+  # The committed rehearsal inbox. Point this at ./hiring/inbox (or wherever
+  # your exports land) and change `permits.fs.read` to match, same edit.
+  cv_glob: "./examples/showcase/fixtures/cvs/*.md"
+
+permits:
+  tools: ["nika:glob", "nika:jq", "nika:read", "nika:write"]
+  # NO `net:` category. That absence is the whole sovereignty claim: with no
+  # host granted, a CV that talks the model into exfiltrating itself still
+  # has nowhere to go — the boundary refuses before the request is made.
+  fs:
+    # TWO entries, and both earn their place. `nika:glob` opens the ROOT of
+    # its pattern before it lists anything, and a directory grant does not
+    # cover its children while a child grant does not cover the directory —
+    # so each is named. Measured: with only the second line, the run dies
+    # `NIKA-SEC-004 · ./examples/…/cvs resolves outside permits.fs.read`
+    # before a single CV is read.
+    #
+    # `*` is one segment and never crosses `/`, which is the right width
+    # here: CVs land flat in the inbox. `cvs/**` would also work and would
+    # additionally hand over every sub-tree someone drops in there.
+    read:
+      - "./examples/showcase/fixtures/cvs"      # the directory the glob opens
+      - "./examples/showcase/fixtures/cvs/*"    # the CVs one level inside it
+    # One brief, one path. Nothing else on this machine is writable by this
+    # workflow — not `./hiring/**`, not a sibling of the brief.
+    write: ["./hiring/shortlist-brief.md"]
 
 tasks:
+  # ── the pool is discovered at runtime · the count is never written down ──
   pool:
     invoke:
       tool: "nika:glob"
@@ -43,45 +74,59 @@ tasks:
 
   cvs:
     with:
-      paths: ${{ tasks.pool.output }}    # the collection crosses the boundary here
+      paths: ${{ tasks.pool.output }}
     for_each: ${{ with.paths }}
     max_parallel: 8
     fail_fast: false                   # one unreadable CV must not stop the batch
     on_error:
-      recover: null                    # null keeps the zip aligned · filtered later
+      recover: null                    # null holds the index so the zip below stays aligned
     invoke:
       tool: "nika:read"
       args: { path: "${{ item }}" }
 
+  # A for_each output is an array in ITEM ORDER, so `transpose` pairs each
+  # path with its own text. The `select` is where the unreadable CVs leave.
   pairs:
     with:
       paths: ${{ tasks.pool.output }}
       texts: ${{ tasks.cvs.output }}
-    invoke:                            # zip path + content · order survived the nulls
+    invoke:
       tool: "nika:jq"
       args:
         input: ["${{ with.paths }}", "${{ with.texts }}"]
-        expression: "transpose | map(select(.[1] != null)) | map({path: .[0], text: .[1]})"
+        expression: >-
+          transpose
+          | map(select(.[1] != null))
+          | map({ path: .[0], text: .[1] })
 
+  # ── one rubric, applied identically to everyone ────────────────────
+  # `with.cv_path` reads `${{ item.path }}` — a pre-fan-out import that is
+  # re-evaluated per iteration, which is how a loop-local reaches the prompt
+  # under a name that means something.
   screened:
     with:
-      pairs: ${{ tasks.pairs.output }}   # pre-fan-out import · the collection
-      cv_path: ${{ item.path }}          # re-evaluated per iteration
+      pairs: ${{ tasks.pairs.output }}
+      cv_path: ${{ item.path }}
     for_each: ${{ with.pairs }}
-    max_parallel: 2                    # local model · don't thrash the GPU
+    max_parallel: 2                    # a local model shares one GPU · don't thrash it
     fail_fast: false
     on_error:
       recover: null
     infer:
+      max_tokens: 1200                 # a rubric row, not an essay
       prompt: |
         Role · ${{ const.role }}
         Candidate file · ${{ with.cv_path }}
         CV ·
         ${{ item.text }}
-        Score this candidate against the role. Quote evidence from the
-        CV for every rating: no rating without a quote.
+        Score this candidate against the role. Quote evidence from the CV
+        for every rating: no rating without a quote.
+      # `additionalProperties: false` on EVERY object node — the top level and
+      # each nested one. Without it a provider is free to add keys, and the
+      # jq below would be sorting a shape that changes between runs.
       schema:
         type: object
+        additionalProperties: false
         required: [file, fit, strengths, concerns]
         properties:
           file: { type: string }
@@ -90,6 +135,11 @@ tasks:
           strengths: { type: array, items: { type: string } }
           concerns: { type: array, items: { type: string } }
 
+  # ── the model judged · jq decides ──────────────────────────────────
+  # Ranking lives HERE, not in a prompt, so the order is reproducible: same
+  # scores in, same order out. `.fit != "strong"` sorts false (0) before true
+  # (1), which puts the strong candidates first; `// 0` covers the candidates
+  # whose CV never stated a number.
   ranked:
     with:
       screened: ${{ tasks.screened.output }}
@@ -97,7 +147,10 @@ tasks:
       tool: "nika:jq"
       args:
         input: "${{ with.screened }}"
-        expression: 'map(select(. != null)) | map(select(.fit != "weak")) | sort_by(.fit != "strong", -(.years_relevant // 0))'
+        expression: >-
+          map(select(. != null))
+          | map(select(.fit != "weak"))
+          | sort_by(.fit != "strong", -(.years_relevant // 0))
 
   shortlist:
     with:
@@ -111,18 +164,19 @@ tasks:
   brief:
     with:
       shortlist: ${{ tasks.shortlist.output }}
-    when: ${{ size(with.shortlist) > 0 }}
+    when: ${{ size(with.shortlist) > 0 }}   # nobody cleared the bar · spend nothing
     infer:
+      max_tokens: 2000
       prompt: |
         Write the screening brief for these shortlisted candidates ·
         ${{ with.shortlist }}
-        One paragraph each · lead with the evidence quotes · end with
-        the suggested interview focus.
+        One paragraph each · lead with the evidence quotes · end with the
+        suggested interview focus.
 
   save:
     with:
       brief: ${{ tasks.brief.output }}
-    when: ${{ with.brief != null }}    # skip cascades by VALUE · a skipped brief reads null
+    when: ${{ with.brief != null }}    # a skipped task reads null downstream · gate on the VALUE
     invoke:
       tool: "nika:write"
       args:
@@ -131,6 +185,9 @@ tasks:
         create_dirs: true
 
 outputs:
+  ranked:
+    value: ${{ tasks.ranked.output }}
+    description: "Everyone who was not scored weak · strong first, then by relevant years"
   shortlist:
     value: ${{ tasks.shortlist.output }}
-    description: "Ranked candidates · strong first, then by relevant years"
+    description: "The top `const.shortlist_size` of the ranking · what the brief covers"

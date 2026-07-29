@@ -1,25 +1,40 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 04 · Structured output + retry — type-safe LLM extraction.
+# 04 · Structured output + retry — an LLM call you can index into.
+#
+# Without `schema:` a model hands back a paragraph and every downstream task
+# is string-surgery. With it, `.output` is an object: you write
+# `.output.entities` and the engine has already made that true, or failed
+# loudly trying. This is the line between a prompt and an API.
 #
 # Demonstrates ·
-#   - `infer.schema:` · a JSON Schema · the model MUST return matching JSON
-#       (validation failure → category `validation_error` · NIKA may auto-retry internally)
-#   - `retry:` · transient-error retry policy (max_attempts + exponential backoff + jitter)
-#   - typed `inputs:` · `text` is declared with a type → enables schema-gen for callable workflows
-#   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+#   - `infer.schema:` · a JSON Schema the model MUST satisfy
+#   - `additionalProperties: false` · the shape is closed, not merely suggested
+#   - `retry:` · transient-error policy · attempts + backoff + jitter
+#   - typed `inputs:` with a `default:` · runs with no flags, `--var` overrides
+#   - indexing a structured result · `${{ tasks.extract.output.entities }}`
+#   - the long `outputs:` form · `value:` + `type:` + `description:`
 #
-# Run · nika run examples/04-schema-retry.nika.yaml --var text="Ada Lovelace met Charles Babbage in London"
+# Run · nika run examples/04-schema-retry.nika.yaml
+#   with your own text · nika run examples/04-schema-retry.nika.yaml \
+#     --var text="Marie Curie worked in Paris for the Sorbonne"
 
 nika: v1
 workflow:
   id: schema-retry
 
-model: mock/echo
+model: mock/echo   # the dry twin · swap `--model ollama/qwen3.5:4b` for a real extraction
+
+permits: {}        # pure compute · no file, no host, no program (see 01)
+
 inputs:
   text:
     type: string
+    # A `default:` is what makes this file runnable with zero flags. `required`
+    # stays true: it says the task cannot proceed without a value, not that the
+    # caller must type one. `--var text=…` overrides the default.
+    default: "Ada Lovelace met Charles Babbage in London"
     required: true
     description: "Free text to extract named entities from"
 
@@ -27,31 +42,46 @@ tasks:
   extract:
     infer:
       prompt: "Extract named entities from · ${{ inputs.text }}"
-      schema:                          # structured output · the contract the model must satisfy
+      max_tokens: 1024
+      schema:
         type: object
+        # Closed on purpose. Without this a provider may add keys of its own
+        # and two providers give you two shapes for one workflow; the checker
+        # flags the open form as a strictness hint for exactly that reason.
+        additionalProperties: false
         required: [entities]
         properties:
           entities:
             type: array
             items:
               type: object
+              additionalProperties: false
               required: [name, type]
               properties:
                 name: { type: string }
                 type: { type: string, enum: [person, place, organization] }
     retry:
-      max_attempts: 3                  # retry transient provider/network errors
-      backoff_strategy: exponential    # 1s · 2s · 4s …
-      jitter: true                     # anti-thundering-herd (default)
+      # For TRANSIENT failures — a provider 503, a dropped connection. A
+      # response that misses the schema is a different animal: it is a
+      # validation error, and the engine's own re-ask handles that.
+      max_attempts: 3
+      backoff_strategy: exponential   # 1s · 2s · 4s …
+      jitter: true                    # anti-thundering-herd (the default)
 
   report:
     with:
-      extract_entities: ${{ tasks.extract.output.entities }}
+      # `.output` is an object here because `schema:` was set, so this indexes
+      # straight into it. Drop the schema and this same expression is reaching
+      # into a string.
+      entities: ${{ tasks.extract.output.entities }}
     infer:
-      # .output is an object here (schema was set) → index into it directly
-      prompt: "Write one sentence summarizing these entities · ${{ with.extract_entities }}"
+      prompt: "Write one sentence summarizing these entities · ${{ with.entities }}"
+      max_tokens: 512
 
-# Typed return contract · the output half of the callable-workflow schema.
+# The long form · a typed return contract. `value:` carries the binding, and
+# `type:`/`description:` describe it for a caller reading the workflow's
+# signature rather than its body. Measured with the twin:
+#   {"entities":[{"name":"mock","type":"person"}],"summary":"mock(echo) · …"}
 outputs:
   entities:
     value: ${{ tasks.extract.output.entities }}
@@ -59,3 +89,4 @@ outputs:
   summary:
     value: ${{ tasks.report.output }}
     type: string
+    description: "One sentence covering them"

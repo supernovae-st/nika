@@ -5,26 +5,55 @@
 #
 #   [brief]──▶[render]────────────▶[manifest]──▶[persist]
 #   infer      nika:image_generate  nika:jq       nika:write
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# Turning a sentence into shippable art plus the paperwork that makes it
+# usable: a model writes the image prompt, the generator renders it, and a
+# manifest records WHAT was made from WHICH brief — so the pack can be
+# regenerated, audited, or handed to someone else.
+#
+# Demonstrates ·
+#   - `nika:image_generate` with `provider: mock` · byte-real assets, zero key
+#   - the directory-AND-children permit · the one shape that passes `check` and
+#     survives the run (see `permits.fs.write`)
+#   - a JSON artifact built as a VALUE by `nika:jq`, never typed by hand
+#
+# Needs · nothing. Scaffolds and runs green in an empty directory.
+#
+# Run · nika run <file> --model mock/echo    # offline rehearsal · assets land in ./out/assets
 nika: v1
 workflow:
   id: media-asset-pack-template # SLOT: kebab-case workflow id
   description: "brief → render → manifest"  # SLOT: one honest sentence
 
-model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
+# SLOT: provider/model · local · zero key. Measured seat — `ollama/qwen2.5:14b`
+# holds the small schema below. `--model mock/echo` needs no seat at all.
+model: ollama/qwen2.5:14b
 
 const:
   subject: "a calm cosmic landing hero"   # SLOT: what the asset is about
   out_dir: "./out/assets"           # SLOT: where assets land
-permits:
+
+permits:                            # the blast radius · default-deny once present
   tools: ["nika:image_generate", "nika:jq", "nika:write"]
+  fs:
+    write:
+      # Two entries, and both earn their place: `check` judges the `output_dir:`
+      # ARGUMENT (`./out/assets`), while the RUN gates every FINAL file path under
+      # it — the asset, its provenance manifest, and manifest.json. Grant only the
+      # directory and the file sails through check, then dies at run on the first
+      # asset. `*` is one segment and never crosses `/`, which is all this needs:
+      # image_generate lands its files flat, so no subtree grant is warranted.
+      - "./out/assets"              # SLOT: keep in step with const.out_dir
+      - "./out/assets/*"            # SLOT: idem · the files that land inside it
 
 tasks:
   brief:
     infer:
       max_tokens: 600
+      # SLOT: the creative direction · style · constraints. Keep slot markers
+      # out of the block below — it is prompt TEXT, not YAML, so a stray
+      # comment line is sent to the model verbatim.
       prompt: |
-        # SLOT: the creative direction · style · constraints
         Write one vivid, concrete image prompt for: ${{ const.subject }}.
         No text in the image · no watermark · a calm central zone.
       schema:
@@ -65,6 +94,9 @@ tasks:
       args:
         path: "${{ const.out_dir }}/manifest.json"
         create_dirs: true
+        # `.json` path → `content:` is ONE interpolation of a value the engine
+        # serializes. `nika:jq` above BUILT that value; hand-typing braces
+        # around an interpolation emits unquoted fields and breaks the artifact.
         content: "${{ with.manifest }}"
 
 outputs:

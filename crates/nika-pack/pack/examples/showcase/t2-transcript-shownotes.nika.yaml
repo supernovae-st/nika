@@ -18,10 +18,10 @@
 #   - typed JSON → markdown · the shape is the contract, the render is
 #     mechanical (`nika:write`, no second model call)
 #
-# Needs · ./data/transcript.txt (your episode transcript).
-#
-# Run · point `const.transcript` at your file, then
-#   nika run examples/showcase/t2-transcript-shownotes.nika.yaml
+# Run · nika run examples/showcase/t2-transcript-shownotes.nika.yaml
+#   A sample episode transcript ships with the repo. Point `const.transcript`
+#   at your own and move the read permit with it.
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
 nika: v1
 workflow:
@@ -31,14 +31,16 @@ workflow:
 model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
 
 const:
-  transcript: "./data/transcript.txt"
+  transcript: "examples/showcase/fixtures/episode-transcript.txt"
 
 permits:
   exec: false
+  tools: ["nika:jq", "nika:read", "nika:write"]
   fs:
-    read: ["data/**"]
-    write: ["out/**"]
-  tools: ["nika:read", "nika:jq", "nika:write"]
+    # One file in, one page out — each named exactly. `data/**` would have
+    # handed a whole tree to a workflow that reads a single transcript.
+    read: ["examples/showcase/fixtures/episode-transcript.txt"]
+    write: ["out/show-notes.md"]
 
 tasks:
   raw:

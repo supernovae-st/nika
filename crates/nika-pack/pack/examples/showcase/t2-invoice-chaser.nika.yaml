@@ -13,9 +13,14 @@
 #   - `size(...)` CEL · the canonical empty-check gates the whole tail
 #   - `nika:prompt` · the human-in-the-loop gate (blocks until answered)
 #
-# Needs · ./finance/invoices.csv (your export · columns incl. status,due).
-#
 # Run · nika run examples/showcase/t2-invoice-chaser.nika.yaml
+#   A sample ledger ships with the repo — three of its five rows are overdue,
+#   so the run reaches the gate. At a terminal it asks you. Piped, in CI or
+#   under a daemon it takes the `default: false` below and skips the write:
+#   normative, and the reason that default is there. A `nika:prompt` with NO
+#   default fails NIKA-BUILTIN-PROMPT-001 instead — the engine never hangs
+#   forever and never silently picks an answer.
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
 nika: v1
 workflow:
@@ -25,10 +30,15 @@ workflow:
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
 
 const:
-  ledger_csv: "./finance/invoices.csv"
+  ledger_csv: "examples/showcase/fixtures/invoices.csv"
 permits:
   tools: ["nika:convert", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
-  fs: { write: ["./finance/reminders-to-send.md"] }
+  fs:
+    # Two files, both spelled out — `const.ledger_csv` in, the drafts file
+    # out. A const is baked in and a run cannot move it, so the boundary is
+    # exact: no glob, and nothing else on disk is reachable either way.
+    read: ["examples/showcase/fixtures/invoices.csv"]
+    write: ["out/reminders-to-send.md"]
 
 tasks:
   ledger:
@@ -61,6 +71,7 @@ tasks:
       overdue: ${{ tasks.overdue.output }}
     when: ${{ size(with.overdue) > 0 }}
     infer:
+      max_tokens: 900       # a ceiling makes the cost report a number, not UNBOUNDED
       prompt: |
         Draft one short, polite payment reminder per overdue invoice ·
         ${{ with.overdue }}
@@ -84,7 +95,8 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./finance/reminders-to-send.md"
+        path: out/reminders-to-send.md
+        create_dirs: true
         content: "${{ with.drafts }}"
 
 outputs:

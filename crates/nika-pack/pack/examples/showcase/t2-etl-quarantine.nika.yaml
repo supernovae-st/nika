@@ -16,6 +16,11 @@
 #   - the quarantine pattern · bad data is DATA, not an exception
 #
 # Run · nika run examples/showcase/t2-etl-quarantine.nika.yaml
+#   The sample batch ships with the repo and is DELIBERATELY dirty — one row
+#   carries a currency outside the enum — so the run takes the quarantine
+#   branch and writes out/quarantine/orders-rejected.json. Fix that row (CHF
+#   → EUR) and re-run to watch the good branch aggregate instead. Both
+#   branches are green: that is the whole lesson.
 
 nika: v1
 workflow:
@@ -23,10 +28,15 @@ workflow:
   description: "CSV batch → schema gate → quarantine the bad · aggregate the good"
 
 const:
-  batch_csv: "./data/incoming/orders.csv"
+  batch_csv: "examples/showcase/fixtures/orders.csv"
 permits:
   tools: ["nika:convert", "nika:jq", "nika:read", "nika:validate", "nika:write"]
-  fs: { write: ["./data/quarantine/orders-rejected.json", "./data/reports/daily-totals.json"] }
+  # The batch comes in at ONE path and leaves at TWO · each named exactly.
+  # Note what is NOT granted: `out/**` would have handed the whole artifact
+  # tree to a pipeline that only ever writes these two files.
+  fs:
+    read: ["examples/showcase/fixtures/orders.csv"]
+    write: ["out/quarantine/orders-rejected.json", "out/reports/daily-totals.json"]
 
 tasks:
   # A deterministic empty fallback · the recover target when parsing dies.
@@ -90,7 +100,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./data/quarantine/orders-rejected.json"
+        path: out/quarantine/orders-rejected.json
         content: "${{ with.errors }}"
         create_dirs: true
 
@@ -101,7 +111,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./data/reports/daily-totals.json"
+        path: out/reports/daily-totals.json
         content: "${{ with.totals }}"
         create_dirs: true
 

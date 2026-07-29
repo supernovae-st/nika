@@ -4,16 +4,21 @@
 # showcase · T1 starter · marketing / creators
 #
 # One blog post becomes a tweet thread, a LinkedIn post and a newsletter
-# blurb: three rewrites running IN PARALLEL, merged into one bundle.
+# blurb: three rewrites running IN PARALLEL, merged into one bundle. The
+# shape to steal is the diamond — one read fans out to N independent calls
+# and fans back in, and you write no scheduling code to get it.
 #
 # Demonstrates ·
-#   - the diamond DAG · read → 3 parallel infers → merge
-#   - same source, three voices · prompts are where the craft lives
-#   - `with:` aliasing · short local names keep the merge prompt readable
-#
-# Needs · ./blog/launch-post.md (your post · or point const.post_path).
+#   - the diamond DAG · read → 3 parallel infers → merge (no `after:` needed:
+#     the data edges ARE the schedule)
+#   - `with:` aliasing · short local names keep the merge template readable
+#   - `max_tokens` per call · three bounded rewrites, a cost report with a
+#     ceiling instead of UNBOUNDED
+#   - markdown assembled with a `content: |` block · the opposite case from a
+#     `.json` artifact, which passes ONE interpolated value instead
 #
 # Run · nika run examples/showcase/t1-social-repurpose.nika.yaml
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
 nika: v1
 workflow:
@@ -23,10 +28,15 @@ workflow:
 model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large or any provider
 
 const:
-  post_path: "./blog/launch-post.md"
+  # The sample post ships with the repo. Point this at your own and move the
+  # read permit with it — `permits:` cannot interpolate (NIKA-AUTH-007).
+  post_path: "examples/showcase/fixtures/launch-post.md"
 permits:
   tools: ["nika:read", "nika:write"]
-  fs: { write: ["./social-bundle.md"] }
+  # One file in, one file out · each named exactly, no subtree granted.
+  fs:
+    read: ["examples/showcase/fixtures/launch-post.md"]
+    write: ["out/social-bundle.md"]
 
 tasks:
   post:
@@ -39,18 +49,21 @@ tasks:
     with:
       post: ${{ tasks.post.output }}
     infer:
+      max_tokens: 700
       prompt: "Turn this post into a 6-tweet thread · keep the voice · ${{ with.post }}"
 
   linkedin:
     with:
       post: ${{ tasks.post.output }}
     infer:
+      max_tokens: 500
       prompt: "Rewrite this post for LinkedIn · hook first · ${{ with.post }}"
 
   newsletter:
     with:
       post: ${{ tasks.post.output }}
     infer:
+      max_tokens: 200
       prompt: "Write a 3-sentence newsletter blurb for this post · ${{ with.post }}"
 
   bundle:
@@ -61,7 +74,11 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./social-bundle.md"
+        path: out/social-bundle.md
+        create_dirs: true
+        # Prose artifact → a `content: |` block with interpolations is right
+        # here. A `.json` artifact is the opposite case: one `${{ … }}` value,
+        # never hand-typed braces (that emits unquoted fields).
         content: |
           # Social bundle
 

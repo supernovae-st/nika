@@ -3,18 +3,39 @@
 #
 # showcase · T2 chain · devops / dependency hygiene
 #
-# « Did anything we depend on ship this week? » · answered from the
-# project's own feeds. `mode: feed` parses RSS/Atom natively · the
-# diff against last run's state means you only hear about what's NEW.
+# « Did anything we depend on ship this week? » · answered from the project's
+# own feeds. `mode: feed` parses RSS/Atom natively · the diff against last
+# run's state means you only hear about what is NEW.
+#
+# ⚠ THIS FILE IS THE CORPUS'S ONE DELIBERATE RED · `nika check` exits 2 with
+#   NIKA-SEC-009 (lethal trifecta · private read + untrusted ingress + external
+#   egress with no dominating human gate). The gate over-approximates here:
+#   the "egress" it names is `save_state`, a LOCAL write of the workflow's own
+#   state file. The decision to leave this red rather than silence it is
+#   recorded at the nika engine repo · docs/plans/2026-07-28-verdict-coverage.md
+#   (§DECIDED · SEC-009). Adding a `nika:prompt` just to turn it green would
+#   be ceremony bolted on to quiet a security message — on a file people copy.
+#   A red gate reporting something true is the honest state.
 #
 # Demonstrates ·
 #   - `nika:fetch` `mode: feed` · RSS/Atom parsing built in
-#   - the state-file pattern · read last run → diff → write next state
-#   - `nika:json_diff` (RFC 6902) · NEW entries = additions in the patch
-#   - `on_error: on_codes + recover:` · first-run recovery scoped to
-#     not-found ONLY · a permission error still fails loudly
+#   - the state-file pattern · read last run → diff → write next state, one
+#     path on both sides
+#   - `nika:json_diff` (RFC 6902) · NEW entries are additions in the patch
+#   - `on_error: on_codes: + recover:` · recovery SCOPED to one error code ·
+#     first run has no state file, and only that is forgiven: a permission
+#     error on the same read still fails loudly
+#
+# Needs · network to reach the feed host. The second hint `check` prints —
+#   « `previous` reads out/release-radar.json which does not exist here · the
+#   run would fail at that wave » — is measured FALSE for this file: the
+#   `on_codes:` recovery below handles exactly that, and the first run exits 0
+#   with an empty previous state. The hint cannot see the recovery.
 #
 # Run · nika run examples/showcase/t2-release-radar.nika.yaml
+#   Run it twice: the first run reports everything as new and writes the
+#   state, the second reports only what shipped in between.
+#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
 nika: v1
 workflow:
@@ -25,9 +46,18 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the c
 
 const:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"
-  state_path: "./state/release-radar.json"
+  state_path: "out/release-radar.json"
 permits:
   tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:read", "nika:write"]
+  fs:
+    # The state-file pattern touches exactly ONE path, on both sides: read
+    # last run's state, write the next. `const.state_path` names it and a run
+    # cannot move a const, so the same literal is the whole boundary —
+    # `create_dirs:` makes out/ underneath it on the first run.
+    read: ["out/release-radar.json"]
+    write: ["out/release-radar.json"]
+  net:
+    http: ["github.com"]   # the feed's host · net entries are exact names, never globs
 
 tasks:
   # First run has no state file · recover to an empty list.
@@ -52,6 +82,16 @@ tasks:
         mode: feed
     output:
       entries: "[.items[] | {title, url, published}]"
+    on_error:
+      # No network → this sample stands in for the RAW feed response, so it
+      # carries `items:` exactly as `mode: feed` returns it and the `output:`
+      # jq above runs over it unchanged. Recovering the BINDING's shape
+      # instead makes the jq throw NIKA-VAR-004 — the recovery must mirror the
+      # response, never the binding.
+      recover:
+        items:
+          - { title: "tokio 1.48.0", url: "https://github.com/tokio-rs/tokio/releases/tag/tokio-1.48.0", published: "2026-07-21T09:14:00Z" }
+          - { title: "tokio 1.47.1", url: "https://github.com/tokio-rs/tokio/releases/tag/tokio-1.47.1", published: "2026-07-02T16:40:00Z" }
 
   fresh:
     with:
@@ -69,6 +109,7 @@ tasks:
       entries: ${{ tasks.feed.entries }}
     when: ${{ size(with.fresh) > 0 }}
     infer:
+      max_tokens: 500
       prompt: |
         New releases appeared on our dependency radar (RFC 6902 patch
         against last run) ·
@@ -92,3 +133,8 @@ outputs:
   new_entries:
     value: ${{ tasks.fresh.output }}
     description: "RFC 6902 ops · empty = nothing new since last run"
+  # Untyped on purpose: `digest` is `when:`-gated, so on a quiet week it is
+  # SKIPPED and this reads null. Exporting it is also what keeps those tokens
+  # from being dead spend — an infer whose output nothing consumes is paid for
+  # and thrown away, and `check` says so.
+  briefing: ${{ tasks.digest.output }}

@@ -5,28 +5,64 @@
 #
 #   [plan]────▶[execute]─────▶[confirm]
 #   infer       agent·leashed  nika:assert
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# The open-ended job — research, review, triage — where the steps cannot be
+# written in advance. A cheap `infer` drafts the plan, a LEASHED agent works
+# it (bounded turns, bounded spend, a default-deny tool grant), and an assert
+# refuses to pass an empty result downstream.
+#
+# Demonstrates ·
+#   - `agent:` under the full leash · `max_turns` + `max_tokens_total` + an
+#     explicit `tools:` list · nothing outside it is reachable
+#   - `schema:` on the agent · the engine owns the final shape and RE-ASKS
+#     until it conforms — you never hand-instruct it (see `execute`)
+#   - `nika:assert` as a trust boundary · an empty run must not read as a
+#     successful one
+#
+# Needs · nothing. Scaffolds and runs green in an empty directory.
+#
+# Run · nika run <file> --model mock/echo                    # offline rehearsal
+#     · nika run <file> --var goal="triage the open bugs"    # a real seat
 nika: v1
 workflow:
   id: agent-loop-template       # SLOT: kebab-case workflow id
   description: "plan → budgeted agent → typed result"   # SLOT
 
-model: ollama/qwen3.5:4b           # SLOT: a tool-calling model · local by default
+# SLOT: a TOOL-CALLING model · local by default. This seat is measured, not
+# assumed: `ollama/qwen2.5:14b` completes the planning call in ~65s under the
+# ceiling below. A reasoning seat (`ollama/qwen3.5:4b`) spends its whole
+# budget thinking and never emits JSON here — the guaranteed offline path is
+# `--model mock/echo`, which needs no seat at all.
+model: ollama/qwen2.5:14b
 
 inputs:
   goal:
     type: string
     required: true
+    # A `required:` input still carries a `default:` here so the skeleton
+    # RUNS the moment it is scaffolded. Replace the default with your job;
+    # `--var goal=…` overrides it at any time.
+    default: "list the risks of running an agent without a turn budget"   # SLOT
     description: "What the agent must accomplish"   # SLOT
-permits:
-  tools: ["nika:assert", "nika:done", "nika:read"]
+
+permits:                            # the blast radius · default-deny once present
+  # Exactly what the body invokes: `nika:assert` (the confirm task) plus the
+  # two the agent may call. No `fs:` — see the note on `tools:` below.
+  tools: ["nika:assert", "nika:done", "nika:jq"]
 
 tasks:
   plan:
     infer:
       prompt: "Break '${{ inputs.goal }}' into at most 4 concrete steps."   # SLOT
+      # SLOT: the spend ceiling for the planning call. Size it for the SEAT,
+      # not for the answer: a reasoning model spends tokens thinking before
+      # it emits the first brace, and a ceiling that cuts it off mid-thought
+      # fails NIKA-INFER-002 ("no JSON value found · the reply was cut off at
+      # the token limit"). Measured — 400 starves qwen3.5:4b on this prompt.
+      max_tokens: 2000
       schema:
         type: object
+        additionalProperties: false
         required: [steps]
         properties:
           steps: { type: array, items: { type: string } }
@@ -35,18 +71,35 @@ tasks:
     with:
       steps: ${{ tasks.plan.output.steps }}
     agent:
-      # The done-contract belongs IN the prompt: the final message must
-      # carry the schema'd shape, so SAY so — a live model that is not
-      # told finishes in prose and fails NIKA-INFER-002 (proven on GPT).
-      system: "Work the plan step by step. When finished, reply with ONLY your final result as an object carrying a `findings` array (one short string each), then call nika:done."   # SLOT
+      # Say what the JOB is. Do NOT describe the output shape.
+      #
+      # The engine binds `schema:` to the FINAL answer: a free-text answer
+      # that does not conform is RE-ASKED with the schema wired, bounded by a
+      # retry budget. Measured on ollama/qwen3.5:4b — this task, with zero
+      # shape instruction, returns a clean typed object.
+      #
+      # Hand-instructing "reply with the object, then call nika:done" is
+      # actively harmful: a `nika:done` carrying `result:` is validated
+      # DIRECTLY and is NEVER re-asked (nika-verb-agent/src/lib.rs · "a miss
+      # is a verdict, never a re-ask"), so a model that hands its JSON back
+      # as a *string* dies NIKA-INFER-002 with the budget already spent.
+      # Measured twice on that exact instruction. Let the engine own shape.
+      system: "You are a careful analyst. Work the plan step by step and report what you actually found."   # SLOT
       prompt: "Plan · ${{ with.steps }}"
       tools:                        # SLOT: the MINIMUM grant for the job
-        - "nika:read"
-        - "nika:done"
+        # Pure compute — this pair needs no filesystem, so the skeleton runs
+        # anywhere. Granting the agent a tool here is only HALF a grant: every
+        # call still crosses the workflow boundary above. Adding `nika:read`
+        # to this list WITHOUT adding `permits.fs.read` fails at run with
+        # `NIKA-SEC-004 · agent tool "nika:read" refused by the security
+        # boundary` — measured, mid-loop, after the turns are paid for.
+        - "nika:jq"
+        - "nika:done"               # the early-exit sentinel · loop-owned
       max_turns: 15                 # SLOT: the loop bound
       max_tokens_total: 80000       # SLOT: the spend bound
       schema:                       # SLOT: the typed final-message contract
         type: object
+        additionalProperties: false
         required: [findings]
         properties:
           findings: { type: array, items: { type: string } }

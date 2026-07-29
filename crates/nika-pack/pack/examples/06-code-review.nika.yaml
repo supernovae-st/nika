@@ -1,67 +1,78 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 06 · Code-review agent — a multi-turn agentic loop.
+# 06 · Code-review agent — a loop you do not write.
+#
+# The first five files are graphs: you decide the steps. Here you decide the
+# BOUNDS — which tools, how many turns, how many tokens — and the model
+# decides the steps inside them. That is the whole trade, and the reason the
+# grants below matter more than the prompt does.
 #
 # Demonstrates ·
-#   - the `agent:` verb · model + tools, looping until done or budget exhausted
-#   - `tools:` · DEFAULT-DENY whitelist (the agent gets ONLY what you grant · least-privilege)
-#   - glob grants · `nika:read` exact · `mcp:git/*` whole server
-#   - `max_turns:` + `max_tokens_total:` · budget caps
-#   - real provider (`model:`) · agentic loops want a tool-calling model
+#   - the `agent:` verb · model + tools, looping until done or out of budget
+#   - `tools:` · a default-deny whitelist · the agent gets ONLY these
+#   - `max_turns:` + `max_tokens_total:` · the two budget caps
+#   - `nika:done` · the completion sentinel that lets the loop end cleanly
+#   - the workflow boundary applies INSIDE the loop · granting the agent
+#     `nika:read` is not enough, the files need `permits.fs.read` too
 #
-# The loop ends when the model returns no tool calls, hits a budget,
-# or calls the `nika:done` completion sentinel (valid only inside agent:).
+# Runs fully offline on a local tool-calling model, against a fixture
+# committed next to this file. Measured: 2 turns, ~1.6k tokens of the 8000
+# budget — it reads once, then reports. Wall clock is whatever your machine
+# and a resident-or-cold model make it (30s and 5m both observed here).
 #
-# Needs · a tool-calling provider key (MISTRAL_API_KEY here — or swap
-# `agent.model` for any provider in the catalog, `ollama/qwen3.5:4b` for
-# a fully local review).
+# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
 #
-# Run · nika run examples/06-code-review.nika.yaml --var pr_path=./changes.diff
+# Run · nika run examples/06-code-review.nika.yaml   (from the repo root ·
+#   paths resolve against your working directory, not the file's location)
 
 nika: v1
 workflow:
   id: code-review
 
-inputs:
-  pr_path:
-    type: string
-    required: true
-    description: "Path to the changed files to review"
+model: ollama/qwen3.5:4b   # local tool-calling model · zero key · the diff never leaves the machine
+
+const:
+  target: "./examples/fixtures/review-me.rs"
+
 permits:
-  tools: ["mcp:git/*", "nika:done", "nika:read"]
+  tools: ["nika:done", "nika:read"]
+  fs:
+    # The agent may call `nika:read`, and it may read THIS file. Those are two
+    # different permissions and both are required — a tool grant with no
+    # `fs.read` behind it fails mid-loop with
+    # « NIKA-SEC-004 · agent tool `nika:read` refused by the security boundary »,
+    # after the model has already spent a turn deciding to read.
+    #
+    # To review your own file, change this line AND `const.target` together.
+    # The permit does not follow the path around; that is what makes it a wall.
+    # (A bound cannot interpolate — `${{ const.target }}` here is NIKA-AUTH-007.)
+    read: ["./examples/fixtures/review-me.rs"]
 
 tasks:
   review:
     agent:
-      model: mistral/mistral-large
-      # The agent's final message is VALIDATED against `schema:` (not
-      # API-constrained like infer) — so the prompt carries the WHOLE
-      # contract, enums included, or a live model invents its own words.
-      system: "You are a senior Rust reviewer. Read the diff, then finish with ONLY your findings as the schema'd object: a `findings` array of {severity, message} where severity is exactly one of blocker|high|med|low. Then call nika:done."
-      prompt: "Review the code under · ${{ inputs.pr_path }} · and report bugs + style issues."
-      tools:                       # default-deny · these are the ONLY tools the agent may call
-        - "nika:read"              # read source files
-        - "mcp:git/*"              # any tool from the `git` MCP server (diff, blame, log)
-        - "nika:done"              # completion sentinel · lets the agent end the loop cleanly
-      max_turns: 20
-      max_tokens_total: 100000
-      temperature: 0.2            # a mistral knob · the gpt-5.x family fixes it at 1 (400 otherwise) — drop this line when you swap
-      schema:                      # validate the agent's final message as structured findings
-        type: object
-        required: [findings]
-        properties:
-          findings:
-            type: array
-            items:
-              type: object
-              required: [severity, message]
-              properties:
-                severity: { type: string, enum: [blocker, high, med, low] }
-                message: { type: string }
+      # Default-deny: this list IS the agent's universe. Anything not named
+      # here does not exist as far as the loop is concerned — there is no
+      # ambient toolbox to opt out of.
+      tools:
+        - "nika:read"   # open the file under review
+        - "nika:done"   # say "finished" and end the loop cleanly
+      # Two independent stops, because they fail differently: a model that
+      # ping-pongs forever hits `max_turns`, a model that reads something huge
+      # hits `max_tokens_total`. The loop also just ends when the model
+      # returns no tool call.
+      max_turns: 8
+      max_tokens_total: 8000
+      system: |
+        You are a senior Rust reviewer.
+        Read the file you are given with nika:read, then reply with your
+        findings as a short markdown list — one line per finding, each
+        starting with blocker/high/med/low. Then call nika:done.
+      prompt: "Review ${{ const.target }} and report bugs and style issues."
 
-# Typed return contract · structured findings, ready for a caller to consume.
+# The agent's final message. It is free text — an agent answer is prose unless
+# you constrain it, and constraining it is a separate job (see 04 for the
+# schema machinery).
 outputs:
-  findings:
-    value: ${{ tasks.review.output.findings }}
-    description: "Structured code-review findings"
+  findings: ${{ tasks.review.output }}

@@ -3,47 +3,80 @@
 #
 # showcase · T4 epic · devops / release engineering
 #
-# The release train · gates run in parallel, a human signs the
-# departure, the train WAITS until the scheduled window (absolute
-# `until:`, not a sleep), ships, verifies, and the journal gets the
-# full departure record. Time is a first-class citizen here.
+# The release train · three gates run in parallel and fold into ONE verdict,
+# the conductor signs the departure, the train HOLDS until the window (an
+# absolute instant, computed — not a sleep, and not a calendar constant),
+# ships, verifies, and the departure record lands whatever happened.
+# Time is a first-class citizen here, and so is refusing to leave.
 #
 # Demonstrates ·
-#   - `nika:wait` with `until:` · absolute-time hold (vs relative duration)
-#   - `nika:date` `op: diff` · compute how long the gates took
-#   - `nika:prompt` · the conductor's GO is a human decision
-#   - parallel gate wave + `capture: structured` exit-code checks
-#   - the always-pattern (`after: terminal`) · the departure record always lands
+#   - a parallel gate wave folded by one `nika:jq` into one `nika:assert`
+#   - `nika:date` `op: diff` · how long the board took to go green
+#   - `nika:date` `op: add` + `nika:wait` `until:` · an absolute hold whose
+#     instant is COMPUTED at the moment of signing, so the file cannot rot (a
+#     hardcoded `until: 2026-07-28T09:00:00Z` fails NIKA-BUILTIN-WAIT-002 the
+#     day after it is written — this corpus shipped exactly that)
+#   - the always-pattern · `after: {live: terminal}` + `nika:emit` · and the
+#     rule that comes with it: a task that fires on every outcome must not be
+#     the one that leaves the machine (see `record`)
+#   - dry-run by default · the irreversible step is opt-in, twice over
 #
-# Needs · real release checks wired in (the RED assert IS the lesson:
-# a train with failing gates does not depart).
+# Needs · nothing to rehearse, but RUN IT FROM THE REPO ROOT: the three gates
+# read ./VERSION, ./CHANGELOG.md and ./schemas/workflow.schema.json, and
+# `--var version=` is checked against ./VERSION. The DEPARTURE path
+# (--var depart=true) additionally needs ./scripts/release.sh and a live
+# /version endpoint — an unarmed run never reaches either.
+# It runs green but PAUSES at `conductor` (exit 4, not a failure) —
+#   nika run <file> --resume <trace> --answer conductor=true
 #
-# Run · nika run examples/showcase/t4-release-train.nika.yaml --var version=1.4.0
+# Run · nika run examples/showcase/t4-release-train.nika.yaml --var version="$(cat VERSION)"
+#       · watch the hold tick · add --var hold_for=5s
+#       · actually depart · add --var depart=true (and wire the two Needs above)
 
 nika: v1
 workflow:
   id: release-train
-  description: "parallel gates → human GO → hold until the window → ship · verify · record"
+  description: "parallel gates → one verdict → human GO → hold until the window → ship · verify · record"
+
+run:
+  # Pin the clock out loud. Every `timeout:` and every absolute `until:` below
+  # rides it; leaving it undeclared is the honest default (the ambient system
+  # clock) but never a stated choice, and the checker says so ([run-clock]).
+  # `clock: virtual` swaps in a simulated clock for tests (F-P3).
+  clock: system
 
 inputs:
   version:
     type: string
     required: true
-    description: "The version to ship (e.g. 1.4.0)"
-const:
-  window: "2026-07-28T09:00:00Z"
+    description: "The version you intend to ship · gate 1 checks it against ./VERSION"
+  depart:
+    type: bool
+    default: false
+    description: "Actually run the release script. OFF: the train rehearses and records that it stayed."
+  hold_for:
+    type: string
+    default: "15m"
+    description: "How far out the departure window sits, measured from the moment the departure is SIGNED"
 
-secrets:
-  team_webhook:
-    source: env
-    key: TEAM_WEBHOOK_URL
-    egress:                       # sanction the on_finally ping · the secret IS the URL
-      - to: "nika:notify"
-        host_from_self: true
 permits:
-  tools: ["nika:notify", "nika:assert", "nika:date", "nika:emit", "nika:fetch", "nika:prompt", "nika:wait"]
-  exec: ["./scripts/release.sh", "cargo"]
-  net: { http: ["api.example.com"] }
+  exec: ["./scripts/release.sh"]  # ONE program · the departure, and nothing else
+  tools: ["nika:assert", "nika:date", "nika:emit", "nika:fetch", "nika:jq", "nika:prompt", "nika:read", "nika:wait"]
+  net:
+    # ONE host, exact — the post-ship version probe and nothing else. This train
+    # deliberately owns no webhook: see the `record` task for why an
+    # always-fires task must never be the one that leaves the machine.
+    http: ["api.example.com"]
+  fs:
+    # Three files, read-only, named one by one. The gates below are the release
+    # checks a spec repo can actually run; in a Rust shop they are `cargo test`
+    # / `clippy` / `audit` under `exec:` with `capture: structured`, and the
+    # `permits.exec` list grows instead. The WAVE and the fold are the lesson —
+    # the identity of the three checks is yours to choose.
+    read:
+      - "./VERSION"
+      - "./CHANGELOG.md"
+      - "./schemas/workflow.schema.json"
 
 tasks:
   t0:
@@ -51,89 +84,168 @@ tasks:
       tool: "nika:date"
       args: { op: now }
 
-  # ── the gate wave · all three run in parallel ──
-  tests:
-    exec:
-      command: ["cargo", "test", "--workspace", "--quiet"]
-      capture: structured
-    timeout: "15m"
+  # ── the gate wave · three checks, one wave, no shared state ──
+  declared:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./VERSION" }
 
-  lint:
-    exec:
-      command: ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
-      capture: structured
-    timeout: "10m"
+  notes:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./CHANGELOG.md" }
 
-  audit:
-    exec:
-      command: ["cargo", "audit"]
-      capture: structured
-    timeout: "5m"
-    retry:
-      max_attempts: 2                  # advisory DB fetch can flake
+  schema:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./schemas/workflow.schema.json" }
+
+  # ── fold · three answers become one board, computed, not narrated ──
+  board:
+    with:
+      declared: ${{ tasks.declared.output }}
+      notes: ${{ tasks.notes.output }}
+      schema: ${{ tasks.schema.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        # The four inputs arrive as an ARRAY and are destructured by name, so
+        # the expression reads like the checklist it is. Building the verdict in
+        # jq rather than in a model keeps it deterministic and free.
+        input:
+          - "${{ with.declared }}"
+          - "${{ with.notes }}"
+          - "${{ with.schema }}"
+          - "${{ inputs.version }}"
+        expression: |
+          . as [$declared, $notes, $schema, $asked]
+          | { version_matches: (($declared | rtrimstr("\n")) == $asked),
+              notes_present:   ($notes  | test("\\[" + $asked + "\\]")),
+              schema_parses:   (try ($schema | fromjson | has("$id")) catch false) }
+          | . + { all_green: (.version_matches and .notes_present and .schema_parses) }
 
   gates_green:
     with:
-      all_green: ${{ tasks.tests.output.exit_code == 0 && tasks.lint.output.exit_code == 0 && tasks.audit.output.exit_code == 0 }}   # three value edges · one boundary expression
+      board: ${{ tasks.board.output }}
     invoke:
       tool: "nika:assert"
       args:
-        condition: "${{ with.all_green }}"
-        message: "A release gate is RED: the train does not depart"
+        # A RED board stops the train here: everything downstream is cancelled,
+        # and `record` below still lands the fact that it never left.
+        condition: "${{ with.board.all_green }}"
+        message: "A release gate is RED: the train does not depart · ${{ with.board }}"
+
+  t1:
+    after:
+      gates_green: success           # state, no data · the clock stops on a green board
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
 
   gate_time:
     with:
       t0: ${{ tasks.t0.output }}
-    after:
-      gates_green: success           # state, no data · the timing is only worth taking on a green board
+      t1: ${{ tasks.t1.output }}
     invoke:
       tool: "nika:date"
       args:
+        # `start:`/`end:` want real ISO timestamps — the literal "now" is not a
+        # value here and fails NIKA-BUILTIN-DATE-001. Take the reading in a task,
+        # then pass it as data; that is also what makes the run replayable.
         op: diff
         start: "${{ with.t0 }}"
-        end: "now"
+        end: "${{ with.t1 }}"
         unit: minutes
 
   # ── the human signs the departure ──
   conductor:
     with:
       gate_time: ${{ tasks.gate_time.output }}
+      board: ${{ tasks.board.output }}
     invoke:
+      # Blocking · no `default:`. The alternative shape is a `default: false`
+      # prompt (see templates/human-gated-ship): fail-closed, never pauses, and
+      # a yes can then only come from a TTY. This file blocks instead so the
+      # decision can also be handed over — `--resume <trace> --answer
+      # conductor=true` — which is how a release actually gets signed when the
+      # person who ran it is not the person who approves it. Either way the
+      # checker leaves a [headless-prompt] hint: that is the price of a gate.
       tool: "nika:prompt"
       args:
-        message: "Gates GREEN in ${{ with.gate_time }} min. Ship ${{ inputs.version }} in the ${{ const.window }} window?"
-        default: false
+        message: |
+          Board · ${{ with.board }}
+          Green in ${{ with.gate_time }} min.
 
-  approved:
+          Ship ${{ inputs.version }} · departure window opens in ${{ inputs.hold_for }}?
+          (depart armed: ${{ inputs.depart }})
+
+  # ── hold until the window · an absolute instant, computed AFTER the signature ──
+  #
+  # The window opens `hold_for` from the moment the departure was SIGNED, which
+  # is why this reading is taken here and not reused from `t1`. Measured, and
+  # the reason this task exists: the run pauses at the prompt, so `t1` is
+  # minutes or hours old by the time a human answers — resuming with `t1+ 15m`
+  # produced `NIKA-BUILTIN-WAIT-002 · until: … is in the past` on the very
+  # first resume. An absolute instant must be computed from a reading taken
+  # after the last thing that can block. (Resume it a SECOND time and this
+  # reading is itself a cache hit — `--from signed_at` re-takes it.)
+  signed_at:
     with:
-      signed: ${{ tasks.conductor.output == true }}   # the signature check crosses as ONE boundary expression
+      signed: ${{ tasks.conductor.output }}
+    when: ${{ with.signed == true }}
     invoke:
-      tool: "nika:assert"
-      args:
-        condition: "${{ with.signed }}"
-        message: "Departure not signed: train cancelled"
+      tool: "nika:date"
+      args: { op: now }
 
-  # ── hold until the window · absolute time, not a sleep ──
-  hold:
-    after:
-      approved: success
+  window:
+    with:
+      at: ${{ tasks.signed_at.output }}
+    when: ${{ with.at != null }}
     invoke:
+      tool: "nika:date"
+      args:
+        op: add
+        base: "${{ with.at }}"
+        duration: "${{ inputs.hold_for }}"
+
+  hold:
+    with:
+      window: ${{ tasks.window.output }}
+    when: ${{ with.window != null }}
+    invoke:
+      # `until:` is an INSTANT, not a nap: restart the run and it still targets
+      # the same moment, where a `duration:` would start counting again. The
+      # instant is computed from `t1` above precisely so this file cannot rot —
+      # a literal `until: "2026-07-28T09:00:00Z"` is correct for one day and
+      # then fails NIKA-BUILTIN-WAIT-002 · the timestamp is in the past.
       tool: "nika:wait"
       args:
-        until: "${{ const.window }}"
-        timeout: "48h"
+        until: "${{ with.window }}"
+        timeout: "48h"             # `timeout:` caps an absolute wait · until-only
 
+  # ── the irreversible step · armed, and only after the hold ──
   ship:
     after:
       hold: success
+    with:
+      depart: ${{ inputs.depart }}
+    when: ${{ with.depart == true }}   # dry-run by default · a rehearsal ships nothing
     exec:
-      command: ["./scripts/release.sh", "${{ inputs.version }}"]   # argv: the interpolation cannot break out
-      capture: structured
+      # argv, never a shell string: `${{ inputs.version }}` is substituted as ONE
+      # argument and cannot break out into a second command.
+      #
+      # Default capture (stdout) on purpose. `capture: structured` would turn a
+      # non-zero exit into DATA and this task would report success even when the
+      # release script died — which is exactly what `after: {ship: success}`
+      # below must not be lied to about. The checker flags that shape when
+      # nothing reads `exit_code` ([swallowed-exit]); here the honest answer is
+      # not to read the code but to let a failed release FAIL, NIKA-EXEC-001.
+      command: ["./scripts/release.sh", "${{ inputs.version }}"]
     timeout: "30m"
 
   verify:
     after:
-      ship: success
+      ship: success                  # never probe prod for a release that did not go out
     invoke:
       tool: "nika:fetch"
       args:
@@ -141,6 +253,8 @@ tasks:
         mode: jq
         jq: ".version"
     retry:
+      # A GET is idempotent, so retrying it replays nothing — the checker warns
+      # [retry-effects] when you retry something that is not.
       max_attempts: 5
       backoff_strategy: exponential
       backoff_ms: 5000
@@ -154,30 +268,41 @@ tasks:
         condition: "${{ with.version_live }}"
         message: "Prod does not report the shipped version: investigate before announcing"
 
-  # the always-pattern · `after: {live: terminal}` admits every settled
-  # state · this task runs whether `live` succeeded, failed, or was
-  # cancelled by an upstream abort · a record that must land on EVERY
-  # outcome is a terminal task, not a cleanup hook (03 §on_finally).
+  # ── the departure record · lands on EVERY outcome ──
+  #
+  # `after: {live: terminal}` admits success · failure · skipped · cancelled, so
+  # this runs when the train departed, when a gate was red, and when nobody
+  # armed it. `nika:emit` is the right verb for a record that must never fail:
+  # it crosses no boundary, needs no host, and cannot be refused mid-flight.
+  #
+  # It is also the only verb that can safely sit here, and that is a rule worth
+  # keeping: AN ALWAYS-FIRES TASK MUST NOT BE THE ONE THAT LEAVES THE MACHINE.
+  # A `terminal` edge admits `cancelled`, so the task is reachable along a path
+  # where the human never answered — no gate can dominate it, and the moment
+  # such a task can egress, NIKA-SEC-009 fires (measured: hanging a
+  # `nika:notify` here turns this file RED, and moving the prompt to the root
+  # does not save it). If you want the outcome on a webhook, put the send under
+  # the signature — `t4-ceo-monday-brief` shows that shape — and leave the
+  # unconditional record to `emit`.
   record:
     after:
       live: terminal
     with:
-      outcome: ${{ tasks.live.status }}   # observe the departure verdict · same pass-set as the after edge
+      outcome: ${{ tasks.live.status }}   # observe the verdict · same pass-set as the after edge
     invoke:
       tool: "nika:emit"
       args:
         event_type: "release.train.departed"
         payload:
           version: "${{ inputs.version }}"
+          departed: "${{ inputs.depart }}"
+          # The engine's word, not a paraphrase: `cancelled` here means the
+          # verification never got to run, which is the truth on a rehearsal and
+          # on a red board alike. `departed:` above is what disambiguates them.
           status: "${{ with.outcome }}"
-    on_finally:
-      - invoke:
-          tool: "nika:notify"
-          args:
-            channel: webhook
-            target: "${{ secrets.team_webhook }}"
-            message: "Release train ${{ inputs.version }} · ${{ with.outcome }}"
-            severity: info
 
 outputs:
+  board:
+    value: ${{ tasks.board.output }}
+    description: "The gate board · one boolean per check plus the verdict that stopped or released the train"
   shipped: ${{ tasks.verify.output }}

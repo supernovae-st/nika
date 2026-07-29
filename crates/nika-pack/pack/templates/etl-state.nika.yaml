@@ -2,10 +2,40 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · etl-state · incremental data job with a state file.
-#   [previous]──┬──▶[delta]──when ≠∅──▶[process]
-#   [fresh]─────┤    json_diff           nika:jq
-#               └──▶[save_state]
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+#   [approve]──▶[fresh]──┬───────────────────────▶[save_state]   when approved
+#    prompt      fetch   │                         nika:write
+#   [previous_raw]─▶[previous]──┴──▶[delta]──when ≠∅──▶[process]
+#    nika:read      nika:jq          json_diff          nika:jq
+#
+# The "only what changed since last time" job. A cursor file on disk remembers
+# the last run, a fetch brings the current truth, and an RFC-6902 diff says
+# exactly what moved — so downstream work is proportional to the CHANGE, not to
+# the size of the dataset.
+#
+# Demonstrates ·
+#   - a state file read→diff→write cycle · one path, both directions
+#   - `nika:read` returns TEXT · it is parsed with `fromjson` before diffing
+#     (skip that and the diff is meaningless — see `previous`)
+#   - a blocking human gate that DOMINATES every path to the network and the
+#     write · NEP-0002's Rule of Two, as a check
+#   - `on_error: on_codes:` · forgive not-found ONLY, never a permission error
+#
+# TWO HONEST HINTS · this file ships RED-adjacent on purpose:
+#   [headless-prompt] the gate is deliberately blocking · a `default:` here
+#     completes the lethal trifecta and lights NIKA-SEC-009 (measured — add one
+#     and watch the TRIFECTA rung flip). The hint is right that it needs a
+#     human; that is the point.
+#   [inputs] `previous_raw` reads a cursor file that does not exist yet · the
+#     `on_error:` below handles exactly that, but `check` does not model
+#     recovery. First run creates it.
+#
+# Needs · nothing to rehearse. For REAL use: a reachable source in
+#   `const.source_url` — then delete the `on_error:` on `fresh`.
+#
+# Run · nika run <file> --output json
+#     The run PAUSES at the gate (exit 4 · durable, not a failure) and prints
+#     its own resume command. Answer it to continue.
 nika: v1
 workflow:
   id: etl-state-template        # SLOT: kebab-case workflow id
@@ -15,22 +45,55 @@ const:
   source_url: "https://api.example.com/v1/records"   # SLOT: the data source
   state_path: "./state/etl-state.json"               # SLOT: the cursor file
 
-tasks:
-  # First run · no state file yet · recover to an empty list.
-  empty:
-    invoke:
-      tool: "nika:jq"
-      args: { input: [], expression: "." }
+permits:                            # the blast radius · default-deny once present
+  tools: ["nika:read", "nika:write", "nika:fetch", "nika:jq", "nika:json_diff", "nika:prompt"]
+  fs:                               # the cursor file, read then rewritten — one path, both ways
+    read: ["./state/etl-state.json"]    # SLOT: keep in step with const.state_path
+    write: ["./state/etl-state.json"]   # SLOT: idem — the job writes nothing else
+  net: { http: ["api.example.com"] }    # SLOT: the source host from const.source_url
 
-  previous:
+tasks:
+  # NEP-0002 · the Rule of Two, as a check. This run holds all three legs at
+  # once: it reads a private file, ingests UNTRUSTED network content, and
+  # persists that content into the very file the NEXT run reads as trusted
+  # state. One human decision has to dominate EVERY path to that write — so the
+  # gate sits before the first network touch, not next to the write (a gate the
+  # fetch can route around dominates nothing). Blocking on purpose: a `default:`
+  # here would disarm it, and the checker knows — measured, adding `default:`
+  # flips TRIFECTA to `✖ NIKA-SEC-009 lethal trifecta complete`.
+  approve:
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: "Fetch ${{ const.source_url }} and persist it into ${{ const.state_path }}?"
+
+  previous_raw:
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.state_path }}" }
     on_error:
       on_codes: [NIKA-BUILTIN-READ-001]   # not-found ONLY · a permission error still fails loudly
-      recover: ${{ tasks.empty.output }}
+      recover: "[]"                       # first run · the STRING "[]", so `previous` parses it
+                                          # exactly like a real file — one code path, not two
+
+  previous:
+    with:
+      raw: ${{ tasks.previous_raw.output }}
+    invoke:
+      # `nika:read` hands back TEXT, and `nika:json_diff` compares VALUES. Feed
+      # it the raw string and the diff degrades to a single
+      # `{"op":"replace","path":""}` carrying the entire new document — it looks
+      # like it works, and it reports "everything changed" forever. Measured.
+      # `fromjson` is what makes the next task an actual diff.
+      tool: "nika:jq"
+      args:
+        input: "${{ with.raw }}"
+        expression: "fromjson"
 
   fresh:
+    with:
+      go: ${{ tasks.approve.output }}   # the binding IS the edge · the gate dominates the fetch
+    when: ${{ with.go == true }}        # declined → no network touch at all
     invoke:
       tool: "nika:fetch"            # SLOT: fetch / read / exec · the fresh data
       args:
@@ -63,11 +126,14 @@ tasks:
   save_state:
     with:
       fresh: ${{ tasks.fresh.output }}
+      go: ${{ tasks.approve.output }}   # the binding IS the edge · the gate dominates the write
+    when: ${{ with.go == true }}        # a refusal is a VALUE · the write is skipped, never failed
     invoke:
       tool: "nika:write"
       args:
         path: "${{ const.state_path }}"
-        content: "${{ with.fresh }}"
+        content: "${{ with.fresh }}"    # a VALUE · the engine serializes it, and the next run's
+                                        # `fromjson` reads it straight back
         create_dirs: true
         overwrite: true
 

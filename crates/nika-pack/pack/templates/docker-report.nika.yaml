@@ -2,18 +2,38 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · docker-report · read real state via a pinned CLI → explain it → keep the report.
+#
 #   [ps]────┐
 #   [df]────┴──▶[diagnose]────▶[keep]
 #   exec ×2      infer          nika:write
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# The "ask the machine what is actually true, then explain it" job. Two reads
+# run in parallel because nothing connects them, one model pass turns raw CLI
+# output into a report a human can act on, and the report is kept on disk. Swap
+# `docker` for `kubectl`, `gh`, `systemctl` — the shape does not change.
+#
+# Demonstrates ·
+#   - argv-ARRAY `exec:` · one program, exactly these arguments, no shell to
+#     inject into · and `permits.exec` names the single program allowed
+#   - implicit parallelism · `ps` and `df` share no edge, so the scheduler runs
+#     them together · nobody writes "in parallel" anywhere
+#   - `on_error: recover:` on an exec · the skeleton rehearses green on a host
+#     with no Docker at all
+#
+# Needs · nothing to rehearse. For a REAL report: a running Docker daemon —
+#   then delete the two `on_error:` blocks so a broken daemon is loud.
+#
+# Run · nika run <file> --model mock/echo    # offline rehearsal · no daemon
 nika: v1
 workflow:
   id: docker-report-template    # SLOT: kebab-case workflow id
   description: "read the daemon's state · explain it · keep the report"   # SLOT
 
-model: ollama/qwen3.5:4b            # SLOT: local-first · mock/echo for offline rehearsal
+# SLOT: local-first · `--model mock/echo` for the offline rehearsal. Measured
+# seat — `ollama/llama3.2:3b` answers this prose prompt in well under a minute.
+model: ollama/llama3.2:3b
 
-permits:
+permits:                            # the blast radius · default-deny once present
   exec:
     - "docker"                      # SLOT: the ONE program the reads may launch
   tools:
@@ -27,19 +47,31 @@ tasks:
   # scheduler proves it from the DAG, nobody orders it.
   ps:
     exec:
-      # SLOT: argv ARRAY form — one program, exactly these arguments
+      # SLOT: argv ARRAY form — one program, exactly these arguments. The array
+      # is why there is no shell here: no word-splitting, no globbing, nothing
+      # to quote wrong. `permits.exec` above is the provable allowlist.
       command: ["docker", "ps", "--all", "--format", "{{.Names}}\t{{.Status}}\t{{.Image}}"]
+    on_error:
+      # Offline rehearsal · a host with no daemon answers with a literal that
+      # LOOKS like the real thing, so `diagnose` reads the same shape either
+      # way. Delete this once the daemon is really there.
+      recover: "REHEARSAL\tno docker daemon on this host\tn/a"
 
   df:
     exec:
       command: ["docker", "system", "df"]   # SLOT: the second read (drop the task if one suffices)
+    on_error:
+      recover: "REHEARSAL · disk usage unavailable without a daemon"
 
   diagnose:
     with:
       ps: ${{ tasks.ps.output }}
       df: ${{ tasks.df.output }}
     infer:
-      # SLOT: what should the model DO with the readings?
+      max_tokens: 600               # SLOT: the spend ceiling for this call
+      # SLOT: what should the model DO with the readings? Keep slot markers out
+      # of the block below — everything indented under `prompt: |` is prompt
+      # TEXT, and a stray comment line is sent to the model verbatim.
       prompt: |
         You are reading a Docker host's state. Containers (name·status·image):
         ${{ with.ps }}
@@ -50,7 +82,6 @@ tasks:
         Write a short health report: what is running, what exited, what
         looks unhealthy (restart loops · old exits), and whether disk
         usage needs attention. Plain prose, no preamble.
-      max_tokens: 600               # SLOT: the spend ceiling for this call
 
   keep:
     with:

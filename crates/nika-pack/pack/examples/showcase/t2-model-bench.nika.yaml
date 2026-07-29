@@ -44,11 +44,16 @@ model: ollama/qwen3.5:4b # the house default · contenders below pick their own 
 
 const:
   question:
+    # A TYPED constant is `{ type, value }` — both keys, exactly those two.
+    # `{ type, default }` is not a declaration at all (01-envelope.md §const:
+    # an object missing either key is a bare literal object), so the prompt
+    # below would receive the whole `{type, default}` map instead of the
+    # question. Measured: the model gets a JSON blob and the bench is junk.
     type: string
-    default: "Explain, in five lines, why a workflow should be audited before it runs."
+    value: "Explain, in five lines, why a workflow should be audited before it runs."
 permits:
   tools: ["nika:jq", "nika:write"]
-  fs: { write: ["./bench/model-bench.md"] }
+  fs: { write: ["out/model-bench.md"] }
 
 tasks:
   ask_incumbent:
@@ -104,7 +109,7 @@ tasks:
     invoke:
       tool: "nika:write"
       args:
-        path: "./bench/model-bench.md"
+        path: out/model-bench.md
         create_dirs: true
         content: |
           # Model bench — same question, measured
@@ -113,3 +118,8 @@ tasks:
 
           Facts only: latency from the run's clock, length in characters.
           The answers are side by side — the quality call is yours.
+
+outputs:
+  table:
+    value: ${{ tasks.tabulate.output }}
+    description: "The measured comparison table · latency + length per seat"

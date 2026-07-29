@@ -5,7 +5,24 @@
 #
 #   [check]────with · when(cond)────▶[act]
 #   nika:fetch                        nika:notify
-# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
+#
+# The watcher. Read a number, stay silent unless it crosses a line. Most runs
+# do nothing at all — and "nothing happened" is a SUCCESS here, not a failure.
+# Often zero model calls, so it is cheap enough to run on a schedule.
+#
+# Demonstrates ·
+#   - `when:` as a SKIP gate · routing, not failure · a skipped task is not an
+#     error and does not fail the run
+#   - flow vs capability · `egress:` sanctions the SEND, `permits.net.http`
+#     grants the REACH · an alert path needs BOTH (see `permits.net`)
+#   - `on_error: recover:` · the gate rehearses CLOSED, so the skeleton is
+#     green before the real source is wired
+#
+# Needs · nothing to rehearse. To alert FOR REAL: ALERTS_WEBHOOK_URL in the
+#   environment and a live source in `const.source_url` — then delete the
+#   `on_error:` so a dead source is loud.
+#
+# Run · nika run <file>          # offline rehearsal · the gate stays closed
 nika: v1
 workflow:
   id: gate-and-act-template     # SLOT: kebab-case workflow id
@@ -14,6 +31,16 @@ workflow:
 const:
   source_url: "https://api.example.com/v1/value"   # SLOT: what to watch
   threshold: 100                    # SLOT: the trigger condition value
+
+permits:                            # the blast radius · default-deny once present
+  tools: ["nika:fetch", "nika:notify"]
+  net:
+    http:
+      - "api.example.com"           # SLOT: the watched host from const.source_url
+      - "hooks.slack.com"           # SLOT: the host ALERTS_WEBHOOK_URL points at.
+                                    #   `host_from_self` below means the host is not
+                                    #   knowable at check — it is judged at RUN against
+                                    #   this list, so an unnamed host fails mid-flight.
 
 secrets:
   webhook:
