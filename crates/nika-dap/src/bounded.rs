@@ -26,6 +26,13 @@ use serde_json::Value;
 /// receipt is kilobytes; 1 MiB is loud headroom.
 pub const MAX_ARTIFACT_BYTES: usize = 1024 * 1024;
 
+/// Maximum journal size the verifier reads WHOLE — same memory-safety
+/// class, a different artifact: a run journal is event-bounded (~128 B
+/// per line · millions of events stay far under this) and a file beyond
+/// it is not a run this engine produced. 256 MiB is loud headroom that
+/// still fails closed before memory exhaustion.
+pub const MAX_JOURNAL_BYTES: usize = 256 * 1024 * 1024;
+
 /// Maximum JSON nesting depth (objects + arrays) — the
 /// CVE-2026-26209 anchor: deep nesting is an attack, never a receipt.
 pub const MAX_JSON_DEPTH: usize = 32;

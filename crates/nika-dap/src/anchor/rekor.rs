@@ -178,7 +178,9 @@ pub fn parse_entry_response(body: &serde_json::Value) -> Result<SubmittedEntry, 
     let version = string_at(&["kindVersion", "version"])?;
     if kind != "hashedrekord" || version != "0.0.2" {
         return Err(format!(
-            "rekor response: unsupported entry {kind}/{version} (this client speaks hashedrekord/0.0.2)"
+            "rekor response: unsupported entry {}/{} (this client speaks hashedrekord/0.0.2)",
+            crate::escape_tty(&kind),
+            crate::escape_tty(&version)
         ));
     }
     let hashes = at(body, &["inclusionProof", "hashes"])?
@@ -262,7 +264,8 @@ pub fn verify_checkpoint(envelope: &str) -> Result<Checkpoint, String> {
     let (origin, tree_size, root) = parse_checkpoint_body(envelope)?;
     if origin != REKOR_ORIGIN {
         return Err(format!(
-            "checkpoint: unknown log origin `{origin}` (pinned: {REKOR_ORIGIN})"
+            "checkpoint: unknown log origin `{}` (pinned: {REKOR_ORIGIN})",
+            crate::escape_tty(&origin)
         ));
     }
 

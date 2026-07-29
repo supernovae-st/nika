@@ -1129,6 +1129,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::bounded::DecodeRefusal
 impl<T> typenum::type_operators::Same for nika_dap::bounded::DecodeRefusal
 pub type nika_dap::bounded::DecodeRefusal::Output = T
 pub const nika_dap::bounded::MAX_ARTIFACT_BYTES: usize
+pub const nika_dap::bounded::MAX_JOURNAL_BYTES: usize
 pub const nika_dap::bounded::MAX_ID_BYTES: usize
 pub const nika_dap::bounded::MAX_JSON_DEPTH: usize
 pub const nika_dap::bounded::MAX_PROOF_NODES: usize
@@ -1194,6 +1195,7 @@ pub nika_dap::evidence::PackError::UnreadableJournal(alloc::string::String)
 pub nika_dap::evidence::PackError::Workflow(alloc::string::String)
 pub nika_dap::evidence::PackError::Write(alloc::string::String)
 impl core::clone::Clone for nika_dap::evidence::PackError
+pub fn nika_dap::escape_tty(s: &str) -> alloc::string::String
 pub fn nika_dap::evidence::PackError::clone(&self) -> nika_dap::evidence::PackError
 impl core::cmp::Eq for nika_dap::evidence::PackError
 impl core::cmp::PartialEq for nika_dap::evidence::PackError

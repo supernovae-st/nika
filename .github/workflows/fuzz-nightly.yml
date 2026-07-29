@@ -1,8 +1,11 @@
 name: Fuzz Nightly
 
-# Nightly libFuzzer runs over the two language-surface parsers ·
+# Nightly libFuzzer runs over the language-surface decoders ·
 #   parse_workflow  — YAML → RawWorkflow (strict + lenient)
 #   cel_expression  — the CEL v0.1-subset grammar + template island scanner
+#   cap_check       — the capability-boundary judgment
+#   infer_permits   — the permits inference
+#   receipt_decode  — the receipt/journal untrusted decode (NEP-0012 law 5)
 # Invariant · no panic / abort / hang on arbitrary input. A crash uploads
 # the reproducer artifact and fails the job (issue-worthy by definition).
 #
@@ -29,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [parse_workflow, cel_expression, cap_check, infer_permits]
+        target: [parse_workflow, cel_expression, cap_check, infer_permits, receipt_decode]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

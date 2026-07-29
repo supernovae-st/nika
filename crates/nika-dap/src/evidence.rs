@@ -283,6 +283,17 @@ pub fn build(
 /// else is not a journal this engine wrote).
 fn read_journal(label: &str) -> Result<String, PackError> {
     // seam-bypass-ok: the evidence pack reads the operator's own journal
+    // · NEP-0012 law 1: the whole-file bound rides here too (the read
+    // is bounded BEFORE it happens).
+    if let Ok(meta) = std::fs::metadata(label)
+        && meta.len() > crate::bounded::MAX_JOURNAL_BYTES as u64
+    {
+        return Err(PackError::UnreadableJournal(format!(
+            "{label}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1)",
+            meta.len(),
+            crate::bounded::MAX_JOURNAL_BYTES
+        )));
+    }
     let bytes = std::fs::read(label)
         .map_err(|e| PackError::UnreadableJournal(format!("cannot read {label}: {e}")))?;
     String::from_utf8(bytes).map_err(|_| {

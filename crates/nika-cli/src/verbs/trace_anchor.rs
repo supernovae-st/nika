@@ -80,7 +80,8 @@ fn render(report: &anchor_run::AnchoredReport) -> String {
     let _ = writeln!(
         out,
         "  rekor {} · index {} · the checkpoint + inclusion proof verified before this line printed",
-        sidecar.rekor.url, sidecar.rekor.log_index
+        super::trace_verify::sanitize(&sidecar.rekor.url),
+        super::trace_verify::sanitize(&sidecar.rekor.log_index)
     );
     if report.custom_shard {
         let _ = writeln!(

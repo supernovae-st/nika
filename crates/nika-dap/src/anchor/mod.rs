@@ -443,8 +443,9 @@ pub fn verify_offline(
     }
     if sidecar.rekor.key_id != key_id {
         return Err(format!(
-            "the anchor was minted by key {} — not the seal's key {key_id}",
-            sidecar.rekor.key_id
+            "the anchor was minted by key {} — not the seal's key {}",
+            crate::escape_tty(&sidecar.rekor.key_id),
+            crate::escape_tty(key_id)
         ));
     }
     verify_rekor_half(&sidecar.rekor, head, pk32)?;
