@@ -1185,6 +1185,254 @@ pub type nika_dap::chain::Verdict::Output = T
 pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
 pub const nika_dap::chain::MAX_LINE_BYTES: usize
 pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
+pub mod nika_dap::cost_replay
+#[non_exhaustive] pub enum nika_dap::cost_replay::Agreement
+pub nika_dap::cost_replay::Agreement::Agrees
+pub nika_dap::cost_replay::Agreement::Diverges
+impl core::clone::Clone for nika_dap::cost_replay::Agreement
+pub fn nika_dap::cost_replay::Agreement::clone(&self) -> nika_dap::cost_replay::Agreement
+impl core::cmp::Eq for nika_dap::cost_replay::Agreement
+impl core::cmp::PartialEq for nika_dap::cost_replay::Agreement
+pub fn nika_dap::cost_replay::Agreement::eq(&self, other: &nika_dap::cost_replay::Agreement) -> bool
+impl core::fmt::Debug for nika_dap::cost_replay::Agreement
+pub fn nika_dap::cost_replay::Agreement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::cost_replay::Agreement
+impl core::marker::StructuralPartialEq for nika_dap::cost_replay::Agreement
+impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::Agreement
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_replay::Agreement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_replay::Agreement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::Agreement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::Agreement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_replay::Agreement::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::cost_replay::Agreement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::Agreement where U: core::convert::From<T>
+pub fn nika_dap::cost_replay::Agreement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_replay::Agreement where U: core::convert::Into<T>
+pub type nika_dap::cost_replay::Agreement::Error = core::convert::Infallible
+pub fn nika_dap::cost_replay::Agreement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_replay::Agreement where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_replay::Agreement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_replay::Agreement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_replay::Agreement where T: core::clone::Clone
+pub type nika_dap::cost_replay::Agreement::Owned = T
+pub fn nika_dap::cost_replay::Agreement::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_replay::Agreement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_replay::Agreement where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_replay::Agreement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_replay::Agreement where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::Agreement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_replay::Agreement where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::Agreement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_replay::Agreement where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_replay::Agreement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_replay::Agreement
+pub fn nika_dap::cost_replay::Agreement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_replay::Agreement where T: core::clone::Clone
+pub fn nika_dap::cost_replay::Agreement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_replay::Agreement where T: 'static
+pub fn nika_dap::cost_replay::Agreement::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::cost_replay::Agreement where T: core::marker::Copy
+pub fn nika_dap::cost_replay::Agreement::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_replay::Agreement where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::Agreement::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_replay::Agreement::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_replay::Agreement
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_replay::Agreement
+impl<T> typenum::type_operators::Same for nika_dap::cost_replay::Agreement
+pub type nika_dap::cost_replay::Agreement::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_replay::CostReplay
+pub nika_dap::cost_replay::CostReplay::Refused
+pub nika_dap::cost_replay::CostReplay::Refused::local: nika_dap::cost_replay::PricingPin
+pub nika_dap::cost_replay::CostReplay::Refused::pinned: core::option::Option<nika_dap::cost_replay::PricingPin>
+pub nika_dap::cost_replay::CostReplay::Rejudged(nika_dap::cost_replay::Rejudged)
+pub nika_dap::cost_replay::CostReplay::Unrecorded
+impl core::clone::Clone for nika_dap::cost_replay::CostReplay
+pub fn nika_dap::cost_replay::CostReplay::clone(&self) -> nika_dap::cost_replay::CostReplay
+impl core::cmp::PartialEq for nika_dap::cost_replay::CostReplay
+pub fn nika_dap::cost_replay::CostReplay::eq(&self, other: &nika_dap::cost_replay::CostReplay) -> bool
+impl core::fmt::Debug for nika_dap::cost_replay::CostReplay
+pub fn nika_dap::cost_replay::CostReplay::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_replay::CostReplay
+impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::CostReplay
+impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::CostReplay where U: core::convert::From<T>
+pub fn nika_dap::cost_replay::CostReplay::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_replay::CostReplay where U: core::convert::Into<T>
+pub type nika_dap::cost_replay::CostReplay::Error = core::convert::Infallible
+pub fn nika_dap::cost_replay::CostReplay::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_replay::CostReplay where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_replay::CostReplay::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_replay::CostReplay::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_replay::CostReplay where T: core::clone::Clone
+pub type nika_dap::cost_replay::CostReplay::Owned = T
+pub fn nika_dap::cost_replay::CostReplay::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_replay::CostReplay::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_replay::CostReplay where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplay::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_replay::CostReplay where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplay::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_replay::CostReplay where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplay::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_replay::CostReplay where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_replay::CostReplay::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_replay::CostReplay
+pub fn nika_dap::cost_replay::CostReplay::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_replay::CostReplay where T: core::clone::Clone
+pub fn nika_dap::cost_replay::CostReplay::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_replay::CostReplay where T: 'static
+pub fn nika_dap::cost_replay::CostReplay::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_replay::CostReplay where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplay::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_replay::CostReplay::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_replay::CostReplay
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_replay::CostReplay
+impl<T> typenum::type_operators::Same for nika_dap::cost_replay::CostReplay
+pub type nika_dap::cost_replay::CostReplay::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_replay::CostReplayLeg
+pub nika_dap::cost_replay::CostReplayLeg::lines: alloc::vec::Vec<alloc::string::String>
+pub nika_dap::cost_replay::CostReplayLeg::verdict: nika_dap::cost_replay::CostReplay
+impl core::clone::Clone for nika_dap::cost_replay::CostReplayLeg
+pub fn nika_dap::cost_replay::CostReplayLeg::clone(&self) -> nika_dap::cost_replay::CostReplayLeg
+impl core::cmp::PartialEq for nika_dap::cost_replay::CostReplayLeg
+pub fn nika_dap::cost_replay::CostReplayLeg::eq(&self, other: &nika_dap::cost_replay::CostReplayLeg) -> bool
+impl core::fmt::Debug for nika_dap::cost_replay::CostReplayLeg
+pub fn nika_dap::cost_replay::CostReplayLeg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_replay::CostReplayLeg
+impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::CostReplayLeg
+impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::CostReplayLeg where U: core::convert::From<T>
+pub fn nika_dap::cost_replay::CostReplayLeg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_replay::CostReplayLeg where U: core::convert::Into<T>
+pub type nika_dap::cost_replay::CostReplayLeg::Error = core::convert::Infallible
+pub fn nika_dap::cost_replay::CostReplayLeg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_replay::CostReplayLeg where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_replay::CostReplayLeg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_replay::CostReplayLeg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_replay::CostReplayLeg where T: core::clone::Clone
+pub type nika_dap::cost_replay::CostReplayLeg::Owned = T
+pub fn nika_dap::cost_replay::CostReplayLeg::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_replay::CostReplayLeg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_replay::CostReplayLeg where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplayLeg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_replay::CostReplayLeg where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplayLeg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_replay::CostReplayLeg where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplayLeg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_replay::CostReplayLeg where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_replay::CostReplayLeg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_replay::CostReplayLeg
+pub fn nika_dap::cost_replay::CostReplayLeg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_replay::CostReplayLeg where T: core::clone::Clone
+pub fn nika_dap::cost_replay::CostReplayLeg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_replay::CostReplayLeg where T: 'static
+pub fn nika_dap::cost_replay::CostReplayLeg::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_replay::CostReplayLeg where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::CostReplayLeg::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_replay::CostReplayLeg::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_replay::CostReplayLeg
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_replay::CostReplayLeg
+impl<T> typenum::type_operators::Same for nika_dap::cost_replay::CostReplayLeg
+pub type nika_dap::cost_replay::CostReplayLeg::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_replay::PricingPin
+pub nika_dap::cost_replay::PricingPin::as_of: alloc::string::String
+pub nika_dap::cost_replay::PricingPin::schema: alloc::string::String
+pub nika_dap::cost_replay::PricingPin::sha256_16: alloc::string::String
+impl nika_dap::cost_replay::PricingPin
+pub fn nika_dap::cost_replay::PricingPin::new(schema: &str, as_of: &str, sha256_16: &str) -> Self
+impl core::clone::Clone for nika_dap::cost_replay::PricingPin
+pub fn nika_dap::cost_replay::PricingPin::clone(&self) -> nika_dap::cost_replay::PricingPin
+impl core::cmp::Eq for nika_dap::cost_replay::PricingPin
+impl core::cmp::PartialEq for nika_dap::cost_replay::PricingPin
+pub fn nika_dap::cost_replay::PricingPin::eq(&self, other: &nika_dap::cost_replay::PricingPin) -> bool
+impl core::fmt::Debug for nika_dap::cost_replay::PricingPin
+pub fn nika_dap::cost_replay::PricingPin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_replay::PricingPin
+impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::PricingPin
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_replay::PricingPin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_replay::PricingPin::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::PricingPin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::PricingPin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_replay::PricingPin::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::cost_replay::PricingPin::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::PricingPin where U: core::convert::From<T>
+pub fn nika_dap::cost_replay::PricingPin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_replay::PricingPin where U: core::convert::Into<T>
+pub type nika_dap::cost_replay::PricingPin::Error = core::convert::Infallible
+pub fn nika_dap::cost_replay::PricingPin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_replay::PricingPin where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_replay::PricingPin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_replay::PricingPin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_replay::PricingPin where T: core::clone::Clone
+pub type nika_dap::cost_replay::PricingPin::Owned = T
+pub fn nika_dap::cost_replay::PricingPin::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_replay::PricingPin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_replay::PricingPin where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_replay::PricingPin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_replay::PricingPin where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::PricingPin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_replay::PricingPin where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::PricingPin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_replay::PricingPin where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_replay::PricingPin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_replay::PricingPin
+pub fn nika_dap::cost_replay::PricingPin::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_replay::PricingPin where T: core::clone::Clone
+pub fn nika_dap::cost_replay::PricingPin::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_replay::PricingPin where T: 'static
+pub fn nika_dap::cost_replay::PricingPin::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_replay::PricingPin where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::PricingPin::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_replay::PricingPin::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_replay::PricingPin
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_replay::PricingPin
+impl<T> typenum::type_operators::Same for nika_dap::cost_replay::PricingPin
+pub type nika_dap::cost_replay::PricingPin::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_replay::Rejudged
+pub nika_dap::cost_replay::Rejudged::budget: core::option::Option<nika_dap::cost_replay::Agreement>
+pub nika_dap::cost_replay::Rejudged::budget_usd: core::option::Option<f64>
+pub nika_dap::cost_replay::Rejudged::priced_frames: usize
+pub nika_dap::cost_replay::Rejudged::spent_usd: f64
+pub nika_dap::cost_replay::Rejudged::totals: core::option::Option<nika_dap::cost_replay::Agreement>
+impl core::clone::Clone for nika_dap::cost_replay::Rejudged
+pub fn nika_dap::cost_replay::Rejudged::clone(&self) -> nika_dap::cost_replay::Rejudged
+impl core::cmp::PartialEq for nika_dap::cost_replay::Rejudged
+pub fn nika_dap::cost_replay::Rejudged::eq(&self, other: &nika_dap::cost_replay::Rejudged) -> bool
+impl core::fmt::Debug for nika_dap::cost_replay::Rejudged
+pub fn nika_dap::cost_replay::Rejudged::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_replay::Rejudged
+impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::Rejudged
+impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::Rejudged where U: core::convert::From<T>
+pub fn nika_dap::cost_replay::Rejudged::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_replay::Rejudged where U: core::convert::Into<T>
+pub type nika_dap::cost_replay::Rejudged::Error = core::convert::Infallible
+pub fn nika_dap::cost_replay::Rejudged::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_replay::Rejudged where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_replay::Rejudged::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_replay::Rejudged::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_replay::Rejudged where T: core::clone::Clone
+pub type nika_dap::cost_replay::Rejudged::Owned = T
+pub fn nika_dap::cost_replay::Rejudged::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_replay::Rejudged::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_replay::Rejudged where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_replay::Rejudged::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_replay::Rejudged where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::Rejudged::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_replay::Rejudged where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::Rejudged::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_replay::Rejudged where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_replay::Rejudged::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_replay::Rejudged
+pub fn nika_dap::cost_replay::Rejudged::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_replay::Rejudged where T: core::clone::Clone
+pub fn nika_dap::cost_replay::Rejudged::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_replay::Rejudged where T: 'static
+pub fn nika_dap::cost_replay::Rejudged::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_replay::Rejudged where T: ?core::marker::Sized
+pub fn nika_dap::cost_replay::Rejudged::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_replay::Rejudged::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_replay::Rejudged
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_replay::Rejudged
+impl<T> typenum::type_operators::Same for nika_dap::cost_replay::Rejudged
+pub type nika_dap::cost_replay::Rejudged::Output = T
+pub fn nika_dap::cost_replay::cost_replay_leg(raw: &str, local: &nika_dap::cost_replay::PricingPin) -> nika_dap::cost_replay::CostReplayLeg
 pub mod nika_dap::drift
 pub const nika_dap::drift::DRIFT_CODE: &str
 pub fn nika_dap::drift::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>

@@ -34,6 +34,14 @@
 //!   identically. Verify NEVER re-executes; without the flag the tier
 //!   is stated as not attempted, never faked.
 //!
+//! Two scoped stated verdicts ride beside the ladder — they never move
+//! the tier nor the exit code (the F-P2 INCOMPLETE posture): the
+//! NEP-0007 permit-witness **FINDING**, and the F-P18 **COST-REPLAY**
+//! leg (NEP-0014 · the boot pin's pricing table against this engine's:
+//! `unrecorded` on a pre-law journal · **REFUSED** on an unknown table
+//! version, both identities named · the budget verdict re-judged
+//! consistency-grade when the pinned table IS this engine's).
+//!
 //! Exit codes (the house taxonomy): 0 = the reported tier holds ·
 //! 2 (FILE) = broken chain · forged seal · forged anchor · replay
 //! divergence · 3 (ENV) = unchained (a pre-chain journal — stated,
@@ -264,6 +272,25 @@ fn tiered(
     if let Some(finding) = witness_finding(raw) {
         use std::fmt::Write as _;
         let _ = write!(out, "\n{finding}");
+    }
+    // F-P18 · the cost-replay leg (NEP-0014 · la table de prix DANS le
+    // pin): a SCOPED STATED VERDICT — it rides after the ladder and the
+    // witness finding and never moves the chain verdict nor the exit
+    // code (the F-P2 `Incomplete` posture). The judge is pure; the
+    // LOCAL identity is this binary's compile-time catalog, injected
+    // here (the leg reads no catalog itself).
+    let snapshot = nika_catalog::pricing_snapshot();
+    let leg = nika_dap::cost_replay::cost_replay_leg(
+        raw,
+        &nika_dap::cost_replay::PricingPin::new(
+            nika_catalog::PRICING_SCHEMA,
+            snapshot.as_of,
+            snapshot.source_sha256_16,
+        ),
+    );
+    for line in &leg.lines {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{line}");
     }
     let code = match report.exit {
         tier::TierExit::Ok => super::exit::OK,
@@ -861,5 +888,194 @@ mod tests {
             "no effects = no required witness: {}",
             out.text
         );
+    }
+
+    // ── The F-P18 cost-replay leg (NEP-0014) ─────────────────────────
+
+    /// A chained journal with arbitrary-JSON field payloads — the cost
+    /// leg reads numeric `cost_usd` / `total_cost_usd` and JSON-text
+    /// `pricing` / `budget` (the `chained_with` shape, values untyped).
+    fn chained_with_json(frames: &[(&str, &[(&str, serde_json::Value)])]) -> String {
+        let mut chain = sha256_hex(CHAIN_GENESIS);
+        let mut out = String::new();
+        for (kind, fields) in frames {
+            let fields: Vec<serde_json::Value> = fields
+                .iter()
+                .map(|(k, v)| serde_json::json!({"key": k, "value": v}))
+                .collect();
+            let mut v = serde_json::json!({
+                "id": {"uuid": "01912345-0000-7000-8000-000000000001"},
+                "timestamp": 1000, "kind": kind, "run": null,
+                "correlation": null, "fields": fields
+            });
+            v["chain"] = serde_json::Value::String(chain.clone());
+            let line = serde_json::to_string(&v).expect("test json");
+            chain = sha256_hex(line.as_bytes());
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out
+    }
+
+    /// This binary's compile-time pricing identity, as the boot pin
+    /// journals it (JSON text — the nested-object idiom).
+    fn local_pricing_field() -> serde_json::Value {
+        let snapshot = nika_catalog::pricing_snapshot();
+        serde_json::Value::String(
+            serde_json::json!({
+                "schema": nika_catalog::PRICING_SCHEMA,
+                "as_of": snapshot.as_of,
+                "sha256_16": snapshot.source_sha256_16,
+            })
+            .to_string(),
+        )
+    }
+
+    /// A pre-F-P18 journal (no `pricing` key): the leg states
+    /// `unrecorded` — the `LOCK_UNRECORDED` posture — and the trace
+    /// verdict itself is untouched (exit stays OK).
+    #[test]
+    fn a_pre_law_journal_states_cost_replay_unrecorded() {
+        let raw = chained_with_json(&[("workflow_started", &[]), ("workflow_completed", &[])]);
+        let path = stage("cost-unrecorded", &raw);
+        let out = verify(&path.to_string_lossy());
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(
+            out.text.contains("COST-REPLAY — unrecorded"),
+            "{}",
+            out.text
+        );
+        assert!(out.text.contains("pre-F-P18"), "{}", out.text);
+    }
+
+    /// The law's negative case through the real verb: the boot pin names
+    /// a table this engine does not carry — the leg REFUSES cost-replay,
+    /// naming BOTH identities, and the chain verdict stays OK (a scoped
+    /// stated verdict never corrupts it).
+    #[test]
+    fn an_unknown_pricing_table_refuses_cost_replay() {
+        let pin = serde_json::Value::String(
+            serde_json::json!({
+                "schema": "nika/model-pricing@1.1",
+                "as_of": "2031-01-15",
+                "sha256_16": "deadbeefdeadbeef",
+            })
+            .to_string(),
+        );
+        let raw = chained_with_json(&[
+            ("workflow_started", &[("pricing", pin)]),
+            ("workflow_completed", &[]),
+        ]);
+        let path = stage("cost-refused", &raw);
+        let out = verify(&path.to_string_lossy());
+        assert_eq!(
+            out.code,
+            super::super::exit::OK,
+            "a refusal is the leg's stated posture, never a chain failure: {}",
+            out.text
+        );
+        assert!(out.text.contains("COST-REPLAY — REFUSED"), "{}", out.text);
+        assert!(
+            out.text.contains("2031-01-15"),
+            "the pinned side named: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains(nika_catalog::pricing_snapshot().as_of),
+            "the local side named: {}",
+            out.text
+        );
+    }
+
+    /// The positive half through the real verb: the pinned table IS
+    /// this engine's — the leg re-judges the journaled budget verdict
+    /// (within-budget PASS agrees) and the totals.
+    #[test]
+    fn a_pinned_matching_journal_rejudges_the_budget_verdict() {
+        let raw = chained_with_json(&[
+            (
+                "workflow_started",
+                &[
+                    ("pricing", local_pricing_field()),
+                    (
+                        "budget",
+                        serde_json::Value::String("{\"max_cost_usd\":0.05}".to_owned()),
+                    ),
+                ],
+            ),
+            (
+                "task_completed",
+                &[
+                    ("task", serde_json::json!("think")),
+                    ("cost_usd", serde_json::json!(0.01)),
+                ],
+            ),
+            (
+                "task_completed",
+                &[
+                    ("task", serde_json::json!("stamp")),
+                    ("cost_usd", serde_json::json!(0.02)),
+                ],
+            ),
+            (
+                "workflow_completed",
+                &[("total_cost_usd", serde_json::json!(0.03))],
+            ),
+        ]);
+        let path = stage("cost-rejudged", &raw);
+        let out = verify(&path.to_string_lossy());
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(
+            out.text
+                .contains("COST-REPLAY — the pinned pricing table is this engine's"),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("within, agrees with the run's PASS"),
+            "{}",
+            out.text
+        );
+        assert!(out.text.contains("totals: agrees"), "{}", out.text);
+    }
+
+    /// The consistency grade's teeth through the real verb: a journal
+    /// whose re-summed spend crosses the journaled budget yet claims
+    /// PASS — stated DIVERGES, the exit stays the chain's (the witness
+    /// finding's posture, not the replay tier's FILE).
+    #[test]
+    fn a_rewritten_cost_story_states_divergence_without_moving_the_exit() {
+        let raw = chained_with_json(&[
+            (
+                "workflow_started",
+                &[
+                    ("pricing", local_pricing_field()),
+                    (
+                        "budget",
+                        serde_json::Value::String("{\"max_cost_usd\":0.05}".to_owned()),
+                    ),
+                ],
+            ),
+            (
+                "task_completed",
+                &[
+                    ("task", serde_json::json!("think")),
+                    ("cost_usd", serde_json::json!(0.06)),
+                ],
+            ),
+            (
+                "workflow_completed",
+                &[("total_cost_usd", serde_json::json!(0.03))],
+            ),
+        ]);
+        let path = stage("cost-diverged", &raw);
+        let out = verify(&path.to_string_lossy());
+        assert_eq!(
+            out.code,
+            super::super::exit::OK,
+            "stated, never the chain verdict: {}",
+            out.text
+        );
+        assert!(out.text.contains("DIVERGES"), "{}", out.text);
     }
 }

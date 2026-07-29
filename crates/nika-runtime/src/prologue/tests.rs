@@ -24,15 +24,17 @@ fn started_fields_with_origins(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
 ) -> Vec<(String, String)> {
-    started_fields_full(yaml, sandbox, origins, None)
+    started_fields_full(yaml, sandbox, origins, None, None)
 }
 
-/// The full knob set (origins · the F-P21 declared compat).
+/// The full knob set (origins · the F-P21 declared compat · the F-P18
+/// operator budget).
 fn started_fields_full(
     yaml: &str,
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
+    max_cost_usd: Option<f64>,
 ) -> Vec<(String, String)> {
     let wf = nika_schema::parse(
         yaml,
@@ -51,6 +53,7 @@ fn started_fields_full(
         sandbox,
         origins,
         resume_compat,
+        max_cost_usd,
         &book,
         &mut stamper,
         &mut sink,
@@ -152,7 +155,7 @@ fn prologue_journals_the_input_origins() {
 fn prologue_attests_the_declared_cross_version_compat() {
     let yaml =
         "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
-    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"));
+    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"), None);
     assert_eq!(get(&fields, "resumed_from_engine"), Some("0.105.0"));
     assert_eq!(get(&fields, "resume_compat"), Some("declared"));
 
@@ -160,4 +163,65 @@ fn prologue_attests_the_declared_cross_version_compat() {
     let exact = started_fields(yaml, None);
     assert_eq!(get(&exact, "resumed_from_engine"), None);
     assert_eq!(get(&exact, "resume_compat"), None);
+}
+
+/// F-P18 (NEP-0014 · la table de prix DANS le pin) — the boot manifest
+/// pins the pricing table the run's costs were billed against, as ONE
+/// JSON object naming the schema marker + the snapshot's `as_of` +
+/// sha256 prefix. The pin is byte-stable in its field name (`pricing`)
+/// and reads EXACTLY the compile-time catalog identity — « un coût
+/// rejoué en 2031 se lit contre la table 2026 pinnée ».
+#[test]
+fn prologue_pins_the_pricing_table_identity() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let fields = started_fields(yaml, None);
+    let pin: serde_json::Value = serde_json::from_str(
+        get(&fields, "pricing").expect("the pricing pin rides the boot frame"),
+    )
+    .expect("pricing is one JSON document");
+    let snapshot = nika_catalog::pricing_snapshot();
+    assert_eq!(
+        pin,
+        serde_json::json!({
+            "schema": nika_catalog::PRICING_SCHEMA,
+            "as_of": snapshot.as_of,
+            "sha256_16": snapshot.source_sha256_16,
+        }),
+        "the pin IS the compile-time table identity, no more, no less"
+    );
+    // The schema marker is the @1.1 law's own — locked, never drifted.
+    assert_eq!(pin["schema"], "nika/model-pricing@1.1");
+}
+
+/// F-P18 — the resolved operator budget rides the boot frame as
+/// `{"max_cost_usd": dollars}` with dollars a JSON NUMBER (the
+/// `total_cost_usd` float convention); an unbounded run journals NO
+/// budget key (absent is honest — never a fake zero/unbounded claim),
+/// and a non-finite budget can never reach the journal as `null`.
+#[test]
+fn prologue_journals_the_budget_only_when_bounded() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let bounded = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(0.05));
+    let budget: serde_json::Value =
+        serde_json::from_str(get(&bounded, "budget").expect("a bounded run journals its budget"))
+            .expect("budget is one JSON document");
+    assert_eq!(budget, serde_json::json!({ "max_cost_usd": 0.05 }));
+    assert!(
+        budget["max_cost_usd"].is_number(),
+        "dollars ride as a number, never a string"
+    );
+
+    // Unbounded → the key stays ABSENT (no claim, never a guess).
+    let unbounded = started_fields(yaml, None);
+    assert_eq!(
+        get(&unbounded, "budget"),
+        None,
+        "no budget = nothing journaled"
+    );
+    // …and a NaN/inf budget is filtered before the wire (the CLI
+    // refuses it at the flag; the journal guard is the second wall).
+    let non_finite = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(f64::NAN));
+    assert_eq!(get(&non_finite, "budget"), None);
 }

@@ -125,6 +125,15 @@ pub fn pricing_snapshot() -> &'static types::PricingSnapshot {
     &data::PRICING_SNAPSHOT
 }
 
+/// The schema marker the vendored pricing table speaks (F-P18 ·
+/// NEP-0014 — the run's boot pin journals it, so a future cost-replay
+/// can tell THIS table from any other version before re-reading a
+/// cost against it). Emitted into the generated code from
+/// `nika_catalog_codegen::PRICING_SCHEMA` — one source of truth, the
+/// same const `assert_schema` proves the TOML speaks at build time.
+#[cfg(feature = "pricing")]
+pub const PRICING_SCHEMA: &str = data::generated::PRICING_SCHEMA;
+
 #[cfg(all(
     test,
     feature = "providers",
@@ -172,5 +181,13 @@ mod tests {
     fn all_pricing_non_empty() {
         // Derived, never pinned — the generated catalog moves upstream.
         assert!(!all_pricing().is_empty());
+    }
+
+    #[test]
+    fn pricing_schema_marker_is_locked() {
+        // F-P18 · the run's boot pin and the verify judge's cost-replay
+        // leg speak this exact string — a schema bump is a deliberate,
+        // law-level event, never a drift.
+        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.1");
     }
 }
