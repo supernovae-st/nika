@@ -776,3 +776,81 @@ means:
 
 Left RED pending the decision. A red gate that reports something true is the
 honest state; a green one bought with ceremony is not.
+
+---
+
+# DECIDED · SEC-009 keeps its semantics · its MESSAGE stops hiding the approximation
+
+Two repair agents hit the lethal-trifecta gate independently by declaring an
+honest boundary, both refused to silence it with ceremony, and both recommended
+narrowing the gate. I verified their probe and then read the spec, and the
+verdict splits: **the mechanism they describe is real, the conclusion is not.**
+
+## What the probe actually shows
+
+```
+① fs.read + ② nika:fetch + NO write sink          → ✔ TRIFECTA clean
+① fs.read + ② nika:fetch + ③ write to ./out/**     → ✖ NIKA-SEC-009
+```
+
+So a `nika:fetch` is never itself the egress witness, and the witness selected
+is an in-workspace write. That much is exactly as reported.
+
+## Why the recommended narrowing is wrong
+
+`NEP-0002:59-60` defines leg ③ as a disjunction over the DECLARED BOUNDARY:
+
+> **③ external egress**: `permits.net.http` is non-empty, OR a
+> `permits.fs.write` glob escapes the declared workspace, OR `permits.exec`
+> is enabled.
+
+Leg ③ IS satisfied in the probe — by the FIRST disjunct. `net.http` is
+non-empty, so the workflow can reach the network. The agents read the second
+disjunct ("escapes the workspace") as the definition and concluded the witness
+was illegal. It is not: the capability comes from `net.http`, and the write is
+the task the tainted content reaches.
+
+Their sharper point survives that correction: **a fetch with a LITERAL url
+cannot carry data out.** The capability is inbound-only in that shape. So the
+gate over-approximates — not because the witness is illegal, but because
+`net.http` non-empty is a coarse proxy for "can send", and a literal-url fetch
+is not a send.
+
+## The decision, and it is none of the three options offered
+
+Not (a) narrow the witness selection · not (b) land the v2 classification now ·
+not (c) accept it silently.
+
+> **The gate keeps its semantics. Its MESSAGE stops hiding which
+> approximation produced the finding.**
+
+Today it says *"private read + untrusted ingress + external egress are all
+permitted"* — a sentence that names none of the three disjuncts and does not
+say which task was picked as the witness or why. An author cannot see the
+over-approximation, so their only move is ceremony.
+
+The message must name:
+
+- **which disjunct** satisfied leg ③ (`net.http non-empty` · `an escaping
+  fs.write glob` · `exec enabled`), and
+- **the witness task**, with the fact that a non-escaping write was selected
+  because the boundary carries egress capability from elsewhere.
+
+Then the author reads *"leg ③ via net.http, and every fetch in this file has a
+literal url"* and knows precisely what they are looking at.
+
+## Why not narrow the gate
+
+Because I verified the argument in one afternoon, on one shape, on a product
+approaching 1.0 — and that is the exact shape of the mistake that put the
+fail-open in `literal_root`: a plausible local argument justifying a narrower
+check, pinned by a test, shipped. Making a security gate fire LESS is the
+dangerous direction, and the burden there is a proof, not a probe.
+
+The refinement is real and belongs in the spec, where it gets the scrutiny a
+security semantics change deserves. It is now written down with its probe
+attached, which is more than it had this morning.
+
+**Consequence for the corpus**: files that hit this stay RED and carry an
+in-file note pointing here. A red gate reporting something true is the honest
+state; a green one bought with a prompt nobody will answer is not.
