@@ -19,7 +19,9 @@
 // nika-cli crate holds at its root — inherited by the descent).
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod check_render;
 pub mod chrome;
+pub mod dag_art;
 pub mod demo;
 pub mod flow;
 pub mod format;

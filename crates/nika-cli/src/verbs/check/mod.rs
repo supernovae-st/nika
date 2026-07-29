@@ -95,12 +95,12 @@ use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 
 mod drift;
 mod models_rung;
-use models_rung::{ModelFinding, pricing_section, unresolvable_models};
+use models_rung::{pricing_section, unresolvable_models};
+use nika_display::check_render::ModelFinding;
 
-mod render;
-use render::render;
+use nika_display::check_render::render;
 #[cfg(test)]
-use render::{permits, required_inputs};
+use nika_display::check_render::{permits, required_inputs};
 
 /// The `nika check <file>` verb. `native_strict` promotes the advisory
 /// `native-first` hints to failures (exit 2) — the agent/CI posture:
