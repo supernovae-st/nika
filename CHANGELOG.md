@@ -22,7 +22,9 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   nika` when a kit rides ahead. Patch drift is not a finding (kits are cut
   per train). The session-context hook grows the same two probes client-side:
   a missing binary teaches the install line, a train divergence names the
-  direction-aware align command.
+  direction-aware align command. `nika welcome`'s machine mirror names
+  train drift in one line and routes to doctor — aligned or absent kits
+  stay silent (carry information, never a lecture).
 
 ## [0.106.1](https://github.com/supernovae-st/nika/compare/v0.106.0..v0.106.1) - 2026-07-28
 

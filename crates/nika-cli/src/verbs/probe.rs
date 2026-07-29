@@ -323,6 +323,17 @@ fn codex_cache_version(cache_dir: &Path) -> Option<String> {
         .map(|(_, name)| name)
 }
 
+/// Two version strings ride different release trains (major.minor) —
+/// `false` when either side does not parse (never guess a train). The
+/// welcome mirror keys its kit lane on this; doctor's direction-aware
+/// diagnosis keeps its own ordering.
+pub(crate) fn train_differs(a: &str, b: &str) -> bool {
+    match (version_key(a), version_key(b)) {
+        (Some((am, an, _)), Some((bm, bn, _))) => (am, an) != (bm, bn),
+        _ => false,
+    }
+}
+
 /// Lenient `(major, minor, patch)` ordering key — a dirname that does
 /// not start `N.N` is not a version dir (a missing patch reads 0).
 fn version_key(v: &str) -> Option<(u64, u64, u64)> {
@@ -580,6 +591,17 @@ mod tests {
         assert_eq!(codex_cache_version(&dir).as_deref(), Some("0.105.0"));
         assert_eq!(codex_cache_version(&dir.join("absent")), None);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn train_differs_compares_trains_and_never_guesses() {
+        assert!(train_differs("0.105.0", "0.106.1"));
+        assert!(!train_differs("0.106.0", "0.106.1"), "patch is not a train");
+        assert!(
+            !train_differs("garbage", "0.106.1"),
+            "unparseable = never guess"
+        );
+        assert!(!train_differs("0.106.0", ""), "either side");
     }
 
     #[test]
