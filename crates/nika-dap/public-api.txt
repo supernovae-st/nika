@@ -1130,6 +1130,7 @@ impl<T> typenum::type_operators::Same for nika_dap::bounded::DecodeRefusal
 pub type nika_dap::bounded::DecodeRefusal::Output = T
 pub const nika_dap::bounded::MAX_ARTIFACT_BYTES: usize
 pub const nika_dap::bounded::MAX_ID_BYTES: usize
+pub const nika_dap::bounded::MAX_JOURNAL_BYTES: usize
 pub const nika_dap::bounded::MAX_JSON_DEPTH: usize
 pub const nika_dap::bounded::MAX_PROOF_NODES: usize
 pub fn nika_dap::bounded::decode_untrusted_json(raw: &str) -> core::result::Result<serde_json::value::Value, nika_dap::bounded::DecodeRefusal>
@@ -2516,4 +2517,5 @@ pub fn nika_dap::store::parse_older_than(raw: &str) -> core::result::Result<core
 pub fn nika_dap::store::resolve_handle(dir: &std::path::Path, handle: &str) -> core::option::Option<std::path::PathBuf>
 pub fn nika_dap::store::scan(dir: &std::path::Path) -> alloc::vec::Vec<nika_dap::store::TraceMeta>
 pub fn nika_dap::store::scan_foreign(path: &std::path::Path) -> core::option::Option<nika_dap::store::TraceMeta>
+pub fn nika_dap::escape_tty(s: &str) -> alloc::string::String
 pub fn nika_dap::run_stdio() -> u8

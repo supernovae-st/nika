@@ -44,6 +44,30 @@ pub mod store;
 mod protocol;
 mod replay;
 
+/// Escape an artifact-originated string before it reaches a terminal
+/// (NEP-0012 law 2 · the promoted `sanitize()` law) — strips every
+/// control character (C0 · C1 · DEL · and therefore ESC, which kills the
+/// OSC52 clipboard class). Applied at birth (where the untrusted field
+/// enters a user-facing string), so the render layer never sees a live
+/// sequence. The verify surface carries NO machine consumer of these
+/// reason strings, so the escape is unconditional — the receipt's
+/// byte-exact fields never pass through here.
+#[must_use]
+pub fn escape_tty(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
+
+#[cfg(test)]
+mod escape_tty_tests {
+    #[test]
+    fn control_chars_die_and_text_survives() {
+        assert_eq!(super::escape_tty("plain-key_1234"), "plain-key_1234");
+        assert_eq!(super::escape_tty("a\u{1b}]52;;evil\u{7}b"), "a]52;;evilb");
+        assert_eq!(super::escape_tty("x\ny\tz"), "xyz");
+        assert_eq!(super::escape_tty("\u{7f}\u{9b}"), "");
+    }
+}
+
 use protocol::{Request, Wire};
 use replay::ReplaySession;
 

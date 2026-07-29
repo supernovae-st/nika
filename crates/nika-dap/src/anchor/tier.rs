@@ -102,7 +102,8 @@ pub fn seal_tier(
         .find(|(pk_box, _)| crate::seal::fingerprint(pk_box) == key_id);
     let Some((pk_box, source)) = matched else {
         return SealTier::Forged(format!(
-            "the seal names key {key_id} — no candidate matches (not --key, ~/.nika/keys/run-signing.pub, or the retired.pub ledger)"
+            "the seal names key {} — no candidate matches (not --key, ~/.nika/keys/run-signing.pub, or the retired.pub ledger)",
+            crate::escape_tty(key_id)
         ));
     };
     let Some(pk32) = pk32_of_box(pk_box) else {
@@ -111,7 +112,8 @@ pub fn seal_tier(
     let verified = verify_seal_signature(&covers, sig, pk_box);
     if !verified {
         return SealTier::Forged(format!(
-            "the run_sealed signature does not verify against key {key_id} ({source})"
+            "the run_sealed signature does not verify against key {} ({source})",
+            crate::escape_tty(key_id)
         ));
     }
     SealTier::Sealed(SealVerdict {
@@ -300,6 +302,33 @@ mod tests {
             unreachable!("a key-id mismatch never passes")
         };
         assert!(reason.contains("no candidate matches"), "{reason}");
+    }
+
+    /// NEP-0012 law 2 · the OSC52 class: an artifact-originated `key_id`
+    /// (the journal is untrusted input) reaches the user-facing reason
+    /// ESCAPED AT BIRTH — the escape lives where the string is born, so
+    /// no render layer can forget it.
+    #[test]
+    fn a_forged_key_id_reaches_the_reason_escaped() {
+        let line = serde_json::json!({
+            "kind": "run_sealed",
+            "chain": "abc",
+            "fields": [
+                {"key": "seal_format", "value": 1},
+                {"key": "alg", "value": "ed25519"},
+                {"key": "covers", "value": "{\"head\":\"abc\",\"events\":0}"},
+                {"key": "key_id", "value": "\u{1b}]52;;Y2xpcA==\u{7}deadbeef"},
+                {"key": "sig", "value": "untrusted-sig"}
+            ]
+        });
+        let SealTier::Forged(reason) = seal_tier(Some(&line), 1, &[]) else {
+            unreachable!("a key with no candidate is the honest failure")
+        };
+        assert!(
+            !reason.chars().any(char::is_control),
+            "the reason is escaped at birth: {reason:?}"
+        );
+        assert!(reason.contains("52;;Y2xpcA==deadbeef"), "{reason}");
     }
 
     /// A seal lifted onto a journal it did not mint (covers.head no
@@ -556,7 +585,8 @@ fn anchor_leg(
         AnchorTier::Anchored(verified) => {
             lines.push(format!(
                 "ANCHORED — rekor index {} · checkpoint + inclusion proof verified offline\n  rfc3161 gen_time {} (the trusted time)",
-                verified.log_index, verified.gen_time
+                crate::escape_tty(&verified.log_index),
+                crate::escape_tty(&verified.gen_time)
             ));
             (AttainedTier::Anchored, TierExit::Ok)
         }

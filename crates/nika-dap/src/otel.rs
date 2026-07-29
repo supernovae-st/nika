@@ -97,12 +97,18 @@ pub fn project(
         resource_attrs.push(kv_str("nika.platform", platform));
     }
     match chain {
-        Some(
-            Verdict::Intact { head, .. }
-            | Verdict::Incomplete { head, .. }
-            | Verdict::TornTail { head, .. },
-        ) => {
+        Some(Verdict::Intact { head, .. }) => {
             resource_attrs.push(kv_str("nika.trace.chain_head", head));
+        }
+        // NEP-0011 §3 · the incomplete class is NAMED, never merged with
+        // the intact one (the projection says what the walk said).
+        Some(Verdict::Incomplete { head, .. }) => {
+            resource_attrs.push(kv_str("nika.trace.chain_head", head));
+            resource_attrs.push(kv_str("nika.trace.lifecycle", "incomplete"));
+        }
+        Some(Verdict::TornTail { head, .. }) => {
+            resource_attrs.push(kv_str("nika.trace.chain_head", head));
+            resource_attrs.push(kv_str("nika.trace.lifecycle", "torn_tail"));
         }
         Some(Verdict::Broken { .. }) => {
             resource_attrs.push(kv_str("nika.trace.chain", "broken"));

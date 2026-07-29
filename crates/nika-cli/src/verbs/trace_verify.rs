@@ -73,6 +73,18 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
         Ok(candidates) => candidates,
         Err(e) => return VerbOutput::env(e),
     };
+    // NEP-0012 law 1 · the journal is untrusted input: bound the total
+    // read BEFORE it happens (the per-line cap rides `chain.rs` · this
+    // is the whole-file half).
+    if let Ok(meta) = std::fs::metadata(trace)
+        && meta.len() > nika_dap::bounded::MAX_JOURNAL_BYTES as u64
+    {
+        return VerbOutput::env(format!(
+            "{trace}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1 · a file beyond it is not a run this engine produced)",
+            meta.len(),
+            nika_dap::bounded::MAX_JOURNAL_BYTES
+        ));
+    }
     let raw = match std::fs::read_to_string(trace) {
         Ok(raw) => raw,
         Err(e) => return VerbOutput::env(format!("cannot read {trace}: {e}")),
