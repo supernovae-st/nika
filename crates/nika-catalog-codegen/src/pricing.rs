@@ -70,6 +70,50 @@ pub struct PricingEntry {
     /// Open vocabulary — validated for shape, never against a fixed set.
     #[serde(default)]
     pub status: Option<String>,
+    /// Sourced energy figure (schema `@1.3`). Absent = no sourced
+    /// measurement or estimate vendored — never a zero.
+    #[serde(default)]
+    pub energy: Option<EnergyEntry>,
+    /// Tokenizer family id (schema `@1.3`), e.g. `o200k_base`. Open
+    /// ecosystem vocabulary — validated for shape (`[a-z0-9._-]`, ≤64),
+    /// never against a fixed set. Absent = not vendored.
+    #[serde(default)]
+    pub tokenizer: Option<String>,
+    /// Replay class (schema `@1.3`): `seed` · `best-effort` · `none`.
+    /// OUR vocabulary — validated against the closed set. Absent = not
+    /// yet researched, which is NOT `none`.
+    #[serde(default)]
+    pub determinism: Option<String>,
+}
+
+/// One sourced energy claim (schema `@1.3`) — Wh per million OUTPUT
+/// tokens plus the two axes that keep two honest numbers comparable
+/// (WHO measured × WHAT was measured), a citable source, and a month.
+///
+/// Every field is REQUIRED once the table is present: a number without
+/// its provenance, scope, source or date is not a fact, and
+/// `deny_unknown_fields` makes a typo'd axis fail the build instead of
+/// silently vanishing.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct EnergyEntry {
+    /// Watt-hours per million OUTPUT tokens (decode dominates measured
+    /// inference energy — a per-total figure would reward long prompts).
+    /// Must be finite and > 0: zero would claim free inference; the
+    /// null is the absent table.
+    pub wh_per_mtok_out: f64,
+    /// WHO produced the number: `measured-local` · `independent-measured`
+    /// · `vendor-claim` · `independent-estimate` (closed set).
+    pub provenance: String,
+    /// WHAT the number covers: `gpu` · `device` · `fleet` (closed set).
+    /// A GPU-only figure is roughly half a fleet figure for the same
+    /// model — without this axis two truthful numbers are incomparable.
+    pub scope: String,
+    /// Citable origin (benchmark · hardware · runtime version).
+    pub source: String,
+    /// Month the figure was produced, ISO `YYYY-MM`.
+    pub measured_at: String,
 }
 
 // ─── Public codegen entry ───────────────────────────────────────────────
@@ -182,40 +226,7 @@ fn validate_pricing(rules: &[PricingEntry], path: &Path) -> Result<(), CodegenEr
             ));
         }
 
-        validate_rate(entry.input_per_million, "input_per_million", &ctx)?;
-        validate_rate(entry.output_per_million, "output_per_million", &ctx)?;
-        if let Some(v) = entry.cache_write_per_million {
-            validate_rate(v, "cache_write_per_million", &ctx)?;
-        }
-        if let Some(v) = entry.cache_read_per_million {
-            validate_rate(v, "cache_read_per_million", &ctx)?;
-        }
-        if let Some(v) = entry.image_per_million {
-            validate_rate(v, "image_per_million", &ctx)?;
-        }
-        if let Some(v) = entry.reasoning_tokens_per_million {
-            validate_rate(v, "reasoning_tokens_per_million", &ctx)?;
-        }
-
-        // Upstream facts (@1.2). A stored zero is the failure mode this
-        // schema exists to prevent — upstream writes 0 for "not
-        // applicable" (image · video · speech models), and a 0 read as a
-        // ceiling reports the least-bounded model as the most-bounded.
-        // The generator drops those; a zero arriving here is a generator
-        // bug, so it fails the build rather than ship a false limit.
-        validate_token_limit(entry.max_output_tokens, "max_output_tokens", &ctx)?;
-        validate_token_limit(entry.context_window_tokens, "context_window_tokens", &ctx)?;
-        if let Some(s) = entry.status.as_deref() {
-            validate_status(s, &ctx)?;
-        }
-
-        // NOTE: `max_output_tokens <= context_window_tokens` is NOT checked.
-        // It is not a property of the upstream snapshot — on non-text
-        // models the two count different units, and 10 of the 633 rules in
-        // the vendored 2026-07-28 snapshot have output > context. That invariant
-        // (NIKA-014) governs our hand-authored capability rules, where we
-        // choose the numbers; here we mirror somebody else's catalog and
-        // must be able to mirror it faithfully.
+        validate_entry_facts(entry, &ctx)?;
     }
 
     // Ordering invariant: within each provider, more specific patterns must come first.
@@ -242,6 +253,59 @@ fn validate_pricing(rules: &[PricingEntry], path: &Path) -> Result<(), CodegenEr
                 }
             }
         }
+    }
+    Ok(())
+}
+
+/// One entry's per-field facts — rates, upstream limits, research claims.
+///
+/// Upstream facts (@1.2): a stored zero is the failure mode this schema
+/// exists to prevent — upstream writes 0 for "not applicable" (image ·
+/// video · speech models), and a 0 read as a ceiling reports the
+/// least-bounded model as the most-bounded. The generator drops those; a
+/// zero arriving here is a generator bug, so it fails the build.
+///
+/// Research facts (@1.3): same absence law, one rule harder — a present
+/// claim carries its whole chain of custody (value · provenance · scope ·
+/// source · date), because an unattributed energy number is exactly the
+/// class of plausible garbage this catalog exists to keep out.
+///
+/// `max_output_tokens <= context_window_tokens` is deliberately NOT
+/// checked: on non-text models the two count different units, and 10 of
+/// the 633 rules in the vendored 2026-07-28 snapshot have output >
+/// context. That invariant (NIKA-014) governs our hand-authored
+/// capability rules; here we mirror somebody else's catalog and must be
+/// able to mirror it faithfully.
+fn validate_entry_facts(entry: &PricingEntry, ctx: &str) -> Result<(), CodegenError> {
+    validate_rate(entry.input_per_million, "input_per_million", ctx)?;
+    validate_rate(entry.output_per_million, "output_per_million", ctx)?;
+    if let Some(v) = entry.cache_write_per_million {
+        validate_rate(v, "cache_write_per_million", ctx)?;
+    }
+    if let Some(v) = entry.cache_read_per_million {
+        validate_rate(v, "cache_read_per_million", ctx)?;
+    }
+    if let Some(v) = entry.image_per_million {
+        validate_rate(v, "image_per_million", ctx)?;
+    }
+    if let Some(v) = entry.reasoning_tokens_per_million {
+        validate_rate(v, "reasoning_tokens_per_million", ctx)?;
+    }
+
+    validate_token_limit(entry.max_output_tokens, "max_output_tokens", ctx)?;
+    validate_token_limit(entry.context_window_tokens, "context_window_tokens", ctx)?;
+    if let Some(s) = entry.status.as_deref() {
+        validate_status(s, ctx)?;
+    }
+
+    if let Some(e) = entry.energy.as_ref() {
+        validate_energy(e, ctx)?;
+    }
+    if let Some(t) = entry.tokenizer.as_deref() {
+        validate_tokenizer(t, ctx)?;
+    }
+    if let Some(d) = entry.determinism.as_deref() {
+        validate_determinism(d, ctx)?;
     }
     Ok(())
 }
@@ -280,6 +344,123 @@ fn validate_status(s: &str, ctx: &str) -> Result<(), CodegenError> {
         ));
     }
     Ok(())
+}
+
+/// An energy claim must arrive whole: a finite positive figure, both
+/// axes from their closed sets, a non-empty source, a real month.
+/// These are OUR vocabularies (measurement classes we defined), so
+/// closed-set validation cannot break a refresh — only a deliberate
+/// schema decision grows them.
+fn validate_energy(e: &EnergyEntry, ctx: &str) -> Result<(), CodegenError> {
+    const PROVENANCES: &[&str] = &[
+        "measured-local",
+        "independent-measured",
+        "vendor-claim",
+        "independent-estimate",
+    ];
+    const SCOPES: &[&str] = &["gpu", "device", "fleet"];
+    if !e.wh_per_mtok_out.is_finite() || e.wh_per_mtok_out <= 0.0 {
+        return Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            format!(
+                "energy.wh_per_mtok_out must be finite and > 0 (got {:?}) — \
+                 zero would claim free inference; omit the table instead \
+                 (absent = no sourced figure)",
+                e.wh_per_mtok_out
+            ),
+        ));
+    }
+    if !PROVENANCES.contains(&e.provenance.as_str()) {
+        return Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            format!(
+                "energy.provenance must be one of measured-local / \
+                 independent-measured / vendor-claim / independent-estimate \
+                 (got {:?})",
+                e.provenance
+            ),
+        ));
+    }
+    if !SCOPES.contains(&e.scope.as_str()) {
+        return Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            format!(
+                "energy.scope must be one of gpu / device / fleet (got {:?}) — \
+                 a figure without its scope makes honest numbers incomparable",
+                e.scope
+            ),
+        ));
+    }
+    if e.source.trim().is_empty() {
+        return Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            "energy.source must not be empty — a number without a citation \
+             is not a fact; omit the table instead"
+                .to_string(),
+        ));
+    }
+    if !is_iso_month(&e.measured_at) {
+        return Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            format!(
+                "energy.measured_at must be YYYY-MM (got {:?}) — energy \
+                 figures rot with hardware generations; a dateless figure \
+                 is not a fact",
+                e.measured_at
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// `YYYY-MM` — the month grain [`EnergyEntry::measured_at`] carries.
+/// Same byte discipline as [`is_iso_date`], one segment shorter.
+fn is_iso_month(s: &str) -> bool {
+    let b = s.as_bytes();
+    if b.len() != 7 || b[4] != b'-' {
+        return false;
+    }
+    let digits = |r: core::ops::Range<usize>| b[r].iter().all(u8::is_ascii_digit);
+    if !digits(0..4) || !digits(5..7) {
+        return false;
+    }
+    (1..=12).contains(&s[5..7].parse::<u8>().unwrap_or(0))
+}
+
+/// Tokenizer family ids belong to the OPEN ecosystem vocabulary (new
+/// models ship new tokenizers without asking us), so this checks SHAPE
+/// only — `[a-z0-9._-]`, 1..=64 — the `status` discipline with dots and
+/// underscores admitted for tiktoken-style names (`o200k_base`).
+fn validate_tokenizer(t: &str, ctx: &str) -> Result<(), CodegenError> {
+    let ok = !t.is_empty()
+        && t.len() <= 64
+        && t.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_' || b == b'.'
+        });
+    if !ok {
+        return Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            format!(
+                "tokenizer must be 1..=64 chars of [a-z0-9._-] (got {t:?}) — \
+                 shape only; the family set is the ecosystem's to grow"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// `determinism` is OUR replay vocabulary — closed set. `none` is a
+/// researched FACT (« no replay story »); an unresearched model omits
+/// the field. Collapsing the two would report the least-studied model
+/// as the least replayable.
+fn validate_determinism(d: &str, ctx: &str) -> Result<(), CodegenError> {
+    match d {
+        "seed" | "best-effort" | "none" => Ok(()),
+        _ => Err(CodegenError::schema_validation(
+            ctx.to_string(),
+            format!("determinism must be one of seed / best-effort / none (got {d:?})"),
+        )),
+    }
 }
 
 fn validate_rate(v: f64, field: &str, ctx: &str) -> Result<(), CodegenError> {
@@ -381,7 +562,37 @@ fn emit_pricing_entry(out: &mut String, e: &PricingEntry) {
     );
     let _ = writeln!(out, "        open_weights: {},", opt_plain(e.open_weights));
     let _ = writeln!(out, "        status: {},", opt_rstr(e.status.as_deref()));
+    let _ = writeln!(out, "        energy: {},", energy_expr(e.energy.as_ref()));
+    let _ = writeln!(
+        out,
+        "        tokenizer: {},",
+        opt_rstr(e.tokenizer.as_deref())
+    );
+    let _ = writeln!(
+        out,
+        "        determinism: {},",
+        opt_rstr(e.determinism.as_deref())
+    );
     let _ = writeln!(out, "    }},");
+}
+
+/// `Option<EnergyEntry>` as Rust source. `None` stays `None` — an
+/// unmeasured model must never reach the binary as a zero-Wh claim.
+/// The f64 rides `{v:?}` for round-trippable precision (the [`opt_f64`]
+/// discipline).
+fn energy_expr(e: Option<&EnergyEntry>) -> String {
+    match e {
+        Some(e) => format!(
+            "Some(crate::types::model::ModelEnergy {{ wh_per_mtok_out: {:?}, \
+             provenance: {}, scope: {}, source: {}, measured_at: {} }})",
+            e.wh_per_mtok_out,
+            rstr(&e.provenance),
+            rstr(&e.scope),
+            rstr(&e.source),
+            rstr(&e.measured_at),
+        ),
+        None => "None".to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -402,6 +613,19 @@ mod tests {
             context_window_tokens: None,
             open_weights: None,
             status: None,
+            energy: None,
+            tokenizer: None,
+            determinism: None,
+        }
+    }
+
+    fn fixture_energy() -> EnergyEntry {
+        EnergyEntry {
+            wh_per_mtok_out: 42.0,
+            provenance: "independent-measured".to_string(),
+            scope: "gpu".to_string(),
+            source: "ml.energy v3.0 · B200 · vLLM 0.11.1".to_string(),
+            measured_at: "2025-12".to_string(),
         }
     }
 
@@ -662,8 +886,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_accepts_at_1_2_with_facts() {
-        let toml = br#"schema = "nika/model-pricing@1.2"
+    fn parse_accepts_at_1_3_with_facts() {
+        let toml = br#"schema = "nika/model-pricing@1.3"
 
 [meta]
 source = "https://models.dev/api.json"
@@ -689,15 +913,15 @@ status = "beta"
     }
 
     #[test]
-    fn parse_rejects_superseded_1_1() {
-        // The bump is load-bearing: under @1.1 an absent limit meant "the
-        // generator never carried limits", so a stale file must not be
-        // read as though absence were a fact about the model.
-        let toml = br#"schema = "nika/model-pricing@1.1"
+    fn parse_rejects_superseded_1_2() {
+        // The bump is load-bearing: under @1.2 an absent research fact
+        // meant "the generator never carried it", so a stale file must
+        // not be read as though absence were a fact about the model.
+        let toml = br#"schema = "nika/model-pricing@1.2"
 
 [meta]
 source = "https://models.dev/api.json"
-as_of = "2026-07-07"
+as_of = "2026-07-28"
 source_sha256_16 = "0123456789abcdef"
 
 [[rules]]
@@ -707,7 +931,181 @@ input_per_million = 1.0
 output_per_million = 2.0
 "#;
         let err = parse_pricing_bytes(toml, Path::new("/x")).unwrap_err();
-        assert!(format!("{err}").contains("1.2"), "got: {err}");
+        assert!(format!("{err}").contains("1.3"), "got: {err}");
+    }
+
+    // ── @1.3 research facts ────────────────────────────────────────
+
+    #[test]
+    fn parse_accepts_at_1_3_with_research_facts() {
+        let toml = br#"schema = "nika/model-pricing@1.3"
+
+[meta]
+source = "https://models.dev/api.json"
+as_of = "2026-07-28"
+source_sha256_16 = "0123456789abcdef"
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4o"
+input_per_million = 2.5
+output_per_million = 10.0
+tokenizer = "o200k_base"
+determinism = "seed"
+energy = { wh_per_mtok_out = 42.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy v3.0", measured_at = "2025-12" }
+"#;
+        let f = parse_pricing_bytes(toml, Path::new("/x")).unwrap();
+        let r = &f.rules[0];
+        assert_eq!(r.tokenizer.as_deref(), Some("o200k_base"));
+        assert_eq!(r.determinism.as_deref(), Some("seed"));
+        let e = r.energy.as_ref().expect("energy table parsed");
+        assert!((e.wh_per_mtok_out - 42.0).abs() < f64::EPSILON);
+        assert_eq!(e.provenance, "independent-measured");
+        assert_eq!(e.scope, "gpu");
+        assert_eq!(e.measured_at, "2025-12");
+    }
+
+    #[test]
+    fn generate_emits_the_three_research_facts() {
+        let mut e = fixture_entry();
+        e.energy = Some(fixture_energy());
+        e.tokenizer = Some("o200k_base".to_string());
+        e.determinism = Some("seed".to_string());
+        let s = generate_pricing_rs(&fixture_meta(), &[e]);
+        // concat! of single-line literals (a `\`-continuation string here
+        // would blind the fn-length gate's line-based literal stripping).
+        let energy = concat!(
+            "energy: Some(crate::types::model::ModelEnergy { ",
+            "wh_per_mtok_out: 42.0, ",
+            "provenance: \"independent-measured\", ",
+            "scope: \"gpu\", ",
+            "source: \"ml.energy v3.0 · B200 · vLLM 0.11.1\", ",
+            "measured_at: \"2025-12\" })"
+        );
+        assert!(s.contains(energy), "got: {s}");
+        assert!(s.contains("tokenizer: Some(\"o200k_base\")"), "got: {s}");
+        assert!(s.contains("determinism: Some(\"seed\")"), "got: {s}");
+    }
+
+    #[test]
+    fn absent_research_facts_emit_none_never_defaults() {
+        // The inversion guard, third generation: a model nobody measured
+        // must reach Rust as None — a Some(0.0) would report the least-
+        // studied model as the greenest one on the board.
+        let s = generate_pricing_rs(&fixture_meta(), &[fixture_entry()]);
+        assert!(s.contains("energy: None"), "got: {s}");
+        assert!(s.contains("tokenizer: None"), "got: {s}");
+        assert!(s.contains("determinism: None"), "got: {s}");
+        assert!(!s.contains("wh_per_mtok_out: 0"));
+    }
+
+    #[test]
+    fn validate_rejects_nonpositive_energy() {
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let mut e = fixture_entry();
+            let mut en = fixture_energy();
+            en.wh_per_mtok_out = bad;
+            e.energy = Some(en);
+            let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+            let msg = format!("{err}");
+            assert!(msg.contains("wh_per_mtok_out"), "{bad}: got {msg}");
+            assert!(msg.contains("omit the table"), "{bad}: got {msg}");
+        }
+    }
+
+    #[test]
+    fn validate_energy_axes_closed_sets() {
+        for good in [
+            "measured-local",
+            "independent-measured",
+            "vendor-claim",
+            "independent-estimate",
+        ] {
+            let mut e = fixture_entry();
+            let mut en = fixture_energy();
+            en.provenance = good.to_string();
+            e.energy = Some(en);
+            validate_pricing(&[e], Path::new("/x"))
+                .unwrap_or_else(|err| panic!("{good:?} must pass: {err}"));
+        }
+        let mut e = fixture_entry();
+        let mut en = fixture_energy();
+        en.provenance = "trust-me".to_string();
+        e.energy = Some(en);
+        let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+        assert!(format!("{err}").contains("energy.provenance"), "{err}");
+
+        for good in ["gpu", "device", "fleet"] {
+            let mut e = fixture_entry();
+            let mut en = fixture_energy();
+            en.scope = good.to_string();
+            e.energy = Some(en);
+            validate_pricing(&[e], Path::new("/x"))
+                .unwrap_or_else(|err| panic!("{good:?} must pass: {err}"));
+        }
+        let mut e = fixture_entry();
+        let mut en = fixture_energy();
+        en.scope = "datacenter".to_string();
+        e.energy = Some(en);
+        let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+        assert!(format!("{err}").contains("energy.scope"), "{err}");
+    }
+
+    #[test]
+    fn validate_energy_requires_source_and_month() {
+        let mut e = fixture_entry();
+        let mut en = fixture_energy();
+        en.source = "  ".to_string();
+        e.energy = Some(en);
+        let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+        assert!(format!("{err}").contains("energy.source"), "{err}");
+
+        for bad in ["2025", "2025-13", "2025-00", "2025-1", "12-2025", "2025/12"] {
+            let mut e = fixture_entry();
+            let mut en = fixture_energy();
+            en.measured_at = bad.to_string();
+            e.energy = Some(en);
+            let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+            assert!(format!("{err}").contains("measured_at"), "{bad:?}: {err}");
+        }
+        assert!(is_iso_month("2025-01"));
+        assert!(is_iso_month("2025-12"));
+    }
+
+    #[test]
+    fn validate_tokenizer_shape_only() {
+        // Dots and underscores admitted (tiktoken names); the family set
+        // is the ecosystem's to grow — an unseen id must pass.
+        for good in ["o200k_base", "cl100k_base", "claude-v3", "llama3.1-bpe"] {
+            let mut e = fixture_entry();
+            e.tokenizer = Some(good.to_string());
+            validate_pricing(&[e], Path::new("/x"))
+                .unwrap_or_else(|err| panic!("{good:?} must pass: {err}"));
+        }
+        for bad in ["", "O200K", "has space", "a".repeat(65).as_str()] {
+            let mut e = fixture_entry();
+            e.tokenizer = Some(bad.to_string());
+            let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+            assert!(format!("{err}").contains("tokenizer must be"), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn validate_determinism_closed_set() {
+        for good in ["seed", "best-effort", "none"] {
+            let mut e = fixture_entry();
+            e.determinism = Some(good.to_string());
+            validate_pricing(&[e], Path::new("/x"))
+                .unwrap_or_else(|err| panic!("{good:?} must pass: {err}"));
+        }
+        // "unknown" is the load-bearing rejection: not-yet-researched is
+        // the ABSENT field, never a fourth value.
+        for bad in ["unknown", "deterministic", "Seed", ""] {
+            let mut e = fixture_entry();
+            e.determinism = Some(bad.to_string());
+            let err = validate_pricing(&[e], Path::new("/x")).unwrap_err();
+            assert!(format!("{err}").contains("determinism"), "{bad:?}");
+        }
     }
 
     #[test]
@@ -737,7 +1135,7 @@ output_per_million = 2.0
         // (the one `assert_schema` proved the TOML speaks), so the
         // marker has exactly one source of truth.
         let s = generate_pricing_rs(&fixture_meta(), &[fixture_entry()]);
-        assert!(s.contains("pub(crate) const PRICING_SCHEMA: &str = \"nika/model-pricing@1.2\";"));
+        assert!(s.contains("pub(crate) const PRICING_SCHEMA: &str = \"nika/model-pricing@1.3\";"));
     }
 
     #[test]
@@ -751,7 +1149,7 @@ output_per_million = 2.0
     #[test]
     fn parse_rejects_missing_meta() {
         // @1.1+ requires [meta] — a metaless file is a refresh-script bug.
-        let toml = b"schema = \"nika/model-pricing@1.2\"\n\n[[rules]]\nprovider = \"p\"\nmodel_pattern = \"m\"\ninput_per_million = 1.0\noutput_per_million = 2.0\n";
+        let toml = b"schema = \"nika/model-pricing@1.3\"\n\n[[rules]]\nprovider = \"p\"\nmodel_pattern = \"m\"\ninput_per_million = 1.0\noutput_per_million = 2.0\n";
         let err = parse_pricing_bytes(toml, Path::new("/x")).unwrap_err();
         assert!(format!("{err}").contains("meta"), "got: {err}");
     }

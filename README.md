@@ -233,6 +233,33 @@ Every run writes its own journal to `.nika/traces/` (opt out per run with
 `nika:prompt` journals its question); cache hits on resume are always
 visible: nothing is skipped silently.
 
+<!-- city:map -->
+## The city · where this repo sits
+
+```
+📜 nika-spec ──── the civil code · the law tables, the corpus, the exam
+    │ sync-pack: byte-gated mirror        │ projectors: drift-gated
+    ▼                                     ▼
+⚙️ nika ───────── the engine + the catalog (the yellow pages)   ◀── you are here
+    │ the release train                  🖥️ nika.sh · 📖 nika-docs
+    ▼                                     the showroom · the manual
+📦 homebrew-tap · npm · Docker ── the docks
+🔌 nika-client · 🎨 nika-vscode · 🤖 nika-agents ── the doors
+🏪 nika-registry ── the market · 🔍 nika-site-audit ── the witness
+```
+
+**This building** · THE ENGINE · checks before it spends, runs inside declared permits, leaves a signed trace. Carries the catalog: providers, models, prices pinned with provenance.
+
+**Consumes** · the spec (corpus vendored at a pin, integrity-tested) · upstream pricing (pinned, provenance recorded).
+
+**Serves** · the docks (brew · npm · Docker) · every door (CLI · LSP · MCP · serve).
+
+**Truth lives** · engine numbers come from the binary, never from prose · `crates/nika-pack/pack/` is a byte-gated MIRROR of the spec — editing it is a lost gesture.
+
+Every fact has one home · everything else is a gated projection.
+The living map: [nika.sh/map](https://nika.sh/map).
+<!-- /city:map -->
+
 ## Pick a workflow
 
 The binary embeds a versioned pack of runnable examples. Browse with

@@ -1,4 +1,4 @@
-schema = "nika/model-pricing@1.2"
+schema = "nika/model-pricing@1.3"
 
 [meta]
 source = "https://models.dev/api.json"
@@ -15,6 +15,10 @@ source_sha256_16 = "d5aa8fd06062f49e"
 # Token limits · open_weights · status are upstream's own words,
 # carried verbatim. An OMITTED field means upstream did not say —
 # read it as unknown, never as 0 / false.
+# Research facts (@1.3 · energy · tokenizer · determinism) are
+# vendored by the research lane with per-claim sources — this
+# refresh never writes them. An OMITTED research field means no
+# sourced fact exists yet — never a default.
 
 # ── anthropic (16 models) ──
 

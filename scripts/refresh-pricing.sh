@@ -179,7 +179,13 @@ if prev and len(rules) < prev // 2:
         sys.exit(1)
 
 out = []
-out.append('schema = "nika/model-pricing@1.2"')
+# @1.3 — the schema also admits research facts (energy · tokenizer ·
+# determinism) that this refresh NEVER emits: models.dev does not carry
+# them, the research lane vendors them with per-claim sources. NOTE for
+# the vendor wave (P3): this script rewrites the whole file, so research
+# rows must gain a merge step here BEFORE any research data lands in the
+# live TOML — otherwise a refresh wipes sourced facts.
+out.append('schema = "nika/model-pricing@1.3"')
 out.append("")
 out.append("[meta]")
 out.append('source = "https://models.dev/api.json"')
@@ -196,6 +202,10 @@ out.append("# math prices cache subsets at these rates (input-rate fallback).")
 out.append("# Token limits · open_weights · status are upstream's own words,")
 out.append("# carried verbatim. An OMITTED field means upstream did not say —")
 out.append("# read it as unknown, never as 0 / false.")
+out.append("# Research facts (@1.3 · energy · tokenizer · determinism) are")
+out.append("# vendored by the research lane with per-claim sources — this")
+out.append("# refresh never writes them. An OMITTED research field means no")
+out.append("# sourced fact exists yet — never a default.")
 
 current = None
 for r in rules:

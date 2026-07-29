@@ -67,7 +67,7 @@ files:
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
-  sha256: 12f1a98bc5e7d147bb6adcf09c0f3e37533d4108b1c923966eefd1d9689d7123
+  sha256: 6692ce574fc27836b06e2ee3996249a3a513d59315b55ac262d3010db99f5521
   evidence: "in-file marker '── GENERATED · do not hand-edit' + [meta] source=https://models.dev/api.json · as_of · source_sha256_16 — a vendored snapshot, refreshed at maintenance time, never a runtime fetch"
   derivation:
     tool: "bash scripts/refresh-pricing.sh (emission laws matched to src/data/models.rs lookup semantics)"
@@ -130,7 +130,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 57
-  aggregate_sha256: 209c76e3ed60c714df9344a8c71c216f92b0b3d2c90cb079b8793149e1db5569
+  aggregate_sha256: b7a0739354ce2fcb42b18d2ebc463514a96df23abd475b0f65c98c738edcac9d
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -142,17 +142,17 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 646
-  aggregate_sha256: 6a23964420ac42b0b25924333445adb879c03a0679ce24bdbf0f1310c7d08000
+  aggregate_sha256: be0f9d1e41ca9c1f5ed84fb77cf9acdc38c94122429fc3033aa42214a627973b
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 113
-  aggregate_sha256: 85f5f1441834494b2daad070441ec71c1cdef4dafb58084c69ac42254b2e4b3a
+  aggregate_sha256: 275701e6e66c4bdaa5aa110b61c0936133c9e3f8d00e44127db370ec4fa99462
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 125
-  aggregate_sha256: a335663f429c60d2a20715eb84b45268360f511f06da0caa7b8da31480ccfa75
+  aggregate_sha256: 412e6ea25402cd5e4e71f9cb6227a4bb354ded85ba5a97c2e877855066f3f54a
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -173,7 +173,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 126
-  aggregate_sha256: 9181588d5d1e3248af4e7df43935abeab58d54b07ea4321ca0fe9e8a4251d812
+  aggregate_sha256: 8bbf127d32b621d2e73ec9abed2410cea502df418bb838b5afff847bd4c91974
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -227,7 +227,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: b9c7c16b21174a52e75f93dae8b03a145154991f8aeea8826c9de49e2ecc8ef8
+  aggregate_sha256: 5ac5b87b952238a13d9afe1e73cf48a22416e18d8dcf64fd1e915ffb6e30d152
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

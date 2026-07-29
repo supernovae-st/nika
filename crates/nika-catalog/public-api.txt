@@ -1273,6 +1273,7 @@ pub fn nika_catalog::mcp_server::McpPricing::as_any(&self) -> &(dyn core::any::A
 pub nika_catalog::mcp_server::McpServer::aliases: &'static [&'static str]
 pub nika_catalog::mcp_server::McpServer::category: nika_catalog::category::Category
 pub nika_catalog::mcp_server::McpServer::description: &'static str
+pub nika_catalog::mcp_server::McpServer::effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]
 pub nika_catalog::mcp_server::McpServer::env_vars: &'static [nika_catalog::distribution::EnvVarSpec]
 pub nika_catalog::mcp_server::McpServer::extra_tags: &'static [&'static str]
 pub nika_catalog::mcp_server::McpServer::homepage: core::option::Option<&'static str>
@@ -1284,7 +1285,7 @@ pub nika_catalog::mcp_server::McpServer::remotes: &'static [nika_catalog::distri
 pub nika_catalog::mcp_server::McpServer::tags: &'static [nika_catalog::tags::Tag]
 pub nika_catalog::mcp_server::McpServer::title: &'static str
 impl nika_catalog::mcp_server::McpServer
-pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]) -> Self
 impl core::clone::Clone for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::clone(&self) -> nika_catalog::mcp_server::McpServer
 impl core::cmp::Eq for nika_catalog::mcp_server::McpServer
@@ -1320,6 +1321,48 @@ impl<T> core::convert::From<T> for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::McpServer where T: 'static
 pub fn nika_catalog::mcp_server::McpServer::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::mcp_server::ToolEffectHints
+pub nika_catalog::mcp_server::ToolEffectHints::destructive: core::option::Option<bool>
+pub nika_catalog::mcp_server::ToolEffectHints::read_only: core::option::Option<bool>
+pub nika_catalog::mcp_server::ToolEffectHints::tool: &'static str
+impl nika_catalog::mcp_server::ToolEffectHints
+pub const fn nika_catalog::mcp_server::ToolEffectHints::new(tool: &'static str, read_only: core::option::Option<bool>, destructive: core::option::Option<bool>) -> Self
+impl core::clone::Clone for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone(&self) -> nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::Eq for nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::PartialEq for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::eq(&self, other: &nika_catalog::mcp_server::ToolEffectHints) -> bool
+impl core::fmt::Debug for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::mcp_server::ToolEffectHints
+impl core::marker::StructuralPartialEq for nika_catalog::mcp_server::ToolEffectHints
+impl serde_core::ser::Serialize for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::mcp_server::ToolEffectHints
+impl<T, U> core::convert::Into<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::From<T>
+pub fn nika_catalog::mcp_server::ToolEffectHints::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::Into<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = core::convert::Infallible
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::TryFrom<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub type nika_catalog::mcp_server::ToolEffectHints::Owned = T
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone_into(&self, target: &mut T)
+pub fn nika_catalog::mcp_server::ToolEffectHints::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::mcp_server::ToolEffectHints where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub unsafe fn nika_catalog::mcp_server::ToolEffectHints::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::ToolEffectHints where T: 'static
+pub fn nika_catalog::mcp_server::ToolEffectHints::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::modality
 #[non_exhaustive] pub enum nika_catalog::modality::Modality
 pub nika_catalog::modality::Modality::Audio
@@ -1575,10 +1618,53 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelCapabilities where T: 'static
 pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::model::ModelEnergy
+pub nika_catalog::model::ModelEnergy::measured_at: &'static str
+pub nika_catalog::model::ModelEnergy::provenance: &'static str
+pub nika_catalog::model::ModelEnergy::scope: &'static str
+pub nika_catalog::model::ModelEnergy::source: &'static str
+pub nika_catalog::model::ModelEnergy::wh_per_mtok_out: f64
+impl nika_catalog::model::ModelEnergy
+pub const fn nika_catalog::model::ModelEnergy::new(wh_per_mtok_out: f64, provenance: &'static str, scope: &'static str, source: &'static str, measured_at: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::clone(&self) -> nika_catalog::model::ModelEnergy
+impl core::cmp::PartialEq for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::eq(&self, other: &nika_catalog::model::ModelEnergy) -> bool
+impl core::fmt::Debug for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::ModelEnergy
+impl core::marker::StructuralPartialEq for nika_catalog::model::ModelEnergy
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ModelEnergy
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ModelEnergy where U: core::convert::From<T>
+pub fn nika_catalog::model::ModelEnergy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ModelEnergy where U: core::convert::Into<T>
+pub type nika_catalog::model::ModelEnergy::Error = core::convert::Infallible
+pub fn nika_catalog::model::ModelEnergy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ModelEnergy where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ModelEnergy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ModelEnergy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub type nika_catalog::model::ModelEnergy::Owned = T
+pub fn nika_catalog::model::ModelEnergy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ModelEnergy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ModelEnergy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ModelEnergy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelEnergy where T: 'static
+pub fn nika_catalog::model::ModelEnergy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::model::ModelPricing
 pub nika_catalog::model::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::model::ModelPricing::cache_write_per_million: core::option::Option<f64>
 pub nika_catalog::model::ModelPricing::context_window_tokens: core::option::Option<u32>
+pub nika_catalog::model::ModelPricing::determinism: core::option::Option<&'static str>
+pub nika_catalog::model::ModelPricing::energy: core::option::Option<nika_catalog::model::ModelEnergy>
 pub nika_catalog::model::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::model::ModelPricing::input_per_million: f64
 pub nika_catalog::model::ModelPricing::max_output_tokens: core::option::Option<u32>
@@ -1588,9 +1674,10 @@ pub nika_catalog::model::ModelPricing::output_per_million: f64
 pub nika_catalog::model::ModelPricing::provider: &'static str
 pub nika_catalog::model::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
 pub nika_catalog::model::ModelPricing::status: core::option::Option<&'static str>
+pub nika_catalog::model::ModelPricing::tokenizer: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>, energy: core::option::Option<nika_catalog::model::ModelEnergy>, tokenizer: core::option::Option<&'static str>, determinism: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -1775,10 +1862,54 @@ pub fn nika_catalog::param_flag::ParseParamFlagError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::param_flag::ParseParamFlagError where T: 'static
 pub fn nika_catalog::param_flag::ParseParamFlagError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::provider
+#[non_exhaustive] pub struct nika_catalog::provider::DataPolicy
+pub nika_catalog::provider::DataPolicy::retention: &'static str
+pub nika_catalog::provider::DataPolicy::source: &'static str
+pub nika_catalog::provider::DataPolicy::trains: &'static str
+pub nika_catalog::provider::DataPolicy::zdr: &'static str
+impl nika_catalog::provider::DataPolicy
+pub const fn nika_catalog::provider::DataPolicy::new(trains: &'static str, retention: &'static str, zdr: &'static str, source: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::clone(&self) -> nika_catalog::provider::DataPolicy
+impl core::cmp::Eq for nika_catalog::provider::DataPolicy
+impl core::cmp::PartialEq for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::eq(&self, other: &nika_catalog::provider::DataPolicy) -> bool
+impl core::fmt::Debug for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::DataPolicy
+impl core::marker::StructuralPartialEq for nika_catalog::provider::DataPolicy
+impl serde_core::ser::Serialize for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::DataPolicy
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::DataPolicy where U: core::convert::From<T>
+pub fn nika_catalog::provider::DataPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::DataPolicy where U: core::convert::Into<T>
+pub type nika_catalog::provider::DataPolicy::Error = core::convert::Infallible
+pub fn nika_catalog::provider::DataPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::DataPolicy where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::DataPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::DataPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub type nika_catalog::provider::DataPolicy::Owned = T
+pub fn nika_catalog::provider::DataPolicy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::DataPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::DataPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::DataPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::DataPolicy where T: 'static
+pub fn nika_catalog::provider::DataPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::provider::Provider
 pub nika_catalog::provider::Provider::aliases: &'static [&'static str]
 pub nika_catalog::provider::Provider::api_dialect: core::option::Option<&'static str>
 pub nika_catalog::provider::Provider::cheap_model: &'static str
+pub nika_catalog::provider::Provider::data_policy: core::option::Option<nika_catalog::provider::DataPolicy>
 pub nika_catalog::provider::Provider::default_model: &'static str
 pub nika_catalog::provider::Provider::description: &'static str
 pub nika_catalog::provider::Provider::env_var: &'static str
@@ -1790,7 +1921,7 @@ pub nika_catalog::provider::Provider::name: &'static str
 pub nika_catalog::provider::Provider::requires_key: bool
 pub nika_catalog::provider::Provider::tags: &'static [nika_catalog::tags::Tag]
 impl nika_catalog::provider::Provider
-pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], data_policy: core::option::Option<nika_catalog::provider::DataPolicy>) -> Self
 impl core::clone::Clone for nika_catalog::provider::Provider
 pub fn nika_catalog::provider::Provider::clone(&self) -> nika_catalog::provider::Provider
 impl core::cmp::Eq for nika_catalog::provider::Provider
@@ -3506,6 +3637,7 @@ pub fn nika_catalog::mcp_server::McpPricing::as_any(&self) -> &(dyn core::any::A
 pub nika_catalog::types::mcp_server::McpServer::aliases: &'static [&'static str]
 pub nika_catalog::types::mcp_server::McpServer::category: nika_catalog::category::Category
 pub nika_catalog::types::mcp_server::McpServer::description: &'static str
+pub nika_catalog::types::mcp_server::McpServer::effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]
 pub nika_catalog::types::mcp_server::McpServer::env_vars: &'static [nika_catalog::distribution::EnvVarSpec]
 pub nika_catalog::types::mcp_server::McpServer::extra_tags: &'static [&'static str]
 pub nika_catalog::types::mcp_server::McpServer::homepage: core::option::Option<&'static str>
@@ -3517,7 +3649,7 @@ pub nika_catalog::types::mcp_server::McpServer::remotes: &'static [nika_catalog:
 pub nika_catalog::types::mcp_server::McpServer::tags: &'static [nika_catalog::tags::Tag]
 pub nika_catalog::types::mcp_server::McpServer::title: &'static str
 impl nika_catalog::mcp_server::McpServer
-pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]) -> Self
 impl core::clone::Clone for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::clone(&self) -> nika_catalog::mcp_server::McpServer
 impl core::cmp::Eq for nika_catalog::mcp_server::McpServer
@@ -3553,6 +3685,48 @@ impl<T> core::convert::From<T> for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::McpServer where T: 'static
 pub fn nika_catalog::mcp_server::McpServer::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::mcp_server::ToolEffectHints
+pub nika_catalog::types::mcp_server::ToolEffectHints::destructive: core::option::Option<bool>
+pub nika_catalog::types::mcp_server::ToolEffectHints::read_only: core::option::Option<bool>
+pub nika_catalog::types::mcp_server::ToolEffectHints::tool: &'static str
+impl nika_catalog::mcp_server::ToolEffectHints
+pub const fn nika_catalog::mcp_server::ToolEffectHints::new(tool: &'static str, read_only: core::option::Option<bool>, destructive: core::option::Option<bool>) -> Self
+impl core::clone::Clone for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone(&self) -> nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::Eq for nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::PartialEq for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::eq(&self, other: &nika_catalog::mcp_server::ToolEffectHints) -> bool
+impl core::fmt::Debug for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::mcp_server::ToolEffectHints
+impl core::marker::StructuralPartialEq for nika_catalog::mcp_server::ToolEffectHints
+impl serde_core::ser::Serialize for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::mcp_server::ToolEffectHints
+impl<T, U> core::convert::Into<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::From<T>
+pub fn nika_catalog::mcp_server::ToolEffectHints::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::Into<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = core::convert::Infallible
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::TryFrom<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub type nika_catalog::mcp_server::ToolEffectHints::Owned = T
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone_into(&self, target: &mut T)
+pub fn nika_catalog::mcp_server::ToolEffectHints::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::mcp_server::ToolEffectHints where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub unsafe fn nika_catalog::mcp_server::ToolEffectHints::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::ToolEffectHints where T: 'static
+pub fn nika_catalog::mcp_server::ToolEffectHints::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::types::modality
 #[non_exhaustive] pub enum nika_catalog::types::modality::Modality
 pub nika_catalog::types::modality::Modality::Audio
@@ -3808,10 +3982,53 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelCapabilities where T: 'static
 pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::model::ModelEnergy
+pub nika_catalog::types::model::ModelEnergy::measured_at: &'static str
+pub nika_catalog::types::model::ModelEnergy::provenance: &'static str
+pub nika_catalog::types::model::ModelEnergy::scope: &'static str
+pub nika_catalog::types::model::ModelEnergy::source: &'static str
+pub nika_catalog::types::model::ModelEnergy::wh_per_mtok_out: f64
+impl nika_catalog::model::ModelEnergy
+pub const fn nika_catalog::model::ModelEnergy::new(wh_per_mtok_out: f64, provenance: &'static str, scope: &'static str, source: &'static str, measured_at: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::clone(&self) -> nika_catalog::model::ModelEnergy
+impl core::cmp::PartialEq for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::eq(&self, other: &nika_catalog::model::ModelEnergy) -> bool
+impl core::fmt::Debug for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::ModelEnergy
+impl core::marker::StructuralPartialEq for nika_catalog::model::ModelEnergy
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ModelEnergy
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ModelEnergy where U: core::convert::From<T>
+pub fn nika_catalog::model::ModelEnergy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ModelEnergy where U: core::convert::Into<T>
+pub type nika_catalog::model::ModelEnergy::Error = core::convert::Infallible
+pub fn nika_catalog::model::ModelEnergy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ModelEnergy where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ModelEnergy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ModelEnergy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub type nika_catalog::model::ModelEnergy::Owned = T
+pub fn nika_catalog::model::ModelEnergy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ModelEnergy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ModelEnergy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ModelEnergy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelEnergy where T: 'static
+pub fn nika_catalog::model::ModelEnergy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::model::ModelPricing
 pub nika_catalog::types::model::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::types::model::ModelPricing::cache_write_per_million: core::option::Option<f64>
 pub nika_catalog::types::model::ModelPricing::context_window_tokens: core::option::Option<u32>
+pub nika_catalog::types::model::ModelPricing::determinism: core::option::Option<&'static str>
+pub nika_catalog::types::model::ModelPricing::energy: core::option::Option<nika_catalog::model::ModelEnergy>
 pub nika_catalog::types::model::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::types::model::ModelPricing::input_per_million: f64
 pub nika_catalog::types::model::ModelPricing::max_output_tokens: core::option::Option<u32>
@@ -3821,9 +4038,10 @@ pub nika_catalog::types::model::ModelPricing::output_per_million: f64
 pub nika_catalog::types::model::ModelPricing::provider: &'static str
 pub nika_catalog::types::model::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
 pub nika_catalog::types::model::ModelPricing::status: core::option::Option<&'static str>
+pub nika_catalog::types::model::ModelPricing::tokenizer: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>, energy: core::option::Option<nika_catalog::model::ModelEnergy>, tokenizer: core::option::Option<&'static str>, determinism: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -4008,10 +4226,54 @@ pub fn nika_catalog::param_flag::ParseParamFlagError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::param_flag::ParseParamFlagError where T: 'static
 pub fn nika_catalog::param_flag::ParseParamFlagError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::types::provider
+#[non_exhaustive] pub struct nika_catalog::types::provider::DataPolicy
+pub nika_catalog::types::provider::DataPolicy::retention: &'static str
+pub nika_catalog::types::provider::DataPolicy::source: &'static str
+pub nika_catalog::types::provider::DataPolicy::trains: &'static str
+pub nika_catalog::types::provider::DataPolicy::zdr: &'static str
+impl nika_catalog::provider::DataPolicy
+pub const fn nika_catalog::provider::DataPolicy::new(trains: &'static str, retention: &'static str, zdr: &'static str, source: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::clone(&self) -> nika_catalog::provider::DataPolicy
+impl core::cmp::Eq for nika_catalog::provider::DataPolicy
+impl core::cmp::PartialEq for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::eq(&self, other: &nika_catalog::provider::DataPolicy) -> bool
+impl core::fmt::Debug for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::DataPolicy
+impl core::marker::StructuralPartialEq for nika_catalog::provider::DataPolicy
+impl serde_core::ser::Serialize for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::DataPolicy
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::DataPolicy where U: core::convert::From<T>
+pub fn nika_catalog::provider::DataPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::DataPolicy where U: core::convert::Into<T>
+pub type nika_catalog::provider::DataPolicy::Error = core::convert::Infallible
+pub fn nika_catalog::provider::DataPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::DataPolicy where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::DataPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::DataPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub type nika_catalog::provider::DataPolicy::Owned = T
+pub fn nika_catalog::provider::DataPolicy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::DataPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::DataPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::DataPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::DataPolicy where T: 'static
+pub fn nika_catalog::provider::DataPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::provider::Provider
 pub nika_catalog::types::provider::Provider::aliases: &'static [&'static str]
 pub nika_catalog::types::provider::Provider::api_dialect: core::option::Option<&'static str>
 pub nika_catalog::types::provider::Provider::cheap_model: &'static str
+pub nika_catalog::types::provider::Provider::data_policy: core::option::Option<nika_catalog::provider::DataPolicy>
 pub nika_catalog::types::provider::Provider::default_model: &'static str
 pub nika_catalog::types::provider::Provider::description: &'static str
 pub nika_catalog::types::provider::Provider::env_var: &'static str
@@ -4023,7 +4285,7 @@ pub nika_catalog::types::provider::Provider::name: &'static str
 pub nika_catalog::types::provider::Provider::requires_key: bool
 pub nika_catalog::types::provider::Provider::tags: &'static [nika_catalog::tags::Tag]
 impl nika_catalog::provider::Provider
-pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], data_policy: core::option::Option<nika_catalog::provider::DataPolicy>) -> Self
 impl core::clone::Clone for nika_catalog::provider::Provider
 pub fn nika_catalog::provider::Provider::clone(&self) -> nika_catalog::provider::Provider
 impl core::cmp::Eq for nika_catalog::provider::Provider
@@ -5824,6 +6086,49 @@ pub fn nika_catalog::model::CostEstimate::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::CostEstimate where T: 'static
 pub fn nika_catalog::model::CostEstimate::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::model::CostEstimate where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog::types::DataPolicy
+pub nika_catalog::types::DataPolicy::retention: &'static str
+pub nika_catalog::types::DataPolicy::source: &'static str
+pub nika_catalog::types::DataPolicy::trains: &'static str
+pub nika_catalog::types::DataPolicy::zdr: &'static str
+impl nika_catalog::provider::DataPolicy
+pub const fn nika_catalog::provider::DataPolicy::new(trains: &'static str, retention: &'static str, zdr: &'static str, source: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::clone(&self) -> nika_catalog::provider::DataPolicy
+impl core::cmp::Eq for nika_catalog::provider::DataPolicy
+impl core::cmp::PartialEq for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::eq(&self, other: &nika_catalog::provider::DataPolicy) -> bool
+impl core::fmt::Debug for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::DataPolicy
+impl core::marker::StructuralPartialEq for nika_catalog::provider::DataPolicy
+impl serde_core::ser::Serialize for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::DataPolicy
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::DataPolicy where U: core::convert::From<T>
+pub fn nika_catalog::provider::DataPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::DataPolicy where U: core::convert::Into<T>
+pub type nika_catalog::provider::DataPolicy::Error = core::convert::Infallible
+pub fn nika_catalog::provider::DataPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::DataPolicy where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::DataPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::DataPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub type nika_catalog::provider::DataPolicy::Owned = T
+pub fn nika_catalog::provider::DataPolicy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::DataPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::DataPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::DataPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::DataPolicy where T: 'static
+pub fn nika_catalog::provider::DataPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::Embedding
 pub nika_catalog::types::Embedding::description: &'static str
 pub nika_catalog::types::Embedding::dimensions: u32
@@ -6007,6 +6312,7 @@ pub fn nika_catalog::distribution::McpRemote::as_any(&self) -> &(dyn core::any::
 pub nika_catalog::types::McpServer::aliases: &'static [&'static str]
 pub nika_catalog::types::McpServer::category: nika_catalog::category::Category
 pub nika_catalog::types::McpServer::description: &'static str
+pub nika_catalog::types::McpServer::effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]
 pub nika_catalog::types::McpServer::env_vars: &'static [nika_catalog::distribution::EnvVarSpec]
 pub nika_catalog::types::McpServer::extra_tags: &'static [&'static str]
 pub nika_catalog::types::McpServer::homepage: core::option::Option<&'static str>
@@ -6018,7 +6324,7 @@ pub nika_catalog::types::McpServer::remotes: &'static [nika_catalog::distributio
 pub nika_catalog::types::McpServer::tags: &'static [nika_catalog::tags::Tag]
 pub nika_catalog::types::McpServer::title: &'static str
 impl nika_catalog::mcp_server::McpServer
-pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]) -> Self
 impl core::clone::Clone for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::clone(&self) -> nika_catalog::mcp_server::McpServer
 impl core::cmp::Eq for nika_catalog::mcp_server::McpServer
@@ -6117,10 +6423,53 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelCapabilities where T: 'static
 pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::ModelEnergy
+pub nika_catalog::types::ModelEnergy::measured_at: &'static str
+pub nika_catalog::types::ModelEnergy::provenance: &'static str
+pub nika_catalog::types::ModelEnergy::scope: &'static str
+pub nika_catalog::types::ModelEnergy::source: &'static str
+pub nika_catalog::types::ModelEnergy::wh_per_mtok_out: f64
+impl nika_catalog::model::ModelEnergy
+pub const fn nika_catalog::model::ModelEnergy::new(wh_per_mtok_out: f64, provenance: &'static str, scope: &'static str, source: &'static str, measured_at: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::clone(&self) -> nika_catalog::model::ModelEnergy
+impl core::cmp::PartialEq for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::eq(&self, other: &nika_catalog::model::ModelEnergy) -> bool
+impl core::fmt::Debug for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::ModelEnergy
+impl core::marker::StructuralPartialEq for nika_catalog::model::ModelEnergy
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ModelEnergy
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ModelEnergy where U: core::convert::From<T>
+pub fn nika_catalog::model::ModelEnergy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ModelEnergy where U: core::convert::Into<T>
+pub type nika_catalog::model::ModelEnergy::Error = core::convert::Infallible
+pub fn nika_catalog::model::ModelEnergy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ModelEnergy where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ModelEnergy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ModelEnergy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub type nika_catalog::model::ModelEnergy::Owned = T
+pub fn nika_catalog::model::ModelEnergy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ModelEnergy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ModelEnergy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ModelEnergy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelEnergy where T: 'static
+pub fn nika_catalog::model::ModelEnergy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::ModelPricing
 pub nika_catalog::types::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::cache_write_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::context_window_tokens: core::option::Option<u32>
+pub nika_catalog::types::ModelPricing::determinism: core::option::Option<&'static str>
+pub nika_catalog::types::ModelPricing::energy: core::option::Option<nika_catalog::model::ModelEnergy>
 pub nika_catalog::types::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::input_per_million: f64
 pub nika_catalog::types::ModelPricing::max_output_tokens: core::option::Option<u32>
@@ -6130,9 +6479,10 @@ pub nika_catalog::types::ModelPricing::output_per_million: f64
 pub nika_catalog::types::ModelPricing::provider: &'static str
 pub nika_catalog::types::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::status: core::option::Option<&'static str>
+pub nika_catalog::types::ModelPricing::tokenizer: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>, energy: core::option::Option<nika_catalog::model::ModelEnergy>, tokenizer: core::option::Option<&'static str>, determinism: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -6496,6 +6846,7 @@ pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::A
 pub nika_catalog::types::Provider::aliases: &'static [&'static str]
 pub nika_catalog::types::Provider::api_dialect: core::option::Option<&'static str>
 pub nika_catalog::types::Provider::cheap_model: &'static str
+pub nika_catalog::types::Provider::data_policy: core::option::Option<nika_catalog::provider::DataPolicy>
 pub nika_catalog::types::Provider::default_model: &'static str
 pub nika_catalog::types::Provider::description: &'static str
 pub nika_catalog::types::Provider::env_var: &'static str
@@ -6507,7 +6858,7 @@ pub nika_catalog::types::Provider::name: &'static str
 pub nika_catalog::types::Provider::requires_key: bool
 pub nika_catalog::types::Provider::tags: &'static [nika_catalog::tags::Tag]
 impl nika_catalog::provider::Provider
-pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], data_policy: core::option::Option<nika_catalog::provider::DataPolicy>) -> Self
 impl core::clone::Clone for nika_catalog::provider::Provider
 pub fn nika_catalog::provider::Provider::clone(&self) -> nika_catalog::provider::Provider
 impl core::cmp::Eq for nika_catalog::provider::Provider
@@ -6586,6 +6937,48 @@ impl<T> core::convert::From<T> for nika_catalog::provider::ProviderModel
 pub fn nika_catalog::provider::ProviderModel::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::provider::ProviderModel where T: 'static
 pub fn nika_catalog::provider::ProviderModel::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::ToolEffectHints
+pub nika_catalog::types::ToolEffectHints::destructive: core::option::Option<bool>
+pub nika_catalog::types::ToolEffectHints::read_only: core::option::Option<bool>
+pub nika_catalog::types::ToolEffectHints::tool: &'static str
+impl nika_catalog::mcp_server::ToolEffectHints
+pub const fn nika_catalog::mcp_server::ToolEffectHints::new(tool: &'static str, read_only: core::option::Option<bool>, destructive: core::option::Option<bool>) -> Self
+impl core::clone::Clone for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone(&self) -> nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::Eq for nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::PartialEq for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::eq(&self, other: &nika_catalog::mcp_server::ToolEffectHints) -> bool
+impl core::fmt::Debug for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::mcp_server::ToolEffectHints
+impl core::marker::StructuralPartialEq for nika_catalog::mcp_server::ToolEffectHints
+impl serde_core::ser::Serialize for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::mcp_server::ToolEffectHints
+impl<T, U> core::convert::Into<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::From<T>
+pub fn nika_catalog::mcp_server::ToolEffectHints::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::Into<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = core::convert::Infallible
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::TryFrom<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub type nika_catalog::mcp_server::ToolEffectHints::Owned = T
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone_into(&self, target: &mut T)
+pub fn nika_catalog::mcp_server::ToolEffectHints::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::mcp_server::ToolEffectHints where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub unsafe fn nika_catalog::mcp_server::ToolEffectHints::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::ToolEffectHints where T: 'static
+pub fn nika_catalog::mcp_server::ToolEffectHints::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::TransformDef
 pub nika_catalog::types::TransformDef::arity: nika_catalog::transform::TransformArity
 pub nika_catalog::types::TransformDef::category: nika_catalog::transform::TransformCategory
@@ -7944,6 +8337,49 @@ pub fn nika_catalog::model::CostEstimate::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::CostEstimate where T: 'static
 pub fn nika_catalog::model::CostEstimate::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::model::CostEstimate where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog::DataPolicy
+pub nika_catalog::DataPolicy::retention: &'static str
+pub nika_catalog::DataPolicy::source: &'static str
+pub nika_catalog::DataPolicy::trains: &'static str
+pub nika_catalog::DataPolicy::zdr: &'static str
+impl nika_catalog::provider::DataPolicy
+pub const fn nika_catalog::provider::DataPolicy::new(trains: &'static str, retention: &'static str, zdr: &'static str, source: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::clone(&self) -> nika_catalog::provider::DataPolicy
+impl core::cmp::Eq for nika_catalog::provider::DataPolicy
+impl core::cmp::PartialEq for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::eq(&self, other: &nika_catalog::provider::DataPolicy) -> bool
+impl core::fmt::Debug for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::DataPolicy
+impl core::marker::StructuralPartialEq for nika_catalog::provider::DataPolicy
+impl serde_core::ser::Serialize for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::DataPolicy
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::DataPolicy where U: core::convert::From<T>
+pub fn nika_catalog::provider::DataPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::DataPolicy where U: core::convert::Into<T>
+pub type nika_catalog::provider::DataPolicy::Error = core::convert::Infallible
+pub fn nika_catalog::provider::DataPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::DataPolicy where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::DataPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::DataPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub type nika_catalog::provider::DataPolicy::Owned = T
+pub fn nika_catalog::provider::DataPolicy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::DataPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::DataPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::DataPolicy where T: ?core::marker::Sized
+pub fn nika_catalog::provider::DataPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::DataPolicy where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::DataPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::DataPolicy
+pub fn nika_catalog::provider::DataPolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::DataPolicy where T: 'static
+pub fn nika_catalog::provider::DataPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::Embedding
 pub nika_catalog::Embedding::description: &'static str
 pub nika_catalog::Embedding::dimensions: u32
@@ -8127,6 +8563,7 @@ pub fn nika_catalog::distribution::McpRemote::as_any(&self) -> &(dyn core::any::
 pub nika_catalog::McpServer::aliases: &'static [&'static str]
 pub nika_catalog::McpServer::category: nika_catalog::category::Category
 pub nika_catalog::McpServer::description: &'static str
+pub nika_catalog::McpServer::effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]
 pub nika_catalog::McpServer::env_vars: &'static [nika_catalog::distribution::EnvVarSpec]
 pub nika_catalog::McpServer::extra_tags: &'static [&'static str]
 pub nika_catalog::McpServer::homepage: core::option::Option<&'static str>
@@ -8138,7 +8575,7 @@ pub nika_catalog::McpServer::remotes: &'static [nika_catalog::distribution::McpR
 pub nika_catalog::McpServer::tags: &'static [nika_catalog::tags::Tag]
 pub nika_catalog::McpServer::title: &'static str
 impl nika_catalog::mcp_server::McpServer
-pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::mcp_server::McpServer::new(id: &'static str, aliases: &'static [&'static str], title: &'static str, description: &'static str, packages: &'static [nika_catalog::distribution::McpPackage], remotes: &'static [nika_catalog::distribution::McpRemote], env_vars: &'static [nika_catalog::distribution::EnvVarSpec], homepage: core::option::Option<&'static str>, category: nika_catalog::category::Category, pricing: nika_catalog::mcp_server::McpPricing, last_verified: &'static str, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], effect_hints: &'static [nika_catalog::mcp_server::ToolEffectHints]) -> Self
 impl core::clone::Clone for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::clone(&self) -> nika_catalog::mcp_server::McpServer
 impl core::cmp::Eq for nika_catalog::mcp_server::McpServer
@@ -8237,10 +8674,53 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelCapabilities where T: 'static
 pub fn nika_catalog::model::ModelCapabilities::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::ModelEnergy
+pub nika_catalog::ModelEnergy::measured_at: &'static str
+pub nika_catalog::ModelEnergy::provenance: &'static str
+pub nika_catalog::ModelEnergy::scope: &'static str
+pub nika_catalog::ModelEnergy::source: &'static str
+pub nika_catalog::ModelEnergy::wh_per_mtok_out: f64
+impl nika_catalog::model::ModelEnergy
+pub const fn nika_catalog::model::ModelEnergy::new(wh_per_mtok_out: f64, provenance: &'static str, scope: &'static str, source: &'static str, measured_at: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::clone(&self) -> nika_catalog::model::ModelEnergy
+impl core::cmp::PartialEq for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::eq(&self, other: &nika_catalog::model::ModelEnergy) -> bool
+impl core::fmt::Debug for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::ModelEnergy
+impl core::marker::StructuralPartialEq for nika_catalog::model::ModelEnergy
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ModelEnergy
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ModelEnergy where U: core::convert::From<T>
+pub fn nika_catalog::model::ModelEnergy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ModelEnergy where U: core::convert::Into<T>
+pub type nika_catalog::model::ModelEnergy::Error = core::convert::Infallible
+pub fn nika_catalog::model::ModelEnergy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ModelEnergy where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ModelEnergy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ModelEnergy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub type nika_catalog::model::ModelEnergy::Owned = T
+pub fn nika_catalog::model::ModelEnergy::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ModelEnergy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ModelEnergy where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ModelEnergy where T: ?core::marker::Sized
+pub fn nika_catalog::model::ModelEnergy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ModelEnergy where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ModelEnergy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ModelEnergy
+pub fn nika_catalog::model::ModelEnergy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelEnergy where T: 'static
+pub fn nika_catalog::model::ModelEnergy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::ModelPricing
 pub nika_catalog::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::cache_write_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::context_window_tokens: core::option::Option<u32>
+pub nika_catalog::ModelPricing::determinism: core::option::Option<&'static str>
+pub nika_catalog::ModelPricing::energy: core::option::Option<nika_catalog::model::ModelEnergy>
 pub nika_catalog::ModelPricing::image_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::input_per_million: f64
 pub nika_catalog::ModelPricing::max_output_tokens: core::option::Option<u32>
@@ -8250,9 +8730,10 @@ pub nika_catalog::ModelPricing::output_per_million: f64
 pub nika_catalog::ModelPricing::provider: &'static str
 pub nika_catalog::ModelPricing::reasoning_tokens_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::status: core::option::Option<&'static str>
+pub nika_catalog::ModelPricing::tokenizer: core::option::Option<&'static str>
 impl nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::is_deprecated(&self) -> bool
-pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>) -> Self
+pub const fn nika_catalog::model::ModelPricing::new(provider: &'static str, model_pattern: &'static str, input_per_million: f64, output_per_million: f64, cache_write_per_million: core::option::Option<f64>, cache_read_per_million: core::option::Option<f64>, image_per_million: core::option::Option<f64>, reasoning_tokens_per_million: core::option::Option<f64>, max_output_tokens: core::option::Option<u32>, context_window_tokens: core::option::Option<u32>, open_weights: core::option::Option<bool>, status: core::option::Option<&'static str>, energy: core::option::Option<nika_catalog::model::ModelEnergy>, tokenizer: core::option::Option<&'static str>, determinism: core::option::Option<&'static str>) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::clone(&self) -> nika_catalog::model::ModelPricing
 impl core::cmp::PartialEq for nika_catalog::model::ModelPricing
@@ -8616,6 +9097,7 @@ pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::A
 pub nika_catalog::Provider::aliases: &'static [&'static str]
 pub nika_catalog::Provider::api_dialect: core::option::Option<&'static str>
 pub nika_catalog::Provider::cheap_model: &'static str
+pub nika_catalog::Provider::data_policy: core::option::Option<nika_catalog::provider::DataPolicy>
 pub nika_catalog::Provider::default_model: &'static str
 pub nika_catalog::Provider::description: &'static str
 pub nika_catalog::Provider::env_var: &'static str
@@ -8627,7 +9109,7 @@ pub nika_catalog::Provider::name: &'static str
 pub nika_catalog::Provider::requires_key: bool
 pub nika_catalog::Provider::tags: &'static [nika_catalog::tags::Tag]
 impl nika_catalog::provider::Provider
-pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str]) -> Self
+pub const fn nika_catalog::provider::Provider::new(id: &'static str, name: &'static str, aliases: &'static [&'static str], env_var: &'static str, key_prefixes: &'static [&'static str], default_model: &'static str, cheap_model: &'static str, requires_key: bool, description: &'static str, models: &'static [nika_catalog::provider::ProviderModel], api_dialect: core::option::Option<&'static str>, tags: &'static [nika_catalog::tags::Tag], extra_tags: &'static [&'static str], data_policy: core::option::Option<nika_catalog::provider::DataPolicy>) -> Self
 impl core::clone::Clone for nika_catalog::provider::Provider
 pub fn nika_catalog::provider::Provider::clone(&self) -> nika_catalog::provider::Provider
 impl core::cmp::Eq for nika_catalog::provider::Provider
@@ -8743,6 +9225,48 @@ impl<T> core::convert::From<T> for nika_catalog::suggest::Suggestion
 pub fn nika_catalog::suggest::Suggestion::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::suggest::Suggestion where T: 'static
 pub fn nika_catalog::suggest::Suggestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::ToolEffectHints
+pub nika_catalog::ToolEffectHints::destructive: core::option::Option<bool>
+pub nika_catalog::ToolEffectHints::read_only: core::option::Option<bool>
+pub nika_catalog::ToolEffectHints::tool: &'static str
+impl nika_catalog::mcp_server::ToolEffectHints
+pub const fn nika_catalog::mcp_server::ToolEffectHints::new(tool: &'static str, read_only: core::option::Option<bool>, destructive: core::option::Option<bool>) -> Self
+impl core::clone::Clone for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone(&self) -> nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::Eq for nika_catalog::mcp_server::ToolEffectHints
+impl core::cmp::PartialEq for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::eq(&self, other: &nika_catalog::mcp_server::ToolEffectHints) -> bool
+impl core::fmt::Debug for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::mcp_server::ToolEffectHints
+impl core::marker::StructuralPartialEq for nika_catalog::mcp_server::ToolEffectHints
+impl serde_core::ser::Serialize for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::mcp_server::ToolEffectHints
+impl<T, U> core::convert::Into<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::From<T>
+pub fn nika_catalog::mcp_server::ToolEffectHints::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::Into<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = core::convert::Infallible
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::mcp_server::ToolEffectHints where U: core::convert::TryFrom<T>
+pub type nika_catalog::mcp_server::ToolEffectHints::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::mcp_server::ToolEffectHints::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub type nika_catalog::mcp_server::ToolEffectHints::Owned = T
+pub fn nika_catalog::mcp_server::ToolEffectHints::clone_into(&self, target: &mut T)
+pub fn nika_catalog::mcp_server::ToolEffectHints::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::mcp_server::ToolEffectHints where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::mcp_server::ToolEffectHints where T: ?core::marker::Sized
+pub fn nika_catalog::mcp_server::ToolEffectHints::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::mcp_server::ToolEffectHints where T: core::clone::Clone
+pub unsafe fn nika_catalog::mcp_server::ToolEffectHints::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::mcp_server::ToolEffectHints
+pub fn nika_catalog::mcp_server::ToolEffectHints::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::ToolEffectHints where T: 'static
+pub fn nika_catalog::mcp_server::ToolEffectHints::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::TransformDef
 pub nika_catalog::TransformDef::arity: nika_catalog::transform::TransformArity
 pub nika_catalog::TransformDef::category: nika_catalog::transform::TransformCategory

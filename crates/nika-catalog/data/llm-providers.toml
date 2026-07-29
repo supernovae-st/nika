@@ -12,8 +12,12 @@
 #   * default_model + cheap_model must appear in the models list (wire id match)
 #   * context_window_tokens + max_output_tokens are REQUIRED (no silent default)
 #   * tags must be sorted alphabetically (kebab-case) and deduplicated
+#   * data_policy (@1.1 · optional) arrives whole or not at all — trains ∈
+#     {no, yes, opt-out, split, passthrough} · zdr ∈ {yes, enterprise-only,
+#     no, local} · retention + source non-empty. An ABSENT table means no
+#     sourced policy vendored — never an implicit "does not train".
 
-schema = "nika/llm-providers@1.0"
+schema = "nika/llm-providers@1.1"
 
 [[providers]]
 id = "anthropic"
@@ -788,6 +792,8 @@ requires_key = false
 description = "Local Ollama server (default port 11434) — serves any pulled model."
 api_dialect = "openai-chat"
 tags = ["local", "open-source"]
+# Structural fact, not a policy promise: a local runtime has no egress.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "qwen"
@@ -812,6 +818,8 @@ requires_key = false
 description = "LM Studio local server (default port 1234) — serves the loaded model."
 api_dialect = "openai-chat"
 tags = ["local", "open-source"]
+# Structural fact, not a policy promise: a local runtime has no egress.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "qwen"
@@ -902,6 +910,8 @@ requires_key = false
 description = "Deterministic test responses — no API calls, no keys needed."
 api_dialect = "mock"
 tags = []
+# Structural fact, not a policy promise: mock never leaves the process.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "default"

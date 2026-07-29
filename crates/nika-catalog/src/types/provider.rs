@@ -51,6 +51,63 @@ impl ProviderModel {
     }
 }
 
+/// A provider's sourced data-handling policy — THE sovereignty facts
+/// (schema `@1.1`).
+///
+/// Vendored from primary sources (the provider's own policy pages), one
+/// claim per field, with the citation riding in [`Self::source`]. The
+/// whole table is optional on [`Provider`]: an absent policy means *no
+/// sourced policy has been vendored*, and MUST NOT be read as "does not
+/// train" or "retains nothing" — absence of the fact, never a fact.
+///
+/// # `trains` is a class, not a bool
+///
+/// Real policies do not collapse to yes/no: `"no"` · `"yes"` ·
+/// `"opt-out"` (trains unless you act) · `"split"` (one answer for paid
+/// traffic, another for free) · `"passthrough"` (aggregators — their
+/// layer does not train but the routed-to provider decides). A bool
+/// here would force a lie on three of the five classes.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DataPolicy {
+    /// Does the provider train on API traffic: `"no"` · `"yes"` ·
+    /// `"opt-out"` · `"split"` · `"passthrough"` (closed set,
+    /// build-time validated).
+    pub trains: &'static str,
+    /// Default retention of API payloads, as the policy states it —
+    /// `"none"` · a day count like `"30"` · `"unspecified"`. Free text
+    /// (never empty): retention wording varies too much to close yet.
+    pub retention: &'static str,
+    /// Zero-data-retention availability: `"yes"` · `"enterprise-only"` ·
+    /// `"no"` · `"local"` (the question does not arise — nothing leaves
+    /// the machine). Closed set, build-time validated.
+    pub zdr: &'static str,
+    /// Citation for the claims — policy URL and/or date. Never empty:
+    /// a policy row without a source is refused by the generator.
+    pub source: &'static str,
+}
+
+impl DataPolicy {
+    /// Explicit constructor — required because [`DataPolicy`] is
+    /// `#[non_exhaustive]` (invariant #19) and the generated static is
+    /// const-constructed.
+    #[must_use]
+    pub const fn new(
+        trains: &'static str,
+        retention: &'static str,
+        zdr: &'static str,
+        source: &'static str,
+    ) -> Self {
+        Self {
+            trains,
+            retention,
+            zdr,
+            source,
+        }
+    }
+}
+
 /// LLM provider catalog entry.
 ///
 /// Generated into `$OUT_DIR/providers.rs` by the crate's `build.rs`
@@ -111,6 +168,10 @@ pub struct Provider {
     /// end-users. Never pass `extra_tags` values into template engines,
     /// prompts, or shell commands without treating them as untrusted.
     pub extra_tags: &'static [&'static str],
+    /// Sourced data-handling policy (schema `@1.1`) — see [`DataPolicy`].
+    /// `None` = no sourced policy vendored yet, which says NOTHING about
+    /// what the provider does with your data.
+    pub data_policy: Option<DataPolicy>,
 }
 
 impl Provider {
@@ -126,7 +187,7 @@ impl Provider {
     /// use struct-literal syntax once another crate consumes the type.
     #[must_use]
     #[allow(clippy::too_many_arguments)]
-    // REASON: 13 fields reflect the real wire-protocol surface of an LLM
+    // REASON: 14 fields reflect the real wire-protocol surface of an LLM
     // provider. A builder would split construction across many partial
     // states; for a static-compiled catalog record, a single call with
     // named arguments at the call site is clearer. The
@@ -145,6 +206,7 @@ impl Provider {
         api_dialect: Option<&'static str>,
         tags: &'static [crate::types::Tag],
         extra_tags: &'static [&'static str],
+        data_policy: Option<DataPolicy>,
     ) -> Self {
         Self {
             id,
@@ -160,6 +222,7 @@ impl Provider {
             api_dialect,
             tags,
             extra_tags,
+            data_policy,
         }
     }
 }
@@ -218,6 +281,7 @@ mod tests {
             api_dialect: Some("anthropic"),
             tags: &[],
             extra_tags: &[],
+            data_policy: None,
         }
     }
 
@@ -252,6 +316,7 @@ mod tests {
             api_dialect: Some("openai-chat"),
             tags: &[],
             extra_tags: &[],
+            data_policy: None,
         };
         assert!(validate_key_format(&p, "sk-proj-abc"));
         assert!(validate_key_format(&p, "sk-abc"));
@@ -289,11 +354,13 @@ mod tests {
             Some("anthropic"),
             &[],
             &[],
+            None,
         );
         assert_eq!(p.id, "anthropic");
         assert_eq!(p.aliases, &["claude"]);
         assert_eq!(p.api_dialect, Some("anthropic"));
         assert_eq!(p.models.len(), 1);
+        assert_eq!(p.data_policy, None);
     }
 
     #[test]
@@ -312,8 +379,41 @@ mod tests {
             api_dialect: Some("openai-chat"),
             tags: &[],
             extra_tags: &[],
+            data_policy: None,
         };
         assert!(validate_key_format(&p, "any-format"));
         assert!(!validate_key_format(&p, ""));
+    }
+
+    #[test]
+    fn data_policy_new_builds_all_fields() {
+        const P: DataPolicy = DataPolicy::new(
+            "no",
+            "none",
+            "local",
+            "local runtime · no egress by construction",
+        );
+        assert_eq!(P.trains, "no");
+        assert_eq!(P.retention, "none");
+        assert_eq!(P.zdr, "local");
+        assert_eq!(P.source, "local runtime · no egress by construction");
+    }
+
+    #[test]
+    fn provider_carries_optional_data_policy() {
+        // Presence and absence are two different facts: a fixture with a
+        // vendored policy exposes it; the default fixture stays None and
+        // must never read as an implicit "does not train".
+        let mut p = anthropic_fixture();
+        assert_eq!(p.data_policy, None, "no policy vendored by default");
+        p.data_policy = Some(DataPolicy::new(
+            "no",
+            "30",
+            "enterprise-only",
+            "policy page",
+        ));
+        let dp = p.data_policy.expect("vendored");
+        assert_eq!(dp.trains, "no");
+        assert_eq!(dp.zdr, "enterprise-only");
     }
 }

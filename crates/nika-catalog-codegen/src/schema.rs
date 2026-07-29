@@ -17,10 +17,27 @@ use std::path::Path;
 use crate::error::CodegenError;
 
 /// Schema version for `data/mcp-servers.toml`.
-pub const MCP_SERVERS_SCHEMA: &str = "nika/mcp-servers@1.0";
+///
+/// `@1.1` (2026-07-29): optional per-tool `effect_hints` table — the MCP
+/// `readOnlyHint` / `destructiveHint` manifest annotations, vendored per
+/// tool. Schema slot only at this wave (no data yet): the irreversibility
+/// reasoning needs the slot to exist before the vendor pass can land.
+/// Optional-everywhere, but bumped for the same reason as pricing `@1.2` —
+/// under `@1.0` an absent hint meant "the schema never carried hints";
+/// under `@1.1` it means "the manifest did not annotate this tool". The
+/// bump is what makes absence readable.
+pub const MCP_SERVERS_SCHEMA: &str = "nika/mcp-servers@1.1";
 
 /// Schema version for `data/llm-providers.toml`.
-pub const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.0";
+///
+/// `@1.1` (2026-07-29): optional `data_policy` table — the sovereignty
+/// facts (`trains` class · `retention` · `zdr` · `source`), vendored from
+/// primary policy sources. Optional-everywhere, but bumped for the same
+/// reason as pricing `@1.2`: under `@1.0` an absent policy meant "the
+/// schema never carried policy"; under `@1.1` it means "no sourced policy
+/// has been vendored for this provider". The bump is what makes absence
+/// readable.
+pub const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.1";
 
 /// Schema version for `data/embeddings.toml`.
 pub const EMBEDDINGS_SCHEMA: &str = "nika/embeddings@1.0";
@@ -44,7 +61,15 @@ pub const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
 /// `@1.2` it means "upstream did not disclose one". A consumer can only
 /// treat absence as a fact about the model once the version guarantees the
 /// generator would have emitted it. The bump is what makes absence readable.
-pub const PRICING_SCHEMA: &str = "nika/model-pricing@1.2";
+///
+/// `@1.3` (2026-07-29): three research facts — `energy` (Wh per million
+/// OUTPUT tokens + the provenance × scope axes) · `tokenizer` (family id)
+/// · `determinism` (replay class: `seed` / `best-effort` / `none`).
+/// Unlike the `@1.2` facts these are NOT mirrored from the upstream
+/// payload (which does not carry them): the research lane vendors them
+/// with a per-claim source. Same bump rationale — under `@1.3` an absent
+/// field means "no sourced fact has been vendored", never a default.
+pub const PRICING_SCHEMA: &str = "nika/model-pricing@1.3";
 
 /// Hard-fail when the file's `schema = "..."` field doesn't match `expected`.
 ///
@@ -73,7 +98,7 @@ mod tests {
     #[test]
     fn assert_schema_match() {
         let p = PathBuf::from("/tmp/mcp.toml");
-        assert_schema(MCP_SERVERS_SCHEMA, "nika/mcp-servers@1.0", &p).unwrap();
+        assert_schema(MCP_SERVERS_SCHEMA, "nika/mcp-servers@1.1", &p).unwrap();
     }
 
     #[test]
@@ -118,10 +143,10 @@ mod tests {
     fn mcp_schema_value_locked() {
         // Lock the exact string — any drift here breaks parity with
         // legacy nika-catalog/build.rs output (Gate 10).
-        assert_eq!(MCP_SERVERS_SCHEMA, "nika/mcp-servers@1.0");
-        assert_eq!(LLM_PROVIDERS_SCHEMA, "nika/llm-providers@1.0");
+        assert_eq!(MCP_SERVERS_SCHEMA, "nika/mcp-servers@1.1");
+        assert_eq!(LLM_PROVIDERS_SCHEMA, "nika/llm-providers@1.1");
         assert_eq!(EMBEDDINGS_SCHEMA, "nika/embeddings@1.0");
         assert_eq!(CAPABILITIES_SCHEMA, "nika/model-capabilities@1.0");
-        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.2");
+        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.3");
     }
 }

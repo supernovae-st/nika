@@ -13,7 +13,7 @@
 #   * context_window_tokens + max_output_tokens are REQUIRED (no silent default)
 #   * tags must be sorted alphabetically (kebab-case) and deduplicated
 
-schema = "nika/llm-providers@1.0"
+schema = "nika/llm-providers@1.1"
 
 [[providers]]
 id = "anthropic"
@@ -27,6 +27,8 @@ requires_key = true
 description = "Claude models (Opus, Sonnet, Haiku)."
 api_dialect = "anthropic"
 tags = ["extended-thinking", "frontier", "function-calling", "long-context", "prompt-caching", "streaming", "structured-output", "vision"]
+# @1.1 data_policy — fixture values, synthetic: exercises the Some path.
+data_policy = { trains = "no", retention = "30", zdr = "enterprise-only", source = "fixture · synthetic" }
 
 [[providers.models]]
 id = "sonnet"

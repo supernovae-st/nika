@@ -1,4 +1,4 @@
-schema = "nika/model-pricing@1.2"
+schema = "nika/model-pricing@1.3"
 
 [meta]
 source = "https://models.dev/api.json"
@@ -25,6 +25,10 @@ input_per_million = 3.0
 output_per_million = 15.0
 cache_read_per_million = 0.3
 cache_write_per_million = 3.75
+# @1.3 research facts — fixture values, synthetic: exercises the Some paths.
+tokenizer = "claude-v3"
+determinism = "best-effort"
+energy = { wh_per_mtok_out = 350.5, provenance = "independent-estimate", scope = "fleet", source = "fixture · synthetic", measured_at = "2025-12" }
 
 [[rules]]
 provider = "Anthropic"
@@ -62,6 +66,9 @@ provider = "OpenAI"
 model_pattern = "gpt-4o-mini"
 input_per_million = 0.15
 output_per_million = 0.6
+# @1.3 — underscore in the tokenizer id + seed determinism exercised.
+tokenizer = "o200k_base"
+determinism = "seed"
 
 [[rules]]
 provider = "OpenAI"

@@ -29,7 +29,11 @@ mod cache_aware {
             Some(0.30),
             None,
             None,
-            // The 4 upstream model facts play no part in cost math.
+            // The 4 upstream model facts and the 3 research facts play
+            // no part in cost math.
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -65,6 +69,9 @@ mod cache_aware {
             "demo-plain",
             3.0,
             15.0,
+            None,
+            None,
+            None,
             None,
             None,
             None,

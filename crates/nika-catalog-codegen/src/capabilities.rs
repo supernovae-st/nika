@@ -921,6 +921,7 @@ mod tests {
             api_dialect: dialect.map(str::to_string),
             tags: vec![],
             extra_tags: vec![],
+            data_policy: None,
         }
     }
 

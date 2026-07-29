@@ -54,6 +54,10 @@ pub struct ProviderEntry {
     pub tags: Vec<String>,
     #[serde(default)]
     pub extra_tags: Vec<String>,
+    /// Sourced data-handling policy (schema `@1.1`). Absent = no sourced
+    /// policy vendored — never an implicit "does not train".
+    #[serde(default)]
+    pub data_policy: Option<DataPolicyEntry>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -63,6 +67,30 @@ pub struct ProviderModelEntry {
     pub model: String,
     pub context_window_tokens: u32,
     pub max_output_tokens: u32,
+}
+
+/// One sourced data-handling policy (schema `@1.1`) — the sovereignty
+/// facts. Every field REQUIRED once the table is present: a policy claim
+/// without its source is exactly the class of confident guess this
+/// catalog refuses, and `deny_unknown_fields` makes a typo'd key fail
+/// the build instead of silently vanishing.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct DataPolicyEntry {
+    /// Training class — closed set: `no` / `yes` / `opt-out` / `split` /
+    /// `passthrough`. A bool cannot say "trains unless you act" (Mistral),
+    /// "paid no · free yes" (Google) or "depends on routing" (aggregators).
+    pub trains: String,
+    /// Default retention as the policy states it (`none` · `30` ·
+    /// `unspecified`). Free text, never empty — the wording varies too
+    /// much across providers to close the set yet.
+    pub retention: String,
+    /// Zero-data-retention availability — closed set: `yes` /
+    /// `enterprise-only` / `no` / `local`.
+    pub zdr: String,
+    /// Citation for the claims (policy URL and/or date). Never empty.
+    pub source: String,
 }
 
 // ─── Public codegen entry ────────────────────────────────────────────────
@@ -148,6 +176,10 @@ fn validate_one_provider(
             .map_err(|r| CodegenError::schema_validation(ctx, r))?;
     }
 
+    if let Some(dp) = p.data_policy.as_ref() {
+        validate_data_policy(dp, &p.id).map_err(|r| CodegenError::schema_validation(ctx, r))?;
+    }
+
     if p.models.is_empty() {
         return Err(CodegenError::schema_validation(
             ctx,
@@ -214,6 +246,42 @@ fn validate_provider_models(p: &ProviderEntry, ctx: &str) -> Result<HashSet<Stri
         }
     }
     Ok(seen_wires)
+}
+
+/// A vendored policy must arrive whole. `trains` and `zdr` are OUR
+/// classification vocabularies (closed sets — growing them is a schema
+/// decision, so validation cannot break a data refresh); `retention`
+/// stays free text; `source` is the non-negotiable citation.
+pub(crate) fn validate_data_policy(dp: &DataPolicyEntry, provider_id: &str) -> Result<(), String> {
+    const TRAINS: &[&str] = &["no", "yes", "opt-out", "split", "passthrough"];
+    const ZDR: &[&str] = &["yes", "enterprise-only", "no", "local"];
+    if !TRAINS.contains(&dp.trains.as_str()) {
+        return Err(format!(
+            "provider {provider_id:?}: data_policy.trains must be one of \
+             no / yes / opt-out / split / passthrough (got {:?})",
+            dp.trains
+        ));
+    }
+    if !ZDR.contains(&dp.zdr.as_str()) {
+        return Err(format!(
+            "provider {provider_id:?}: data_policy.zdr must be one of \
+             yes / enterprise-only / no / local (got {:?})",
+            dp.zdr
+        ));
+    }
+    if dp.retention.trim().is_empty() {
+        return Err(format!(
+            "provider {provider_id:?}: data_policy.retention must not be empty \
+             — write \"unspecified\" when the policy does not say"
+        ));
+    }
+    if dp.source.trim().is_empty() {
+        return Err(format!(
+            "provider {provider_id:?}: data_policy.source must not be empty — \
+             a policy claim without a citation is not a fact; omit the table instead"
+        ));
+    }
+    Ok(())
 }
 
 /// Closed set of wire-protocol dialects. Synced with `Provider::api_dialect`
@@ -314,7 +382,29 @@ fn emit_provider(out: &mut String, p: &ProviderEntry) {
         "        extra_tags: {},",
         str_slice_expr(&p.extra_tags)
     );
+    let _ = writeln!(
+        out,
+        "        data_policy: {},",
+        data_policy_expr(p.data_policy.as_ref())
+    );
     let _ = writeln!(out, "    }},");
+}
+
+/// `Option<DataPolicyEntry>` as Rust source. `None` stays `None` — a
+/// provider without a vendored policy must never reach the binary as an
+/// implicit "does not train".
+fn data_policy_expr(dp: Option<&DataPolicyEntry>) -> String {
+    match dp {
+        Some(dp) => format!(
+            "Some(crate::types::DataPolicy {{ trains: {}, retention: {}, \
+             zdr: {}, source: {} }})",
+            rstr(&dp.trains),
+            rstr(&dp.retention),
+            rstr(&dp.zdr),
+            rstr(&dp.source),
+        ),
+        None => "None".to_string(),
+    }
 }
 
 fn write_models(out: &mut String, models: &[ProviderModelEntry]) {
@@ -366,6 +456,16 @@ mod tests {
             api_dialect: Some("openai-chat".to_string()),
             tags: vec!["fast".to_string()],
             extra_tags: vec![],
+            data_policy: None,
+        }
+    }
+
+    fn fixture_policy() -> DataPolicyEntry {
+        DataPolicyEntry {
+            trains: "no".to_string(),
+            retention: "none".to_string(),
+            zdr: "local".to_string(),
+            source: "local runtime · no egress by construction".to_string(),
         }
     }
 
@@ -495,5 +595,75 @@ mod tests {
         assert!(assert_ascii_key("id", "ok-id").is_ok());
         assert!(assert_ascii_key("id", "café").is_err());
         assert!(assert_ascii_key("id", "").is_err());
+    }
+
+    // ── @1.1 data_policy ───────────────────────────────────────────
+
+    #[test]
+    fn generate_emits_data_policy_some_and_none() {
+        let mut p = fixture_provider();
+        p.data_policy = Some(fixture_policy());
+        let s = generate_providers_rs(&[p]);
+        assert!(
+            s.contains(
+                "data_policy: Some(crate::types::DataPolicy { trains: \"no\", \
+                 retention: \"none\", zdr: \"local\", \
+                 source: \"local runtime · no egress by construction\" })"
+            ),
+            "got: {s}"
+        );
+        // The None path: an unvendored provider must never read as a policy.
+        let s = generate_providers_rs(&[fixture_provider()]);
+        assert!(s.contains("data_policy: None"), "got: {s}");
+    }
+
+    #[test]
+    fn validate_data_policy_trains_closed_set() {
+        for good in ["no", "yes", "opt-out", "split", "passthrough"] {
+            let mut dp = fixture_policy();
+            dp.trains = good.to_string();
+            validate_data_policy(&dp, "p").unwrap_or_else(|err| panic!("{good:?}: {err}"));
+        }
+        // A bool spelling is the load-bearing rejection: three of the five
+        // real-world classes cannot be said in true/false.
+        for bad in ["true", "false", "sometimes", ""] {
+            let mut dp = fixture_policy();
+            dp.trains = bad.to_string();
+            let err = validate_data_policy(&dp, "p").unwrap_err();
+            assert!(err.contains("data_policy.trains"), "{bad:?}: {err}");
+        }
+    }
+
+    #[test]
+    fn validate_data_policy_zdr_closed_set() {
+        for good in ["yes", "enterprise-only", "no", "local"] {
+            let mut dp = fixture_policy();
+            dp.zdr = good.to_string();
+            validate_data_policy(&dp, "p").unwrap_or_else(|err| panic!("{good:?}: {err}"));
+        }
+        let mut dp = fixture_policy();
+        dp.zdr = "maybe".to_string();
+        let err = validate_data_policy(&dp, "p").unwrap_err();
+        assert!(err.contains("data_policy.zdr"), "{err}");
+    }
+
+    #[test]
+    fn validate_data_policy_requires_retention_and_source() {
+        let mut dp = fixture_policy();
+        dp.retention = " ".to_string();
+        let err = validate_data_policy(&dp, "p").unwrap_err();
+        assert!(err.contains("retention"), "{err}");
+
+        let mut dp = fixture_policy();
+        dp.source = String::new();
+        let err = validate_data_policy(&dp, "p").unwrap_err();
+        assert!(err.contains("source"), "{err}");
+    }
+
+    #[test]
+    fn validate_providers_accepts_vendored_policy() {
+        let mut p = fixture_provider();
+        p.data_policy = Some(fixture_policy());
+        validate_providers(&[p], Path::new("/x")).expect("sourced policy must validate");
     }
 }
