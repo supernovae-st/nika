@@ -657,6 +657,7 @@ cache_read_per_million = 0.075
 max_output_tokens = 65536
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 11.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0397 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "groq"
@@ -667,6 +668,7 @@ cache_read_per_million = 0.0375
 max_output_tokens = 65536
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 7.9, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0284 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "groq"
@@ -678,7 +680,7 @@ context_window_tokens = 131072
 open_weights = true
 status = "beta"
 determinism = "best-effort"
-energy = { wh_per_mtok_out = 42.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard v3.0 · H100 · vLLM · conversation workload (arXiv 2505.06371)", measured_at = "2025-12" }
+energy = { wh_per_mtok_out = 86.6, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.3116 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 # ── huggingface (53 models) ──
 
@@ -699,6 +701,7 @@ output_per_million = 3.0
 max_output_tokens = 131072
 context_window_tokens = 262144
 open_weights = true
+energy = { wh_per_mtok_out = 176.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.6336 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "huggingface"
@@ -881,6 +884,7 @@ output_per_million = 2.5
 max_output_tokens = 32768
 context_window_tokens = 64000
 open_weights = true
+energy = { wh_per_mtok_out = 660.1, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 2.3762 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "huggingface"
@@ -1038,6 +1042,7 @@ output_per_million = 0.69
 max_output_tokens = 32768
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 11.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0397 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "huggingface"
@@ -1065,6 +1070,7 @@ output_per_million = 0.5
 max_output_tokens = 32768
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 7.9, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0284 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "huggingface"
@@ -1157,6 +1163,7 @@ output_per_million = 0.59
 max_output_tokens = 16384
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 86.6, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.3116 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "huggingface"
@@ -1721,6 +1728,7 @@ output_per_million = 0.0
 max_output_tokens = 131072
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 30.3, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · H100 · vLLM · problem-solving · 0.1089 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "nvidia"
@@ -2191,6 +2199,7 @@ output_per_million = 0.0
 max_output_tokens = 8192
 context_window_tokens = 128000
 open_weights = true
+energy = { wh_per_mtok_out = 11.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0397 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "nvidia"
@@ -2235,6 +2244,7 @@ output_per_million = 0.0
 max_output_tokens = 32768
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 7.9, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0284 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "nvidia"
@@ -2950,6 +2960,7 @@ output_per_million = 3.0
 max_output_tokens = 32768
 context_window_tokens = 262144
 open_weights = true
+energy = { wh_per_mtok_out = 176.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.6336 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "openrouter"
@@ -3082,6 +3093,7 @@ output_per_million = 1.56
 max_output_tokens = 32768
 context_window_tokens = 81920
 open_weights = true
+energy = { wh_per_mtok_out = 24.3, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.0876 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "openrouter"
@@ -4862,6 +4874,7 @@ output_per_million = 2.5
 max_output_tokens = 16000
 context_window_tokens = 163840
 open_weights = true
+energy = { wh_per_mtok_out = 660.1, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 2.3762 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "openrouter"
@@ -5806,6 +5819,7 @@ output_per_million = 0.91
 max_output_tokens = 8192
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 50.7, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.1826 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "openrouter"
@@ -5882,6 +5896,7 @@ output_per_million = 0.455
 max_output_tokens = 8192
 context_window_tokens = 131072
 open_weights = true
+energy = { wh_per_mtok_out = 48.1, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 · B200 · vLLM · problem-solving · 0.1732 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "openrouter"
