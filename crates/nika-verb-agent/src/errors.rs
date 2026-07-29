@@ -23,20 +23,33 @@ use nika_error::codes::{
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
 use nika_kernel::ai::tool_defs::ToolDefsError;
+use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 
 /// The `agent` verb error surface.
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum VerbAgentError {
-    /// The loop hit `max_turns` without completing (NIKA-460).
-    #[error("agent hit max_turns ({turns}) without completing")]
+    /// The loop hit `max_turns` without completing (NIKA-460). F-P22
+    /// (NEP-0014): the blame is APPENDED to the verdict, never a rewrite
+    /// — a task-written `max_turns:` is imputed « by the caller » (F-A5);
+    /// the engine-applied default is imputed « by the contract » that
+    /// declares it, and the journal's `task_failed` detail (the Display)
+    /// names that faulty contract.
+    #[error("agent hit max_turns ({turns}) without completing · blame: {blame} ({blame_source})")]
     #[diagnostic(code(nika::verb::agent_max_turns))]
     MaxTurns {
         /// How many turns ran.
         turns: u32,
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,
+        /// Who the exhausted budget is imputed to (F-P22 · the third
+        /// polarity names the contract, not the caller, when the DEFAULT
+        /// tripped).
+        blame: BlamePolarity,
+        /// The faulty contract the blame names (e.g. `spec 02-verbs.md
+        /// §agent · max_turns default 10`) — the receipt's declarer.
+        blame_source: &'static str,
         /// The spend the loop had already incurred (billed turns are
         /// real money — decorated at the verb's return seam).
         spend: Box<SpendOnFailure>,
@@ -274,6 +287,8 @@ mod tests {
                 VerbAgentError::MaxTurns {
                     turns: 10,
                     partial_output: String::new(),
+                    blame: BlamePolarity::ByTheContract,
+                    blame_source: "spec 02-verbs.md §agent · `max_turns` default 10",
                     spend: Box::default(),
                 },
                 460,
@@ -401,6 +416,8 @@ mod tests {
         let err = VerbAgentError::MaxTurns {
             turns: 3,
             partial_output: "draft so far".to_owned(),
+            blame: BlamePolarity::ByTheCaller,
+            blame_source: "the task's own `max_turns:`",
             spend: Box::default(),
         };
         if let VerbAgentError::MaxTurns { partial_output, .. } = &err {

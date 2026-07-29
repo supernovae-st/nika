@@ -132,6 +132,8 @@ pub nika_verb_agent::errors::VerbAgentError::MaxTokens::partial_output: alloc::s
 pub nika_verb_agent::errors::VerbAgentError::MaxTokens::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::MaxTokens::total_tokens: u64
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns
+pub nika_verb_agent::errors::VerbAgentError::MaxTurns::blame: nika_types::blame::BlamePolarity
+pub nika_verb_agent::errors::VerbAgentError::MaxTurns::blame_source: &'static str
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::partial_output: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::turns: u32
@@ -706,6 +708,8 @@ pub nika_verb_agent::VerbAgentError::MaxTokens::partial_output: alloc::string::S
 pub nika_verb_agent::VerbAgentError::MaxTokens::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::MaxTokens::total_tokens: u64
 pub nika_verb_agent::VerbAgentError::MaxTurns
+pub nika_verb_agent::VerbAgentError::MaxTurns::blame: nika_types::blame::BlamePolarity
+pub nika_verb_agent::VerbAgentError::MaxTurns::blame_source: &'static str
 pub nika_verb_agent::VerbAgentError::MaxTurns::partial_output: alloc::string::String
 pub nika_verb_agent::VerbAgentError::MaxTurns::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::MaxTurns::turns: u32

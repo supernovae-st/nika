@@ -105,6 +105,7 @@ use nika_kernel::ai::provider::{
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
+use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
@@ -184,6 +185,23 @@ impl AgentInput {
             schema: None,
         }
     }
+}
+
+/// The resolved turn budget with its F-P22 (NEP-0014) blame polarity —
+/// computed ONCE at arm time as a match on `input.max_turns`: a
+/// `max_turns:` the task wrote is imputed « by the caller » (F-A5); the
+/// [`DEFAULT_MAX_TURNS`] the engine applies on an absent key is imputed
+/// « by the contract » that DECLARES it (spec 02-verbs.md §agent ·
+/// `max_turns` default 10) — the failure's Display names that faulty
+/// contract, so the journal's `task_failed` detail attests it.
+#[derive(Clone, Copy)]
+struct TurnBudget {
+    /// The turn budget the loop enforces.
+    max_turns: u32,
+    /// Who an exhausted budget is imputed to.
+    blame: BlamePolarity,
+    /// The faulty contract the blame names.
+    blame_source: &'static str,
 }
 
 /// The verb's result value — text, or the validated JSON value when the
@@ -390,7 +408,7 @@ where
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
         // arm_run failures precede any billed call — no spend to decorate.
-        let (whitelist, defs, model, max_turns) = self.arm_run(&input).await?;
+        let (whitelist, defs, model, budget) = self.arm_run(&input).await?;
         // The pricing-grade accumulators live HERE so the failure path
         // decorates at ONE seam below: billed turns are real money
         // whether or not the loop concludes — the dispatch layer prices
@@ -401,7 +419,7 @@ where
             .run_loop(
                 input,
                 observer,
-                (&whitelist, &defs, &model, max_turns),
+                (&whitelist, &defs, &model, budget),
                 &mut usage_total,
                 &mut tools_cost_usd,
             )
@@ -422,11 +440,11 @@ where
         &self,
         input: AgentInput,
         observer: &dyn AgentObserver,
-        armed: (&Whitelist, &[ToolDef], &str, u32),
+        armed: (&Whitelist, &[ToolDef], &str, TurnBudget),
         usage_total: &mut TokenUsage,
         tools_cost_usd: &mut f64,
     ) -> Result<AgentOutput, VerbAgentError> {
-        let (whitelist, defs, model, max_turns) = armed;
+        let (whitelist, defs, model, budget) = armed;
         let (mut router, mut guard) = self.arm_loop(observer, model, defs);
 
         let mut messages = opening_messages(&input);
@@ -495,7 +513,7 @@ where
                         .dispatch_and_feed(
                             observer,
                             turns,
-                            max_turns,
+                            budget,
                             tool_uses,
                             response,
                             &mut router,
@@ -523,14 +541,16 @@ where
     /// gate's "no wasted side effects"), else append the assistant turn and
     /// feed the tool batch back. Returns the observations digest for the
     /// next routing query; the stall and security stops surface as the
-    /// verb's own errors (NIKA-467 · NIKA-468).
+    /// verb's own errors (NIKA-467 · NIKA-468). The budget carries its
+    /// F-P22 blame decided at arm time — the stop names the faulty
+    /// contract when the DEFAULT tripped.
     #[allow(clippy::too_many_arguments)] // the loop's owned state threaded
     // once into the dispatch step; splitting only relocates the args.
     async fn dispatch_and_feed(
         &self,
         observer: &dyn AgentObserver,
         turns: u32,
-        max_turns: u32,
+        budget: TurnBudget,
         tool_uses: Vec<ToolUse>,
         response: InferResponse,
         router: &mut ToolRouter,
@@ -538,10 +558,12 @@ where
         messages: &mut Vec<Message>,
         last_text: &str,
     ) -> Result<(String, f64), VerbAgentError> {
-        if turns >= max_turns {
+        if turns >= budget.max_turns {
             return Err(VerbAgentError::MaxTurns {
                 turns,
                 partial_output: last_text.to_owned(),
+                blame: budget.blame,
+                blame_source: budget.blame_source,
                 spend: Box::default(), // decorated at the return seam
             });
         }
@@ -555,11 +577,14 @@ where
 
     /// Validate + resolve one run's fixed parameters (params · whitelist ·
     /// tool universe · model · turn budget) — the preamble `run_observed`
-    /// executes before the loop arms.
+    /// executes before the loop arms. F-P22: the turn budget's BLAME is
+    /// decided HERE, once — a `max_turns:` the task wrote is « by the
+    /// caller » (F-A5); the default applied on an absent key is « by the
+    /// contract » that declares it (spec 02-verbs.md §agent).
     async fn arm_run(
         &self,
         input: &AgentInput,
-    ) -> Result<(Whitelist, Vec<ToolDef>, String, u32), VerbAgentError> {
+    ) -> Result<(Whitelist, Vec<ToolDef>, String, TurnBudget), VerbAgentError> {
         validate_params(input)?;
         let whitelist = Whitelist::new(&input.tools);
         let defs = self.whitelisted_defs(&whitelist).await?;
@@ -567,8 +592,19 @@ where
             .model
             .clone()
             .unwrap_or_else(|| self.default_model.clone());
-        let max_turns = input.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
-        Ok((whitelist, defs, model, max_turns))
+        let budget = match input.max_turns {
+            Some(max_turns) => TurnBudget {
+                max_turns,
+                blame: BlamePolarity::ByTheCaller,
+                blame_source: "the task's own `max_turns:`",
+            },
+            None => TurnBudget {
+                max_turns: DEFAULT_MAX_TURNS,
+                blame: BlamePolarity::ByTheContract,
+                blame_source: "spec 02-verbs.md §agent · `max_turns` default 10",
+            },
+        };
+        Ok((whitelist, defs, model, budget))
     }
 
     /// Arm the intelligence layer for one run: build the router + the

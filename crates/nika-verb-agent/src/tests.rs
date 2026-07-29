@@ -313,6 +313,92 @@ async fn max_turns_fails_with_partial_output() {
 }
 
 #[tokio::test]
+async fn absent_max_turns_blames_the_contract_that_declares_the_default() {
+    // F-P22 (NEP-0014) · the positive acceptance: nothing wrote
+    // `max_turns:`, so the DEFAULT (spec 02-verbs.md §agent · default 10)
+    // is what the loop exhausts — the stop is imputed « by the contract »
+    // and the receipt names the declarer, never the caller. (Changing
+    // observations keep the stall guard silent so the TURN budget is the
+    // stop under test.)
+    let poll = tool_use_response("c", "nika:read", serde_json::json!({}));
+    let mut provider = MockProvider::new("mock");
+    let mut tools = MockToolExecutor::new();
+    for i in 0..DEFAULT_MAX_TURNS {
+        provider = provider.enqueue_response(poll.clone());
+        tools = tools.enqueue_ok(ToolResult::success("c", format!("progress {i}%")));
+    }
+    let r = rig(provider, tools, vec![def("nika:read")]);
+    let mut input = AgentInput::new("never finishes");
+    input.tools = vec!["nika:read".to_owned()];
+    // NO `max_turns:` — the contract's declared default trips.
+    let err = r
+        .verb
+        .run(input)
+        .await
+        .expect_err("the default budget trips");
+    assert!(
+        matches!(
+            &err,
+            VerbAgentError::MaxTurns {
+                turns: DEFAULT_MAX_TURNS,
+                blame: BlamePolarity::ByTheContract,
+                blame_source,
+                ..
+            } if blame_source.contains("spec 02-verbs.md")
+        ),
+        "{err}"
+    );
+    let rendered = err.to_string();
+    // The leading sentence stays byte-stable — the blame is an APPEND.
+    assert_eq!(
+        rendered,
+        "agent hit max_turns (10) without completing · blame: by-the-contract \
+         (spec 02-verbs.md §agent · `max_turns` default 10)"
+    );
+}
+
+#[tokio::test]
+async fn written_max_turns_blames_the_caller_not_the_contract() {
+    // F-P22 · the negative acceptance: the SAME stop under a task-written
+    // `max_turns:` is imputed « by the caller » (F-A5) — the third
+    // polarity exists but is NOT spoken here.
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(tool_use_response(
+            "c",
+            "nika:read",
+            serde_json::json!({}),
+        )),
+        MockToolExecutor::new(),
+        vec![def("nika:read")],
+    );
+    let mut input = AgentInput::new("never finishes");
+    input.tools = vec!["nika:read".to_owned()];
+    input.max_turns = Some(1);
+    let err = r
+        .verb
+        .run(input)
+        .await
+        .expect_err("the caller's budget trips");
+    assert!(
+        matches!(
+            &err,
+            VerbAgentError::MaxTurns {
+                turns: 1,
+                blame: BlamePolarity::ByTheCaller,
+                ..
+            }
+        ),
+        "{err}"
+    );
+    let rendered = err.to_string();
+    assert!(rendered.contains("blame: by-the-caller"), "{rendered}");
+    assert!(
+        !rendered.contains("by-the-contract"),
+        "the caller's own bound never names the contract: {rendered}"
+    );
+}
+
+#[tokio::test]
 async fn max_tokens_total_fails_at_the_exact_boundary_before_dispatch() {
     // Turn 1 spends exactly the budget (15) AND wants to continue (tool
     // call) → exhausted (`>=`) → MaxTokens BEFORE dispatching, with the
