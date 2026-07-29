@@ -42,7 +42,8 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
 
     let defs = jaq_core::defs()
         .chain(jaq_std::defs())
-        .chain(jaq_json::defs());
+        .chain(jaq_json::defs())
+        .chain(jq_std_corrections()?);
     let funs = jaq_core::funs()
         .chain(jaq_std::funs())
         .chain(jaq_json::funs());
@@ -96,6 +97,33 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
         BuiltinFailure::new(
             C,
             "the program emitted NO value — a binding needs exactly one (use `// default` or `first(…)`)",
+        )
+    })
+}
+
+/// jq-std defs we SHADOW with the jq-correct semantics (loaded last, so the
+/// compiler's name resolution picks them over the upstream defs).
+///
+/// - `scan` — jaq-std 3.0.1 defines `scan(re; flags): matches(re; flags)[]`
+///   WITHOUT the global flag, so `scan(re)` yields the FIRST match only and
+///   `[.s | scan("\\S+")]` on "one two three" silently returns `["one"]`
+///   (green check · green run · every number wrong — the 2026-07-29
+///   finding). jq defines scan as global by construction (`match(re;
+///   "g"+flags)`). Unfixed upstream on `main` at pin time; the shadow retires
+///   the day a jaq release carries the correction.
+const JQ_STD_CORRECTIONS: &str = r#"
+def scan(re; flags): matches(re; "g" + flags)[] | .[0].string;
+def scan(re): scan(re; "");
+"#;
+
+/// Parse the shadow defs (static string — a parse failure can only come from
+/// an edit of [`JQ_STD_CORRECTIONS`], so it is a typed failure here, never a
+/// panic) into the `Def` items the loader chains after jaq-std's.
+fn jq_std_corrections() -> Result<Vec<jaq_core::load::parse::Def<&'static str>>, BuiltinFailure> {
+    jaq_core::load::parse(JQ_STD_CORRECTIONS, |p| p.defs()).ok_or_else(|| {
+        BuiltinFailure::new(
+            "NIKA-BUILTIN-JQ-001",
+            "internal: the jq std correction defs failed to parse (static string)",
         )
     })
 }
@@ -652,6 +680,29 @@ mod tests {
             matches!(&undef, Err(f) if f.message.contains("undefined filter or variable")),
             "{undef:?}"
         );
+    }
+
+    /// The upstream divergence (jaq-std 3.0.1, unfixed on `main` 2026-07-29):
+    /// jq's `scan` is GLOBAL by definition (`match(re; "g"+flags)`), jaq
+    /// forgets the `"g"` — `[.s | scan("\\S+")]` on "one two three" yielded
+    /// `["one"]` (green check · green run · every number wrong). The engine
+    /// shadows the def with the jq-correct one; this test is the lock.
+    #[test]
+    fn jq_scan_is_global_like_jq() {
+        let out = jq(&args(serde_json::json!({
+            "expression": "[.s | scan(\"\\\\S+\")]",
+            "input": { "s": "one two three" }
+        })))
+        .expect("scan collects every match");
+        assert_eq!(out, serde_json::json!(["one", "two", "three"]));
+
+        // Author flags ride ALONGSIDE the forced global (jq's "g"+flags).
+        let out = jq(&args(serde_json::json!({
+            "expression": "[.s | scan(\"TWO\"; \"i\")]",
+            "input": { "s": "one two three" }
+        })))
+        .expect("scan with flags still matches case-insensitively");
+        assert_eq!(out, serde_json::json!(["two"]));
     }
 
     #[test]
