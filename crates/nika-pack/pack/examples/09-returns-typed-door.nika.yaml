@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 09 · Returns — the typed door on a task's output.
+#
+# 04 typed a model's answer with `infer.schema:`. `returns:` is the door
+# that types ANY task's output — a field of the task, sibling of the verb,
+# one grammar for all four verbs. Declare the shape once and every deep
+# reference downstream is checked against it, statically where the engine
+# can, at settle where it cannot.
+#
+# Demonstrates ·
+#   - a named type in `types:` · PascalCase, reused by name
+#   - `returns:` on `infer:` · compiled into the structured-output contract
+#     (so `returns:` + `schema:` on one task is refused · `NIKA-TYPE-003` ·
+#     one-obvious-way/011: `returns:` is the one way)
+#   - `returns:` on `invoke:` · the run asserts the decoded value fits
+#   - a `returns:`-typed object is CLOSED · referencing a member it does
+#     not declare is `NIKA-VAR-003`, caught before anything runs
+#   - typed `outputs:` · the workflow's own signature, readable by a caller
+#
+# Run · nika run examples/09-returns-typed-door.nika.yaml
+
+nika: v1
+workflow:
+  id: returns-typed-door
+
+model: mock/echo   # the dry twin · swap `--model ollama/qwen3.5:4b` for real extraction
+
+permits:
+  tools: ["nika:jq"]
+
+types:
+  # The type grammar is closed and small: 10 primitives · array · map ·
+  # object · union · optional (field position only — a nullable ROOT is
+  # `{ union: [T, "null"] }`, spec/09-types.md) · enum · bounded numbers.
+  Entities:
+    object:
+      entities:
+        array:
+          object:
+            name: string
+            kind: string
+
+inputs:
+  text:
+    type: string
+    default: "Ada Lovelace met Charles Babbage in London"
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  extract:
+    infer:
+      prompt: "Extract named entities from · ${{ inputs.text }}"
+      max_tokens: 512
+    # The named type IS the contract: for `infer:` it lowers to the same
+    # structured-output floor 04 built with `schema:` — the model's answer
+    # is validated against it, or the task fails loudly.
+    returns: Entities
+
+  stats:
+    with:
+      # This deep reference is legal BECAUSE `returns:` declared the member.
+      # `Entities` is closed: `.output.entitles` (typo'd) would be
+      # NIKA-VAR-003 at check, not a null at midnight.
+      entities: ${{ tasks.extract.output.entities }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.entities }}"
+        expression: "{count: length}"
+    # On `invoke:` the door is an assertion on the decoded value at settle:
+    # jq's output must fit, or the task fails with the shape mismatch named.
+    returns: { object: { count: integer } }
+
+# A workflow whose outputs are typed is a workflow another file can CALL —
+# the signature a caller reads without opening the body. 10 does exactly
+# that.
+outputs:
+  count:
+    value: ${{ tasks.stats.output.count }}
+    type: integer
+    description: "How many entities were extracted"
+  entities:
+    value: ${{ tasks.extract.output.entities }}
+    description: "The extracted entities · name + kind"

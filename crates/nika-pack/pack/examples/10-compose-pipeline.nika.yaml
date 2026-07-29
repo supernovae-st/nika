@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 10 · Compose — one workflow calls another.
+#
+# Anything non-trivial is built from parts, and this is the door: a task
+# whose `invoke:` names a `workflow:` instead of a `tool:`. The target is
+# a STATIC path (never `${{ }}` · `NIKA-COMP-001`), resolved relative to
+# THIS file; `args:` feed the child's declared `inputs:`; the task's
+# `.output` is the closed object of the child's `outputs:` — the wall
+# between the two files is the child's signature, nothing more.
+#
+# Demonstrates ·
+#   - `invoke: { workflow:, args: }` · the composition door
+#   - `returns:` on the call · names the child-outputs contract the parent
+#     relies on (child outputs that do not fit are `NIKA-COMP-004`)
+#   - `${{ tasks.call.output.<field> }}` · reading a child output by name
+#   - effect confinement · a child effect must sit inside
+#     `parent ∩ child-declared` (`NIKA-COMP-002`) · the child declares its
+#     own boundary, grants never descend (NEP-0003)
+#   - the call graph is checked acyclic (`NIKA-COMP-003` · a self-call is a
+#     one-node cycle) and depth-capped at run (`NIKA-SEC-003` · 8 deep)
+#
+# Run · nika run examples/10-compose-pipeline.nika.yaml
+
+nika: v1
+workflow:
+  id: compose-pipeline
+
+model: mock/echo   # the dry twin — and the child carries its own seat
+
+permits:
+  # The parent's boundary covers the parent's OWN effect (one jq). The
+  # child is pure compute behind `permits: {}`, so there is nothing of its
+  # to hold here — a child that read files would need `fs.read` in BOTH
+  # boundaries before its effect survives the intersection.
+  tools: ["nika:jq"]
+
+inputs:
+  topic:
+    type: string
+    default: "why a workflow calls a workflow"
+    required: true
+    description: "Passed through to the child's `topic` input"
+
+tasks:
+  call:
+    invoke:
+      # Relative to THIS file, static, checked before anything runs: the
+      # COMPOSITION rung proves `direct child calls are static, typed and
+      # contained · closure acyclic` — and stays silent on files that call
+      # no one, which is why the path never showed it before this lesson.
+      workflow: "./10-compose-child.nika.yaml"
+      args:
+        # Each key must be a DECLARED child input (`NIKA-COMP-004` names an
+        # unknown one) · values may interpolate; the target may not.
+        topic: "${{ inputs.topic }}"
+    # The typed door again (09), now naming what the parent relies on from
+    # the child's signature: `summary` must exist there, as a string.
+    returns: { object: { summary: string } }
+
+  wrap:
+    with:
+      summary: ${{ tasks.call.output.summary }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          topic: "${{ inputs.topic }}"
+          summary: "${{ with.summary }}"
+        expression: ". + {chars: (.summary | length)}"
+
+outputs:
+  brief:
+    value: ${{ tasks.wrap.output }}
+    description: "topic + the child's summary + its length · one object"

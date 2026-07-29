@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 10 · Compose (the child) — a callable unit.
+#
+# The second half of lesson 10: a workflow written to be CALLED. Its
+# `inputs:` are the parameters a parent may pass, its typed `outputs:` are
+# the whole surface a parent can read — nothing else crosses the wall.
+# Read `10-compose-pipeline.nika.yaml` first; it invokes this file.
+#
+# Demonstrates ·
+#   - the callable contract · `inputs:` in, typed `outputs:` out
+#   - a child declares its OWN `permits:` · an absent block is the declared
+#     zero (NEP-0003) — a parent's grants NEVER descend implicitly, so this
+#     file says `permits: {}` itself, and would still have to name every
+#     effect it dared to make
+#
+# Run · nika run examples/10-compose-child.nika.yaml --var topic="the DAG"
+#   (standalone run · the parent passes `topic` through `args:` instead)
+
+nika: v1
+workflow:
+  id: compose-child
+
+model: mock/echo   # the dry twin · the parent's run stays offline too
+
+# The child's OWN boundary. Composition confines every child effect to
+# `parent ∩ child-declared` — an empty child boundary means there is
+# nothing to confine, and a child that fetched or wrote with this block
+# empty would be `NIKA-COMP-002` at the parent's check.
+permits: {}
+
+inputs:
+  topic:
+    # The `default:` is what keeps the standalone run flag-free (04's
+    # rule); a calling parent overrides it through `args:` every time.
+    type: string
+    default: "the DAG"
+    required: true
+    description: "What to brief · supplied by the caller through `args:`"
+
+tasks:
+  brief:
+    infer:
+      prompt: "Write a two-sentence brief on · ${{ inputs.topic }}"
+      max_tokens: 512
+
+outputs:
+  summary:
+    value: ${{ tasks.brief.output }}
+    type: string
+    description: "The brief · the ONE thing a caller can read from this file"
