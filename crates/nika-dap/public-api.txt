@@ -505,8 +505,12 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::ReplayTi
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::ReplayTier
 pub type nika_dap::anchor::tier::ReplayTier::Output = T
 pub enum nika_dap::anchor::tier::SealTier
+pub nika_dap::anchor::tier::SealTier::Buried
+pub nika_dap::anchor::tier::SealTier::Buried::line: usize
+pub nika_dap::anchor::tier::SealTier::Buried::trailing: usize
 pub nika_dap::anchor::tier::SealTier::Forged(alloc::string::String)
 pub nika_dap::anchor::tier::SealTier::Sealed(nika_dap::anchor::tier::SealVerdict)
+pub nika_dap::anchor::tier::SealTier::Unattributable(alloc::string::String)
 pub nika_dap::anchor::tier::SealTier::Unsealed
 impl core::clone::Clone for nika_dap::anchor::tier::SealTier
 pub fn nika_dap::anchor::tier::SealTier::clone(&self) -> nika_dap::anchor::tier::SealTier
