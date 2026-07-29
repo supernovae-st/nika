@@ -728,6 +728,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
         note: "exec · sh".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
+        evidence: None,
         duration_ms: 0,
         result: task::RunResult::Success {
             value: Value::Number(99.into()),
@@ -788,6 +789,7 @@ fn obs_e_warning_rides_task_completed() {
         note: "infer · gemini/flash".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
+        evidence: None,
         duration_ms: 0,
         result: task::RunResult::Success {
             value: Value::String(String::new()),
@@ -850,6 +852,7 @@ fn no_warning_field_on_a_clean_success() {
         note: "exec · true".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
+        evidence: None,
         duration_ms: 0,
         result: task::RunResult::Success {
             value: Value::String("ok".to_owned()),
@@ -905,6 +908,7 @@ fn cost_unpriced_reason_rides_task_completed() {
         note: "infer · ollama/llama3.2".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
+        evidence: None,
         duration_ms: 0,
         result: task::RunResult::Success {
             value: Value::String("bonjour".to_owned()),

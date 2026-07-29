@@ -30,12 +30,11 @@
 //! [`preimage`] and [`semantic_hash`] separate them. Collision resistance of
 //! the underlying hash (blake3) is a **cryptographic assumption**, stated as
 //! such — NOT a promise this module makes. Two files that MEAN the same
-//! workflow lower to the same IR (the [`ir`] projection) and hence the same
+//! workflow lower to the same IR (the runtime-side `ir` projection) and hence the same
 //! hash; two files that mean different workflows do not.
 
 use serde_json::Value;
 
-pub mod ir;
 pub mod receipt;
 
 /// The v1 pre-image format version — participates in every pre-image so a
@@ -178,7 +177,7 @@ pub fn hash_in_domain(domain: HashDomain, format_version: u32, ir: &Value) -> St
 
 /// A workflow's semantic identity — `H(semantic ‖ format_version ‖ JCS(ir))`
 /// under blake3 (spec 15 §the semantic hash · G13). The `ir` is the
-/// desugared, versioned Semantic IR (the [`ir`] projection); this is the key
+/// desugared, versioned Semantic IR (the runtime-side `ir` projection); this is the key
 /// cache and resume re-key on (a result is reused iff the semantic identity
 /// matches · 14 §law 10).
 #[must_use]

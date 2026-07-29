@@ -194,11 +194,12 @@ mod tests {
     fn failed_finish(id: &str, code: &str) -> Finish {
         Finish {
             id: id.to_owned(),
-            settle: SettleAs::Ran(RanTask {
+            settle: SettleAs::Ran(Box::new(RanTask {
                 decisions: Vec::new(),
                 note: "invoke · nika:prompt".to_owned(),
                 retries: Vec::new(),
                 agent_events: Vec::new(),
+                evidence: None,
                 duration_ms: 0,
                 result: RunResult::Failed {
                     error: TaskErrorRecord {
@@ -209,7 +210,7 @@ mod tests {
                     cost_usd: None,
                     cost_unpriced: None,
                 },
-            }),
+            })),
             named: BTreeMap::new(),
             resume: None,
             integrity: nika_cap::Integrity::trusted(),

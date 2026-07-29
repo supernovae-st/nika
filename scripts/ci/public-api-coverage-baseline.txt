@@ -106,3 +106,5 @@ nika-vocab
 nika-check
 # --- 2026-07-28: the browser half of the checker (ADR-107 · L4 transport · two pub fns, locked like the rest) ---
 nika-check-wasm
+# --- 2026-07-29: the spec-15 proof layer out of nika-runtime (the 15k wall — nika-dap/nika-cap precedent · WIP crate) ---
+nika-proof
