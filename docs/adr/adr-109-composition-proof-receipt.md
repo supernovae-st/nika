@@ -19,7 +19,7 @@ inv: []
 shadow_zones: []
 nika_codes: ["NIKA-COMP-001", "NIKA-COMP-002", "NIKA-COMP-003", "NIKA-COMP-004", "NIKA-SEC-003"]
 timeline: "2026-07-29"
-follow_ups: ["the run-level metered budget cut (needs a metered provider · not hermetic · the static floor covers every bounded case)", "semantic resume across a composition (law 10 · rides W6 semantic IR)", "render a composition-family verdict in the rust-python differential (spec scripts/oracle-differential.py)"]
+follow_ups: ["the run-level metered budget cut (needs a metered provider · not hermetic · the static floor covers every bounded case)", "give the MODELS rung a spec code (NIKA-PROVIDER family) so a conformance harness can match it — parity class B", "a tier-scoping rule for the protocol third-party mode — parity class C", "semantic resume across a composition (law 10 · rides W6 semantic IR)", "render a composition-family verdict in the rust-python differential (spec scripts/oracle-differential.py)"]
 ---
 
 # ADR-109: Publish the composition proof receipt — what this engine may claim on spec 14
@@ -45,11 +45,20 @@ verifier), plus a live run of the taught lesson
 ## Decision
 
 Publish the per-condition receipt below and bind the claim vocabulary to it.
-This engine claims composition is **specified, and demonstrated on 7 of the 9
+This engine claims composition is **specified, and demonstrated on 8 of the 9
 conditions**. It does **not** claim "proven" — that word stays locked until
-the two open conditions close (semantic resume · reference-model parity), and
+the last open condition closes (semantic resume · law 10 · it rides W6), and
 this ADR is re-issued.
 
+> **Amended twice on 2026-07-29** (this receipt is meant to move; each
+> amendment names what changed and why). Condition **9** was *open* — a
+> parity nobody had run, because the adapter the spec's protocol had
+> described for months did not exist. Written, run, and the composition
+> family reads 9/9 across two independent oracles; the suite-wide residue
+> is classified rather than rounded away, and the run found one real
+> engine defect (a templated `model:` refused as a bare id). Condition
+> **8** stays the single open one.
+>
 > **Amended 2026-07-29 (same day)** — condition 4 was published *partial*
 > ("the cost half is implemented, the run-level test is owed"), and the
 > owed test found something better than itself: the cost half is enforced
@@ -69,7 +78,7 @@ this ADR is re-issued.
 | 6 | trace forest | **demonstrated** | `trace_forest_two_chains_and_the_parent_commits_to_the_child`: two journals on disk, each hash chain intact under an INDEPENDENT re-walk (the test's own sha256, genesis `nika-trace-v1`); live lesson run: 2 traces, `nika trace verify` rc=0 on both |
 | 7 | nested receipts | **demonstrated (chain-commit tier)** | the parent's hash-chained terminal frame embeds the child's chain head at commit time plus the child's `def_hash` — tamper with any earlier child line and the committed head no longer matches (law 9's Merkle commitment at the journal tier; the spec-15 receipt ladder above it is `nika-proof` territory) |
 | 8 | semantic resume | **open** | law 10's cache identity is the W6 semantic IR; today the child row records the pre-W6 identity (`def_hash`, asserted in the e2e). `resume_e2e.rs` has no composition coverage yet — owed with W6 |
-| 9 | reference-model parity | **open (harness exists)** | the spec reference model carries composition generator blocks (`reference/README.md`) and the two-oracle differential runs the whole corpus (`spec scripts/oracle-differential.py` · 48/49 agree · 1 named ledger row, unrelated to composition) — but no composition-family differential verdict has been rendered yet |
+| 9 | reference-model parity | **demonstrated (composition family)** | rendered 2026-07-29 through the adapter the protocol had only described (`spec conformance/adapters/nika-engine.py` · the Bowtie pattern): the nine `tests/deep/composition` fixtures are judged by BOTH oracles and agree **9/9**, and the whole `deep` tier is 37/37. Corpus-wide the two-oracle differential reads 49/49 · 0 unexplained · ledger **0** (`spec scripts/oracle-differential.py`). Suite-wide parity is 200/215 with the fifteen divergences classified in the protocol doc — **none of them composition** (they are: a category-only expectation the adapter cannot match · the codeless MODELS rung · tier-scope, a full engine judging more layers than a tier-scoped fixture binds · and one documented spec-vs-engine doctrinal disagreement on open-schema soundness). The measurement also FOUND and fixed an engine defect: the MODELS rung refused a templated `model:`, i.e. refused the parameterization pattern spec 08 §H8 recommends by name |
 
 ## Consequences
 

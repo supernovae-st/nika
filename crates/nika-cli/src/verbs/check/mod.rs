@@ -735,6 +735,45 @@ mod tests {
         );
     }
 
+    /// The parameterization pin (found 2026-07-29 rendering the
+    /// conformance parity through the reference harness): a TEMPLATED
+    /// `model:` is a run-time fact, so the rung must SKIP it — refusing
+    /// it meant refusing the pattern spec 08 §H8 recommends by name
+    /// (« one workflow, any backend »), on the spec's own fixture
+    /// `stdlib/providers/005-valid-parameterized-model`.
+    #[test]
+    fn models_rung_skips_a_templated_model_and_keeps_its_teeth_on_a_literal() {
+        // The exact shape of the spec fixture: a const-declared pair,
+        // read through `${{ }}` at the task.
+        let out = checked_output(
+            "models-param.nika.yaml",
+            "nika: v1\nworkflow:\n  id: p\nconst:\n  model: { type: string, default: \"anthropic/claude-sonnet-4-6\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+            false,
+        );
+        assert_eq!(
+            out.code, 0,
+            "a parameterized model is not a finding: {}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("bare model id"),
+            "the raw template is never read as an id: {}",
+            out.text
+        );
+        // The teeth stay on what IS statically decidable.
+        let literal = checked_output(
+            "models-param-teeth.nika.yaml",
+            "nika: v1\nworkflow:\n  id: p\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
+            false,
+        );
+        assert_eq!(
+            literal.code, 2,
+            "a LITERAL bare id still reds: {}",
+            literal.text
+        );
+        assert!(literal.text.contains("bare model id"), "{}", literal.text);
+    }
+
     /// `--json --native-strict`: the payload's `native_strict_clean` and
     /// the exit code must agree (the review-swarm untested-branch gap).
     #[test]

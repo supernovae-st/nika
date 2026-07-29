@@ -22,6 +22,30 @@ pub(super) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<Model
         .models
         .iter()
         .filter_map(|m| {
+            // A TEMPLATED `model:` is not a static fact — its value
+            // arrives at run time (`--var`), so this rung cannot decide
+            // it and must not refuse it: the same « unanalyzable yields
+            // NO claim » law the policy and trifecta lanes follow
+            // (skipped, never wrong).
+            //
+            // Measured 2026-07-29 while rendering the conformance parity
+            // through the reference harness: `model: "${{ const.model }}"`
+            // — whose const declares `anthropic/claude-sonnet-4-6`, a
+            // perfectly runnable pair — was refused as « a bare model id ».
+            // The engine was refusing the parameterization pattern the
+            // spec recommends BY NAME (08 §H8 · « one workflow, any
+            // backend »), on the spec's own fixture
+            // (`stdlib/providers/005-valid-parameterized-model`).
+            //
+            // Judging the declared DEFAULT instead of skipping is the
+            // sharper follow-on (the cost lane already resolves a bare
+            // `${{ authority.name }}` to its literal · `cost.rs`
+            // `static_vars_array_len`): it wants ONE shared resolver in
+            // `nika-check`, not a third private copy — trigger, not a
+            // TODO.
+            if m.model.contains("${{") {
+                return None;
+            }
             // The ONE law, shared with the MCP lane (#320 follow-up:
             // the two machine surfaces consult the same fn beside the
             // resolver — they cannot drift apart again).
