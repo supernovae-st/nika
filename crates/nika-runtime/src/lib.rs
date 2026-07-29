@@ -251,6 +251,15 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// same law as an edited prompt · ADR-099). Empty by default: a
     /// workflow without `skills:` never looks here.
     skills: BTreeMap<String, String>,
+    /// Child-workflow closure digests resolved by the COMPOSER (spec 14
+    /// law 10 at the `def_hash` tier): `workflow:` target-as-written →
+    /// the transitive source-closure digest. The runtime stays fs-free —
+    /// it keys the calling task's resume identity on THESE digests (an
+    /// edited child or grandchild re-runs the call · ADR-099 trap 6
+    /// across the file boundary). Empty by default: a workflow without
+    /// `workflow:` calls never looks here, and a bare embedder's calls
+    /// are simply not resume-eligible (never a wrong skip).
+    child_closures: BTreeMap<String, String>,
     /// The child-workflow execution seam (spec 14 · composition). `None`
     /// (the default) = no nested-run surface: an `invoke: workflow:`
     /// task fails loudly (`NIKA-COMP-001` · the run-side voice) instead
@@ -319,6 +328,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             source_sha256: None,
             source_sha256_lf: None,
             skills: BTreeMap::new(),
+            child_closures: BTreeMap::new(),
             child_runner: None,
             run_depth: 0,
             approvals: approval::ApprovalBook::new(),
@@ -469,6 +479,20 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_skills(mut self, skills: BTreeMap<String, String>) -> Self {
         self.skills = skills;
+        self
+    }
+
+    /// Inject the COMPOSER-resolved child-workflow closure digests
+    /// (spec 14 law 10 · the `def_hash` tier): each static `workflow:`
+    /// target, exactly as written, mapped to its transitive source-
+    /// closure digest. The digests join the calling tasks' resume
+    /// identity (ADR-099 · an edited child re-runs the call — the same
+    /// trap-6 law as an edited task, carried across the file boundary).
+    /// A target with no entry makes its task non-eligible: it re-runs,
+    /// never wrong-skips.
+    #[must_use]
+    pub fn with_child_closures(mut self, closures: BTreeMap<String, String>) -> Self {
+        self.child_closures = closures;
         self
     }
 }
@@ -874,8 +898,13 @@ where
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
         // `--json` trace is later resumable).
-        let resume_ctx =
-            resume::ResumeContext::of(wf, &secrets, self.model_override.as_deref(), &self.skills);
+        let resume_ctx = resume::ResumeContext::of(
+            wf,
+            &secrets,
+            self.model_override.as_deref(),
+            &self.skills,
+            &self.child_closures,
+        );
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);

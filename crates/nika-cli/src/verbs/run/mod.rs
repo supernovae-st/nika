@@ -645,6 +645,15 @@ fn composed_runtime(
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
+                // Spec 14 law 10 (def_hash tier) · the child closure
+                // digests join the calling tasks' resume identity — an
+                // edited child (or grandchild) re-runs the call instead
+                // of serving the old child's cached output (ADR-099
+                // trap 6 across the file boundary).
+                .with_child_closures(child_runner::closure_digests(
+                    wf,
+                    std::path::Path::new(file),
+                ))
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
