@@ -315,12 +315,16 @@ impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PackageEntry 
 #[non_exhaustive] pub struct nika_catalog_codegen::PricingEntry
 pub nika_catalog_codegen::PricingEntry::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog_codegen::PricingEntry::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::context_window_tokens: core::option::Option<u32>
 pub nika_catalog_codegen::PricingEntry::image_per_million: core::option::Option<f64>
 pub nika_catalog_codegen::PricingEntry::input_per_million: f64
+pub nika_catalog_codegen::PricingEntry::max_output_tokens: core::option::Option<u32>
 pub nika_catalog_codegen::PricingEntry::model_pattern: alloc::string::String
+pub nika_catalog_codegen::PricingEntry::open_weights: core::option::Option<bool>
 pub nika_catalog_codegen::PricingEntry::output_per_million: f64
 pub nika_catalog_codegen::PricingEntry::provider: alloc::string::String
 pub nika_catalog_codegen::PricingEntry::reasoning_tokens_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::status: core::option::Option<alloc::string::String>
 impl core::fmt::Debug for nika_catalog_codegen::PricingEntry
 pub fn nika_catalog_codegen::PricingEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::PricingEntry

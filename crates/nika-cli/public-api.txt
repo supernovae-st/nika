@@ -107,6 +107,7 @@ pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::show(slug: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::examples::teaches_verb(construct: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
 pub const nika_cli::verbs::exit::ENV: u8
 pub const nika_cli::verbs::exit::FILE: u8
