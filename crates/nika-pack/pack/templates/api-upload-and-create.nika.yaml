@@ -60,13 +60,9 @@ permits:                            # the blast radius · default-deny once pres
     # A `multipart:` file part names a path, and that read crosses the boundary
     # like any other: measured, without this entry the call dies `NIKA-SEC-004 ·
     # ./out/assets/asset-1.png resolves outside the declared permits.fs.read
-    # boundary`. One exact file, never the tree it sits in.
-    #
-    # HONEST HINT · `check` reports NIKA-DRIFT-001 here ("matches no path the
-    # body reads") because its drift detector does not model a multipart part as
-    # a read. The runtime does. Following that hint deletes the entry and kills
-    # the run — keep it. Coverage decision:
-    # the nika engine repo · docs/plans/2026-07-28-verdict-coverage.md
+    # boundary`. One exact file, never the tree it sits in. The drift detector
+    # models a multipart part as a read (2026-07-29) — the former NIKA-DRIFT-001
+    # false hint is closed.
     read: ["./out/assets/asset-1.png"]   # SLOT: keep in step with const.asset_path
 
 tasks:

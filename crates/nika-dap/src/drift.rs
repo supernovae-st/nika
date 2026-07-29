@@ -58,6 +58,15 @@
 //! ⊆ glob being undecidable). A templated tool name needs no
 //! suppression case: the parser refuses it (the closed `nika:`/`mcp:`
 //! grammar).
+//!
+//! The fs models, named so the hint never orders a load-bearing removal:
+//! an `exec:` child poisons BOTH path sets (its fs reach is opaque to
+//! statics — the sandbox owns it at run · the 2026-07-29 qr-lanes
+//! finding: the hint told authors to delete the grants the run needed);
+//! `nika:glob`'s walk root IS an fs read (the runtime gate fences that
+//! directory — `builtin_effect` deliberately declines the glob ⊆ glob
+//! question, but the ROOT is decidable); a `nika:fetch` `multipart:`
+//! file part's `path` is an fs read (the defs contract gates it).
 
 use std::collections::BTreeSet;
 
@@ -278,9 +287,12 @@ struct BodyUsage {
     tools: BTreeSet<String>,
     /// Literal hosts from net-effect invokes.
     hosts: Option<BTreeSet<String>>,
-    /// Literal fs read paths.
+    /// Literal fs read paths (`nika:glob`'s walk root · fetch `multipart:`
+    /// file parts included) · `None` when a dynamic consumer — ANY `exec:`
+    /// task included — hides the set.
     reads: Option<BTreeSet<String>>,
-    /// Literal fs write paths (incl. `nika:chart`'s `vega_lite` sibling).
+    /// Literal fs write paths (incl. `nika:chart`'s `vega_lite` sibling) ·
+    /// poisoned alongside `reads`.
     writes: Option<BTreeSet<String>>,
 }
 
@@ -310,6 +322,13 @@ impl BodyUsage {
                     &mut self.programs,
                     static_program(&a.command).map(str::to_owned),
                 );
+                // An exec child's fs reach is OPAQUE to statics (argv
+                // literals carry no path semantics — `qrsmart --db X` is
+                // undecidable; the OS sandbox owns the reach at run). The
+                // drift pass claims nothing rather than ordering the
+                // removal of grants the run requires (the qr-lanes class).
+                self.reads = None;
+                self.writes = None;
             }
             RawAction::Invoke(a) => {
                 if let Some(tool) = a.tool() {
@@ -346,6 +365,8 @@ impl BodyUsage {
                     }
                     None => {}
                 }
+                self.eat_glob_walk_root(a);
+                self.eat_multipart_parts(a);
             }
             RawAction::Agent(a) => {
                 if !a.tools.is_empty() {
@@ -355,6 +376,45 @@ impl BodyUsage {
             // Infer is effect-free; a future verb joins deliberately (the
             // forward-compat wildcard, same law as the name walker).
             _ => {}
+        }
+    }
+
+    /// `nika:glob` walks the literal directory prefix of its `pattern:` —
+    /// the runtime gate fences THAT root (`builtin_effect` declines the
+    /// glob ⊆ glob question, but the root is decidable). A literal pattern
+    /// contributes its walk root as a read; a `${{ }}` one poisons the set.
+    fn eat_glob_walk_root(&mut self, a: &RawInvokeAction) {
+        let Some(tool) = a.tool() else {
+            return;
+        };
+        if tool.value != "nika:glob" {
+            return;
+        }
+        offer(
+            &mut self.reads,
+            literal_arg(a, "pattern").map(|p| glob_walk_root(&p)),
+        );
+    }
+
+    /// A `nika:fetch` `multipart:` file part's `path` is fs.read-gated at
+    /// run (the defs contract: "path is permits.fs.read-gated") — each
+    /// literal part path is a read; a `${{ }}` one poisons the set; a text
+    /// part (`{name, value}`) touches no fs.
+    fn eat_multipart_parts(&mut self, a: &RawInvokeAction) {
+        let Some(parts) = a
+            .args
+            .as_ref()
+            .and_then(|s| s.value.get("multipart"))
+            .and_then(serde_json::Value::as_array)
+        else {
+            return;
+        };
+        for part in parts {
+            match part.get("path").and_then(serde_json::Value::as_str) {
+                Some(p) if !p.contains("${{") => offer(&mut self.reads, Some(p.to_owned())),
+                Some(_) => offer(&mut self.reads, None),
+                None => {}
+            }
         }
     }
 }
@@ -549,6 +609,27 @@ fn url_host(raw: &str) -> Option<String> {
         url::Host::Domain(d) => Some(d.trim_end_matches('.').to_owned()),
         url::Host::Ipv4(a) => Some(a.to_string()),
         url::Host::Ipv6(a) => Some(a.to_string()),
+    }
+}
+
+/// The directory a `nika:glob` pattern walks FROM — the runtime boundary's
+/// own split (nika-builtin's private `glob_walk_root`, restated here like
+/// `url_host` above): the longest literal directory prefix, `.` when the
+/// pattern has none, `/` for a root-relative one. Both copies must agree
+/// with the gate, or the hint would order a removal the gate requires.
+fn glob_walk_root(pattern: &str) -> String {
+    if !pattern.starts_with('/') {
+        let p = pattern.strip_prefix("./").unwrap_or(pattern);
+        let first_meta = p.find(['*', '?', '[']).unwrap_or(p.len());
+        return match p[..first_meta].rfind('/') {
+            None => ".".to_owned(),
+            Some(i) => format!("./{}", &p[..i]),
+        };
+    }
+    let first_meta = pattern.find(['*', '?', '[']).unwrap_or(pattern.len());
+    match pattern[..first_meta].rfind('/') {
+        None | Some(0) => "/".to_owned(),
+        Some(i) => pattern[..i].to_owned(),
     }
 }
 
@@ -934,5 +1015,101 @@ mod tests {
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
+    }
+
+    // ─── permits: fs — the opaque-exec + glob + multipart models ─────
+
+    #[test]
+    fn an_exec_task_poisons_both_fs_sets() {
+        // The qr-lanes class (2026-07-29): grants an external binary needs
+        // at run — argv literals carry no path semantics, so the hint must
+        // NEVER order their removal.
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"out/smart/**\"], write: [\"out/smart/**\"] }\n  exec: [\"qrt\"]\ntasks:\n  a:\n    exec: { command: [\"qrt\", \"smart\", \"--db\", \"out/smart/smartlink.db\"] }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn exec_in_on_finally_also_poisons_the_fs_sets() {
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"cf\", \"./data/a.tar\", \".\"] }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn glob_walk_root_counts_as_a_read() {
+        // A literal pattern's walk root IS a read: the `./hiring/**` entry
+        // is used (silent), the `./other/**` entry is provably dead (flagged).
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./hiring/**\", \"./other/**\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./hiring/inbox/*.md\" } }\n",
+        );
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.read` entry `./hiring/**`")),
+            "{advice:?}"
+        );
+        assert!(
+            advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.read` entry `./other/**`")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn a_bare_directory_grant_covers_a_walk_inside_it() {
+        // The fanout shape: `read: ["./items"]` + pattern `./items/*.md` —
+        // the walk root IS the granted directory.
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./items\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./items/*.md\" } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn dynamic_glob_pattern_poisons_the_read_set() {
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  src: \"./items\"\npermits:\n  fs: { read: [\"./items\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"${{ const.src }}/*.md\" } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn fetch_multipart_file_parts_count_as_reads() {
+        // The file part's `path` is fs.read-gated at run (the defs
+        // contract) — the `./data/**` entry is used; the text part is no fs.
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"./data/report.csv\" }, { name: \"note\", value: \"hi\" }] } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn a_dynamic_multipart_part_poisons_the_read_set() {
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  p: \"./data/report.csv\"\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"${{ const.p }}\" }] } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "{advice:?}"
+        );
     }
 }

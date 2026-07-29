@@ -48,13 +48,8 @@ permits:
     # `NIKA-SEC-004 · ./items resolves outside the declared permits.fs.read
     # boundary`, because `*` never crosses `/` and so never matches `./items`
     # itself. Grant the directory. A deeper pattern (`./items/**/*.md`) walks
-    # deeper and needs `./items/**`.
-    #
-    # HONEST HINT · `check` reports NIKA-DRIFT-001 here ("matches no path the
-    # body reads") because its drift detector does not model a glob as a read.
-    # The runtime does. Following that hint deletes the entry and kills the run
-    # — keep it. Coverage decision:
-    # the nika engine repo · docs/plans/2026-07-28-verdict-coverage.md
+    # deeper and needs `./items/**`. The drift detector models the walk root
+    # as a read (2026-07-29) — the former NIKA-DRIFT-001 false hint is closed.
     read: ["./items"]
 
 tasks:
