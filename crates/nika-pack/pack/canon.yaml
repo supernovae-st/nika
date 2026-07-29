@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: d3758c34a0bc13dec24c7da5e2758fb8732ce8cd65441fa8e9ffcb3e2a5ed99c
+# body-sha256: a26982b154058c6479ebe3a30c5c8ff73aec1541d4a09a50dfe3f27d05fb17e9
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -65,7 +65,7 @@ counts:
   templates: 10
   error_namespaces: 25
   error_categories: 12
-  error_codes: 96
+  error_codes: 97
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -296,7 +296,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 96
+  count: 97
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -391,6 +391,7 @@ error_codes:
     - { code: NIKA-SEC-007, category: security_error, transient: "false", failure: "secret egress — a tainted value reaches the workflow boundary (outputs:) · the diagnostic carries the taint path (spec 10 · the to: outputs sanction in 01 §egress)" }
     - { code: NIKA-SEC-008, category: security_error, transient: "false", failure: "data-as-code sink · a nika:fetch resolved URL path names a code-bearing class (serialized-executable · script/interpreter · executable binary/module · the closed NEP-0006 list) and the task declares no inert: door · the read hides an execution sink (F-O7 · NEP-0006)" }
     - { code: NIKA-SEC-009, category: security_error, transient: "false", failure: "lethal trifecta complete — the declared boundary grants private read (fs.read non-empty) + untrusted ingress (a nika:fetch builtin invoked · an mcp:* tool invoked · an agent: whose whitelist admits ingress) + external egress (net.http non-empty · an escaping fs.write glob · exec enabled), the untrusted content REACHES an egress-capable task's effect surface (a realized flow), and no blocking invoke: nika:prompt (no default:) dominates it (NEP-0002 v2.0 · the Rule of Two as a static check)" }
+    - { code: NIKA-SEC-010, category: security_error, transient: "false", failure: "the approval-capability law is violated · a rate-limited approval burst (the N+1th distinct mint of a run) · an approval whose resolved content hash differs from the shown hash (content_mismatch) · a ticket replayed across runs or steps (scope_mismatch) · or the static heterogeneous-batch refusal (one prompt unleashing two or more effect classes) — the 6th invariant (NEP-0013 · F-P4)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-ASSERT-001, category: validation_error, transient: "false", failure: "an assert: claims a level the evidence does not support (a StaticProof the IR cannot decide · a mis-leveled obligation · spec 15)" }
