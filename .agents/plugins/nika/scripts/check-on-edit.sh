@@ -89,10 +89,18 @@ set -e
 # resolved path and version costs one line and makes the divergence
 # self-evident the moment it exists.
 oracle="$(command -v "$NIKA" 2>/dev/null || printf '%s' "$NIKA")"
-version="$("$NIKA" --version 2>/dev/null | head -1)"
+# The PATH is the identity. The version string is a TAG, and a tag does not
+# order builds by what they contain: measured 2026-07-29, this tree's
+# target/debug/nika-cli reports 0.106.0 and carries the fs-permit FIX, while
+# the PATH's brew build reports 0.106.1 and carries the FAIL-OPEN. A debug
+# build's version tracks the last tag, not the tree, so the higher patch
+# number was the vulnerable one. Printing the version first inverted the
+# safety ordering for a reader — that was this hook's own repair, one
+# iteration ago, and an agent sent to audit something else caught it.
+tag="$("$NIKA" --version 2>/dev/null | head -1)"
 
 if [ "$rc" -eq 0 ] && [ -n "${NIKA_CHECK_ANNOUNCE_CLEAN:-}" ]; then
-  printf 'nika check --native-strict · clean · %s (%s)\n' "${version:-unknown version}" "$oracle" >&2
+  printf 'nika check --native-strict · clean · %s (tag %s)\n' "$oracle" "${tag:-unknown}" >&2
 fi
 
 # The one case worth breaking silence for: a build of the engine sits in this
@@ -105,8 +113,9 @@ if [ -z "${NIKA_BIN:-}" ]; then
   root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null || true)"
   local_build="$root/target/debug/nika-cli"
   if [ -n "$root" ] && [ -x "$local_build" ] && [ "$oracle" != "$local_build" ]; then
-    printf 'nika: judged with %s (%s), but this tree builds its own:\n  export NIKA_BIN=%s\n' \
-      "${version:-unknown version}" "$oracle" "$local_build" >&2
+    printf 'nika: judged with %s (tag %s), but this tree builds its own:\n  export NIKA_BIN=%s\n' \
+      "$oracle" "${tag:-unknown}" "$local_build" >&2
+    printf '  the tag does not order them — a debug build tracks the last tag, not the tree\n' >&2
   fi
 fi
 
@@ -120,7 +129,8 @@ printf '%s\n' "$findings" | head -c 2000 >&2
 # runs the bare form, reads a green that this hook does not accept, and
 # loops against a gate it cannot see.
 printf '\nre-check with the same oracle this hook used:\n  %s check --native-strict %s\n' "$oracle" "$file" >&2
-printf 'oracle: %s (%s)\n' "${version:-unknown version}" "$oracle" >&2
+printf 'oracle: %s (tag %s · a tag does not say what the build contains)\n' \
+  "$oracle" "${tag:-unknown}" >&2
 printf 'working ON the engine? point the hook at your build:\n  export NIKA_BIN=<repo>/target/debug/nika-cli\n' >&2
 if [ -n "$cc" ]; then
   # PostToolUse exit 2 = stderr fed to Claude, edit already applied.
