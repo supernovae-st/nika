@@ -563,7 +563,7 @@ pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
 pub(super) struct ConstStrings(Vec<(String, String)>);
 
 impl ConstStrings {
-    fn of(wf: &RawWorkflow) -> Self {
+    pub(super) fn of(wf: &RawWorkflow) -> Self {
         use nika_schema::types::VarDecl;
         Self(
             wf.consts

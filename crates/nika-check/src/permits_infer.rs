@@ -28,7 +28,8 @@
 use std::collections::BTreeSet;
 
 use super::permits_fit::{
-    BuiltinEffect, builtin_effect, chart_vl_sibling, literal_arg, static_program, url_host,
+    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, static_program,
+    url_host,
 };
 use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 use nika_schema::types::{ExecPermit, FsPermits, NetPermits, Permits};
@@ -60,6 +61,23 @@ impl InferredPermits {
 /// The mutable inference state one [`collect_action`] call folds into.
 #[derive(Default)]
 struct Collector {
+    /// The `const:` table, so inference resolves a bare
+    /// `${{ const.<name> }}` the way the FIT scan does.
+    ///
+    /// Without it the two halves of one binary disagreed about one file:
+    /// `check` called a const-backed path "a literal path" and judged it,
+    /// while `--infer-permits` called the same path "too dynamic to pin
+    /// statically" and left it out of the draft. So the block this prints
+    /// never round-tripped clean on any file routing a path or url through
+    /// `const:` — which is every file the templates teach, and the printed
+    /// block is the half an author pastes.
+    ///
+    /// Empty for [`task_permits`], which is handed one task and never the
+    /// workflow, so it cannot see a `const:` block. That path keeps its
+    /// prior behaviour: a const-backed value stays unresolved there. The
+    /// limit is real and named rather than hidden — closing it means giving
+    /// that entry point the workflow.
+    consts: ConstStrings,
     exec_used: bool,
     exec_dynamic: bool,
     programs: BTreeSet<String>,
@@ -78,7 +96,10 @@ struct Collector {
 // and the undeclared-read failure mode is the child tool's own
 // missing-variable error (the repair is one `env: [NAME]` line).
 pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
-    let mut c = Collector::default();
+    let mut c = Collector {
+        consts: ConstStrings::of(wf),
+        ..Collector::default()
+    };
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_action(&mut c, id, &task.value.action);
@@ -208,7 +229,10 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
 fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::RawInvokeAction) {
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
-            match literal_arg(a, url_arg).as_deref().and_then(url_host) {
+            match judgeable_arg(&c.consts, a, url_arg)
+                .as_deref()
+                .and_then(url_host)
+            {
                 // A floor-blocked host is NEVER inferred into the grants:
                 // the always-on SSRF floor (NIKA-SEC-005) refuses it
                 // regardless of `permits:`, so the entry would be inert —
@@ -253,7 +277,7 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
             reads,
             writes,
             recursive,
-        }) => match literal_arg(a, path_arg) {
+        }) => match judgeable_arg(&c.consts, a, path_arg) {
             Some(path) => {
                 // a recursive effect (nika:grep reads descendants ·
                 // nika:image_generate writes into the dir) touches
@@ -694,12 +718,41 @@ tasks:
         assert_round_trips_clean(yaml);
     }
 
+    /// A `const:`-backed dir RESOLVES · a runtime-supplied one does not.
+    ///
+    /// This test used to call the const case "dynamic" and assert that
+    /// inference could not pin it. That premise was wrong on the same
+    /// point the FIT scan was wrong on: `--var` satisfies `inputs:` and
+    /// nothing else (measured — on a file whose `p` is a const, `nika run
+    /// --var p=X` answers « this workflow declares no inputs »), so a
+    /// const cannot move between check and run and is therefore statically
+    /// known.
+    ///
+    /// The consequence of the old reading was a tool contradicting itself:
+    /// `check` called a const-backed path a literal path and judged it,
+    /// while `--infer-permits` called the same path too dynamic to pin and
+    /// omitted it — so the block it printed never round-tripped clean on
+    /// any file routing a path through `const:`, which is every file the
+    /// templates teach.
+    ///
+    /// THE AUTHORITY IS THE BOUNDARY, and this pins it in both directions.
     #[test]
-    fn dynamic_image_output_dir_notes_review() {
-        let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nconst: { dir: \"./assets\" }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ const.dir }}\" } }\n",
+    fn a_const_dir_resolves_and_a_runtime_one_notes_review() {
+        let konst = "nika: v1\nworkflow:\n  id: w\nconst: { dir: \"./assets\" }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ const.dir }}\" } }\n";
+        let r = infer_of(konst);
+        assert!(
+            r.permits.fs.is_some(),
+            "a const-backed dir is statically known: {:?}",
+            r.permits.fs
         );
-        assert!(r.permits.fs.is_none(), "dynamic dir cannot be pinned");
+        assert_round_trips_clean(konst);
+
+        // `inputs:` is genuinely dynamic even WITH a default — the run can
+        // supply another value, and a boundary drafted against a value the
+        // run may replace is exactly the claim this tool must not make.
+        let runtime = "nika: v1\nworkflow:\n  id: w\ninputs:\n  dir:\n    type: string\n    default: \"./assets\"\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ inputs.dir }}\" } }\n";
+        let r = infer_of(runtime);
+        assert!(r.permits.fs.is_none(), "a runtime dir cannot be pinned");
         assert!(r.notes.iter().any(|n| n.contains("dynamic path")));
     }
 

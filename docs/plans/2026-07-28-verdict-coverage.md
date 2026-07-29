@@ -854,3 +854,75 @@ attached, which is more than it had this morning.
 **Consequence for the corpus**: files that hit this stay RED and carry an
 in-file note pointing here. A red gate reporting something true is the honest
 state; a green one bought with a prompt nobody will answer is not.
+
+---
+
+# THE CLASS · a decidable question waived as undecidable
+
+Three occurrences in two days, found independently, in three different rungs.
+That is a class, not a run of bad luck, and it now gets a name and a rule.
+
+## The three
+
+**F11 · the fs boundary.** The differential proptest that exists to catch
+check-run drift excluded mid-pattern globs, citing *"glob-pattern ⊆ permits-glob
+inclusion is not soundly decidable"*. True — about containment between two
+PATTERNS. Both sides matched a CONCRETE path against ONE pattern, which is
+ordinary glob matching. **The waiver was where the shipped fail-open lived.**
+
+**F13 · the notify host.** A `nika:notify` whose target is a secret passes check
+and dies at run. The host is genuinely unknowable statically, so the whole
+question looked closed. It is not:
+
+```
+"which host?"         UNDECIDABLE · the secret carries it
+"is there ANY host?"  DECIDABLE · an empty net.http means every host is
+                      outside it, so the run CANNOT succeed
+```
+
+**Oracle finding #27 · a tool-authority conjunct.** Check drops a decidable
+conjunct when the argument is dynamic — the same move, in a third rung, found
+by the oracle built to find exactly this.
+
+## The rule
+
+> **When a proof obligation is waived as undecidable, NAME the decision
+> procedure it would have needed. If you can write it down, the waiver is a
+> hole.**
+
+And its corollary, which is where the leverage is:
+
+> **An undecidable question almost always contains a decidable one. Find the
+> weaker claim that IS decidable and make THAT the check.** "Which host" is
+> beyond a static pass; "is any host granted" is a set-emptiness test.
+
+## Why it keeps happening, and it is not carelessness
+
+Every one of the three was written by someone who understood the theory. The
+theorem cited in F11 is correctly stated and correctly attributed. The failure
+is not ignorance — it is that **a true impossibility result feels like a
+complete answer**, so the search stops there. Nobody asks what weaker statement
+survives, because the strong one is settled.
+
+That is why this is structural rather than a matter of care. The prompt that
+finds these is not "be careful", it is a question:
+
+> *What is the strongest claim I CAN decide here, and does the code make it?*
+
+## The ratchet
+
+Per the house stress-to-ratchet ladder (amend a rule · new rule · hygiene
+vector), three occurrences in one cycle clears the threshold. The lightest
+surface that fits:
+
+1. **Now** · this section, cited from the authoring and review surfaces.
+2. **Next** · any code comment or doc that waives a check as undecidable must
+   name the sub-question it considered and why that one does not survive
+   either. A waiver with no named alternative is reviewable as incomplete.
+3. **Later, if it recurs** · a lint over the source for the waiver vocabulary
+   ("not decidable", "cannot be determined statically", "runtime concern")
+   that requires an adjacent justification line. Mechanical, and only worth it
+   if 2 proves insufficient.
+
+The pattern to watch for in review: a comment that explains why something
+cannot be checked, with no sentence about what can.
