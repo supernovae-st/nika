@@ -330,9 +330,10 @@ pub struct CheckReport {
     /// run twin (`NIKA-SEC-004` · law 3). Additive: `report_version`
     /// stays 1.
     pub sink_findings: Vec<SinkFinding>,
-    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` —
-    /// judged on the derived graph, so empty when `conformance` has
-    /// entries). Additive: `report_version` stays 1.
+    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` ·
+    /// the approval batch speaks `NIKA-SEC-010` · the endorsement mode
+    /// `NIKA-SEC-013` — judged on the derived graph, so empty when
+    /// `conformance` has entries). Additive: `report_version` stays 1.
     pub policy_findings: Vec<nika_cap::PolicyViolation>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
@@ -358,7 +359,7 @@ pub struct CheckReport {
     /// `nika:uuid` builtin). Additive: `report_version` stays 1.
     pub run_decl_findings: Vec<RunDeclFinding>,
     /// Every write-write conflict (F-P15 · NEP-0014 law 1 ·
-    /// `NIKA-SEC-011`): two tasks incomparable in the DAG closure whose
+    /// `NIKA-SEC-012`): two tasks incomparable in the DAG closure whose
     /// literal `nika:write` paths collide, or a `for_each` fan writing
     /// one constant path — the last-writer-wins race, refused (an
     /// ordering edge discharges it). Judged on the derived graph —
@@ -496,12 +497,15 @@ impl CheckReport {
         let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
         codes.extend(self.sink_findings.iter().map(|_| sink_code));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
-        // approval rules (NEP-0013) → NIKA-SEC-010 (one lane, two voices —
-        // the rule prefix discriminates, same as the findings fold).
+        // approval rules (NEP-0013) → NIKA-SEC-010 · the F-P23 endorsement
+        // rules (NEP-0017) → NIKA-SEC-013 (one lane, three voices — the
+        // rule prefix discriminates, same as the findings fold).
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
         codes.extend(self.policy_findings.iter().map(|p| {
             if p.rule.starts_with("approval.") {
                 SpecCode::new("SEC", 10, SpecCategory::SecurityError)
+            } else if p.rule.starts_with("endorsement.") {
+                SpecCode::new("SEC", 13, SpecCategory::SecurityError)
             } else {
                 policy_code
             }
@@ -534,7 +538,7 @@ impl CheckReport {
         codes.extend(
             self.write_conflicts
                 .iter()
-                .map(|_| SpecCode::new("SEC", 11, SpecCategory::SecurityError)),
+                .map(|_| SpecCode::new("SEC", 12, SpecCategory::SecurityError)),
         );
         // Composition lane (spec 14): COMP-002 is the security law
         // (child boundary ⊄ parent); 001/003/004 are validation.
@@ -663,7 +667,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // F-P3 · the run: declaration's body-level law (entropy: none ×
         // a structural entropy source used)
         run_decl_findings: run_decl::scan_run_decl(wf),
-        // F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-011):
+        // F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-012):
         // the DAG read's conflicts, gated on a valid order like it
         write_conflicts: dag_read.conflicts,
         // the PURE composition half (spec 14 law 1's textual part);
@@ -1240,12 +1244,12 @@ tasks:
         );
     }
 
-    // ── F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-011) ────
+    // ── F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-012) ────
 
     /// NEGATIVE — two incomparable tasks whose literal `nika:write`
     /// paths collide is a REFUSAL: `is_clean` fails, the class-erased
     /// findings carry the row with its wire code, the code map yields
-    /// NIKA-SEC-011, and NO advisory hint double-teaches (the error owns
+    /// NIKA-SEC-012, and NO advisory hint double-teaches (the error owns
     /// the repair — the F-O8 precedent).
     #[test]
     fn write_write_overlap_without_an_edge_refuses() {
@@ -1260,12 +1264,12 @@ tasks:
             .find(|f| f.kind == "write_conflict")
             .expect("the row lands in findings[]");
         assert_eq!(hit.gate, "WRITES");
-        assert_eq!(hit.code.as_deref(), Some("NIKA-SEC-011"));
+        assert_eq!(hit.code.as_deref(), Some("NIKA-SEC-012"));
         assert_eq!(hit.task.as_deref(), Some("left"));
         assert!(
             hit.docs_url
                 .as_deref()
-                .is_some_and(|u| u.ends_with("/NIKA-SEC-011")),
+                .is_some_and(|u| u.ends_with("/NIKA-SEC-012")),
             "{hit:?}"
         );
         let rendered: Vec<String> = r
@@ -1274,8 +1278,8 @@ tasks:
             .map(ToString::to_string)
             .collect();
         assert!(
-            rendered.iter().any(|c| c == "NIKA-SEC-011"),
-            "write_conflict → NIKA-SEC-011: {rendered:?}"
+            rendered.iter().any(|c| c == "NIKA-SEC-012"),
+            "write_conflict → NIKA-SEC-012: {rendered:?}"
         );
         assert!(
             r.extra_conformance_codes()

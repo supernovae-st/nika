@@ -68,7 +68,7 @@ impl UnifiedFinding {
     }
 }
 
-/// The write-write class (F-P15 · NEP-0014 law 1 · NIKA-SEC-011) — the
+/// The write-write class (F-P15 · NEP-0014 law 1 · NIKA-SEC-012) — the
 /// detail names the racing tasks + the colliding literal path, the fix
 /// carries the two repairs (order · merge). The fold follows the
 /// run-decl precedent (one arm, its own fn · the 100-line ratchet).
@@ -241,12 +241,15 @@ fn fold_permit_taints(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
 /// The hard-`policy:` class (spec 10 · NIKA-POLICY-001) — the detail
 /// already names rule + task + witness. F-P4: the `approval.*` rules
 /// (NEP-0013) speak the approval-capability code NIKA-SEC-010, not the
-/// policy-lane code.
+/// policy-lane code. F-P23: the `endorsement.*` rules (NEP-0017) speak
+/// NIKA-SEC-013.
 fn fold_policy_findings(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
     for p in &report.policy_findings {
         let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
         let code = if p.rule.starts_with("approval.") {
             "NIKA-SEC-010"
+        } else if p.rule.starts_with("endorsement.") {
+            "NIKA-SEC-013"
         } else {
             "NIKA-POLICY-001"
         };

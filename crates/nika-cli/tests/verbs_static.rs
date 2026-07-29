@@ -208,13 +208,18 @@ fn inspect_draws_the_wave_groups_with_static_facts() {
     let out = inspect::run(&path, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
 
-    // Header: identity + counts + the honest cost bound.
+    // Header: identity + counts + the honest cost bound (the narrowed
+    // claim: an unpriced model makes the estimate unbounded — the header
+    // says so and shows only the bounded portion).
     let header = out.text.lines().next().expect("header");
     assert!(
         header.contains("static-suite · 5 tasks"),
         "header: {header}"
     );
-    assert!(header.contains("floor"), "mock/echo is unpriced: {header}");
+    assert!(
+        header.contains("est unbounded · bounded portion"),
+        "mock/echo is unpriced: {header}"
+    );
 
     // Waves as bordered groups: {gather,probe} · {fan,think} · notify.
     assert!(

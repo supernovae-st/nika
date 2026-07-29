@@ -420,6 +420,7 @@ fn every_runtime_tier_honors_the_equivalence_law() {
     );
 
     let mut census: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    let mut preempted = 0usize;
     let mut failures: Vec<String> = Vec::new();
 
     for tier in fixture_dirs(&root) {
@@ -468,12 +469,18 @@ fn every_runtime_tier_honors_the_equivalence_law() {
 
             // The DEFER law: a runtime fixture is check-CLEAN — the
             // static judge saw nothing refusable, so the run twin owns
-            // the verdict.
+            // the verdict. The one lawful exception (the recovered
+            // conjunct): a statically-decidable refusal pre-empts the
+            // defer — it must NAME its static law, never a crash.
             if !probe.check_ok {
-                failures.push(format!(
-                    "{name}: a runtime fixture must be check-CLEAN (DEFER):\n{}",
-                    probe.check_text
-                ));
+                if probe.check_text.contains("NIKA-") {
+                    preempted += 1;
+                } else {
+                    failures.push(format!(
+                        "{name}: a static pre-emption must NAME its law (a NIKA- finding):\n{}",
+                        probe.check_text
+                    ));
+                }
                 continue;
             }
             let Some(observed) = probe.observed else {
@@ -509,7 +516,7 @@ fn every_runtime_tier_honors_the_equivalence_law() {
         .map(|(tier, (n, agreed))| format!("{tier} {agreed}/{n}"))
         .collect();
     println!(
-        "equivalence over every runtime tier: {total} fixtures · {}",
+        "equivalence over every runtime tier: {total} fixtures · {} · {preempted} statically pre-empted",
         rendered.join(" · ")
     );
 }
@@ -628,9 +635,10 @@ fn the_taught_corpus_never_contradicts_its_check_verdict() {
         contradictions.join("\n\n")
     );
     assert!(
-        t1 + t2_total >= 30,
-        "too little of the corpus reached a verdict (T1 {t1} + T2 {t2_total}) — \
-         the oracle would be claiming coverage it does not have"
+        t1 + t2_total + check_red.len() >= 30,
+        "too little of the corpus reached a verdict (T1 {t1} + T2 {t2_total} + static \
+         refusals {}) — the oracle would be claiming coverage it does not have",
+        check_red.len()
     );
 }
 
@@ -691,34 +699,29 @@ fn the_detector_fires_on_an_authority_deny_and_only_on_that() {
 /// Each arm carries the outcome it must produce, so the suite is
 /// non-vacuous in BOTH directions: arms that must stay silent (no false
 /// positive on an honest declaration, and none on a file the checker
-/// already refuses) and one arm that must actually FIRE.
+/// already refuses) — and the FIRING witness, which since F13 lives
+/// only in the detector's own synthesized-journal test above.
 ///
-/// The firing arm is not invented: it is the shape of the shipped
-/// `templates/api-upload-and-create.nika.yaml`, check-GREEN today, whose
-/// first dispatch the runtime refuses on authority grounds.
-///
-/// The two `fetch-*` arms differ in ONE character sequence and isolate
-/// the cause exactly:
+/// The original firing arm is RETIRED BY LAW, not flipped: it was the
+/// shipped `templates/api-upload-and-create.nika.yaml` shape —
 ///
 /// ```text
 ///   url: "https://api.example.com/upload"      → check REFUSES (rc=2)
 ///   url: "${{ const.api_base }}/upload"        → check GREEN · run DENIES
 /// ```
 ///
-/// Same resolved value, opposite verdicts. F8's lane resolved the BARE
-/// `${{ const.x }}`; interpolating that const into a larger string is
-/// still "dynamic", so the whole dispatch defers — and deferring the
-/// ARGUMENT silently drops the tool-authority question, which never
-/// needed the argument. `nika:fetch` under no `permits:` block cannot
-/// run whatever the url turns out to be. This is the F11 lesson as a
-/// tool: a conjunct was waived as undecidable, and the decidable
-/// conjunct beside it went with it.
-///
-/// **When that rung lands, this arm goes check-red and the test fails
-/// with `no longer reconstructs the inversion`. That is the success
-/// signal: retarget the arm at whatever inversion still exists, or
-/// delete it if none does.** An arm kept green by flipping its
-/// expectation to `false` is how a control goes vacuous.
+/// Same resolved value, opposite verdicts: deferring the ARGUMENT
+/// silently dropped the tool-authority question, which never needed the
+/// argument (the F11 lesson). F13 landed — the decidable conjunct is
+/// recovered, so `check GREEN · tool-plane DENY` is unproducible by any
+/// workflow (`tool` is the one plane with no runtime input at all: a
+/// static judge that answers it always can). The author's own
+/// instruction governs the retirement: « retarget the arm at whatever
+/// inversion still exists, or delete it if none does » — and a tool-
+/// plane inversion is exactly what the fix closed. Every net/fs deny
+/// stays a LAWFUL defer the detector already knows to leave alone.
+/// An arm kept green by flipping its expectation to `false` is how a
+/// control goes vacuous; this one went out telling the truth.
 #[test]
 fn the_oracle_is_observed_both_firing_and_staying_silent() {
     let sandbox = tempfile::tempdir().expect("tempdir");
@@ -728,9 +731,9 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
 
     let read_task = "tasks:\n  pin:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"data/pin.txt\" }\n";
     // The two fetch bodies differ ONLY in whether the url is written
-    // literally or interpolated from `const:` — same resolved value.
+    // The literal-url dispatch — check decides it, so the inversion
+    // never opens (the retired const-url twin's story is the doc above).
     let fetch_literal = "tasks:\n  upload:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/upload\" }\n";
-    let fetch_const = "const:\n  api_base: \"https://api.example.com\"\ntasks:\n  upload:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"${{ const.api_base }}/upload\" }\n";
 
     // (arm · permits block · body · must the predicate FIRE?)
     let arms: &[(&str, &str, &str, bool)] = &[
@@ -758,10 +761,6 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
         // the same dispatch with a LITERAL url — check decides it, so
         // the inversion never opens. The paired baseline.
         ("fetch-literal-url", "", fetch_literal, false),
-        // …and with the url interpolated from `const:` — check defers
-        // the argument and drops the tool-authority conjunct with it.
-        // LIVE: the shipped api-upload-and-create shape.
-        ("fetch-const-url", "", fetch_const, true),
     ];
 
     let mut verdicts: Vec<String> = Vec::new();

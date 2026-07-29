@@ -9308,6 +9308,7 @@ impl<T> core::convert::From<T> for nika_catalog::transform::TransformDef
 pub fn nika_catalog::transform::TransformDef::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::transform::TransformDef where T: 'static
 pub fn nika_catalog::transform::TransformDef::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_catalog::PRICING_SCHEMA: &str
 pub fn nika_catalog::all_builtins() -> &'static [nika_catalog::builtin::Builtin]
 pub fn nika_catalog::all_embeddings() -> &'static [nika_catalog::embedding::Embedding]
 pub fn nika_catalog::all_mcp_servers() -> &'static [nika_catalog::mcp_server::McpServer]

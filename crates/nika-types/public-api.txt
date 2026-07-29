@@ -89,6 +89,55 @@ pub fn nika_types::baggage::BaggageEntry::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::baggage::BaggageEntry where T: for<'de> serde_core::de::Deserialize<'de>
 pub const nika_types::baggage::MAX_ENTRIES: usize
 pub const nika_types::baggage::MAX_SIZE_BYTES: usize
+pub mod nika_types::blame
+#[non_exhaustive] pub enum nika_types::blame::BlamePolarity
+pub nika_types::blame::BlamePolarity::ByTheCaller
+pub nika_types::blame::BlamePolarity::ByTheContract
+pub nika_types::blame::BlamePolarity::ByTheValue
+impl nika_types::blame::BlamePolarity
+pub const fn nika_types::blame::BlamePolarity::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::clone(&self) -> nika_types::blame::BlamePolarity
+impl core::cmp::Eq for nika_types::blame::BlamePolarity
+impl core::cmp::PartialEq for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::eq(&self, other: &nika_types::blame::BlamePolarity) -> bool
+impl core::fmt::Debug for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::blame::BlamePolarity
+impl core::marker::StructuralPartialEq for nika_types::blame::BlamePolarity
+impl serde_core::ser::Serialize for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::blame::BlamePolarity where U: core::convert::From<T>
+pub fn nika_types::blame::BlamePolarity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::blame::BlamePolarity where U: core::convert::Into<T>
+pub type nika_types::blame::BlamePolarity::Error = core::convert::Infallible
+pub fn nika_types::blame::BlamePolarity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::blame::BlamePolarity where U: core::convert::TryFrom<T>
+pub type nika_types::blame::BlamePolarity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::blame::BlamePolarity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::blame::BlamePolarity where T: core::clone::Clone
+pub type nika_types::blame::BlamePolarity::Owned = T
+pub fn nika_types::blame::BlamePolarity::clone_into(&self, target: &mut T)
+pub fn nika_types::blame::BlamePolarity::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::blame::BlamePolarity where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::blame::BlamePolarity::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::blame::BlamePolarity where T: 'static + ?core::marker::Sized
+pub fn nika_types::blame::BlamePolarity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::blame::BlamePolarity where T: ?core::marker::Sized
+pub fn nika_types::blame::BlamePolarity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::blame::BlamePolarity where T: ?core::marker::Sized
+pub fn nika_types::blame::BlamePolarity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::blame::BlamePolarity where T: core::clone::Clone
+pub unsafe fn nika_types::blame::BlamePolarity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::blame::BlamePolarity
+pub fn nika_types::blame::BlamePolarity::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::blame::BlamePolarity where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::budget
 #[non_exhaustive] pub enum nika_types::budget::BudgetDirective
 pub nika_types::budget::BudgetDirective::Cost

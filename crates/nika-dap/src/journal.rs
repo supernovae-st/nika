@@ -384,9 +384,10 @@ pub fn seal_journal(trace: &mut TraceFileSink, workflow_hash: Option<&str>) -> b
 }
 
 /// [`seal_journal`] with the run's teardown facts (F-P2 · LOT-1): the
-/// seal's `covers` attests the receipt digest, the budgets ρ and the
-/// effects ε the run settled with — the run's END is as attested as its
-/// boot. `None` keeps the classic covers (byte-unchanged).
+/// seal's `covers` attests the receipt digest, the budgets ρ, the
+/// effects ε and the failed run's quarantine fold (F-P14) the run
+/// settled with — the run's END is as attested as its boot. `None`
+/// keeps the classic covers (byte-unchanged).
 pub fn seal_journal_with(
     trace: &mut TraceFileSink,
     workflow_hash: Option<&str>,

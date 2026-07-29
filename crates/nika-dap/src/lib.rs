@@ -26,12 +26,14 @@
 pub mod anchor;
 pub mod bounded;
 pub mod chain;
+pub mod cost_replay;
 pub mod drift;
 pub mod evidence;
 pub mod flow;
 pub mod inventory;
 pub mod journal;
 pub mod otel;
+pub mod quarantine;
 pub mod recover;
 pub mod reproduce;
 pub mod resume;

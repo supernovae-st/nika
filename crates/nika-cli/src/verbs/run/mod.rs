@@ -39,7 +39,7 @@ mod epilogue;
 mod heartbeat;
 mod teardown;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
-use teardown::teardown_facts;
+use teardown::attended_facts;
 
 use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
 use nika_dap::resume::ResumeRequest;
@@ -837,12 +837,15 @@ async fn execute(
         let (code, outcome) = drive(runtime, wf, report, stamper.as_mut(), &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
+        // F-P14 · la dette du run: a FAILED run quarantines its semi-written
+        // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
+        let teardown = attended_facts(wf, report, &outcome, trace.path());
         let trace_path = surface_trace(
             trace,
             TraceNote::Stderr,
             None,
             seal_hash(wf).as_deref(),
-            Some(&teardown_facts(wf, report, &outcome)),
+            Some(&teardown),
         );
         // A paused run teaches its exact resume command on stderr — the
         // pause sibling of the failure lane's `autopsy:` line.
@@ -921,12 +924,14 @@ async fn execute_json_lane(
     let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (sink, trace) = tee.into_parts();
+    // F-P14 · the failure lane's quarantine runs BEFORE the seal.
+    let teardown = attended_facts(wf, report, &outcome, trace.path());
     let trace_path = surface_trace(
         trace,
         TraceNote::Stderr,
         None,
         seal_hash(wf).as_deref(),
-        Some(&teardown_facts(wf, report, &outcome)),
+        Some(&teardown),
     );
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
@@ -1022,6 +1027,8 @@ async fn execute_fold_lane(
         .iter()
         .find(|r| r.state == crate::TaskState::Failed)
         .map(|r| r.id.clone());
+    // F-P14 · the failure lane's quarantine runs BEFORE the seal.
+    let teardown = attended_facts(wf, report, &outcome, trace.path());
     let _ = surface_trace(
         trace,
         if mode == RenderMode::Quiet {
@@ -1031,7 +1038,7 @@ async fn execute_fold_lane(
         },
         failed_task.as_deref(),
         seal_hash(wf).as_deref(),
-        Some(&teardown_facts(wf, report, &outcome)),
+        Some(&teardown),
     );
     epilogue::print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.take_error() {

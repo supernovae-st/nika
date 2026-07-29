@@ -35,7 +35,7 @@
 //! - **retry on uncontracted effects** (`retry-effects`) — see
 //!   [`push_retry_effects_hint`].
 //! - **concurrent same-path writers** — RETIRED by F-P15 (NEP-0014 law
-//!   1): the write-write race is the `NIKA-SEC-011` FINDING now (the
+//!   1): the write-write race is the `NIKA-SEC-012` FINDING now (the
 //!   DAG analysis pass owns it · a hint is not a boundary).
 //! - **exec with a native path** (`native-first`) — emitted by the
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
@@ -81,7 +81,7 @@ pub struct Hint {
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// (additive · agents route on it; the module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
-    /// NIKA-SEC-011 finding — an error owns its repair, never a hint).
+    /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,

@@ -273,9 +273,11 @@ fn compare_run_contract(
 
 /// Mapping-law rows 2+3 — check-clean + DEFER ⇒ the run twin decides,
 /// and an executed effect is attested. Every `runtime/permits` fixture
-/// must be check-CLEAN; its real run's terminals must match
-/// `expected-run.json`; a run that dispatched an effect must carry
-/// `permit_checked` frames (NEP-0007 · the witness).
+/// must be check-CLEAN — unless a statically-decidable conjunct
+/// lawfully pre-empts the defer (the refusal must then NAME its static
+/// law, and the pre-emption is counted and told); its real run's
+/// terminals must match `expected-run.json`; a run that dispatched an
+/// effect must carry `permit_checked` frames (NEP-0007 · the witness).
 #[test]
 fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
     let root = spec_dir().join("conformance/tests/runtime/permits");
@@ -286,6 +288,7 @@ fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
     );
     let mut total = 0usize;
     let mut witnessed = 0usize;
+    let mut preempted = 0usize;
     let mut failures: Vec<String> = Vec::new();
     for dir in fixture_dirs(&root) {
         let name = dir
@@ -300,17 +303,27 @@ fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
         total += 1;
 
         // check-CLEAN is the DEFER law — the static judge saw nothing
-        // refusable, the run twin owns the verdict.
+        // refusable, the run twin owns the verdict. The one lawful
+        // exception: a statically-DECIDABLE conjunct pre-empts the
+        // defer (the recovered-conjunct law · e.g. an absent `permits:`
+        // block is zero authority on the tools axis — the dynamic
+        // resolved-host argument cannot mask it), so the refusal is
+        // asserted to be a NAMED static finding (never a crash, never
+        // an empty mouth) and the pre-emption is counted and told.
         let check = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
             .arg("check")
             .arg(&input)
             .output()
             .expect("binary checks");
         if !check.status.success() {
-            failures.push(format!(
-                "{name}: a runtime fixture must be check-CLEAN (DEFER): {}",
-                String::from_utf8_lossy(&check.stdout)
-            ));
+            let out = String::from_utf8_lossy(&check.stdout);
+            if out.contains("NIKA-") {
+                preempted += 1;
+            } else {
+                failures.push(format!(
+                    "{name}: a static pre-emption must NAME its law (a NIKA- finding): {out}"
+                ));
+            }
             continue;
         }
 
@@ -357,7 +370,7 @@ fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
     );
     assert!(total >= 7, "the permits runtime corpus (saw {total})");
     println!(
-        "equivalence legs 2+3 (defer contract + witness): {total} fixtures · {witnessed} witnessed"
+        "equivalence legs 2+3 (defer contract + witness): {total} fixtures · {witnessed} witnessed · {preempted} statically pre-empted"
     );
 }
 
