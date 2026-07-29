@@ -70,6 +70,14 @@ fn rust_and_python_render_the_same_verdict_over_the_corpus() {
         eprintln!("skip · NIKA_SPEC_DIR/conformance/proof_core.py absent");
         return;
     };
+    // The pin-lag window: the reference at an older SPEC_PIN carries
+    // proof_core.py WITHOUT the twin (NEP-0012 law 4) — the test
+    // activates the day the pin carries it, never red in between.
+    let source = std::fs::read_to_string(&proof_core).expect("proof_core reads");
+    if !source.contains("decode_untrusted") {
+        eprintln!("skip · the pinned reference predates the twin (NEP-0012 law 4)");
+        return;
+    }
     if Command::new("python3").arg("--version").output().is_err() {
         eprintln!("skip · python3 absent");
         return;
