@@ -84,6 +84,77 @@ pub struct CostCeiling {
     /// `true` when at least one inference task is unbounded — the total is
     /// a FLOOR, not a ceiling, and the report says so.
     pub has_unbounded: bool,
+    /// Composed children's priced contribution (spec 14 · only
+    /// [`crate::check_composed`] fills this — the reader-less [`crate::check`]
+    /// never loads files, so the pure half stays child-blind BY DESIGN).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub composed: Vec<ComposedCost>,
+}
+
+/// One composed child's priced contribution — the call's task/target and
+/// the child's OWN ceiling, folded into the parent's (the parent WILL make
+/// the call: its unavoidable exposure and its ceiling both carry the
+/// child's, and uncapped spend propagates).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[non_exhaustive]
+pub struct ComposedCost {
+    /// The calling task's id.
+    pub task: String,
+    /// The child target as written at the call site.
+    pub target: String,
+    /// The child's unavoidable spend (folded into the parent's floor).
+    pub min_path_total_usd: f64,
+    /// The child's bounded worst-path spend (folded into the parent's ceiling).
+    pub bounded_total_usd: f64,
+    /// The child has uncapped spend of its own — propagates to the parent.
+    pub has_unbounded: bool,
+}
+
+impl CostCeiling {
+    /// Fold one composed child's ceiling into this envelope (spec 14 · the
+    /// 2026-07-29 composition finding: a parent whose child explained
+    /// `≤$0.0011` alone printed `$0 model spend`). The calling task's OWN
+    /// multipliers apply across the wall — the same law as the per-task
+    /// arm of [`ceiling`]: a `for_each` fan makes N calls unconditionally
+    /// (floor ×N), every retry attempt can re-run the whole child
+    /// (ceiling ×N×attempts), a `when:` gate's cheapest path never calls,
+    /// and an unknown-count fan-out is unbounded and priced at nothing.
+    pub(crate) fn fold_composed(
+        &mut self,
+        task: String,
+        target: String,
+        child: &CostCeiling,
+        iterations: Option<u64>,
+        attempts: u64,
+        gated: bool,
+    ) {
+        let (cheapest, worst) = match iterations {
+            None => (0.0, 0.0),
+            Some(n) => {
+                #[allow(clippy::cast_precision_loss)]
+                let (n, a) = (n as f64, attempts.max(1) as f64);
+                (
+                    if gated {
+                        0.0
+                    } else {
+                        n * child.min_path_total_usd
+                    },
+                    n * a * child.bounded_total_usd,
+                )
+            }
+        };
+        self.min_path_total_usd += cheapest;
+        self.bounded_total_usd += worst;
+        let unbounded = child.has_unbounded || iterations.is_none();
+        self.has_unbounded |= unbounded;
+        self.composed.push(ComposedCost {
+            task,
+            target,
+            min_path_total_usd: cheapest,
+            bounded_total_usd: worst,
+            has_unbounded: unbounded,
+        });
+    }
 }
 
 /// Compute the cost envelope for a workflow.
@@ -177,6 +248,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         bounded_total_usd,
         min_path_total_usd,
         has_unbounded,
+        composed: Vec::new(),
     }
 }
 
@@ -202,7 +274,7 @@ pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
 /// `default:`). Returns `None` for anything else — a task-output ref, a
 /// computed/navigated expression, a typed input with no default, or a
 /// non-array value — which stays an unknown count (`UnknownIterations`).
-fn static_vars_array_len(wf: &RawWorkflow, expr: &str) -> Option<u64> {
+pub(super) fn static_vars_array_len(wf: &RawWorkflow, expr: &str) -> Option<u64> {
     let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
     let (authority, name) = ["const.", "inputs.", "config."]
         .into_iter()

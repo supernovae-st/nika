@@ -234,6 +234,147 @@ impl GraphWalker<'_> {
     }
 }
 
+/// One priced call — the child's ceiling plus the calling task's own
+/// multipliers (the [`super::cost::CostCeiling::fold_composed`] input).
+pub(super) struct PricedCall {
+    /// The calling task's id.
+    pub task: String,
+    /// The child target as written.
+    pub target: String,
+    /// The child's ceiling (its own composed half folded already).
+    pub child: super::cost::CostCeiling,
+    /// The `for_each` multiplier — `None` when the count is not statically
+    /// known (the unbounded arm, same law as [`super::cost::ceiling`]).
+    pub iterations: Option<u64>,
+    /// The retry multiplier (`max_attempts` · first-try is 1).
+    pub attempts: u64,
+    /// A `when:` gate — the cheapest path never calls.
+    pub gated: bool,
+}
+
+/// The composition COST walk (spec 14 · the 2026-07-29 finding): every
+/// direct `workflow:` call contributes the CHILD's ceiling — recursively,
+/// so a parent whose child alone explains `≤$X` stops printing `$0 model
+/// spend`. Returns one [`PricedCall`] per resolvable call; an unresolvable
+/// child contributes nothing (its `NIKA-COMP-001` finding already owns
+/// the verdict — never a double report). Cycle-safe and file-capped like
+/// the judgment walk: a cyclic branch contributes nothing (`NIKA-COMP-003`
+/// owns the cycle), and past [`MAX_GRAPH_FILES`] the walk stops rather
+/// than hang.
+pub(super) fn price_resolved(
+    wf: &RawWorkflow,
+    root: &str,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Vec<PricedCall> {
+    let mut walker = PriceWalker {
+        read,
+        ceilings: BTreeMap::new(),
+        visiting: BTreeSet::new(),
+    };
+    let mut out = Vec::new();
+    for task in &wf.tasks {
+        let RawAction::Invoke(a) = &task.value.action else {
+            continue;
+        };
+        let RawInvokeTarget::Workflow(w) = &a.target else {
+            continue;
+        };
+        if w.value.starts_with("registry:") {
+            continue; // no filesystem child today (law 1's own arm)
+        }
+        // The calling task's OWN multipliers (the per-task law of
+        // `cost::ceiling`, applied across the wall): fan-out count · retry
+        // attempts · gate.
+        let iterations = match task.value.for_each.as_ref().map(|f| &f.value) {
+            None => Some(1),
+            Some(nika_schema::raw::ForEachValue::List(arr)) => {
+                Some(arr.as_array().map_or(1, Vec::len) as u64)
+            }
+            Some(nika_schema::raw::ForEachValue::Expression(expr)) => {
+                super::cost::static_vars_array_len(wf, expr)
+            }
+            #[allow(
+                clippy::unreachable,
+                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+            )]
+            other => unreachable!("unknown for_each form: {other:?}"),
+        };
+        let attempts = task
+            .value
+            .retry
+            .as_ref()
+            .map_or(1, |r| u64::from(r.value.max_attempts.max(1)));
+        let id = resolve_relative(root, &w.value);
+        if let Some(child) = walker.ceiling_of(&id) {
+            out.push(PricedCall {
+                task: task.value.id.value.clone(),
+                target: w.value.clone(),
+                child,
+                iterations,
+                attempts,
+                gated: task.value.when.is_some(),
+            });
+        }
+    }
+    out
+}
+
+/// The memoized, cycle-guarded ceiling walker (parse-once per file id).
+struct PriceWalker<'a> {
+    read: &'a mut dyn FnMut(&str) -> Result<String, String>,
+    /// `None` = the file did not load/parse (COMP-001 owns that verdict).
+    ceilings: BTreeMap<String, Option<super::cost::CostCeiling>>,
+    /// The in-progress stack — a re-entered id is a cycle: the branch
+    /// contributes nothing and COMP-003 names it, the walk never hangs.
+    visiting: BTreeSet<String>,
+}
+
+impl PriceWalker<'_> {
+    fn ceiling_of(&mut self, id: &str) -> Option<super::cost::CostCeiling> {
+        if let Some(c) = self.ceilings.get(id) {
+            return c.clone();
+        }
+        if self.ceilings.len() >= MAX_GRAPH_FILES || !self.visiting.insert(id.to_owned()) {
+            return None; // over the verified-graph cap (fail-closed) · a cycle
+        }
+        let parsed = (self.read)(id).ok().and_then(|text| {
+            nika_schema::parse(
+                &text,
+                nika_schema::source::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .ok()
+        });
+        let ceiling = parsed.map(|wf| {
+            let mut ceiling = super::cost::ceiling(&wf);
+            // The child's OWN composed half folds in (the recursion is the
+            // topological pass — the call graph is static and acyclic when
+            // clean, so this terminates and a child is priced once).
+            for task in &wf.tasks {
+                let RawAction::Invoke(a) = &task.value.action else {
+                    continue;
+                };
+                let RawInvokeTarget::Workflow(w) = &a.target else {
+                    continue;
+                };
+                if w.value.starts_with("registry:") {
+                    continue;
+                }
+                let child_id = resolve_relative(id, &w.value);
+                if let Some(child) = self.ceiling_of(&child_id) {
+                    ceiling.min_path_total_usd += child.min_path_total_usd;
+                    ceiling.bounded_total_usd += child.bounded_total_usd;
+                    ceiling.has_unbounded |= child.has_unbounded;
+                }
+            }
+            ceiling
+        });
+        self.visiting.remove(id);
+        self.ceilings.insert(id.to_owned(), ceiling.clone());
+        ceiling
+    }
+}
+
 /// Judge ONE direct call: resolve the child (COMP-001), then laws 2
 /// (COMP-004), 3/4 (COMP-002) and 7 (COMP-003 over the closure).
 fn judge_direct_call(
@@ -883,5 +1024,220 @@ tasks:
         let row = f.row();
         assert!(row.starts_with("[NIKA-COMP-001 · composition] task `audit`"));
         assert!(row.ends_with("fix: nika explain NIKA-COMP-001"), "{row}");
+    }
+
+    // ─── the composition COST half (the 2026-07-29 finding) ──────────
+
+    /// A child with a priced infer task (the fixture's floor comes from
+    /// its OWN check — the assertion is catalog-move-proof).
+    const CHILD_PRICED: &str = "\
+nika: v1
+workflow:
+  id: child
+tasks:
+  spend:
+    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }
+outputs:
+  said: { value: \"${{ tasks.spend.output }}\", type: string }
+";
+
+    fn parent_calling(target: &str) -> RawWorkflow {
+        parse(&format!(
+            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    invoke:\n      workflow: \"{target}\"\n"
+        ))
+    }
+
+    #[test]
+    fn a_priced_child_folds_into_the_parent_envelope() {
+        let wf = parent_calling("./child.nika.yaml");
+        let child_floor = crate::check(&parse(CHILD_PRICED)).cost.min_path_total_usd;
+        assert!(child_floor > 0.0, "the fixture prices");
+        let report =
+            crate::check_composed(
+                &wf,
+                "parent.nika.yaml",
+                &mut |_| Ok(CHILD_PRICED.to_owned()),
+            );
+        assert_eq!(report.cost.composed.len(), 1, "{:?}", report.cost.composed);
+        assert_eq!(report.cost.composed[0].task, "call");
+        assert_eq!(report.cost.composed[0].target, "./child.nika.yaml");
+        assert!(
+            (report.cost.min_path_total_usd - child_floor).abs() < 1e-12,
+            "the parent's floor IS the child's: {} vs {child_floor}",
+            report.cost.min_path_total_usd
+        );
+        assert!(
+            !report.cost.has_unbounded,
+            "a fully-bounded child bounds the parent too"
+        );
+        // …and the reader-less `check` stays child-blind BY DESIGN.
+        let pure = crate::check(&wf);
+        assert!(pure.cost.composed.is_empty());
+        assert_eq!(pure.cost.min_path_total_usd, 0.0);
+    }
+
+    #[test]
+    fn a_grandchild_folds_through_the_child() {
+        let middle = "\
+nika: v1
+workflow:
+  id: middle
+tasks:
+  call:
+    invoke:
+      workflow: \"./leaf.nika.yaml\"
+";
+        let wf = parent_calling("./middle.nika.yaml");
+        let leaf_floor = crate::check(&parse(CHILD_PRICED)).cost.min_path_total_usd;
+        let report = crate::check_composed(&wf, "parent.nika.yaml", &mut |p| {
+            Ok(match p {
+                "middle.nika.yaml" => middle.to_owned(),
+                "leaf.nika.yaml" => CHILD_PRICED.to_owned(),
+                other => panic!("unexpected read: {other}"),
+            })
+        });
+        assert!(
+            (report.cost.min_path_total_usd - leaf_floor).abs() < 1e-12,
+            "the grandchild's floor reaches the parent through the child: {}",
+            report.cost.min_path_total_usd
+        );
+    }
+
+    /// The amplification law (§7b's untested row, closed): a call task's
+    /// OWN multipliers apply across the wall — `for_each` N calls are
+    /// always made (floor ×N) and every retry attempt can re-run the whole
+    /// child (ceiling ×N×attempts). A gated call's cheapest path is zero.
+    #[test]
+    fn the_calling_tasks_multipliers_scale_the_child() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    for_each: [\"a\", \"b\"]\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+        );
+        let child = crate::check(&parse(CHILD_PRICED)).cost;
+        let report =
+            crate::check_composed(
+                &wf,
+                "parent.nika.yaml",
+                &mut |_| Ok(CHILD_PRICED.to_owned()),
+            );
+        assert!(
+            (report.cost.min_path_total_usd - 2.0 * child.min_path_total_usd).abs() < 1e-12,
+            "2 fanned-out calls, first-try each: {} vs {}",
+            report.cost.min_path_total_usd,
+            2.0 * child.min_path_total_usd
+        );
+        assert!(
+            (report.cost.bounded_total_usd - 6.0 * child.bounded_total_usd).abs() < 1e-9,
+            "2 calls × 3 attempts at worst: {} vs {}",
+            report.cost.bounded_total_usd,
+            6.0 * child.bounded_total_usd
+        );
+    }
+
+    /// A gated call contributes zero to the cheapest path; a `for_each`
+    /// over an unknown-count source makes the parent unbounded.
+    #[test]
+    fn a_gated_call_floors_at_zero_and_an_unknown_fanout_unbounds() {
+        let gated = parse(
+            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    when: ${{ inputs.go == \"yes\" }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+        );
+        let child = crate::check(&parse(CHILD_PRICED)).cost;
+        let report = crate::check_composed(&gated, "parent.nika.yaml", &mut |_| {
+            Ok(CHILD_PRICED.to_owned())
+        });
+        assert_eq!(
+            report.cost.min_path_total_usd, 0.0,
+            "gates closed ⇒ the cheapest path never calls"
+        );
+        assert!(
+            (report.cost.bounded_total_usd - child.bounded_total_usd).abs() < 1e-9,
+            "gates open ⇒ one full child at worst"
+        );
+
+        let fanned = parse(
+            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    for_each: ${{ tasks.seed.output }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
+        );
+        let report = crate::check_composed(&fanned, "parent.nika.yaml", &mut |_| {
+            Ok(CHILD_PRICED.to_owned())
+        });
+        assert!(
+            report.cost.has_unbounded,
+            "an unknown iteration count makes the call's spend unbounded"
+        );
+    }
+
+    #[test]
+    fn an_unbounded_child_propagates_the_warning() {
+        let child = "\
+nika: v1
+workflow:
+  id: child
+tasks:
+  spend:
+    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }
+";
+        let wf = parent_calling("./child.nika.yaml");
+        let report = crate::check_composed(&wf, "parent.nika.yaml", &mut |_| Ok(child.to_owned()));
+        assert!(
+            report.cost.has_unbounded,
+            "no max_tokens in the child ⇒ the parent's total is no ceiling"
+        );
+    }
+
+    #[test]
+    fn an_unreadable_child_contributes_nothing_and_comp_001_owns_it() {
+        let wf = parent_calling("./ghost.nika.yaml");
+        let report = crate::check_composed(&wf, "parent.nika.yaml", &mut |_| {
+            Err("No such file or directory (os error 2)".to_owned())
+        });
+        assert!(report.cost.composed.is_empty(), "no double report");
+        assert!(
+            report.composition.iter().any(|f| f.code == "NIKA-COMP-001"),
+            "the one voice: {:?}",
+            report.composition
+        );
+    }
+
+    #[test]
+    fn a_cyclic_call_graph_neither_hangs_nor_contributes() {
+        let a = "\
+nika: v1
+workflow:
+  id: a
+tasks:
+  call:
+    invoke:
+      workflow: \"./b.nika.yaml\"
+";
+        let b = "\
+nika: v1
+workflow:
+  id: b
+tasks:
+  call:
+    invoke:
+      workflow: \"./a.nika.yaml\"
+";
+        let report = crate::check_composed(&parse(a), "a.nika.yaml", &mut |p| {
+            Ok(match p {
+                "a.nika.yaml" => a.to_owned(),
+                "b.nika.yaml" => b.to_owned(),
+                other => panic!("unexpected read: {other}"),
+            })
+        });
+        assert!(
+            report.cost.composed.iter().all(|c| !c.has_unbounded),
+            "no phantom unbounded spend through a cycle: {:?}",
+            report.cost.composed
+        );
+        assert!(
+            report.cost.min_path_total_usd == 0.0 && report.cost.bounded_total_usd == 0.0,
+            "a cyclic branch adds zero spend (COMP-003 owns the verdict): {}",
+            report.cost.min_path_total_usd
+        );
+        assert!(
+            report.composition.iter().any(|f| f.code == "NIKA-COMP-003"),
+            "the cycle is named: {:?}",
+            report.composition
+        );
     }
 }

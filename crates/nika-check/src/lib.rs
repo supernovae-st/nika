@@ -145,7 +145,7 @@ use nika_schema::raw::RawWorkflow;
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
-pub use cost::{CostCeiling, TaskCost, UnboundedReason};
+pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
 pub use data_sink::SinkFinding;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use findings::UnifiedFinding;
@@ -685,6 +685,23 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     report
 }
 
+/// The workflow with a CLI `--model` swapped into the envelope default
+/// (#342) — per-task `model:` keeps winning, mirroring the runtime's
+/// precedence. The synthetic span is fine: the pricing surfaces never
+/// render the envelope model's span. The ONE home for the swap (the
+/// CLI's budget preflight AND the runtime's admission gate both price
+/// the EFFECTIVE model — two surfaces, one constructor, no drift).
+#[must_use]
+pub fn with_model_override(wf: &RawWorkflow, model: &str) -> RawWorkflow {
+    let mut wf = wf.clone();
+    let span = wf
+        .model
+        .as_ref()
+        .map_or_else(nika_schema::Span::default, |m| m.span);
+    wf.model = Some(nika_schema::Spanned::new(model.to_owned(), span));
+    wf
+}
+
 /// [`check`] + the RESOLVED composition lane (spec 14): the call graph
 /// is walked through the injected reader (the [`nika_schema::resolve_skills`]
 /// pattern — this crate stays zero-I/O), judging acyclicity
@@ -703,6 +720,21 @@ pub fn check_composed(
 ) -> CheckReport {
     let mut report = check(wf);
     report.composition = composition::scan_resolved(wf, root, read);
+    // The composition COST half (spec 14 · the 2026-07-29 finding): every
+    // resolvable child's ceiling folds into the parent's envelope — a
+    // parent whose child alone explains `≤$X` stops printing `$0 model
+    // spend`. The reader-less `check` stays child-blind BY DESIGN (it
+    // never loads files; the pure half needs no filesystem).
+    for call in composition::price_resolved(wf, root, read) {
+        report.cost.fold_composed(
+            call.task,
+            call.target,
+            &call.child,
+            call.iterations,
+            call.attempts,
+            call.gated,
+        );
+    }
     // Re-fold the class-erased list over the finished lane (one truth).
     report.findings = findings::collect(&report);
     report
