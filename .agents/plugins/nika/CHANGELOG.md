@@ -3,6 +3,18 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## Unreleased
+
+The kit learns to keep itself honest about its substrate. The
+session-context hook grows two probes: a missing nika binary teaches
+the install line in every workspace (every surface of this kit invokes
+it — silence would cost more than noise), and a kit/binary divergence
+at major.minor names both versions with the direction-aware align
+command. A sixth slash command lands: `/nika:doctor` — the agent-side
+"is my suite coherent?" gesture, riding the binary's kit↔binary
+handshake (`nika doctor` now probes the three kit landings and prints
+the per-client refresh, both rungs named for Claude Code).
+
 ## 0.106.0 — 2026-07-27
 
 Lockstep on the engine wave.
