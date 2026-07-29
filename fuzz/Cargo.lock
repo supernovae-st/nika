@@ -2156,6 +2156,7 @@ dependencies = [
  "jiff-tzdb",
  "json-patch",
  "jsonschema",
+ "nika-cap",
  "nika-catalog",
  "nika-chart",
  "nika-extract",
@@ -2264,6 +2265,7 @@ dependencies = [
  "nika-kernel",
  "nika-runtime",
  "nika-schema",
+ "nika-store",
  "nika-types",
  "p384",
  "serde",
@@ -2528,6 +2530,21 @@ name = "nika-source"
 version = "0.106.1"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "nika-store"
+version = "0.106.1"
+dependencies = [
+ "blake3",
+ "miette",
+ "minisign",
+ "nika-cap",
+ "nika-error",
+ "nika-kernel",
+ "serde_json",
+ "thiserror",
+ "uuid",
 ]
 
 [[package]]

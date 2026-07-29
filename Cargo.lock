@@ -4096,6 +4096,7 @@ dependencies = [
  "expectrl",
  "minisign",
  "nika-builtin",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-dap",
@@ -4116,6 +4117,7 @@ dependencies = [
  "nika-registry-client",
  "nika-runtime",
  "nika-schema",
+ "nika-store",
  "nika-types",
  "nika-verb-agent",
  "nika-verb-exec",
@@ -4159,6 +4161,7 @@ dependencies = [
  "nika-kernel-mock",
  "nika-runtime",
  "nika-schema",
+ "nika-store",
  "nika-types",
  "p384",
  "proptest",
@@ -4661,6 +4664,24 @@ name = "nika-source"
 version = "0.106.1"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "nika-store"
+version = "0.106.1"
+dependencies = [
+ "blake3",
+ "miette",
+ "minisign",
+ "nika-cap",
+ "nika-error",
+ "nika-kernel",
+ "proptest",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

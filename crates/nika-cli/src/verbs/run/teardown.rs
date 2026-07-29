@@ -26,25 +26,25 @@ pub(super) fn attended_facts(
         report,
         outcome,
         nika_dap::quarantine::attend(wf, outcome, journal),
+        nika_dap::memory::attend(None),
     )
 }
 
 /// The run's teardown facts for the seal's extended `covers` (F-P2 ·
 /// LOT-1): the receipt inputs (proves · the check certificate · each
-/// `assert:` judged at its honest level · the outcome word), the budgets
-/// ρ consumed against the certificate's ceiling, the effects ε
-/// exercised against the declared bound, and the failed run's
-/// quarantine fold (F-P14 · pre-shaped by the `quarantine` module on
-/// the failure lane — `None` everywhere else, a clean run attests
-/// nothing). The seal folds only what the run honestly knows — an
-/// unprojectable workflow keeps the receipt digest out (absent is
-/// honest); the seal attests WHAT HAPPENED, it never promises the
-/// future.
+/// `assert:` judged at its honest level · the outcome word), the budgets ρ
+/// and effects ε against the certificate's bounds (the field docs carry
+/// the detail), the signed-memory fold (F-P8 · `None` without a store),
+/// and the failed run's quarantine fold (F-P14 · `None` elsewhere — a
+/// clean run attests nothing). The seal folds only what the run honestly
+/// knows (an unprojectable workflow keeps the receipt digest out — absent
+/// is honest); it attests WHAT HAPPENED, never promises the future.
 fn teardown_fold(
     wf: &RawWorkflow,
     report: &CheckReport,
     outcome: &RunOutcome,
     quarantine: Option<serde_json::Value>,
+    memory: nika_dap::memory::MemoryAttend,
 ) -> nika_dap::seal::SealTeardown {
     let mut teardown = nika_dap::seal::SealTeardown::new();
     teardown.proves = nika_runtime::proof::ir::semantic_ir_hash(wf).map(|h| h.as_hex().to_owned());
@@ -126,8 +126,10 @@ fn teardown_fold(
             .into(),
     );
     teardown.effects = Some(serde_json::Value::Object(effects));
-    // F-P14 · la dette du run: the failure lane's quarantine fold rides
-    // verbatim (`None` keeps the key OUT — absent is honest).
+    // F-P8 + F-P14 · the memory + quarantine folds ride verbatim (`None`
+    // keeps each key OUT — absent is honest · la dette du run).
+    teardown.memory = memory.fold;
+    teardown.memory_rejected = memory.rejected;
     teardown.quarantine = quarantine;
     teardown
 }
@@ -161,7 +163,13 @@ mod tests {
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
-        let td = teardown_fold(&wf, &report, &outcome, None);
+        let td = teardown_fold(
+            &wf,
+            &report,
+            &outcome,
+            None,
+            nika_dap::memory::MemoryAttend::default(),
+        );
         let budgets = td.budgets.expect("the budgets fold rides");
         assert!(
             budgets.get("spent_usd").is_none(),
@@ -191,7 +199,13 @@ mod tests {
         let mut outcome = RunOutcome::new(true, records, BTreeMap::new());
         outcome.total_cost_usd = Some(0.5);
         outcome.priced_calls = 1;
-        let td = teardown_fold(&wf, &report, &outcome, None);
+        let td = teardown_fold(
+            &wf,
+            &report,
+            &outcome,
+            None,
+            nika_dap::memory::MemoryAttend::default(),
+        );
         let effects = td.effects.expect("the effects fold rides");
         assert_eq!(
             effects["exercised"], 3,
@@ -215,7 +229,13 @@ mod tests {
             "dir": ".nika/quarantine/2026-07-29T13-40-01Z-a3f2",
             "outputs": [{ "path": "out.txt", "quarantined_to": ".nika/quarantine/2026-07-29T13-40-01Z-a3f2/out.txt" }],
         });
-        let td = teardown_fold(&wf, &report, &outcome, Some(fold.clone()));
+        let td = teardown_fold(
+            &wf,
+            &report,
+            &outcome,
+            Some(fold.clone()),
+            nika_dap::memory::MemoryAttend::default(),
+        );
         assert_eq!(
             td.quarantine.as_ref(),
             Some(&fold),
@@ -234,7 +254,95 @@ mod tests {
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
-        let td = teardown_fold(&wf, &report, &outcome, None);
+        let td = teardown_fold(
+            &wf,
+            &report,
+            &outcome,
+            None,
+            nika_dap::memory::MemoryAttend::default(),
+        );
         assert!(td.quarantine.is_none(), "absent is honest");
+    }
+
+    /// F-P8 · the signed-memory fold: a tempdir store with ONE admitted
+    /// entry and ONE tampered entry folds to `{store, admitted: [digest],
+    /// rejected: 1}` and rides the teardown VERBATIM (the seal's
+    /// `extend_covers` places it under `covers["memory"]`).
+    #[test]
+    fn the_memory_fold_counts_the_admitted_set_and_the_rejected() {
+        let pair = minisign::KeyPair::generate_encrypted_keypair(Some(String::new()))
+            .expect("keypair mints");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path().join(nika_store::MEMORY_ROOT);
+        let dir = nika_store::store_dir(&root, "default").expect("the store dir");
+        let honest = nika_store::remember_signed(
+            &dir,
+            nika_store::UnsignedEntry::new(
+                serde_json::json!({"content": "a fact the run signed"}),
+                nika_cap::Integrity::untrusted("fetch_page"),
+                "default".to_owned(),
+                "run-1".to_owned(),
+                1_700_000_000_000,
+            ),
+            &pair.sk,
+        )
+        .expect("the honest write lands");
+        // The tamper: one byte flipped in the entry file's content field
+        // (an out-of-engine edit — rejected, never admitted).
+        let path = dir.join(nika_store::entry_file_name(&honest));
+        let text = std::fs::read_to_string(&path).expect("the entry reads");
+        std::fs::write(&path, text.replacen("a fact", "a fAct", 1)).expect("the edit lands");
+
+        let fold = nika_store::seal_fold(&root, &pair.pk).expect("a store folds");
+        assert_eq!(fold["v"], serde_json::json!(1), "the fold is versioned");
+        assert_eq!(fold["stores"][0]["store"], serde_json::json!("default"));
+        assert_eq!(
+            fold["stores"][0]["admitted"],
+            serde_json::json!([]),
+            "the tampered entry never rides the admitted set"
+        );
+        assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(1));
+
+        let wf = parsed(
+            "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        );
+        let report = nika_check::check(&wf);
+        let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
+        // The fold AND its named rejections travel together (the seal
+        // side journals each rejection BEFORE the seal — the fold and
+        // its names can never disagree).
+        let mut attend = nika_dap::memory::MemoryAttend::default();
+        attend.fold = Some(fold.clone());
+        attend.rejected = vec![nika_dap::memory::RejectedEntry::new(
+            "default".to_owned(),
+            path.clone(),
+            "bad_signature".to_owned(),
+        )];
+        let td = teardown_fold(&wf, &report, &outcome, None, attend);
+        assert_eq!(
+            td.memory.as_ref(),
+            Some(&fold),
+            "the fold reaches the seal untouched"
+        );
+        assert_eq!(td.memory_rejected.len(), 1);
+        assert_eq!(td.memory_rejected[0].reason, "bad_signature");
+        assert_eq!(td.memory_rejected[0].store, "default");
+    }
+
+    /// The absent-is-honest posture, F-P8 side: a CWD with no
+    /// `.nika/memory/` attests NOTHING — `nika_dap::memory::attend`
+    /// returns an empty attendance (no fold · no named rejection) without
+    /// ever probing the key custody (the short-circuit runs first), and
+    /// the teardown keeps the key OUT. (The bare-root case rides
+    /// nika-store's own empty-states test — exercising it HERE would
+    /// probe the machine's key custody, the popup class `--lib` bans.)
+    #[test]
+    fn a_run_without_a_memory_store_attests_nothing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let attended = nika_dap::memory::attend(Some(tmp.path()));
+        assert!(
+            attended.fold.is_none() && attended.rejected.is_empty(),
+            "no `.nika/memory/` ⇒ no fold · nothing named · no custody probe"
+        );
     }
 }

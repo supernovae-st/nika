@@ -1830,6 +1830,87 @@ impl<T> typenum::type_operators::Same for nika_dap::journal::TraceFileSink
 pub type nika_dap::journal::TraceFileSink::Output = T
 pub fn nika_dap::journal::seal_journal(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>) -> bool
 pub fn nika_dap::journal::seal_journal_with(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>, teardown: core::option::Option<&nika_dap::seal::SealTeardown>) -> bool
+pub mod nika_dap::memory
+#[non_exhaustive] pub struct nika_dap::memory::MemoryAttend
+pub nika_dap::memory::MemoryAttend::fold: core::option::Option<serde_json::value::Value>
+pub nika_dap::memory::MemoryAttend::rejected: alloc::vec::Vec<nika_dap::memory::RejectedEntry>
+impl core::default::Default for nika_dap::memory::MemoryAttend
+pub fn nika_dap::memory::MemoryAttend::default() -> nika_dap::memory::MemoryAttend
+impl core::fmt::Debug for nika_dap::memory::MemoryAttend
+pub fn nika_dap::memory::MemoryAttend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::memory::MemoryAttend
+impl<T, U> core::convert::Into<U> for nika_dap::memory::MemoryAttend where U: core::convert::From<T>
+pub fn nika_dap::memory::MemoryAttend::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::memory::MemoryAttend where U: core::convert::Into<T>
+pub type nika_dap::memory::MemoryAttend::Error = core::convert::Infallible
+pub fn nika_dap::memory::MemoryAttend::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::memory::MemoryAttend where U: core::convert::TryFrom<T>
+pub type nika_dap::memory::MemoryAttend::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::memory::MemoryAttend::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::memory::MemoryAttend where T: 'static + ?core::marker::Sized
+pub fn nika_dap::memory::MemoryAttend::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::memory::MemoryAttend where T: ?core::marker::Sized
+pub fn nika_dap::memory::MemoryAttend::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::memory::MemoryAttend where T: ?core::marker::Sized
+pub fn nika_dap::memory::MemoryAttend::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::memory::MemoryAttend
+pub fn nika_dap::memory::MemoryAttend::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::memory::MemoryAttend where T: 'static
+pub fn nika_dap::memory::MemoryAttend::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::memory::MemoryAttend where T: ?core::marker::Sized
+pub fn nika_dap::memory::MemoryAttend::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::memory::MemoryAttend::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::memory::MemoryAttend
+impl<T> tracing::instrument::WithSubscriber for nika_dap::memory::MemoryAttend
+impl<T> typenum::type_operators::Same for nika_dap::memory::MemoryAttend
+pub type nika_dap::memory::MemoryAttend::Output = T
+#[non_exhaustive] pub struct nika_dap::memory::RejectedEntry
+pub nika_dap::memory::RejectedEntry::path: std::path::PathBuf
+pub nika_dap::memory::RejectedEntry::reason: alloc::string::String
+pub nika_dap::memory::RejectedEntry::store: alloc::string::String
+impl nika_dap::memory::RejectedEntry
+pub fn nika_dap::memory::RejectedEntry::new(store: alloc::string::String, path: std::path::PathBuf, reason: alloc::string::String) -> Self
+impl core::clone::Clone for nika_dap::memory::RejectedEntry
+pub fn nika_dap::memory::RejectedEntry::clone(&self) -> nika_dap::memory::RejectedEntry
+impl core::fmt::Debug for nika_dap::memory::RejectedEntry
+pub fn nika_dap::memory::RejectedEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::memory::RejectedEntry
+impl<T, U> core::convert::Into<U> for nika_dap::memory::RejectedEntry where U: core::convert::From<T>
+pub fn nika_dap::memory::RejectedEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::memory::RejectedEntry where U: core::convert::Into<T>
+pub type nika_dap::memory::RejectedEntry::Error = core::convert::Infallible
+pub fn nika_dap::memory::RejectedEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::memory::RejectedEntry where U: core::convert::TryFrom<T>
+pub type nika_dap::memory::RejectedEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::memory::RejectedEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::memory::RejectedEntry where T: core::clone::Clone
+pub type nika_dap::memory::RejectedEntry::Owned = T
+pub fn nika_dap::memory::RejectedEntry::clone_into(&self, target: &mut T)
+pub fn nika_dap::memory::RejectedEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::memory::RejectedEntry where T: 'static + ?core::marker::Sized
+pub fn nika_dap::memory::RejectedEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::memory::RejectedEntry where T: ?core::marker::Sized
+pub fn nika_dap::memory::RejectedEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::memory::RejectedEntry where T: ?core::marker::Sized
+pub fn nika_dap::memory::RejectedEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::memory::RejectedEntry where T: core::clone::Clone
+pub unsafe fn nika_dap::memory::RejectedEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::memory::RejectedEntry
+pub fn nika_dap::memory::RejectedEntry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::memory::RejectedEntry where T: core::clone::Clone
+pub fn nika_dap::memory::RejectedEntry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::memory::RejectedEntry where T: 'static
+pub fn nika_dap::memory::RejectedEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::memory::RejectedEntry where T: ?core::marker::Sized
+pub fn nika_dap::memory::RejectedEntry::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::memory::RejectedEntry::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::memory::RejectedEntry
+impl<T> tracing::instrument::WithSubscriber for nika_dap::memory::RejectedEntry
+impl<T> typenum::type_operators::Same for nika_dap::memory::RejectedEntry
+pub type nika_dap::memory::RejectedEntry::Output = T
+pub fn nika_dap::memory::attend(cwd: core::option::Option<&std::path::Path>) -> nika_dap::memory::MemoryAttend
+pub fn nika_dap::memory::journal_rejected(trace: &mut nika_dap::journal::TraceFileSink, rejected: &[nika_dap::memory::RejectedEntry])
+pub fn nika_dap::memory::rejected_event(entry: &nika_dap::memory::RejectedEntry) -> nika_event::event::Event
 pub mod nika_dap::otel
 pub struct nika_dap::otel::ExportOutcome
 pub nika_dap::otel::ExportOutcome::broken_at: core::option::Option<usize>
@@ -2555,6 +2636,8 @@ pub nika_dap::seal::SealTeardown::assertions: alloc::vec::Vec<serde_json::value:
 pub nika_dap::seal::SealTeardown::budgets: core::option::Option<serde_json::value::Value>
 pub nika_dap::seal::SealTeardown::certificate: core::option::Option<serde_json::value::Value>
 pub nika_dap::seal::SealTeardown::effects: core::option::Option<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::memory: core::option::Option<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::memory_rejected: alloc::vec::Vec<nika_dap::memory::RejectedEntry>
 pub nika_dap::seal::SealTeardown::outcome: core::option::Option<alloc::string::String>
 pub nika_dap::seal::SealTeardown::proves: core::option::Option<alloc::string::String>
 pub nika_dap::seal::SealTeardown::quarantine: core::option::Option<serde_json::value::Value>
