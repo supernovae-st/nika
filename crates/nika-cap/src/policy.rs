@@ -6,12 +6,12 @@
 //! Per spec `10-authority.md` · `permits:` bounds capability; `policy:`
 //! bounds ORDER and SHAPE (« no shell after an untrusted fetch » · « a
 //! human signs before anything irreversible » · « only these providers »).
-//! Six families, closed at every level BY THE TYPE (serde
+//! Seven families, closed at every level BY THE TYPE (serde
 //! `deny_unknown_fields` — an unknown family, rule or value never
-//! parses): four hard (`require` · `forbid` · `allow` · `limits` ·
-//! judged at check) and two soft (`prefer` · `optimize` · recorded,
-//! never judged in v1 — a constraint that cannot be judged must never
-//! look judged).
+//! parses): five hard (`require` · `forbid` · `allow` · `limits` ·
+//! `endorsement` · judged at check) and two soft (`prefer` · `optimize`
+//! · recorded, never judged in v1 — a constraint that cannot be judged
+//! must never look judged).
 //!
 //! The judge ([`policy_violations`]) is pure L0: it reads projected
 //! [`PolicySubject`] rows (id · verb · tool · provider pin · direct
@@ -29,7 +29,15 @@ use crate::Permits;
 /// The closed `policy:` family keys (spec 10 §grammar) — the completion
 /// door's vocabulary; serde `deny_unknown_fields` is its enforcing twin
 /// (pinned coherent by test, the two can never drift).
-pub const POLICY_KEYS: &[&str] = &["require", "forbid", "allow", "limits", "prefer", "optimize"];
+pub const POLICY_KEYS: &[&str] = &[
+    "require",
+    "forbid",
+    "allow",
+    "limits",
+    "endorsement",
+    "prefer",
+    "optimize",
+];
 
 /// The human gate: an `invoke:` of this tool (spec 10 · « the pause IS
 /// the consent » · exit 4 · resume with the answer).
@@ -66,6 +74,10 @@ pub struct Policy {
     /// `limits:` — hard · judged at check.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<Limits>,
+    /// `endorsement:` — hard · judged at check (F-P23 · NEP-0014 · the
+    /// named solo mode: a human gate under no declared mode refuses).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endorsement: Option<Endorsement>,
     /// `prefer:` — SOFT · recorded, never judged (v1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefer: Option<Prefer>,
@@ -96,7 +108,7 @@ impl Policy {
                  (spec 10 §policy): families {} · rules require.human_gate_before \
                  [exec·write·net·tools] · forbid.exec_after [exec·write·net·tools] · \
                  allow.providers · limits.max_tasks (≥ 1) · prefer.providers · \
-                 optimize (cost·latency·quality)",
+                 optimize (cost·latency·quality) · endorsement (solo)",
                 POLICY_KEYS.join(" · ")
             )
         })
@@ -264,13 +276,40 @@ impl Objective {
     }
 }
 
+/// The HARD `endorsement:` mode (F-P23 · NEP-0014) — the NAMED solo mode
+/// of endorsement. Declaring `endorsement: solo` claims exactly ONE
+/// endorser (one [`HUMAN_GATE_TOOL`] human gate) whose fresh
+/// authorization is bound to the action and logged as such (that half is
+/// the F-P4 approval machinery, never re-judged here); a gate under NO
+/// declared mode is a refusal (F-F5 fail-closed · zero implicit escape).
+/// Closed at the type (only `solo` in v1) · `kebab-case` on the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum Endorsement {
+    /// `endorsement: solo` — exactly one endorser.
+    Solo,
+}
+
+impl Endorsement {
+    /// The wire name.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Solo => "solo",
+        }
+    }
+}
+
 /// One hard-rule violation (`NIKA-POLICY-001` on the wire — the caller
 /// stamps the code; the diagnostic here names rule + task + witness).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
 pub struct PolicyViolation {
     /// The violated rule (`require.human_gate_before` · `forbid.exec_after`
-    /// · `allow.providers` · `limits.max_tasks`).
+    /// · `allow.providers` · `limits.max_tasks` ·
+    /// `approval.heterogeneous_batch` · `endorsement.undeclared_mode` ·
+    /// `endorsement.solo_count`).
     pub rule: &'static str,
     /// The offending task (`None` for workflow-level rules).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -600,6 +639,62 @@ pub fn approval_batch_violations(policy: &Policy, tasks: &[PolicySubject]) -> Ve
     out
 }
 
+/// F-P23 (NEP-0014) — the NAMED SOLO MODE of endorsement. A workflow
+/// carrying a human gate ([`HUMAN_GATE_TOOL`]) runs under a DECLARED
+/// endorsement mode or refuses: undeclared with ANY gate count ≥ 1 is
+/// the refusal, never just exactly-one (F-F5 fail-closed · zero implicit
+/// escape — one [`PolicyViolation`] per gate, each named). Declaring
+/// `endorsement: solo` claims EXACTLY ONE endorser: more than one gate
+/// and the declaration lies (the count is judged, not trusted — one
+/// workflow-level violation, every gate named). Zero gates with the mode
+/// declared is clean — the claim binds nothing it does not name. The
+/// « fresh authorization bound to the action, logged as such » half is
+/// the F-P4 approval machinery (NEP-0013 · the runtime ticket), never
+/// re-judged here. The wire code is `NIKA-SEC-012` (the findings fold
+/// maps the `endorsement.*` rules there).
+#[must_use]
+pub fn endorsement_solo_violations(
+    policy: &Policy,
+    tasks: &[PolicySubject],
+) -> Vec<PolicyViolation> {
+    let gates: Vec<&PolicySubject> = tasks
+        .iter()
+        .filter(|t| t.tool.as_deref() == Some(HUMAN_GATE_TOOL))
+        .collect();
+    match policy.endorsement {
+        None => gates
+            .iter()
+            .map(|g| PolicyViolation {
+                rule: "endorsement.undeclared_mode",
+                task: Some(g.id.clone()),
+                detail: format!(
+                    "task '{}' · endorsement.undeclared_mode — a human gate runs under a \
+                     DECLARED endorsement mode or refuses (F-F5 · zero implicit escape): \
+                     declare `policy: {{ endorsement: solo }}` (NEP-0014 · F-P23 · \
+                     NIKA-SEC-012)",
+                    g.id
+                ),
+            })
+            .collect(),
+        Some(Endorsement::Solo) if gates.len() > 1 => {
+            let mut names: Vec<&str> = gates.iter().map(|g| g.id.as_str()).collect();
+            names.sort_unstable();
+            vec![PolicyViolation {
+                rule: "endorsement.solo_count",
+                task: None,
+                detail: format!(
+                    "endorsement.solo_count — `endorsement: solo` declares ONE endorser, \
+                     the workflow carries {} human gates ({}) · the declaration must not \
+                     lie (NEP-0014 · F-P23 · NIKA-SEC-012)",
+                    gates.len(),
+                    names.join(" · ")
+                ),
+            }]
+        }
+        Some(Endorsement::Solo) => Vec::new(),
+    }
+}
+
 /// The certificate's AUTHORITY projection (spec 10 §the certificate
 /// names its effects) — a projection, never a judge: the check ladder
 /// stays the one truth, this field exists so a certificate consumer
@@ -653,6 +748,7 @@ mod tests {
             "limits":  { "max_tasks": 50 },
             "prefer":  { "providers": ["ollama"] },
             "optimize": "cost",
+            "endorsement": "solo",
         }))
         .expect("the spec's own example parses");
         assert_eq!(
@@ -662,6 +758,7 @@ mod tests {
         assert_eq!(p.forbid.unwrap().exec_after, Some(vec![EffectClass::Net]));
         assert_eq!(p.limits.unwrap().max_tasks, Some(50));
         assert_eq!(p.optimize, Some(Objective::Cost));
+        assert_eq!(p.endorsement, Some(Endorsement::Solo));
     }
 
     #[test]
@@ -696,16 +793,19 @@ mod tests {
         // refused — POLICY_KEYS/policy_child_keys and deny_unknown_fields
         // are the SAME closed set.
         for family in POLICY_KEYS {
-            let value = if *family == "optimize" {
-                json!({ "optimize": "cost" })
-            } else {
-                let rule = policy_child_keys(family).expect("every mapping family has rules")[0];
-                let inner = if rule == "max_tasks" {
-                    json!({ rule: 1 })
-                } else {
-                    json!({ rule: [] })
-                };
-                json!({ *family: inner })
+            let value = match *family {
+                "optimize" => json!({ "optimize": "cost" }),
+                "endorsement" => json!({ "endorsement": "solo" }),
+                mapping => {
+                    let rule =
+                        policy_child_keys(mapping).expect("every mapping family has rules")[0];
+                    let inner = if rule == "max_tasks" {
+                        json!({ rule: 1 })
+                    } else {
+                        json!({ rule: [] })
+                    };
+                    json!({ mapping: inner })
+                }
             };
             Policy::from_value(value).expect("door-offered key parses");
         }
@@ -720,6 +820,9 @@ mod tests {
         assert!(p.has_soft_families());
         let p = Policy::from_value(json!({ "optimize": "latency" })).unwrap();
         assert!(p.has_soft_families());
+        // endorsement is HARD (judged at check) — never a soft family
+        let p = Policy::from_value(json!({ "endorsement": "solo" })).unwrap();
+        assert!(!p.has_soft_families());
     }
 
     // ── the coarse class table (one voice with deep_static.py) ──────
@@ -939,6 +1042,102 @@ mod tests {
         assert_eq!(v.len(), 1, "the reachable tainted ancestor still reports");
     }
 
+    // ── F-P23 (NEP-0014) · the named solo mode of endorsement ────────
+
+    #[test]
+    fn endorsement_solo_parses_and_unknown_modes_are_refused() {
+        let p = Policy::from_value(json!({ "endorsement": "solo" })).expect("the v1 mode parses");
+        assert_eq!(p.endorsement, Some(Endorsement::Solo));
+        // an unknown mode refuses — the teaching names the only v1 mode
+        let e = Policy::from_value(json!({ "endorsement": "quorum" }))
+            .expect_err("quorum is not a v1 mode");
+        assert!(e.contains("endorsement (solo)"), "{e}");
+        // an unknown sibling key still refuses (deny_unknown_fields)
+        let e = Policy::from_value(json!({ "endorsement": "solo", "endorsers": 2 }))
+            .expect_err("unknown key near it");
+        assert!(e.contains("closed per minor"), "{e}");
+    }
+
+    #[test]
+    fn one_gate_undeclared_is_refused_naming_the_gate_and_the_fix() {
+        let v = endorsement_solo_violations(
+            &Policy::new(),
+            &[subject("human", "invoke", Some("nika:prompt"))],
+        );
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "endorsement.undeclared_mode");
+        assert_eq!(v[0].task.as_deref(), Some("human"));
+        assert!(
+            v[0].detail
+                .contains("declare `policy: { endorsement: solo }`"),
+            "the fix is taught: {}",
+            v[0].detail
+        );
+    }
+
+    #[test]
+    fn every_gate_undeclared_refuses_not_just_exactly_one() {
+        // F-F5 fail-closed — two gates undeclared is a refusal per gate
+        // (zero implicit escape), each naming its task.
+        let v = endorsement_solo_violations(
+            &Policy::new(),
+            &[
+                subject("first", "invoke", Some("nika:prompt")),
+                subject("second", "invoke", Some("nika:prompt")),
+            ],
+        );
+        assert_eq!(v.len(), 2);
+        assert!(v.iter().all(|x| x.rule == "endorsement.undeclared_mode"));
+        assert_eq!(v[0].task.as_deref(), Some("first"));
+        assert_eq!(v[1].task.as_deref(), Some("second"));
+    }
+
+    #[test]
+    fn declared_solo_with_one_gate_is_clean() {
+        let policy = Policy::from_value(json!({ "endorsement": "solo" })).unwrap();
+        let v = endorsement_solo_violations(
+            &policy,
+            &[subject("human", "invoke", Some("nika:prompt"))],
+        );
+        assert!(v.is_empty(), "one endorser + the declared solo: {v:?}");
+    }
+
+    #[test]
+    fn declared_solo_with_two_gates_lies() {
+        let policy = Policy::from_value(json!({ "endorsement": "solo" })).unwrap();
+        let v = endorsement_solo_violations(
+            &policy,
+            &[
+                subject("first", "invoke", Some("nika:prompt")),
+                subject("second", "invoke", Some("nika:prompt")),
+            ],
+        );
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "endorsement.solo_count");
+        assert_eq!(v[0].task, None, "workflow-level — the claim is judged");
+        assert!(
+            v[0].detail.contains("first") && v[0].detail.contains("second"),
+            "both gates named: {}",
+            v[0].detail
+        );
+    }
+
+    #[test]
+    fn declared_solo_with_zero_gates_binds_nothing() {
+        let policy = Policy::from_value(json!({ "endorsement": "solo" })).unwrap();
+        assert!(
+            endorsement_solo_violations(&policy, &[subject("act", "exec", None)]).is_empty(),
+            "no gate — the claim binds nothing it does not name"
+        );
+    }
+
+    #[test]
+    fn undeclared_with_zero_gates_judges_nothing() {
+        assert!(
+            endorsement_solo_violations(&Policy::new(), &[subject("act", "exec", None)]).is_empty()
+        );
+    }
+
     #[test]
     fn cert_effects_serializes_the_spec_shape() {
         let e = CertEffects::new(true, Permits::new(), 0);
@@ -967,5 +1166,7 @@ mod tests {
         assert_eq!(Objective::Cost.as_str(), "cost");
         assert_eq!(Objective::Latency.as_str(), "latency");
         assert_eq!(Objective::Quality.as_str(), "quality");
+
+        assert_eq!(Endorsement::Solo.as_str(), "solo");
     }
 }

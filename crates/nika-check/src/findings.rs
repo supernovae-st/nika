@@ -241,12 +241,15 @@ fn fold_permit_taints(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
 /// The hard-`policy:` class (spec 10 · NIKA-POLICY-001) — the detail
 /// already names rule + task + witness. F-P4: the `approval.*` rules
 /// (NEP-0013) speak the approval-capability code NIKA-SEC-010, not the
-/// policy-lane code.
+/// policy-lane code. F-P23: the `endorsement.*` rules (NEP-0014) speak
+/// NIKA-SEC-012.
 fn fold_policy_findings(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
     for p in &report.policy_findings {
         let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
         let code = if p.rule.starts_with("approval.") {
             "NIKA-SEC-010"
+        } else if p.rule.starts_with("endorsement.") {
+            "NIKA-SEC-012"
         } else {
             "NIKA-POLICY-001"
         };

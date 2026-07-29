@@ -266,9 +266,10 @@ pub struct CheckReport {
     /// run twin (`NIKA-SEC-004` · law 3). Additive: `report_version`
     /// stays 1.
     pub sink_findings: Vec<SinkFinding>,
-    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` —
-    /// judged on the derived graph, so empty when `conformance` has
-    /// entries). Additive: `report_version` stays 1.
+    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` ·
+    /// the approval batch speaks `NIKA-SEC-010` · the endorsement mode
+    /// `NIKA-SEC-012` — judged on the derived graph, so empty when
+    /// `conformance` has entries). Additive: `report_version` stays 1.
     pub policy_findings: Vec<nika_cap::PolicyViolation>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
@@ -432,12 +433,15 @@ impl CheckReport {
         let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
         codes.extend(self.sink_findings.iter().map(|_| sink_code));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
-        // approval rules (NEP-0013) → NIKA-SEC-010 (one lane, two voices —
-        // the rule prefix discriminates, same as the findings fold).
+        // approval rules (NEP-0013) → NIKA-SEC-010 · the F-P23 endorsement
+        // rules (NEP-0014) → NIKA-SEC-012 (one lane, three voices — the
+        // rule prefix discriminates, same as the findings fold).
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
         codes.extend(self.policy_findings.iter().map(|p| {
             if p.rule.starts_with("approval.") {
                 SpecCode::new("SEC", 10, SpecCategory::SecurityError)
+            } else if p.rule.starts_with("endorsement.") {
+                SpecCode::new("SEC", 12, SpecCategory::SecurityError)
             } else {
                 policy_code
             }

@@ -15,10 +15,10 @@ use crate::analyzer::Edge;
 use nika_schema::expression::scan_templates;
 use nika_schema::raw::{RawAction, RawWorkflow};
 
-/// Judge the hard `policy:` families (require · forbid · allow · limits)
-/// over the derived edges. The caller gates on a valid DAG — the order
-/// rules read ancestors, so an unanalyzable workflow yields NO claim
-/// (skipped, never wrong · the IFC/gate-lane precedent).
+/// Judge the hard `policy:` families (require · forbid · allow · limits
+/// · endorsement) over the derived edges. The caller gates on a valid
+/// DAG — the order rules read ancestors, so an unanalyzable workflow
+/// yields NO claim (skipped, never wrong · the IFC/gate-lane precedent).
 pub(super) fn scan_policy(wf: &RawWorkflow, edges: &[Edge]) -> Vec<PolicyViolation> {
     let Some(policy) = wf.policy.as_ref() else {
         return Vec::new();
@@ -53,6 +53,13 @@ pub(super) fn scan_policy(wf: &RawWorkflow, edges: &[Edge]) -> Vec<PolicyViolati
     // projection (declared `require.human_gate_before` only · the judge
     // itself is inert without it).
     violations.extend(nika_cap::approval_batch_violations(
+        &policy.value,
+        &subjects,
+    ));
+    // F-P23 (NEP-0014) — the named solo mode rides the same projection:
+    // a human gate under no declared endorsement mode refuses (F-F5
+    // fail-closed), and a declared solo with more than one gate lies.
+    violations.extend(nika_cap::endorsement_solo_violations(
         &policy.value,
         &subjects,
     ));
@@ -109,7 +116,7 @@ mod tests {
         assert!(f.detail.contains("no nika:prompt ancestor"), "{}", f.detail);
 
         let gated = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(gated.is_clean(), "{:?}", gated.policy_findings);
     }
@@ -272,7 +279,7 @@ mod tests {
     #[test]
     fn approval_batch_heterogeneous_is_refused_with_the_approval_code() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n  page:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n",
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n  page:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n",
         );
         assert!(!r.is_clean());
         let batch: Vec<_> = r
@@ -315,7 +322,7 @@ mod tests {
     #[test]
     fn approval_batch_homogeneous_is_clean() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  one:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  two:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"b\"] }\n",
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  one:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  two:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"b\"] }\n",
         );
         assert!(r.is_clean(), "{:?}", r.policy_findings);
     }
@@ -384,5 +391,108 @@ mod tests {
             .map(ToString::to_string)
             .collect();
         assert!(codes.contains(&"NIKA-POLICY-001".to_owned()), "{codes:?}");
+    }
+
+    // ── F-P23 (NEP-0014) · the named solo mode of endorsement ────────
+
+    /// A human gate under a declared `policy:` block that names NO
+    /// endorsement mode refuses at check (F-F5 fail-closed) — the wire
+    /// code is NIKA-SEC-012 (never the policy-lane code) and the row
+    /// folds into findings[] like every `PolicyViolation`.
+    #[test]
+    fn endorsement_undeclared_with_a_gate_is_refused_with_the_sec_code() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits: { max_tasks: 5 }\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        );
+        assert!(!r.is_clean());
+        assert_eq!(
+            r.policy_findings.len(),
+            1,
+            "the endorsement refusal is the only claim: {:?}",
+            r.policy_findings
+        );
+        let f = &r.policy_findings[0];
+        assert_eq!(f.rule, "endorsement.undeclared_mode");
+        assert_eq!(f.task.as_deref(), Some("human"), "the gate is named");
+        assert!(
+            f.detail.contains("declare `policy: { endorsement: solo }`"),
+            "the fix is taught: {}",
+            f.detail
+        );
+        // The unified fold speaks NIKA-SEC-012 (NEP-0014), never the
+        // spec-10 policy code — same discrimination as the approval batch.
+        let u = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "policy" && f.message.contains("endorsement.undeclared_mode"))
+            .expect("the endorsement row in findings[]");
+        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-012"));
+        assert_eq!(
+            u.docs_url.as_deref(),
+            Some("https://nika.sh/errors/NIKA-SEC-012")
+        );
+        assert!(
+            r.extra_conformance_codes()
+                .iter()
+                .any(|c| c.to_string() == "NIKA-SEC-012"),
+            "the codes surface speaks it too"
+        );
+    }
+
+    /// The positive half of the law: the declared solo + ONE gate (the
+    /// F-P4 approval machinery carries the bound-logged authorization) —
+    /// PASS, nothing to judge.
+    #[test]
+    fn endorsement_solo_declared_with_one_gate_is_clean() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        );
+        assert!(r.is_clean(), "{:?}", r.policy_findings);
+    }
+
+    /// A declared solo with TWO gates is the declaration lying — refused
+    /// as `endorsement.solo_count` (workflow-level: no task witness), in
+    /// the same NIKA-SEC-012 voice.
+    #[test]
+    fn endorsement_solo_with_two_gates_is_the_declaration_lying() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        );
+        assert!(!r.is_clean());
+        assert_eq!(
+            r.policy_findings.len(),
+            1,
+            "the count lie is the only claim: {:?}",
+            r.policy_findings
+        );
+        let f = &r.policy_findings[0];
+        assert_eq!(f.rule, "endorsement.solo_count");
+        assert_eq!(f.task, None, "workflow-level — the claim is judged");
+        assert!(
+            f.detail.contains("first") && f.detail.contains("second"),
+            "both gates named: {}",
+            f.detail
+        );
+        let u = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "policy" && f.message.contains("solo_count"))
+            .expect("the solo_count row in findings[]");
+        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-012"));
+    }
+
+    /// No `policy:` block at all = no named law bound — the lane stays
+    /// out (the vendored templates keep their shape; only a DECLARED
+    /// block triggers the fail-closed mode law).
+    #[test]
+    fn endorsement_lane_is_inert_without_a_policy_block() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        );
+        assert!(
+            r.policy_findings.is_empty(),
+            "no policy block, no claim: {:?}",
+            r.policy_findings
+        );
     }
 }
