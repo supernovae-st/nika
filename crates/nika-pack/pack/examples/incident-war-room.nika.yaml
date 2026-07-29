@@ -54,7 +54,7 @@ inputs:
 const:
   service: "checkout-api"
   log_window: "90 minutes ago"
-  runbook: "./examples/showcase/fixtures/checkout-api-runbook.md"
+  runbook: "./examples/fixtures/checkout-api-runbook.md"
 
 secrets:
   oncall_webhook:
@@ -82,7 +82,7 @@ permits:
     # run starts — but `check` reads straight past a const embedded in a longer
     # string, so it is not declared for you. Written out literally, because a
     # permit bound IS the wall and cannot interpolate (NIKA-AUTH-007).
-    read: ["./examples/showcase/fixtures/checkout-api-runbook.md"]
+    read: ["./examples/fixtures/checkout-api-runbook.md"]
     write: ["./incidents/checkout-api-postmortem.md"]
 
 tasks:

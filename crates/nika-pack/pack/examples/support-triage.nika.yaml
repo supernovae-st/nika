@@ -35,7 +35,7 @@ workflow:
 model: ollama/llama3.2:3b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
 
 const:
-  queue_path: "examples/showcase/fixtures/support-queue.json"
+  queue_path: "examples/fixtures/support-queue.json"
 
 secrets:
   oncall_webhook:
@@ -47,7 +47,7 @@ secrets:
 permits:
   tools: ["nika:jq", "nika:notify", "nika:read", "nika:uuid", "nika:write"]
   fs:
-    read: ["examples/showcase/fixtures/support-queue.json"]
+    read: ["examples/fixtures/support-queue.json"]
     # One board per batch id. `*` matches a single segment and never crosses
     # `/`, so the uuid can never steer the write out of out/ — `out/**` would
     # let it.

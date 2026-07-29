@@ -28,14 +28,14 @@ workflow:
   description: "CSV batch → schema gate → quarantine the bad · aggregate the good"
 
 const:
-  batch_csv: "examples/showcase/fixtures/orders.csv"
+  batch_csv: "examples/fixtures/orders.csv"
 permits:
   tools: ["nika:convert", "nika:jq", "nika:read", "nika:validate", "nika:write"]
   # The batch comes in at ONE path and leaves at TWO · each named exactly.
   # Note what is NOT granted: `out/**` would have handed the whole artifact
   # tree to a pipeline that only ever writes these two files.
   fs:
-    read: ["examples/showcase/fixtures/orders.csv"]
+    read: ["examples/fixtures/orders.csv"]
     write: ["out/quarantine/orders-rejected.json", "out/reports/daily-totals.json"]
 
 tasks:

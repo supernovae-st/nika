@@ -36,7 +36,7 @@ model: ollama/llama3.2:3b
 inputs:
   contract_path:
     type: string
-    default: "examples/showcase/fixtures/contract.md"
+    default: "examples/fixtures/contract.md"
     description: "Path to the contract (markdown or plain text)"
 permits:
   tools: ["nika:assert", "nika:read", "nika:validate", "nika:write"]
@@ -45,7 +45,7 @@ permits:
     # follow `inputs.contract_path` around: passing --var without editing this
     # line is refused at run with NIKA-SEC-004. Deliberate — a reviewer can
     # see every file this workflow may open by reading four words.
-    read: ["examples/showcase/fixtures/contract.md"]
+    read: ["examples/fixtures/contract.md"]
     write: ["out/risk-memo.md"]
 
 tasks:

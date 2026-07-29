@@ -31,7 +31,7 @@ workflow:
 model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
 
 const:
-  transcript: "examples/showcase/fixtures/episode-transcript.txt"
+  transcript: "examples/fixtures/episode-transcript.txt"
 
 permits:
   exec: false
@@ -39,7 +39,7 @@ permits:
   fs:
     # One file in, one page out — each named exactly. `data/**` would have
     # handed a whole tree to a workflow that reads a single transcript.
-    read: ["examples/showcase/fixtures/episode-transcript.txt"]
+    read: ["examples/fixtures/episode-transcript.txt"]
     write: ["out/show-notes.md"]
 
 tasks:

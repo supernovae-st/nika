@@ -29,7 +29,7 @@ workflow:
   description: "CSV → aggregate → rendered bar chart + markdown report · offline · deterministic"
 
 const:
-  sales_csv: "examples/showcase/fixtures/sales.csv" # columns · region,revenue (revenue a plain number)
+  sales_csv: "examples/fixtures/sales.csv" # columns · region,revenue (revenue a plain number)
 
 permits:
   exec: false
@@ -37,7 +37,7 @@ permits:
   fs:
     # The one CSV this reads, named exactly. `data/**` would have granted a
     # whole tree to a workflow that opens a single file.
-    read: ["examples/showcase/fixtures/sales.csv"]
+    read: ["examples/fixtures/sales.csv"]
     # Two artifacts land here — the SVG and the report page. `**` because the
     # chart and the report are written by two different builtins into the
     # same tree, and both are covered by one honest entry.

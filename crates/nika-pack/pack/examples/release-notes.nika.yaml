@@ -43,7 +43,7 @@ inputs:
 
 const:
   since_tag: "v0.80.0"
-  changelog_src: "examples/showcase/fixtures/CHANGELOG.md" # point this at YOUR CHANGELOG.md
+  changelog_src: "examples/fixtures/CHANGELOG.md" # point this at YOUR CHANGELOG.md
   changelog_out: "out/CHANGELOG.md"                        # the working copy this run edits
 
 secrets:
@@ -64,7 +64,7 @@ permits:
     # `nika:edit` reads the file before it writes it, so a write-only grant
     # is refused with NIKA-SEC-004 · outside permits.fs.read. Every in-place
     # builtin owes both halves.
-    read: ["examples/showcase/fixtures/CHANGELOG.md", "out/CHANGELOG.md"]
+    read: ["examples/fixtures/CHANGELOG.md", "out/CHANGELOG.md"]
     write: ["out/CHANGELOG.md"]
   net:
     # `host_from_self:` above sanctions the FLOW (the secret may be the URL) —

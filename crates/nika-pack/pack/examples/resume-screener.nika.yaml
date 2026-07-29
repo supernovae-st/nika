@@ -40,7 +40,7 @@ const:
   shortlist_size: 5
   # The committed rehearsal inbox. Point this at ./hiring/inbox (or wherever
   # your exports land) and change `permits.fs.read` to match, same edit.
-  cv_glob: "./examples/showcase/fixtures/cvs/*.md"
+  cv_glob: "./examples/fixtures/cvs/*.md"
 
 permits:
   tools: ["nika:glob", "nika:jq", "nika:read", "nika:write"]
@@ -59,8 +59,8 @@ permits:
     # here: CVs land flat in the inbox. `cvs/**` would also work and would
     # additionally hand over every sub-tree someone drops in there.
     read:
-      - "./examples/showcase/fixtures/cvs"      # the directory the glob opens
-      - "./examples/showcase/fixtures/cvs/*"    # the CVs one level inside it
+      - "./examples/fixtures/cvs"      # the directory the glob opens
+      - "./examples/fixtures/cvs/*"    # the CVs one level inside it
     # One brief, one path. Nothing else on this machine is writable by this
     # workflow — not `./hiring/**`, not a sibling of the brief.
     write: ["./hiring/shortlist-brief.md"]

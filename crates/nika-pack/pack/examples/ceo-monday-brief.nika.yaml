@@ -43,7 +43,7 @@ inputs:
     description: "Send the founders ping. OFF by default so a rehearsal touches no webhook."
   kpi_sheet:
     type: string
-    default: "./examples/showcase/fixtures/ceo-kpis.csv"
+    default: "./examples/fixtures/ceo-kpis.csv"
     description: "The weekly numbers · columns incl. weekly_revenue"
 
 const:
@@ -71,7 +71,7 @@ permits:
     # The sheet arrives as an INPUT, so `check` reads past it — and the wall does
     # not move when the input does: point --var kpi_sheet at anything else and the
     # run refuses it NIKA-SEC-004. That asymmetry is the point of a permits block.
-    read: ["./examples/showcase/fixtures/ceo-kpis.csv"]
+    read: ["./examples/fixtures/ceo-kpis.csv"]
     # One dated brief per run, written DIRECTLY in ./briefs/. `*` matches a single
     # segment and never crosses `/`, so nothing here can steer the write into a
     # subtree — which is why this is not `./briefs/**`.

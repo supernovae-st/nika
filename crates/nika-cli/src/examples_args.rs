@@ -16,6 +16,13 @@ use crate::emit;
 pub(crate) enum ExamplesAction {
     /// List the embedded example slugs.
     List,
+    /// Which examples USE a construct — and with no argument, the
+    /// coverage of the whole index, gaps included.
+    Teaches {
+        /// A construct key (`for_each:` · the trailing colon is optional).
+        /// Omit it to see every construct and which are uncovered.
+        construct: Option<String>,
+    },
     /// Print one embedded example.
     Show {
         /// Example slug (from `list`).
@@ -65,6 +72,10 @@ pub(crate) enum ExamplesAction {
 pub(crate) fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
     match action.unwrap_or(ExamplesAction::List) {
         ExamplesAction::List => emit(&verbs::examples::list(plain_theme)),
+        ExamplesAction::Teaches { construct } => emit(&verbs::examples::teaches_verb(
+            construct.as_deref(),
+            plain_theme,
+        )),
         ExamplesAction::Show { slug } => emit(&verbs::examples::show(&slug, plain_theme)),
         ExamplesAction::Copy { slug, dest, force } => emit(&verbs::examples::copy(
             &slug,

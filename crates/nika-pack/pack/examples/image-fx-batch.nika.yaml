@@ -29,7 +29,7 @@ const:
   # Two sample photos ship with the repo. Point this at your own folder and
   # move `permits.fs.read` with it — a const is baked in, never caller-supplied,
   # so the two lines stay in step by editing, not by magic.
-  photos: "examples/showcase/fixtures/photos"
+  photos: "examples/fixtures/photos"
 
 permits:
   exec: false
@@ -44,7 +44,7 @@ permits:
     # (it matches no literal the body names) and the glob is refused at run.
     # `**` covers the directory AND every descendant, so one entry is honest
     # here; `["…/photos", "…/photos/*.png"]` is the two-entry equivalent.
-    read: ["examples/showcase/fixtures/photos/**"]
+    read: ["examples/fixtures/photos/**"]
     # The renders land FLAT in one directory, so `*` is enough: it matches a
     # single path segment and never crosses `/`, which means a photo whose
     # name contained a slash could not steer a write into a subtree.

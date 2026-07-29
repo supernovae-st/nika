@@ -40,7 +40,7 @@ const:
   lang: "fr"
   # The committed rehearsal tree. Point this at ./docs (or wherever yours
   # lives) and change `permits.fs.read` to match, in the same edit.
-  source_root: "./examples/showcase/fixtures/docs"
+  source_root: "./examples/fixtures/docs"
 
 permits:
   tools: ["nika:glob", "nika:jq", "nika:read", "nika:write"]
@@ -50,7 +50,7 @@ permits:
     # dir itself and any descendant at any depth). A bound naming only the
     # `.md` files refuses the glob before it lists anything:
     # `NIKA-SEC-004 · ./examples/…/docs resolves outside permits.fs.read`.
-    read: ["./examples/showcase/fixtures/docs/**"]
+    read: ["./examples/fixtures/docs/**"]
     # The mirror is as deep as the source tree, so this one earns its `**`:
     # every locale lands under ./i18n/ and nothing lands outside it. Naming
     # the locale (`./i18n/fr/**`) would be tighter but would have to be

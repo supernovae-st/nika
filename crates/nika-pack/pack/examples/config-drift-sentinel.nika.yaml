@@ -54,7 +54,7 @@ const:
   # The committed rehearsal baseline. Point this at your real intended state
   # and change `permits.fs.read` in the same edit — a permit is a literal you
   # can read, it cannot interpolate a const (`NIKA-AUTH-007`).
-  baseline_path: "./examples/showcase/fixtures/config-baseline.json"
+  baseline_path: "./examples/fixtures/config-baseline.json"
 
   # Sanctioned drift · an RFC 7396 merge patch applied to the baseline before
   # the diff. `{}` means « nothing is pre-approved ».
@@ -104,7 +104,7 @@ permits:
     # Read-only by design: a drift sentinel OBSERVES prod, it never edits it.
     # There is no `write:` key at all, so every path on this machine is denied
     # for writes — the baseline is the one file this workflow may open.
-    read: ["./examples/showcase/fixtures/config-baseline.json"]
+    read: ["./examples/fixtures/config-baseline.json"]
 
 tasks:
   # ── what prod says it is · as BYTES ────────────────────────────────

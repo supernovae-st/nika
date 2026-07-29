@@ -30,12 +30,12 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large
 const:
   # The sample post ships with the repo. Point this at your own and move the
   # read permit with it — `permits:` cannot interpolate (NIKA-AUTH-007).
-  post_path: "examples/showcase/fixtures/launch-post.md"
+  post_path: "examples/fixtures/launch-post.md"
 permits:
   tools: ["nika:read", "nika:write"]
   # One file in, one file out · each named exactly, no subtree granted.
   fs:
-    read: ["examples/showcase/fixtures/launch-post.md"]
+    read: ["examples/fixtures/launch-post.md"]
     write: ["out/social-bundle.md"]
 
 tasks:

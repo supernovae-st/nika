@@ -30,14 +30,14 @@ workflow:
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
 
 const:
-  ledger_csv: "examples/showcase/fixtures/invoices.csv"
+  ledger_csv: "examples/fixtures/invoices.csv"
 permits:
   tools: ["nika:convert", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
   fs:
     # Two files, both spelled out — `const.ledger_csv` in, the drafts file
     # out. A const is baked in and a run cannot move it, so the boundary is
     # exact: no glob, and nothing else on disk is reachable either way.
-    read: ["examples/showcase/fixtures/invoices.csv"]
+    read: ["examples/fixtures/invoices.csv"]
     write: ["out/reminders-to-send.md"]
 
 tasks:
