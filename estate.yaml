@@ -98,7 +98,7 @@ files:
   evidence: "the authored rules for the media lanes ('No fake commands · No fake output · budgets · Never edit exports by hand')"
 - path: "scripts/estate.py"
   class: authored
-  sha256: 813dbb99a2be46a6d1709346b46c0ffa3a2b8717b7d9cb8e183a35b096770b6d
+  sha256: e969a7fcbcb573fcd06e4aae41e8b4faa88f19415a20ec42e0ceb464ca964a27
   evidence: "hand-written estate projector (this manifest's generator)"
 patterns:
 - glob: "crates/nika-pack/pack/**"
