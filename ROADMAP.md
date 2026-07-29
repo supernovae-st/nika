@@ -654,12 +654,12 @@ Per D-2026-05-22-N18.)
 - Getting started, concepts, guides, reference
 - 2-tab navigation (Guide / Reference), live snapshot of workspace state
 
-**`nika-design-skill`** (Claude Code Skill, v0.1.0 AGPL-3.0):
-- Consumed by nika.sh via git submodule
-- Design tokens (colors, typography, spacing, motion)
-- Voice guide (internal narrative locked separately)
-- Anti-slop firewall (forbidden patterns)
-- Canonical repo #6
+**Agent skill surface** ([`supernovae-st/nika-agents`](https://github.com/supernovae-st/nika-agents)):
+- The public skill + read-only MCP oracle ("make your AI agent a Nika expert")
+- Design tokens + motion ride the spec SSOT (`nika-spec` `design/`,
+  vendored into the engine pack by `scripts/sync-pack.sh`)
+- Replaces the og-era `nika-design-skill` row — that repo is retired
+  (private archive), and its public link here was the last dead one
 
 ### Native API adapters (7 builtins)
 
