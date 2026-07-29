@@ -12,6 +12,12 @@ model: mock/echo            # offline demo path · swap for any provider
 const:
   transcript_path: "scripts/media/fixtures/sample-transcript.txt"
 
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["scripts/media/fixtures/**"]
+    write: ["./action-items.json"]
+
 tasks:
   transcript:
     invoke:

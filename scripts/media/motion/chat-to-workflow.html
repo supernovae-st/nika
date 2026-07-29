@@ -112,9 +112,10 @@
 <span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">v1</span></span>
 <span class="ln"><span class="k">workflow</span><span class="d">:</span></span>
 <span class="ln">  <span class="k">id</span><span class="d">:</span> <span class="s">meeting-actions</span></span>
+<span class="ln">  <span class="k">description</span><span class="d">:</span> <span class="s">"Transcript → typed action items"</span></span>
 <span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
 <span class="ln sync" id="yl-transcript">  <span class="k">transcript</span><span class="d">:</span></span>
-<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:read"</span><span class="d">, … }</span></span>
+<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:read"</span><span class="d">,</span> <span class="k">args</span><span class="d">:</span> <span class="d">{ … } }</span></span>
 <span class="ln"> </span>
 <span class="ln sync" id="yl-extract">  <span class="k">extract</span><span class="d">:</span></span>
 <span class="ln">    <span class="k">with</span><span class="d">:</span></span>
@@ -127,7 +128,7 @@
 <span class="ln sync" id="yl-save">  <span class="k">save</span><span class="d">:</span></span>
 <span class="ln">    <span class="k">with</span><span class="d">:</span></span>
 <span class="ln">      <span class="k">extract_actions</span><span class="d">:</span> <span class="s">${{ tasks.extract.output.actions }}</span></span>
-<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">, … }</span></span>
+<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">,</span> <span class="k">args</span><span class="d">:</span> <span class="d">{ … } }</span></span>
     </div>
   </div>
 
