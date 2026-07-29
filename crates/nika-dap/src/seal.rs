@@ -907,6 +907,38 @@ mod tests {
         );
     }
 
+    /// Mint a seal with the given teardown and return its parsed
+    /// `covers` — the shared spine of the fold-riding tests.
+    #[cfg(test)]
+    fn mint_and_covers(
+        teardown: &SealTeardown,
+        sk: &minisign::SecretKey,
+        pk: &str,
+    ) -> serde_json::Value {
+        let ev = seal_event_with(
+            EventId::generate(),
+            Timestamp::from_unix_ms(1_700_000_000_000),
+            "ab12cd",
+            142,
+            "wf-hash-7c2a",
+            "0.105.0",
+            Some(teardown),
+            sk,
+            pk,
+        )
+        .expect("the seal mints");
+        let raw = ev
+            .fields
+            .iter()
+            .find(|f| f.key == "covers")
+            .and_then(|f| match &f.value {
+                nika_types::resource::Value::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .expect("covers present");
+        serde_json::from_str(&raw).expect("covers parses")
+    }
+
     /// F-P8 (SMSR signed memory) · the memory fold rides `covers`
     /// additively — the admitted digests + the rejection count — and the
     /// signature verifies over the extended object; a `None` keeps the
@@ -939,17 +971,7 @@ mod tests {
             &pk,
         )
         .expect("the seal mints");
-        let get = |key: &str| {
-            ev.fields
-                .iter()
-                .find(|f| f.key == key)
-                .and_then(|f| match &f.value {
-                    nika_types::resource::Value::String(s) => Some(s.clone()),
-                    _ => None,
-                })
-        };
-        let covers: serde_json::Value =
-            serde_json::from_str(&get("covers").expect("covers present")).expect("covers parses");
+        let covers: serde_json::Value = mint_and_covers(&teardown, &sk, &pk);
 
         // The classic four ride unchanged; the memory fold joins them
         // VERBATIM (the admitted digests AND the rejection count).
@@ -973,6 +995,15 @@ mod tests {
         );
 
         // The signature verifies over the EXTENDED covers.
+        let get = |key: &str| {
+            ev.fields
+                .iter()
+                .find(|f| f.key == key)
+                .and_then(|f| match &f.value {
+                    nika_types::resource::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+        };
         let preimage =
             nika_runtime::proof::preimage(nika_runtime::proof::HashDomain::Trace, 1, &covers);
         let sig_box = minisign::SignatureBox::from_string(&get("sig").expect("sig present"))
@@ -991,30 +1022,7 @@ mod tests {
 
         // The no-fake-zero posture: a teardown WITHOUT the fold seals a
         // covers with no `memory` key at all.
-        let clean = seal_event_with(
-            EventId::generate(),
-            Timestamp::from_unix_ms(1_700_000_000_001),
-            "ab12cd",
-            142,
-            "wf-hash-7c2a",
-            "0.105.0",
-            Some(&SealTeardown::new()),
-            &sk,
-            &pk,
-        )
-        .expect("the seal mints");
-        let covers: serde_json::Value = serde_json::from_str(
-            &clean
-                .fields
-                .iter()
-                .find(|f| f.key == "covers")
-                .and_then(|f| match &f.value {
-                    nika_types::resource::Value::String(s) => Some(s.clone()),
-                    _ => None,
-                })
-                .expect("covers present"),
-        )
-        .expect("covers parses");
+        let covers: serde_json::Value = mint_and_covers(&SealTeardown::new(), &sk, &pk);
         assert!(
             covers.get("memory").is_none(),
             "absent is honest — a run with no memory store attests nothing: {covers}"

@@ -85,7 +85,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 2cf0299b9c392d693a22a0ed703b249ed456d46f6ca5fdfd9379c7edb4ea0e92
+  sha256: 3ac62701d3418b1e26dc52eadb27ec53a783084eaae3bba02049cc22ddcf6901
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -142,7 +142,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 658
-  aggregate_sha256: 0d0817eaf1fe76ba0622c8092a9552d78fda8d6f93ddcae3b2d2181bd3d7171f
+  aggregate_sha256: c2fc3cc9af02888e15a39c721376dbe0c600abaaac42b18ce803063e68b3f0a8
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
