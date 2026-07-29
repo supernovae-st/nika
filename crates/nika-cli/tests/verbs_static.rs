@@ -276,7 +276,7 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
         "the audited card line closes a clean report: {}",
         out.text
     );
-    // mock/echo is unpriced: the cost lane names the uncapped task,
+    // mock/echo is unpriced: the cost lane names the unpriced task,
     // never invents a bound.
     assert!(out.text.contains("UNBOUNDED"), "{}", out.text);
 }

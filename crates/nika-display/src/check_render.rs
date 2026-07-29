@@ -369,7 +369,15 @@ fn writes_rung(out: &mut String, report: &CheckReport, t: Theme) {
         out,
         t,
         "WRITES",
-        "no two unordered tasks write the same path",
+        // « the same path » alone overreached: the scan proves equality
+        // for STATIC keys only (a literal · a bare immutable-authority
+        // ref, resolved or identical) — a computed path can still
+        // collide at run. Measured 2026-07-30: two unordered writers on
+        // the identical `${{ inputs.f }}` — provably the same file,
+        // inputs bind once per run — rendered the old green while the
+        // literal twin was refused; the scan now catches that class,
+        // and the headline names the computed rest it cannot judge.
+        "no two unordered tasks write the same static path · computed paths at run",
         report
             .write_conflicts
             .iter()
@@ -553,6 +561,42 @@ fn hints_and_verdict(
     }
 }
 
+/// The unbounded-cost census, split by WHY (probe 2026-07-30: a capped
+/// local-model task was announced as « 1 uncapped task » — its cap was
+/// already declared; the missing thing was a PRICE. A count that points
+/// at the wrong repair wastes the one edit it asks for). `uncapped` =
+/// no token bound, or an unknown `for_each` count · `unpriced` =
+/// capped, no catalog price · `unbounded child call` = a composed
+/// child carrying uncapped spend of its own (the reason is unknowable
+/// across the composition wall).
+fn unbounded_census(report: &CheckReport) -> String {
+    let (mut uncapped, mut unpriced) = (0usize, 0usize);
+    for c in &report.cost.tasks {
+        match c.unbounded_reason {
+            Some(UnboundedReason::NoPrice) => unpriced += 1,
+            Some(_) => uncapped += 1,
+            None => {}
+        }
+    }
+    let children = report
+        .cost
+        .composed
+        .iter()
+        .filter(|c| c.has_unbounded)
+        .count();
+    let mut parts = Vec::new();
+    if uncapped > 0 {
+        parts.push(crate::vocab::count(uncapped, "uncapped task"));
+    }
+    if unpriced > 0 {
+        parts.push(crate::vocab::count(unpriced, "unpriced task"));
+    }
+    if children > 0 {
+        parts.push(crate::vocab::count(children, "unbounded child call"));
+    }
+    parts.join(" · ")
+}
+
 /// The clean verdict as ONE informative card line — what was proven,
 /// at a glance: `✔ audited · N tasks · M waves · permits <state> ·
 /// est ≥$X · K hints`. The hints themselves stay above; this line
@@ -579,24 +623,9 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
     // Bounded: quote the ceiling the section already computed, with `≤`.
     // Unbounded: no ceiling exists, and no floor is computable either
     // (every bounded task is itself priced at its cap), so claim neither
-    // — name the uncapped tasks instead.
-    let uncapped = report
-        .cost
-        .tasks
-        .iter()
-        .filter(|c| c.unbounded_reason.is_some())
-        .count()
-        + report
-            .cost
-            .composed
-            .iter()
-            .filter(|c| c.has_unbounded)
-            .count();
+    // — name WHAT is unbounded, split by why (unbounded_census).
     let est = if report.cost.has_unbounded {
-        format!(
-            "est unbounded · {}",
-            crate::vocab::count(uncapped, "uncapped task")
-        )
+        format!("est unbounded · {}", unbounded_census(report))
     } else {
         // `out` is the narrowing, and it is the same one the COST section
         // carries three lines up. That section already says "worst-case
@@ -607,7 +636,10 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
         // $0.0075). The card is the line people quote, so it is the line
         // that must not overreach.
         let at_most = crate::vocab::at_most(t.ascii);
-        format!("est out {at_most}${:.4}", report.cost.bounded_total_usd)
+        format!(
+            "est out {at_most}${}",
+            crate::vocab::usd(report.cost.bounded_total_usd)
+        )
     };
     t.paint(
         Role::Good,
@@ -937,12 +969,6 @@ fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit, t: Theme)
 /// explains at `≤$X`. The totals already carry the children; the uncapped
 /// count names the composed half only (no own task exists to count).
 fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
-    let uncapped = report
-        .cost
-        .composed
-        .iter()
-        .filter(|c| c.has_unbounded)
-        .count();
     let calls = crate::vocab::count(report.cost.composed.len(), "composed child call");
     if report.cost.has_unbounded {
         let _ = writeln!(
@@ -953,17 +979,19 @@ fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
             t.paint(
                 Role::Warn,
                 &format!(
-                    "bounded portion ${:.4} · no total ceiling · {} · {} uncapped",
-                    report.cost.bounded_total_usd,
+                    "bounded portion ${} · no total ceiling · {} · {}",
+                    crate::vocab::usd(report.cost.bounded_total_usd),
                     calls,
-                    crate::vocab::count(uncapped, "child")
+                    unbounded_census(report)
                 )
             )
         );
     } else {
         let money = format!(
-            "${:.4} – ${:.4} worst-case output ceiling · {} · own inference $0.00",
-            report.cost.min_path_total_usd, report.cost.bounded_total_usd, calls
+            "${} – ${} worst-case output ceiling · {} · own inference $0.00",
+            crate::vocab::usd(report.cost.min_path_total_usd),
+            crate::vocab::usd(report.cost.bounded_total_usd),
+            calls
         );
         let _ = writeln!(
             out,
@@ -1004,16 +1032,18 @@ fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
 /// The per-task rows of [`cost`] — a priced row at its cap, or the
 /// UNBOUNDED row with its named reason (extracted under the fn-length law).
 fn cost_task_rows(out: &mut String, report: &CheckReport, t: Theme) {
+    let le = crate::vocab::at_most(t.ascii);
     for c in &report.cost.tasks {
         let model = c.model.as_deref().unwrap_or("?");
         match (&c.usd, &c.unbounded_reason) {
-            (Some(usd), _) => {
+            (Some(worst), _) => {
                 let _ = writeln!(
                     out,
-                    "   {}  {}  ≤{} tk  ${usd:.4}",
+                    "   {}  {}  {le}{} tk  ${}",
                     c.task,
                     t.paint(Role::Dim, model),
                     c.max_tokens.unwrap_or(0),
+                    crate::vocab::usd(*worst),
                 );
             }
             (None, reason) => {
@@ -1069,36 +1099,25 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     // (`min_path_total_usd` bounds nothing from below · measured 126× the
     // other way). Same decision as there: claim neither bound, show the
     // only true number (the priced portion), and name the uncapped tasks.
-    let uncapped = report
-        .cost
-        .tasks
-        .iter()
-        .filter(|c| c.unbounded_reason.is_some())
-        .count()
-        + report
-            .cost
-            .composed
-            .iter()
-            .filter(|c| c.has_unbounded)
-            .count();
     let (cost_mark, money, bound) = if report.cost.has_unbounded {
         (
             t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
-            format!("bounded portion ${:.4}", report.cost.bounded_total_usd),
+            format!(
+                "bounded portion ${}",
+                crate::vocab::usd(report.cost.bounded_total_usd)
+            ),
             t.paint(
                 Role::Warn,
-                &format!(
-                    "no total ceiling · {}",
-                    crate::vocab::count(uncapped, "uncapped task")
-                ),
+                &format!("no total ceiling · {}", unbounded_census(report)),
             ),
         )
     } else {
         (
             mark(t, true),
             format!(
-                "${:.4} – ${:.4}",
-                report.cost.min_path_total_usd, report.cost.bounded_total_usd
+                "${} – ${}",
+                crate::vocab::usd(report.cost.min_path_total_usd),
+                crate::vocab::usd(report.cost.bounded_total_usd)
             ),
             "worst-case output ceiling".to_owned(),
         )

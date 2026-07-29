@@ -176,15 +176,7 @@ pub(crate) fn visit_json(value: &serde_json::Value, visit: &mut dyn FnMut(&str))
 /// `default:` — which stays statically unknown: analysis never guesses.
 #[must_use]
 pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serde_json::Value> {
-    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let (authority, name) = ["const.", "inputs.", "config."]
-        .into_iter()
-        .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
-    // A BARE `<authority>.<ident>` only — further navigation or
-    // operators mean the runtime value is not the declared literal.
-    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-        return None;
-    }
+    let (authority, name) = bare_static_ref(expr)?;
     let block = match authority {
         "const." => &wf.consts,
         "inputs." => &wf.inputs,
@@ -198,6 +190,24 @@ pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serd
         } => Some(v),
         VarDecl::Typed { default: None, .. } => None,
     }
+}
+
+/// The parse half of [`static_literal_of`]: a whole-string bare
+/// `${{ <authority>.<ident> }}` over the three IMMUTABLE value
+/// authorities → `(authority-with-dot, name)`. Two identical such refs
+/// denote the same runtime value even when no literal is declared —
+/// inputs bind once per run, const/config never change — which is what
+/// the write-conflict scan keys on. Further navigation (`.field` ·
+/// `[0]`), operators, or a name outside the identifier grammar → `None`.
+pub(crate) fn bare_static_ref(expr: &str) -> Option<(&'static str, &str)> {
+    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
+    let (authority, name) = ["const.", "inputs.", "config."]
+        .into_iter()
+        .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        return None;
+    }
+    Some((authority, name))
 }
 
 /// Resolve an invoke arg to a STATIC string when it is a plain literal

@@ -12,14 +12,18 @@ use nika_check::CheckReport;
 
 use crate::display::vocab::at_most;
 
-/// `≤ N Wh` at a ceiling-honest display grain: a tiny bound rounds UP
-/// to 0.001 — this fragment never prints `0.0 Wh` (a zero would claim
-/// free inference · NEP-0018 « unknown stays unknown »).
+/// `≤ N Wh` at a ceiling-honest display grain: a zero-or-tiny bound
+/// rounds UP to the 0.001 grain — this surface never prints `0.000 Wh`,
+/// even for a declared `max_tokens: 0` (probe 2026-07-30: that shape
+/// rendered `✔ ENERGY ≤ 0.000 Wh` — an arithmetically-true zero that
+/// still speaks the exact « free inference » form NEP-0018 bans; a
+/// loose ceiling is true, a printed zero misleads · the `zero-cap`
+/// hint names the degenerate declaration itself).
 fn fmt_wh(wh: f64) -> String {
     if wh >= 1.0 {
         format!("{wh:.1}")
     } else {
-        format!("{:.3}", (wh * 1000.0).ceil() / 1000.0)
+        format!("{:.3}", ((wh * 1000.0).ceil() / 1000.0).max(0.001))
     }
 }
 
@@ -89,6 +93,51 @@ pub(crate) fn inspect_fragment(report: &CheckReport, ascii: bool) -> Option<Stri
         ))
     } else {
         Some(totals)
+    }
+}
+
+#[cfg(test)]
+mod fmt_tests {
+    use super::{fmt_scope_totals, fmt_wh, scoped_totals};
+
+    fn subs(rows: &[(&str, f64)]) -> Vec<(String, f64)> {
+        rows.iter().map(|(s, w)| ((*s).to_owned(), *w)).collect()
+    }
+
+    /// The display grain is ceiling-honest: rounding is UP, the floor
+    /// of the grain is 0.001, and a ZERO bound still prints 0.001 —
+    /// `0.000` would speak the exact « free inference » form NEP-0018
+    /// bans (probe 2026-07-30: a declared `max_tokens: 0` rendered
+    /// `≤ 0.000 Wh` before the grain gained its floor).
+    #[test]
+    fn fmt_wh_never_prints_zero() {
+        assert_eq!(fmt_wh(0.0), "0.001");
+        assert_eq!(fmt_wh(0.0004), "0.001");
+        assert_eq!(fmt_wh(0.004), "0.004");
+        assert_eq!(fmt_wh(0.087), "0.087");
+        assert_eq!(fmt_wh(2.34), "2.3");
+        assert_eq!(fmt_wh(660.1), "660.1");
+    }
+
+    /// Watt-hours stay partitioned per scope class (a `gpu` and a
+    /// `fleet` figure describe different perimeters — no grand total),
+    /// a single class states the number bare, and the comparison mark
+    /// rides the vocab seam (`≤` · `<=` under `--ascii`).
+    #[test]
+    fn scope_totals_speak_per_class_with_ascii_parity() {
+        let multi = subs(&[("fleet", 4.0), ("gpu", 1.5)]);
+        assert_eq!(
+            fmt_scope_totals(&multi, false),
+            "fleet ≤ 4.0 Wh · gpu ≤ 1.5 Wh"
+        );
+        assert_eq!(
+            fmt_scope_totals(&multi, true),
+            "fleet <= 4.0 Wh · gpu <= 1.5 Wh"
+        );
+        let single = subs(&[("gpu", 0.087)]);
+        assert_eq!(fmt_scope_totals(&single, false), "≤ 0.087 Wh");
+        assert_eq!(scoped_totals(&single, false), "≤ 0.087 Wh (gpu)");
+        assert_eq!(fmt_scope_totals(&[], false), "");
     }
 }
 

@@ -79,8 +79,8 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
         // documents the 126× measurement. Claim neither bound; show the
         // priced portion.
         format!(
-            "est unbounded · bounded portion ${:.4}",
-            report.cost.bounded_total_usd
+            "est unbounded · bounded portion ${}",
+            crate::text::usd(report.cost.bounded_total_usd)
         )
     } else {
         // `est out` + the vocab seam, one voice with the audited card:
@@ -89,9 +89,9 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
         // hardcoded `≤` leaked unicode under `--ascii` (the same class
         // as the verdict glyph the card already fixed).
         format!(
-            "est out {}${:.4}",
+            "est out {}${}",
             crate::display::vocab::at_most(theme.ascii),
-            report.cost.bounded_total_usd
+            crate::text::usd(report.cost.bounded_total_usd)
         )
     };
     // The NEP-0018 §4 aggregate — energy beside cost, same honesty
@@ -184,7 +184,11 @@ fn node_meta(node: &Node) -> String {
         meta.push(model.clone());
     }
     if let Some([min, max]) = node.cost_interval {
-        meta.push(format!("~${min:.4}-{max:.4}"));
+        meta.push(format!(
+            "~${}-{}",
+            crate::text::usd(min),
+            crate::text::usd(max)
+        ));
     }
     if let Some(fan) = &node.fan_out {
         match fan.count {

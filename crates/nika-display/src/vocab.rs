@@ -70,6 +70,23 @@ pub fn count(n: usize, noun: &str) -> String {
     }
 }
 
+/// A USD amount at the 4-decimal display grain, ceiling-honest at the
+/// bottom: a positive amount smaller than the grain rounds UP to
+/// `0.0001` instead of printing `0.0000` — a fabricated zero for money
+/// the run WILL spend (probe 2026-07-30: a couple of output tokens on a
+/// priced model bill real money under an `est out ≤$0.0000` card; the
+/// ENERGY lane's display grain paid for the same lesson first). An
+/// EXACT zero — a provably-never-runs task, a declared zero cap — still
+/// prints `0.0000`: that zero is true.
+#[must_use]
+pub fn usd(amount: f64) -> String {
+    if amount > 0.0 && amount < 0.000_05 {
+        "0.0001".to_owned()
+    } else {
+        format!("{amount:.4}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -10,3 +10,10 @@
 pub(crate) fn count(n: usize, noun: &str) -> String {
     crate::display::vocab::count(n, noun)
 }
+
+/// See [`crate::display::vocab::usd`] — the 4-decimal USD grain,
+/// ceiling-honest at the bottom (`0.0001`, never a fabricated
+/// `0.0000`; an exact zero stays `0.0000`: that zero is true).
+pub(crate) fn usd(amount: f64) -> String {
+    crate::display::vocab::usd(amount)
+}
