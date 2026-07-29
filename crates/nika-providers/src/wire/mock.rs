@@ -30,8 +30,44 @@ use crate::registry::ResolvedProvider;
 /// Deterministic single-shot response — the echo, or (schema attached) a
 /// synthesized conformant instance as PURE JSON (no prefix noise: the
 /// schema instruction demands "ONLY a JSON value", and the mock complies
-/// exactly like a well-behaved model).
+/// exactly like a well-behaved model). The conformance-mock contract the
+/// runtime/agent fixtures' own notes pin: tools granted ⇒ the mock
+/// invokes the FIRST granted tool, every turn, with args synthesized
+/// against the tool's own schema — an agent loop drives offline to its
+/// `done` (002) or its exhaustion (001). No tools offered (or tool use
+/// disabled) ⇒ the plain echo, unchanged.
 pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> InferResponse {
+    let called = match &request.tool_choice {
+        nika_kernel::ai::provider::ToolChoice::None => None,
+        nika_kernel::ai::provider::ToolChoice::Specific(name) => {
+            request.tools.iter().find(|t| &t.name == name)
+        }
+        _ => request.tools.first(),
+    };
+    if let Some(tool) = called {
+        let input = mock_schema::synthesize(&tool.parameters);
+        let echo = last_user_text(request);
+        let text = format!(
+            "mock({model}) · invoke {tool} · the first granted tool, schema-shaped",
+            model = rp.wire_model(),
+            tool = tool.name
+        );
+        let usage = usage_for(&echo, &text);
+        let mut resp = InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: format!("mock-call-{}", request.messages.len()),
+                name: tool.name.clone(),
+                input,
+            }],
+            usage,
+            StopReason::ToolUse,
+        );
+        resp.request_id = Some("mock-request".to_owned());
+        resp.finish_reason_raw = Some("tool_use".to_owned());
+        resp.gen_ai.response_id = resp.request_id.clone();
+        resp.gen_ai.response_model = Some(rp.wire_model().to_owned());
+        return resp;
+    }
     let echo = last_user_text(request);
     let text = match &request.response_format {
         ResponseFormat::JsonSchema(schema) => mock_schema::synthesize(schema).to_string(),
@@ -58,19 +94,32 @@ pub(crate) fn infer_stream<H>(
     request: &InferRequest,
 ) -> InferEventStream {
     let full = infer(rp, request);
-    let text = match full.content.first() {
-        Some(ContentBlock::Text { text }) => text.clone(),
-        _ => String::new(),
-    };
     let mut events = VecDeque::new();
-    for piece in split_in_three(&text) {
-        if !piece.is_empty() {
-            events.push_back(Ok(InferEvent::Delta { text: piece }));
+    if let Some(ContentBlock::ToolUse { id, name, input }) = full.content.first() {
+        // The tool-call turn streams as the wire protocol speaks it:
+        // start · one input delta · usage · done(tool_use).
+        events.push_back(Ok(InferEvent::ToolUseStart {
+            id: id.clone(),
+            name: name.clone(),
+        }));
+        events.push_back(Ok(InferEvent::ToolUseDelta {
+            id: id.clone(),
+            partial_json: input.to_string(),
+        }));
+    } else {
+        let text = match full.content.first() {
+            Some(ContentBlock::Text { text }) => text.clone(),
+            _ => String::new(),
+        };
+        for piece in split_in_three(&text) {
+            if !piece.is_empty() {
+                events.push_back(Ok(InferEvent::Delta { text: piece }));
+            }
         }
     }
     events.push_back(Ok(InferEvent::Usage(full.usage.clone())));
     events.push_back(Ok(InferEvent::Done {
-        stop_reason: StopReason::EndTurn,
+        stop_reason: full.stop_reason,
         request_id: full.request_id.clone(),
         finish_reason_raw: full.finish_reason_raw.clone(),
     }));
@@ -176,6 +225,96 @@ mod tests {
             panic!("expected text");
         };
         assert!(text.starts_with("mock(echo) · "), "{text}");
+    }
+
+    #[test]
+    fn tools_offered_invokes_the_first_granted_tool_schema_shaped() {
+        // The conformance-mock contract (the runtime/agent fixtures' own
+        // note): tools granted ⇒ the mock invokes the FIRST granted tool
+        // every turn, with args synthesized against the tool's own
+        // schema — agent/001 exhausts, agent/002 reaches its done.
+        let rp = resolved();
+        let mut request = req("loop forever");
+        request.tools = vec![
+            nika_kernel::ai::provider::ToolDef::new(
+                "nika:wait",
+                "wait",
+                serde_json::json!({ "type": "object", "required": ["ms"], "properties": { "ms": { "type": "integer" } } }),
+            ),
+            nika_kernel::ai::provider::ToolDef::new(
+                "nika:done",
+                "done",
+                serde_json::json!({ "type": "object" }),
+            ),
+        ];
+        let a = infer(&rp, &request);
+        let ContentBlock::ToolUse { id, name, input } = &a.content[0] else {
+            panic!("expected a tool call, got {:?}", a.content[0]);
+        };
+        assert_eq!(name, "nika:wait", "the FIRST granted tool, always");
+        assert!(input["ms"].is_number(), "schema-shaped args: {input}");
+        assert!(matches!(a.stop_reason, StopReason::ToolUse));
+        // Determinism is the contract — same request, same call id.
+        let b = infer(&rp, &request);
+        let ContentBlock::ToolUse { id: id_b, .. } = &b.content[0] else {
+            panic!("expected a tool call");
+        };
+        assert_eq!(id, id_b, "byte-stable under tools too");
+
+        // Tool use explicitly disabled ⇒ the plain echo, unchanged.
+        let mut off = req("loop forever");
+        off.tool_choice = nika_kernel::ai::provider::ToolChoice::None;
+        off.tools = request.tools.clone();
+        let plain = infer(&rp, &off);
+        let ContentBlock::Text { text } = &plain.content[0] else {
+            panic!("ToolChoice::None must keep the echo");
+        };
+        assert!(text.starts_with("mock(echo) · "), "{text}");
+
+        // A specific choice names its tool, first or not.
+        let mut specific = req("finish");
+        specific.tool_choice =
+            nika_kernel::ai::provider::ToolChoice::Specific("nika:done".to_owned());
+        specific.tools = request.tools;
+        let done = infer(&rp, &specific);
+        let ContentBlock::ToolUse { name, .. } = &done.content[0] else {
+            panic!("expected a tool call");
+        };
+        assert_eq!(name, "nika:done");
+    }
+
+    #[tokio::test]
+    async fn stream_mirrors_the_tool_call() {
+        let rp = resolved();
+        let mut request = req("loop forever");
+        request.tools = vec![nika_kernel::ai::provider::ToolDef::new(
+            "nika:wait",
+            "wait",
+            serde_json::json!({ "type": "object" }),
+        )];
+        let events = collect(infer_stream(&rp, &request)).await;
+        let kinds: Vec<String> = events
+            .iter()
+            .map(|e| match e {
+                Ok(InferEvent::ToolUseStart { name, .. }) => format!("start:{name}"),
+                Ok(InferEvent::ToolUseDelta { partial_json, .. }) => {
+                    format!("delta:{partial_json}")
+                }
+                Ok(InferEvent::Usage(_)) => "usage".to_owned(),
+                Ok(InferEvent::Done { stop_reason, .. }) => format!("done:{stop_reason:?}"),
+                other => format!("other:{other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                "start:nika:wait".to_owned(),
+                "delta:{}".to_owned(),
+                "usage".to_owned(),
+                "done:ToolUse".to_owned()
+            ],
+            "{kinds:?}"
+        );
     }
 
     #[test]
