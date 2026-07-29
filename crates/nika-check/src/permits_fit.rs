@@ -495,70 +495,7 @@ fn check_builtin_effect(
     let tool = tool_ref.value.as_str();
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
-            // A floor-blocked host never gets a boundary escape: either it
-            // is already flagged by `check_net_floor` (and the grant fix
-            // would be a lie — no ordinary entry can admit it), or it is
-            // DECLASSIFIED by an exact loopback literal (#395) — and that
-            // same entry admits the host at the runtime boundary too
-            // (`check_net_allowlist`), so there is nothing to escape.
-            if let Some(host) = judgeable_arg(consts, a, url_arg)
-                .as_deref()
-                .and_then(url_host)
-            {
-                if !nika_types::net::host_is_blocked(&host) && !permits.allows_host(&host) {
-                    out.push(CapabilityEscape {
-                        task: id.to_owned(),
-                        category: "net",
-                        detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
-                        fix: Some(format!("add \"{host}\" to permits.net.http")),
-                        floor: false,
-                        undeclared: false,
-                    });
-                }
-            } else {
-                // WHICH host is unknowable · whether ANY host is granted is not.
-                //
-                // `permits.net.http` empty (or the whole `net:` block absent)
-                // grants zero hosts, so every host lies outside it and the run
-                // CANNOT succeed — a set-emptiness test, decidable without ever
-                // learning the value. Measured 2026-07-29 on a `nika:notify`
-                // whose target is a secret, all three arms of the boundary:
-                //
-                //   net.http absent      check GREEN · run NIKA-SEC-004
-                //   net.http []          check GREEN · run NIKA-SEC-004
-                //   net.http [other]     check GREEN · run NIKA-SEC-004
-                //
-                // Seven shipped showcase files sat in the first two. The third
-                // arm stays silent here and MUST: with a non-empty allowlist the
-                // static pass genuinely does not know whether the runtime host is
-                // in it, and guessing would be the false-refusal this checker
-                // must not make either.
-                //
-                // Per the waiver rule in `lib.rs`, this is the sub-question that
-                // survives « the host is inside a secret, so we cannot judge it ».
-                let grants_nothing = permits.net.as_ref().is_none_or(|n| n.http.is_empty());
-                if grants_nothing {
-                    out.push(CapabilityEscape {
-                        task: id.to_owned(),
-                        category: "net",
-                        detail: format!(
-                            "`{tool}` reaches a host computed at run time, and \
-                             permits.net.http grants none — every host is outside \
-                             an empty allowlist, so the run is refused whatever \
-                             the value turns out to be"
-                        ),
-                        fix: Some(
-                            "add the host to permits.net.http (a secret-borne \
-                             webhook still needs its host named: `egress:` \
-                             sanctions the FLOW, permits.net.http grants the \
-                             CAPABILITY · spec 01-envelope §③)"
-                                .to_owned(),
-                        ),
-                        floor: false,
-                        undeclared: false,
-                    });
-                }
-            }
+            check_net_effect(id, tool, a, permits, consts, url_arg, out);
         }
         Some(BuiltinEffect::Fs {
             path_arg,
@@ -601,6 +538,82 @@ fn check_builtin_effect(
     }
 }
 
+/// The net arm of [`check_builtin_effect`] — one boundary escape per
+/// judgeable host, and the set-emptiness refusal when no host is granted.
+fn check_net_effect(
+    id: &str,
+    tool: &str,
+    a: &RawInvokeAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    url_arg: &'static str,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    // A floor-blocked host never gets a boundary escape: either it
+    // is already flagged by `check_net_floor` (and the grant fix
+    // would be a lie — no ordinary entry can admit it), or it is
+    // DECLASSIFIED by an exact loopback literal (#395) — and that
+    // same entry admits the host at the runtime boundary too
+    // (`check_net_allowlist`), so there is nothing to escape.
+    if let Some(host) = judgeable_arg(consts, a, url_arg)
+        .as_deref()
+        .and_then(url_host)
+    {
+        if !nika_types::net::host_is_blocked(&host) && !permits.allows_host(&host) {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "net",
+                detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
+                fix: Some(format!("add \"{host}\" to permits.net.http")),
+                floor: false,
+                undeclared: false,
+            });
+        }
+    } else {
+        // WHICH host is unknowable · whether ANY host is granted is not.
+        //
+        // `permits.net.http` empty (or the whole `net:` block absent)
+        // grants zero hosts, so every host lies outside it and the run
+        // CANNOT succeed — a set-emptiness test, decidable without ever
+        // learning the value. Measured 2026-07-29 on a `nika:notify`
+        // whose target is a secret, all three arms of the boundary:
+        //
+        //   net.http absent      check GREEN · run NIKA-SEC-004
+        //   net.http []          check GREEN · run NIKA-SEC-004
+        //   net.http [other]     check GREEN · run NIKA-SEC-004
+        //
+        // Seven shipped showcase files sat in the first two. The third
+        // arm stays silent here and MUST: with a non-empty allowlist the
+        // static pass genuinely does not know whether the runtime host is
+        // in it, and guessing would be the false-refusal this checker
+        // must not make either.
+        //
+        // Per the waiver rule in `lib.rs`, this is the sub-question that
+        // survives « the host is inside a secret, so we cannot judge it ».
+        let grants_nothing = permits.net.as_ref().is_none_or(|n| n.http.is_empty());
+        if grants_nothing {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "net",
+                detail: format!(
+                    "`{tool}` reaches a host computed at run time, and \
+                             permits.net.http grants none — every host is outside \
+                             an empty allowlist, so the run is refused whatever \
+                             the value turns out to be"
+                ),
+                fix: Some(
+                    "add the host to permits.net.http (a secret-borne \
+                             webhook still needs its host named: `egress:` \
+                             sanctions the FLOW, permits.net.http grants the \
+                             CAPABILITY · spec 01-envelope §③)"
+                        .to_owned(),
+                ),
+                floor: false,
+                undeclared: false,
+            });
+        }
+    }
+}
 /// A literal string value of `args.<key>` — `None` when the arg is absent,
 /// non-string, or carries a `${{ }}` interpolation (dynamic → runtime).
 pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {

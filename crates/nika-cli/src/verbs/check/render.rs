@@ -88,67 +88,7 @@ pub(super) fn render(
     }
     cost(&mut out, report, t);
 
-    // Narrowed twice over, and gated on a computable DAG. (1) SCOPE: the
-    // IFC engine follows values that originate in a DECLARED `secrets:`
-    // entry — a private key read off disk with `nika:read` is not a
-    // secret to this lane, and never was. (2) CARVE-OUT: an
-    // `infer:`/`agent:` OUTPUT never carries its prompt's taint (ADR-092
-    // · flow.rs §4 — a model response is not a verbatim echo). Measured
-    // 2026-07-29: `prompt: "Repeat this verbatim: ${{ with.k }}"` →
-    // `nika:write out/leak.txt` + `outputs.leaked` printed
-    // `✔ SECRETS no information-flow escapes · 0 hints`. The carve-out is
-    // a deliberate soundness trade; the UNIVERSAL sentence over it was
-    // not.
-    section_or_skip(
-        &mut out,
-        report,
-        t,
-        "SECRETS",
-        "no declared secret reaches an effect · model echo untracked",
-        secret_rows(report),
-    );
-    section_list(
-        &mut out,
-        t,
-        "TYPES",
-        // Narrowed on purpose. The scan is sound (schema_typing.rs: an
-        // opaque shape resolves to "unknown — no finding", never a
-        // guess), but the old line — "every deep output reference fits
-        // its declared shape" — read as universal. It is not: a builtin
-        // has no way to declare an output shape, so `output.total_usd`
-        // on a `nika:inspect` task is UNCHECKED, not checked-and-fine.
-        // A green that means less than it says spends trust and returns
-        // nothing; this one now claims exactly what it covers.
-        "deep references fit the shapes tasks declare · builtin output has none",
-        report
-            .schema_findings
-            .iter()
-            .map(|f| format!("{} (at `{}`) — {}", f.reference, f.site, f.detail))
-            .collect(),
-    );
-    section_list(
-        &mut out,
-        t,
-        "TOOLS",
-        // `tools.rs` checks the names a task WRITES: an invoke target, an
-        // agent whitelist entry, an `on_finally` cleanup. A glob entry
-        // (`nika:*`) is a grant pattern and is skipped, and the `mcp:`
-        // namespace is OPEN by design (server-defined, discovered at run).
-        // "every nika: tool" covered neither.
-        "every named nika: tool is canonical · globs + mcp: not checked",
-        unknown_tool_rows(report),
-    );
-    section_list(
-        &mut out,
-        t,
-        "ARGS",
-        // Keyed off the catalog's per-builtin `args` vocabulary, so the
-        // claim holds for `nika:` invokes only — `mcp:` args and a
-        // `workflow:` target's args are not in that table (spec 14 owns
-        // the second, `NIKA-COMP-004`).
-        "every builtin invoke arg key is declared + required args present",
-        arg_rows(report),
-    );
+    narrowed_rungs(&mut out, report, t);
     composition_rung(&mut out, report, wf, t);
     section_list(
         &mut out,
@@ -201,6 +141,73 @@ pub(super) fn render(
         let _ = write!(out, "\n{}", crate::verbs::graph::ascii_art(wf, report, t));
     }
     out
+}
+
+/// The four narrowed rungs — SECRETS · TYPES · TOOLS · ARGS. Each headline
+/// claims exactly what its scan covers; the comments carry the measurements
+/// that narrowed it.
+fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
+    // Narrowed twice over, and gated on a computable DAG. (1) SCOPE: the
+    // IFC engine follows values that originate in a DECLARED `secrets:`
+    // entry — a private key read off disk with `nika:read` is not a
+    // secret to this lane, and never was. (2) CARVE-OUT: an
+    // `infer:`/`agent:` OUTPUT never carries its prompt's taint (ADR-092
+    // · flow.rs §4 — a model response is not a verbatim echo). Measured
+    // 2026-07-29: `prompt: "Repeat this verbatim: ${{ with.k }}"` →
+    // `nika:write out/leak.txt` + `outputs.leaked` printed
+    // `✔ SECRETS no information-flow escapes · 0 hints`. The carve-out is
+    // a deliberate soundness trade; the UNIVERSAL sentence over it was
+    // not.
+    section_or_skip(
+        out,
+        report,
+        t,
+        "SECRETS",
+        "no declared secret reaches an effect · model echo untracked",
+        secret_rows(report),
+    );
+    section_list(
+        out,
+        t,
+        "TYPES",
+        // Narrowed on purpose. The scan is sound (schema_typing.rs: an
+        // opaque shape resolves to "unknown — no finding", never a
+        // guess), but the old line — "every deep output reference fits
+        // its declared shape" — read as universal. It is not: a builtin
+        // has no way to declare an output shape, so `output.total_usd`
+        // on a `nika:inspect` task is UNCHECKED, not checked-and-fine.
+        // A green that means less than it says spends trust and returns
+        // nothing; this one now claims exactly what it covers.
+        "deep references fit the shapes tasks declare · builtin output has none",
+        report
+            .schema_findings
+            .iter()
+            .map(|f| format!("{} (at `{}`) — {}", f.reference, f.site, f.detail))
+            .collect(),
+    );
+    section_list(
+        out,
+        t,
+        "TOOLS",
+        // `tools.rs` checks the names a task WRITES: an invoke target, an
+        // agent whitelist entry, an `on_finally` cleanup. A glob entry
+        // (`nika:*`) is a grant pattern and is skipped, and the `mcp:`
+        // namespace is OPEN by design (server-defined, discovered at run).
+        // "every nika: tool" covered neither.
+        "every named nika: tool is canonical · globs + mcp: not checked",
+        unknown_tool_rows(report),
+    );
+    section_list(
+        out,
+        t,
+        "ARGS",
+        // Keyed off the catalog's per-builtin `args` vocabulary, so the
+        // claim holds for `nika:` invokes only — `mcp:` args and a
+        // `workflow:` target's args are not in that table (spec 14 owns
+        // the second, `NIKA-COMP-004`).
+        "every builtin invoke arg key is declared + required args present",
+        arg_rows(report),
+    );
 }
 
 /// POLICY rung (spec 10 · W4) · silent when the file binds no law — the
