@@ -12,9 +12,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 NAME="${1:-full-loop}"
 TAPE="$ROOT/scripts/media/tapes/$NAME.tape"
-[ -f "$TAPE" ] || { echo "no tape at $TAPE" >&2; exit 1; }
-command -v vhs >/dev/null || { echo "vhs not installed (brew install vhs)" >&2; exit 1; }
-command -v nika >/dev/null || { echo "nika not on PATH" >&2; exit 1; }
+[ -f "$TAPE" ] || {
+  echo "no tape at $TAPE" >&2
+  exit 1
+}
+command -v vhs >/dev/null || {
+  echo "vhs not installed (brew install vhs)" >&2
+  exit 1
+}
+command -v nika >/dev/null || {
+  echo "nika not on PATH" >&2
+  exit 1
+}
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -31,6 +40,11 @@ git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --al
 git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --allow-empty -m "fix: atomic writes on check repairs"
 
 cp "$ROOT/scripts/media/fixtures/broken-release-notes.nika.yaml" "$WORK/release-notes.nika.yaml"
+# The hero story reads the meeting-actions pair (offline mock run · the
+# transcript path mirrors the fixture's const so the demo needs zero flags).
+cp "$ROOT/scripts/media/fixtures/meeting-actions.nika.yaml" "$WORK/meeting-actions.nika.yaml"
+mkdir -p "$WORK/scripts/media/fixtures"
+cp "$ROOT/scripts/media/fixtures/sample-transcript.txt" "$WORK/scripts/media/fixtures/sample-transcript.txt"
 cp "$TAPE" "$WORK/$NAME.tape"
 
 (cd "$WORK" && vhs "$NAME.tape")
@@ -42,3 +56,10 @@ else
   cp "$WORK/$NAME.gif" "$OUT"
 fi
 echo "→ $OUT ($(du -h "$OUT" | cut -f1))"
+
+# The hero also installs at its hotlinked home (README + homebrew-tap +
+# the city READMEs embed media/nika-hero.gif by URL — the name is the API).
+if [ "$NAME" = "nika-hero" ]; then
+  cp "$OUT" "$ROOT/media/nika-hero.gif"
+  echo "→ $ROOT/media/nika-hero.gif (hotlinked home)"
+fi

@@ -88,6 +88,7 @@ cache_write_per_million = 3.75
 max_output_tokens = 128000
 context_window_tokens = 1000000
 open_weights = false
+determinism = "none"
 
 [[rules]]
 provider = "anthropic"
@@ -133,6 +134,7 @@ cache_write_per_million = 6.25
 max_output_tokens = 128000
 context_window_tokens = 1000000
 open_weights = false
+determinism = "none"
 
 [[rules]]
 provider = "anthropic"
@@ -206,6 +208,7 @@ cache_read_per_million = 0.0028
 max_output_tokens = 384000
 context_window_tokens = 1000000
 open_weights = true
+determinism = "none"
 
 [[rules]]
 provider = "deepseek"
@@ -674,6 +677,8 @@ max_output_tokens = 40960
 context_window_tokens = 131072
 open_weights = true
 status = "beta"
+determinism = "best-effort"
+energy = { wh_per_mtok_out = 42.0, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard v3.0 · H100 · vLLM · conversation workload (arXiv 2505.06371)", measured_at = "2025-12" }
 
 # ── huggingface (53 models) ──
 
@@ -1202,6 +1207,7 @@ output_per_million = 7.5
 max_output_tokens = 262144
 context_window_tokens = 262144
 open_weights = true
+determinism = "best-effort"
 
 [[rules]]
 provider = "mistral"
@@ -2427,6 +2433,7 @@ max_output_tokens = 4096
 context_window_tokens = 16385
 open_weights = false
 status = "deprecated"
+tokenizer = "cl100k_base"
 
 [[rules]]
 provider = "openai"
@@ -2605,6 +2612,8 @@ cache_read_per_million = 0.5
 max_output_tokens = 32768
 context_window_tokens = 1047576
 open_weights = false
+tokenizer = "o200k_base"
+determinism = "best-effort"
 
 [[rules]]
 provider = "openai"
@@ -2688,6 +2697,8 @@ cache_read_per_million = 1.25
 max_output_tokens = 16384
 context_window_tokens = 128000
 open_weights = false
+tokenizer = "o200k_base"
+determinism = "best-effort"
 
 [[rules]]
 provider = "openai"
@@ -2748,6 +2759,7 @@ cache_read_per_million = 0.5
 max_output_tokens = 100000
 context_window_tokens = 200000
 open_weights = false
+tokenizer = "o200k_base"
 
 # ── openrouter (336 models) ──
 
@@ -6087,6 +6099,7 @@ cache_read_per_million = 0.3
 max_output_tokens = 500000
 context_window_tokens = 500000
 open_weights = false
+determinism = "best-effort"
 
 [[rules]]
 provider = "xai"

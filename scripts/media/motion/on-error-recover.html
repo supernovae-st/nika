@@ -51,6 +51,9 @@
     <div class="act" id="act0">
       <div class="act-label" id="tease"><span class="warn">live-rates.json does not exist</span> — this task WILL fail</div>
       <div class="yaml">
+<span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">v1</span></span>
+<span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="d">{</span> <span class="k">id</span><span class="d">:</span> <span class="s">rates-with-fallback</span> <span class="d">}</span></span>
+<span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
 <span class="ln">  <span class="k">cache</span><span class="d">:</span><span class="d">          # yesterday's snapshot · the fallback source</span></span>
 <span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:jq"</span><span class="d">, … }</span></span>
 <span class="ln"> </span>
@@ -62,7 +65,7 @@
 <span class="ln" id="recover-line2">      <span class="hl" id="recover-hl"><span class="k">recover</span><span class="d">:</span> <span class="s">"${{ with.cache }}"</span></span>  <span class="d"># degrade to the snapshot — declared, reviewable</span></span>
 <span class="ln"> </span>
 <span class="ln">  <span class="k">publish</span><span class="d">:</span><span class="d">        # still runs · still writes · exit 0</span></span>
-<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">,</span> <span class="k">path</span><span class="d">:</span> <span class="s">./out/rates.json</span><span class="d">, … }</span></span>
+<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span><span class="d">,</span> <span class="k">args</span><span class="d">:</span> <span class="d">{</span> <span class="k">path</span><span class="d">:</span> <span class="s">./out/rates.json</span><span class="d">, … } }</span></span>
       </div>
     </div>
 

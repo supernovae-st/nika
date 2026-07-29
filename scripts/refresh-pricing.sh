@@ -42,12 +42,33 @@ python3 - "$SRC" <<'PYEOF'
 import hashlib
 import json
 import sys
+import tomllib
 from datetime import date
 
 src = sys.argv[1]
 raw = open(src, "rb").read()
 sha = hashlib.sha256(raw).hexdigest()[:16]
 data = json.loads(raw)
+
+# ── The research merge step ─────────────────────────────────────────
+# @1.3 research facts (energy · tokenizer · determinism) are vendored by
+# the research lane with per-claim sources; upstream does not carry them.
+# This refresh rewrites the whole file, so before regenerating it HARVESTS
+# those facts from the live TOML by (provider, model_pattern) and
+# re-attaches them to the rows that survive. A fact whose row vanished
+# upstream is reported LOUDLY — a named loss for the diff review, never a
+# silent wipe (the ONE DOOR pipeline will absorb this leg · wave-1.5 §3bis).
+RESEARCH_FIELDS = ("energy", "tokenizer", "determinism")
+research = {}
+target = "crates/nika-catalog/data/model-pricing.toml"
+try:
+    live = tomllib.load(open(target, "rb"))
+except OSError:
+    live = {"rules": []}
+for row in live.get("rules", []):
+    kept = {f: row[f] for f in RESEARCH_FIELDS if f in row}
+    if kept:
+        research[(row["provider"], row["model_pattern"])] = kept
 
 # Engine canonical id → models.dev provider id (identical today; the
 # map exists so a future rename upstream is one line here).
@@ -162,7 +183,6 @@ rules.sort(key=lambda r: (r["provider"], -len(r["pattern"]), r["pattern"]))
 # Shrink guard (the LiteLLM pattern): a refresh that loses more than half
 # the previous rules is a corrupted/partial upstream, not a real catalog
 # move — refuse instead of silently shipping a gutted snapshot.
-target = "crates/nika-catalog/data/model-pricing.toml"
 try:
     prev = open(target).read().count("[[rules]]")
 except OSError:
@@ -179,12 +199,6 @@ if prev and len(rules) < prev // 2:
         sys.exit(1)
 
 out = []
-# @1.3 — the schema also admits research facts (energy · tokenizer ·
-# determinism) that this refresh NEVER emits: models.dev does not carry
-# them, the research lane vendors them with per-claim sources. NOTE for
-# the vendor wave (P3): this script rewrites the whole file, so research
-# rows must gain a merge step here BEFORE any research data lands in the
-# live TOML — otherwise a refresh wipes sourced facts.
 out.append('schema = "nika/model-pricing@1.3"')
 out.append("")
 out.append("[meta]")
@@ -204,8 +218,9 @@ out.append("# carried verbatim. An OMITTED field means upstream did not say —"
 out.append("# read it as unknown, never as 0 / false.")
 out.append("# Research facts (@1.3 · energy · tokenizer · determinism) are")
 out.append("# vendored by the research lane with per-claim sources — this")
-out.append("# refresh never writes them. An OMITTED research field means no")
-out.append("# sourced fact exists yet — never a default.")
+out.append("# refresh never AUTHORS them, it re-attaches the live file's rows")
+out.append("# by (provider, model_pattern) and names any orphan loudly. An")
+out.append("# OMITTED research field means no sourced fact exists yet.")
 
 current = None
 for r in rules:
@@ -234,6 +249,32 @@ for r in rules:
         out.append(f"open_weights = {str(r['open_weights']).lower()}")
     if r["status"] is not None:
         out.append(f'status = "{r["status"]}"')
+    kept = research.pop((prov, r["pattern"]), None)
+    if kept:
+        if "tokenizer" in kept:
+            out.append(f"tokenizer = {json.dumps(kept['tokenizer'])}")
+        if "determinism" in kept:
+            out.append(f"determinism = {json.dumps(kept['determinism'])}")
+        if "energy" in kept:
+            e = kept["energy"]
+            out.append(
+                "energy = { "
+                f"wh_per_mtok_out = {toml_float(e['wh_per_mtok_out'])}, "
+                f"provenance = {json.dumps(e['provenance'])}, "
+                f"scope = {json.dumps(e['scope'])}, "
+                f"source = {json.dumps(e['source'])}, "
+                f"measured_at = {json.dumps(e['measured_at'])}"
+                " }"
+            )
+
+# Orphans: research facts whose row upstream dropped. Named, never
+# silent — the diff review decides whether to re-home or accept the loss.
+for (prov, pat), kept in sorted(research.items()):
+    print(
+        f"ORPHAN research fact dropped with its row: {prov}/{pat} "
+        f"({' · '.join(sorted(kept))}) — re-vendor or accept the loss",
+        file=sys.stderr,
+    )
 
 open(target, "w").write("\n".join(out) + "\n")
 per = {}
@@ -256,4 +297,8 @@ print(
     f"status {n_with('status')}"
     f"  (of {len(rules)})"
 )
+reattached = sum(
+    1 for line in out if line.startswith(("tokenizer = ", "determinism = ", "energy = "))
+)
+print(f"  research: {reattached} fact line(s) re-attached · {len(research)} orphan(s)")
 PYEOF

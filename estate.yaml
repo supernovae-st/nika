@@ -14,18 +14,18 @@ classes:
   authored: "a human writes here"
   authored-pin: "a hand-meaningful pin a bot lane advances via PR-only — never HEAD; the derivations' INPUT"
   generated: "derived by a tool from declared inputs — regenerate, never hand-edit"
-  pinned-copy: "byte-copy vendored from an upstream repo by a declared lane, integrity-gated"
-  testimonial: "impl-owned test evidence — fixtures, corpora, batteries: proves behavior; neither shipped code nor derived output"
+  pinned-copy: "byte-copy vendored from an upstream source by a declared lane, provenance declared, integrity-gated"
+  testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4226
-  file_rows: 10
+  classified_files: 4231
+  file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1312
-    authored-pin: 1
-    generated: 113
-    pinned-copy: 104
+    authored: 1314
+    authored-pin: 2
+    generated: 114
+    pinned-copy: 105
     testimonial: 2696
     foreign: 0
   unverified-default: 4
@@ -56,6 +56,10 @@ files:
     inputs:
     - "Cargo.toml"
     - "crates/*/Cargo.toml"
+- path: "ESTATE_PIN"
+  class: authored-pin
+  sha256: a0006989e73853bafed83e9eb8e9288e52211e83db69a40e69c927b079027a22
+  evidence: "its own header: 'Bump deliberately: edit this' · the rev the shared estate tool is mirrored from, and the INPUT the mirror gate compares against"
 - path: "ROADMAP.md"
   class: authored
   sha256: b97259d454efc838c48aa56d98f54d817c660d84917af688fe42945349c41152
@@ -67,7 +71,7 @@ files:
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
-  sha256: 6692ce574fc27836b06e2ee3996249a3a513d59315b55ac262d3010db99f5521
+  sha256: d6fdb109e291d349ee4dbfd68a6b9fb28b8641ce38c044b6cefba2c76920cfce
   evidence: "in-file marker '── GENERATED · do not hand-edit' + [meta] source=https://models.dev/api.json · as_of · source_sha256_16 — a vendored snapshot, refreshed at maintenance time, never a runtime fetch"
   derivation:
     tool: "bash scripts/refresh-pricing.sh (emission laws matched to src/data/models.rs lookup semantics)"
@@ -97,9 +101,15 @@ files:
   sha256: fbd41fa5b40b6c13ed01902b209869a77b6144504a97b68a7a014928c7bdd929
   evidence: "the authored rules for the media lanes ('No fake commands · No fake output · budgets · Never edit exports by hand')"
 - path: "scripts/estate.py"
-  class: authored
-  sha256: aad29290f909ccf379f68cd9d2fedea329a1e7020cd6888f8fcf0a89a008429b
-  evidence: "hand-written estate projector (this manifest's generator)"
+  class: pinned-copy
+  sha256: fd4aa38f78cfacfa2e003c2d3e1b10e74b4d16d9cb9b11e87acc5a1449d2016e
+  evidence: "the shared estate tool, mirrored byte-for-byte from supernovae-st/nika-estate · editing it here is a lost gesture: change it upstream, bump ESTATE_PIN, re-mirror"
+  derivation:
+    tool: "curl the tool from nika-estate at the rev named in ESTATE_PIN"
+    gate: "the `mirror` job byte-compares scripts/estate.py against nika-estate@ESTATE_PIN and fails the run on any difference"
+    inputs:
+    - "ESTATE_PIN"
+    - "supernovae-st/nika-estate@<ESTATE_PIN>:scripts/estate.py"
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
@@ -152,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 126
-  aggregate_sha256: 0ab5bd335a4f8783cd2bcd09ed3a9edf9abcaca4c86fd54695c2be1cc352bee3
+  aggregate_sha256: c4430d6e8c65d6cd4b1a0232f3d993909edbdc3ade05508edac1d59fc7c30568
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -172,13 +182,13 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 126
-  aggregate_sha256: d927f08ed6e530de72177858e4e0cfa4cef91f3ae290b99ca1172772b2afd5d8
+  match_count: 129
+  aggregate_sha256: 1f53596f9499b550db34ab3f9928dd6b0b1a19a9e3b24f428294acf9c8a47b87
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 19
-  aggregate_sha256: 27800842467670ddc635c10ca2c7651ca4669e5293459189b333c5ba84367977
+  aggregate_sha256: 49b19808523d726b33d9e0a82eea87e1cb93673c7d44a09021aef1669251b8ea
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -207,8 +217,8 @@ patterns:
   evidence: "cargo config · audit.toml · mutants.toml — hand-kept workspace policy"
 - glob: "media/**"
   class: generated
-  match_count: 50
-  aggregate_sha256: d6720625e89c918a28789041fb585fd6629e23e41f58e827e1726ec92e21ba1a
+  match_count: 51
+  aggregate_sha256: f169eb2f7ec751d5fbfd15d688de61c6818422b7efdac7ed06bc2304c758bf40
   evidence: "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary"
   derivation:
     tool: "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)"
@@ -227,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 1fe6ab6fe723bcd8560a434e11e8fbbe7139326ec1871ff9a03a3e26ecb05f76
+  aggregate_sha256: 24f741a536c57e70d160109eff838286d96973cc076eafc629e43206c348544c
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

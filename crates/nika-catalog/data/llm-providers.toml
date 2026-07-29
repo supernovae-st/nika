@@ -31,6 +31,8 @@ requires_key = true
 description = "Claude models (Opus, Sonnet, Haiku)."
 api_dialect = "anthropic"
 tags = ["extended-thinking", "frontier", "function-calling", "long-context", "prompt-caching", "streaming", "structured-output", "vision"]
+# No-train · 30d abuse window (flagged: up to 2y) · ZDR per-org, approval-gated.
+data_policy = { trains = "no", retention = "30", zdr = "yes", source = "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention + https://privacy.claude.com/en/articles/7996866 · 2026-07-29" }
 
 [[providers.models]]
 id = "sonnet"
@@ -59,6 +61,8 @@ requires_key = true
 description = "GPT-5.x, the o-series, and other OpenAI models."
 api_dialect = "openai-chat"
 tags = ["code-execution", "frontier", "function-calling", "image-gen", "prompt-caching", "realtime", "streaming", "vision"]
+# No-train (opt-in only) · 30d abuse logs · ZDR approval-gated, eligible endpoints.
+data_policy = { trains = "no", retention = "30", zdr = "yes", source = "https://developers.openai.com/api/docs/guides/your-data · 2026-07-29" }
 
 [[providers.models]]
 id = "gpt-5.2"
@@ -83,6 +87,8 @@ requires_key = true
 description = "Mistral Large, Medium, Small models."
 api_dialect = "openai-chat"
 tags = ["code", "european", "frontier", "function-calling", "open-source", "streaming", "structured-output"]
+# Trains UNLESS the account opts out (§8) · 30d rolling abuse · ZDR activated on request.
+data_policy = { trains = "opt-out", retention = "30", zdr = "yes", source = "https://legal.mistral.ai/terms/privacy-policy · 2026-07-29" }
 
 [[providers.models]]
 id = "large"
@@ -108,6 +114,8 @@ requires_key = true
 description = "Fast inference with Llama, Mixtral models."
 api_dialect = "openai-chat"
 tags = ["fast", "function-calling", "parallel-tools", "streaming", "structured-output"]
+# Zero retention BY DEFAULT for every client — the sovereignty benchmark.
+data_policy = { trains = "no", retention = "none", zdr = "yes", source = "https://console.groq.com/docs/your-data + https://console.groq.com/docs/legal/services-agreement · 2026-07-29" }
 
 [[providers.models]]
 id = "llama-70b"
@@ -133,6 +141,8 @@ requires_key = true
 description = "DeepSeek Chat and Coder models."
 api_dialect = "openai-chat"
 tags = ["budget", "chinese", "code", "function-calling", "open-source", "reasoning", "streaming", "structured-output"]
+# Trains by default (opt-out listed as a right, mechanism unclear) · PRC storage.
+data_policy = { trains = "yes", retention = "unspecified · PRC storage", zdr = "no", source = "https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html · 2026-07-29" }
 
 [[providers.models]]
 id = "chat"
@@ -151,6 +161,8 @@ requires_key = true
 description = "Gemini Pro, Flash, and Ultra models."
 api_dialect = "gemini"
 tags = ["code-execution", "frontier", "function-calling", "long-context", "multimodal", "streaming", "vision", "web-search"]
+# THE split: paid tier no-train · unpaid/free tier TRAINS, with human review.
+data_policy = { trains = "split", retention = "paid: limited (unquantified) · grounding: 30 · unpaid: unspecified", zdr = "no", source = "https://ai.google.dev/gemini-api/terms · 2026-07-29" }
 
 [[providers.models]]
 id = "flash-25"
@@ -175,6 +187,8 @@ requires_key = true
 description = "Grok models (Grok-3, Grok-4)."
 api_dialect = "openai-chat"
 tags = ["frontier", "function-calling", "reasoning", "streaming", "structured-output", "vision", "web-search"]
+# No-train (enterprise ToS · de-identified-data caveat) · ZDR on team/enterprise.
+data_policy = { trains = "no", retention = "30 · indirect corroboration (primary page 403) — re-verify", zdr = "enterprise-only", source = "https://x.ai/legal/terms-of-service-enterprise (403) + https://docs.x.ai/build/enterprise · 2026-07-29" }
 
 [[providers.models]]
 id = "grok-3"
@@ -200,6 +214,8 @@ requires_key = true
 description = "Inference Providers router · 100+ open-weight models across 18 providers (Groq · Cerebras · Together · Scaleway · OVHcloud · …) · zero markup · :provider or :fastest/:cheapest routing suffix."
 api_dialect = "openai-chat"
 tags = ["function-calling", "open-source", "streaming"]
+# Aggregator: the HF layer stores nothing · downstream providers vary by routing.
+data_policy = { trains = "passthrough", retention = "none (body/response not stored) · debug logs ≤30d without content", zdr = "yes", source = "https://huggingface.co/docs/inference-providers/security · 2026-07-29" }
 
 [[providers.models]]
 id = "default"
@@ -225,6 +241,8 @@ requires_key = true
 description = "200+ models via unified gateway."
 api_dialect = "openai-chat"
 tags = ["function-calling", "streaming"]
+# Aggregator: the OR layer no-train · downstream depends on routing · the ZDR filter constrains it.
+data_policy = { trains = "passthrough", retention = "prompts none by default (logging opt-in · 1% discount) · metadata always", zdr = "yes", source = "https://openrouter.ai/privacy + https://openrouter.ai/docs/guides/privacy/data-collection · 2026-07-29" }
 
 [[providers.models]]
 id = "default"
@@ -522,6 +540,8 @@ requires_key = true
 description = "Moonshot AI — Kimi K2, K2.5 (international endpoint api.moonshot.ai/v1). rig-core native provider."
 api_dialect = "openai-chat"
 tags = ["frontier", "function-calling", "long-context", "streaming", "structured-output"]
+# Trains with NO opt-out ("training and refining our underlying technology") · Singapore.
+data_policy = { trains = "yes", retention = "unspecified · Singapore servers", zdr = "no", source = "https://platform.kimi.ai/docs/agreement/userprivacy · 2026-07-29" }
 
 [[providers.models]]
 id = "k2"
@@ -628,6 +648,8 @@ requires_key = true
 description = "NVIDIA API (integrate.api.nvidia.com) · Nemotron 3 family (Open Model License · agentic-first) + hosted open models · self-hosted NIM containers expose the same surface."
 api_dialect = "openai-chat"
 tags = ["function-calling", "open-source", "streaming"]
+# Trial ToS §3.3(iv) permits use "to improve … AI models" — the primary text beats the blogs · zero-egress = self-hosted NIM (= local).
+data_policy = { trains = "yes", retention = "session-scoped (§2.3) · 30d user content / 90d fine-tuning on some services (§2.4)", zdr = "no", source = "https://assets.ngc.nvidia.com/products/api-catalog/legal/NVIDIA%20API%20Trial%20Terms%20of%20Service.pdf · 2026-07-29" }
 
 [[providers.models]]
 id = "default"
@@ -838,6 +860,8 @@ requires_key = false
 description = "llama.cpp server (default port 8080) — serves the loaded GGUF; the wire model id is free-form."
 api_dialect = "openai-chat"
 tags = ["local", "open-source"]
+# Structural fact, not a policy promise: a local runtime has no egress.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "default"
@@ -856,6 +880,8 @@ requires_key = false
 description = "LocalAI server (default port 8080) — an OpenAI-compatible gateway over local backends."
 api_dialect = "openai-chat"
 tags = ["local", "open-source"]
+# Structural fact, not a policy promise: a local runtime has no egress.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "default"
@@ -874,6 +900,8 @@ requires_key = false
 description = "vLLM server (default port 8000) — serves Hugging Face model ids at throughput."
 api_dialect = "openai-chat"
 tags = ["local", "open-source"]
+# Structural fact, not a policy promise: a local runtime has no egress.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "qwen"
@@ -892,6 +920,8 @@ requires_key = false
 description = "Local GGUF models via mistral.rs."
 api_dialect = "openai-chat"
 tags = ["local", "open-source"]
+# Structural fact, not a policy promise: a local runtime has no egress.
+data_policy = { trains = "no", retention = "none", zdr = "local", source = "local runtime · no egress by construction" }
 
 [[providers.models]]
 id = "qwen"

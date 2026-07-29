@@ -16,7 +16,17 @@ missing=""
 # homebrew-nika was RENAMED homebrew-tap (canonical per api .full_name · GitHub
 # redirects the old name); nika-agents + nika-registry joined the profile with
 # the 2026-07-09 storefront-truth pass (.github#1).
-for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-agents nika-registry homebrew-tap nika-site-audit; do
+#
+# The list below IS the city (D-2026-07-29-N10 · thirteen buildings). It gained
+# nika-action, nika-actions-starter, gh-nika and nika-estate, which were doing
+# real work outside the map, and lost nika-site-audit and nika-starter, which
+# were archived: the first because its syntax drifted from the released grammar,
+# the second because it shared nine of twelve files with nika-actions-starter.
+# An archived repo must NOT be advertised on the front page, so this vector
+# tracks the living city rather than a frozen snapshot of it.
+for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-agents \
+  gh-nika nika-registry homebrew-tap nika-action nika-actions-starter \
+  nika-estate; do
   echo "$content" | grep -q "$repo" || missing="${missing}${repo} "
 done
 

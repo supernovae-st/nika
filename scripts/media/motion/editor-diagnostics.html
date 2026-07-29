@@ -179,9 +179,11 @@
       </div>
 
       <div id="problems">
-        <div class="ph">problems · <span class="cnt">2</span></div>
+        <div class="ph">problems · <span class="cnt">4</span></div>
         <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-VAR-021</span> <span class="dim">task `assess` a verb field references `tasks.diff` — outside the boundary; hoist it into `with:`</span></div>
         <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-DAG-002</span> <span class="dim">unknown dependency: task `comment` depends on `asses` — did you mean `assess`?</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-AUTH-006</span> <span class="dim">task `diff` · exec under a boundary that forbids shells · fix: add "git" to permits.exec</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-AUTH-006</span> <span class="dim">task `comment` · `nika:write` with a literal path, no `permits:` block · fix: declare tools + fs</span></div>
       </div>
 
       <div id="cleanbar">

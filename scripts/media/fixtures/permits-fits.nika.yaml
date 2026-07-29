@@ -24,8 +24,8 @@ tasks:
 
   brief:
     after:
-      release: succeeded
-      changelog_page: succeeded
+      release: success
+      changelog_page: success
     infer:
       prompt: "Write a 3-line release brief from this JSON and page."
       max_tokens: 400

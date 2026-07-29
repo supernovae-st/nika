@@ -244,17 +244,22 @@ visible: nothing is skipped silently.
     │ the release train                  🖥️ nika.sh · 📖 nika-docs
     ▼                                     the showroom · the manual
 📦 homebrew-tap · npm · Docker ── the docks
-🔌 nika-client · 🎨 nika-vscode · 🤖 nika-agents ── the doors
-🏪 nika-registry ── the market · 🔍 nika-site-audit ── the witness
+🔌 nika-client · 🎨 nika-vscode · 🤖 nika-agents · ⚡ gh-nika ── the doors
+🏭 nika-action · 🧪 nika-actions-starter ── the CI district
+🏪 nika-registry ── the market · 🏛 nika-estate ── the land registry
 ```
 
 **This building** · THE ENGINE · checks before it spends, runs inside declared permits, leaves a signed trace. Carries the catalog: providers, models, prices pinned with provenance.
+
+**Root** · ENGINE facts, AGPL-3.0 · the crates, the tests, the hygiene vectors. Language facts arrive pinned from nika-spec and are never retyped here · the two roots never mix.
 
 **Consumes** · the spec (corpus vendored at a pin, integrity-tested) · upstream pricing (pinned, provenance recorded).
 
 **Serves** · the docks (brew · npm · Docker) · every door (CLI · LSP · MCP · serve).
 
 **Truth lives** · engine numbers come from the binary, never from prose · `crates/nika-pack/pack/` is a byte-gated MIRROR of the spec — editing it is a lost gesture.
+
+All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) · [nika](https://github.com/supernovae-st/nika) · [nika.sh](https://github.com/supernovae-st/nika.sh) · [nika-docs](https://github.com/supernovae-st/nika-docs) · [nika-client](https://github.com/supernovae-st/nika-client) · [nika-vscode](https://github.com/supernovae-st/nika-vscode) · [nika-agents](https://github.com/supernovae-st/nika-agents) · [gh-nika](https://github.com/supernovae-st/gh-nika) · [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) · [nika-action](https://github.com/supernovae-st/nika-action) · [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) · [nika-registry](https://github.com/supernovae-st/nika-registry) · [nika-estate](https://github.com/supernovae-st/nika-estate)
 
 Every fact has one home · everything else is a gated projection.
 The living map: [nika.sh/map](https://nika.sh/map).
@@ -548,10 +553,9 @@ each with one job:
 | [nika-client](https://github.com/supernovae-st/nika-client) | the TypeScript SDK (targets the `nika serve` HTTP surface) |
 | [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula: `brew install supernovae-st/tap/nika` |
 | [nika-action](https://github.com/supernovae-st/nika-action) | the GitHub Action: check verdict, cost floor, permits and the DAG as a sticky PR comment |
-| [nika-starter](https://github.com/supernovae-st/nika-starter) | template repo: one proven workflow + editor wiring + CI, in about a minute |
 | [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) | template repo: AI-workflow receipts in CI from the first push |
 | [gh-nika](https://github.com/supernovae-st/gh-nika) | the GitHub CLI extension: `gh nika check/run`, checksum-verified fetch |
-| [nika-site-audit](https://github.com/supernovae-st/nika-site-audit) | a legacy-era demo of scale (read-only; never learn the syntax there) |
+| [nika-estate](https://github.com/supernovae-st/nika-estate) | the estate law: every file is authored bytes or a proven derivation, sealed and anchored |
 
 Examples live right here: [`examples/`](examples/), the embedded
 gallery (`nika examples list` shows the same shelf from the binary).

@@ -6,6 +6,11 @@ nika: v1
 workflow:
   id: rates-with-fallback
 
+permits:
+  tools: ["nika:jq", "nika:write"]
+  exec: ["cat"]
+  fs: { write: ["./out/**"] }
+
 tasks:
   cache:
     invoke:

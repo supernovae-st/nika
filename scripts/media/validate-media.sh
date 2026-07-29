@@ -40,7 +40,7 @@ fi
 for wf in "$FIX/fixed-pr-review.nika.yaml" "$FIX/meeting-actions.nika.yaml" \
   "$FIX/permits-fits.nika.yaml" "$FIX/recover-fallback.nika.yaml" \
   "$FIX/fixed-release-notes.nika.yaml" \
-  "crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"; do
+  "crates/nika-pack/pack/examples/pr-review-fanout.nika.yaml"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
   else
@@ -84,6 +84,113 @@ for f in "${required[@]}"; do
     fail=1
   fi
 done
+
+# ── drawn-YAML honesty (the scenes may not speak a dead grammar) ────────
+# The motion scenes hand-draw YAML in span markup; this is where media
+# drifts from the language (the July class: list-form `- id:` tasks · a
+# scalar `workflow:` · a filecard with no envelope · `url:`/`path:` naked
+# on invoke instead of under `args:`). Strip the tags and judge the text —
+# the WHOLE text, every markup class: the editor scene draws its code in
+# `.buf`, not `.yaml`, and a class-scoped scan let it lie for weeks.
+if python3 - <<'PY'; then
+import pathlib
+import re
+import subprocess
+import sys
+
+bad = 0
+for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
+    t = p.read_text(encoding="utf-8")
+    body = re.sub(r"<script.*?</script>", "", t, flags=re.S)
+    body = re.sub(r"<style.*?</style>", "", body, flags=re.S)
+    body = re.sub(r"<[^>]+>", "", body)
+    if re.search(r"-\s+id\s*:", body):
+        print(f" x {p.name}: dead list-form '- id:' drawn somewhere in the scene")
+        bad = 1
+    for m in re.finditer(r'<div class="yaml">(.*?)</div>', t, re.S):
+        text = re.sub(r"<[^>]+>", "", m.group(1))
+        if re.search(r'invoke\s*:\s*\{(?![^}]*\bargs\s*:)[^}]*\b(url|path|pattern)\s*:', text):
+            print(f" x {p.name}: invoke arg outside 'args:' in drawn YAML")
+            bad = 1
+    # A titled filecard that DRAWS yaml must draw the envelope; a titled
+    # card showing terminal output (og-card) has no yaml body to judge.
+    if '<div class="yaml">' in t and re.search(r'class="title">[^<]*\.nika\.yaml', t):
+        if "nika: v1" not in body or not re.search(r"workflow\s*:", body):
+            print(f" x {p.name}: filecard misses the envelope (nika: v1 + workflow:)")
+            bad = 1
+    # Every example slug a scene teaches must resolve on the RELEASED
+    # binary (`nika examples show <slug>` rc=0). When the flatten ships,
+    # this line forces the gallery re-render instead of letting it teach
+    # a dead path.
+    for slug in sorted(set(re.findall(r"examples run\s+([a-z0-9/_-]+)", body))):
+        r = subprocess.run(["nika", "examples", "show", slug],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f" x {p.name}: teaches slug {slug!r} the released binary refuses")
+            bad = 1
+
+# The README teaches slugs too (the pick-a-workflow table) — same law,
+# same executioner: a row the released binary refuses is a dead lesson.
+readme = pathlib.Path("README.md").read_text(encoding="utf-8")
+for slug in sorted(set(re.findall(r"nika examples run\s+([a-z0-9/_-]+)", readme))):
+    r = subprocess.run(["nika", "examples", "show", slug],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f" x README.md: teaches slug {slug!r} the released binary refuses")
+        bad = 1
+
+# The gallery's count claims derive from the released pack, never typed
+# free-hand: "N ... business jobs" must equal the showcase family count.
+gal = pathlib.Path("scripts/media/motion/workflow-gallery.html").read_text(encoding="utf-8")
+claims = {int(n) for n in re.findall(r"(\d+)\s+(?:embedded\s+)?business jobs", gal)}
+listing = subprocess.run(["nika", "examples", "list"], capture_output=True, text=True)
+real = len(re.findall(r"showcase/", listing.stdout)) or len(
+    [ln for ln in listing.stdout.splitlines() if re.match(r"\s*│\s+t\d-", ln)]
+)
+if real and claims and claims != {real}:
+    print(f" x workflow-gallery.html: claims {sorted(claims)} jobs · released pack has {real}")
+    bad = 1
+
+# Freshness: a scene edit without a re-render is how a fixed source keeps
+# shipping a lying gif (editor-diagnostics: source healed, gif stale since
+# July 2). Judge by git commit times: the export must not predate its scene.
+def last_commit(path):
+    r = subprocess.run(["git", "log", "-1", "--format=%ct", "--", path],
+                       capture_output=True, text=True)
+    out = r.stdout.strip()
+    return int(out) if out else None
+
+def dirty(path):
+    # An uncommitted export IS the fresh painting — mid-repair must pass.
+    r = subprocess.run(["git", "status", "--porcelain", "--", path],
+                       capture_output=True, text=True)
+    return bool(r.stdout.strip())
+
+for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
+    scene_t = last_commit(str(p))
+    gif = pathlib.Path("media/gifs") / (p.stem + ".optimized.gif")
+    if scene_t is None or not gif.exists() or dirty(str(gif)):
+        continue
+    gif_t = last_commit(str(gif))
+    if gif_t is not None and gif_t < scene_t:
+        print(f" x {gif.name}: older than its scene {p.name} — re-render owed")
+        bad = 1
+for tape in sorted(pathlib.Path("scripts/media/tapes").glob("*.tape")):
+    tape_t = last_commit(str(tape))
+    gif = pathlib.Path("media/gifs") / (tape.stem + ".optimized.gif")
+    if tape_t is None or not gif.exists() or dirty(str(gif)):
+        continue
+    gif_t = last_commit(str(gif))
+    if gif_t is not None and gif_t < tape_t:
+        print(f" x {gif.name}: older than its tape {tape.name} — re-render owed")
+        bad = 1
+sys.exit(bad)
+PY
+  say "✔ drawn claims honest (grammar · slugs resolve · counts derived · renders fresh)"
+else
+  say "✖ drawn-claims honesty failed"
+  fail=1
+fi
 
 # ── budgets ─────────────────────────────────────────────────────────────
 max_gif=$((8 * 1024 * 1024))

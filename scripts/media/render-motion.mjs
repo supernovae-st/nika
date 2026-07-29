@@ -75,6 +75,49 @@ for (const scene of scenes) {
     continue;
   }
 
+  // Geometry gate — nothing drawn may escape its card or the stage.
+  // Layout is static across the timeline (the animations move opacity and
+  // transforms declared at the same laid-out positions), so one pass at
+  // t=duration judges every frame. A line wider than its card is exactly
+  // the class a human eye misses in a moving gif and a reader sees at
+  // once in the README — the renderer refuses to paint it.
+  await page.evaluate((t) => window.__seek(Number(t)), meta.duration);
+  const overflows = await page.evaluate(() => {
+    const bad = [];
+    const tol = 2.5;
+    const stage = document.querySelector("#stage") || document.body;
+    const stageR = stage.getBoundingClientRect();
+    const cards = Array.from(document.querySelectorAll(".card, .buf, #problems, .win, .node"));
+    const leaves = Array.from(document.querySelectorAll("body *")).filter(
+      (el) =>
+        el.children.length === 0 &&
+        el.textContent.trim().length > 0 &&
+        getComputedStyle(el).display !== "none",
+    );
+    for (const el of leaves) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue;
+      const card = cards.find((c) => c !== el && c.contains(el));
+      const box = card ? card.getBoundingClientRect() : stageR;
+      const name = card ? (card.id || card.className.split(" ")[0]) : "stage";
+      if (r.right > box.right + tol || r.bottom > box.bottom + tol) {
+        bad.push(
+          `${name} < "${el.textContent.trim().slice(0, 48)}" · ` +
+            `right +${Math.max(0, r.right - box.right).toFixed(0)}px · ` +
+            `bottom +${Math.max(0, r.bottom - box.bottom).toFixed(0)}px`,
+        );
+      }
+    }
+    return bad;
+  });
+  if (overflows.length > 0) {
+    console.error(`✖ ${scene}: drawn text escapes its frame — refuse to paint`);
+    for (const o of overflows) console.error(`   ${o}`);
+    process.exitCode = 1;
+    await page.close();
+    continue;
+  }
+
   const fps = Number(opt("fps") ?? meta.fps ?? 30);
   const frames = Math.ceil((meta.duration / 1000) * fps);
   const framesDir = path.join(MEDIA, ".frames", scene);

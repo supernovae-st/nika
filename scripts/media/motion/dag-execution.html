@@ -78,16 +78,17 @@
       <span class="title">pr-review-fanout.nika.yaml</span>
     </div>
     <div class="yaml">
-<span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="s">pr-review-fanout</span></span>
-<span class="ln"> </span>
+<span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">v1</span></span>
+<span class="ln"><span class="k">workflow</span><span class="d">:</span></span>
+<span class="ln">  <span class="k">id</span><span class="d">:</span> <span class="s">pr-review-fanout</span></span>
 <span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">changed</span>      <span class="c"># exec</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">todo_sweep</span>   <span class="c"># invoke</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">files</span>        <span class="c"># invoke</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">reviews</span>      <span class="c"># agent ×N</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">merged</span>       <span class="c"># invoke</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">summary</span>      <span class="c"># infer</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">save</span>         <span class="c"># invoke</span></span>
+<span class="ln">  <span class="k">changed</span><span class="d">:</span>     <span class="c"># exec · git diff</span></span>
+<span class="ln">  <span class="k">todo_sweep</span><span class="d">:</span>  <span class="c"># nika:grep</span></span>
+<span class="ln">  <span class="k">files</span><span class="d">:</span>       <span class="c"># nika:jq</span></span>
+<span class="ln">  <span class="k">reviews</span><span class="d">:</span>     <span class="c"># agent ×N each</span></span>
+<span class="ln">  <span class="k">merged</span><span class="d">:</span>      <span class="c"># nika:jq</span></span>
+<span class="ln">  <span class="k">summary</span><span class="d">:</span>     <span class="c"># infer</span></span>
+<span class="ln">  <span class="k">save</span><span class="d">:</span>        <span class="c"># nika:write</span></span>
     </div>
   </div>
 
