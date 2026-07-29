@@ -149,6 +149,105 @@ fn ordinary_command_still_runs_under_the_sandbox() {
     assert!(String::from_utf8_lossy(&out.stdout).contains("SCRATCH-OK"));
 }
 
+/// THE SQLITE DURABILITY PROOF (the 2026-07-29 finding, closed live): a
+/// database granted by its EXACT file path — no `**` directory hatch — must
+/// run WAL mode under the jail. Before the journal-sidecar literals this
+/// died with `SQLITE_CANTOPEN` (14) the moment WAL created `-shm`/`-wal`
+/// (bisected on macOS 15.6.1 · sqlite 3.43.2). Also proves the extension
+/// does NOT leak: an arbitrary sibling in the same directory stays denied.
+#[test]
+fn an_exact_file_db_grant_supports_wal_mode_without_granting_the_directory() {
+    if !SeatbeltSandbox::available() || !PathBuf::from("/usr/bin/sqlite3").exists() {
+        return; // no launcher / no OS sqlite3 (CI) — skip, not fail
+    }
+    let dir = home().join(format!(".nika-sbx-sqlite-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let db = dir.join("state.db");
+    let db = db.to_str().unwrap().to_owned();
+
+    let mut spec = SandboxSpec::new();
+    spec.fs_write = vec![db.clone()]; // the EXACT file — the narrow grant
+
+    // WAL open + write + read across two connections (the second exercises
+    // sidecar reopen + checkpoint + close-time unlink).
+    let out = run(
+        &spec,
+        "/usr/bin/sqlite3",
+        &[
+            &db,
+            "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS t(x); INSERT INTO t VALUES (1);",
+        ],
+    );
+    let out2 = run(
+        &spec,
+        "/usr/bin/sqlite3",
+        &[&db, "INSERT INTO t VALUES (2); SELECT count(*) FROM t;"],
+    );
+
+    // The fence half: the same spec must still refuse an arbitrary sibling
+    // write in the database's own directory (the sidecars are exact
+    // literals, not a directory grant).
+    let sibling = dir.join("evil.txt");
+    let out3 = run_shell(&spec, &format!("echo pwned > '{}'", sibling.display()));
+    let sibling_created = sibling.exists();
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert!(
+        out.status.success(),
+        "WAL under an exact-file grant must work (the CANTOPEN class): {out:?}"
+    );
+    assert!(
+        out2.status.success() && String::from_utf8_lossy(&out2.stdout).contains('2'),
+        "sidecar reopen + checkpoint must work: {out2:?}"
+    );
+    assert!(
+        !sibling_created && !out3.status.success(),
+        "the journal-sidecar extension must never grant the directory"
+    );
+}
+
+/// THE RELATIVE-PATH HALF of the finding (the qrsmart case, closed live):
+/// a workflow's `exec` child gets the paths the author wrote — RELATIVE —
+/// and the libc `getcwd` walk behind every relative open reads the cwd's
+/// directory entries. Under deny-default that read died (`file-read-data`
+/// on the cwd, per the kernel denial log), so even a fully-granted db
+/// CANTOPEN'd. The profile must list the child's cwd — proven here by
+/// opening a relative db under an exact-file grant with `cwd` confined.
+#[test]
+fn a_relative_db_path_survives_the_getcwd_walk() {
+    if !SeatbeltSandbox::available() || !PathBuf::from("/usr/bin/sqlite3").exists() {
+        return; // no launcher / no OS sqlite3 (CI) — skip, not fail
+    }
+    let dir = home().join(format!(".nika-sbx-rel-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let db_abs = dir.join("state.db");
+
+    let mut spec = SandboxSpec::new();
+    spec.fs_write = vec![db_abs.to_str().unwrap().to_owned()]; // EXACT file
+
+    let mut cmd = ShellCommand::new("/usr/bin/sqlite3");
+    cmd.args = vec![
+        "state.db".to_owned(), // RELATIVE — the finding's exact shape
+        "PRAGMA journal_mode=WAL; CREATE TABLE t(x); INSERT INTO t VALUES (1); SELECT count(*) FROM t;".to_owned(),
+    ];
+    cmd.cwd = Some(dir.clone());
+    let w = SeatbeltSandbox::new().confine(&spec, cmd).expect("confine");
+    let mut spawn = Command::new(&w.program);
+    spawn.args(&w.args);
+    if let Some(cwd) = &w.cwd {
+        spawn.current_dir(cwd); // the runner applies it; the jail proof must too
+    }
+    let out = spawn.output().expect("spawn sandbox-exec");
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert!(
+        out.status.success() && String::from_utf8_lossy(&out.stdout).contains('1'),
+        "a relative db path must open under the jail (the getcwd walk): {out:?}"
+    );
+}
+
 /// THE EGRESS FENCE (the sandbox-runtime seatbelt model, live): under the
 /// `allowlist` arm with the proxy port filled, a confined child CAN reach
 /// loopback on exactly the proxy's port and is EPERM-refused on every other

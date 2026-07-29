@@ -64,7 +64,7 @@ and over-grant-refusal sets.
 | 2 TDD | ✅ unit (profile/escape/grant/wrap) + the adversarial jail suite |
 | 3 IMPL | ✅ no unsafe · no heavy deps (only `nika-kernel`) |
 | 4 CLIPPY 0 | ✅ |
-| 5 MUTATION ≥90% | ✅ 96% killed (26/27 viable · 2026-07-10 · `check-mutation-floor.sh` — the availability decision extracted pure + the confine happy-path pinned to kill the 4 survivors) |
+| 5 MUTATION ≥90% | ✅ 97% killed (36/37 viable · 2026-07-29 · `check-mutation-floor.sh` — the availability decision extracted pure + the confine happy-path pinned to kill the 4 survivors; the one survivor is the `available()` binder's `-> true`, equivalent on a macOS+launcher host by construction) |
 | 6 PROPERTY | ✅ injection + over-grant refusal batteries |
 | 8 DOCS | ✅ module + per-fn |
 | 9 CANARY | ✅ the jail suite IS the canary (macOS) |
@@ -83,3 +83,23 @@ Glob→subpath is path-prefix granularity (the precise per-file check is
 deprecated-but-shipping (as Chromium/Bazel use it). Resource rlimits + a
 confinement-took-effect self-test + the network-egress executed test are part of
 the Linux/CI completion arc.
+
+The ONE same-directory extension: an EXACT-file grant (no glob metacharacter)
+also admits its SQLite journal family — `<db>-wal`, `<db>-shm`, `<db>-journal`
+— as three exact-path `literal` filters on the same rule, access class
+inherited. Without them a confined WAL open dies with `SQLITE_CANTOPEN` (14):
+bisected live 2026-07-29 (macOS 15.6.1 · sqlite 3.43.2 — bare file grant
+fails, the three literals pass WAL/rollback/reopen, an ATTACHed db outside
+the grant stays refused, and an arbitrary sibling write stays denied). The
+multi-db super-journal (`<db>-mj*`) is deliberately out (an ATTACHed database
+needs its own grant). The Linux sibling cannot express the family (bwrap has
+no future-file bind) — there a database grant must name its directory.
+
+The finding's second half: every relative open in the child rides the libc
+`getcwd`/`realpath` walk, which reads directory ENTRIES — under deny-default
+that read dies (`file-read-data` on the cwd, per the kernel denial log), so
+even a fully-granted database CANTOPEN'd when the workflow handed the child a
+relative path (the qrsmart bisect). The profile therefore lists the child's
+cwd and each exact-file grant's parent as `file-read-data` literals —
+directory LISTINGS only, never file contents — ending the run with zero
+residual fs denials (verified against the same log).

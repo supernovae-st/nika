@@ -46,6 +46,16 @@
 //! at least the declared reach). The precise glob check is `permits_fit`'s
 //! static job; the sandbox is the OS FLOOR (no network · no out-of-bounds
 //! writes · no sensitive reads), path-prefix granularity, not per-file.
+//!
+//! ONE ASYMMETRY with the macOS sibling, stated loudly: an EXACT-file grant
+//! binds exactly that file, so a `SQLite` database granted by its file path
+//! CANNOT run WAL here — the `-wal`/`-shm`/`-journal` sidecars are
+//! same-stem siblings created AT RUNTIME, and bwrap has no future-file bind
+//! (`--bind-try` skips what does not exist yet; binding the parent directory
+//! would over-grant the whole tree). The Seatbelt backend expresses the
+//! family precisely as three exact-path `literal` filters; bwrap cannot.
+//! The honest Linux contract: **a database grant names its directory**
+//! (`/data/db-dir/**`), never the bare file.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 

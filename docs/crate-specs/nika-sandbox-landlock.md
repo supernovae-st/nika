@@ -64,3 +64,12 @@ kernel ≥ 5.13) applied via a helper alongside the bwrap namespaces — a follo
 that reuses this crate's spec-to-grant logic. The adversarial jail proof runs in
 CI when bwrap is present and skips (never fails) otherwise, exactly like the
 sibling's macOS-runner-gated proof.
+
+One asymmetry with the macOS sibling: an EXACT-file grant binds exactly that
+file, so a SQLite database granted by its file path cannot run WAL here —
+the `-wal`/`-shm`/`-journal` sidecars are created at runtime and bwrap has no
+future-file bind (`--bind-try` skips what does not exist; binding the parent
+directory would over-grant the tree). The Seatbelt backend expresses the
+family precisely as three exact-path literals (closed 2026-07-29 against the
+`SQLITE_CANTOPEN` finding); on Linux the contract stays: **a database grant
+names its directory** (`/data/db-dir/**`).

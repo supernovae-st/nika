@@ -38,10 +38,34 @@
 //! glob check is `permits_fit`'s static job; the sandbox is the OS FLOOR (no
 //! network · no out-of-bounds writes · no sensitive reads), path-prefix
 //! granularity, not per-file.
+//!
+//! The ONE same-directory extension: an EXACT-file grant (no glob
+//! metacharacter) also admits its `SQLite` journal family — `<db>-wal`,
+//! `<db>-shm` (WAL mode) and `<db>-journal` (rollback mode) — as three
+//! exact-path `literal` filters on the same rule, access class inherited
+//! ([`write_journal_sidecars`]). `SQLite`'s atomicity model creates, locks,
+//! mmaps and unlinks these same-stem siblings on every write, so a grant
+//! naming only the main file dies with `SQLITE_CANTOPEN` (14) the moment a
+//! journal materializes — verified live 2026-07-29 (macOS 15.6.1 · sqlite
+//! 3.43.2: the bare file grant fails, the three literals pass WAL, rollback
+//! and reopen modes, and an `ATTACH`ed database outside the grant stays
+//! refused). The extension is bounded by construction — three exact literals
+//! in the file's own directory, dead letters for a non-database file; the
+//! directory itself is NOT granted, so no other sibling becomes reachable.
+//!
+//! And the walk behind it: a confined child must be able to canonicalize its
+//! OWN location. Every relative open resolves through the process cwd, and
+//! the libc `getcwd`/`realpath` path reads directory ENTRIES on the way —
+//! under deny-default that read dies (`file-read-data` on the cwd, then on
+//! the opened file's parent — the kernel denial log behind the same
+//! finding). So the profile lists the child's cwd and every exact-file
+//! grant's parent as `file-read-data` literals (directory LISTINGS only,
+//! never file contents): names in those two dirs stop being the sandbox's
+//! false positive, everything else stays denied.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
@@ -80,13 +104,23 @@ impl CommandSandbox for SeatbeltSandbox {
                 reason: format!("{LAUNCHER} not available on this host"),
             });
         }
-        let profile = build_profile(spec)?;
+        let profile = build_profile(spec, confined_cwd(&command).as_deref())?;
         Ok(wrap(command, &profile))
     }
 
     fn backend(&self) -> &'static str {
         "seatbelt"
     }
+}
+
+/// The working directory the confined child will actually run in: the
+/// command's own `cwd` when set, else the runner's (spawn-inherit semantics
+/// — a `None` cwd means the child inherits the spawning process's). The
+/// profile must be able to list THAT directory (`file-read-data`), or every
+/// relative open in the child dies on the `getcwd` walk (module doc
+/// §Coarseness · the 2026-07-29 finding).
+fn confined_cwd(command: &ShellCommand) -> Option<PathBuf> {
+    command.cwd.clone().or_else(|| std::env::current_dir().ok())
 }
 
 /// The availability DECISION, pure — macOS AND the launcher binary both
@@ -99,27 +133,53 @@ fn available_given(is_macos: bool, launcher_exists: bool) -> bool {
     is_macos && launcher_exists
 }
 
-/// Build the SBPL profile string from the spec (deny-default · see module doc).
-fn build_profile(spec: &SandboxSpec) -> Result<String, CommandSandboxError> {
+/// Build the SBPL profile string from the spec (deny-default · see module
+/// doc). `cwd` is the directory the confined child will run in ([`confined_cwd`])
+/// — listed as a `file-read-data` literal so relative opens survive the
+/// `getcwd` walk.
+fn build_profile(spec: &SandboxSpec, cwd: Option<&Path>) -> Result<String, CommandSandboxError> {
     use std::fmt::Write as _;
     let mut p = String::from(PROFILE_PREAMBLE);
+    // Directory listings the child legitimately needs beyond its grants:
+    // its own cwd (the getcwd walk) + each exact-file grant's parent (the
+    // opened file's home — same-directory tooling scans it). LISTINGS only
+    // (`file-read-data` on exact literals), never file contents.
+    let mut listings = std::collections::BTreeSet::new();
 
     for glob in &spec.fs_read {
         let Some(prefix) = grant_subpath(glob)? else {
             continue; // a glob with no literal prefix is un-expressible as a subpath
         };
-        let _ = writeln!(p, "(allow file-read* (subpath {}))", sbpl_string(&prefix)?);
+        let _ = write!(p, "(allow file-read* (subpath {})", sbpl_string(&prefix)?);
+        write_journal_sidecars(&mut p, glob, &prefix, &mut listings)?;
+        p.push_str(")\n");
     }
 
     for glob in &spec.fs_write {
         let Some(prefix) = grant_subpath(glob)? else {
             continue;
         };
-        let _ = writeln!(
+        let _ = write!(
             p,
-            "(allow file-write* file-read* (subpath {}))",
+            "(allow file-write* file-read* (subpath {})",
             sbpl_string(&prefix)?
         );
+        write_journal_sidecars(&mut p, glob, &prefix, &mut listings)?;
+        p.push_str(")\n");
+    }
+
+    if let Some(dir) = cwd
+        && dir != Path::new("/")
+    {
+        listings.insert(dir.to_string_lossy().into_owned());
+    }
+
+    if !listings.is_empty() {
+        p.push_str("(allow file-read-data");
+        for dir in &listings {
+            let _ = write!(p, " (literal {})", sbpl_string(dir)?);
+        }
+        p.push_str(")\n");
     }
 
     // The network arms (the Anthropic sandbox-runtime seatbelt model —
@@ -152,6 +212,51 @@ fn build_profile(spec: &SandboxSpec) -> Result<String, CommandSandboxError> {
 
     Ok(p)
 }
+
+/// The `SQLite` durability family (module doc §Coarseness): when a grant names
+/// an EXACT file — no glob metacharacter, so `literal_prefix` kept it whole
+/// (`glob == prefix`), and no trailing slash (a directory grant already
+/// covers same-dir sidecars) — append `<file>-wal`, `<file>-shm` and
+/// `<file>-journal` as exact-path `literal` filters on the same rule, so the
+/// sidecars inherit the file's access class. `SQLite`'s atomicity model
+/// creates, locks, mmaps and unlinks these same-stem siblings on every
+/// write; without them the confined open dies with `SQLITE_CANTOPEN` (14).
+/// The file's PARENT is recorded in `listings` (a `file-read-data` grant —
+/// its name list, never sibling contents) so same-directory tooling that
+/// scans the file's home stops false-denying. The suffixes are constants and
+/// every path passes through `sbpl_string` exactly like the main path, so
+/// the injection boundary is unchanged.
+fn write_journal_sidecars(
+    p: &mut String,
+    glob: &str,
+    prefix: &str,
+    listings: &mut std::collections::BTreeSet<String>,
+) -> Result<(), CommandSandboxError> {
+    use std::fmt::Write as _;
+    if glob != prefix || prefix.ends_with('/') {
+        return Ok(());
+    }
+    for suffix in JOURNAL_SIDECAR_SUFFIXES {
+        let _ = write!(
+            p,
+            " (literal {})",
+            sbpl_string(&format!("{prefix}{suffix}"))?
+        );
+    }
+    if let Some(parent) = Path::new(prefix).parent()
+        && parent != Path::new("/")
+    {
+        listings.insert(parent.to_string_lossy().into_owned());
+    }
+    Ok(())
+}
+
+/// The single-database journal sidecars `SQLite` keeps next to the main file
+/// (WAL's `-wal` + `-shm`, the rollback `-journal`). The multi-database
+/// super-journal (`<db>-mj*`) is deliberately out: an `ATTACH`ed database
+/// needs its own declared grant, so the transaction that would need one is
+/// already fenced at the attach.
+const JOURNAL_SIDECAR_SUFFIXES: &[&str] = &["-wal", "-shm", "-journal"];
 
 /// Wrap a command in `sandbox-exec -p <profile> -- <inner argv>`.
 ///
@@ -406,7 +511,7 @@ mod tests {
 
     #[test]
     fn profile_denies_network_by_default_and_allows_when_granted() {
-        let denied = build_profile(&SandboxSpec::new()).unwrap();
+        let denied = build_profile(&SandboxSpec::new(), None).unwrap();
         assert!(denied.contains("(deny default)"));
         assert!(
             !denied.contains("(allow network*)"),
@@ -419,7 +524,11 @@ mod tests {
 
         let mut allow = SandboxSpec::new();
         allow.net = NetPolicy::Allow;
-        assert!(build_profile(&allow).unwrap().contains("(allow network*)"));
+        assert!(
+            build_profile(&allow, None)
+                .unwrap()
+                .contains("(allow network*)")
+        );
     }
 
     #[test]
@@ -432,7 +541,7 @@ mod tests {
             nika_kernel::process::EgressAllowlist::new(vec!["api.example.com".to_owned()]);
         allowlist.proxy_port = Some(60080);
         spec.net = NetPolicy::Allowlist(allowlist);
-        let p = build_profile(&spec).unwrap();
+        let p = build_profile(&spec, None).unwrap();
         assert!(
             p.contains("(allow network-outbound (remote ip \"localhost:60080\"))"),
             "port-scoped fence: {p}"
@@ -445,7 +554,7 @@ mod tests {
         spec.net = NetPolicy::Allowlist(nika_kernel::process::EgressAllowlist::new(vec![
             "api.example.com".to_owned(),
         ]));
-        let p = build_profile(&spec).unwrap();
+        let p = build_profile(&spec, None).unwrap();
         assert!(p.contains("(allow network-outbound (remote ip \"localhost:*\"))"));
     }
 
@@ -454,9 +563,153 @@ mod tests {
         let mut spec = SandboxSpec::new();
         spec.fs_read = vec!["/data/in/**".to_owned()];
         spec.fs_write = vec!["/data/out/**".to_owned()];
-        let p = build_profile(&spec).unwrap();
+        let p = build_profile(&spec, None).unwrap();
         assert!(p.contains("(allow file-read* (subpath \"/data/in\"))"));
         assert!(p.contains("(allow file-write* file-read* (subpath \"/data/out\"))"));
+    }
+
+    /// The `SQLite` durability family (the 2026-07-29 finding, closed): an
+    /// EXACT-file write grant carries `-wal` / `-shm` / `-journal` as exact
+    /// literals on its own rule — without them a confined WAL open dies with
+    /// `SQLITE_CANTOPEN` (14).
+    #[test]
+    fn an_exact_file_write_grant_carries_its_journal_sidecars() {
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec!["/data/state.db".to_owned()];
+        let p = build_profile(&spec, None).unwrap();
+        assert!(
+            p.contains(
+                "(allow file-write* file-read* (subpath \"/data/state.db\") \
+                 (literal \"/data/state.db-wal\") (literal \"/data/state.db-shm\") \
+                 (literal \"/data/state.db-journal\"))"
+            ),
+            "the durability family rides the file's own rule: {p}"
+        );
+    }
+
+    /// The read side inherits the family as READ-ONLY literals — the access
+    /// class follows the grant, never widened by the sidecars.
+    #[test]
+    fn an_exact_file_read_grant_carries_read_only_sidecars() {
+        let mut spec = SandboxSpec::new();
+        spec.fs_read = vec!["/data/state.db".to_owned()];
+        let p = build_profile(&spec, None).unwrap();
+        assert!(
+            p.contains(
+                "(allow file-read* (subpath \"/data/state.db\") \
+                 (literal \"/data/state.db-wal\") (literal \"/data/state.db-shm\") \
+                 (literal \"/data/state.db-journal\"))"
+            ),
+            "read-only sidecars on the read rule: {p}"
+        );
+        assert!(
+            !p.contains("file-write* file-read* (subpath \"/data/state.db\""),
+            "the sidecars never smuggle a write into a read grant: {p}"
+        );
+    }
+
+    /// A directory-shaped grant (a `**` glob · a trailing-slash path) already
+    /// covers same-dir sidecars — NO literal is added (no profile bloat, and
+    /// the exact-file extension stays the only same-directory reach).
+    #[test]
+    fn directory_grants_add_no_sidecar_literals() {
+        let mut spec = SandboxSpec::new();
+        spec.fs_read = vec!["/data/in/**".to_owned()];
+        spec.fs_write = vec!["/data/out/".to_owned()];
+        let p = build_profile(&spec, None).unwrap();
+        assert!(
+            !p.contains("-wal") && !p.contains("-journal"),
+            "directory grants already cover their sidecars: {p}"
+        );
+    }
+
+    /// The sidecar literals cross the same injection boundary as any path:
+    /// a quote-bearing base is emitted ESCAPED, suffix included — the three
+    /// literals stay inert string content, never live directives.
+    #[test]
+    fn sidecar_literals_are_escaped_like_any_path() {
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec!["/data/x\"y.db".to_owned()];
+        let p = build_profile(&spec, None).unwrap();
+        let escaped_wal = sbpl_string("/data/x\"y.db-wal").unwrap();
+        assert!(
+            p.contains(&format!("(literal {escaped_wal})")),
+            "the sidecar literal is one escaped string: {p}"
+        );
+    }
+
+    /// The getcwd walk (the finding's second half): the child's OWN cwd is
+    /// listed as a `file-read-data` literal — a directory LISTING, never file
+    /// contents — so a relative open in the child stops dying on the walk.
+    #[test]
+    fn the_child_cwd_is_listed_as_read_data_only() {
+        let p = build_profile(&SandboxSpec::new(), Some(Path::new("/data/project"))).unwrap();
+        assert!(
+            p.contains("(allow file-read-data (literal \"/data/project\"))"),
+            "the cwd listing is emitted: {p}"
+        );
+        assert!(
+            !p.contains("file-read* (subpath \"/data/project\")")
+                && !p.contains("file-read* file-read-metadata\n    (subpath \"/data/project\")"),
+            "the listing never widens to contents: {p}"
+        );
+        // No cwd → no listing rule at all (the profile stays minimal).
+        let p = build_profile(&SandboxSpec::new(), None).unwrap();
+        assert!(
+            !p.contains("(allow file-read-data"),
+            "no cwd, no listing: {p}"
+        );
+        // A root cwd is already the preamble's `(literal "/")` — not re-emitted.
+        let p = build_profile(&SandboxSpec::new(), Some(Path::new("/"))).unwrap();
+        assert!(
+            !p.contains("(allow file-read-data"),
+            "the root listing is the preamble's own: {p}"
+        );
+    }
+
+    /// An exact-file grant lists its PARENT (names only — same-directory
+    /// tooling scans the opened file's home); a directory grant adds nothing
+    /// (its subpath already covers the listing). Two files in one directory
+    /// emit the parent ONCE.
+    #[test]
+    fn an_exact_file_grant_lists_its_parent_directory_once() {
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec!["/data/state.db".to_owned(), "/data/other.db".to_owned()];
+        let p = build_profile(&spec, None).unwrap();
+        let needle = "(literal \"/data\")";
+        assert_eq!(
+            p.matches(needle).count(),
+            1,
+            "the shared parent is listed exactly once: {p}"
+        );
+        assert!(
+            p.contains("(allow file-read-data (literal \"/data\"))"),
+            "as read-data only, never contents: {p}"
+        );
+
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec!["/data/out/**".to_owned()];
+        let p = build_profile(&spec, None).unwrap();
+        assert!(
+            !p.contains("(allow file-read-data"),
+            "a directory grant's subpath already covers its listing: {p}"
+        );
+    }
+
+    /// The confined child runs in the command's own `cwd` when set, else
+    /// inherits the runner's — the listing follows the SAME directory the
+    /// child's relative opens will resolve against.
+    #[test]
+    fn confined_cwd_prefers_the_command_then_the_runner() {
+        let mut cmd = ShellCommand::new("/usr/bin/true");
+        cmd.cwd = Some(PathBuf::from("/data/project"));
+        assert_eq!(confined_cwd(&cmd), Some(PathBuf::from("/data/project")));
+        let cmd = ShellCommand::new("/usr/bin/true");
+        assert_eq!(
+            confined_cwd(&cmd),
+            std::env::current_dir().ok(),
+            "a None cwd inherits the runner's own directory"
+        );
     }
 
     #[test]
@@ -512,7 +765,7 @@ mod tests {
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec!["/".to_owned()];
         assert!(matches!(
-            build_profile(&spec),
+            build_profile(&spec, None),
             Err(CommandSandboxError::Profile { .. })
         ));
     }
@@ -528,27 +781,32 @@ mod tests {
         let mut spec = SandboxSpec::new();
         spec.fs_read = vec!["/data\n(allow system-socket)".to_owned()];
         assert!(matches!(
-            build_profile(&spec),
+            build_profile(&spec, None),
             Err(CommandSandboxError::Profile { .. })
         ));
 
         // (2) A quote break-out is ESCAPED — the whole payload is emitted as
-        //     exactly ONE `(subpath "<escaped>")` literal, so the injected
-        //     `(allow system-socket)` is inert string content, not a top-level
-        //     form. Proven by reconstructing the escaped literal: the profile
-        //     must contain precisely it (its internal quotes are `\"`).
+        //     escaped string content inside ONE `(subpath "<escaped>")` filter
+        //     (plus, this being an exact-file grant, its three escaped journal
+        //     sidecars), so the injected `(allow system-socket)` is inert
+        //     string content, not a top-level form. Proven by reconstructing
+        //     the escaped literals: the profile must contain precisely them
+        //     (their internal quotes are `\"`).
         let payload = "/data\") (allow system-socket) (subpath \"/etc";
         let mut spec = SandboxSpec::new();
         spec.fs_read = vec![payload.to_owned()];
-        let p = build_profile(&spec).unwrap();
+        let p = build_profile(&spec, None).unwrap();
         let escaped = sbpl_string(payload).unwrap();
         assert!(
             escaped.contains("\\\""),
             "the payload's quotes are escaped: {escaped}"
         );
+        let escaped_wal = sbpl_string(&format!("{payload}-wal")).unwrap();
         assert!(
-            p.contains(&format!("(allow file-read* (subpath {escaped}))")),
-            "the payload is one escaped subpath literal, not a live directive: {p}"
+            p.contains(&format!(
+                "(allow file-read* (subpath {escaped}) (literal {escaped_wal})"
+            )),
+            "the payload and its sidecars are escaped string content, not live directives: {p}"
         );
     }
 
