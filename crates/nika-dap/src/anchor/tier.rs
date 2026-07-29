@@ -525,6 +525,44 @@ pub enum ReplayCompare {
     CannotRun(String),
 }
 
+/// The Unsealed arm of [`evaluate`] (extracted under the fn-length
+/// law). The 2026-07-29 audit (run 2 · the anchor contract's silent
+/// arm): this early return used to swallow `require_anchor` —
+/// `--anchored` on an UNSEALED journal exited Ok without a word
+/// (measured: missing sidecar rc=0, forged sidecar rc=0, while the
+/// sealed path honors 3/2 exactly). The anchor verifies against the
+/// seal's key, so the tier is UNATTAINABLE here — the honest refusal:
+/// exit ENV (the `--anchored` contract's own class for a required tier
+/// that cannot be attained), the requirement named out loud. Unflagged,
+/// the journal is honestly what it is: a quiet Ok with nothing more
+/// proven.
+fn unsealed_report(seal: SealTier, require_anchor: bool, mut lines: Vec<String>) -> TierReport {
+    if require_anchor {
+        lines.push(
+            "ANCHORED — REQUIRED but the journal is unsealed (no run_sealed \
+             line): the anchor verifies against the seal's key, so the \
+             tier is unattainable"
+                .to_owned(),
+        );
+        return TierReport {
+            seal,
+            anchor: AnchorTier::Required,
+            replay: ReplayTier::NotAsked,
+            attained: AttainedTier::Ok,
+            exit: TierExit::Env,
+            lines,
+        };
+    }
+    TierReport {
+        seal,
+        anchor: AnchorTier::NotPresent,
+        replay: ReplayTier::NotAsked,
+        attained: AttainedTier::Ok,
+        exit: TierExit::Ok,
+        lines,
+    }
+}
+
 /// The tier evaluation: seal leg → anchor leg → replay leg, then the
 /// attained tier + exit class + report lines. `torn` is carried only
 /// for the OK-line decision, which stays the CLI's.
@@ -541,41 +579,7 @@ pub fn evaluate(
     let mut lines = Vec::new();
     let seal = seal_tier(last_complete_line(raw, events).as_ref(), events, candidates);
     let verdict = match &seal {
-        SealTier::Unsealed => {
-            // The 2026-07-29 audit (run 2 · the anchor contract's silent
-            // arm): this early return used to swallow `require_anchor` —
-            // `--anchored` on an UNSEALED journal exited Ok without a
-            // word (measured: missing sidecar rc=0, forged sidecar rc=0,
-            // while the sealed path honors 3/2 exactly). The anchor
-            // verifies against the seal's key, so the tier is
-            // UNATTAINABLE here — the honest refusal: exit ENV (the
-            // `--anchored` contract's own class for a required tier that
-            // cannot be attained), the requirement named out loud.
-            if require_anchor {
-                lines.push(
-                    "ANCHORED — REQUIRED but the journal is unsealed (no run_sealed \
-                     line): the anchor verifies against the seal's key, so the \
-                     tier is unattainable"
-                        .to_owned(),
-                );
-                return TierReport {
-                    seal,
-                    anchor: AnchorTier::Required,
-                    replay: ReplayTier::NotAsked,
-                    attained: AttainedTier::Ok,
-                    exit: TierExit::Env,
-                    lines,
-                };
-            }
-            return TierReport {
-                seal,
-                anchor: AnchorTier::NotPresent,
-                replay: ReplayTier::NotAsked,
-                attained: AttainedTier::Ok,
-                exit: TierExit::Ok,
-                lines,
-            };
-        }
+        SealTier::Unsealed => return unsealed_report(seal, require_anchor, lines),
         SealTier::Forged(reason) => {
             lines.push(format!("SEAL FORGED — {reason}"));
             return TierReport {

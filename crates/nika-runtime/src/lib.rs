@@ -823,6 +823,30 @@ where
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {
+    /// The prologue emission (extracted under the fn-length law — the
+    /// boot section's arg marshalling, one line at the call site).
+    fn emit_run_prologue(
+        &self,
+        wf: &RawWorkflow,
+        workflow_name: &str,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) {
+        emit_prologue(
+            wf,
+            workflow_name,
+            self.source_sha256.as_deref(),
+            self.source_sha256_lf.as_deref(),
+            self.config.sandbox_backend.as_deref(),
+            &self.input_origins,
+            self.resume_compat.as_deref(),
+            self.config.max_cost_usd,
+            &self.approvals,
+            stamper,
+            sink,
+        );
+    }
+
     /// Execute the workflow per the report's wave schedule (spec §3).
     ///
     /// Tasks within a wave dispatch concurrently (capped) and settle in
@@ -883,19 +907,7 @@ where
         // per run through the schema's one projection; every task's
         // `returns:` contract parses against THIS environment (W3).
         let types = nika_check::named_types(wf);
-        emit_prologue(
-            wf,
-            &workflow_name,
-            self.source_sha256.as_deref(),
-            self.source_sha256_lf.as_deref(),
-            self.config.sandbox_backend.as_deref(),
-            &self.input_origins,
-            self.resume_compat.as_deref(),
-            self.config.max_cost_usd,
-            &self.approvals,
-            stamper,
-            sink,
-        );
+        self.emit_run_prologue(wf, &workflow_name, stamper, sink);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;
