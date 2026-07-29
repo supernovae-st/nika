@@ -40,7 +40,7 @@ mod heartbeat;
 mod quarantine;
 mod teardown;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
-use teardown::teardown_facts;
+use teardown::attended_facts;
 
 use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
 use nika_dap::resume::ResumeRequest;
@@ -840,12 +840,7 @@ async fn execute(
         sink.print_final();
         // F-P14 · la dette du run: a FAILED run quarantines its semi-written
         // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
-        let teardown = teardown_facts(
-            wf,
-            report,
-            &outcome,
-            quarantine::attend(wf, &outcome, trace.path()),
-        );
+        let teardown = attended_facts(wf, report, &outcome, trace.path());
         let trace_path = surface_trace(
             trace,
             TraceNote::Stderr,
@@ -931,12 +926,7 @@ async fn execute_json_lane(
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (sink, trace) = tee.into_parts();
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
-    let teardown = teardown_facts(
-        wf,
-        report,
-        &outcome,
-        quarantine::attend(wf, &outcome, trace.path()),
-    );
+    let teardown = attended_facts(wf, report, &outcome, trace.path());
     let trace_path = surface_trace(
         trace,
         TraceNote::Stderr,
@@ -1039,12 +1029,7 @@ async fn execute_fold_lane(
         .find(|r| r.state == crate::TaskState::Failed)
         .map(|r| r.id.clone());
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
-    let teardown = teardown_facts(
-        wf,
-        report,
-        &outcome,
-        quarantine::attend(wf, &outcome, trace.path()),
-    );
+    let teardown = attended_facts(wf, report, &outcome, trace.path());
     let _ = surface_trace(
         trace,
         if mode == RenderMode::Quiet {

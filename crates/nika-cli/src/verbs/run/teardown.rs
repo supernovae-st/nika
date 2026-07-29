@@ -9,6 +9,26 @@ use nika_check::CheckReport;
 use nika_runtime::RunOutcome;
 use nika_schema::raw::RawWorkflow;
 
+/// The teardown facts with the F-P14 debt attended FIRST (NEP-0014):
+/// on the failure lane the quarantine effect RUNS (the moves happen
+/// before the seal) and its fold rides; everywhere else `attend` is a
+/// no-op `None` and the key stays OUT (absent is honest). The one-call
+/// composition keeps the three surface lanes under the fn-length
+/// ratchet.
+pub(super) fn attended_facts(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    outcome: &RunOutcome,
+    journal: Option<&std::path::Path>,
+) -> nika_dap::seal::SealTeardown {
+    teardown_fold(
+        wf,
+        report,
+        outcome,
+        super::quarantine::attend(wf, outcome, journal),
+    )
+}
+
 /// The run's teardown facts for the seal's extended `covers` (F-P2 ·
 /// LOT-1): the receipt inputs (proves · the check certificate · each
 /// `assert:` judged at its honest level · the outcome word), the budgets
@@ -20,7 +40,7 @@ use nika_schema::raw::RawWorkflow;
 /// unprojectable workflow keeps the receipt digest out (absent is
 /// honest); the seal attests WHAT HAPPENED, it never promises the
 /// future.
-pub(super) fn teardown_facts(
+fn teardown_fold(
     wf: &RawWorkflow,
     report: &CheckReport,
     outcome: &RunOutcome,
@@ -141,7 +161,7 @@ mod tests {
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
-        let td = teardown_facts(&wf, &report, &outcome, None);
+        let td = teardown_fold(&wf, &report, &outcome, None);
         let budgets = td.budgets.expect("the budgets fold rides");
         assert!(
             budgets.get("spent_usd").is_none(),
@@ -171,7 +191,7 @@ mod tests {
         let mut outcome = RunOutcome::new(true, records, BTreeMap::new());
         outcome.total_cost_usd = Some(0.5);
         outcome.priced_calls = 1;
-        let td = teardown_facts(&wf, &report, &outcome, None);
+        let td = teardown_fold(&wf, &report, &outcome, None);
         let effects = td.effects.expect("the effects fold rides");
         assert_eq!(
             effects["exercised"], 3,
@@ -195,7 +215,7 @@ mod tests {
             "dir": ".nika/quarantine/2026-07-29T13-40-01Z-a3f2",
             "outputs": [{ "path": "out.txt", "quarantined_to": ".nika/quarantine/2026-07-29T13-40-01Z-a3f2/out.txt" }],
         });
-        let td = teardown_facts(&wf, &report, &outcome, Some(fold.clone()));
+        let td = teardown_fold(&wf, &report, &outcome, Some(fold.clone()));
         assert_eq!(
             td.quarantine.as_ref(),
             Some(&fold),
@@ -214,7 +234,7 @@ mod tests {
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
-        let td = teardown_facts(&wf, &report, &outcome, None);
+        let td = teardown_fold(&wf, &report, &outcome, None);
         assert!(td.quarantine.is_none(), "absent is honest");
     }
 }
