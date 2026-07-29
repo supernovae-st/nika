@@ -30,6 +30,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# @1.3 fence — research facts (energy · tokenizer · determinism) are
+# hand-vendored with per-claim sources; this script rewrites the WHOLE
+# file and has no merge step yet (the ONE DOOR pipeline owns that ·
+# wave-1.5 plan §3bis). Refuse loudly rather than silently wipe them.
+LIVE="crates/nika-catalog/data/model-pricing.toml"
+if grep -Eq '^[[:space:]]*(energy|tokenizer|determinism)[[:space:]]*=' "$LIVE"; then
+  echo "refresh-pricing: REFUSED — $LIVE carries @1.3 research facts." >&2
+  echo "This refresh rewrites the whole file and would wipe their sourced" >&2
+  echo "rows. Land the merge step (ONE DOOR · wave-1.5 plan) first." >&2
+  exit 1
+fi
+
 SRC="${1:-}"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
