@@ -30,8 +30,6 @@ model: mock/echo   # the dry twin · the lesson here is the tool call, not the p
 
 const:
   api_url: "https://api.example.com/v1/articles/latest"
-permits:
-  tools: ["nika:fetch"]
 
 permits:
   tools: ["nika:fetch"]
