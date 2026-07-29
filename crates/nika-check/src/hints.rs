@@ -34,8 +34,9 @@
 //!   to `success` or drop the entry.
 //! - **retry on uncontracted effects** (`retry-effects`) — see
 //!   [`push_retry_effects_hint`].
-//! - **concurrent same-path writers** (`parallel-writers`) — emitted by
-//!   the DAG analysis pass (`check/analysis.rs`) and merged here.
+//! - **concurrent same-path writers** — RETIRED by F-P15 (NEP-0014 law
+//!   1): the write-write race is the `NIKA-SEC-011` FINDING now (the
+//!   DAG analysis pass owns it · a hint is not a boundary).
 //! - **exec with a native path** (`native-first`) — emitted by the
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
@@ -75,10 +76,12 @@ use nika_schema::types::CaptureMode;
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
-    /// `redundant-gate` · `retry-effects` · `parallel-writers` ·
+    /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` · `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// (additive · agents route on it; the module doc describes each).
+    /// `parallel-writers` is RETIRED (F-P15 · promoted to the
+    /// NIKA-SEC-011 finding — an error owns its repair, never a hint).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
