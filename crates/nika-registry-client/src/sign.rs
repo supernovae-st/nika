@@ -67,19 +67,21 @@ pub(crate) fn parse_signature_block(
     Ok(Some(SignatureBlock { signature, pubkey }))
 }
 
-/// The TOFU anchor: the first key seen for `publisher` is recorded (only
-/// after it verified — never let an unverified key anchor trust); a later
-/// key that differs is a hard refusal.
-pub(crate) fn tofu_check_and_record(
+/// The TOFU check: a later key that DIFFERS from the machine's record is
+/// a hard refusal; a first-sight key is returned as PENDING (verified,
+/// not yet anchored). The anchor write is [`tofu_record`]'s — split so
+/// the NEP-0016 floor gate can refuse between verification and ANY
+/// write (NIKA-REG-008 writes nothing, the key anchor included).
+pub(crate) fn tofu_check(
     keys_dir: &Path,
     publisher: &str,
     pubkey: &str,
-) -> Result<(), RegistryError> {
+) -> Result<Option<(String, String)>, RegistryError> {
     let path = keys_dir.join(format!("{publisher}.pub"));
     match fs_read(&path) {
         Ok(recorded) => {
             if recorded.trim() == pubkey.trim() {
-                Ok(())
+                Ok(None) // already anchored — nothing to write
             } else {
                 Err(RegistryError::new(ErrKind::KeyChanged {
                     publisher: publisher.to_owned(),
@@ -87,17 +89,28 @@ pub(crate) fn tofu_check_and_record(
             }
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            fs_mkdir(keys_dir).map_err(|e| {
-                RegistryError::env(format!("cannot create {}: {e}", keys_dir.display()))
-            })?;
-            fs_write(&path, &format!("{pubkey}\n"))
-                .map_err(|e| RegistryError::env(format!("cannot write {}: {e}", path.display())))
+            Ok(Some((publisher.to_owned(), pubkey.to_owned())))
         }
         Err(e) => Err(RegistryError::env(format!(
             "cannot read the TOFU record {}: {e}",
             path.display()
         ))),
     }
+}
+
+/// The TOFU anchor write (only ever handed a key that VERIFIED — never
+/// let an unverified key anchor trust). Called after the floor gate, so
+/// a refused fetch leaves no residue of any kind.
+pub(crate) fn tofu_record(
+    keys_dir: &Path,
+    publisher: &str,
+    pubkey: &str,
+) -> Result<(), RegistryError> {
+    let path = keys_dir.join(format!("{publisher}.pub"));
+    fs_mkdir(keys_dir)
+        .map_err(|e| RegistryError::env(format!("cannot create {}: {e}", keys_dir.display())))?;
+    fs_write(&path, &format!("{pubkey}\n"))
+        .map_err(|e| RegistryError::env(format!("cannot write {}: {e}", path.display())))
 }
 
 /// The one marked fs touch of the TOFU store (the seam checker's exempt
