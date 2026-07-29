@@ -314,7 +314,7 @@ async fn max_turns_fails_with_partial_output() {
 
 #[tokio::test]
 async fn absent_max_turns_blames_the_contract_that_declares_the_default() {
-    // F-P22 (NEP-0014) · the positive acceptance: nothing wrote
+    // F-P22 (NEP-0017) · the positive acceptance: nothing wrote
     // `max_turns:`, so the DEFAULT (spec 02-verbs.md §agent · default 10)
     // is what the loop exhausts — the stop is imputed « by the contract »
     // and the receipt names the declarer, never the caller. (Changing

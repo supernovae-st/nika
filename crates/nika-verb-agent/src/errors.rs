@@ -31,7 +31,7 @@ use nika_types::cost::SpendOnFailure;
 #[non_exhaustive]
 pub enum VerbAgentError {
     /// The loop hit `max_turns` without completing (NIKA-460). F-P22
-    /// (NEP-0014): the blame is APPENDED to the verdict, never a rewrite
+    /// (NEP-0017): the blame is APPENDED to the verdict, never a rewrite
     /// — a task-written `max_turns:` is imputed « by the caller » (F-A5);
     /// the engine-applied default is imputed « by the contract » that
     /// declares it, and the journal's `task_failed` detail (the Display)

@@ -187,7 +187,7 @@ impl AgentInput {
     }
 }
 
-/// The resolved turn budget with its F-P22 (NEP-0014) blame polarity —
+/// The resolved turn budget with its F-P22 (NEP-0017) blame polarity —
 /// computed ONCE at arm time as a match on `input.max_turns`: a
 /// `max_turns:` the task wrote is imputed « by the caller » (F-A5); the
 /// [`DEFAULT_MAX_TURNS`] the engine applies on an absent key is imputed

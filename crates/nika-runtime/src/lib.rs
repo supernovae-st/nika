@@ -574,7 +574,7 @@ fn emit_prologue(
     // entropy seam · the seed under a determinism demand).
     opening.extend(boot_attestation_fields(wf));
     // F-P18 · the pricing-table pin + the resolved operator budget
-    // (NEP-0014 — the table that gives sense to ρ rides the pin).
+    // (NEP-0017 — the table that gives sense to ρ rides the pin).
     opening.extend(cost_pin_fields(max_cost_usd));
     // Stamped by hand (not via `emit`) so the opening frame's id comes
     // back as the run nonce — the F-P4 approval scope.
@@ -698,7 +698,7 @@ fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, FieldValue)> 
     fields
 }
 
-/// The F-P18 cost fields (NEP-0014 · la table de prix DANS le pin) —
+/// The F-P18 cost fields (NEP-0017 · la table de prix DANS le pin) —
 /// additive, the `permits_json` posture: older readers ignore unknown
 /// fields, newer readers find them absent where no claim exists.
 ///

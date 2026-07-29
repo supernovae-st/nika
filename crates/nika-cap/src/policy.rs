@@ -74,7 +74,7 @@ pub struct Policy {
     /// `limits:` — hard · judged at check.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<Limits>,
-    /// `endorsement:` — hard · judged at check (F-P23 · NEP-0014 · the
+    /// `endorsement:` — hard · judged at check (F-P23 · NEP-0017 · the
     /// named solo mode: a human gate under no declared mode refuses).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endorsement: Option<Endorsement>,
@@ -276,7 +276,7 @@ impl Objective {
     }
 }
 
-/// The HARD `endorsement:` mode (F-P23 · NEP-0014) — the NAMED solo mode
+/// The HARD `endorsement:` mode (F-P23 · NEP-0017) — the NAMED solo mode
 /// of endorsement. Declaring `endorsement: solo` claims exactly ONE
 /// endorser (one [`HUMAN_GATE_TOOL`] human gate) whose fresh
 /// authorization is bound to the action and logged as such (that half is
@@ -639,7 +639,7 @@ pub fn approval_batch_violations(policy: &Policy, tasks: &[PolicySubject]) -> Ve
     out
 }
 
-/// F-P23 (NEP-0014) — the NAMED SOLO MODE of endorsement. A workflow
+/// F-P23 (NEP-0017) — the NAMED SOLO MODE of endorsement. A workflow
 /// carrying a human gate ([`HUMAN_GATE_TOOL`]) runs under a DECLARED
 /// endorsement mode or refuses: undeclared with ANY gate count ≥ 1 is
 /// the refusal, never just exactly-one (F-F5 fail-closed · zero implicit
@@ -670,7 +670,7 @@ pub fn endorsement_solo_violations(
                 detail: format!(
                     "task '{}' · endorsement.undeclared_mode — a human gate runs under a \
                      DECLARED endorsement mode or refuses (F-F5 · zero implicit escape): \
-                     declare `policy: {{ endorsement: solo }}` (NEP-0014 · F-P23 · \
+                     declare `policy: {{ endorsement: solo }}` (NEP-0017 · F-P23 · \
                      NIKA-SEC-013)",
                     g.id
                 ),
@@ -685,7 +685,7 @@ pub fn endorsement_solo_violations(
                 detail: format!(
                     "endorsement.solo_count — `endorsement: solo` declares ONE endorser, \
                      the workflow carries {} human gates ({}) · the declaration must not \
-                     lie (NEP-0014 · F-P23 · NIKA-SEC-013)",
+                     lie (NEP-0017 · F-P23 · NIKA-SEC-013)",
                     gates.len(),
                     names.join(" · ")
                 ),
@@ -1042,7 +1042,7 @@ mod tests {
         assert_eq!(v.len(), 1, "the reachable tainted ancestor still reports");
     }
 
-    // ── F-P23 (NEP-0014) · the named solo mode of endorsement ────────
+    // ── F-P23 (NEP-0017) · the named solo mode of endorsement ────────
 
     #[test]
     fn endorsement_solo_parses_and_unknown_modes_are_refused() {

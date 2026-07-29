@@ -165,7 +165,7 @@ fn prologue_attests_the_declared_cross_version_compat() {
     assert_eq!(get(&exact, "resume_compat"), None);
 }
 
-/// F-P18 (NEP-0014 · la table de prix DANS le pin) — the boot manifest
+/// F-P18 (NEP-0017 · la table de prix DANS le pin) — the boot manifest
 /// pins the pricing table the run's costs were billed against, as ONE
 /// JSON object naming the schema marker + the snapshot's `as_of` +
 /// sha256 prefix. The pin is byte-stable in its field name (`pricing`)

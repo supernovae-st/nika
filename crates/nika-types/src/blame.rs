@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! F-P22 (NEP-0014) — the blame polarity of a failure: WHO a violated
+//! F-P22 (NEP-0017) — the blame polarity of a failure: WHO a violated
 //! bound is imputed to. This module names F-A5's two existing polarities
 //! (« by the value » · « by the caller ») for the first time and adds the
 //! third F-J2 × F-P22 introduces: a default the CONTRACT declares and the

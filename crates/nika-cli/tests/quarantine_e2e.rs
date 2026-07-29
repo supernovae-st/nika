@@ -6,7 +6,7 @@
 // sanctioned carve-out as resume_e2e.rs / trace_export_e2e.rs).
 #![allow(clippy::disallowed_types)]
 
-//! F-P14 (NEP-0014 · « obligation de fin — la dette du run », sous le mot
+//! F-P14 (NEP-0017 · « obligation de fin — la dette du run », sous le mot
 //! réservé `finally`) at the REAL binary — palier v1, the quarantine:
 //!
 //! - **(a) the positive** — a FAILED run whose writer tasks settled

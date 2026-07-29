@@ -56,7 +56,7 @@ pub(super) fn scan_policy(wf: &RawWorkflow, edges: &[Edge]) -> Vec<PolicyViolati
         &policy.value,
         &subjects,
     ));
-    // F-P23 (NEP-0014) — the named solo mode rides the same projection:
+    // F-P23 (NEP-0017) — the named solo mode rides the same projection:
     // a human gate under no declared endorsement mode refuses (F-F5
     // fail-closed), and a declared solo with more than one gate lies.
     violations.extend(nika_cap::endorsement_solo_violations(
@@ -393,7 +393,7 @@ mod tests {
         assert!(codes.contains(&"NIKA-POLICY-001".to_owned()), "{codes:?}");
     }
 
-    // ── F-P23 (NEP-0014) · the named solo mode of endorsement ────────
+    // ── F-P23 (NEP-0017) · the named solo mode of endorsement ────────
 
     /// A human gate under a declared `policy:` block that names NO
     /// endorsement mode refuses at check (F-F5 fail-closed) — the wire
@@ -419,7 +419,7 @@ mod tests {
             "the fix is taught: {}",
             f.detail
         );
-        // The unified fold speaks NIKA-SEC-013 (NEP-0014), never the
+        // The unified fold speaks NIKA-SEC-013 (NEP-0017), never the
         // spec-10 policy code — same discrimination as the approval batch.
         let u = r
             .findings

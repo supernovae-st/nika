@@ -9,7 +9,7 @@ use nika_check::CheckReport;
 use nika_runtime::RunOutcome;
 use nika_schema::raw::RawWorkflow;
 
-/// The teardown facts with the F-P14 debt attended FIRST (NEP-0014):
+/// The teardown facts with the F-P14 debt attended FIRST (NEP-0017):
 /// on the failure lane the quarantine effect RUNS (the moves happen
 /// before the seal) and its fold rides; everywhere else `attend` is a
 /// no-op `None` and the key stays OUT (absent is honest). The one-call

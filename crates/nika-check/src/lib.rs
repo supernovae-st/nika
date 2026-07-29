@@ -498,7 +498,7 @@ impl CheckReport {
         codes.extend(self.sink_findings.iter().map(|_| sink_code));
         // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
         // approval rules (NEP-0013) → NIKA-SEC-010 · the F-P23 endorsement
-        // rules (NEP-0014) → NIKA-SEC-013 (one lane, three voices — the
+        // rules (NEP-0017) → NIKA-SEC-013 (one lane, three voices — the
         // rule prefix discriminates, same as the findings fold).
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
         codes.extend(self.policy_findings.iter().map(|p| {

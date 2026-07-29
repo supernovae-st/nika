@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The failed run's debt (F-P14 · NEP-0014 · « obligation de fin — la
+//! The failed run's debt (F-P14 · NEP-0017 · « obligation de fin — la
 //! dette du run », sous le mot réservé `finally`) — palier v1: the
 //! QUARANTINE. `TokioFs::write` is atomic (temp + rename), so a
 //! "semi-written output" is a file FULLY written by a task that settled

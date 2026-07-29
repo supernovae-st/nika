@@ -37,7 +37,7 @@
 //! Two scoped stated verdicts ride beside the ladder — they never move
 //! the tier nor the exit code (the F-P2 INCOMPLETE posture): the
 //! NEP-0007 permit-witness **FINDING**, and the F-P18 **COST-REPLAY**
-//! leg (NEP-0014 · the boot pin's pricing table against this engine's:
+//! leg (NEP-0017 · the boot pin's pricing table against this engine's:
 //! `unrecorded` on a pre-law journal · **REFUSED** on an unknown table
 //! version, both identities named · the budget verdict re-judged
 //! consistency-grade when the pinned table IS this engine's).
@@ -273,7 +273,7 @@ fn tiered(
         use std::fmt::Write as _;
         let _ = write!(out, "\n{finding}");
     }
-    // F-P18 · the cost-replay leg (NEP-0014 · la table de prix DANS le
+    // F-P18 · the cost-replay leg (NEP-0017 · la table de prix DANS le
     // pin): a SCOPED STATED VERDICT — it rides after the ladder and the
     // witness finding and never moves the chain verdict nor the exit
     // code (the F-P2 `Incomplete` posture). The judge is pure; the
@@ -890,7 +890,7 @@ mod tests {
         );
     }
 
-    // ── The F-P18 cost-replay leg (NEP-0014) ─────────────────────────
+    // ── The F-P18 cost-replay leg (NEP-0017) ─────────────────────────
 
     /// A chained journal with arbitrary-JSON field payloads — the cost
     /// leg reads numeric `cost_usd` / `total_cost_usd` and JSON-text

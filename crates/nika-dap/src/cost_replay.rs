@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The F-P18 cost-replay leg of `nika trace verify` (NEP-0014 · la
+//! The F-P18 cost-replay leg of `nika trace verify` (NEP-0017 · la
 //! table de prix DANS le pin).
 //!
 //! The law: « la table de prix versionnée qui donne sens à ρ (usd)
@@ -323,7 +323,7 @@ fn refused(pinned: Option<PricingPin>, local: &PricingPin) -> CostReplayLeg {
             local: local.clone(),
         },
         lines: vec![format!(
-            "COST-REPLAY — REFUSED · the pinned pricing table is not this engine's: an unknown\n  table version never silently re-prices (F-P18 · NEP-0014)\n  pinned: {pinned_render}\n  local:  {}",
+            "COST-REPLAY — REFUSED · the pinned pricing table is not this engine's: an unknown\n  table version never silently re-prices (F-P18 · NEP-0017)\n  pinned: {pinned_render}\n  local:  {}",
             render_pin(local)
         )],
     }

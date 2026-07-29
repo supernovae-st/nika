@@ -380,7 +380,7 @@ pub struct SealTeardown {
     pub budgets: Option<serde_json::Value>,
     /// The effects ε fold (exercised vs declared), pre-shaped by the caller.
     pub effects: Option<serde_json::Value>,
-    /// The quarantine fold (F-P14 · NEP-0014 · « obligation de fin — la
+    /// The quarantine fold (F-P14 · NEP-0017 · « obligation de fin — la
     /// dette du run »): where the failed run's semi-written outputs
     /// moved (`{dir, outputs: [{path, quarantined_to} | {path, error,
     /// action}]}`), pre-shaped by the caller. Rides the FAILURE lane
@@ -779,7 +779,7 @@ mod tests {
         .expect("the extended seal verifies");
     }
 
-    /// F-P14 (NEP-0014 · la dette du run) · the failed run's quarantine
+    /// F-P14 (NEP-0017 · la dette du run) · the failed run's quarantine
     /// fold rides `covers` additively and the signature verifies over
     /// the extended object; a `None` keeps the key OUT (a clean run
     /// attests nothing — absent is honest).
