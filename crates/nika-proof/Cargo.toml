@@ -1,0 +1,30 @@
+[package]
+name          = "nika-proof"
+description   = "The proof layer's hash primitives (spec 15 · W6) — the seven hash domains, the JCS canonical bytes, the domain-separated pre-image, the blake3 semantic hash, and the one receipt the certificate/trace/assertions/lock fold into. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-022.
+
+[dependencies]
+nika-check  = { path = "../nika-check", version = "0.106.0" }    # RunCertificate — the check certificate the receipt folds
+nika-schema = { path = "../nika-schema", version = "0.106.0" }   # AssertProperty/AssertLevel — the judged obligations
+serde_json  = { workspace = true }
+blake3      = { workspace = true }   # the engine-side digest (the reference's sha256 · parity on the pre-image, never the digest)
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "scelleur"
+archetype     = "kodama-scelleur"
+spirit_role   = "scelle ce que la mer a dit · le hash ne jure que de ce qu'il a vu"
+voice_pattern = "silent"
+layer         = "L0"
+
+[lints]
+workspace = true

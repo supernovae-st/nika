@@ -7,7 +7,7 @@
 //! (05 · attempts · effects · cost bound), the trace verdict (13 Outcome +
 //! chain integrity), each `assert:` judged with its level, and the
 //! `nika.lock` digest the run resolved under — and `proves` the run's
-//! semantic hash ([`crate::proof::semantic_hash`]). The Decision Receipt
+//! semantic hash ([`crate::semantic_hash`]). The Decision Receipt
 //! (`nika_builtin::decide` · `decision_receipt_format: 1`) and the registry
 //! certificate become INSTANCES of this shape — one voice, three surfaces.
 //!
@@ -28,7 +28,7 @@ use nika_check::RunCertificate;
 use nika_schema::types::{AssertLevel, AssertProperty};
 use serde_json::{Map, Value};
 
-use crate::proof::{HashDomain, SemanticHash, hash_in_domain};
+use crate::{HashDomain, SemanticHash, hash_in_domain};
 
 /// The v1 receipt format — the `receipt_format` field value AND the pre-image
 /// format version (the reference's `RECEIPT_FORMAT`).
@@ -43,7 +43,7 @@ const DIGEST_KEY: &str = "digest";
 /// `proof_core.build_receipt`).
 ///
 /// - `proves` — the run's semantic hash hex (the identity this receipt is
-///   about · [`crate::proof::SemanticHash::as_hex`]).
+///   about · [`crate::SemanticHash::as_hex`]).
 /// - `certificate` — the check certificate (05).
 /// - `trace_verdict` — the trace-verify result (13 Outcome + chain integrity).
 /// - `assertions` — each `assert:` judged with its level.
@@ -530,7 +530,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::proof::{FORMAT_VERSION, semantic_hash};
+    use crate::{FORMAT_VERSION, semantic_hash};
 
     fn sample() -> Value {
         build_receipt(
@@ -587,7 +587,7 @@ mod tests {
         let r = sample();
         let mut body = r.as_object().unwrap().clone();
         body.remove(DIGEST_KEY);
-        let canon = crate::proof::canonical(&Value::Object(body));
+        let canon = crate::canonical(&Value::Object(body));
         assert_eq!(
             canon,
             r#"{"assertions":[{"assert":"no_secret_egress","level":"StaticProof"}],"certificate":{"attempts":1},"lock_digest":"blake3:lock","proves":"blake3:fixedsem","receipt_format":1,"trace_verdict":{"outcome":"success"}}"#
@@ -598,269 +598,8 @@ mod tests {
         );
     }
 
-    /// The ONE real instance: a receipt folded from the engine's OWN typed
-    /// pieces — a real `RunCertificate` (nika-schema · from an actually-checked
-    /// workflow), the workflow's real semantic hash (the Merkle root), and an
-    /// `assert:` obligation judged at its honest level (nika-vocab). The
-    /// receipt proves THIS workflow's identity and verifies.
-    #[test]
-    fn a_run_receipt_folds_the_engine_certificate_and_verifies() {
-        use crate::proof::ir::semantic_ir_hash;
-
-        let wf = nika_schema::parse(
-            "nika: v1\nworkflow:\n  id: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("fixture parses");
-        let report = nika_check::check(&wf);
-        let proves = semantic_ir_hash(&wf).expect("projectable");
-
-        // Judge one obligation at its honest level (no_secret_egress is static).
-        let property = AssertProperty::NoSecretEgress;
-        let judged = vec![(property.clone(), property.level(false))];
-
-        let receipt = build_run_receipt(
-            &proves,
-            &report.certificate,
-            &judged,
-            json!({ "outcome": "success" }),
-            "blake3:lockdigest",
-        );
-
-        // The receipt proves THIS workflow's semantic hash and verifies.
-        assert!(
-            verify(&receipt, proves.as_hex()),
-            "the run receipt verifies"
-        );
-        // The engine's real certificate is folded in (attempts · effects · bound).
-        assert!(
-            receipt["certificate"].is_object(),
-            "the RunCertificate is folded, not a placeholder"
-        );
-        // The judged assertion rides with its honest level.
-        assert_eq!(
-            receipt["assertions"][0]["assert"],
-            json!("no_secret_egress")
-        );
-        assert_eq!(receipt["assertions"][0]["level"], json!("StaticProof"));
-        assert_eq!(receipt["lock_digest"], json!("blake3:lockdigest"));
-        // It does NOT verify against a different workflow's identity.
-        assert!(!verify(&receipt, "blake3:someotherworkflow"));
-    }
-
-    // ── F-P16 · the readable receipt (NEP-0014 law 3) ─────────────────
-
-    /// The rich fixture's YAML — one const so the receipt, the proves
-    /// and the golden can never drift apart.
-    const RICH_YAML: &str = "nika: v1\nworkflow:\n  id: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
-
-    /// A receipt whose certificate exercises EVERY field family: a
-    /// `for_each` expression (parametric terms) · a retry · a declared
-    /// boundary (the effects projection) · an `on_finally` cleanup.
-    fn rich_receipt() -> Value {
-        use crate::proof::ir::semantic_ir_hash;
-
-        let wf = nika_schema::parse(
-            RICH_YAML,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("fixture parses");
-        let report = nika_check::check(&wf);
-        assert!(report.is_clean(), "the fixture is clean: {report:?}");
-        let proves = semantic_ir_hash(&wf).expect("projectable");
-        let property = AssertProperty::NoSecretEgress;
-        let judged = vec![(property.clone(), property.level(false))];
-        build_run_receipt(
-            &proves,
-            &report.certificate,
-            &judged,
-            json!({
-                "outcome": "completed",
-                "chain": "intact",
-                "events": 7,
-                "head": "ab12",
-                "sealed": true,
-            }),
-            "blake3:lockdigest",
-        )
-    }
-
-    /// THE law: every field of a real receipt carries its projection —
-    /// the walk over every dotted key path (the certificate's bounds ·
-    /// the witness rows · the effects · the verdict · the assertions)
-    /// finds ZERO unprojected fields.
-    #[test]
-    fn every_field_of_a_real_receipt_carries_a_projection() {
-        let receipt = rich_receipt();
-        let missing = unprojected_fields(&receipt);
-        assert!(
-            missing.is_empty(),
-            "fields without a projection (the schema refuses them): {missing:?}"
-        );
-        // …and the walk is not vacuous: the receipt HAS the families.
-        for family in [
-            "certificate.task_attempts.terms.task",
-            "certificate.derivation.finally_effect",
-            "certificate.effects.boundary_declared",
-            "trace_verdict.sealed",
-            "assertions.level",
-            "digest",
-        ] {
-            assert!(
-                projection_of(family).is_some(),
-                "{family} projects: {}",
-                projection_of(family).unwrap_or("∅")
-            );
-        }
-    }
-
-    /// The refuse: a field WITHOUT a projection is caught by the walk —
-    /// this is what keeps a future schema edit from shipping a field no
-    /// one can read (the ratchet turns red, the schema is refused).
-    #[test]
-    fn a_field_without_a_projection_is_refused() {
-        let mut receipt = rich_receipt();
-        receipt
-            .as_object_mut()
-            .unwrap()
-            .insert("mystery".to_owned(), json!(1));
-        receipt["certificate"]
-            .as_object_mut()
-            .unwrap()
-            .insert("unbounded".to_owned(), json!(true));
-        let missing = unprojected_fields(&receipt);
-        assert_eq!(
-            missing,
-            vec!["certificate.unbounded".to_owned(), "mystery".to_owned()],
-            "both unprojected fields are named"
-        );
-    }
-
-    /// The dynamic subtree posture: `effects.needed` projects its
-    /// CONTAINER sentence and the walk never descends into the
-    /// runtime-named keys (projecting each would be a guess).
-    #[test]
-    fn the_dynamic_needed_map_is_a_leaf() {
-        assert!(projection_of("certificate.effects.needed").is_some());
-        let receipt = json!({
-            "certificate": { "effects": { "needed": { "exec": ["git"], "fs": { "read": ["./x"] } } } },
-        });
-        assert!(
-            unprojected_fields(&receipt).is_empty(),
-            "the leaf covers the whole subtree"
-        );
-    }
-
-    /// The stable render — golden: the same receipt always renders the
-    /// same text (the 3-OS law: no paths, no colours, no clock), and the
-    /// header says what explain IS (a reading · never the proof).
-    #[test]
-    fn explain_renders_the_stable_projection() {
-        let receipt = build_receipt(
-            "blake3:fixedsem",
-            json!({"attempts": 1}),
-            json!({"outcome": "success"}),
-            vec![json!({"assert": "no_secret_egress", "level": "StaticProof"})],
-            "blake3:lock",
-        );
-        let text = explain_receipt(&receipt);
-        // The reading-not-proof header, always first.
-        assert!(
-            text.starts_with(
-                "receipt · the one run receipt (receipt_format 1)\n  a READING, never a proof"
-            ),
-            "{text}"
-        );
-        // The folded fields render with their projections.
-        for row in [
-            "proves       blake3:fixedsem — the workflow identity this receipt attests (the semantic hash)",
-            "lock_digest  blake3:lock — the nika.lock digest the run resolved under",
-            "digest       ",
-            "trace_verdict — the trace-verify result folded into this receipt",
-            "  outcome    success — the run's terminal outcome",
-            "assertions  1 judged — the assert: obligations, each judged at its honest level",
-            "  no_secret_egress  StaticProof",
-        ] {
-            assert!(text.contains(row), "missing row `{row}` in:\n{text}");
-        }
-        // A foreign certificate shape (no Bound axes) renders without a
-        // panic — the reading stays total.
-        assert!(
-            text.contains("certificate — the check-time resource certificate"),
-            "{text}"
-        );
-        // explain ≠ evidence: the digest rides as DATA (no verify call —
-        // a doctored receipt renders the same way, and that is the law).
-        let mut doctored = receipt.as_object().unwrap().clone();
-        doctored.insert("lock_digest".to_owned(), json!("blake3:forged"));
-        let doctored_text = explain_receipt(&Value::Object(doctored));
-        assert!(
-            doctored_text.contains("blake3:forged"),
-            "a reading, not a verdict"
-        );
-    }
-
-    /// The golden pin of the FULL render over the rich receipt — one
-    /// byte-level contract for the 3-OS stability claim.
-    #[test]
-    fn the_explain_render_is_byte_stable() {
-        let text = explain_receipt(&rich_receipt());
-        let expected = "\
-receipt · the one run receipt (receipt_format 1)
-  a READING, never a proof — the digest is NOT recomputed here · `verify` is the proof
-
-proves       PROVES — the workflow identity this receipt attests (the semantic hash)
-digest       DIGEST — the self-binding digest — verify recomputes it over the folded fields
-lock_digest  blake3:lockdigest — the nika.lock digest the run resolved under (unrecorded when the journal never carried it)
-
-certificate — the check-time resource certificate folded into this receipt
-  task_attempts  ≤ 1 + 2·|fan| — upper bound on task-body executions (attempts × fan-out)
-  llm_calls      ≤ 0 + 2·|fan| — upper bound on LLM calls (infer + agent turns)
-  effect_calls   ≤ 1 + 1·|fan| — upper bound on effect calls (exec + invoke dispatches)
-  usd_micros     ≤ 0 + 6000·|fan| — the parametric spend bound in micro-USD (absent when unpriceable)
-  span_attempts  3 — the longest sequential dependency chain, in attempts (the span)
-  derivation     2 witness rows — the per-task witness rows the audit re-checks
-  effects        boundary declared · 0 escapes — the authority projection (spec 10 · re-derived at audit, never trusted)
-
-trace_verdict — the trace-verify result folded into this receipt
-  outcome    completed — the run's terminal outcome
-  chain      intact — the journal chain status the verdict names
-  events     7 — the journaled event count
-  head       ab12 — the chain head the verdict names
-  sealed     true — whether the journal is sealed (attributable)
-
-assertions  1 judged — the assert: obligations, each judged at its honest level
-  no_secret_egress  StaticProof
-";
-        let normalized = text
-            .replace(&rich_proves(), "PROVES")
-            .replace(&rich_digest(), "DIGEST");
-        assert_eq!(normalized, expected, "the stable render drifted:\n{text}");
-    }
-
-    /// The rich fixture's semantic hash (the golden normalizes it out).
-    fn rich_proves() -> String {
-        use crate::proof::ir::semantic_ir_hash;
-        let wf = nika_schema::parse(
-            RICH_YAML,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("fixture parses");
-        semantic_ir_hash(&wf)
-            .expect("projectable")
-            .as_hex()
-            .to_owned()
-    }
-
-    /// The rich fixture's receipt digest (normalized out of the golden —
-    /// it is deterministic; the pin lives on the STRUCTURE).
-    fn rich_digest() -> String {
-        rich_receipt()["digest"]
-            .as_str()
-            .expect("a digest")
-            .to_owned()
-    }
+    // The ONE-real-instance receipt test (a run receipt folding the
+    // engine's OWN certificate + the workflow's semantic IR hash) lives
+    // with the `ir` projection — nika-runtime's `proof::ir` tests, since
+    // the projection stayed with the runtime's resume family.
 }

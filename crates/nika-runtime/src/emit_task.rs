@@ -61,6 +61,7 @@ pub(crate) fn emit_completed(
     warning: Option<&str>,
     child: Option<&crate::child::ChildRunSummary>,
     resume: Option<&resume::ResumeStamp>,
+    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &TaskRecord,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -107,6 +108,9 @@ pub(crate) fn emit_completed(
         fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
         fields.push((resume::fields::OUTPUT, s(text)));
     }
+    // F-P6 · the fired step's binding evidence (preview ≡ commit) — and
+    // the finding when a RECOVERED divergence preceded (never a warn).
+    crate::settle::push_commit_fields(&mut fields, evidence);
     // Spec 13 · trace_format: 2 — every terminal task event carries the
     // outcome (class · cause · payload per class).
     let outcome = outcome_json(record);
