@@ -54,9 +54,11 @@ pub(crate) const VAR_TYPE_CODE: &str = "NIKA-VAR-006";
 /// One task's complete, pen-free outcome — the settle pass turns this
 /// into events + a record.
 mod declassify;
+mod failed;
 mod finally;
 
 pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};
+pub(crate) use failed::FailedOutcome;
 
 /// Assemble the `Finish` of a RAN task (the output bindings spec 04 ·
 /// the resume filter · the F-O1 declassify evidence · the F-P4 approval
@@ -164,8 +166,12 @@ pub(crate) enum SettleAs {
     /// no `TaskStarted` · no `on_finally:` — the original run already
     /// ran its cleanup). Settles as a plain success downstream.
     CacheHit { output: Value },
-    /// The task ran (dispatched at least once).
-    Ran(RanTask),
+    /// The task ran (dispatched at least once). Boxed: the attempt
+    /// history is intrinsically the big variant (and grows with every
+    /// attestation lane — the F-P6 binding evidence pushed the enum past
+    /// clippy's `large_enum_variant` wall) — the settle channel moves
+    /// `Finish` by value, so the big story stays off it.
+    Ran(Box<RanTask>),
 }
 
 /// A task that started — attempt history + terminal result.
@@ -184,6 +190,13 @@ pub(crate) struct RanTask {
     /// The dispatch boundary's permit decisions across attempts (NEP-0007
     /// law 2 · spec 17) — one `permit_checked` frame each at settle.
     pub decisions: Vec<crate::witness::PermitDecision>,
+    /// F-P6 · the settling dispatch's binding evidence — `Fired` (the
+    /// terminal frame carries both digests) or `Refused` (the finding
+    /// rides even under an `on_error:` recovery — never a warn). `None`
+    /// for the un-gated verbs (infer · agent) · a never-fired task · the
+    /// fan-out aggregate's pair (the `child: None` precedent — but a
+    /// diverged iteration's finding DOES ride).
+    pub evidence: Option<crate::dispatch::commit::CommitEvidence>,
     /// Clock-measured wall time across attempts + cleanup (0 under a
     /// mock clock · real under the production clock — the event-stream
     /// determinism contract is "deterministic seams in · deterministic
@@ -212,15 +225,6 @@ pub(crate) struct RetryStamp {
     pub delay_ms: u64,
 }
 
-/// A settled attempt-loop failure — the error + the spend the failed
-/// attempts had already incurred (per-attempt debits happened live;
-/// these fields feed the terminal frame).
-pub(crate) struct FailedOutcome {
-    pub record: TaskErrorRecord,
-    pub cost_usd: Option<f64>,
-    pub cost_unpriced: Option<nika_types::cost::UnpricedReason>,
-}
-
 /// The three read-only value namespaces every lane threads whole
 /// (`vars` · `env` · `secrets`) — one alias, four signatures.
 type ValueBags<'a> = (
@@ -229,20 +233,6 @@ type ValueBags<'a> = (
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
 );
-
-impl FailedOutcome {
-    pub(crate) fn new(
-        record: TaskErrorRecord,
-        cost_usd: Option<f64>,
-        cost_unpriced: Option<nika_types::cost::UnpricedReason>,
-    ) -> Self {
-        Self {
-            record,
-            cost_usd,
-            cost_unpriced,
-        }
-    }
-}
 
 /// The task's terminal result.
 pub(crate) enum RunResult {
@@ -596,7 +586,7 @@ where
             .await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(ran)
+        SettleAs::Ran(Box::new(ran))
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
@@ -685,6 +675,9 @@ where
             retries,
             agent_events,
             decisions: acc.decisions,
+            // F-P6 · no digest pair honestly aggregates N iterations —
+            // only a REFUSED binding rides (the first diverged one).
+            evidence: acc.evidence,
             duration_ms: 0,
             result,
         };
@@ -697,7 +690,7 @@ where
             .await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(ran)
+        SettleAs::Ran(Box::new(ran))
     }
 
     /// The `on_finally:` scope for a fan-out — `item`/`index` out of
@@ -754,6 +747,7 @@ where
                     retries: Vec::new(),
                     agent_events: Vec::new(),
                     decisions: Vec::new(),
+                    evidence: None,
                     duration_ms: 0,
                     result: RunResult::Failed {
                         error: runtime_error_record(&err),
@@ -872,7 +866,7 @@ where
             verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
         }
 
-        let result = dispatch_result(task, scope, outcome);
+        let (result, evidence) = dispatch_result(task, scope, outcome);
         RanTask {
             note,
             retries,
@@ -881,6 +875,7 @@ where
                 &attempt_marks,
             ),
             decisions: witness.take(),
+            evidence,
             duration_ms,
             result,
         }
@@ -923,6 +918,10 @@ where
                             // timeout-cancellation class).
                             cost_usd: None,
                             cost_unpriced: None,
+                            // The dropped attempt's binding evidence dies
+                            // with it (futures-cancellation — the gate
+                            // verdict was never journaled either).
+                            evidence: None,
                         })
                     }
                 }
@@ -1303,15 +1302,26 @@ fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
     }
 }
 
-/// Map an attempt-loop outcome to the terminal [`RunResult`]: a success
-/// carries the value + token spend + the optional OBS-E diagnostic
-/// straight through · a failure runs the `on_error:` policy (spec 05).
+/// Map an attempt-loop outcome to the terminal [`RunResult`] PLUS the
+/// F-P6 binding evidence: a success carries the value + token spend +
+/// the optional OBS-E diagnostic straight through · a failure runs the
+/// `on_error:` policy (spec 05). The evidence is lifted BEFORE the fold
+/// so it rides OUTSIDE it — a recovered divergence keeps its finding
+/// (never a warn), and a post-gate verb failure keeps the passed gate's
+/// attestation.
 fn dispatch_result(
     task: &RawTask,
     scope: &Scope<'_>,
     outcome: Result<DispatchOk, FailedOutcome>,
-) -> RunResult {
-    match outcome {
+) -> (RunResult, Option<crate::dispatch::commit::CommitEvidence>) {
+    let evidence = match &outcome {
+        Ok(ok) => ok
+            .commit
+            .clone()
+            .map(crate::dispatch::commit::CommitEvidence::Fired),
+        Err(failed) => failed.evidence.clone(),
+    };
+    let result = match outcome {
         Ok(DispatchOk {
             value,
             tokens,
@@ -1320,6 +1330,7 @@ fn dispatch_result(
             cost_usd,
             cost_source: _,
             cost_unpriced,
+            commit: _,
         }) => RunResult::Success {
             value,
             tokens,
@@ -1330,7 +1341,8 @@ fn dispatch_result(
             cost_unpriced,
         },
         Err(failed) => apply_on_error(task, scope, failed),
-    }
+    };
+    (result, evidence)
 }
 
 /// `on_error:` (spec 05) — filter (`on_codes`) → ONE action.
@@ -1339,6 +1351,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         record: error,
         cost_usd,
         cost_unpriced,
+        evidence,
     } = failed;
     let Some(on_error) = task.on_error.as_ref() else {
         return RunResult::Failed {
@@ -1381,7 +1394,9 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                 match crate::recover::classify_await(&value.value, scope) {
                     Some(awaiting) => {
                         RunResult::PendingRecovery(Box::new(crate::recover::PendingRecovery {
-                            failed: FailedOutcome::new(error, cost_usd, cost_unpriced),
+                            // F-P6 · the evidence parks WITH the failure —
+                            // a recovered divergence keeps its finding.
+                            failed: FailedOutcome::new(error, cost_usd, cost_unpriced, evidence),
                             render_error,
                             awaiting,
                             with_ns: scope.with_ns.cloned().unwrap_or_default(),

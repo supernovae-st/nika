@@ -157,11 +157,12 @@ fn the_book_dedups_a_decided_ticket_and_re_mints_a_stale_one() {
     let Admit::Run { .. } = book.admit("one", "confirm", &hash, 0, None) else {
         panic!("the first mint runs");
     };
-    let settle = crate::task::SettleAs::Ran(crate::task::RanTask {
+    let settle = crate::task::SettleAs::Ran(Box::new(crate::task::RanTask {
         decisions: Vec::new(),
         note: "invoke · nika:prompt".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
+        evidence: None,
         duration_ms: 0,
         result: crate::task::RunResult::Success {
             value: Value::Bool(true),
@@ -172,7 +173,7 @@ fn the_book_dedups_a_decided_ticket_and_re_mints_a_stale_one() {
             cost_usd: None,
             cost_unpriced: None,
         },
-    });
+    }));
     let att = book
         .attest_outcome("one", &settle, 1_000)
         .expect("a resolved ask attests");

@@ -200,7 +200,7 @@ pub(crate) fn settle(
         SettleAs::Ran(run) => {
             let mut record = settle_ran(
                 &id,
-                run,
+                *run,
                 resume.as_ref(),
                 &integrity,
                 &declassified,
@@ -365,20 +365,13 @@ pub(crate) fn settle_ran(
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) -> TaskRecord {
-    let started_at = emit(
-        stamper,
-        sink,
-        EventKind::TaskStarted,
-        &[("task", s(id)), ("note", s(&run.note))],
-    );
-    emit_ran_preamble(id, declassified, &run, stamper, sink);
-    // F-P4 — the approval decision rides BETWEEN `task_started` and the
-    // terminal frame (the declassify/permit-witness idiom · NEP-0013
-    // law 4): the chain binds the answered hash to the task it armed.
-    emit_approval(approval, stamper, sink);
+    let started_at = emit_ran_prologue(id, &run, declassified, approval, stamper, sink);
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();
+    // F-P6 · the settling dispatch's binding evidence (lifted before
+    // `run.result` moves — EVERY terminal shape can carry it).
+    let evidence = run.evidence;
     let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
     record.started_at = Some(started_at);
     record.duration_ms = Some(run.duration_ms);
@@ -403,6 +396,7 @@ pub(crate) fn settle_ran(
             (cost_usd, cost_unpriced),
             attempts,
             resume,
+            evidence.as_ref(),
             &mut record,
             stamper,
             sink,
@@ -415,6 +409,7 @@ pub(crate) fn settle_ran(
             id,
             error,
             (cost_usd, cost_unpriced),
+            evidence.as_ref(),
             &mut record,
             stamper,
             sink,
@@ -430,6 +425,7 @@ pub(crate) fn settle_ran(
             error,
             (cost_usd, cost_unpriced),
             attempts,
+            evidence.as_ref(),
             &mut record,
             ok,
             stamper,
@@ -438,13 +434,13 @@ pub(crate) fn settle_ran(
         // Backstop: a pending recovery parks BEFORE settle (the
         // `recover::settle_or_park` spine) — one reaching this site
         // settles its classification-time failure (total · no panic).
-        task::RunResult::PendingRecovery(pending) => settle_failed_terminal(
+        task::RunResult::PendingRecovery(pending) => settle_pending_backstop(
             id,
             &run.note,
             duration,
-            pending.render_error,
-            (pending.failed.cost_usd, pending.failed.cost_unpriced),
+            *pending,
             attempts,
+            evidence.as_ref(),
             &mut record,
             ok,
             stamper,
@@ -452,6 +448,64 @@ pub(crate) fn settle_ran(
         ),
     }
     record
+}
+
+/// The Ran prologue — `task_started` · the preamble (declassify ·
+/// permit witness · retries · agent decisions) · the F-P4 approval
+/// decision BETWEEN `task_started` and the terminal frame (the
+/// declassify/permit-witness idiom · NEP-0013 law 4: the chain binds the
+/// answered hash to the task it armed) — split for the 100-line fn
+/// ratchet · semantics unchanged. Returns the `task_started` timestamp.
+fn emit_ran_prologue(
+    id: &str,
+    run: &task::RanTask,
+    declassified: &[task::DeclassifyEvidence],
+    approval: Option<&crate::approval::ApprovalAttestation>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> nika_types::timestamp::Timestamp {
+    let started_at = emit(
+        stamper,
+        sink,
+        EventKind::TaskStarted,
+        &[("task", s(id)), ("note", s(&run.note))],
+    );
+    emit_ran_preamble(id, declassified, run, stamper, sink);
+    emit_approval(approval, stamper, sink);
+    started_at
+}
+
+/// The pending-recovery backstop arm of [`settle_ran`] (a park only ever
+/// happens BEFORE settle — one reaching here settles its
+/// classification-time failure · total, no panic) — split for the
+/// 100-line fn ratchet · semantics unchanged.
+// REASON: the terminal frame's field surface + the settle pens.
+#[allow(clippy::too_many_arguments)]
+fn settle_pending_backstop(
+    id: &str,
+    note: &str,
+    duration: i64,
+    pending: crate::recover::PendingRecovery,
+    attempts: u32,
+    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
+    record: &mut TaskRecord,
+    ok: &mut bool,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    settle_failed_terminal(
+        id,
+        note,
+        duration,
+        pending.render_error,
+        (pending.failed.cost_usd, pending.failed.cost_unpriced),
+        attempts,
+        evidence,
+        record,
+        ok,
+        stamper,
+        sink,
+    );
 }
 
 /// The failure terminal — the ONE site for a settled failure's frame +
@@ -480,6 +534,7 @@ fn settle_success_terminal(
     (cost_usd, cost_unpriced): (Option<f64>, Option<nika_types::cost::UnpricedReason>),
     attempts: u32,
     resume: Option<&resume::ResumeStamp>,
+    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &mut TaskRecord,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -505,6 +560,7 @@ fn settle_success_terminal(
         warning.as_deref(),
         child,
         resume,
+        evidence,
         record,
         stamper,
         sink,
@@ -522,6 +578,7 @@ fn settle_failed_terminal(
     error: TaskErrorRecord,
     spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
     attempts: u32,
+    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &mut TaskRecord,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
@@ -541,6 +598,9 @@ fn settle_failed_terminal(
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    // F-P6 · a divergence refusal carries its finding HERE (never a warn);
+    // a post-gate verb failure attests the fired ≡ judged digests.
+    push_commit_fields(&mut fields, evidence);
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
@@ -557,6 +617,7 @@ fn settle_skip_with_error(
     id: &str,
     error: TaskErrorRecord,
     spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &mut TaskRecord,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -571,6 +632,8 @@ fn settle_skip_with_error(
         ("detail", s(&detail)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    // F-P6 · a skipped divergence refusal keeps its finding (never a warn).
+    push_commit_fields(&mut fields, evidence);
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskSkipped, &fields);
@@ -589,5 +652,27 @@ fn push_spend_fields(
     }
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
+    }
+}
+
+/// F-P6 · the preview→commit binding evidence — the fired step's two
+/// digests (`preview_digest` · `commit_digest`, equal on an honest fire)
+/// and the gate refusal's `divergence: {preview, commit}` finding (one
+/// compact JSON text · the `child` row precedent). Absent stays absent:
+/// the un-gated verbs (infer · agent) and never-fired steps carry nothing.
+/// `pub(crate)`: the success terminal's emission lives in `emit_task`.
+pub(crate) fn push_commit_fields(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
+) {
+    match evidence {
+        Some(crate::dispatch::commit::CommitEvidence::Fired(attestation)) => {
+            fields.push(("preview_digest", s(&attestation.preview_digest)));
+            fields.push(("commit_digest", s(&attestation.commit_digest)));
+        }
+        Some(crate::dispatch::commit::CommitEvidence::Refused(d)) => {
+            fields.push(("divergence", s(&d.frame_json())));
+        }
+        None => {}
     }
 }

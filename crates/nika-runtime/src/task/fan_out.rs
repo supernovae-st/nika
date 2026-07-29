@@ -77,6 +77,9 @@ pub(super) struct FanOutAccum {
     /// The FIRST unpriced reason across iterations (they share one model,
     /// so the first is the class) — rides the parent's terminal frame.
     pub(super) unpriced: Option<nika_types::cost::UnpricedReason>,
+    /// F-P6 · the FIRST diverged iteration's finding (only a REFUSED
+    /// binding aggregates — a Fired pair cannot stand for N requests).
+    pub(super) evidence: Option<crate::dispatch::commit::CommitEvidence>,
 }
 
 /// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
@@ -96,12 +99,23 @@ where
         tokens_sum: None,
         cost_sum: None,
         unpriced: None,
+        evidence: None,
     };
 
     while let Some(iter_ran) = stream.next().await {
         acc.retries.extend(iter_ran.retries);
         acc.agent_events.extend(iter_ran.agent_events);
         acc.decisions.extend(iter_ran.decisions);
+        // F-P6 · only a REFUSED binding aggregates (the first diverged
+        // iteration's finding, in lane order).
+        if acc.evidence.is_none()
+            && matches!(
+                iter_ran.evidence,
+                Some(crate::dispatch::commit::CommitEvidence::Refused(_))
+            )
+        {
+            acc.evidence = iter_ran.evidence;
+        }
         match iter_ran.result {
             // OBS-E `warning` is per-call · a fan-out element's diagnostic
             // is not aggregated up (only `value` + `tokens` fold).

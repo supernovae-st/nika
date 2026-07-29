@@ -28,6 +28,7 @@ use serde_json::Value;
 use crate::Runtime;
 use crate::errors::RuntimeError;
 
+pub(crate) mod commit;
 mod exec_io;
 mod permits;
 mod regate;
@@ -59,6 +60,11 @@ pub(crate) struct FailedDispatch {
     pub cost_source: Option<String>,
     /// Why (part of) the incurred spend is NOT in `cost_usd`.
     pub cost_unpriced: Option<UnpricedReason>,
+    /// F-P6 · the commit gate's binding evidence — `Fired` when the
+    /// failure fired AFTER a passed gate (the judged bytes DID fire) ·
+    /// `Refused` when the gate refused the fire (the finding). One field,
+    /// so the two states can never both ride.
+    pub evidence: Option<commit::CommitEvidence>,
 }
 
 impl FailedDispatch {
@@ -70,6 +76,7 @@ impl FailedDispatch {
             cost_usd: None,
             cost_source: None,
             cost_unpriced: None,
+            evidence: None,
         }
     }
 
@@ -119,6 +126,12 @@ pub(crate) struct DispatchOk {
     /// Why (part of) this leaf's spend is NOT in `cost_usd` — the
     /// honest-absence WHY channel (`cost_unpriced` on the trace frame).
     pub cost_unpriced: Option<UnpricedReason>,
+    /// F-P6 · the binding evidence of a FIRED exec/invoke step (the
+    /// judged digest ≡ the fired digest) — `None` for the un-gated verbs
+    /// (infer · agent) and for a `workflow:` call (the child's own trace
+    /// carries its steps' attestations). Boxed: cold evidence, never
+    /// widens the channel (the `child` precedent).
+    pub commit: Option<Box<commit::CommitAttestation>>,
 }
 
 impl DispatchOk {
@@ -149,6 +162,7 @@ impl Dispatched {
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
+                commit: None,
             }),
         }
     }
@@ -174,6 +188,7 @@ impl Dispatched {
                 cost_usd,
                 cost_source,
                 cost_unpriced,
+                commit: None,
             }),
         }
     }
@@ -214,6 +229,7 @@ impl Dispatched {
                 cost_usd,
                 cost_source,
                 cost_unpriced,
+                evidence: None,
             }),
         }
     }
@@ -512,40 +528,9 @@ where
         }
         let mut input = InvokeInput::new(tool);
         input.args = args;
-        match self.invoke.run(input).await {
-            // A tool's typed value (builtins · MCP `structuredContent`) flows
-            // to tasks.X.output AS ITSELF — an array stays an array so
-            // `for_each` / CEL navigation works (spec 04 §tasks.X.output ·
-            // "string · object · or bytes · per verb"). A text-only tool
-            // (no structured value) stays a String — never silently
-            // JSON-coerced from text.
-            Ok(out) => {
-                // Move the typed value out when present; otherwise wrap the
-                // text view — no clone, and `out.content` is only consumed on
-                // the None arm (clippy: not a lazy-eval candidate).
-                let value = match out.structured {
-                    Some(value) => value,
-                    None => Value::String(out.content),
-                };
-                // A tool that reports its REAL spend as a top-level numeric
-                // `cost_usd` in its structured output is metered into the
-                // run ledger (`nika:image_generate` on tick-billed
-                // providers · future paid tools/MCP) — the same honest-
-                // spend channel infer rides. Absent/invalid → unmetered,
-                // never a guess (and never an unpriced REASON either: most
-                // tools legitimately cost nothing — tagging every free
-                // invoke would drown the honest signal).
-                let cost_usd = value
-                    .get("cost_usd")
-                    .and_then(Value::as_f64)
-                    .filter(|c| c.is_finite() && *c >= 0.0);
-                let cost_source = cost_usd
-                    .is_some()
-                    .then(|| note.trim_start_matches("invoke · ").to_owned());
-                Dispatched::ok_metered(note, value, None, None, cost_usd, cost_source, None)
-            }
-            Err(err) => Dispatched::verb_err(note, &err),
-        }
+        // F-P6 · the gated firing lane (PREVIEW → tamper seam → COMMIT
+        // gate → run · `dispatch/commit.rs` owns the binding).
+        self.run_invoke_gated(note, input).await
     }
 
     /// ADR-095 Layer 6 — the OS-confinement spec from the declared
@@ -691,22 +676,11 @@ where
             }
         }
 
-        // ADR-095 Layer 6 · the jail rides the declared boundary (F-O8) ·
-        // NEP-0009: a planted symlink refuses HERE, before any spawn.
-        input.sandbox = match self.exec_sandbox_spec(scope.permits, &note, ctx.witness) {
-            Ok(spec) => Some(spec),
-            Err(refusal) => return *refusal,
-        };
-        // NEP-0005 · the declared `permits.env:` passthrough rides the
-        // command to the spawn site, which composes the child environment
-        // (the runner floor ∪ these names ∪ the authored `env:` map) from
-        // a cleared slate — nothing ambient crosses undeclared.
-        input.env_passthrough = permits::env_passthrough_witnessed(scope.permits, ctx.witness);
-
-        match self.shell.run(input).await {
-            Ok(out) => settle_exec_out(&note, out, decode, contract),
-            Err(err) => Dispatched::verb_err(note, &err),
-        }
+        // F-P6 · the gated firing lane (PREVIEW → jail/passthrough
+        // derivation → tamper seam → COMMIT gate → run ·
+        // `dispatch/commit.rs` owns the binding).
+        self.run_exec_gated(note, input, scope.permits, ctx.witness, decode, contract)
+            .await
     }
 
     async fn dispatch_infer(
