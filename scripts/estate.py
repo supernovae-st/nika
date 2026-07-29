@@ -143,6 +143,51 @@ def tracked_index() -> dict:
     return index
 
 
+def staged_blobs(paths, index) -> dict:
+    """path -> the bytes GIT HAS STAGED, in one batch.
+
+    Not the bytes on disk. The estate declares the provenance of artifacts
+    that will be COMMITTED, so every hash in the manifest has to answer the
+    same question, and the index is the one place that answers it. Paths the
+    index does not carry are omitted; the caller falls back to disk for them
+    (the generator classifying itself before it has ever been added).
+    """
+    want = [(p, index[p]) for p in paths if index.get(p)]
+    if not want:
+        return {}
+    proc = subprocess.run(["git", "-C", str(ROOT), "cat-file", "--batch"],
+                          input="\n".join(sha for _, sha in want).encode(),
+                          capture_output=True, check=True)
+    out, pos, res = proc.stdout, 0, {}
+    for path, _sha in want:
+        nl = out.index(b"\n", pos)
+        size = int(out[pos:nl].split()[2])      # "<sha> blob <size>"
+        start = nl + 1
+        res[path] = out[start:start + size]
+        pos = start + size + 1                  # skip the blob's trailing newline
+    return res
+
+
+def worktree_divergence() -> tuple:
+    """(modified-but-unstaged, untracked-and-not-ignored).
+
+    The manifest describes the index. When the disk says something else, the
+    tool has to SAY so: a generator that silently measures a different tree
+    than the one you are about to commit is exactly the drift it exists to
+    catch, and it shipped twice before this warning existed.
+    """
+    def lines(*args):
+        out = subprocess.run(["git", "-C", str(ROOT), *args],
+                             capture_output=True, check=True)
+        return sorted(f for f in out.stdout.decode().split("\0") if f)
+    # The manifest never lists itself and must not denounce itself either:
+    # --write modifies it by definition, so reporting it every run would be
+    # noise on top of every single regeneration.
+    me = "estate.yaml"
+    return ([p for p in lines("diff", "--name-only", "-z") if p != me],
+            [p for p in lines("ls-files", "--others", "--exclude-standard", "-z") if p != me])
+
+
 def q(s) -> str:
     """A JSON string is a valid YAML scalar — deterministic quoting for free."""
     return json.dumps(s, ensure_ascii=False)
@@ -227,8 +272,12 @@ def render() -> str:
     lines.append(f"  unverified-default: {len(unverified)}")
 
     lines.append("files:")
+    staged = staged_blobs([f["path"] for f in FILES], index)
     for f in sorted(FILES, key=lambda f: f["path"]):
-        body = (ROOT / f["path"]).read_bytes()
+        # The index when git carries it, the disk only when it does not yet.
+        body = staged.get(f["path"])
+        if body is None:
+            body = (ROOT / f["path"]).read_bytes()
         lines.append(f"- path: {q(f['path'])}")
         lines.append(f"  class: {f['class']}")
         lines.append(f"  sha256: {hashlib.sha256(body).hexdigest()}")
@@ -281,6 +330,16 @@ def main() -> int:
         print(f"estate.py: unknown mode {mode!r} (--write | --check)", file=sys.stderr)
         return 2
     rendered = render()
+    unstaged, untracked = worktree_divergence()
+    if unstaged or untracked:
+        print("estate.py: the manifest describes the INDEX, and your disk says "
+              "something else:", file=sys.stderr)
+        for p in unstaged:
+            print(f"  modified, not staged  {p}", file=sys.stderr)
+        for p in untracked:
+            print(f"  untracked             {p}", file=sys.stderr)
+        print("  stage them first if they belong in this manifest "
+              "(git add), then re-run.", file=sys.stderr)
     if mode == "--write":
         ESTATE.write_text(rendered)
         n = rendered.count("\n- glob: ") + rendered.count("\n- path: ")

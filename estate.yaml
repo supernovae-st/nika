@@ -58,7 +58,7 @@ files:
     - "crates/*/Cargo.toml"
 - path: "ESTATE_PIN"
   class: authored-pin
-  sha256: fd046d6a6a48fbc66de664e12bd5dc2a1d5e1817b7e1b2b592abb573af3236ad
+  sha256: a0006989e73853bafed83e9eb8e9288e52211e83db69a40e69c927b079027a22
   evidence: "its own header: 'Bump deliberately: edit this' · the rev the shared estate tool is mirrored from, and the INPUT the mirror gate compares against"
 - path: "ROADMAP.md"
   class: authored
@@ -102,7 +102,7 @@ files:
   evidence: "the authored rules for the media lanes ('No fake commands · No fake output · budgets · Never edit exports by hand')"
 - path: "scripts/estate.py"
   class: pinned-copy
-  sha256: 50db0f9ca61796ead540cf71e66f27bc2fbd1a4214245f5d49d86b1bd379a71f
+  sha256: fd4aa38f78cfacfa2e003c2d3e1b10e74b4d16d9cb9b11e87acc5a1449d2016e
   evidence: "the shared estate tool, mirrored byte-for-byte from supernovae-st/nika-estate · editing it here is a lost gesture: change it upstream, bump ESTATE_PIN, re-mirror"
   derivation:
     tool: "curl the tool from nika-estate at the rev named in ESTATE_PIN"
