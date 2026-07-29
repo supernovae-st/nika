@@ -4178,8 +4178,12 @@ version = "0.106.1"
 dependencies = [
  "annotate-snippets 0.12.16",
  "anstyle",
+ "nika-catalog",
  "nika-check",
+ "nika-dap",
  "nika-event",
+ "nika-graph",
+ "nika-schema",
  "nika-types",
  "serde_json",
  "uuid",
