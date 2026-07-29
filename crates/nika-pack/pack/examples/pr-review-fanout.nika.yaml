@@ -33,7 +33,7 @@
 #   is the one-liner. Granting the path instead means granting its EFFECTIVE
 #   path — a grant naming a symlink is refused, not followed (NEP-0009).
 #
-# Run · nika run examples/showcase/t3-pr-review-fanout.nika.yaml
+# Run · nika run examples/pr-review-fanout.nika.yaml
 #         (from the root of the repo under review · add --model mock/echo
 #          to rehearse the wiring without a model)
 

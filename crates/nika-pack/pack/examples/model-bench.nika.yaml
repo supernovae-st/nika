@@ -27,7 +27,7 @@
 # llama3.2:3b · qwen2.5:0.5b) — per-task `model:` seats are the bench,
 # the CLI --model override deliberately doesn't touch them.
 #
-# Run · nika run examples/showcase/t2-model-bench.nika.yaml
+# Run · nika run examples/model-bench.nika.yaml
 #       models · ollama pull qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b
 #       (swap any seat for the models YOU have — or for mistral/… ·
 #        anthropic/… · openai/… · the table doesn't care who competes)

@@ -21,7 +21,7 @@
 #   - CEL indexing · `${{ tasks.map.top[0] }}` reaches into a binding
 #   - `infer.schema:` · the brief is typed, not a blob
 #
-# Run · nika run examples/showcase/t2-seo-content-brief.nika.yaml
+# Run · nika run examples/seo-content-brief.nika.yaml
 #   Green with no network: the placeholder competitor host resolves nowhere
 #   and the recovered samples take over. Point `const.competitor_sitemap` at a
 #   REAL sitemap (and put that host in `permits.net.http`) for a real brief.

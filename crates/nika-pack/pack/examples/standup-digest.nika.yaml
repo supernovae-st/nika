@@ -21,7 +21,7 @@
 #   history. Run it from a repo you have been working in; an empty range is
 #   green and produces an empty note, which is honest but dull.
 #
-# Run · nika run examples/showcase/t1-standup-digest.nika.yaml
+# Run · nika run examples/standup-digest.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
 nika: v1

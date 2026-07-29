@@ -20,7 +20,7 @@
 #     the batch by VALUE, after the fact — it never aborts the fan-out
 #   - `when:` cascading by value · an empty shortlist writes no brief
 #
-# Run · nika run examples/showcase/t3-resume-screener.nika.yaml
+# Run · nika run examples/resume-screener.nika.yaml
 #         (runs as-is from the repo root on three committed fixture CVs ·
 #          add --model mock/echo for a zero-key rehearsal)
 #

@@ -18,7 +18,7 @@
 #   - typed JSON → markdown · the shape is the contract, the render is
 #     mechanical (`nika:write`, no second model call)
 #
-# Run · nika run examples/showcase/t2-transcript-shownotes.nika.yaml
+# Run · nika run examples/transcript-shownotes.nika.yaml
 #   A sample episode transcript ships with the repo. Point `const.transcript`
 #   at your own and move the read permit with it.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.

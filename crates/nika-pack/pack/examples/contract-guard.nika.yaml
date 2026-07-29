@@ -18,7 +18,7 @@
 #     data — no value crosses that edge)
 #   - belt-and-braces · schema at infer time + validate + assert downstream
 #
-# Run · nika run examples/showcase/t2-contract-guard.nika.yaml
+# Run · nika run examples/contract-guard.nika.yaml
 #   A sample MSA ships with the repo. `--var contract_path=./yours.md` points
 #   it elsewhere — and then `permits.fs.read` has to name that file too.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.

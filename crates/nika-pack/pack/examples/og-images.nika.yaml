@@ -21,7 +21,7 @@
 #     comment below: `check` and the run judge two different things
 #   - `metadata:` · provenance fields ride into the manifest
 #
-# Run · nika run examples/showcase/t1-og-images.nika.yaml
+# Run · nika run examples/og-images.nika.yaml
 
 nika: v1
 workflow:

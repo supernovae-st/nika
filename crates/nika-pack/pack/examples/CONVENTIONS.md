@@ -46,8 +46,8 @@ Verify:
 
 ```bash
 export NIKA_BIN=/path/to/engine/target/debug/nika-cli
-"$NIKA_BIN" check examples/showcase/t1-og-images.nika.yaml --native-strict   # rc=0, no hints
-"$NIKA_BIN" run   examples/showcase/t1-og-images.nika.yaml                   # rc=0, artifacts land
+"$NIKA_BIN" check examples/og-images.nika.yaml --native-strict   # rc=0, no hints
+"$NIKA_BIN" run   examples/og-images.nika.yaml                   # rc=0, artifacts land
 ```
 
 ---
@@ -77,7 +77,7 @@ the body.
 #
 # Needs · ./data/sales.csv (columns · region,revenue).
 #
-# Run · nika run examples/showcase/t2-csv-chart-report.nika.yaml
+# Run · nika run examples/csv-chart-report.nika.yaml
 ```
 
 Order, and what each line owes:
@@ -405,7 +405,7 @@ added to quiet a security message, on a file people copy. A gate belongs in
 a file only when the job actually wants a human decision — and then it goes
 at the ROOT, dominating every path to every egress-capable task, because a
 gate placed after the ingress dominates nothing (see
-`t4-incident-war-room` and `templates/etl-state`, where the gate is real and
+`incident-war-room` and `templates/etl-state`, where the gate is real and
 the comment explains the dominance argument).
 
 The gate over-approximates in one known way; the decision is recorded at

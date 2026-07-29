@@ -15,7 +15,7 @@
 #   - jq `group_by` aggregation · stats without a model call
 #   - the quarantine pattern · bad data is DATA, not an exception
 #
-# Run · nika run examples/showcase/t2-etl-quarantine.nika.yaml
+# Run · nika run examples/etl-quarantine.nika.yaml
 #   The sample batch ships with the repo and is DELIBERATELY dirty — one row
 #   carries a currency outside the enum — so the run takes the quarantine
 #   branch and writes out/quarantine/orders-rejected.json. Fix that row (CHF

@@ -25,7 +25,7 @@
 #   points at our own sitemap so the file runs as-is; there is no key and
 #   no secret anywhere in it.
 #
-# Run · nika run examples/showcase/t3-competitor-radar.nika.yaml
+# Run · nika run examples/competitor-radar.nika.yaml
 #         (add --model mock/echo for a zero-key rehearsal)
 #
 #       To watch someone else, change `inputs.sitemap_url` AND the host in

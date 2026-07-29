@@ -17,7 +17,7 @@
 #   secret fails loudly with NIKA-VAR-001, which is the behaviour you want.
 #   Swap the host in `permits.net.http` if you escalate somewhere else.
 #
-# Run · nika run examples/showcase/t2-support-triage.nika.yaml
+# Run · nika run examples/support-triage.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`:
 #   the sample queue ships with the repo and mock grades every ticket `low`,
 #   so the escalation gate stays closed and the run is green with no key at

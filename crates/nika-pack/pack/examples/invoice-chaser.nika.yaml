@@ -13,7 +13,7 @@
 #   - `size(...)` CEL · the canonical empty-check gates the whole tail
 #   - `nika:prompt` · the human-in-the-loop gate (blocks until answered)
 #
-# Run · nika run examples/showcase/t2-invoice-chaser.nika.yaml
+# Run · nika run examples/invoice-chaser.nika.yaml
 #   A sample ledger ships with the repo — three of its five rows are overdue,
 #   so the run reaches the gate. At a terminal it asks you. Piped, in CI or
 #   under a daemon it takes the `default: false` below and skips the write:

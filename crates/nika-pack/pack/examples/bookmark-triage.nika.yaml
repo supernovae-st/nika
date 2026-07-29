@@ -21,7 +21,7 @@
 #   is STILL green — every row takes the recover path and the table is all
 #   dead rows, which is precisely the resilience this file is about.
 #
-# Run · nika run examples/showcase/t2-bookmark-triage.nika.yaml
+# Run · nika run examples/bookmark-triage.nika.yaml
 
 nika: v1
 workflow:

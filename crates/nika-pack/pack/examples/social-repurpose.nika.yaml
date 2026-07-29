@@ -17,7 +17,7 @@
 #   - markdown assembled with a `content: |` block · the opposite case from a
 #     `.json` artifact, which passes ONE interpolated value instead
 #
-# Run · nika run examples/showcase/t1-social-repurpose.nika.yaml
+# Run · nika run examples/social-repurpose.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
 nika: v1

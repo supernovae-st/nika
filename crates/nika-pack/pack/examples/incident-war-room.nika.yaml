@@ -26,7 +26,7 @@
 # It runs green but PAUSES at `approve` (exit 4, not a failure) —
 #   nika run <file> --resume <trace> --answer approve=true
 #
-# Run · nika run examples/showcase/t4-incident-war-room.nika.yaml
+# Run · nika run examples/incident-war-room.nika.yaml
 #       · rehearse fast, no keys · add --model mock/echo --var settle=2s
 #       · arm the on-call ping · add --var alert=true (see permits.net.http)
 

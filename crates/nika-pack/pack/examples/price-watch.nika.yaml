@@ -16,7 +16,7 @@
 #     sending anything anywhere (see the comment on `net:` below — it is the
 #     one thing people get wrong)
 #
-# Run · nika run examples/showcase/t1-price-watch.nika.yaml
+# Run · nika run examples/price-watch.nika.yaml
 #   Green with nothing installed and no keys: the placeholder shop host
 #   resolves nowhere, the `recover:` sample takes over ABOVE the target, so
 #   the gate stays closed and the alert is skipped. To watch it FIRE · point

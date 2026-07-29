@@ -25,7 +25,7 @@
 # It runs green but PAUSES at `approve` (exit 4, not a failure) —
 #   nika run <file> --resume <trace> --answer approve=true
 #
-# Run · nika run examples/showcase/t4-ceo-monday-brief.nika.yaml
+# Run · nika run examples/ceo-monday-brief.nika.yaml
 #       · rehearse with no keys and no network · add --model mock/echo
 #       · arm the founders ping · add --var alert=true (see permits.net.http)
 

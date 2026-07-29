@@ -18,7 +18,7 @@
 #   - `nika:notify` gated on an input · `--var announce=true` to really send
 #   - `egress:` + `permits.net.http` · the two halves of a webhook send
 #
-# Run · nika run examples/showcase/t2-release-notes.nika.yaml
+# Run · nika run examples/release-notes.nika.yaml
 #   Runs green anywhere: outside a repo carrying that tag the `recover:`
 #   sample log takes over, and the changelog it edits is the copy it made
 #   under out/ from the sample that ships with the repo.

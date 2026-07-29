@@ -32,7 +32,7 @@
 #   `on_codes:` recovery below handles exactly that, and the first run exits 0
 #   with an empty previous state. The hint cannot see the recovery.
 #
-# Run · nika run examples/showcase/t2-release-radar.nika.yaml
+# Run · nika run examples/release-radar.nika.yaml
 #   Run it twice: the first run reports everything as new and writes the
 #   state, the second reports only what shipped in between.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.

@@ -29,7 +29,7 @@
 # It runs green but PAUSES at `conductor` (exit 4, not a failure) —
 #   nika run <file> --resume <trace> --answer conductor=true
 #
-# Run · nika run examples/showcase/t4-release-train.nika.yaml --var version="$(cat VERSION)"
+# Run · nika run examples/release-train.nika.yaml --var version="$(cat VERSION)"
 #       · watch the hold tick · add --var hold_for=5s
 #       · actually depart · add --var depart=true (and wire the two Needs above)
 

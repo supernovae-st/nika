@@ -18,7 +18,7 @@
 #   - the glob read boundary · see the comment on `permits.fs.read`: it is
 #     the one shape `check` cannot prove for you
 #
-# Run · nika run examples/showcase/t1-image-fx-batch.nika.yaml
+# Run · nika run examples/image-fx-batch.nika.yaml
 
 nika: v1
 workflow:

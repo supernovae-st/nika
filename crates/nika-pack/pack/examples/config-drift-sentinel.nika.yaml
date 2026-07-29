@@ -33,7 +33,7 @@
 #   matching host in `permits.net.http`, and ONCALL_WEBHOOK_URL set to a
 #   webhook on `hooks.slack.com`.
 #
-# Run · nika run examples/showcase/t3-config-drift-sentinel.nika.yaml
+# Run · nika run examples/config-drift-sentinel.nika.yaml
 #         (runs as-is from the repo root · add --model mock/echo for a
 #          zero-key rehearsal)
 

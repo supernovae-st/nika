@@ -19,7 +19,7 @@
 #   - a declared `permits.fs.write` tree · the report + the chart land
 #     under `out/**` and nowhere else
 #
-# Run · nika run examples/showcase/t2-csv-chart-report.nika.yaml
+# Run · nika run examples/csv-chart-report.nika.yaml
 #   A sample sales CSV ships with the repo. Point `const.sales_csv` at your
 #   own (columns · region,revenue) and move the read permit with it.
 
