@@ -22,7 +22,7 @@
 //! - **write-write conflicts** (F-P15 · NEP-0014 law 1) — two tasks that
 //!   CAN run concurrently (incomparable) and both write the same literal
 //!   `nika:write` path: last-writer-wins is a race the file never
-//!   declares. The LAW (a `NIKA-SEC-011` finding · deterministic) —
+//!   declares. The LAW (a `NIKA-SEC-012` finding · deterministic) —
 //!   promoted from its advisory-hint era 2026-07-29: parallelism is safe
 //!   exactly where the effects are provably disjoint, and a hint is not
 //!   a boundary.
@@ -41,7 +41,7 @@ use nika_schema::source::Spanned;
 /// The write-write law's wire code (F-P15 · NEP-0014 law 1) — the
 /// security class: two unordered writers racing one path is an effect
 /// overlap the boundary never sanctioned.
-const WRITE_CONFLICT_CODE: &str = "NIKA-SEC-011";
+const WRITE_CONFLICT_CODE: &str = "NIKA-SEC-012";
 
 /// One write-write conflict (F-P15 · NEP-0014 law 1): two tasks
 /// incomparable in the DAG closure whose literal `nika:write` paths
@@ -655,7 +655,7 @@ mod tests {
         assert_eq!(c.task, "left");
         assert_eq!(c.other.as_deref(), Some("right"));
         assert_eq!(c.path, "out/report.md");
-        assert_eq!(c.wire_code(), "NIKA-SEC-011");
+        assert_eq!(c.wire_code(), "NIKA-SEC-012");
         assert!(c.detail.contains("left") && c.detail.contains("right"));
     }
 

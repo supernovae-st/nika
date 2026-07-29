@@ -650,7 +650,7 @@ pub fn approval_batch_violations(policy: &Policy, tasks: &[PolicySubject]) -> Ve
 /// declared is clean — the claim binds nothing it does not name. The
 /// « fresh authorization bound to the action, logged as such » half is
 /// the F-P4 approval machinery (NEP-0013 · the runtime ticket), never
-/// re-judged here. The wire code is `NIKA-SEC-012` (the findings fold
+/// re-judged here. The wire code is `NIKA-SEC-013` (the findings fold
 /// maps the `endorsement.*` rules there).
 #[must_use]
 pub fn endorsement_solo_violations(
@@ -671,7 +671,7 @@ pub fn endorsement_solo_violations(
                     "task '{}' · endorsement.undeclared_mode — a human gate runs under a \
                      DECLARED endorsement mode or refuses (F-F5 · zero implicit escape): \
                      declare `policy: {{ endorsement: solo }}` (NEP-0014 · F-P23 · \
-                     NIKA-SEC-012)",
+                     NIKA-SEC-013)",
                     g.id
                 ),
             })
@@ -685,7 +685,7 @@ pub fn endorsement_solo_violations(
                 detail: format!(
                     "endorsement.solo_count — `endorsement: solo` declares ONE endorser, \
                      the workflow carries {} human gates ({}) · the declaration must not \
-                     lie (NEP-0014 · F-P23 · NIKA-SEC-012)",
+                     lie (NEP-0014 · F-P23 · NIKA-SEC-013)",
                     gates.len(),
                     names.join(" · ")
                 ),

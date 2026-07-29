@@ -397,7 +397,7 @@ mod tests {
 
     /// A human gate under a declared `policy:` block that names NO
     /// endorsement mode refuses at check (F-F5 fail-closed) — the wire
-    /// code is NIKA-SEC-012 (never the policy-lane code) and the row
+    /// code is NIKA-SEC-013 (never the policy-lane code) and the row
     /// folds into findings[] like every `PolicyViolation`.
     #[test]
     fn endorsement_undeclared_with_a_gate_is_refused_with_the_sec_code() {
@@ -419,22 +419,22 @@ mod tests {
             "the fix is taught: {}",
             f.detail
         );
-        // The unified fold speaks NIKA-SEC-012 (NEP-0014), never the
+        // The unified fold speaks NIKA-SEC-013 (NEP-0014), never the
         // spec-10 policy code — same discrimination as the approval batch.
         let u = r
             .findings
             .iter()
             .find(|f| f.kind == "policy" && f.message.contains("endorsement.undeclared_mode"))
             .expect("the endorsement row in findings[]");
-        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-012"));
+        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-013"));
         assert_eq!(
             u.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-012")
+            Some("https://nika.sh/errors/NIKA-SEC-013")
         );
         assert!(
             r.extra_conformance_codes()
                 .iter()
-                .any(|c| c.to_string() == "NIKA-SEC-012"),
+                .any(|c| c.to_string() == "NIKA-SEC-013"),
             "the codes surface speaks it too"
         );
     }
@@ -452,7 +452,7 @@ mod tests {
 
     /// A declared solo with TWO gates is the declaration lying — refused
     /// as `endorsement.solo_count` (workflow-level: no task witness), in
-    /// the same NIKA-SEC-012 voice.
+    /// the same NIKA-SEC-013 voice.
     #[test]
     fn endorsement_solo_with_two_gates_is_the_declaration_lying() {
         let r = report(
@@ -478,7 +478,7 @@ mod tests {
             .iter()
             .find(|f| f.kind == "policy" && f.message.contains("solo_count"))
             .expect("the solo_count row in findings[]");
-        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-012"));
+        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-013"));
     }
 
     /// No `policy:` block at all = no named law bound — the lane stays
