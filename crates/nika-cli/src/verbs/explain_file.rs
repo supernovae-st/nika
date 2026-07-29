@@ -332,17 +332,56 @@ fn story_section(s: &mut String, doc: &GraphDoc, report: &CheckReport) {
     }
 }
 
-/// Cost BEFORE a token is spent — the honesty section (FLOOR is named,
-/// unknown never renders as $0, local never renders as « free »).
+/// Cost BEFORE a token is spent — the honesty section (no false bound is
+/// ever claimed: unknown never renders as $0, local never renders as
+/// « free », and a bounded PORTION is named as exactly that).
 fn cost_section(s: &mut String, report: &CheckReport) {
     let _ = writeln!(s, "\ncost before a token is spent");
     if report.cost.tasks.is_empty() {
-        let _ = writeln!(s, "  no inference tasks · $0 model spend");
+        if report.cost.composed.is_empty() {
+            let _ = writeln!(s, "  no inference tasks · $0 model spend");
+        } else {
+            // The composition arm (spec 14 · the 2026-07-29 finding): no
+            // own inference task but priced children — `$0 model spend`
+            // was the lie the handoff measured (`≤$0.0011` explained away
+            // as zero).
+            let calls = report.cost.composed.len();
+            if report.cost.has_unbounded {
+                let _ = writeln!(
+                    s,
+                    "  composed spend: bounded portion ${:.4} · no total ceiling · {calls} child call(s)",
+                    report.cost.bounded_total_usd
+                );
+            } else {
+                let _ = writeln!(
+                    s,
+                    "  composed spend: ≤ ${:.4} worst case · ≥ ${:.4} cheapest path · {calls} child call(s) · own inference $0.00",
+                    report.cost.bounded_total_usd, report.cost.min_path_total_usd
+                );
+            }
+        }
     } else if report.cost.has_unbounded {
+        // One voice with the COST rung (check/render.rs) and inspect.rs:
+        // `≥ $FLOOR` claimed a bound over a number that bounds nothing
+        // from below (render.rs documents the 126× measurement) — claim
+        // neither bound; show the priced portion and name the uncapped.
+        let uncapped_tasks = report
+            .cost
+            .tasks
+            .iter()
+            .filter(|c| c.unbounded_reason.is_some())
+            .count();
+        let uncapped_children = report
+            .cost
+            .composed
+            .iter()
+            .filter(|c| c.has_unbounded)
+            .count();
         let _ = writeln!(
             s,
-            "  ≥ ${:.4} — a FLOOR, not a ceiling:",
-            report.cost.bounded_total_usd
+            "  bounded portion ${:.4} · no total ceiling · {}",
+            report.cost.bounded_total_usd,
+            crate::text::count(uncapped_tasks + uncapped_children, "uncapped")
         );
         for t in report
             .cost
@@ -355,6 +394,19 @@ fn cost_section(s: &mut String, report: &CheckReport) {
                 s,
                 "    {}",
                 unbounded_gloss(&t.0.task, t.0.model.as_deref(), t.1)
+            );
+        }
+        for c in report
+            .cost
+            .composed
+            .iter()
+            .filter(|c| c.has_unbounded)
+            .take(2)
+        {
+            let _ = writeln!(
+                s,
+                "    child call `{}` → {} — uncapped (no static ceiling)",
+                c.task, c.target
             );
         }
     } else {
@@ -635,9 +687,13 @@ mod tests {
     }
 
     #[test]
-    fn unbounded_cost_reads_as_a_floor_never_zero() {
-        // qwen has no max_tokens → NoTokenLimit; the narration must say
-        // FLOOR and must never render a fake $0 ceiling.
+    fn unbounded_cost_claims_no_bound_and_names_the_priced_portion() {
+        // qwen has no max_tokens → NoTokenLimit. The 2026-07-29 FLOOR
+        // finding: `≥ $X — a FLOOR` claimed a lower bound over a number
+        // that bounds nothing from below (render.rs documents the 126×
+        // measurement). The narration now claims NEITHER bound — it shows
+        // the priced portion, names the uncapped, and never renders a
+        // fake $0 ceiling nor the word FLOOR.
         let path = tmp(
             "floor",
             "nika: v1\nworkflow:\n  id: floor-story\ntasks:\n  think:\n    infer: { prompt: \"x\" }\n",
@@ -645,10 +701,24 @@ mod tests {
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
-        assert!(out.text.contains("FLOOR"), "{}", out.text);
+        assert!(
+            out.text.contains("bounded portion"),
+            "the priced portion, named as exactly that:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("no total ceiling"),
+            "the honest no-ceiling verdict:\n{}",
+            out.text
+        );
         assert!(
             out.text.contains("no max_tokens declared"),
             "names the reason:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("FLOOR") && !out.text.contains('≥'),
+            "neither the word nor the sign survives (the finding's two wrongs):\n{}",
             out.text
         );
         assert!(

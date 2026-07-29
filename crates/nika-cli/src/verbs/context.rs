@@ -99,7 +99,10 @@ fn render_human(
             theme.paint(Role::Bad, &crate::text::count(f.findings, "finding"))
         };
         let cost = if f.cost_is_floor {
-            format!("≥ ${:.4}", f.cost_bounded_usd)
+            // The priced PORTION with uncapped spend on top — never a
+            // bound (`≥` here claimed one the number cannot make, the
+            // 2026-07-29 FLOOR finding · one voice with check/explain).
+            format!("~${:.4}+", f.cost_bounded_usd)
         } else {
             format!("≤ ${:.4}", f.cost_bounded_usd)
         };
@@ -124,10 +127,14 @@ fn render_human(
         );
     }
     let _ = writeln!(s);
-    let floor = if rollups.cost_is_floor { "≥" } else { "≤" };
+    let (mark, plus) = if rollups.cost_is_floor {
+        ("~", "+") // priced portion + uncapped — never a bound (the finding)
+    } else {
+        ("≤", "")
+    };
     let _ = writeln!(
         s,
-        "{} {} clean / {} total · {floor} ${:.4} · {} recorded",
+        "{} {} clean / {} total · {mark} ${:.4}{plus} · {} recorded",
         theme.paint(Role::Strong, "rollup"),
         rollups.workflows_clean,
         rollups.workflows_total,
