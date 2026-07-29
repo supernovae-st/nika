@@ -926,3 +926,48 @@ surface that fits:
 
 The pattern to watch for in review: a comment that explains why something
 cannot be checked, with no sentence about what can.
+
+---
+
+# REFUTED AS REPORTED · `nika run --resume` does not wedge
+
+A corpus lane reported, three times on three workflows, that
+`nika run --resume <trace> --answer <task>=<value>` produces empty stdout and
+empty stderr and wedges the invoking shell — surviving `timeout -k`, with the
+nika process gone and the wrapper still blocked. That reads as a P0 on a verb
+whose whole job is handing a paused run back to a human.
+
+**It does not reproduce.** Four constructions, each with `timeout -k` and run
+detached so a real wedge could not take the session with it:
+
+```
+plain            --resume <trace> --answer ask=true      rc=0 · 2/2 · new chained trace
+stdin a fifo     same, stdin = a pipe that never closes  rc=0 · 1 skipped · 1 ran live
+unknown task     --answer nosuchtask=true                rc=3 · "unknown task — the
+                                                          workflow declares: ask · act"
+no --answer      --resume <trace>                        rc=0 · 2 skipped (cache hit)
+```
+
+Every one exited, printed, and left the wrapper clean. The stdin-as-open-pipe
+case was the strongest hypothesis for the mechanism — an agent's stdin is often
+a pipe nothing ever closes, and `nika:prompt` reads stdin — and it came back
+green.
+
+Recorded as refuted rather than dropped, for two reasons.
+
+**A phantom P0 costs the next person a day.** Left in a findings list, this one
+would have been picked up, believed on the strength of "reproduced 3×", and
+chased through a verb that works.
+
+**The reporter was not careless, and the residual is environmental.** Three
+observations on three workflows is real evidence of something; what it is not
+is evidence about this verb, because the same commands here behave correctly.
+The remaining candidates are all outside the engine — a sandbox's process
+handling, a wrapper that outlives its child, a harness that reports a killed
+job as blocked. The lane's own report contains a matching self-catch: its first
+probe ignored `run.json`'s env map and blamed a fixture for its own harness's
+omission. Same shape.
+
+If it recurs, the thing to capture is the ENVIRONMENT — parent pid, what holds
+the tty, whether the nika process is actually gone — not another repro of the
+command, which is now known to work.
