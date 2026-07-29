@@ -144,12 +144,13 @@ pub const NIKA_600: NikaCode = NikaCode {
     slug: "memory",
 };
 
-// ─── Memory subsystem concrete codes (601-604) ──────────────────────────
+// ─── Memory subsystem concrete codes (601-605) ──────────────────────────
 //
 // Wired Diamond W2.1 (2026-05-12) per Phase 1 entry plan §2 v1.1 amendment.
 // Sub-allocation within reserved 600-649 range:
 //   - 601..=604  active (this commit · MemoryError variant mapping)
-//   - 605..=607  reserved (tenant-quota / consolidation-budget / prune-tombstone)
+//   - 605        active (F-P8 · nika-store signed-envelope StoreError)
+//   - 606..=608  reserved (tenant-quota / consolidation-budget / prune-tombstone)
 //   - 610..=619  reserved · nika-hnsw L1 satellite
 //   - 620..=629  reserved · nika-bm25 (W3 admission · ADR-038)
 //   - 630..=634  reserved · nika-rrf (W4 admission)
@@ -188,6 +189,15 @@ pub const NIKA_604: NikaCode = NikaCode {
     category: Category::Memory,
     severity: Severity::Error,
     slug: "memory-storage",
+};
+
+/// NIKA-605: Signed-memory store error (F-P8 · `nika-store` envelope IO /
+/// serialize / dir-layout · the signed-write/verified-recall substrate).
+pub const NIKA_605: NikaCode = NikaCode {
+    num: 605,
+    category: Category::Memory,
+    severity: Severity::Error,
+    slug: "memory-store",
 };
 
 /// NIKA-700: WASM plugin error (range placeholder 700-749).
@@ -834,8 +844,8 @@ pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
     NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450,
     NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466,
-    NIKA_467, NIKA_468, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750,
-    NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005,
+    NIKA_467, NIKA_468, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_605, NIKA_700,
+    NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005,
     NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104,
     NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203,
     NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305,

@@ -393,6 +393,13 @@ pub fn seal_journal_with(
     workflow_hash: Option<&str>,
     teardown: Option<&crate::seal::SealTeardown>,
 ) -> bool {
+    // F-P8 · the law's third leg: the named memory rejections land in the
+    // journal BEFORE the seal mints, so the chain the seal signs covers
+    // the evidence its `covers["memory"]` counts (the seal commits to
+    // every prior line — these included).
+    if let Some(teardown) = teardown {
+        crate::memory::journal_rejected(trace, &teardown.memory_rejected);
+    }
     let mut sealed = false;
     if let Some(hash) = workflow_hash
         && let Some((sk, pk_box)) = crate::seal::load_signing_key()
@@ -415,8 +422,10 @@ pub fn seal_journal_with(
 }
 
 /// Wall-clock milliseconds for the seal's stamp (the L4 boundary — the
-/// journal's own clock; runtime crates ride `ClockDyn`).
-fn now_millis() -> u64 {
+/// journal's own clock; runtime crates ride `ClockDyn`). The teardown-side
+/// epilogue events ([`crate::memory`]'s `memory_entry_rejected`) stamp
+/// from the same voice.
+pub(crate) fn now_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))

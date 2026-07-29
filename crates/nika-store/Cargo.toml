@@ -1,0 +1,33 @@
+[package]
+name          = "nika-store"
+description   = "Signed-write / verified-recall memory substrate (F-P8 · SMSR) — the L1 deterministic satellite. Every write is signed with the injected run-signing key, the label inside the signature; every recall verifies per entry. Publishable standalone per ADR-004."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = true  # L1 memory satellite — publishable on crates.io per ADR-004.
+
+# NOTE: F-P8 admission lane · Gate 12 atomic admission commit happens when
+# Gates 2/4-11 are GREEN. See `docs/crate-specs/nika-store.md`.
+
+[dependencies]
+nika-cap    = { path = "../nika-cap", version = "0.106.0" }      # the Integrity label (F-O1 lattice) riding INSIDE the signature
+nika-kernel = { path = "../nika-kernel", version = "0.106.0" }   # the memory traits (MemoryRemember/Recall/Forget + Sealed · ADR-078)
+nika-error  = { path = "../nika-error", version = "0.106.0" }    # NikaErrorCode + the NIKA-605 registry row (error one-voice)
+serde_json  = { workspace = true }   # the envelope Value + the JCS canonical idiom (sorted keys · compact · raw UTF-8)
+thiserror   = { workspace = true }
+miette      = { workspace = true }
+minisign    = { workspace = true }   # the sign/verify primitive — key INJECTED, custody stays with the L4 caller
+blake3      = { workspace = true }   # the entry content digest (file name + seal fold's admitted set)
+uuid        = { workspace = true }   # digest → deterministic MemoryId (the trait surface's forget-by-id identity)
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+tokio    = { workspace = true, features = ["rt", "macros"] }   # the trait impls are async fns — tests drive them on a runtime
+
+[lints]
+workspace = true

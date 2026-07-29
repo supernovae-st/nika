@@ -1,0 +1,309 @@
+pub mod nika_store
+#[non_exhaustive] pub enum nika_store::RecallVerdict
+pub nika_store::RecallVerdict::Admitted
+pub nika_store::RecallVerdict::Rejected(nika_store::RejectReason)
+impl core::clone::Clone for nika_store::RecallVerdict
+pub fn nika_store::RecallVerdict::clone(&self) -> nika_store::RecallVerdict
+impl core::cmp::Eq for nika_store::RecallVerdict
+impl core::cmp::PartialEq for nika_store::RecallVerdict
+pub fn nika_store::RecallVerdict::eq(&self, other: &nika_store::RecallVerdict) -> bool
+impl core::fmt::Debug for nika_store::RecallVerdict
+pub fn nika_store::RecallVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_store::RecallVerdict
+impl<D> owo_colors::OwoColorize for nika_store::RecallVerdict
+impl<T, U> core::convert::Into<U> for nika_store::RecallVerdict where U: core::convert::From<T>
+pub fn nika_store::RecallVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::RecallVerdict where U: core::convert::Into<T>
+pub type nika_store::RecallVerdict::Error = core::convert::Infallible
+pub fn nika_store::RecallVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::RecallVerdict where U: core::convert::TryFrom<T>
+pub type nika_store::RecallVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::RecallVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_store::RecallVerdict where T: core::clone::Clone
+pub type nika_store::RecallVerdict::Owned = T
+pub fn nika_store::RecallVerdict::clone_into(&self, target: &mut T)
+pub fn nika_store::RecallVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_store::RecallVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_store::RecallVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::RecallVerdict where T: ?core::marker::Sized
+pub fn nika_store::RecallVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::RecallVerdict where T: ?core::marker::Sized
+pub fn nika_store::RecallVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_store::RecallVerdict where T: core::clone::Clone
+pub unsafe fn nika_store::RecallVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_store::RecallVerdict
+pub fn nika_store::RecallVerdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::RecallVerdict where T: 'static
+pub fn nika_store::RecallVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::RecallVerdict
+pub type nika_store::RecallVerdict::Output = T
+#[non_exhaustive] pub enum nika_store::RejectReason
+pub nika_store::RejectReason::BadSignature
+pub nika_store::RejectReason::KeyMismatch
+pub nika_store::RejectReason::Malformed
+pub nika_store::RejectReason::NameMismatch
+pub nika_store::RejectReason::StoreMismatch
+pub nika_store::RejectReason::Unsigned
+pub nika_store::RejectReason::UnsupportedVersion
+impl nika_store::RejectReason
+pub const fn nika_store::RejectReason::as_str(&self) -> &'static str
+impl core::clone::Clone for nika_store::RejectReason
+pub fn nika_store::RejectReason::clone(&self) -> nika_store::RejectReason
+impl core::cmp::Eq for nika_store::RejectReason
+impl core::cmp::PartialEq for nika_store::RejectReason
+pub fn nika_store::RejectReason::eq(&self, other: &nika_store::RejectReason) -> bool
+impl core::fmt::Debug for nika_store::RejectReason
+pub fn nika_store::RejectReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_store::RejectReason
+pub fn nika_store::RejectReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_store::RejectReason
+impl<D> owo_colors::OwoColorize for nika_store::RejectReason
+impl<T, U> core::convert::Into<U> for nika_store::RejectReason where U: core::convert::From<T>
+pub fn nika_store::RejectReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::RejectReason where U: core::convert::Into<T>
+pub type nika_store::RejectReason::Error = core::convert::Infallible
+pub fn nika_store::RejectReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::RejectReason where U: core::convert::TryFrom<T>
+pub type nika_store::RejectReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::RejectReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_store::RejectReason where T: core::clone::Clone
+pub type nika_store::RejectReason::Owned = T
+pub fn nika_store::RejectReason::clone_into(&self, target: &mut T)
+pub fn nika_store::RejectReason::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_store::RejectReason where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_store::RejectReason::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_store::RejectReason where T: 'static + ?core::marker::Sized
+pub fn nika_store::RejectReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::RejectReason where T: ?core::marker::Sized
+pub fn nika_store::RejectReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::RejectReason where T: ?core::marker::Sized
+pub fn nika_store::RejectReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_store::RejectReason where T: core::clone::Clone
+pub unsafe fn nika_store::RejectReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_store::RejectReason
+pub fn nika_store::RejectReason::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::RejectReason where T: 'static
+pub fn nika_store::RejectReason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::RejectReason
+pub type nika_store::RejectReason::Output = T
+#[non_exhaustive] pub enum nika_store::StoreError
+pub nika_store::StoreError::DirLayout
+pub nika_store::StoreError::DirLayout::reason: alloc::string::String
+pub nika_store::StoreError::Io
+pub nika_store::StoreError::Io::reason: alloc::string::String
+pub nika_store::StoreError::Serialize
+pub nika_store::StoreError::Serialize::reason: alloc::string::String
+impl core::error::Error for nika_store::StoreError
+impl core::fmt::Debug for nika_store::StoreError
+pub fn nika_store::StoreError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_store::StoreError
+pub fn nika_store::StoreError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_store::StoreError
+pub fn nika_store::StoreError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_store::StoreError
+pub fn nika_store::StoreError::is_transient(&self) -> bool
+pub fn nika_store::StoreError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_store::StoreError
+impl<T, U> core::convert::Into<U> for nika_store::StoreError where U: core::convert::From<T>
+pub fn nika_store::StoreError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::StoreError where U: core::convert::Into<T>
+pub type nika_store::StoreError::Error = core::convert::Infallible
+pub fn nika_store::StoreError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::StoreError where U: core::convert::TryFrom<T>
+pub type nika_store::StoreError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::StoreError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_store::StoreError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_store::StoreError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_store::StoreError where T: 'static + ?core::marker::Sized
+pub fn nika_store::StoreError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::StoreError where T: ?core::marker::Sized
+pub fn nika_store::StoreError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::StoreError where T: ?core::marker::Sized
+pub fn nika_store::StoreError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_store::StoreError
+pub fn nika_store::StoreError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::StoreError where T: 'static
+pub fn nika_store::StoreError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::StoreError
+pub type nika_store::StoreError::Output = T
+#[non_exhaustive] pub struct nika_store::EntryVerdict
+pub nika_store::EntryVerdict::entry: core::option::Option<nika_store::StoreEntry>
+pub nika_store::EntryVerdict::path: std::path::PathBuf
+pub nika_store::EntryVerdict::verdict: nika_store::RecallVerdict
+impl core::fmt::Debug for nika_store::EntryVerdict
+pub fn nika_store::EntryVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_store::EntryVerdict
+impl<T, U> core::convert::Into<U> for nika_store::EntryVerdict where U: core::convert::From<T>
+pub fn nika_store::EntryVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::EntryVerdict where U: core::convert::Into<T>
+pub type nika_store::EntryVerdict::Error = core::convert::Infallible
+pub fn nika_store::EntryVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::EntryVerdict where U: core::convert::TryFrom<T>
+pub type nika_store::EntryVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::EntryVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_store::EntryVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_store::EntryVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::EntryVerdict where T: ?core::marker::Sized
+pub fn nika_store::EntryVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::EntryVerdict where T: ?core::marker::Sized
+pub fn nika_store::EntryVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_store::EntryVerdict
+pub fn nika_store::EntryVerdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::EntryVerdict where T: 'static
+pub fn nika_store::EntryVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::EntryVerdict
+pub type nika_store::EntryVerdict::Output = T
+#[non_exhaustive] pub struct nika_store::FoldRejection
+pub nika_store::FoldRejection::path: std::path::PathBuf
+pub nika_store::FoldRejection::reason: nika_store::RejectReason
+pub nika_store::FoldRejection::store: alloc::string::String
+impl core::fmt::Debug for nika_store::FoldRejection
+pub fn nika_store::FoldRejection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_store::FoldRejection
+impl<T, U> core::convert::Into<U> for nika_store::FoldRejection where U: core::convert::From<T>
+pub fn nika_store::FoldRejection::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::FoldRejection where U: core::convert::Into<T>
+pub type nika_store::FoldRejection::Error = core::convert::Infallible
+pub fn nika_store::FoldRejection::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::FoldRejection where U: core::convert::TryFrom<T>
+pub type nika_store::FoldRejection::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::FoldRejection::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_store::FoldRejection where T: 'static + ?core::marker::Sized
+pub fn nika_store::FoldRejection::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::FoldRejection where T: ?core::marker::Sized
+pub fn nika_store::FoldRejection::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::FoldRejection where T: ?core::marker::Sized
+pub fn nika_store::FoldRejection::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_store::FoldRejection
+pub fn nika_store::FoldRejection::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::FoldRejection where T: 'static
+pub fn nika_store::FoldRejection::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::FoldRejection
+pub type nika_store::FoldRejection::Output = T
+#[non_exhaustive] pub struct nika_store::SignedMemoryStore
+impl nika_store::SignedMemoryStore
+pub fn nika_store::SignedMemoryStore::new(dir: std::path::PathBuf, store: alloc::string::String, run_id: alloc::string::String, label: nika_cap::integrity::Integrity, key: minisign::secret_key::SecretKey, pubkey: minisign::public_key::PublicKey, now_ms: fn() -> u64) -> core::result::Result<Self, nika_store::StoreError>
+impl nika_kernel_ai::memory::MemoryForget for nika_store::SignedMemoryStore
+pub async fn nika_store::SignedMemoryStore::forget(&self, id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryRecall for nika_store::SignedMemoryStore
+pub async fn nika_store::SignedMemoryStore::recall(&self, query: nika_kernel_ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::memory::MemoryHit>, nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryRemember for nika_store::SignedMemoryStore
+pub async fn nika_store::SignedMemoryStore::remember(&self, frame: nika_kernel_ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_core::sealed::Sealed for nika_store::SignedMemoryStore
+impl<D> owo_colors::OwoColorize for nika_store::SignedMemoryStore
+impl<T, U> core::convert::Into<U> for nika_store::SignedMemoryStore where U: core::convert::From<T>
+pub fn nika_store::SignedMemoryStore::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::SignedMemoryStore where U: core::convert::Into<T>
+pub type nika_store::SignedMemoryStore::Error = core::convert::Infallible
+pub fn nika_store::SignedMemoryStore::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::SignedMemoryStore where U: core::convert::TryFrom<T>
+pub type nika_store::SignedMemoryStore::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::SignedMemoryStore::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_store::SignedMemoryStore where T: 'static + ?core::marker::Sized
+pub fn nika_store::SignedMemoryStore::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::SignedMemoryStore where T: ?core::marker::Sized
+pub fn nika_store::SignedMemoryStore::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::SignedMemoryStore where T: ?core::marker::Sized
+pub fn nika_store::SignedMemoryStore::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_store::SignedMemoryStore
+pub fn nika_store::SignedMemoryStore::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::SignedMemoryStore where T: 'static
+pub fn nika_store::SignedMemoryStore::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> nika_kernel_ai::memory::MemoryStore for nika_store::SignedMemoryStore where T: nika_kernel_ai::memory::MemoryRemember + nika_kernel_ai::memory::MemoryRecall + nika_kernel_ai::memory::MemoryForget
+impl<T> typenum::type_operators::Same for nika_store::SignedMemoryStore
+pub type nika_store::SignedMemoryStore::Output = T
+#[non_exhaustive] pub struct nika_store::StoreEntry
+pub nika_store::StoreEntry::frame: serde_json::value::Value
+pub nika_store::StoreEntry::label: nika_cap::integrity::Integrity
+pub nika_store::StoreEntry::parents_digest: alloc::string::String
+pub nika_store::StoreEntry::run_id: alloc::string::String
+pub nika_store::StoreEntry::sig: alloc::string::String
+pub nika_store::StoreEntry::store: alloc::string::String
+pub nika_store::StoreEntry::ts_ms: u64
+impl nika_store::StoreEntry
+pub fn nika_store::StoreEntry::digest(&self) -> alloc::string::String
+pub fn nika_store::StoreEntry::file_value(&self) -> serde_json::value::Value
+pub fn nika_store::StoreEntry::memory_id(&self) -> nika_types::memory::MemoryId
+pub fn nika_store::StoreEntry::preimage(&self) -> alloc::string::String
+pub fn nika_store::StoreEntry::preimage_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_store::StoreEntry
+pub fn nika_store::StoreEntry::clone(&self) -> nika_store::StoreEntry
+impl core::cmp::PartialEq for nika_store::StoreEntry
+pub fn nika_store::StoreEntry::eq(&self, other: &nika_store::StoreEntry) -> bool
+impl core::fmt::Debug for nika_store::StoreEntry
+pub fn nika_store::StoreEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_store::StoreEntry
+impl<D> owo_colors::OwoColorize for nika_store::StoreEntry
+impl<T, U> core::convert::Into<U> for nika_store::StoreEntry where U: core::convert::From<T>
+pub fn nika_store::StoreEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::StoreEntry where U: core::convert::Into<T>
+pub type nika_store::StoreEntry::Error = core::convert::Infallible
+pub fn nika_store::StoreEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::StoreEntry where U: core::convert::TryFrom<T>
+pub type nika_store::StoreEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::StoreEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_store::StoreEntry where T: core::clone::Clone
+pub type nika_store::StoreEntry::Owned = T
+pub fn nika_store::StoreEntry::clone_into(&self, target: &mut T)
+pub fn nika_store::StoreEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_store::StoreEntry where T: 'static + ?core::marker::Sized
+pub fn nika_store::StoreEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::StoreEntry where T: ?core::marker::Sized
+pub fn nika_store::StoreEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::StoreEntry where T: ?core::marker::Sized
+pub fn nika_store::StoreEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_store::StoreEntry where T: core::clone::Clone
+pub unsafe fn nika_store::StoreEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_store::StoreEntry
+pub fn nika_store::StoreEntry::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::StoreEntry where T: 'static
+pub fn nika_store::StoreEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::StoreEntry
+pub type nika_store::StoreEntry::Output = T
+#[non_exhaustive] pub struct nika_store::UnsignedEntry
+pub nika_store::UnsignedEntry::frame: serde_json::value::Value
+pub nika_store::UnsignedEntry::label: nika_cap::integrity::Integrity
+pub nika_store::UnsignedEntry::parents_digest: alloc::string::String
+pub nika_store::UnsignedEntry::run_id: alloc::string::String
+pub nika_store::UnsignedEntry::store: alloc::string::String
+pub nika_store::UnsignedEntry::ts_ms: u64
+impl nika_store::UnsignedEntry
+pub fn nika_store::UnsignedEntry::new(frame: serde_json::value::Value, label: nika_cap::integrity::Integrity, store: alloc::string::String, run_id: alloc::string::String, ts_ms: u64) -> Self
+impl core::clone::Clone for nika_store::UnsignedEntry
+pub fn nika_store::UnsignedEntry::clone(&self) -> nika_store::UnsignedEntry
+impl core::fmt::Debug for nika_store::UnsignedEntry
+pub fn nika_store::UnsignedEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_store::UnsignedEntry
+impl<T, U> core::convert::Into<U> for nika_store::UnsignedEntry where U: core::convert::From<T>
+pub fn nika_store::UnsignedEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_store::UnsignedEntry where U: core::convert::Into<T>
+pub type nika_store::UnsignedEntry::Error = core::convert::Infallible
+pub fn nika_store::UnsignedEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_store::UnsignedEntry where U: core::convert::TryFrom<T>
+pub type nika_store::UnsignedEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_store::UnsignedEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_store::UnsignedEntry where T: core::clone::Clone
+pub type nika_store::UnsignedEntry::Owned = T
+pub fn nika_store::UnsignedEntry::clone_into(&self, target: &mut T)
+pub fn nika_store::UnsignedEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_store::UnsignedEntry where T: 'static + ?core::marker::Sized
+pub fn nika_store::UnsignedEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_store::UnsignedEntry where T: ?core::marker::Sized
+pub fn nika_store::UnsignedEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_store::UnsignedEntry where T: ?core::marker::Sized
+pub fn nika_store::UnsignedEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_store::UnsignedEntry where T: core::clone::Clone
+pub unsafe fn nika_store::UnsignedEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_store::UnsignedEntry
+pub fn nika_store::UnsignedEntry::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_store::UnsignedEntry where T: 'static
+pub fn nika_store::UnsignedEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_store::UnsignedEntry
+pub type nika_store::UnsignedEntry::Output = T
+pub const nika_store::MEMORY_ROOT: &str
+pub fn nika_store::entry_file_name(entry: &nika_store::StoreEntry) -> alloc::string::String
+pub fn nika_store::recall_verified(dir: &std::path::Path, store: &str, pubkey: &minisign::public_key::PublicKey) -> core::result::Result<alloc::vec::Vec<nika_store::EntryVerdict>, nika_store::StoreError>
+pub fn nika_store::remember_signed(dir: &std::path::Path, entry: nika_store::UnsignedEntry, key: &minisign::secret_key::SecretKey) -> core::result::Result<nika_store::StoreEntry, nika_store::StoreError>
+pub fn nika_store::seal_fold(memory_root: &std::path::Path, pubkey: &minisign::public_key::PublicKey) -> core::option::Option<serde_json::value::Value>
+pub fn nika_store::seal_fold_detailed(memory_root: &std::path::Path, pubkey: &minisign::public_key::PublicKey) -> (core::option::Option<serde_json::value::Value>, alloc::vec::Vec<nika_store::FoldRejection>)
+pub fn nika_store::store_dir(memory_root: &std::path::Path, store: &str) -> core::result::Result<std::path::PathBuf, nika_store::StoreError>
