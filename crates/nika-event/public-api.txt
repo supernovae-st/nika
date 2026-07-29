@@ -277,6 +277,7 @@ pub nika_event::kind::EventKind::AgentComposeChecked
 pub nika_event::kind::EventKind::AgentNudge
 pub nika_event::kind::EventKind::AgentStalled
 pub nika_event::kind::EventKind::AgentToolsSelected
+pub nika_event::kind::EventKind::ApprovalDecided
 pub nika_event::kind::EventKind::CheckpointWritten
 pub nika_event::kind::EventKind::CostIncurred
 pub nika_event::kind::EventKind::Declassify
@@ -451,6 +452,7 @@ pub nika_event::prelude::EventKind::AgentComposeChecked
 pub nika_event::prelude::EventKind::AgentNudge
 pub nika_event::prelude::EventKind::AgentStalled
 pub nika_event::prelude::EventKind::AgentToolsSelected
+pub nika_event::prelude::EventKind::ApprovalDecided
 pub nika_event::prelude::EventKind::CheckpointWritten
 pub nika_event::prelude::EventKind::CostIncurred
 pub nika_event::prelude::EventKind::Declassify
@@ -757,6 +759,7 @@ pub nika_event::EventKind::AgentComposeChecked
 pub nika_event::EventKind::AgentNudge
 pub nika_event::EventKind::AgentStalled
 pub nika_event::EventKind::AgentToolsSelected
+pub nika_event::EventKind::ApprovalDecided
 pub nika_event::EventKind::CheckpointWritten
 pub nika_event::EventKind::CostIncurred
 pub nika_event::EventKind::Declassify

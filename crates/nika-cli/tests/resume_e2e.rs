@@ -21,7 +21,10 @@
 //!   default-less `nika:prompt` → exits `paused` (code 4), the trace
 //!   carries `workflow_paused` + the prompt payload; resumed with an
 //!   answer → upstream cache-hits, the prompt binds, the run completes;
-//!   resumed without one → it pauses again (idempotent).
+//!   resumed without one → it pauses again (idempotent). F-P4 (NEP-0013):
+//!   the mint rides the pause frame, the decision lands hash-chained,
+//!   and an answer whose content drifted HALTS typed (`NIKA-SEC-010` ·
+//!   `approval.content_mismatch`).
 
 use std::io::Write as _;
 use std::process::Command;
@@ -60,6 +63,19 @@ fn has_kind(stdout: &str, kind: &str) -> bool {
     stdout
         .lines()
         .any(|l| l.contains(&format!("\"kind\":\"{kind}\"")))
+}
+
+/// One string field off an NDJSON event line (the journal's
+/// `fields: [{key, value}]` shape) — the F-P4 `approval_*` reader.
+fn field_str(line: &str, key: &str) -> String {
+    let frame: serde_json::Value = serde_json::from_str(line).expect("one JSON event");
+    frame["fields"]
+        .as_array()
+        .expect("fields")
+        .iter()
+        .find(|kv| kv["key"] == key)
+        .and_then(|kv| kv["value"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| panic!("the frame carries {key}: {line}"))
 }
 
 // ─── (a) kill-midrun → resume completes the remainder ───────────────────
@@ -299,6 +315,23 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
         paused_line.contains("approve") && paused_line.contains("ship it?"),
         "the payload rides the frame: {paused_line}"
     );
+    // F-P4 (NEP-0013) — the mint rides the pause frame: the shown hash,
+    // the ticket digest, the run nonce, the TTL. THIS is what a resume
+    // signs against (WYSIWYS).
+    for field in [
+        "approval_shown_hash",
+        "approval_digest",
+        "approval_nonce",
+        "approval_ttl_seconds",
+    ] {
+        assert!(
+            paused_line.contains(field),
+            "the ticket rides the pause frame ({field}): {paused_line}"
+        );
+    }
+    let shown_digest = field_str(paused_line, "approval_digest");
+    assert_eq!(shown_digest.len(), 64, "blake3 hex: {shown_digest}");
+    let shown_hash = field_str(paused_line, "approval_shown_hash");
     assert!(
         !has_kind(&stream, "task_failed") && !has_kind(&stream, "workflow_failed"),
         "a pause is never a failure:\n{stream}"
@@ -353,6 +386,27 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
         ship_completed.iter().any(|l| l.contains("shipping yes")),
         "downstream observed the bound answer:\n{stdout}"
     );
+    // F-P4 — the decision is attested, hash-chained, and binds the SAME
+    // digest the pause frame showed (montré = signé · NEP-0013 law 1+4).
+    let decided = events_for(&stdout, "approval_decided", "approve");
+    assert_eq!(decided.len(), 1, "one attestation:\n{stdout}");
+    let frame = &decided[0];
+    assert!(
+        frame.contains("\"decision\",\"value\":\"allow\""),
+        "{frame}"
+    );
+    assert!(
+        frame.contains("\"source\",\"value\":\"resumed\""),
+        "{frame}"
+    );
+    assert!(
+        frame.contains(&format!("\"digest\",\"value\":\"{shown_digest}\"")),
+        "the signed digest equals the shown digest:\n{frame}\nvs {shown_digest}"
+    );
+    assert!(
+        frame.contains(&format!("\"shown_hash\",\"value\":\"{shown_hash}\"")),
+        "the signed content equals the shown content:\n{frame}"
+    );
 }
 
 /// The answered-prompt path is UNCHANGED (ADR-099 rider: the pause
@@ -379,4 +433,71 @@ tasks:
     assert_eq!(run.status.code(), Some(0), "{stdout}");
     assert!(!has_kind(&stdout, "workflow_paused"), "{stdout}");
     assert!(has_kind(&stdout, "workflow_completed"), "{stdout}");
+}
+
+// ─── F-P4 (b) · a stale --answer signs what was never shown ──────────
+
+/// NEP-0013 law 1 at the binary plane: the run pauses on « ship it? »,
+/// the operator edits the QUESTION before resuming — the `--answer`'s
+/// resolved content hash no longer matches the shown hash, so the
+/// resume HALTS typed (`NIKA-SEC-010` · `approval.content_mismatch`)
+/// and journals the deny. The gate never re-asks: it refuses.
+#[test]
+fn an_answer_against_edited_content_halts_with_content_mismatch() {
+    let wf = fixture("gated.nika.yaml", GATED);
+
+    let run = bin()
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(run.status.code(), Some(4), "the first run pauses");
+    let stream = String::from_utf8(run.stdout).expect("utf8");
+    let trace = write_trace("gated-mismatch.ndjson", &stream);
+
+    // The question changes under the operator's feet (message edit).
+    let edited = fixture(
+        "gated-edited.nika.yaml",
+        &GATED.replace("ship it?", "ship it NOW?"),
+    );
+    let resumed = bin()
+        .args([
+            "run",
+            &edited.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--answer",
+            "approve=yes",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(resumed.stdout).expect("utf8");
+    assert_ne!(
+        resumed.status.code(),
+        Some(0),
+        "the mismatched answer never completes the run:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("NIKA-SEC-010") && stdout.contains("approval.content_mismatch"),
+        "the typed refusal names the law:\n{stdout}"
+    );
+    let decided = events_for(&stdout, "approval_decided", "approve");
+    assert_eq!(decided.len(), 1, "the deny is attested:\n{stdout}");
+    assert!(
+        decided[0].contains("\"decision\",\"value\":\"deny\""),
+        "{}",
+        decided[0]
+    );
+    assert!(
+        decided[0].contains("approval.content_mismatch"),
+        "{}",
+        decided[0]
+    );
+    // The gated action never ran.
+    assert!(
+        events_for(&stdout, "task_started", "ship").is_empty(),
+        "the gated exec never starts:\n{stdout}"
+    );
 }

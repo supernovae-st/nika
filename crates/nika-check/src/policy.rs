@@ -48,7 +48,15 @@ pub(super) fn scan_policy(wf: &RawWorkflow, edges: &[Edge]) -> Vec<PolicyViolati
             s.parents.push(e.from);
         }
     }
-    nika_cap::policy_violations(&policy.value, &subjects)
+    let mut violations = nika_cap::policy_violations(&policy.value, &subjects);
+    // F-P4 (NEP-0013 law 3) — the heterogeneous batch rides the same
+    // projection (declared `require.human_gate_before` only · the judge
+    // itself is inert without it).
+    violations.extend(nika_cap::approval_batch_violations(
+        &policy.value,
+        &subjects,
+    ));
+    violations
 }
 
 /// The static provider resolution (spec 10 §allow.providers) — the
@@ -252,6 +260,100 @@ mod tests {
         assert!(
             r.policy_findings.is_empty(),
             "no claim on an unanalyzable graph: {:?}",
+            r.policy_findings
+        );
+    }
+
+    // ── F-P4 (NEP-0013 law 3) · the heterogeneous batch ──────────────
+
+    /// Fixture (d): ONE prompt whose yes unleashes TWO effect classes
+    /// (an exec AND a fetch) is the fatigue machine — refused at check,
+    /// speaking NIKA-SEC-010 (never the policy-lane code).
+    #[test]
+    fn approval_batch_heterogeneous_is_refused_with_the_approval_code() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n  page:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n",
+        );
+        assert!(!r.is_clean());
+        let batch: Vec<_> = r
+            .policy_findings
+            .iter()
+            .filter(|f| f.rule == "approval.heterogeneous_batch")
+            .collect();
+        assert_eq!(batch.len(), 1, "{:?}", r.policy_findings);
+        let f = batch[0];
+        assert_eq!(
+            f.task.as_deref(),
+            Some("gate"),
+            "the bundling prompt is named"
+        );
+        assert!(
+            f.detail.contains("exec · net")
+                && f.detail.contains("act")
+                && f.detail.contains("page"),
+            "the classes + the witness tasks: {}",
+            f.detail
+        );
+        // The unified fold speaks the approval-capability code (NEP-0013),
+        // never the spec-10 policy code.
+        let u = r
+            .findings
+            .iter()
+            .find(|f| f.kind == "policy" && f.message.contains("heterogeneous_batch"))
+            .expect("the batch row in findings[]");
+        assert_eq!(u.code.as_deref(), Some("NIKA-SEC-010"));
+        assert!(
+            r.extra_conformance_codes()
+                .iter()
+                .any(|c| c.to_string() == "NIKA-SEC-010"),
+            "the codes surface speaks it too"
+        );
+    }
+
+    /// Homogeneous batches stay legal: ONE prompt gating two execs is
+    /// one class — the runtime dedups identical content, nothing to refuse.
+    #[test]
+    fn approval_batch_homogeneous_is_clean() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  one:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  two:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"b\"] }\n",
+        );
+        assert!(r.is_clean(), "{:?}", r.policy_findings);
+    }
+
+    /// The batch law is scoped to the DECLARED gate lane: no
+    /// `require.human_gate_before`, no judgment (the green templates keep
+    /// their shape — a prompt before an exec+notify is legal until the
+    /// author declares the gate contract).
+    #[test]
+    fn approval_batch_is_inert_without_the_declared_lane() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\", \"nika:notify\"]\n  net: { http: [\"hooks.slack.com\"] }\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"x\"] }\n  record:\n    after: { act: success }\n    invoke:\n      tool: \"nika:notify\"\n      args: { url: \"https://hooks.slack.com/x\", message: \"done\" }\n",
+        );
+        assert!(
+            r.policy_findings.is_empty(),
+            "no declared lane, no claim: {:?}",
+            r.policy_findings
+        );
+    }
+
+    /// The nearest gate owns its closure: a first prompt whose only
+    /// descendant is a SECOND prompt is not a batch — the second is
+    /// judged on what IT unleashes (here: two classes → it is refused).
+    #[test]
+    fn approval_batch_stops_at_the_nearest_gate() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"x\"] }\n  page:\n    after: { second: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\" }\n",
+        );
+        let batch: Vec<_> = r
+            .policy_findings
+            .iter()
+            .filter(|f| f.rule == "approval.heterogeneous_batch")
+            .collect();
+        assert_eq!(batch.len(), 1, "{:?}", r.policy_findings);
+        assert_eq!(
+            batch[0].task.as_deref(),
+            Some("second"),
+            "the NEAREST gate owns the batch: {:?}",
             r.policy_findings
         );
     }

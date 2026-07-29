@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use nika_event::{Event, EventKind};
+use nika_runtime::approval::{ApprovalTicket, PausedApproval};
 use nika_runtime::resume::{PriorSuccess, ResumePlan, fields, referenced_upstreams};
 use nika_schema::raw::RawWorkflow;
 use nika_types::resource::Value as FieldValue;
@@ -94,18 +95,28 @@ pub struct PlanFold {
     /// Records whose `output` field would not parse back — treated as
     /// keyless (never a guess · ADR-099: an unreadable record re-runs).
     pub unreadable: usize,
+    /// The F-P4 resume authority (NEP-0013): the approval ticket the
+    /// LAST `workflow_paused` frame serialized (`approval_*` fields)
+    /// plus the trace's own run identity (its `workflow_started` event
+    /// id — the cross-run check lives in the trace's bytes). `None`
+    /// when the trace carries no pause, or a pre-F-P4 one (no shown
+    /// hash to bind against — the `--answer` then binds unvalidated,
+    /// the ADR-099 contract unchanged).
+    pub paused: Option<PausedApproval>,
 }
 
 /// Fold a trace's events into the skip plan. BOTH `task_completed` and
 /// `task_cache_hit` records count (a resumed run's own trace is itself
 /// resumable); the LAST record per task wins (one terminal per run —
-/// last-wins also covers a file carrying run + resume appended).
+/// last-wins also covers a file carrying run + resume appended). The
+/// F-P4 paused ticket folds with the same last-wins law.
 #[must_use]
 pub fn fold_plan(events: &[Event]) -> PlanFold {
     let mut fold = PlanFold {
         plan: ResumePlan::new(),
         keyless: 0,
         unreadable: 0,
+        paused: fold_paused_approval(events),
     };
     for event in events {
         if !matches!(
@@ -136,6 +147,35 @@ pub fn fold_plan(events: &[Event]) -> PlanFold {
         );
     }
     fold
+}
+
+/// The F-P4 fold: read the LAST `workflow_paused` frame's `approval_*`
+/// fields back into the ticket, and the trace's run identity from its
+/// own `workflow_started` frame. Any absent or malformed piece yields
+/// `None` — never a guess (an unreadable ticket simply cannot validate,
+/// so the resume falls back to the unvalidated ADR-099 binding).
+fn fold_paused_approval(events: &[Event]) -> Option<PausedApproval> {
+    let paused = events
+        .iter()
+        .rev()
+        .find(|e| e.kind == EventKind::WorkflowPaused)?;
+    let task = str_field(paused, "task")?;
+    let shown_hash = str_field(paused, "approval_shown_hash")?;
+    let nonce = str_field(paused, "approval_nonce")?;
+    let minted_at_ms = int_field(paused, "approval_minted_at_ms")?;
+    let ttl_seconds = u32::try_from(int_field(paused, "approval_ttl_seconds")?).ok()?;
+    let trace_nonce = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .map(|e| e.id.uuid.to_string())?;
+    let ticket = ApprovalTicket::new(
+        shown_hash.to_owned(),
+        nonce.to_owned(),
+        task.to_owned(),
+        minted_at_ms,
+        ttl_seconds,
+    );
+    Some(PausedApproval::new(ticket, trace_nonce))
 }
 
 /// Apply `--from <task_id>` (ADR-099 §3): remove the named task AND its
@@ -191,6 +231,17 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
     event.fields.iter().find(|kv| kv.key == key).and_then(|kv| {
         if let FieldValue::String(s) = &kv.value {
             Some(s.as_str())
+        } else {
+            None
+        }
+    })
+}
+
+/// The int twin of [`str_field`] (the F-P4 `approval_*` mint/TTL fields).
+fn int_field(event: &Event, key: &str) -> Option<i64> {
+    event.fields.iter().find(|kv| kv.key == key).and_then(|kv| {
+        if let FieldValue::Int(v) = &kv.value {
+            Some(*v)
         } else {
             None
         }

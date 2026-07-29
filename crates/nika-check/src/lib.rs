@@ -422,9 +422,17 @@ impl CheckReport {
         // The data-as-code sink (NEP-0006) → NIKA-SEC-008.
         let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
         codes.extend(self.sink_findings.iter().map(|_| sink_code));
-        // Hard policy: violations (spec 10) → NIKA-POLICY-001.
+        // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
+        // approval rules (NEP-0013) → NIKA-SEC-010 (one lane, two voices —
+        // the rule prefix discriminates, same as the findings fold).
         let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
-        codes.extend(self.policy_findings.iter().map(|_| policy_code));
+        codes.extend(self.policy_findings.iter().map(|p| {
+            if p.rule.starts_with("approval.") {
+                SpecCode::new("SEC", 10, SpecCategory::SecurityError)
+            } else {
+                policy_code
+            }
+        }));
         // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
         let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
         codes.extend(self.trifecta_findings.iter().map(|_| trifecta_code));

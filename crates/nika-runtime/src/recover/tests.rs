@@ -376,6 +376,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         resume: None,
         integrity: nika_cap::Integrity::trusted(),
         declassified: Vec::new(),
+        approval: None,
     };
     let mut parked = crate::recover::ParkedRecoveries::new();
     // The streamed-wave shape: prior-wave records + the wave's side

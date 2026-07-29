@@ -149,14 +149,26 @@ pub(super) fn env_refusal(message: &str, output_json: bool) -> u8 {
 /// ONE `{"paused":{…}}` line — the machine pause contract (ADR-099 rider
 /// · additive beside the success/error envelopes): the prompt payload a
 /// consumer needs to deliver an answer (`--answer <task>=<value>` at
-/// resume · or a serve webhook later).
+/// resume · or a serve webhook later). The F-P4 approval ticket rides
+/// additively (NEP-0013): the machine consumer sees EXACTLY what an
+/// answer would sign — shown-hash · digest · nonce · mint · TTL.
 pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
+    let approval = pause.approval.as_ref().map(|t| {
+        serde_json::json!({
+            "digest": t.digest(),
+            "shown_hash": t.content_hash,
+            "run_nonce": t.run_nonce,
+            "minted_at_ms": t.minted_at_ms,
+            "ttl_seconds": t.ttl_seconds,
+        })
+    });
     serde_json::json!({
         "paused": {
             "task": pause.task,
             "mode": pause.mode,
             "message": pause.message,
             "choices": pause.choices,
+            "approval": approval,
         }
     })
     .to_string()

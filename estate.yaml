@@ -18,15 +18,15 @@ classes:
   testimonial: "impl-owned test evidence — fixtures, corpora, batteries: proves behavior; neither shipped code nor derived output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4148
+  classified_files: 4159
   file_rows: 10
   pattern_rows: 22
   by_class:
-    authored: 1273
+    authored: 1276
     authored-pin: 1
     generated: 111
     pinned-copy: 75
-    testimonial: 2688
+    testimonial: 2696
     foreign: 0
   unverified-default: 1
 files:
@@ -63,7 +63,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 051edcd00e8e59c69f5daa209edba96a4d7213592241cd4eda60d3f1261cab7c
+  sha256: d8c126a5eab8e61f30b9910b58c64d8cfa621f171b00aee1ab780ee5f924de3a
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -104,7 +104,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 75
-  aggregate_sha256: 2a0e196f549a520948671472feb3d1cbea487c9ff5a73b43bca0fcf6f1f5cec4
+  aggregate_sha256: ddb30df6508748671acdda03cf3cd52517560aff66fee749d16445411b7977cc
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -119,8 +119,8 @@ patterns:
   evidence: "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/fixtures.rs — the injection red-team battery owned by the runtime"
 - glob: "fuzz/corpus/**"
   class: testimonial
-  match_count: 2651
-  aggregate_sha256: 2c5f0c69ab0b45d6fa7cbde2e53772845c31ace8055ad99e38464eae30073699
+  match_count: 2659
+  aggregate_sha256: d409656f93cfcd100a270e3d8b9db03bbbbf6ad35d3baa906798dc9c54d1b064
   evidence: "fuzz-nightly.yml:12-13 'Corpus is committed under fuzz/corpus/ (seeded from nika-spec examples + conformance fixtures) · new corpus discovered by CI is NOT pushed back'"
 - glob: "scripts/test/battery/**"
   class: testimonial
@@ -130,7 +130,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 56
-  aggregate_sha256: 220a1c6037e1f43be2c0f107f2a93e8d7cbede2868bc375a02257a0e5418244a
+  aggregate_sha256: bbdc135b7496e3e09223078ac8c676c87c54ad1de43097266c1bfea3499ec6f7
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -141,13 +141,13 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 635
-  aggregate_sha256: 16c794afd6688915845eed061124b3360653c12fd0c497a26fdbd19f3d76f7f5
+  match_count: 637
+  aggregate_sha256: 544a02071d84282cf41d56b428810f332cc9d52be72715ca01360c3164bbdf9f
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 108
-  aggregate_sha256: 2764ffd9dc98d5b12a460c945170d5da1075e7b29133933c12c166978f0590e8
+  match_count: 109
+  aggregate_sha256: 96be99a69edcb0a640a71b76f6296df984dc76bfdbb78484e6adf3a5782b0afe
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 19
-  aggregate_sha256: c020584186ef8b08bb607c302581b0355339678161e24458f8e429801d1d67aa
+  aggregate_sha256: 27800842467670ddc635c10ca2c7651ca4669e5293459189b333c5ba84367977
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored

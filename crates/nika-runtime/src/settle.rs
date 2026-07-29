@@ -68,6 +68,66 @@ fn settle_cancelled(
     records.insert(id.to_owned(), record);
 }
 
+/// Settle a pre-dispatch failure (gate eval · `with:` render ·
+/// `for_each` collection · an F-P4 approval refusal) — the task never
+/// started: no `TaskStarted` · no `on_finally` (spec 03) · the failure
+/// cascades. The one boundary evaluation IS the settling attempt (spec
+/// 13 · `failure/verb_error` · attempts = 1). Split out of [`settle`]
+/// for the 100-line fn ratchet · semantics unchanged.
+#[allow(clippy::too_many_arguments)] // the failure parts + the pens
+fn settle_failed_before_start(
+    id: &str,
+    stage: &'static str,
+    error: TaskErrorRecord,
+    named: BTreeMap<String, Value>,
+    approval: Option<&crate::approval::ApprovalAttestation>,
+    records: &mut BTreeMap<String, TaskRecord>,
+    ok: &mut bool,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let mut record = TaskRecord::unran(TaskStatus::Failure, TerminalCause::VerbError);
+    record.attempts = Some(1);
+    let detail = format!("{} · {}", error.code, error.message);
+    record.error = Some(error);
+    let record = with_named(record, named);
+    // F-P4 — an approval REFUSAL attests BEFORE its failure frame (the
+    // deny the chain binds · NEP-0013 law 4).
+    emit_approval(approval, stamper, sink);
+    emit(
+        stamper,
+        sink,
+        EventKind::TaskFailed,
+        &[
+            ("task", s(id)),
+            ("note", s(stage)),
+            ("detail", s(&detail)),
+            ("outcome", s(&record::outcome_json(&record))),
+        ],
+    );
+    records.insert(id.to_owned(), record);
+    *ok = false;
+}
+
+/// Emit one `approval_decided` frame for a decided ticket (NEP-0013 law
+/// 4) — the one emission site, shared by the Ran path (between
+/// `task_started` and the terminal frame) and the refusal path (before
+/// `task_failed`).
+fn emit_approval(
+    approval: Option<&crate::approval::ApprovalAttestation>,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    if let Some(attestation) = approval {
+        emit(
+            stamper,
+            sink,
+            EventKind::ApprovalDecided,
+            &attestation.fields(),
+        );
+    }
+}
+
 /// Settle one task in wave order · owns the pens (stamper + sink) ·
 /// inserts the result record. `pub(crate)`: the recover-await spine
 /// (`recover::settle_or_park` + the drain passes) settles through THIS
@@ -93,6 +153,9 @@ pub(crate) fn settle(
     // F-O1 PR-3 — the `declassify:` receipt evidence (NEP-0004 law 5);
     // emitted once per entry on the Ran path (the door was used).
     let declassified = finish.declassified;
+    // F-P4 — the approval attestation (NEP-0013 law 4): `Some` when a
+    // prompt's ticket decided (or was refused) THIS run.
+    let approval = finish.approval;
     match finish.settle {
         SettleAs::Cancelled { note, blocked_by } => {
             settle_cancelled(
@@ -109,29 +172,17 @@ pub(crate) fn settle(
             settle_skipped_gate(&id, note, expr.as_deref(), named, records, stamper, sink);
         }
         SettleAs::FailedBeforeStart { stage, error } => {
-            // A pre-dispatch failure (gate eval · with · for_each
-            // collection) — the task never started: no TaskStarted ·
-            // no on_finally (spec 03) · the failure cascades. The one
-            // boundary evaluation IS the settling attempt (spec 13 ·
-            // failure/verb_error · attempts = 1).
-            let mut record = TaskRecord::unran(TaskStatus::Failure, TerminalCause::VerbError);
-            record.attempts = Some(1);
-            let detail = format!("{} · {}", error.code, error.message);
-            record.error = Some(error);
-            let record = with_named(record, named);
-            emit(
+            settle_failed_before_start(
+                &id,
+                stage,
+                error,
+                named,
+                approval.as_ref(),
+                records,
+                ok,
                 stamper,
                 sink,
-                EventKind::TaskFailed,
-                &[
-                    ("task", s(&id)),
-                    ("note", s(stage)),
-                    ("detail", s(&detail)),
-                    ("outcome", s(&record::outcome_json(&record))),
-                ],
             );
-            records.insert(id, record);
-            *ok = false;
         }
         SettleAs::CacheHit { output } => {
             let record = settle_cache_hit(
@@ -153,6 +204,7 @@ pub(crate) fn settle(
                 resume.as_ref(),
                 &integrity,
                 &declassified,
+                approval.as_ref(),
                 ok,
                 stamper,
                 sink,
@@ -301,12 +353,14 @@ fn emit_permit_checked(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // the ran settle parts + the pens
 pub(crate) fn settle_ran(
     id: &str,
     run: task::RanTask,
     resume: Option<&resume::ResumeStamp>,
     integrity: &nika_cap::Integrity,
     declassified: &[task::DeclassifyEvidence],
+    approval: Option<&crate::approval::ApprovalAttestation>,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -318,6 +372,10 @@ pub(crate) fn settle_ran(
         &[("task", s(id)), ("note", s(&run.note))],
     );
     emit_ran_preamble(id, declassified, &run, stamper, sink);
+    // F-P4 — the approval decision rides BETWEEN `task_started` and the
+    // terminal frame (the declassify/permit-witness idiom · NEP-0013
+    // law 4): the chain binds the answered hash to the task it armed.
+    emit_approval(approval, stamper, sink);
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();

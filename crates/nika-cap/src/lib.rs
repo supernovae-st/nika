@@ -59,8 +59,8 @@ pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
 // type level) + the pure judge + the certificate's authority projection.
 pub use policy::{
     Allow, CertEffects, EffectClass, Forbid, HUMAN_GATE_TOOL, Limits, Objective, POLICY_KEYS,
-    Policy, PolicySubject, PolicyViolation, Prefer, ProviderPin, Require, policy_child_keys,
-    policy_violations,
+    Policy, PolicySubject, PolicyViolation, Prefer, ProviderPin, Require,
+    approval_batch_violations, policy_child_keys, policy_violations,
 };
 pub use shape::builtin_shape_findings;
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure

@@ -48,6 +48,12 @@ pub struct WorkflowPause {
     pub message: Option<String>,
     /// The `choice` mode's options (empty for the other modes).
     pub choices: Vec<String>,
+    /// The F-P4 approval ticket minted BEFORE the ask (NEP-0013) — the
+    /// pause serializes the capability the resumed run validates the
+    /// `--answer` against (nonce · TTL · shown hash). `None` only where
+    /// the ticket layer never ran (a pause synthesized outside a run —
+    /// the resume then binds unvalidated, the ADR-099 contract).
+    pub approval: Option<crate::approval::ApprovalTicket>,
 }
 
 impl WorkflowPause {
@@ -59,7 +65,15 @@ impl WorkflowPause {
             mode,
             message,
             choices,
+            approval: None,
         }
+    }
+
+    /// Attach the minted approval ticket (consuming builder · F-P4).
+    #[must_use]
+    pub fn with_approval(mut self, ticket: crate::approval::ApprovalTicket) -> Self {
+        self.approval = Some(ticket);
+        self
     }
 }
 
@@ -67,7 +81,10 @@ impl WorkflowPause {
 /// on the blocking-prompt branch (PROMPT-001) of a direct
 /// `invoke: nika:prompt` AND the author did not claim that code with an
 /// `on_error:` policy (an explicit `fail_workflow`/filter wins — the
-/// author's routing is never hijacked).
+/// author's routing is never hijacked). The F-P4 ticket the gate minted
+/// for the step rides the payload (NEP-0013 · the resumed run validates
+/// the `--answer` against it).
+#[allow(clippy::too_many_arguments)] // the pause scope + the approval book
 pub(crate) fn prompt_block(
     finish: &Finish,
     wf: &RawWorkflow,
@@ -76,6 +93,7 @@ pub(crate) fn prompt_block(
     config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
+    approvals: &crate::approval::ApprovalBook,
 ) -> Option<WorkflowPause> {
     let SettleAs::Ran(ran) = &finish.settle else {
         return None;
@@ -119,11 +137,13 @@ pub(crate) fn prompt_block(
         index: None,
         permits: None,
     };
-    Some(payload_of(
-        task,
-        invoke.args.as_ref().map(|a| &a.value),
-        &scope,
-    ))
+    let mut pause = payload_of(task, invoke.args.as_ref().map(|a| &a.value), &scope);
+    // F-P4 — the ticket minted at the gate rides the pause: the resumed
+    // run validates the `--answer` against THIS shown hash · nonce · TTL.
+    if let Some(ticket) = approvals.ticket_for(&finish.id) {
+        pause = pause.with_approval(ticket);
+    }
+    Some(pause)
 }
 
 /// Build the pause payload from the prompt's `args:` — rendered when the
@@ -194,6 +214,7 @@ mod tests {
             resume: None,
             integrity: nika_cap::Integrity::trusted(),
             declassified: Vec::new(),
+            approval: None,
         }
     }
 
@@ -213,6 +234,7 @@ mod tests {
             &BTreeMap::new(),
             &BTreeMap::new(),
             &markers,
+            &crate::approval::ApprovalBook::new(),
         )
         .expect("the blocking branch pauses");
         assert_eq!(pause.task, "ask");
@@ -234,7 +256,8 @@ mod tests {
                 &vars,
                 &BTreeMap::new(),
                 &BTreeMap::new(),
-                &markers
+                &markers,
+                &crate::approval::ApprovalBook::new(),
             )
             .is_none()
         );
@@ -250,7 +273,8 @@ mod tests {
                 &vars,
                 &BTreeMap::new(),
                 &BTreeMap::new(),
-                &markers
+                &markers,
+                &crate::approval::ApprovalBook::new(),
             )
             .is_none()
         );
@@ -272,7 +296,8 @@ mod tests {
                 &vars,
                 &BTreeMap::new(),
                 &BTreeMap::new(),
-                &markers
+                &markers,
+                &crate::approval::ApprovalBook::new(),
             )
             .is_none()
         );
@@ -498,6 +523,7 @@ mod tests {
             &BTreeMap::new(),
             &BTreeMap::new(),
             &markers,
+            &crate::approval::ApprovalBook::new(),
         )
         .expect("pauses with the raw fallback");
         assert_eq!(pause.mode, "input");

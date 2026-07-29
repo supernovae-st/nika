@@ -22,7 +22,17 @@ fn started_fields(yaml: &str, sandbox: Option<&str>) -> Vec<(String, String)> {
     .expect("fixture parses");
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    emit_prologue(&wf, "pay", None, None, sandbox, &mut stamper, &mut sink);
+    let book = crate::approval::ApprovalBook::new();
+    emit_prologue(
+        &wf,
+        "pay",
+        None,
+        None,
+        sandbox,
+        &book,
+        &mut stamper,
+        &mut sink,
+    );
     let started = &sink.events()[0];
     started
         .fields

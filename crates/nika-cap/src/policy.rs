@@ -505,6 +505,101 @@ fn limits_max_tasks(policy: &Policy, task_count: usize, out: &mut Vec<PolicyViol
     }
 }
 
+/// The batch rule's discriminating classes (NEP-0013): the harm triad
+/// `exec · write · net` — `tools` is the whole invoke surface, present
+/// on every invoke, never discriminative.
+const BATCH_CLASSES: [EffectClass; 3] = [EffectClass::Exec, EffectClass::Write, EffectClass::Net];
+
+/// F-P4 (NEP-0013 law 3) — the HETEROGENEOUS BATCH: ONE prompt whose yes
+/// unleashes actions of TWO OR MORE effect classes is the
+/// consent-fatigue machine (one question, many consequences). Judged
+/// where the gate law itself is declared (`require.human_gate_before` —
+/// the lane that already reads the gate's ancestry): each prompt's
+/// descendant closure must carry AT MOST ONE class among
+/// `exec · write · net` (`tools` is the whole invoke surface — present
+/// on every invoke, never discriminative). The walk never traverses
+/// THROUGH another prompt: the nearest gate owns what it re-asks for.
+/// Homogeneous batches (same class ×N) stay legal — the runtime dedups
+/// identical content to one ticket. The wire code is `NIKA-SEC-010`
+/// (the findings fold maps the `approval.*` rules there).
+#[must_use]
+pub fn approval_batch_violations(policy: &Policy, tasks: &[PolicySubject]) -> Vec<PolicyViolation> {
+    if policy
+        .require
+        .as_ref()
+        .and_then(|r| r.human_gate_before.as_ref())
+        .is_none()
+    {
+        return Vec::new();
+    }
+    let classes: Vec<BTreeSet<EffectClass>> = tasks
+        .iter()
+        .map(|t| EffectClass::classify(&t.verb, t.tool.as_deref()))
+        .collect();
+    // children[p] = the direct downstreams of p (the parents map reversed).
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); tasks.len()];
+    for (i, t) in tasks.iter().enumerate() {
+        for &p in &t.parents {
+            if let Some(list) = children.get_mut(p) {
+                list.push(i);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for (i, t) in tasks.iter().enumerate() {
+        if t.tool.as_deref() != Some(HUMAN_GATE_TOOL) {
+            continue;
+        }
+        let mut covered: BTreeSet<EffectClass> = BTreeSet::new();
+        let mut witness: Vec<&str> = Vec::new();
+        let mut seen: BTreeSet<usize> = BTreeSet::new();
+        let mut queue: Vec<usize> = vec![i];
+        while let Some(at) = queue.pop() {
+            for &next in children.get(at).into_iter().flatten() {
+                if !seen.insert(next) {
+                    continue;
+                }
+                let Some(subject) = tasks.get(next) else {
+                    continue;
+                };
+                if subject.tool.as_deref() == Some(HUMAN_GATE_TOOL) {
+                    continue; // another gate — it owns its own closure
+                }
+                let unleashed: BTreeSet<EffectClass> = classes
+                    .get(next)
+                    .map(|c| {
+                        c.intersection(&BTreeSet::from(BATCH_CLASSES))
+                            .copied()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !unleashed.is_empty() {
+                    covered.extend(unleashed);
+                    witness.push(subject.id.as_str());
+                }
+                queue.push(next);
+            }
+        }
+        if covered.len() >= 2 {
+            let names = sorted_class_names(covered.iter());
+            witness.sort_unstable();
+            out.push(PolicyViolation {
+                rule: "approval.heterogeneous_batch",
+                task: Some(t.id.clone()),
+                detail: format!(
+                    "task '{}' · approval.heterogeneous_batch — one prompt gates ONE effect \
+                     class: this yes unleashes [{}] (tasks: {}) · split the gate per class \
+                     (NEP-0013 law 3 · the anti-fatigue law · NIKA-SEC-010)",
+                    t.id,
+                    names.join(" · "),
+                    witness.join(" · ")
+                ),
+            });
+        }
+    }
+    out
+}
+
 /// The certificate's AUTHORITY projection (spec 10 §the certificate
 /// names its effects) — a projection, never a judge: the check ladder
 /// stays the one truth, this field exists so a certificate consumer
