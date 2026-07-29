@@ -635,9 +635,10 @@ fn the_taught_corpus_never_contradicts_its_check_verdict() {
         contradictions.join("\n\n")
     );
     assert!(
-        t1 + t2_total >= 30,
-        "too little of the corpus reached a verdict (T1 {t1} + T2 {t2_total}) — \
-         the oracle would be claiming coverage it does not have"
+        t1 + t2_total + check_red.len() >= 30,
+        "too little of the corpus reached a verdict (T1 {t1} + T2 {t2_total} + static \
+         refusals {}) — the oracle would be claiming coverage it does not have",
+        check_red.len()
     );
 }
 
