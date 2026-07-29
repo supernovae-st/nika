@@ -55,10 +55,12 @@ TOL = 0.005
 # Keep it EMPTY unless a skew has a name; a row here is a debt, not a
 # dispensation.
 _DEEPSEEK = (
-    "three-way disagreement 2026-07-29: ours (models.dev) 0.14/0.28 · "
-    "LiteLLM 0.28/0.42 · the primary page (api-docs.deepseek.com) shows "
-    "TWO columns (0.14/0.28 and 0.435/0.87) whose model assignment needs "
-    "a rendered read — triage owed, neither catalog trusted yet."
+    "resolved by rendered read 2026-07-29: the primary page's two columns "
+    "are deepseek-v4-flash (0.14/0.28) and deepseek-v4-pro (0.435/0.87) — "
+    "LiteLLM's 0.28/0.42 is the pre-V4 list, CONFIRMED stale. models.dev "
+    "matches v4-flash for both aliases; residual question: whether the "
+    "reasoner alias should carry pro pricing. Rows die when LiteLLM "
+    "learns V4."
 )
 _ALIAS = (
     "floating-alias lag 2026-07-29: models.dev resolves the -latest "
