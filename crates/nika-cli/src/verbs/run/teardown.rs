@@ -25,7 +25,7 @@ pub(super) fn attended_facts(
         wf,
         report,
         outcome,
-        super::quarantine::attend(wf, outcome, journal),
+        nika_dap::quarantine::attend(wf, outcome, journal),
     )
 }
 

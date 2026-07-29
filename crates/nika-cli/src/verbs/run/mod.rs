@@ -37,7 +37,6 @@ use sink::{TraceNote, surface_trace};
 mod budget;
 mod epilogue;
 mod heartbeat;
-mod quarantine;
 mod teardown;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use teardown::attended_facts;

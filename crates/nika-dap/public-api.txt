@@ -1885,6 +1885,8 @@ pub type nika_dap::otel::ExportOutcome::Output = T
 pub fn nika_dap::otel::default_out_path(trace: &str) -> alloc::string::String
 pub fn nika_dap::otel::export_journal(trace: &str, out: core::option::Option<&str>, include_content: bool, engine: &str) -> core::result::Result<nika_dap::otel::ExportOutcome, alloc::string::String>
 pub fn nika_dap::otel::project(events: &[nika_event::event::Event], include_content: bool, chain: core::option::Option<&nika_dap::chain::Verdict>, exporter_version: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub mod nika_dap::quarantine
+pub fn nika_dap::quarantine::attend(wf: &nika_schema::raw::workflow::RawWorkflow, outcome: &nika_runtime::RunOutcome, journal: core::option::Option<&std::path::Path>) -> core::option::Option<serde_json::value::Value>
 pub mod nika_dap::recover
 #[non_exhaustive] pub enum nika_dap::recover::RecoverError
 pub nika_dap::recover::RecoverError::BadFirstLine

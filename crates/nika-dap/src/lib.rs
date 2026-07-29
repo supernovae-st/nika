@@ -33,6 +33,7 @@ pub mod flow;
 pub mod inventory;
 pub mod journal;
 pub mod otel;
+pub mod quarantine;
 pub mod recover;
 pub mod reproduce;
 pub mod resume;

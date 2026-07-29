@@ -12,7 +12,7 @@
 //!
 //! The effect: every output path a Success-settled `nika:write` /
 //! `nika:edit` task returned MOVES under
-//! `.nika/quarantine/<run-stamp>/` ([`nika_dap::store::QUARANTINE_DIR`]
+//! `.nika/quarantine/<run-stamp>/` ([`crate::store::QUARANTINE_DIR`]
 //! — beside the journals, never inside them). The MOVE is the
 //! substance of the palier: the old path no longer exists, so a next
 //! run reading it fails LOUD (`NIKA-BUILTIN-READ-001`) instead of
@@ -25,11 +25,13 @@
 //! Boundaries (the ledger text): the saga/compensation palier is
 //! declared P2 — no `finally:` schema block in v1, no new `EventKind`,
 //! no runtime change (the runtime stays fs-free by design; this is the
-//! L4 teardown's own effect). The true check-side cross-run finding
-//! (prior quarantine lists × the next workflow's read paths) is the
-//! named v2 owe. A quarantine failure is a STATED MISS
-//! (`{path, error, action: "left_in_place"}`) — never silent, never
-//! fatal to the teardown: the seal must still attest the end it can.
+//! L4 teardown's own effect — descended from `nika-cli` to here at the
+//! 15k wall, the trust-plane pattern: compute descends, render stays).
+//! The true check-side cross-run finding (prior quarantine lists × the
+//! next workflow's read paths) is the named v2 owe. A quarantine
+//! failure is a STATED MISS (`{path, error, action: "left_in_place"}`)
+//! — never silent, never fatal to the teardown: the seal must still
+//! attest the end it can.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -53,7 +55,8 @@ const WRITER_TOOLS: [&str; 2] = ["nika:write", "nika:edit"];
 /// it. A disabled/broken journal falls back to a fresh mint in the
 /// journal's own naming shape — the debt exists either way; the move
 /// never waits on the receipt surface.
-pub(super) fn attend(
+#[must_use]
+pub fn attend(
     wf: &RawWorkflow,
     outcome: &RunOutcome,
     journal: Option<&Path>,
@@ -65,7 +68,7 @@ pub(super) fn attend(
     if paths.is_empty() {
         return None; // no semi-written debt — nothing to attest
     }
-    let dir = PathBuf::from(nika_dap::store::QUARANTINE_DIR).join(run_stamp(journal));
+    let dir = PathBuf::from(crate::store::QUARANTINE_DIR).join(run_stamp(journal));
     Some(quarantine(&paths, &dir))
 }
 
