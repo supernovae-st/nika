@@ -297,12 +297,83 @@ mod model_capabilities_tests {
     }
 }
 
+/// A sourced energy fact for one model — Wh per million OUTPUT tokens,
+/// with the two axes that make two honest numbers comparable.
+///
+/// # Why OUTPUT tokens (`wh_per_mtok_out`)
+///
+/// Decode dominates measured inference energy (≥96% in the ML.energy
+/// v3.0 methodology), so the honest per-token figure is per OUTPUT
+/// token — a per-total figure would dilute the number with nearly-free
+/// prefill and reward long prompts.
+///
+/// # The two axes: who measured × what was measured
+///
+/// - [`Self::provenance`] — WHO produced the number and how much to
+///   trust it: `measured-local` (our own probe on this machine) ·
+///   `independent-measured` (third-party benchmark, e.g. ML.energy) ·
+///   `vendor-claim` (the provider's own figure) ·
+///   `independent-estimate` (third-party modelling, not measurement).
+/// - [`Self::scope`] — WHAT the number covers: `gpu` (accelerator
+///   only) · `device` (whole host) · `fleet` (host + idle + PUE, the
+///   Google-style datacenter figure). A GPU-only figure is roughly
+///   half a fleet figure for the same model — without this axis two
+///   truthful numbers are silently incomparable.
+///
+/// Both axes are validated against their closed sets at build time.
+/// [`Self::source`] and [`Self::measured_at`] pin the claim to a
+/// citable origin and a month — a number without either is refused by
+/// the generator (the estate law applied to data: absence over guess).
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct ModelEnergy {
+    /// Watt-hours per million OUTPUT tokens. Always finite and > 0 —
+    /// a zero would claim free inference; the null is the absent table.
+    pub wh_per_mtok_out: f64,
+    /// Who produced the number: `"measured-local"` ·
+    /// `"independent-measured"` · `"vendor-claim"` ·
+    /// `"independent-estimate"` (closed set, build-time validated).
+    pub provenance: &'static str,
+    /// What the number covers: `"gpu"` · `"device"` · `"fleet"`
+    /// (closed set, build-time validated).
+    pub scope: &'static str,
+    /// Citable origin of the figure (free text — benchmark name,
+    /// hardware, runtime version). Never empty.
+    pub source: &'static str,
+    /// Month the figure was produced, ISO `YYYY-MM`. Energy figures
+    /// rot with hardware and runtime generations; a dateless figure
+    /// is not a fact.
+    pub measured_at: &'static str,
+}
+
+impl ModelEnergy {
+    /// Explicit constructor — required because [`ModelEnergy`] is
+    /// `#[non_exhaustive]` (invariant #19) and the generated static is
+    /// const-constructed.
+    #[must_use]
+    pub const fn new(
+        wh_per_mtok_out: f64,
+        provenance: &'static str,
+        scope: &'static str,
+        source: &'static str,
+        measured_at: &'static str,
+    ) -> Self {
+        Self {
+            wh_per_mtok_out,
+            provenance,
+            scope,
+            source,
+            measured_at,
+        }
+    }
+}
+
 /// One row of the vendored upstream model snapshot, keyed by pattern.
 ///
 /// Two-pass matching: exact match first, then `contains()` fallback.
 /// More specific patterns MUST appear before less specific ones.
 ///
-/// # What this row carries (schema `@1.2`)
+/// # What this row carries (schema `@1.3`)
 ///
 /// The type is named for its original and still-primary job — pricing —
 /// but a row is what the upstream snapshot says about a model, and since
@@ -311,6 +382,11 @@ mod model_capabilities_tests {
 /// come from the same payload, on the same day, under the same
 /// [`PricingSnapshot`] provenance: splitting them would create a second
 /// thing to keep in sync with no second source to sync it against.
+///
+/// Since `@1.3` the row also carries three *research facts* (see below)
+/// whose source is NOT the upstream payload: the research lane vendors
+/// them with a per-claim source, and a row without a sourced claim
+/// simply omits them.
 ///
 /// # Pricing axes (5 axes, Session 4a Phase E2)
 ///
@@ -334,6 +410,16 @@ mod model_capabilities_tests {
 /// disclose*, and MUST NOT be read as a zero, a `false`, or a default.
 /// A caller that needs a number when the snapshot is silent has to supply
 /// its own and say so.
+///
+/// # Research facts (3 fields, schema `@1.3`)
+///
+/// [`Self::energy`] · [`Self::tokenizer`] · [`Self::determinism`] —
+/// vendored by the research lane from primary sources, never mirrored
+/// from the upstream payload (which does not carry them). Every one is
+/// `Option`: `None` means *no sourced fact has been vendored*, and MUST
+/// NOT be read as "zero energy" / "unknown tokenizer is fine" / "not
+/// replayable". A field without a source stays absent — absence over
+/// guess.
 ///
 /// Generated from `data/model-pricing.toml` at build time.
 #[derive(Debug, Clone, PartialEq)]
@@ -400,14 +486,38 @@ pub struct ModelPricing {
     /// "they added a value" into a failed refresh. Match on
     /// [`Self::is_deprecated`] for the predicate that matters.
     pub status: Option<&'static str>,
+    /// Sourced energy figure — Wh per million OUTPUT tokens with the
+    /// provenance × scope axes (see [`ModelEnergy`]). `None` = no
+    /// sourced measurement or estimate has been vendored — which says
+    /// nothing about the model's actual draw.
+    pub energy: Option<ModelEnergy>,
+    /// Tokenizer family id (e.g. `"o200k_base"` · `"claude-v3"`).
+    /// `None` = not vendored / not disclosed — consumers fall back to
+    /// conservative character-based estimation.
+    ///
+    /// A string, not [`crate::types::TokenizerFamily`]: this row
+    /// mirrors research on the OPEN ecosystem vocabulary (new models
+    /// ship new tokenizers without asking us), while the enum is the
+    /// closed set our capability rules chose to support. Shape-checked
+    /// only (`[a-z0-9._-]`, ≤64).
+    pub tokenizer: Option<&'static str>,
+    /// Replay class — what re-running the same request can promise:
+    /// `"seed"` (a seed parameter exists and the provider aims for
+    /// reproducible sampling) · `"best-effort"` (temperature 0 gets
+    /// close, no guarantee) · `"none"` (no replay story). Closed set,
+    /// build-time validated — this is OUR vocabulary, not upstream's.
+    /// `None` = not yet researched, which is NOT `"none"`: absence of
+    /// the fact, not a fact of absence.
+    pub determinism: Option<&'static str>,
 }
 
 impl ModelPricing {
     /// Explicit constructor — required because [`ModelPricing`] is
     /// `#[non_exhaustive]` (invariant #19).
     ///
-    /// 12 args: identity (2) · the 2 base rates · 4 optional rate axes ·
-    /// the 4 upstream model facts added in schema `@1.2`.
+    /// 15 args: identity (2) · the 2 base rates · 4 optional rate axes ·
+    /// the 4 upstream model facts added in schema `@1.2` · the 3
+    /// research facts added in schema `@1.3`.
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub const fn new(
@@ -423,6 +533,9 @@ impl ModelPricing {
         context_window_tokens: Option<u32>,
         open_weights: Option<bool>,
         status: Option<&'static str>,
+        energy: Option<ModelEnergy>,
+        tokenizer: Option<&'static str>,
+        determinism: Option<&'static str>,
     ) -> Self {
         Self {
             provider,
@@ -437,6 +550,9 @@ impl ModelPricing {
             context_window_tokens,
             open_weights,
             status,
+            energy,
+            tokenizer,
+            determinism,
         }
     }
 
@@ -545,7 +661,7 @@ impl CostEstimate {
 
 #[cfg(test)]
 mod model_pricing_tests {
-    use super::ModelPricing;
+    use super::{ModelEnergy, ModelPricing};
 
     #[test]
     fn new_builds_all_8_axes() {
@@ -556,6 +672,9 @@ mod model_pricing_tests {
             15.0,
             Some(3.75),
             Some(0.30),
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -588,6 +707,9 @@ mod model_pricing_tests {
             Some(200_000),
             Some(false),
             Some("beta"),
+            None,
+            None,
+            None,
         );
         assert_eq!(p.max_output_tokens, Some(64_000));
         assert_eq!(p.context_window_tokens, Some(200_000));
@@ -601,7 +723,8 @@ mod model_pricing_tests {
         // upstream is silent about must never read as 0 / false, which
         // would report the least-known model as the most-bounded one.
         let p = ModelPricing::new(
-            "ollama", "qwen3", 0.0, 0.0, None, None, None, None, None, None, None, None,
+            "ollama", "qwen3", 0.0, 0.0, None, None, None, None, None, None, None, None, None,
+            None, None,
         );
         assert_eq!(p.max_output_tokens, None);
         assert_eq!(p.context_window_tokens, None);
@@ -614,11 +737,74 @@ mod model_pricing_tests {
     fn is_deprecated_only_fires_on_the_upstream_spelling() {
         let mk = |s: Option<&'static str>| {
             ModelPricing::new(
-                "openai", "gpt-4", 30.0, 60.0, None, None, None, None, None, None, None, s,
+                "openai", "gpt-4", 30.0, 60.0, None, None, None, None, None, None, None, s, None,
+                None, None,
             )
         };
         assert!(mk(Some("deprecated")).is_deprecated());
         assert!(!mk(Some("beta")).is_deprecated());
         assert!(!mk(None).is_deprecated());
+    }
+
+    #[test]
+    fn new_builds_the_three_research_facts() {
+        const E: ModelEnergy = ModelEnergy::new(
+            42.0,
+            "independent-measured",
+            "gpu",
+            "ml.energy v3.0 · B200 · vLLM 0.11.1",
+            "2025-12",
+        );
+        let p = ModelPricing::new(
+            "openai",
+            "gpt-4o",
+            2.5,
+            10.0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(E),
+            Some("o200k_base"),
+            Some("seed"),
+        );
+        let e = p.energy.expect("energy vendored");
+        assert!((e.wh_per_mtok_out - 42.0).abs() < f64::EPSILON);
+        assert_eq!(e.provenance, "independent-measured");
+        assert_eq!(e.scope, "gpu");
+        assert_eq!(e.source, "ml.energy v3.0 · B200 · vLLM 0.11.1");
+        assert_eq!(e.measured_at, "2025-12");
+        assert_eq!(p.tokenizer, Some("o200k_base"));
+        assert_eq!(p.determinism, Some("seed"));
+    }
+
+    #[test]
+    fn absent_research_facts_stay_none_not_defaults() {
+        // Same inversion guard as the upstream facts: a model nobody has
+        // measured must never read as zero-energy or non-replayable.
+        let p = ModelPricing::new(
+            "mistral",
+            "mistral-large",
+            2.0,
+            6.0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(p.energy, None);
+        assert_eq!(p.tokenizer, None);
+        assert_eq!(p.determinism, None);
     }
 }

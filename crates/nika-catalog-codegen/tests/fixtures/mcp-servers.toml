@@ -13,7 +13,7 @@
 #   * runner is pypi-only (non-pypi + runner = error; pypi + no runner = error)
 #   * aliases never collide with any id or another alias
 
-schema = "nika/mcp-servers@1.0"
+schema = "nika/mcp-servers@1.1"
 
 
 # ─── Anthropic Official (3) ──────────────────────────
@@ -27,6 +27,12 @@ category = "anthropic"
 pricing = "free"
 last_verified = "2026-04-14"
 tags = ["destructive", "official"]
+
+# @1.1 effect_hints — fixture values, synthetic: exercises both Some
+# paths and the unannotated-stays-None path.
+[servers.effect_hints]
+read_file = { read_only = true }
+write_file = { read_only = false, destructive = true }
 
 [[servers.packages]]
 registry_type = "npm"

@@ -46,6 +46,72 @@ impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::CodegenError where 
 pub fn nika_catalog_codegen::CodegenError::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_catalog_codegen::CodegenError
 pub fn nika_catalog_codegen::CodegenError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_catalog_codegen::DataPolicyEntry
+pub nika_catalog_codegen::DataPolicyEntry::retention: alloc::string::String
+pub nika_catalog_codegen::DataPolicyEntry::source: alloc::string::String
+pub nika_catalog_codegen::DataPolicyEntry::trains: alloc::string::String
+pub nika_catalog_codegen::DataPolicyEntry::zdr: alloc::string::String
+impl core::clone::Clone for nika_catalog_codegen::DataPolicyEntry
+pub fn nika_catalog_codegen::DataPolicyEntry::clone(&self) -> nika_catalog_codegen::DataPolicyEntry
+impl core::fmt::Debug for nika_catalog_codegen::DataPolicyEntry
+pub fn nika_catalog_codegen::DataPolicyEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::DataPolicyEntry
+pub fn nika_catalog_codegen::DataPolicyEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::DataPolicyEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::DataPolicyEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::DataPolicyEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::DataPolicyEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::DataPolicyEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::DataPolicyEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::DataPolicyEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::DataPolicyEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog_codegen::DataPolicyEntry where T: core::clone::Clone
+pub type nika_catalog_codegen::DataPolicyEntry::Owned = T
+pub fn nika_catalog_codegen::DataPolicyEntry::clone_into(&self, target: &mut T)
+pub fn nika_catalog_codegen::DataPolicyEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog_codegen::DataPolicyEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::DataPolicyEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::DataPolicyEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::DataPolicyEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::DataPolicyEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::DataPolicyEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog_codegen::DataPolicyEntry where T: core::clone::Clone
+pub unsafe fn nika_catalog_codegen::DataPolicyEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog_codegen::DataPolicyEntry
+pub fn nika_catalog_codegen::DataPolicyEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::DataPolicyEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::EffectHintEntry
+pub nika_catalog_codegen::EffectHintEntry::destructive: core::option::Option<bool>
+pub nika_catalog_codegen::EffectHintEntry::read_only: core::option::Option<bool>
+impl core::clone::Clone for nika_catalog_codegen::EffectHintEntry
+pub fn nika_catalog_codegen::EffectHintEntry::clone(&self) -> nika_catalog_codegen::EffectHintEntry
+impl core::fmt::Debug for nika_catalog_codegen::EffectHintEntry
+pub fn nika_catalog_codegen::EffectHintEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::EffectHintEntry
+pub fn nika_catalog_codegen::EffectHintEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::EffectHintEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::EffectHintEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::EffectHintEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::EffectHintEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::EffectHintEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::EffectHintEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::EffectHintEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::EffectHintEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog_codegen::EffectHintEntry where T: core::clone::Clone
+pub type nika_catalog_codegen::EffectHintEntry::Owned = T
+pub fn nika_catalog_codegen::EffectHintEntry::clone_into(&self, target: &mut T)
+pub fn nika_catalog_codegen::EffectHintEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog_codegen::EffectHintEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::EffectHintEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::EffectHintEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EffectHintEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::EffectHintEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EffectHintEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog_codegen::EffectHintEntry where T: core::clone::Clone
+pub unsafe fn nika_catalog_codegen::EffectHintEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog_codegen::EffectHintEntry
+pub fn nika_catalog_codegen::EffectHintEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::EffectHintEntry where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog_codegen::EmbeddingEntry
 pub nika_catalog_codegen::EmbeddingEntry::description: alloc::string::String
 pub nika_catalog_codegen::EmbeddingEntry::dimensions: u32
@@ -136,6 +202,41 @@ impl<T> core::clone::CloneToUninit for nika_catalog_codegen::Emitted where T: co
 pub unsafe fn nika_catalog_codegen::Emitted::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_catalog_codegen::Emitted
 pub fn nika_catalog_codegen::Emitted::from(t: T) -> T
+#[non_exhaustive] pub struct nika_catalog_codegen::EnergyEntry
+pub nika_catalog_codegen::EnergyEntry::measured_at: alloc::string::String
+pub nika_catalog_codegen::EnergyEntry::provenance: alloc::string::String
+pub nika_catalog_codegen::EnergyEntry::scope: alloc::string::String
+pub nika_catalog_codegen::EnergyEntry::source: alloc::string::String
+pub nika_catalog_codegen::EnergyEntry::wh_per_mtok_out: f64
+impl core::clone::Clone for nika_catalog_codegen::EnergyEntry
+pub fn nika_catalog_codegen::EnergyEntry::clone(&self) -> nika_catalog_codegen::EnergyEntry
+impl core::fmt::Debug for nika_catalog_codegen::EnergyEntry
+pub fn nika_catalog_codegen::EnergyEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::EnergyEntry
+pub fn nika_catalog_codegen::EnergyEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::EnergyEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::EnergyEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::EnergyEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::EnergyEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::EnergyEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::EnergyEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::EnergyEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::EnergyEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog_codegen::EnergyEntry where T: core::clone::Clone
+pub type nika_catalog_codegen::EnergyEntry::Owned = T
+pub fn nika_catalog_codegen::EnergyEntry::clone_into(&self, target: &mut T)
+pub fn nika_catalog_codegen::EnergyEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog_codegen::EnergyEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::EnergyEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::EnergyEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EnergyEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::EnergyEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EnergyEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog_codegen::EnergyEntry where T: core::clone::Clone
+pub unsafe fn nika_catalog_codegen::EnergyEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog_codegen::EnergyEntry
+pub fn nika_catalog_codegen::EnergyEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::EnergyEntry where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog_codegen::EnvVarEntry
 pub nika_catalog_codegen::EnvVarEntry::description: alloc::string::String
 pub nika_catalog_codegen::EnvVarEntry::is_secret: bool
@@ -230,6 +331,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::LlmProvidersF
 pub nika_catalog_codegen::McpServerEntry::aliases: alloc::vec::Vec<alloc::string::String>
 pub nika_catalog_codegen::McpServerEntry::category: alloc::string::String
 pub nika_catalog_codegen::McpServerEntry::description: alloc::string::String
+pub nika_catalog_codegen::McpServerEntry::effect_hints: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_catalog_codegen::EffectHintEntry>
 pub nika_catalog_codegen::McpServerEntry::env_vars: alloc::vec::Vec<nika_catalog_codegen::EnvVarEntry>
 pub nika_catalog_codegen::McpServerEntry::extra_tags: alloc::vec::Vec<alloc::string::String>
 pub nika_catalog_codegen::McpServerEntry::homepage: core::option::Option<alloc::string::String>
@@ -315,12 +417,19 @@ impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PackageEntry 
 #[non_exhaustive] pub struct nika_catalog_codegen::PricingEntry
 pub nika_catalog_codegen::PricingEntry::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog_codegen::PricingEntry::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::context_window_tokens: core::option::Option<u32>
+pub nika_catalog_codegen::PricingEntry::determinism: core::option::Option<alloc::string::String>
+pub nika_catalog_codegen::PricingEntry::energy: core::option::Option<nika_catalog_codegen::EnergyEntry>
 pub nika_catalog_codegen::PricingEntry::image_per_million: core::option::Option<f64>
 pub nika_catalog_codegen::PricingEntry::input_per_million: f64
+pub nika_catalog_codegen::PricingEntry::max_output_tokens: core::option::Option<u32>
 pub nika_catalog_codegen::PricingEntry::model_pattern: alloc::string::String
+pub nika_catalog_codegen::PricingEntry::open_weights: core::option::Option<bool>
 pub nika_catalog_codegen::PricingEntry::output_per_million: f64
 pub nika_catalog_codegen::PricingEntry::provider: alloc::string::String
 pub nika_catalog_codegen::PricingEntry::reasoning_tokens_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::status: core::option::Option<alloc::string::String>
+pub nika_catalog_codegen::PricingEntry::tokenizer: core::option::Option<alloc::string::String>
 impl core::fmt::Debug for nika_catalog_codegen::PricingEntry
 pub fn nika_catalog_codegen::PricingEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::PricingEntry
@@ -404,6 +513,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PricingMeta w
 pub nika_catalog_codegen::ProviderEntry::aliases: alloc::vec::Vec<alloc::string::String>
 pub nika_catalog_codegen::ProviderEntry::api_dialect: core::option::Option<alloc::string::String>
 pub nika_catalog_codegen::ProviderEntry::cheap_model: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::data_policy: core::option::Option<nika_catalog_codegen::DataPolicyEntry>
 pub nika_catalog_codegen::ProviderEntry::default_model: alloc::string::String
 pub nika_catalog_codegen::ProviderEntry::description: alloc::string::String
 pub nika_catalog_codegen::ProviderEntry::env_var: alloc::string::String

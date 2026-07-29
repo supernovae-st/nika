@@ -28,6 +28,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("anthropic"),
         tags: &[crate::types::Tag::ExtendedThinking, crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::LongContext, crate::types::Tag::PromptCaching, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput, crate::types::Tag::Vision],
         extra_tags: &[],
+        data_policy: Some(crate::types::DataPolicy { trains: "no", retention: "30", zdr: "enterprise-only", source: "fixture · synthetic" }),
     },
     crate::types::Provider {
         id: "openai",
@@ -56,6 +57,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::CodeExecution, crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::ImageGen, crate::types::Tag::PromptCaching, crate::types::Tag::Realtime, crate::types::Tag::Streaming, crate::types::Tag::Vision],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "mistral",
@@ -84,6 +86,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Code, crate::types::Tag::European, crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "groq",
@@ -112,6 +115,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Fast, crate::types::Tag::FunctionCalling, crate::types::Tag::ParallelTools, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "deepseek",
@@ -134,6 +138,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Budget, crate::types::Tag::Chinese, crate::types::Tag::Code, crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Reasoning, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "gemini",
@@ -162,6 +167,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("gemini"),
         tags: &[crate::types::Tag::CodeExecution, crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::LongContext, crate::types::Tag::Multimodal, crate::types::Tag::Streaming, crate::types::Tag::Vision, crate::types::Tag::WebSearch],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "xai",
@@ -190,6 +196,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::Reasoning, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput, crate::types::Tag::Vision, crate::types::Tag::WebSearch],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "openrouter",
@@ -218,6 +225,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "together",
@@ -246,6 +254,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Budget, crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "fireworks",
@@ -274,6 +283,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Fast, crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "cerebras",
@@ -302,6 +312,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Fast, crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "sambanova",
@@ -330,6 +341,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Fast, crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "cohere",
@@ -358,6 +370,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("cohere"),
         tags: &[crate::types::Tag::Enterprise, crate::types::Tag::FunctionCalling, crate::types::Tag::Multilingual, crate::types::Tag::Rag, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "ai21",
@@ -386,6 +399,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("ai21"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::LongContext, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "bedrock",
@@ -414,6 +428,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("bedrock"),
         tags: &[crate::types::Tag::Enterprise, crate::types::Tag::FunctionCalling, crate::types::Tag::PromptCaching, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "azure",
@@ -442,6 +457,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Enterprise, crate::types::Tag::FunctionCalling, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "vertex",
@@ -470,6 +486,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("gemini"),
         tags: &[crate::types::Tag::Enterprise, crate::types::Tag::FunctionCalling, crate::types::Tag::Multimodal, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "perplexity",
@@ -498,6 +515,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Reasoning, crate::types::Tag::Streaming, crate::types::Tag::WebSearch],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "voyage",
@@ -526,6 +544,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("voyage"),
         tags: &[crate::types::Tag::Enterprise, crate::types::Tag::Multilingual, crate::types::Tag::Rag],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "moonshot",
@@ -554,6 +573,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::LongContext, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "qwen",
@@ -588,6 +608,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::LongContext, crate::types::Tag::Multilingual, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput, crate::types::Tag::Vision],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "minimax",
@@ -616,6 +637,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::LongContext, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "zhipu",
@@ -644,6 +666,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Frontier, crate::types::Tag::FunctionCalling, crate::types::Tag::Multilingual, crate::types::Tag::Streaming, crate::types::Tag::StructuredOutput, crate::types::Tag::Vision],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "nvidia-nim",
@@ -672,6 +695,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::Local, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "deepinfra",
@@ -700,6 +724,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "replicate",
@@ -728,6 +753,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "hyperbolic",
@@ -750,6 +776,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "writer",
@@ -772,6 +799,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "databricks",
@@ -794,6 +822,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "cloudflare",
@@ -822,6 +851,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::FunctionCalling, crate::types::Tag::OpenSource, crate::types::Tag::Streaming],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "native",
@@ -844,6 +874,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("openai-chat"),
         tags: &[crate::types::Tag::Local, crate::types::Tag::OpenSource],
         extra_tags: &[],
+        data_policy: None,
     },
     crate::types::Provider {
         id: "mock",
@@ -866,6 +897,7 @@ pub static ALL_PROVIDERS: &[crate::types::Provider] = &[
         api_dialect: Some("mock"),
         tags: &[],
         extra_tags: &[],
+        data_policy: None,
     },
 ];
 

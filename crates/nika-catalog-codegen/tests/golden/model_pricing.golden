@@ -21,6 +21,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -35,6 +38,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -49,6 +55,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: Some(crate::types::model::ModelEnergy { wh_per_mtok_out: 350.5, provenance: "independent-estimate", scope: "fleet", source: "fixture · synthetic", measured_at: "2025-12" }),
+        tokenizer: Some("claude-v3"),
+        determinism: Some("best-effort"),
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -63,6 +72,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -77,6 +89,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -91,6 +106,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -105,6 +123,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Anthropic",
@@ -119,6 +140,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -133,6 +157,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: Some("o200k_base"),
+        determinism: Some("seed"),
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -147,6 +174,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -161,6 +191,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -175,6 +208,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -189,6 +225,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -203,6 +242,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -217,6 +259,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -231,6 +276,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -245,6 +293,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -259,6 +310,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -273,6 +327,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -287,6 +344,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -301,6 +361,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -315,6 +378,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -329,6 +395,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -343,6 +412,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -357,6 +429,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -371,6 +446,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -385,6 +463,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "OpenAI",
@@ -399,6 +480,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -413,6 +497,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -427,6 +514,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -441,6 +531,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -455,6 +548,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -469,6 +565,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -483,6 +582,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -497,6 +599,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Mistral",
@@ -511,6 +616,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -525,6 +633,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -539,6 +650,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -553,6 +667,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -567,6 +684,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -581,6 +701,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -595,6 +718,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -609,6 +735,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Groq",
@@ -623,6 +752,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "DeepSeek",
@@ -637,6 +769,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "DeepSeek",
@@ -651,6 +786,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "DeepSeek",
@@ -665,6 +803,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -679,6 +820,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -693,6 +837,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -707,6 +854,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -721,6 +871,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -735,6 +888,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -749,6 +905,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -763,6 +922,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -777,6 +939,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "Gemini",
@@ -791,6 +956,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "xAI",
@@ -805,6 +973,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "xAI",
@@ -819,6 +990,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "xAI",
@@ -833,6 +1007,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "xAI",
@@ -847,6 +1024,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "xAI",
@@ -861,6 +1041,9 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
     crate::types::model::ModelPricing {
         provider: "xAI",
@@ -875,5 +1058,8 @@ pub(crate) static ALL_PRICING: &[crate::types::model::ModelPricing] = &[
         context_window_tokens: None,
         open_weights: None,
         status: None,
+        energy: None,
+        tokenizer: None,
+        determinism: None,
     },
 ];

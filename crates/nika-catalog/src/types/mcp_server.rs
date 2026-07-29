@@ -25,6 +25,51 @@ pub enum McpPricing {
     Paid,
 }
 
+/// Per-tool effect hints, vendored from a server's manifest (schema `@1.1`).
+///
+/// The MCP spec lets a server annotate each tool with `readOnlyHint` and
+/// `destructiveHint`. Server-level tags (`read-only` XOR `destructive` on
+/// [`McpServer::tags`]) classify the WHOLE server — one write tool makes
+/// the server destructive — but irreversibility reasoning needs the
+/// per-tool grain: a server can expose ninety read tools and one delete.
+///
+/// Each hint is `Option<bool>`: `None` = the manifest did not annotate,
+/// which MUST NOT be read as "safe" (the spec's own defaults assume the
+/// worst, and so should a consumer). These are HINTS from the server
+/// author, not measurements — trust them for UX and check-time
+/// reasoning, never as a security boundary.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ToolEffectHints {
+    /// Tool name as the server declares it (e.g. `"query"`).
+    pub tool: &'static str,
+    /// MCP `readOnlyHint` — the tool claims to mutate nothing.
+    /// `None` = not annotated in the manifest.
+    pub read_only: Option<bool>,
+    /// MCP `destructiveHint` — the tool may destroy or irreversibly
+    /// change data. `None` = not annotated in the manifest.
+    pub destructive: Option<bool>,
+}
+
+impl ToolEffectHints {
+    /// Explicit constructor — required because [`ToolEffectHints`] is
+    /// `#[non_exhaustive]` (invariant #19) and the generated static is
+    /// const-constructed.
+    #[must_use]
+    pub const fn new(
+        tool: &'static str,
+        read_only: Option<bool>,
+        destructive: Option<bool>,
+    ) -> Self {
+        Self {
+            tool,
+            read_only,
+            destructive,
+        }
+    }
+}
+
 /// Rich MCP server catalog entry.
 ///
 /// Generated into `$OUT_DIR/mcp_servers.rs` by the crate's `build.rs`
@@ -62,6 +107,10 @@ pub struct McpServer {
     pub tags: &'static [crate::types::Tag],
     /// Community / vendor-specific tags not in the core [`Tag`](crate::types::Tag) enum.
     pub extra_tags: &'static [&'static str],
+    /// Per-tool effect hints vendored from the server manifest (schema
+    /// `@1.1`), sorted by tool name. Empty = no manifest annotations
+    /// vendored — which says nothing about what the tools can do.
+    pub effect_hints: &'static [ToolEffectHints],
 }
 
 impl McpServer {
@@ -69,9 +118,10 @@ impl McpServer {
     /// `#[non_exhaustive]` (invariant #19).
     #[must_use]
     #[allow(clippy::too_many_arguments)]
-    // REASON: 12 fields reflect the real MCP-registry wire surface
+    // REASON: 14 fields reflect the real MCP-registry wire surface
     // (id + aliases + title + description + packages + remotes +
-    // env_vars + homepage + category + pricing + last_verified + tags).
+    // env_vars + homepage + category + pricing + last_verified + tags +
+    // extra_tags + effect_hints).
     // A builder would fragment one catalog row for zero readability win.
     pub const fn new(
         id: &'static str,
@@ -87,6 +137,7 @@ impl McpServer {
         last_verified: &'static str,
         tags: &'static [crate::types::Tag],
         extra_tags: &'static [&'static str],
+        effect_hints: &'static [ToolEffectHints],
     ) -> Self {
         Self {
             id,
@@ -102,6 +153,7 @@ impl McpServer {
             last_verified,
             tags,
             extra_tags,
+            effect_hints,
         }
     }
 }
@@ -136,8 +188,21 @@ mod tests {
             last_verified: "2026-04-14",
             tags: &[],
             extra_tags: &[],
+            effect_hints: &[],
         };
         assert_eq!(s.id, "filesystem");
         assert_eq!(s.category, Category::Anthropic);
+        assert!(s.effect_hints.is_empty(), "no manifest vendored");
+    }
+
+    #[test]
+    fn tool_effect_hints_new_builds_all_fields() {
+        const H: ToolEffectHints = ToolEffectHints::new("query", Some(true), None);
+        assert_eq!(H.tool, "query");
+        assert_eq!(H.read_only, Some(true));
+        assert_eq!(
+            H.destructive, None,
+            "unannotated must stay None, never false"
+        );
     }
 }

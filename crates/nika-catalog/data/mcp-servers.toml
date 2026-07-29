@@ -12,8 +12,13 @@
 #   * pricing ∈ {free, freemium, paid}
 #   * runner is pypi-only (non-pypi + runner = error; pypi + no runner = error)
 #   * aliases never collide with any id or another alias
+#   * effect_hints (@1.1 · optional · per tool) — the MCP readOnlyHint /
+#     destructiveHint manifest annotations. Each entry must carry ≥1 hint
+#     and never both read_only=true and destructive=true. NO entries are
+#     vendored yet (schema slot only): an ABSENT table means no manifest
+#     vendored — never "the tools are safe".
 
-schema = "nika/mcp-servers@1.0"
+schema = "nika/mcp-servers@1.1"
 
 
 # ─── Anthropic Official (3) ──────────────────────────

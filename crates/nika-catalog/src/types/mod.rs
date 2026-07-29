@@ -35,13 +35,15 @@ pub use distribution::{
 };
 pub use embedding::{Embedding, Similarity};
 pub use json_mode::{JsonMode, ParseJsonModeError};
-pub use mcp_server::{McpPricing, McpServer};
+pub use mcp_server::{McpPricing, McpServer, ToolEffectHints};
 #[cfg(feature = "capabilities")]
 pub use modality::{Modality, ParseModalityError};
-pub use model::{CostEstimate, ModelCapabilities, ModelPricing, PricingSnapshot, TokenLimitParam};
+pub use model::{
+    CostEstimate, ModelCapabilities, ModelEnergy, ModelPricing, PricingSnapshot, TokenLimitParam,
+};
 #[cfg(feature = "capabilities")]
 pub use param_flag::{ParamFlag, ParseParamFlagError};
-pub use provider::{Provider, ProviderModel, validate_key_format};
+pub use provider::{DataPolicy, Provider, ProviderModel, validate_key_format};
 pub use region::{ParseRegionError, Region};
 pub use tags::{ParseTagError, Tag};
 #[cfg(feature = "capabilities")]

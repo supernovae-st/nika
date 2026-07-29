@@ -7,13 +7,13 @@
 //! types stay `pub` for re-use in tests and `nika-catalog-verify` ;
 //! validation helpers stay `pub(crate)`.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::emit::{opt_rstr, rstr, str_slice_expr};
+use crate::emit::{opt_plain, opt_rstr, rstr, str_slice_expr};
 use crate::error::CodegenError;
 use crate::schema::{MCP_SERVERS_SCHEMA, assert_schema};
 use crate::tags::{tags_slice_expr, validate_tags};
@@ -53,6 +53,29 @@ pub struct McpServerEntry {
     pub tags: Vec<String>,
     #[serde(default)]
     pub extra_tags: Vec<String>,
+    /// Per-tool effect hints (schema `@1.1`), keyed by tool name —
+    /// the MCP `readOnlyHint` / `destructiveHint` manifest annotations.
+    /// Empty = no manifest vendored. A `BTreeMap` so emission order is
+    /// the sorted tool name, deterministically.
+    #[serde(default)]
+    pub effect_hints: BTreeMap<String, EffectHintEntry>,
+}
+
+/// Effect hints for one tool (schema `@1.1`). Each hint is `Option` —
+/// a manifest that only annotates one of the two must not force an
+/// invented value for the other. An entry with BOTH absent is refused
+/// at validation: it claims nothing, and absence over empty claim.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct EffectHintEntry {
+    /// MCP `readOnlyHint` — the tool claims to mutate nothing.
+    #[serde(default)]
+    pub read_only: Option<bool>,
+    /// MCP `destructiveHint` — the tool may destroy or irreversibly
+    /// change data.
+    #[serde(default)]
+    pub destructive: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -170,6 +193,8 @@ fn validate_servers(servers: &[McpServerEntry], path: &Path) -> Result<(), Codeg
             .map_err(|r| CodegenError::schema_validation(&ctx, r))?;
         validate_tags(&s.tags, &s.id).map_err(|r| CodegenError::schema_validation(&ctx, r))?;
         validate_mcp_safety_tag(&s.tags, &s.id)
+            .map_err(|r| CodegenError::schema_validation(&ctx, r))?;
+        validate_effect_hints(&s.effect_hints, &s.id)
             .map_err(|r| CodegenError::schema_validation(&ctx, r))?;
 
         for pkg in &s.packages {
@@ -304,6 +329,43 @@ fn validate_py_runner(r: &str, server: &str) -> Result<(), String> {
     }
 }
 
+/// Per-tool effect hints (schema `@1.1`) must each say SOMETHING coherent.
+///
+/// - a tool with both hints absent claims nothing — omit it (absence over
+///   empty claim);
+/// - `read_only = true` + `destructive = true` is incoherent — the MCP
+///   spec makes `destructiveHint` meaningful only when `readOnlyHint` is
+///   false, and vendoring a contradiction would poison the check's
+///   irreversibility reasoning.
+///
+/// The server-LEVEL `read-only` XOR `destructive` tag invariant
+/// ([`validate_mcp_safety_tag`]) is deliberately NOT cross-checked here:
+/// a destructive server legitimately exposes read-only tools — that
+/// per-tool grain is the whole point of the slot.
+fn validate_effect_hints(
+    hints: &BTreeMap<String, EffectHintEntry>,
+    server_id: &str,
+) -> Result<(), String> {
+    for (tool, h) in hints {
+        assert_ascii_key("effect_hints tool", tool)
+            .map_err(|r| format!("server {server_id:?}: {r}"))?;
+        if h.read_only.is_none() && h.destructive.is_none() {
+            return Err(format!(
+                "server {server_id:?}: effect_hints tool {tool:?} carries no hints — \
+                 omit the tool instead (absence over empty claim)"
+            ));
+        }
+        if h.read_only == Some(true) && h.destructive == Some(true) {
+            return Err(format!(
+                "server {server_id:?}: effect_hints tool {tool:?} claims BOTH read_only \
+                 and destructive — a tool cannot be both (MCP: destructiveHint is \
+                 meaningful only when readOnlyHint is false)"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Enforce the security-filter invariant on MCP server tags: every entry MUST
 /// carry **exactly one** of `read-only` or `destructive`. The Shield subsystem
 /// uses these tags to allow/deny tools by capability class.
@@ -400,7 +462,29 @@ fn emit_server(out: &mut String, s: &McpServerEntry) {
         "        extra_tags: {},",
         str_slice_expr(&s.extra_tags)
     );
+    write_effect_hints(out, &s.effect_hints);
     let _ = writeln!(out, "    }},");
+}
+
+/// Per-tool hints in `BTreeMap` order (sorted by tool name) so emission
+/// is deterministic. Absent hints stay `None` in the emitted source — an
+/// unannotated tool must never reach the binary as `Some(false)`.
+fn write_effect_hints(out: &mut String, hints: &BTreeMap<String, EffectHintEntry>) {
+    if hints.is_empty() {
+        let _ = writeln!(out, "        effect_hints: &[],");
+        return;
+    }
+    let _ = writeln!(out, "        effect_hints: &[");
+    for (tool, h) in hints {
+        let _ = writeln!(
+            out,
+            "            crate::types::ToolEffectHints {{ tool: {}, read_only: {}, destructive: {} }},",
+            rstr(tool),
+            opt_plain(h.read_only),
+            opt_plain(h.destructive),
+        );
+    }
+    let _ = writeln!(out, "        ],");
 }
 
 fn write_aliases(out: &mut String, aliases: &[String]) {
@@ -617,6 +701,7 @@ mod tests {
             env_vars: vec![],
             tags: vec!["read-only".to_string()],
             extra_tags: vec![],
+            effect_hints: BTreeMap::new(),
         }
     }
 
@@ -749,9 +834,19 @@ mod tests {
 
     #[test]
     fn parse_mcp_servers_bytes_accepts_canonical_schema() {
-        let toml = b"schema = \"nika/mcp-servers@1.0\"\nservers = []\n";
+        let toml = b"schema = \"nika/mcp-servers@1.1\"\nservers = []\n";
         let servers = parse_mcp_servers_bytes(toml, Path::new("/x")).unwrap();
         assert!(servers.is_empty());
+    }
+
+    #[test]
+    fn parse_mcp_servers_bytes_rejects_superseded_1_0() {
+        // Under @1.0 an absent hint meant "the schema never carried
+        // hints"; under @1.1 it means "the manifest did not annotate".
+        // A stale file must not be read with the new absence semantics.
+        let toml = b"schema = \"nika/mcp-servers@1.0\"\nservers = []\n";
+        let err = parse_mcp_servers_bytes(toml, Path::new("/x")).unwrap_err();
+        assert!(format!("{err}").contains("1.1"), "got: {err}");
     }
 
     // ─── Mutation-kill arc 2026-06-11 (vector 39 · 47-survivor sweep) ────────
@@ -778,6 +873,89 @@ mod tests {
         let parsed: McpServersFile = toml::from_str(toml_src).expect("parses");
         assert_eq!(parsed.servers[0].packages[0].transport, "stdio");
         assert_eq!(parsed.servers[0].remotes[0].auth, "none");
+    }
+
+    // ── @1.1 effect_hints ──────────────────────────────────────────
+
+    fn hint(read_only: Option<bool>, destructive: Option<bool>) -> EffectHintEntry {
+        EffectHintEntry {
+            read_only,
+            destructive,
+        }
+    }
+
+    #[test]
+    fn parse_accepts_effect_hints_keyed_by_tool() {
+        let toml_src = r#"
+            schema = "nika/mcp-servers@1.1"
+            [[servers]]
+            id = "demo"
+            description = "d"
+            category = "ai"
+            pricing = "free"
+            last_verified = "2026-01-01"
+            tags = ["read-only"]
+            [[servers.packages]]
+            registry_type = "npm"
+            identifier = "pkg"
+            [servers.effect_hints]
+            query = { read_only = true }
+            drop_table = { destructive = true }
+        "#;
+        let servers = parse_mcp_servers_bytes(toml_src.as_bytes(), Path::new("/x")).unwrap();
+        let h = &servers[0].effect_hints;
+        assert_eq!(h.len(), 2);
+        assert_eq!(h["query"].read_only, Some(true));
+        assert_eq!(h["query"].destructive, None, "unannotated stays None");
+        assert_eq!(h["drop_table"].destructive, Some(true));
+    }
+
+    #[test]
+    fn generate_emits_effect_hints_sorted_and_empty_slice() {
+        let mut s = fixture_one_server();
+        s.effect_hints
+            .insert("write_row".to_string(), hint(Some(false), Some(true)));
+        s.effect_hints
+            .insert("query".to_string(), hint(Some(true), None));
+        let out = generate_mcp_servers_rs(&[s]);
+        let q = out
+            .find("tool: \"query\", read_only: Some(true), destructive: None")
+            .expect("query hint emitted");
+        let w = out
+            .find("tool: \"write_row\", read_only: Some(false), destructive: Some(true)")
+            .expect("write_row hint emitted");
+        assert!(q < w, "BTreeMap order: sorted by tool name");
+        // The empty path: no manifest vendored emits the empty slice.
+        let out = generate_mcp_servers_rs(&[fixture_one_server()]);
+        assert!(out.contains("effect_hints: &[],"), "got: {out}");
+    }
+
+    #[test]
+    fn validate_effect_hints_rejects_empty_claim_and_contradiction() {
+        // Both hints absent = an entry that says nothing.
+        let mut s = fixture_one_server();
+        s.effect_hints.insert("noop".to_string(), hint(None, None));
+        let err = validate_servers(&[s], Path::new("/x")).unwrap_err();
+        assert!(format!("{err}").contains("carries no hints"), "got: {err}");
+        // read_only + destructive both true = incoherent manifest.
+        let mut s = fixture_one_server();
+        s.effect_hints
+            .insert("weird".to_string(), hint(Some(true), Some(true)));
+        let err = validate_servers(&[s], Path::new("/x")).unwrap_err();
+        assert!(format!("{err}").contains("BOTH read_only"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_effect_hints_accepts_coherent_grains() {
+        // A destructive SERVER exposing a read-only TOOL is the point of
+        // the per-tool grain — must pass alongside the server-level tag.
+        let mut s = fixture_one_server();
+        s.tags = vec!["destructive".to_string()];
+        s.effect_hints
+            .insert("read_file".to_string(), hint(Some(true), None));
+        s.effect_hints
+            .insert("delete_file".to_string(), hint(Some(false), Some(true)));
+        validate_servers(&[s], Path::new("/x")).expect("coherent per-tool hints must pass");
     }
 
     #[test]

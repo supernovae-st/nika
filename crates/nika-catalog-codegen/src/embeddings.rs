@@ -270,6 +270,7 @@ mod tests {
             api_dialect: None,
             tags: vec![],
             extra_tags: vec![],
+            data_policy: None,
         }
     }
 
