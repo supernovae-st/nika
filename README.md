@@ -250,6 +250,8 @@ visible: nothing is skipped silently.
 
 **This building** · THE ENGINE · checks before it spends, runs inside declared permits, leaves a signed trace. Carries the catalog: providers, models, prices pinned with provenance.
 
+**Root** · ENGINE facts, AGPL-3.0 · the crates, the tests, the hygiene vectors. Language facts arrive pinned from nika-spec and are never retyped here · the two roots never mix.
+
 **Consumes** · the spec (corpus vendored at a pin, integrity-tested) · upstream pricing (pinned, provenance recorded).
 
 **Serves** · the docks (brew · npm · Docker) · every door (CLI · LSP · MCP · serve).
