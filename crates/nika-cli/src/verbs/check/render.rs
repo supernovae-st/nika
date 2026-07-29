@@ -522,7 +522,13 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
         .tasks
         .iter()
         .filter(|c| c.unbounded_reason.is_some())
-        .count();
+        .count()
+        + report
+            .cost
+            .composed
+            .iter()
+            .filter(|c| c.has_unbounded)
+            .count();
     let est = if report.cost.has_unbounded {
         format!(
             "est unbounded · {}",
@@ -834,8 +840,55 @@ fn models(out: &mut String, report: &CheckReport, findings: &[ModelFinding], t: 
     }
 }
 
+/// The composition arm of [`cost`] (spec 14 · the 2026-07-29 finding): no
+/// OWN inference task, but resolvable children are priced — printing
+/// `$0.00` here told the operator a free story about a bill the child
+/// explains at `≤$X`. The totals already carry the children; the uncapped
+/// count names the composed half only (no own task exists to count).
+fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
+    let uncapped = report
+        .cost
+        .composed
+        .iter()
+        .filter(|c| c.has_unbounded)
+        .count();
+    let calls = crate::text::count(report.cost.composed.len(), "composed child call");
+    if report.cost.has_unbounded {
+        let _ = writeln!(
+            out,
+            " {} {}     {}",
+            t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
+            t.paint(Role::Strong, "COST"),
+            t.paint(
+                Role::Warn,
+                &format!(
+                    "bounded portion ${:.4} · no total ceiling · {} · {} uncapped",
+                    report.cost.bounded_total_usd,
+                    calls,
+                    crate::text::count(uncapped, "child")
+                )
+            )
+        );
+    } else {
+        let money = format!(
+            "${:.4} – ${:.4} worst-case output ceiling · {} · own inference $0.00",
+            report.cost.min_path_total_usd, report.cost.bounded_total_usd, calls
+        );
+        let _ = writeln!(
+            out,
+            " {} {}     {}",
+            mark(t, true),
+            t.paint(Role::Strong, "COST"),
+            money
+        );
+    }
+}
+
 fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     if report.cost.tasks.is_empty() {
+        if !report.cost.composed.is_empty() {
+            return cost_composed_only(out, report, t);
+        }
         let _ = writeln!(
             out,
             " {} {}     {}",
@@ -888,7 +941,13 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
         .tasks
         .iter()
         .filter(|c| c.unbounded_reason.is_some())
-        .count();
+        .count()
+        + report
+            .cost
+            .composed
+            .iter()
+            .filter(|c| c.has_unbounded)
+            .count();
     let (cost_mark, money, bound) = if report.cost.has_unbounded {
         (
             t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
@@ -999,6 +1058,26 @@ fn fmt_wh(wh: f64) -> String {
 /// wall, unpriced by design (never « free », never `0 Wh`).
 const LOCAL_PREFIXES: [&str; 5] = ["ollama/", "lmstudio/", "llamacpp/", "localai/", "vllm/"];
 
+/// What the classification pass counted but cannot put a ceiling on —
+/// each bucket is NAMED in the rung's count line rather than folded into
+/// a silent denominator.
+#[derive(Default)]
+struct EnergyCounts {
+    /// No `max_tokens` cap (or an unknown `for_each` count) — the tasks
+    /// COST already names one by one, three lines up.
+    uncapped: usize,
+    /// Capped, but no sourced Wh figure for the model.
+    unpriced: usize,
+    /// Of those, how many are LOCAL runtimes (whose watts are yours).
+    unpriced_local: usize,
+    /// `for_each` over a literal EMPTY collection — the task provably
+    /// never executes, so it has no energy to bound. Distinct from
+    /// `unpriced`: this is a proven zero, not an unknown.
+    never_runs: usize,
+    /// Every infer/agent task the COST lane priced (the denominator).
+    total: usize,
+}
+
 /// The ENERGY reading (NEP-0018 · nika-spec `governance/`) — cost
 /// honesty transposed to watt-hours over the catalog's sourced facts
 /// (`ModelEnergy` · Wh per million OUTPUT tokens · provenance × scope
@@ -1010,36 +1089,46 @@ const LOCAL_PREFIXES: [&str; 5] = ["ollama/", "lmstudio/", "llamacpp/", "localai
 /// - **UNBOUNDED** tasks are counted here and NAMED at COST three lines
 ///   up (same tasks, same reasons — one voice, no double list);
 /// - a model without a figure is **unpriced**, never `0 Wh`;
-/// - figures sum ONLY within one scope axis (a gpu-only figure is
-///   roughly half a fleet figure for the same model — a cross-scope sum
-///   is silently incomparable, so a mix names itself and claims no
-///   total).
+/// - watt-hours sum WITHIN a scope class and never across it (see
+///   [`scope_subtotals`]) — a mixed set gets one subtotal per class, not
+///   a refusal and not a meaningless sum.
+///
+/// A task whose `for_each` iterates a literal EMPTY collection is
+/// counted `never_runs` and gets NO row: it provably never executes, so
+/// a ceiling over it would be invented. Measured 2026-07-29 (the probe
+/// that found it): with an `iterations.max(1)` guard this rung printed
+/// `≤ 0.087 Wh` for a task COST priced at `$0.0000` — two adjacent
+/// rungs disagreeing about the same task.
 fn energy(out: &mut String, report: &CheckReport, t: Theme) {
     if report.cost.tasks.is_empty() {
         return; // no infer/agent tasks — the ladder says so at COST
     }
     let mut measured: Vec<MeasuredEnergy> = Vec::new();
-    let (mut unpriced, mut unpriced_local, mut uncapped) = (0usize, 0usize, 0usize);
+    let mut n = EnergyCounts {
+        total: report.cost.tasks.len(),
+        ..EnergyCounts::default()
+    };
     for c in &report.cost.tasks {
         let unknown_iters = matches!(c.unbounded_reason, Some(UnboundedReason::UnknownIterations));
         let Some(tokens) = c.max_tokens.filter(|_| !unknown_iters) else {
-            uncapped += 1;
+            n.uncapped += 1;
             continue;
         };
+        if c.iterations == 0 {
+            n.never_runs += 1;
+            continue;
+        }
         let model = c.model.as_deref().unwrap_or("?");
         let figure = nika_catalog::find_pricing_for(model).and_then(|p| p.energy.as_ref());
         let Some(e) = figure else {
-            unpriced += 1;
+            n.unpriced += 1;
             if LOCAL_PREFIXES.iter().any(|p| model.starts_with(p)) {
-                unpriced_local += 1;
+                n.unpriced_local += 1;
             }
             continue;
         };
         #[allow(clippy::cast_precision_loss)]
-        let wh = (tokens as f64)
-            * (c.iterations.max(1) as f64)
-            * (c.attempts as f64)
-            * e.wh_per_mtok_out
+        let wh = (tokens as f64) * (c.iterations as f64) * (c.attempts as f64) * e.wh_per_mtok_out
             / 1_000_000.0;
         measured.push(MeasuredEnergy {
             task: c.task.clone(),
@@ -1051,79 +1140,84 @@ fn energy(out: &mut String, report: &CheckReport, t: Theme) {
             measured_at: e.measured_at,
         });
     }
-    energy_lines(
-        out,
-        &measured,
-        unpriced,
-        unpriced_local,
-        uncapped,
-        report.cost.tasks.len(),
-        t,
-    );
+    energy_lines(out, &measured, &n, t);
+}
+
+/// Sum watt-hours WITHIN each scope class, never across one. A `gpu`
+/// figure covers the accelerator; a `fleet` figure covers host + idle +
+/// datacenter PUE for the same model — roughly twice the number. Adding
+/// them yields an amount that describes nothing, so the partition IS the
+/// answer: one honest subtotal per class, ordered by class name.
+fn scope_subtotals(measured: &[MeasuredEnergy]) -> Vec<(&'static str, f64)> {
+    let mut by: std::collections::BTreeMap<&'static str, f64> = std::collections::BTreeMap::new();
+    for m in measured {
+        *by.entry(m.scope).or_default() += m.wh;
+    }
+    by.into_iter().collect()
+}
+
+/// One class → `≤ X Wh` (the class rides the count line) · several →
+/// `gpu ≤ X Wh · fleet ≤ Y Wh`, each subtotal wearing its class.
+fn fmt_scope_totals(subs: &[(&str, f64)]) -> String {
+    match subs {
+        [] => String::new(),
+        [(_, wh)] => format!("≤ {} Wh", fmt_wh(*wh)),
+        many => many
+            .iter()
+            .map(|(scope, wh)| format!("{scope} ≤ {} Wh", fmt_wh(*wh)))
+            .collect::<Vec<_>>()
+            .join(" · "),
+    }
 }
 
 /// The headline + measured rows for [`energy`] (split for the 100-line
 /// function law — classification above, rendering here).
-fn energy_lines(
-    out: &mut String,
-    measured: &[MeasuredEnergy],
-    unpriced: usize,
-    unpriced_local: usize,
-    uncapped: usize,
-    total: usize,
-    t: Theme,
-) {
+fn energy_lines(out: &mut String, measured: &[MeasuredEnergy], n: &EnergyCounts, t: Theme) {
     let label = t.paint(Role::Strong, "ENERGY");
-    let scopes: std::collections::BTreeSet<&str> = measured.iter().map(|m| m.scope).collect();
+    let subs = scope_subtotals(measured);
     let counts = {
-        let mut parts = vec![format!("{} of {} tasks measured", measured.len(), total)];
-        if unpriced > 0 {
-            parts.push(format!("{unpriced} unpriced"));
-        }
-        if uncapped > 0 {
-            parts.push(format!("{uncapped} uncapped"));
+        let mut parts = vec![format!("{} of {} tasks measured", measured.len(), n.total)];
+        for (k, noun) in [
+            (n.unpriced, "unpriced"),
+            (n.uncapped, "uncapped"),
+            (n.never_runs, "never-run"),
+        ] {
+            if k > 0 {
+                parts.push(format!("{k} {noun}"));
+            }
         }
         parts.join(" · ")
     };
-    if uncapped > 0 {
-        energy_unbounded_headline(out, measured, &scopes, &counts, t, &label);
+    if n.uncapped > 0 {
+        energy_unbounded_headline(out, &subs, &counts, t, &label);
     } else if measured.is_empty() {
-        let local = if unpriced_local > 0 {
+        let local = if n.unpriced_local > 0 {
             " · a local model draws your watts"
         } else {
             ""
+        };
+        let why = if n.unpriced == 0 && n.never_runs > 0 {
+            "no task can run (empty for_each) — nothing to bound".to_owned()
+        } else {
+            format!("unpriced — no sourced Wh figure for any task model{local}")
         };
         let _ = writeln!(
             out,
             " {} {}   {}",
             t.paint(Role::Dim, "○"),
             label,
-            t.paint(
-                Role::Dim,
-                &format!(
-                    "unpriced — no sourced Wh figure for any task model{local} · never 0 Wh (NEP-0018)"
-                )
-            ),
+            t.paint(Role::Dim, &format!("{why} · never 0 Wh (NEP-0018)")),
         );
         return;
-    } else if scopes.len() > 1 {
-        let mix = scopes.iter().copied().collect::<Vec<_>>().join(" + ");
-        let _ = writeln!(
-            out,
-            " {} {}   {} {}",
-            t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
-            label,
-            t.paint(
-                Role::Warn,
-                &format!("mixed scopes ({mix}) — per-task ceilings only")
-            ),
-            t.paint(
-                Role::Dim,
-                &format!("· a cross-scope sum compares nothing · {counts}")
-            ),
-        );
     } else {
-        let sum: f64 = measured.iter().map(|m| m.wh).sum();
+        // One class or several, the claim is the same KIND of claim — a
+        // per-class ceiling. Several classes is not a warning: nothing is
+        // unknown, the partition simply refuses to add apples to oranges.
+        let scope_note = if subs.len() == 1 {
+            format!("· {} scope ", subs[0].0)
+        } else {
+            "· per scope ".to_owned()
+        };
         let _ = writeln!(
             out,
             " {} {}   {} {}",
@@ -1131,14 +1225,11 @@ fn energy_lines(
             label,
             t.paint(
                 Role::Strong,
-                &format!("≤ {} Wh worst-case OUTPUT ceiling", fmt_wh(sum))
+                &format!("{} worst-case OUTPUT ceiling", fmt_scope_totals(&subs))
             ),
             t.paint(
                 Role::Dim,
-                &format!(
-                    "· {} scope · {counts} · prompts unpriced",
-                    scopes.iter().next().copied().unwrap_or("?")
-                )
+                &format!("{scope_note}· {counts} · prompts unpriced")
             ),
         );
     }
@@ -1160,32 +1251,25 @@ fn energy_lines(
 
 /// The uncapped arm of [`energy_lines`] — the COST rows above already
 /// NAME each uncapped task and why, so this rung claims no total and
-/// says so (one voice, no double list).
+/// says so (one voice, no double list). The bounded PORTION still
+/// reports, per scope class.
 fn energy_unbounded_headline(
     out: &mut String,
-    measured: &[MeasuredEnergy],
-    scopes: &std::collections::BTreeSet<&str>,
+    subs: &[(&str, f64)],
     counts: &str,
     t: Theme,
     label: &str,
 ) {
-    let bounded = if measured.is_empty() {
+    let bounded = if subs.is_empty() {
         String::new()
-    } else if scopes.len() == 1 {
-        let sum: f64 = measured.iter().map(|m| m.wh).sum();
+    } else {
         format!(
             "{} ",
             t.paint(
                 Role::Strong,
-                &format!(
-                    "bounded portion ≤ {} Wh ({} scope)",
-                    fmt_wh(sum),
-                    scopes.iter().next().copied().unwrap_or("?")
-                )
+                &format!("bounded portion {}", fmt_scope_totals(subs))
             )
         )
-    } else {
-        "per-task ceilings below (mixed scopes) ".to_owned()
     };
     let _ = writeln!(
         out,
@@ -1349,7 +1433,7 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
 
 #[cfg(test)]
 mod energy_tests {
-    use super::fmt_wh;
+    use super::{MeasuredEnergy, fmt_scope_totals, fmt_wh, scope_subtotals};
 
     /// The display grain is ceiling-honest: rounding is UP, and the
     /// floor of the grain is 0.001 — `0.000` would claim free
@@ -1361,5 +1445,54 @@ mod energy_tests {
         assert_eq!(fmt_wh(0.087), "0.087");
         assert_eq!(fmt_wh(2.34), "2.3");
         assert_eq!(fmt_wh(660.1), "660.1");
+    }
+
+    fn row(scope: &'static str, wh: f64) -> MeasuredEnergy {
+        MeasuredEnergy {
+            task: "t".to_owned(),
+            model: "m".to_owned(),
+            per_call_tokens: 1,
+            wh,
+            provenance: "independent-measured",
+            scope,
+            measured_at: "2025-12",
+        }
+    }
+
+    /// The scope algebra, unit-proven because the CATALOG cannot prove
+    /// it: all sixteen vendored figures are `gpu` today, so the
+    /// multi-class path is unreachable from real data and would ship
+    /// untested through the binary. A gpu figure and a fleet figure for
+    /// the same model differ ~2x — summing across classes describes
+    /// nothing.
+    #[test]
+    fn watt_hours_sum_within_a_scope_never_across_it() {
+        let subs = scope_subtotals(&[
+            row("gpu", 1.0),
+            row("fleet", 4.0),
+            row("gpu", 0.5),
+            row("device", 2.0),
+        ]);
+        // Ordered by class name, one subtotal each, no grand total.
+        assert_eq!(subs, vec![("device", 2.0), ("fleet", 4.0), ("gpu", 1.5)]);
+        assert_eq!(
+            fmt_scope_totals(&subs),
+            "device ≤ 2.0 Wh · fleet ≤ 4.0 Wh · gpu ≤ 1.5 Wh"
+        );
+    }
+
+    /// One class states the number bare — the class itself rides the
+    /// count line, so the headline stays a single readable claim.
+    #[test]
+    fn a_single_scope_states_one_ceiling() {
+        let subs = scope_subtotals(&[row("gpu", 0.03), row("gpu", 0.057)]);
+        assert_eq!(subs, vec![("gpu", 0.087)]);
+        assert_eq!(fmt_scope_totals(&subs), "≤ 0.087 Wh");
+    }
+
+    /// Nothing measured → no claim at all (never a `0 Wh` headline).
+    #[test]
+    fn no_measured_rows_yield_no_claim() {
+        assert_eq!(fmt_scope_totals(&scope_subtotals(&[])), "");
     }
 }

@@ -133,6 +133,37 @@ fn uncapped_task_yields_no_total_ceiling() {
     );
 }
 
+/// The one-voice pin, from the probe that found the defect: a
+/// `for_each` over a literal EMPTY collection provably never executes,
+/// so there is nothing to bound. Before the repair an
+/// `iterations.max(1)` guard invented one iteration and this rung
+/// printed `≤ 0.087 Wh` for a task COST priced at `$0.0000` — two
+/// adjacent rungs disagreeing about the same task.
+#[test]
+fn an_empty_for_each_claims_no_energy_and_agrees_with_cost() {
+    let (code, text) = check(
+        "nika: v1\nworkflow: { id: zero }\nmodel: groq/qwen/qwen3-32b\n\
+         const:\n  nothing: []\ntasks:\n  brief:\n    \
+         for_each: ${{ const.nothing }}\n    \
+         infer: { prompt: \"hi\", max_tokens: 1000 }\n",
+    );
+    assert_eq!(code, 0, "{text}");
+    assert!(
+        text.contains("no task can run (empty for_each)"),
+        "a provable zero is stated, never priced:\n{text}"
+    );
+    assert!(
+        !text.contains("Wh worst-case OUTPUT ceiling"),
+        "a task that never runs must not carry a ceiling:\n{text}"
+    );
+    // One voice: COST prices the same task at zero, and neither rung
+    // invents a number the other denies.
+    assert!(
+        text.contains("$0.0000"),
+        "the COST rung's own zero rides beside it:\n{text}"
+    );
+}
+
 #[test]
 fn no_inference_tasks_renders_no_energy_rung() {
     let (code, text) = check(
