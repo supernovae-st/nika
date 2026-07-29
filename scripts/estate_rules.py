@@ -1,10 +1,20 @@
 # Per-repo estate rules. The tool is shared and lives in nika-estate;
+# these declarations are ours. FILES carries the per-file exceptions,
+# PATTERNS the ordered globs that cover everything else.
+#
+# ROOT, SELF, RULES and CLASSES are injected by the tool into this
+# module namespace before it executes. They are therefore undefined as
+# far as a linter reading this file alone can tell, hence the noqa: a
+# placeholder assignment would satisfy the linter and then OVERWRITE the
+# injected value, which is worse than the warning.
+
+# Per-repo estate rules. The tool is shared and lives in nika-estate;
 # these declarations are ours. FILES are the per-file exceptions,
 # PATTERNS the ordered globs that cover the rest (first match wins).
 
 FILES = [
     {
-        "path": SELF,
+        "path": SELF,  # noqa: F821
         "class": "pinned-copy",
         "evidence": "the shared estate tool, mirrored byte-for-byte from supernovae-st/nika-estate · editing it here is a lost gesture: change it upstream, bump ESTATE_PIN, re-mirror",
         "derivation": {
