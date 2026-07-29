@@ -8,11 +8,20 @@ name: estate
 # distinguishable from the sibling gates' exit 1 in CI logs). The heavy
 # rail (diamond-ci.yml) is deliberately untouched.
 #
+# TWO JOBS, TWO POSTURES. `estate` observes and never blocks, as above.
+# `mirror` DOES block: it proves scripts/estate.py is byte-identical to
+# nika-estate at the rev in ESTATE_PIN. Editing a mirrored file is never an
+# observation, it is a bug, so it fails the run. That is why this workflow
+# also fires on push: main takes direct pushes here, and a gate that only
+# watches pull requests would not see one.
+#
 # SECURITY: no github.event data reaches the shell (house convention —
 # catalog-verify.yml security note).
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -31,3 +40,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: The estate matches the tree (observation — never blocks)
         run: python3 scripts/estate.py --check
+
+  mirror:
+    name: The estate tool is the shared one
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: scripts/estate.py is byte-identical to nika-estate at the pinned rev
+        run: |
+          pin="$(grep -v '^#' ESTATE_PIN | head -1 | tr -d '[:space:]')"
+          url="https://raw.githubusercontent.com/supernovae-st/nika-estate/${pin}/scripts/estate.py"
+          curl -fsSL "$url" -o /tmp/estate-canonical.py
+          if ! cmp -s /tmp/estate-canonical.py scripts/estate.py; then
+            echo "::error file=scripts/estate.py::diverges from nika-estate@${pin} — the tool is shared: change it upstream, bump ESTATE_PIN, re-mirror"
+            diff -u /tmp/estate-canonical.py scripts/estate.py | head -60
+            exit 1
+          fi
+          if [ ! -x scripts/estate.py ]; then
+            echo "::error file=scripts/estate.py::has a shebang but is not executable · cmp compares content and raw.githubusercontent serves no modes, so the mirror carries the bit itself"
+            exit 1
+          fi
+          echo "✓ scripts/estate.py is byte-identical to nika-estate@${pin} and executable"
