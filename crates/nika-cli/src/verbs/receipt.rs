@@ -68,8 +68,11 @@ mod tests {
 
     /// A staged receipt — the engine's own fold, so the explain render
     /// exercises the real projection (never a hand-minted shape).
-    fn staged(name: &str, body: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nika-receipt-{}", std::process::id()));
+    /// Unique-per-test staging (parallel tests share one process — the
+    /// `evidence.rs` precedent: the test name namespaces the dir, so no
+    /// sibling's cleanup can race this one's read).
+    fn staged(test: &str, name: &str, body: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("nika-receipt-{test}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let path = dir.join(name);
         std::fs::write(&path, body).expect("staged");
@@ -88,6 +91,7 @@ mod tests {
             "blake3:lock",
         );
         let file = staged(
+            "render",
             "receipt.json",
             &serde_json::to_string_pretty(&receipt).expect("serializes"),
         );
@@ -112,7 +116,7 @@ mod tests {
         assert_eq!(missing.code, super::super::exit::ENV);
         assert!(missing.text.contains("cannot read"), "{}", missing.text);
 
-        let file = staged("broken.json", "{not json");
+        let file = staged("refuse", "broken.json", "{not json");
         let out = explain(&file);
         assert_eq!(out.code, super::super::exit::ENV);
         assert!(out.text.contains("not a JSON receipt"), "{}", out.text);

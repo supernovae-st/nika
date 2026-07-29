@@ -159,7 +159,7 @@ pub fn build_run_receipt(
 
 /// The fixed dotted-path projections (top-level receipt fields · the
 /// certificate's own fields · the engine-known `trace_verdict` keys ·
-/// the assertion rows). The four [`Bound`] axes share their sub-field
+/// the assertion rows). The four `Bound` axes share their sub-field
 /// sentences via [`projection_of`].
 const FIXED_PROJECTIONS: &[(&str, &str)] = &[
     ("receipt_format", "the receipt schema version (spec 15)"),
@@ -292,12 +292,12 @@ const FIXED_PROJECTIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// The four [`Bound`] axes of the certificate — their sub-fields share
+/// The four `Bound` axes of the certificate — their sub-fields share
 /// the degree-1-polynomial sentences (the axis row itself projects from
 /// [`FIXED_PROJECTIONS`]).
 const BOUND_AXES: &[&str] = &["task_attempts", "llm_calls", "effect_calls", "usd_micros"];
 
-/// The shared sub-field projections under one [`Bound`] axis
+/// The shared sub-field projections under one `Bound` axis
 /// (`certificate.<axis>.<suffix>`).
 const BOUND_SUFFIX_PROJECTIONS: &[(&str, &str)] = &[
     ("constant", "the constant part of a degree-1 bound"),
@@ -340,7 +340,7 @@ pub fn projection_of(path: &str) -> Option<&'static str> {
 /// The ratchet walk (F-P16 law 3): every dotted key path of `receipt`
 /// that carries NO projection — a new field without one is REFUSED here
 /// (the schema-level gate: this list must be empty for a lawful
-/// receipt). Leaf paths ([`LEAF_PATHS`]) stop the descent — their
+/// receipt). Leaf paths (`LEAF_PATHS`) stop the descent — their
 /// projection covers the whole dynamic subtree.
 #[must_use]
 pub fn unprojected_fields(receipt: &Value) -> Vec<String> {
@@ -450,7 +450,7 @@ pub fn explain_receipt(receipt: &Value) -> String {
     out
 }
 
-/// The certificate section of [`explain_receipt`] — the four [`Bound`]
+/// The certificate section of [`explain_receipt`] — the four `Bound`
 /// axes rendered as `≤ constant + coeff·|task|`, the span, the witness
 /// row count, and the authority summary.
 fn explain_certificate(out: &mut String, certificate: &Value) {
@@ -492,7 +492,7 @@ fn explain_certificate(out: &mut String, certificate: &Value) {
     );
 }
 
-/// The one-line form of a [`Bound`] value (`≤ 5 + 2·|fan|` ·
+/// The one-line form of a `Bound` value (`≤ 5 + 2·|fan|` ·
 /// `unpriceable` for the absent spend axis).
 fn bound_text(bound: Option<&Value>) -> String {
     use std::fmt::Write as _;

@@ -57,10 +57,10 @@ mod dispatch;
 mod emit_task;
 mod errors;
 mod expr;
-mod input_origins;
 mod integrity;
 mod jq;
 mod ledger;
+mod origins;
 mod pause;
 pub mod proof;
 mod record;
@@ -103,7 +103,7 @@ pub use compose::{
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
-pub use input_origins::{InputOrigin, input_origins};
+pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub use secret::{
