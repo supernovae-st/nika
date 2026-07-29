@@ -66,8 +66,10 @@ path = "src/main.rs"
 
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
-minisign       = { version = "0.7", default-features = false }   # the tier tests' keypair fixtures (custody lives in nika-dap now)
+minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)
+nika-store       = { path = "../nika-store", version = "0.106.0" }  # F-P8 signed memory — the teardown fold test + the e2e's seeded store
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.106.0" }
+nika-cap         = { path = "../nika-cap", version = "0.106.0" }           # the teardown memory-fold test's Integrity label (F-P8)
 # The e2e rehearsals (tests/e2e_pipeline.rs · forecast_e2e.rs ·
 # composition_e2e.rs) compose their OWN mock-seamed runtimes — the verb
 # crates + the journal hash ride dev-only since the production composer

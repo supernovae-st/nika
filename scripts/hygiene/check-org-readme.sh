@@ -25,8 +25,8 @@ missing=""
 # An archived repo must NOT be advertised on the front page, so this vector
 # tracks the living city rather than a frozen snapshot of it.
 for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-agents \
-            gh-nika nika-registry homebrew-tap nika-action nika-actions-starter \
-            nika-estate; do
+  gh-nika nika-registry homebrew-tap nika-action nika-actions-starter \
+  nika-estate; do
   echo "$content" | grep -q "$repo" || missing="${missing}${repo} "
 done
 

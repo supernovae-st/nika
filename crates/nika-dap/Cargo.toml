@@ -18,6 +18,7 @@ nika-types  = { path = "../nika-types", version = "0.106.0" }   # field values o
 nika-cap    = { path = "../nika-cap", version = "0.106.0" }     # BuiltinEffect — the drift scan's permit taxonomy
 nika-runtime = { path = "../nika-runtime", version = "0.106.0" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
 nika-kernel = { path = "../nika-kernel", version = "0.106.0" }   # the HttpPostDyn seam the anchor's submit rides
+nika-store  = { path = "../nika-store", version = "0.106.0" }    # F-P8 signed memory — the teardown's `covers["memory"]` fold substrate (memory::attend)
 sha2        = { workspace = true }                              # the chain primitive + source identity (one voice)
 # The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
 # compute descends, render stays): seal custody · workflow signing.

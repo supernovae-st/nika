@@ -282,7 +282,10 @@ pub fn code_help(code: NikaCode) -> &'static str {
         604 => {
             "Memory storage layer error. Transient — IO / cache / RocksDB-level failure. Retry-eligible after a brief backoff."
         }
-        600 | 605..=649 => {
+        605 => {
+            "Signed-memory store error (F-P8 · nika-store). The `.nika/memory/<store>/` envelope could not be written, read, or parsed — check the store dir permissions and that no non-entry files ride the layout. A rejected ENTRY is not this error: recall names it in the verdict (unsigned · bad signature · key mismatch)."
+        }
+        600 | 606..=649 => {
             "Memory subsystem reported an error. Check store availability, embedding provider, and tenant quotas."
         }
         1000..=1099 => {
@@ -772,12 +775,13 @@ mod tests {
         }
 
         #[test]
-        fn memory_codes_601_to_604_are_memory_category() {
+        fn memory_codes_601_to_605_are_memory_category() {
             for code in [
                 super::NIKA_601,
                 super::NIKA_602,
                 super::NIKA_603,
                 super::NIKA_604,
+                super::NIKA_605,
             ] {
                 assert_eq!(
                     code.category,
@@ -785,8 +789,8 @@ mod tests {
                     "{code} must be Category::Memory"
                 );
                 assert!(
-                    code.num >= 601 && code.num <= 604,
-                    "{code} num must be 601..=604 sub-allocation"
+                    code.num >= 601 && code.num <= 605,
+                    "{code} num must be 601..=605 sub-allocation"
                 );
             }
         }
@@ -798,6 +802,7 @@ mod tests {
                 super::NIKA_602,
                 super::NIKA_603,
                 super::NIKA_604,
+                super::NIKA_605,
             ] {
                 let wire = format!("{code}");
                 let back = super::lookup(&wire);
