@@ -644,7 +644,10 @@ mod tests {
         // Shown = the token `nika:<name>` anywhere in a corpus body, closed
         // on the right so `nika:json_diff` never credits a longer name. A
         // comment counts: naming the tool in a teaching comment still puts
-        // it in the reader's reach (same semantics as the 24/28 measure).
+        // it in the reader's reach (recomputed both ways 2026-07-29 — with
+        // and without comments the split is the same 24 shown / 4 owed, so
+        // the choice is not load-bearing today; it will matter the day a
+        // tool is ONLY comment-named, and reach is the honest criterion).
         let shown = |name: &str| {
             let tok = format!("nika:{name}");
             bodies.match_indices(&tok).any(|(i, _)| {
@@ -654,6 +657,10 @@ mod tests {
                     .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
             })
         };
+        assert!(
+            !nika_catalog::all_builtins().is_empty(),
+            "no builtins — the ratchet would pass by vacuity"
+        );
         let mut orphans = Vec::new();
         let mut paid = Vec::new();
         for b in nika_catalog::all_builtins() {
@@ -705,6 +712,9 @@ mod tests {
                 continue;
             }
             if in_items {
+                if l.trim_start().starts_with('#') {
+                    continue; // a comment inside items must not end the scan
+                }
                 if let Some(n) = l.trim_start().strip_prefix("- ") {
                     names.push(n.trim().to_owned());
                 } else if !l.trim().is_empty() {
