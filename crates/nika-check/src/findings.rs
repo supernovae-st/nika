@@ -155,14 +155,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     }
     fold_permit_taints(report, &mut out);
     fold_sink_findings(report, &mut out);
-    for p in &report.policy_findings {
-        // spec 10 — the detail already names rule + task + witness.
-        let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
-        f.code = Some("NIKA-POLICY-001".to_owned());
-        f.docs_url = Some(format!("{}/NIKA-POLICY-001", super::ERROR_DOCS_BASE));
-        f.task.clone_from(&p.task);
-        out.push(f);
-    }
+    fold_policy_findings(report, &mut out);
     fold_trifecta(report, &mut out);
     for s in &report.schema_findings {
         out.push(UnifiedFinding::new(
@@ -221,6 +214,25 @@ fn fold_permit_taints(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(t.task.clone());
+        out.push(f);
+    }
+}
+
+/// The hard-`policy:` class (spec 10 · NIKA-POLICY-001) — the detail
+/// already names rule + task + witness. F-P4: the `approval.*` rules
+/// (NEP-0013) speak the approval-capability code NIKA-SEC-010, not the
+/// policy-lane code.
+fn fold_policy_findings(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for p in &report.policy_findings {
+        let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
+        let code = if p.rule.starts_with("approval.") {
+            "NIKA-SEC-010"
+        } else {
+            "NIKA-POLICY-001"
+        };
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task.clone_from(&p.task);
         out.push(f);
     }
 }
