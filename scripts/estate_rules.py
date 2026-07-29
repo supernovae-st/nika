@@ -5,8 +5,18 @@
 FILES = [
     {
         "path": SELF,
-        "class": "authored",
-        "evidence": "hand-written estate projector (this manifest's generator)",
+        "class": "pinned-copy",
+        "evidence": "the shared estate tool, mirrored byte-for-byte from supernovae-st/nika-estate · editing it here is a lost gesture: change it upstream, bump ESTATE_PIN, re-mirror",
+        "derivation": {
+            "tool": "curl the tool from nika-estate at the rev named in ESTATE_PIN",
+            "gate": "the `mirror` job byte-compares scripts/estate.py against nika-estate@ESTATE_PIN and fails the run on any difference",
+            "inputs": ["ESTATE_PIN", "supernovae-st/nika-estate@<ESTATE_PIN>:scripts/estate.py"],
+        },
+    },
+    {
+        "path": "ESTATE_PIN",
+        "class": "authored-pin",
+        "evidence": "its own header: 'Bump deliberately: edit this' \u00b7 the rev the shared estate tool is mirrored from, and the INPUT the mirror gate compares against",
     },
     {
         "path": "SPEC_PIN",

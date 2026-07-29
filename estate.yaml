@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4214
-  file_rows: 10
+  classified_files: 4215
+  file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1300
-    authored-pin: 1
+    authored: 1299
+    authored-pin: 2
     generated: 113
-    pinned-copy: 104
+    pinned-copy: 105
     testimonial: 2696
     foreign: 0
   unverified-default: 4
@@ -56,6 +56,10 @@ files:
     inputs:
     - "Cargo.toml"
     - "crates/*/Cargo.toml"
+- path: "ESTATE_PIN"
+  class: authored-pin
+  sha256: e51cd1e4b2fb74b8ffea6df4ec25d00a1aafbc4278cd07e7ebc0a2cde1f2460c
+  evidence: "its own header: 'Bump deliberately: edit this' · the rev the shared estate tool is mirrored from, and the INPUT the mirror gate compares against"
 - path: "ROADMAP.md"
   class: authored
   sha256: faff1e9fc7af097db144f9e1f7f9134b2c6358abb4d10a42311b40f58c4c4db0
@@ -97,9 +101,15 @@ files:
   sha256: fbd41fa5b40b6c13ed01902b209869a77b6144504a97b68a7a014928c7bdd929
   evidence: "the authored rules for the media lanes ('No fake commands · No fake output · budgets · Never edit exports by hand')"
 - path: "scripts/estate.py"
-  class: authored
-  sha256: e969a7fcbcb573fcd06e4aae41e8b4faa88f19415a20ec42e0ceb464ca964a27
-  evidence: "hand-written estate projector (this manifest's generator)"
+  class: pinned-copy
+  sha256: a77b3331d08ab86531f86a1bc33e9e5f0bf1fbe378803b39b2e73a42c83d93fa
+  evidence: "the shared estate tool, mirrored byte-for-byte from supernovae-st/nika-estate · editing it here is a lost gesture: change it upstream, bump ESTATE_PIN, re-mirror"
+  derivation:
+    tool: "curl the tool from nika-estate at the rev named in ESTATE_PIN"
+    gate: "the `mirror` job byte-compares scripts/estate.py against nika-estate@ESTATE_PIN and fails the run on any difference"
+    inputs:
+    - "ESTATE_PIN"
+    - "supernovae-st/nika-estate@<ESTATE_PIN>:scripts/estate.py"
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
@@ -173,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 129
-  aggregate_sha256: 4d5d15f0c0f358cdcc79e1292182c2dae1454a7d5f4eb4fb7e4c91df2401d4f4
+  aggregate_sha256: 1dc474d68642a31343e91bf26c21dc9c128ed3bbf558d6bbf39519030876aa73
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -227,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 97183349748d9f93ac2e28f0605d21d40f890dcfd50a2fa2982491af78ba6e3b
+  aggregate_sha256: 759002abc63a20330bf7aa62a67a99b56805918796ada061268d63e468f67725
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

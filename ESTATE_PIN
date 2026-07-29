@@ -1,0 +1,4 @@
+# The nika-estate rev this repo's scripts/estate.py is mirrored from.
+# Bump deliberately: edit this, re-mirror the tool, regenerate the manifest.
+# The mirror job in CI byte-compares against exactly this rev.
+bef461e53876a1f1accd692f04ed7855744034b5

@@ -75,6 +75,9 @@ def _load_rules():
         print(f"estate.py: {RULES} not found \u2014 the tool is shared, the rules are yours",
               file=sys.stderr)
         sys.exit(3)
+    # Importing writes a .pyc next to the rules unless we say otherwise, and
+    # a manifest generator that litters the tree it measures is its own bug.
+    sys.dont_write_bytecode = True
     spec = importlib.util.spec_from_file_location("estate_rules", path)
     mod = importlib.util.module_from_spec(spec)
     # The tool hands its well-known names down; the rules may cite them.

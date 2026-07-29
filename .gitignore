@@ -98,3 +98,7 @@ media/.frames/
 result
 result-*
 target-wcomp/
+
+# the estate tool imports scripts/estate_rules.py
+__pycache__/
+*.pyc

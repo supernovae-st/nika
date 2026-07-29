@@ -31,3 +31,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: The estate matches the tree (observation — never blocks)
         run: python3 scripts/estate.py --check
+
+  mirror:
+    name: The estate tool is the shared one
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: scripts/estate.py is byte-identical to nika-estate at the pinned rev
+        run: |
+          pin="$(grep -v '^#' ESTATE_PIN | head -1 | tr -d '[:space:]')"
+          url="https://raw.githubusercontent.com/supernovae-st/nika-estate/${pin}/scripts/estate.py"
+          curl -fsSL "$url" -o /tmp/estate-canonical.py
+          if ! cmp -s /tmp/estate-canonical.py scripts/estate.py; then
+            echo "::error file=scripts/estate.py::diverges from nika-estate@${pin} — the tool is shared: change it upstream, bump ESTATE_PIN, re-mirror"
+            diff -u /tmp/estate-canonical.py scripts/estate.py | head -60
+            exit 1
+          fi
+          echo "✓ scripts/estate.py is byte-identical to nika-estate@${pin}"
