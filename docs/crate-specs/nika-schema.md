@@ -895,9 +895,9 @@ The `check` module composes `analyze()` with the static reports that make
 the wave **plan** · the **cost ceiling** · the **secret-leak + egress** IFC
 scan · the **capability-escape** scan against a declared `permits:` block ·
 **capability inference** (`infer_permits()` — synthesize the tightest
-`permits:` block, ADR-092 #2). Runnable today via
-`cargo run -p nika-schema --example check -- [--infer-permits] wf.yaml`;
-the polished CLI ships with `nika-cli` (step 19).
+`permits:` block, ADR-092 #2). Ships as the `nika check` command in
+`nika-cli` (step 19 · the `examples/check/` scaffold that bridged until
+then is retired — the CLI's `verbs/check.rs` renderer is the one surface).
 
 Three hardening passes (2026-06-11) · a 3-angle adversarial review (net/fs
 literal escapes · secret island-scoping via `expr_refs` · provider-scoped +

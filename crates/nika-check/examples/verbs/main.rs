@@ -22,7 +22,6 @@
 
 mod scenes;
 mod tape;
-#[path = "../check/theme.rs"]
 mod theme;
 
 use std::io::{IsTerminal, Write as _};
