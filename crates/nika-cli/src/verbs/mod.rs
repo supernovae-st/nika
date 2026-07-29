@@ -29,6 +29,7 @@ pub mod model;
 pub mod new;
 pub mod pack_surface;
 pub mod probe;
+pub mod receipt;
 pub mod run;
 pub mod sign;
 pub mod test;

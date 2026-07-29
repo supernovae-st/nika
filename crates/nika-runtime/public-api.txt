@@ -633,6 +633,9 @@ pub mod nika_runtime::proof::receipt
 pub const nika_runtime::proof::receipt::RECEIPT_FORMAT: u32
 pub fn nika_runtime::proof::receipt::build_receipt(proves: &str, certificate: serde_json::value::Value, trace_verdict: serde_json::value::Value, assertions: alloc::vec::Vec<serde_json::value::Value>, lock_digest: &str) -> serde_json::value::Value
 pub fn nika_runtime::proof::receipt::build_run_receipt(proves: &nika_runtime::proof::SemanticHash, certificate: &nika_check::certificate::RunCertificate, judged: &[(nika_vocab::assert::AssertProperty, nika_vocab::assert::AssertLevel)], trace_verdict: serde_json::value::Value, lock_digest: &str) -> serde_json::value::Value
+pub fn nika_runtime::proof::receipt::explain_receipt(receipt: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_runtime::proof::receipt::projection_of(path: &str) -> core::option::Option<&'static str>
+pub fn nika_runtime::proof::receipt::unprojected_fields(receipt: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_runtime::proof::receipt::verify(receipt: &serde_json::value::Value, expected_semantic: &str) -> bool
 #[non_exhaustive] pub enum nika_runtime::proof::HashDomain
 pub nika_runtime::proof::HashDomain::Artifact

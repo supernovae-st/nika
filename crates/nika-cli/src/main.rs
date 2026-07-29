@@ -318,6 +318,13 @@ enum Command {
         #[command(flatten)]
         args: verbs::evidence::EvidenceArgs,
     },
+    /// Read a run receipt — `explain` renders its readable projection
+    /// (stable text · a READING, never a proof).
+    #[command(display_order = 33)]
+    Receipt {
+        #[command(subcommand)]
+        action: verbs::receipt::ReceiptAction,
+    },
     /// Debug Adapter Protocol server (stdio) — time-travel a recorded
     /// run under a debugger UI: breakpoints on task lines · step forward
     /// AND back through settles · outputs in the variables pane. Replay
@@ -621,6 +628,7 @@ fn main() -> std::process::ExitCode {
         }
         Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
         Command::Evidence { args } => evidence_run(args),
+        Command::Receipt { action } => emit(&verbs::receipt::run(action)),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an

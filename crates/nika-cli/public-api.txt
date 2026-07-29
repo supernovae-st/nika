@@ -495,6 +495,47 @@ pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli::verbs::Verb
 pub mod nika_cli::verbs::probe
 pub use nika_cli::verbs::probe::SKIP_DIRS
 pub use nika_cli::verbs::probe::collect_workflow_paths
+pub mod nika_cli::verbs::receipt
+pub enum nika_cli::verbs::receipt::ReceiptAction
+pub nika_cli::verbs::receipt::ReceiptAction::Explain
+pub nika_cli::verbs::receipt::ReceiptAction::Explain::file: std::path::PathBuf
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::receipt::ReceiptAction
+pub fn nika_cli::verbs::receipt::ReceiptAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::receipt::ReceiptAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::receipt::ReceiptAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::receipt::ReceiptAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_cli::verbs::receipt::ReceiptAction
+pub fn nika_cli::verbs::receipt::ReceiptAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::receipt::ReceiptAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::receipt::ReceiptAction::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::receipt::ReceiptAction
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::receipt::ReceiptAction where U: core::convert::From<T>
+pub fn nika_cli::verbs::receipt::ReceiptAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::receipt::ReceiptAction where U: core::convert::Into<T>
+pub type nika_cli::verbs::receipt::ReceiptAction::Error = core::convert::Infallible
+pub fn nika_cli::verbs::receipt::ReceiptAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::receipt::ReceiptAction where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::receipt::ReceiptAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::receipt::ReceiptAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::receipt::ReceiptAction where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::receipt::ReceiptAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::receipt::ReceiptAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::receipt::ReceiptAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::receipt::ReceiptAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::receipt::ReceiptAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::receipt::ReceiptAction
+pub fn nika_cli::verbs::receipt::ReceiptAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::receipt::ReceiptAction where T: 'static
+pub fn nika_cli::verbs::receipt::ReceiptAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::receipt::ReceiptAction where T: ?core::marker::Sized
+pub fn nika_cli::verbs::receipt::ReceiptAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::receipt::ReceiptAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::receipt::ReceiptAction
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::receipt::ReceiptAction
+impl<T> typenum::type_operators::Same for nika_cli::verbs::receipt::ReceiptAction
+pub type nika_cli::verbs::receipt::ReceiptAction::Output = T
+pub fn nika_cli::verbs::receipt::explain(file: &std::path::Path) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::receipt::run(action: nika_cli::verbs::receipt::ReceiptAction) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::run
 pub use nika_cli::verbs::run::RecoveredTrace
 pub use nika_cli::verbs::run::recover_events
