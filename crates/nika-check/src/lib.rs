@@ -510,6 +510,30 @@ fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, hints: &mut Vec<Hint>)
     }
 }
 
+/// Map one analyzer error to its report-row form (the canonical spec
+/// code · the docs URL · the did-you-mean pair) — extracted from
+/// [`check`] at the fn-length ratchet.
+fn conformance_violation(e: &nika_schema::error::SchemaError) -> ConformanceViolation {
+    let code = e.spec_code().to_string();
+    let docs_url = format!("{ERROR_DOCS_BASE}/{code}");
+    let (offending, suggestion) = match e.rename_repair() {
+        Some((o, s)) => (Some(o), Some(s)),
+        None => (None, None),
+    };
+    ConformanceViolation {
+        code,
+        message: e.to_string(),
+        span: e.span().map(|s| ByteSpan {
+            start: s.start.0,
+            end: s.end.0,
+        }),
+        severity: FindingSeverity::Error,
+        docs_url,
+        offending,
+        suggestion,
+    }
+}
+
 #[must_use]
 pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
@@ -517,29 +541,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             topo_waves, edges, ..
         }) => (Vec::new(), topo_waves, edges),
         Err(errors) => (
-            errors
-                .iter()
-                .map(|e| {
-                    let code = e.spec_code().to_string();
-                    let docs_url = format!("{ERROR_DOCS_BASE}/{code}");
-                    let (offending, suggestion) = match e.rename_repair() {
-                        Some((o, s)) => (Some(o), Some(s)),
-                        None => (None, None),
-                    };
-                    ConformanceViolation {
-                        code,
-                        message: e.to_string(),
-                        span: e.span().map(|s| ByteSpan {
-                            start: s.start.0,
-                            end: s.end.0,
-                        }),
-                        severity: FindingSeverity::Error,
-                        docs_url,
-                        offending,
-                        suggestion,
-                    }
-                })
-                .collect(),
+            errors.iter().map(conformance_violation).collect(),
             Vec::new(),
             Vec::new(),
         ),

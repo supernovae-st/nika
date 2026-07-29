@@ -24,6 +24,16 @@ fn started_fields_with_origins(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
 ) -> Vec<(String, String)> {
+    started_fields_full(yaml, sandbox, origins, None)
+}
+
+/// The full knob set (origins · the F-P21 declared compat).
+fn started_fields_full(
+    yaml: &str,
+    sandbox: Option<&str>,
+    origins: &BTreeMap<String, InputOrigin>,
+    resume_compat: Option<&str>,
+) -> Vec<(String, String)> {
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -40,6 +50,7 @@ fn started_fields_with_origins(
         None,
         sandbox,
         origins,
+        resume_compat,
         &book,
         &mut stamper,
         &mut sink,
@@ -132,4 +143,21 @@ fn prologue_journals_the_input_origins() {
     // Empty = no claim (a run without inputs never speaks).
     let bare = started_fields(yaml, None);
     assert_eq!(get(&bare, "inputs"), None, "no origins = nothing journaled");
+}
+
+/// F-P21 (NEP-0014 law 4) — a resume under a DECLARED compat attests
+/// the crossing on the boot manifest (`resumed_from_engine` +
+/// `resume_compat: declared`); an exact resume journals no claim.
+#[test]
+fn prologue_attests_the_declared_cross_version_compat() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"));
+    assert_eq!(get(&fields, "resumed_from_engine"), Some("0.105.0"));
+    assert_eq!(get(&fields, "resume_compat"), Some("declared"));
+
+    // No crossing declared → both fields absent (never a guess).
+    let exact = started_fields(yaml, None);
+    assert_eq!(get(&exact, "resumed_from_engine"), None);
+    assert_eq!(get(&exact, "resume_compat"), None);
 }

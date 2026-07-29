@@ -255,6 +255,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// folded resume authority the composer injects. Per-runtime = per
     /// run (a child run keeps its own journal — and its own book).
     approvals: approval::ApprovalBook,
+    /// F-P21 (NEP-0014 law 4) — the DECLARED cross-version compat: the
+    /// recorded engine version the operator allowed this resume to
+    /// cross from (`--resume-compat`), attested on the boot manifest.
+    /// `None` = no crossing declared (an exact resume · a fresh run).
+    resume_compat: Option<String>,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -304,6 +309,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             child_runner: None,
             run_depth: 0,
             approvals: approval::ApprovalBook::new(),
+            resume_compat: None,
         }
     }
 
@@ -370,6 +376,18 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_resume_plan(mut self, plan: resume::ResumePlan) -> Self {
         self.resume_plan = plan;
+        self
+    }
+
+    /// Stamp the DECLARED cross-version compat (F-P21 · NEP-0014 law 4):
+    /// the recorded engine version the operator allowed this resume to
+    /// cross from (`--resume-compat` — judged by the composer BEFORE the
+    /// fold; this stamps the attestation). The boot manifest journals
+    /// `resumed_from_engine` + `resume_compat: declared`. Builder form —
+    /// `None` (the default) journals no claim.
+    #[must_use]
+    pub fn with_resume_compat(mut self, compat: Option<String>) -> Self {
+        self.resume_compat = compat;
         self
     }
 
@@ -478,6 +496,7 @@ fn emit_prologue(
     source_sha256_lf: Option<&str>,
     sandbox_backend: Option<&str>,
     input_origins: &BTreeMap<String, InputOrigin>,
+    resume_compat: Option<&str>,
     approvals: &approval::ApprovalBook,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -520,19 +539,9 @@ fn emit_prologue(
     if let Some(backend) = sandbox_backend {
         opening.push(("sandbox", s(backend)));
     }
-    // F-P13 · the input origins (NEP-0014 law 2): every input the run
-    // binds names its channel on the boot manifest (`{"name":"origin"}`
-    // — the permits_json idiom: one JSON string field). Additive: older
-    // readers ignore it, a run without inputs carries no claim.
-    if !input_origins.is_empty() {
-        let map: BTreeMap<&str, &str> = input_origins
-            .iter()
-            .map(|(name, origin)| (name.as_str(), origin.as_str()))
-            .collect();
-        if let Ok(json) = serde_json::to_string(&map) {
-            opening.push(("inputs", s(&json)));
-        }
-    }
+    // F-P13 + F-P21 · the NEP-0014 attestation fields (the fn-length
+    // ratchet keeps them in their own helper).
+    opening.extend(nep_0014_fields(input_origins, resume_compat));
     // The trace-format marker (spec 13 §trace · the graph_format: 2
     // precedent): format-2 lines carry `outcome: {class, cause}` on
     // every terminal task event, so the run's opening frame — the
@@ -574,6 +583,37 @@ fn emit_prologue(
     // precomputed over THESE bytes (the resumed run recomputes the same
     // closure — the shown hash stays comparable).
     approvals.begin_run(wf, nonce.uuid.to_string());
+}
+
+/// The NEP-0014 boot-manifest fields (F-P13 · F-P21) — additive, the
+/// `permits_json` posture: older readers ignore unknown fields, newer
+/// readers find them absent where no claim exists.
+///
+/// - `inputs` (F-P13 law 2) — every input the run binds names its
+///   channel, one JSON map field (`{"name":"origin"}`); absent when the
+///   run binds no input (no claim, never a guess);
+/// - `resumed_from_engine` + `resume_compat: declared` (F-P21 law 4) —
+///   the cross-version crossing the operator DECLARED (`--resume-compat`),
+///   attested; absent on an exact resume (no crossing, no claim).
+fn nep_0014_fields(
+    input_origins: &BTreeMap<String, InputOrigin>,
+    resume_compat: Option<&str>,
+) -> Vec<(&'static str, FieldValue)> {
+    let mut fields = Vec::new();
+    if !input_origins.is_empty() {
+        let map: BTreeMap<&str, &str> = input_origins
+            .iter()
+            .map(|(name, origin)| (name.as_str(), origin.as_str()))
+            .collect();
+        if let Ok(json) = serde_json::to_string(&map) {
+            fields.push(("inputs", s(&json)));
+        }
+    }
+    if let Some(recorded) = resume_compat {
+        fields.push(("resumed_from_engine", s(recorded)));
+        fields.push(("resume_compat", s("declared")));
+    }
+    fields
 }
 
 /// The spec commit this engine's conformance is proven at (F-P2 · the
@@ -790,6 +830,7 @@ where
             self.source_sha256_lf.as_deref(),
             self.config.sandbox_backend.as_deref(),
             &self.input_origins,
+            self.resume_compat.as_deref(),
             &self.approvals,
             stamper,
             sink,

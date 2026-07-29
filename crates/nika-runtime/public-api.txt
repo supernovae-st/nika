@@ -1348,6 +1348,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_model_override(self, model:
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_paused_approval(self, paused: core::option::Option<nika_runtime::approval::PausedApproval>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: bool) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_compat(self, compat: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_runtime::WorkflowSecretResolver>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self

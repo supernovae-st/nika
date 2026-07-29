@@ -424,9 +424,18 @@ struct RunArgs {
     /// trace.ndjson`): every task whose identity matches a journaled
     /// success is skipped with a visible `task_cache_hit` — an edited
     /// task or a changed input always re-runs (ADR-099). A trace without
-    /// resume keys runs everything live (a notice, never an error).
+    /// resume keys runs everything live (a notice, never an error). The
+    /// trace's recorded engine version is JUDGED (F-P21): a resume under
+    /// a different engine refuses, naming both versions.
     #[arg(long, value_name = "TRACE", conflicts_with = "dry_run")]
     resume: Option<PathBuf>,
+    /// Declare a cross-version resume compatible (F-P21 · NEP-0014 law
+    /// 4): attests the trace recorded under engine `<VERSION>` may resume
+    /// under this one — the token must name the trace's recorded version
+    /// exactly (`unrecorded` for a pre-versioning journal). The declared
+    /// compat is journaled on the run's boot manifest.
+    #[arg(long, value_name = "VERSION", requires = "resume")]
+    resume_compat: Option<String>,
     /// Force this task AND its transitive downstream to re-run even on an
     /// identity match (the lever for changes the hashes cannot see —
     /// rotated secret · external state · an infer output to re-roll).
@@ -831,6 +840,7 @@ fn run_verb(
             trace: trace.clone(),
             from: args.from.clone(),
             answers: args.answer.clone(),
+            compat: args.resume_compat.clone(),
         });
     let mode = resolve_run_mode(args.quiet, args.no_progress || plain);
     let mut theme = term_theme(color.with_no_color(false), ascii || plain, link_when);

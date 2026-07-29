@@ -39,6 +39,139 @@ pub struct ResumeRequest {
     /// paused prompt's answer at resume; the value parses as JSON when
     /// it parses, else rides as a string (the `--var` convention).
     pub answers: Vec<String>,
+    /// `--resume-compat <VERSION>` (F-P21 · NEP-0014 law 4) — the
+    /// DECLARED cross-version compatibility: the operator attests the
+    /// trace recorded under engine `<VERSION>` may resume under this
+    /// one. The token must name the trace's recorded version EXACTLY
+    /// (`unrecorded` for a pre-versioning journal) — a blanket force is
+    /// precisely the silent degradation the law retires.
+    pub compat: Option<String>,
+}
+
+/// The compat token a pre-versioning trace names (`--resume-compat
+/// unrecorded` declares compat with a journal that carries no
+/// `engine_version` — said in the refusal's teaching line).
+pub const UNRECORDED_VERSION: &str = "unrecorded";
+
+/// The cross-version judgment (F-P21 · NEP-0014 law 4) — a resume under
+/// an engine different from the recording one is judged, never assumed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ResumeVersion {
+    /// The trace was recorded under THIS engine — the resume is exact.
+    Exact,
+    /// The trace names a DIFFERENT engine — the refusal names both
+    /// versions, or a declared compat (the exact recorded string)
+    /// attests the crossing.
+    Mismatch {
+        /// The version the trace was recorded under.
+        recorded: String,
+        /// This engine's version.
+        current: String,
+    },
+    /// The trace carries no `engine_version` (a pre-A5 journal) — same
+    /// law, the `unrecorded` token.
+    Unrecorded {
+        /// This engine's version.
+        current: String,
+    },
+}
+
+/// The trace's recorded engine version — the `workflow_started` boot
+/// manifest's `engine_version` field (`None` on a pre-A5 journal).
+#[must_use]
+pub fn trace_engine_version(events: &[Event]) -> Option<String> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    str_field(started, "engine_version").map(str::to_owned)
+}
+
+/// Judge a resume's version crossing (F-P21): the trace's recorded
+/// engine against this one. The compat declaration matches ONLY the
+/// exact recorded string (or [`UNRECORDED_VERSION`]) — anything else
+/// stays a mismatch (the declaration is exact, never a blanket force).
+#[must_use]
+pub fn judge_version(events: &[Event], current: &str) -> ResumeVersion {
+    match trace_engine_version(events) {
+        Some(recorded) if recorded == current => ResumeVersion::Exact,
+        Some(recorded) => ResumeVersion::Mismatch {
+            recorded,
+            current: current.to_owned(),
+        },
+        None => ResumeVersion::Unrecorded {
+            current: current.to_owned(),
+        },
+    }
+}
+
+/// Whether the declared compat token discharges a judgment (the exact
+/// recorded string — or `unrecorded` for a versionless trace).
+#[must_use]
+pub fn compat_discharges(judgment: &ResumeVersion, compat: Option<&str>) -> bool {
+    match (judgment, compat) {
+        (ResumeVersion::Exact, _) => true,
+        (ResumeVersion::Mismatch { recorded, .. }, Some(declared)) => declared == recorded,
+        (ResumeVersion::Unrecorded { .. }, Some(declared)) => declared == UNRECORDED_VERSION,
+        _ => false,
+    }
+}
+
+/// The resume's version verdict (F-P21) — the caller maps Proceed to
+/// the fold and Refuse to its exit class (the message names the
+/// versions and the teaching, one voice).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CompatVerdict {
+    /// The resume proceeds — `Some(recorded)` when a DECLARED compat
+    /// rides (attested on the run's boot manifest), `None` on an exact
+    /// match (no crossing, no claim).
+    Proceed {
+        /// The recorded version the compat declaration crossed.
+        compat_with: Option<String>,
+    },
+    /// The resume refuses — the named message (both versions · the
+    /// exact `--resume-compat` teaching).
+    Refuse(String),
+}
+
+/// Judge a resume end to end (F-P21): the version judgment × the
+/// declared compat token. The declaration matches ONLY the exact
+/// recorded string (or [`UNRECORDED_VERSION`]) — a wrong token is its
+/// own named refusal, never a blanket force.
+#[must_use]
+pub fn judge_resume(judgment: &ResumeVersion, compat: Option<&str>) -> CompatVerdict {
+    match judgment {
+        ResumeVersion::Exact => CompatVerdict::Proceed { compat_with: None },
+        ResumeVersion::Mismatch { recorded, current } => match compat {
+            Some(declared) if declared == recorded => CompatVerdict::Proceed {
+                compat_with: Some(recorded.clone()),
+            },
+            Some(declared) => CompatVerdict::Refuse(format!(
+                "--resume-compat {declared} names the wrong version — the trace was \
+                 recorded under engine {recorded}"
+            )),
+            None => CompatVerdict::Refuse(format!(
+                "the trace was recorded under engine {recorded} · this engine is \
+                 {current} — a cross-version resume is judged, never assumed (F-P21): \
+                 re-run live, or declare the compat with `--resume-compat {recorded}`"
+            )),
+        },
+        ResumeVersion::Unrecorded { current } => match compat {
+            Some(declared) if declared == UNRECORDED_VERSION => CompatVerdict::Proceed {
+                compat_with: Some(UNRECORDED_VERSION.to_owned()),
+            },
+            Some(declared) => CompatVerdict::Refuse(format!(
+                "--resume-compat {declared} names a version, but the trace records \
+                 none — declare `--resume-compat unrecorded`"
+            )),
+            None => CompatVerdict::Refuse(format!(
+                "the trace records no engine version (a pre-versioning journal) · \
+                 this engine is {current} — a cross-version resume is judged, never \
+                 assumed (F-P21): re-run live, or declare `--resume-compat unrecorded`"
+            )),
+        },
+    }
 }
 
 /// Parse + validate the repeatable `--answer TASK=VALUE` pairs: the task
@@ -366,5 +499,125 @@ mod tests {
         assert!(err.contains("not a `nika:prompt`"), "{err}");
         // Shape errors are loud.
         assert!(parse_answers(&["noequals".to_owned()], &wf).is_err());
+    }
+
+    // ── F-P21 · the cross-version judgment (NEP-0014 law 4) ───────────
+
+    /// A `workflow_started` boot manifest, with or without the
+    /// `engine_version` field (a pre-A5 journal carries none).
+    fn started(version: Option<&str>) -> Event {
+        let mut e = Event::new(
+            EventId::new(Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            EventKind::WorkflowStarted,
+        );
+        if let Some(v) = version {
+            e = e.with_field(KeyValue::new(
+                "engine_version",
+                FieldValue::String(v.to_owned()),
+            ));
+        }
+        e
+    }
+
+    #[test]
+    fn the_version_judgment_discriminates_exact_mismatch_and_unrecorded() {
+        // Exact — the trace's engine IS this one.
+        let events = vec![started(Some("0.106.0"))];
+        assert_eq!(judge_version(&events, "0.106.0"), ResumeVersion::Exact);
+        assert_eq!(trace_engine_version(&events).as_deref(), Some("0.106.0"));
+        // Mismatch — both versions named.
+        assert_eq!(
+            judge_version(&events, "0.107.0"),
+            ResumeVersion::Mismatch {
+                recorded: "0.106.0".to_owned(),
+                current: "0.107.0".to_owned(),
+            }
+        );
+        // Unrecorded — a pre-versioning journal (no field · no started).
+        assert_eq!(
+            judge_version(&[started(None)], "0.107.0"),
+            ResumeVersion::Unrecorded {
+                current: "0.107.0".to_owned(),
+            }
+        );
+        assert_eq!(
+            judge_version(&[], "0.107.0"),
+            ResumeVersion::Unrecorded {
+                current: "0.107.0".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn an_exact_resume_proceeds_without_a_claim() {
+        let verdict = judge_resume(&ResumeVersion::Exact, None);
+        assert_eq!(verdict, CompatVerdict::Proceed { compat_with: None });
+        // A compat token on an EXACT match is harmless (nothing crossed).
+        let verdict = judge_resume(&ResumeVersion::Exact, Some("0.106.0"));
+        assert_eq!(verdict, CompatVerdict::Proceed { compat_with: None });
+    }
+
+    #[test]
+    fn a_mismatch_refuses_naming_both_versions_and_the_teaching() {
+        let judgment = ResumeVersion::Mismatch {
+            recorded: "0.105.0".to_owned(),
+            current: "0.106.1".to_owned(),
+        };
+        let CompatVerdict::Refuse(message) = judge_resume(&judgment, None) else {
+            panic!("no compat = a refusal");
+        };
+        assert!(message.contains("0.105.0"), "{message}");
+        assert!(message.contains("0.106.1"), "{message}");
+        assert!(
+            message.contains("--resume-compat 0.105.0"),
+            "the teaching names the exact token: {message}"
+        );
+    }
+
+    #[test]
+    fn a_declared_compat_proceeds_attested_but_a_wrong_token_refuses() {
+        let judgment = ResumeVersion::Mismatch {
+            recorded: "0.105.0".to_owned(),
+            current: "0.106.1".to_owned(),
+        };
+        // The exact recorded string discharges — attested for the journal.
+        assert_eq!(
+            judge_resume(&judgment, Some("0.105.0")),
+            CompatVerdict::Proceed {
+                compat_with: Some("0.105.0".to_owned()),
+            }
+        );
+        // A wrong token is its own named refusal (never a blanket force).
+        let CompatVerdict::Refuse(message) = judge_resume(&judgment, Some("0.104.0")) else {
+            panic!("a wrong token refuses");
+        };
+        assert!(
+            message.contains("0.104.0") && message.contains("0.105.0"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn an_unrecorded_trace_rides_the_unrecorded_token_only() {
+        let judgment = ResumeVersion::Unrecorded {
+            current: "0.106.1".to_owned(),
+        };
+        // No compat → refusal teaching the `unrecorded` token.
+        let CompatVerdict::Refuse(message) = judge_resume(&judgment, None) else {
+            panic!("no compat = a refusal");
+        };
+        assert!(message.contains("--resume-compat unrecorded"), "{message}");
+        // The token discharges; a version string never covers the void.
+        assert_eq!(
+            judge_resume(&judgment, Some(UNRECORDED_VERSION)),
+            CompatVerdict::Proceed {
+                compat_with: Some(UNRECORDED_VERSION.to_owned()),
+            }
+        );
+        let CompatVerdict::Refuse(message) = judge_resume(&judgment, Some("0.95.0")) else {
+            panic!("a version token never covers a versionless trace");
+        };
+        assert!(message.contains("records none"), "{message}");
     }
 }
