@@ -815,6 +815,19 @@ pub const NIKA_1708: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "runtime-missing-required-input",
 };
+/// NIKA-1709: The run's unavoidable cost floor already exceeds the budget
+/// it was launched under (`--max-cost-usd`, or an inherited
+/// `min(parent remaining, child declared)` under composition · spec 14
+/// law 6). The ADMISSION form of the budget law — refuse BEFORE the
+/// prologue (zero events, zero spend) for every embedder; the mid-run
+/// crossing stays NIKA-1704's (the ledger sees what the static floor
+/// cannot).
+pub const NIKA_1709: NikaCode = NikaCode {
+    num: 1709,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-budget-floor",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -842,5 +855,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502,
     NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
     NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706, NIKA_1707,
-    NIKA_1708,
+    NIKA_1708, NIKA_1709,
 ];

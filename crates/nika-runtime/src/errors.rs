@@ -68,6 +68,22 @@ pub enum RuntimeError {
         declared: Vec<String>,
     },
 
+    /// NIKA-1709 · the run's unavoidable cost floor already exceeds the
+    /// budget it was launched under (`--max-cost-usd`, or an inherited
+    /// `min(parent remaining, child declared)` — spec 14 law 6). The
+    /// ADMISSION form of the budget law: refuse BEFORE the prologue
+    /// (zero events · zero spend). The CLI's preflight speaks this same
+    /// constructor for the standalone surface; this gate is the
+    /// fail-closed word for every OTHER embedder — a composed child
+    /// included, which was the 2026-07-29 bypass (a child refused
+    /// standalone RAN through a parent).
+    #[error("NIKA-1709 · {message}")]
+    #[diagnostic(code(nika::runtime::budget_floor))]
+    BudgetFloor {
+        /// The floor-vs-budget verdict (`floor_refusal`'s own text).
+        message: String,
+    },
+
     /// A `${{ }}` reference did not resolve (unknown task id / var key ·
     /// out-of-range index · missing map key · the silent-literal guard).
     /// Wire code `NIKA-VAR-001` (`variable_error`, the unresolved-reference
@@ -289,6 +305,7 @@ impl NikaErrorCode for RuntimeError {
             Self::ReportMismatch { .. } => codes::NIKA_1707,
             Self::WaveOutOfBounds { .. } => codes::NIKA_1701,
             Self::MissingRequiredInputs { .. } => codes::NIKA_1708,
+            Self::BudgetFloor { .. } => codes::NIKA_1709,
             Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
             // CelEval + OutputBinding are spec-plane evaluation classes ·
             // at the engine-internal layer they share the "expression
@@ -314,7 +331,7 @@ impl NikaErrorCode for RuntimeError {
 mod tests {
     use super::*;
 
-    fn all() -> [RuntimeError; 8] {
+    fn all() -> [RuntimeError; 9] {
         [
             RuntimeError::DirtyReport,
             RuntimeError::ReportMismatch {
@@ -327,6 +344,9 @@ mod tests {
             RuntimeError::MissingRequiredInputs {
                 missing: vec!["needle".into()],
                 declared: vec!["needle".into(), "limit".into()],
+            },
+            RuntimeError::BudgetFloor {
+                message: "refusing to start: floor $0.6 exceeds --max-cost-usd $0.000001".into(),
             },
             RuntimeError::UnresolvedTemplate {
                 reference: "tasks.ghost.output".into(),
@@ -348,7 +368,7 @@ mod tests {
         let mut nums: Vec<u16> = all().iter().map(|e| e.nika_code().num).collect();
         nums.sort_unstable();
         nums.dedup();
-        assert_eq!(nums.len(), 8, "duplicate code in the 1700 range");
+        assert_eq!(nums.len(), 9, "duplicate code in the 1700 range");
         assert!(nums.iter().all(|n| (1700..1800).contains(n)));
     }
 

@@ -346,6 +346,9 @@ fn run_code_help(num: u16) -> &'static str {
         1708 => {
             "A `required: true` input has neither a declared `default:` nor a `--var` override — the run refuses at admission, before any task spends. Supply each named input with `nika run <file> --var <name>=<value>` (or declare a `default:`)."
         }
+        1709 => {
+            "The workflow's unavoidable cost floor already exceeds the budget it was launched under (cheapest static path · gates closed · first-try) — raise the budget, trim the workflow, or read the envelope with `nika check`. Under composition the budget is inherited (`min(parent remaining, child declared)` · spec 14 law 6): the parent's remaining at call time was already too small for the child's floor."
+        }
         _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }
 }

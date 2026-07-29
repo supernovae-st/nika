@@ -206,6 +206,40 @@ async fn runner_less_workflow_call_refuses_loudly() {
     );
 }
 
+/// The budget-floor launch gate (NIKA-1709 · the 2026-07-29 composition
+/// bypass closed at admission): a runtime launched under a budget its
+/// floor already crosses aborts BEFORE the prologue — `BudgetFloor`, and
+/// the sink saw ZERO events (zero spend). This is the gate a composed
+/// child now passes through with the parent's remaining (law 6) — the
+/// CLI preflight never reaches it, so the seam battery pins it.
+#[tokio::test]
+async fn a_floor_above_budget_aborts_at_admission_with_zero_events() {
+    let (wf, report) = parse_and_check(
+        "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+         a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
+    );
+    assert!(
+        report.cost.min_path_total_usd > 0.000_001,
+        "the fixture's floor dwarfs the budget"
+    );
+    let rt = runtime(RuntimeConfig::new(None, 0).with_max_cost_usd(Some(0.000_001)));
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let err = rt
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect_err("a floor above the budget refuses at admission");
+    assert!(
+        matches!(err, nika_runtime::RuntimeError::BudgetFloor { .. }),
+        "{err:?}"
+    );
+    assert!(err.to_string().starts_with("NIKA-1709"), "{err}");
+    assert!(
+        sink.into_events().is_empty(),
+        "a refusal at admission emits zero events — zero spend"
+    );
+}
+
 /// The depth backstop (`NIKA-SEC-003`) refuses FAIL-CLOSED — before the
 /// runner is even consulted (zero I/O past the bound).
 #[tokio::test]

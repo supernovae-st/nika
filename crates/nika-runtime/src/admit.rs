@@ -41,19 +41,58 @@ use serde_json::Value;
 use crate::errors::RuntimeError;
 
 /// The run's launch gates, in order: the report trust check
-/// (audit-before-run) · the required-input preflight below — both
-/// refuse BEFORE the prologue, so a refused run emits zero events and
-/// spends zero tasks.
+/// (audit-before-run) · the required-input preflight below · the budget
+/// floor ([`budget_floor_refusal`]) — all refuse BEFORE the prologue, so a
+/// refused run emits zero events and spends zero tasks.
 pub(crate) fn gates(
     wf: &RawWorkflow,
     report: &CheckReport,
     overrides: &BTreeMap<String, Value>,
+    budget: Option<f64>,
+    model_override: Option<&str>,
 ) -> Result<(), RuntimeError> {
     crate::trust::check_report(wf, report)?;
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
+    if let Some(err) = budget_floor_refusal(wf, report, budget, model_override) {
+        return Err(err);
+    }
     Ok(())
+}
+
+/// The budget-floor admission gate — `Some` run-abort error (NIKA-1709)
+/// when the workflow's unavoidable cost floor already exceeds the budget
+/// the run was launched under. The ONE constructor both admission
+/// surfaces speak: the CLI's standalone preflight prints this same
+/// [`floor_refusal`] text and never reaches `run`, so the gate here is
+/// the fail-closed word for every OTHER embedder — the composed child
+/// above all, whose budget is the parent's remaining at call time (spec
+/// 14 law 6) and which used to RUN where the standalone form refused
+/// (the 2026-07-29 composition bypass). A `None` budget never refuses;
+/// the mid-run ledger (NIKA-1704) still owns the crossing that the
+/// static floor cannot see (gates opening · retries · fan-outs).
+///
+/// The floor prices the EFFECTIVE model (#342): a `--model` override
+/// replaces the envelope default (a per-task `model:` keeps winning), so
+/// the gate never fires on the file's model while the run uses another.
+#[must_use]
+pub fn budget_floor_refusal(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    budget: Option<f64>,
+    model_override: Option<&str>,
+) -> Option<RuntimeError> {
+    let floor = match model_override {
+        Some(m) => {
+            nika_check::check(&nika_check::with_model_override(wf, m))
+                .cost
+                .min_path_total_usd
+        }
+        None => report.cost.min_path_total_usd,
+    };
+    let message = floor_refusal(floor, budget?)?;
+    Some(RuntimeError::BudgetFloor { message })
 }
 
 /// The missing-required-input refusal — `Some` run-abort error when a
@@ -198,7 +237,12 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 mod tests {
     use std::sync::Arc;
 
@@ -454,6 +498,95 @@ mod tests {
         assert!(floor_refusal(0.05, 0.05).is_none());
         assert!(floor_refusal(0.0, 0.05).is_none());
         assert!(floor_refusal(0.0, 0.0).is_none());
+    }
+
+    /// The admission form (NIKA-1709 · the 2026-07-29 composition bypass
+    /// closed): a run launched under a budget its floor already crosses is
+    /// aborted by the LAUNCH GATES — before the prologue, for EVERY
+    /// embedder (the composed child included). `None` budget never fires,
+    /// and a floor at/under the budget admits.
+    #[test]
+    fn budget_floor_refusal_is_the_embedders_gate() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        assert!(
+            report.cost.min_path_total_usd > 0.000_001,
+            "the fixture's floor dwarfs the budget"
+        );
+        let err = budget_floor_refusal(&wf, &report, Some(0.000_001), None)
+            .expect("a floor above the budget refuses at admission");
+        assert!(
+            matches!(err, RuntimeError::BudgetFloor { .. }),
+            "the launch-abort variant: {err:?}"
+        );
+        assert!(err.to_string().starts_with("NIKA-1709"), "{err}");
+        assert!(err.to_string().contains("refusing to start"), "{err}");
+        // The sparing arms: no budget · a floor that fits.
+        assert!(budget_floor_refusal(&wf, &report, None, None).is_none());
+        assert!(budget_floor_refusal(&wf, &report, Some(999.0), None).is_none());
+    }
+
+    /// The gate prices the EFFECTIVE model (#342's law at the admission
+    /// layer): a file on mock overridden to a priced model refuses; a
+    /// priced file overridden to mock passes.
+    #[test]
+    fn the_gate_prices_the_model_the_run_will_use() {
+        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
+        let wf = parse(yaml);
+        let report = nika_check::check(&wf);
+        assert_eq!(
+            report.cost.min_path_total_usd, 0.0,
+            "the file's floor is zero"
+        );
+        let err = budget_floor_refusal(
+            &wf,
+            &report,
+            Some(0.000_001),
+            Some("anthropic/claude-sonnet-5"),
+        );
+        assert!(
+            matches!(err, Some(RuntimeError::BudgetFloor { .. })),
+            "the overridden (effective) model's floor trips the gate: {err:?}"
+        );
+
+        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
+        let wf = parse(yaml);
+        let report = nika_check::check(&wf);
+        assert!(
+            budget_floor_refusal(&wf, &report, Some(0.000_001), Some("mock/echo")).is_none(),
+            "the effective mock floor is zero — the file's priced floor never fires"
+        );
+    }
+
+    /// The gates' order: trust → required inputs → budget floor (a run
+    /// that would fail the input gate never reaches the budget verdict).
+    #[test]
+    fn gates_fire_the_budget_floor_after_the_input_gate() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: m\ninputs:\n  needed: { type: string, required: true }\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let err = gates(&wf, &report, &BTreeMap::new(), Some(0.000_001), None)
+            .expect_err("both gates could fire — the input gate speaks first");
+        assert!(
+            matches!(err, RuntimeError::MissingRequiredInputs { .. }),
+            "the input gate precedes: {err:?}"
+        );
+        // With the input satisfied, the budget floor is the word.
+        let mut overrides = BTreeMap::new();
+        overrides.insert("needed".to_owned(), Value::String("x".to_owned()));
+        let err = gates(&wf, &report, &overrides, Some(0.000_001), None)
+            .expect_err("the budget gate fires once inputs are satisfied");
+        assert!(
+            matches!(err, RuntimeError::BudgetFloor { .. }),
+            "the budget gate then owns the refusal: {err:?}"
+        );
     }
 
     fn breakdown_of(yaml: &str) -> String {

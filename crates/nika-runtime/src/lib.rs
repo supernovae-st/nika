@@ -107,7 +107,10 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
-pub use admit::{floor_refusal, required_inputs_refusal, scope_to_task, unbounded_breakdown};
+pub use admit::{
+    budget_floor_refusal, floor_refusal, required_inputs_refusal, scope_to_task,
+    unbounded_breakdown,
+};
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, capabilities_of, production_runtime,
 };
@@ -846,9 +849,16 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
-        // The launch gates (audit-before-run · the #603 preflight) —
-        // a refusal here precedes the prologue: zero events, zero spend.
-        admit::gates(wf, report, &self.var_overrides)?;
+        // The launch gates (audit-before-run · the #603 preflight · the
+        // budget floor) — a refusal here precedes the prologue: zero
+        // events, zero spend.
+        admit::gates(
+            wf,
+            report,
+            &self.var_overrides,
+            self.config.max_cost_usd,
+            self.model_override.as_deref(),
+        )?;
         let EnvelopeValues {
             inputs,
             config,

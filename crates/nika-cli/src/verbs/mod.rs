@@ -196,16 +196,10 @@ pub(crate) fn resolve_workflow_skills(wf: &RawWorkflow) -> nika_schema::Resolved
 
 /// The workflow with the CLI `--model` swapped into the envelope default
 /// (#342) — per-task `model:` keeps winning, mirroring the runtime's
-/// precedence. The synthetic span is fine: the pricing surfaces never
-/// render the envelope model's span.
+/// precedence. The implementation lives in `nika_check` (the ONE home —
+/// the runtime's admission gate prices the same effective model).
 pub(crate) fn with_model_override(wf: &RawWorkflow, model: &str) -> RawWorkflow {
-    let mut wf = wf.clone();
-    let span = wf
-        .model
-        .as_ref()
-        .map_or_else(nika_schema::Span::default, |m| m.span);
-    wf.model = Some(nika_schema::Spanned::new(model.to_owned(), span));
-    wf
+    nika_check::with_model_override(wf, model)
 }
 
 #[cfg(test)]
