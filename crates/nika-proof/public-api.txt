@@ -1,0 +1,178 @@
+pub mod nika_proof
+pub mod nika_proof::receipt
+pub const nika_proof::receipt::RECEIPT_FORMAT: u32
+pub fn nika_proof::receipt::build_receipt(proves: &str, certificate: serde_json::value::Value, trace_verdict: serde_json::value::Value, assertions: alloc::vec::Vec<serde_json::value::Value>, lock_digest: &str) -> serde_json::value::Value
+pub fn nika_proof::receipt::build_run_receipt(proves: &nika_proof::SemanticHash, certificate: &nika_check::certificate::RunCertificate, judged: &[(nika_vocab::assert::AssertProperty, nika_vocab::assert::AssertLevel)], trace_verdict: serde_json::value::Value, lock_digest: &str) -> serde_json::value::Value
+pub fn nika_proof::receipt::verify(receipt: &serde_json::value::Value, expected_semantic: &str) -> bool
+#[non_exhaustive] pub enum nika_proof::HashDomain
+pub nika_proof::HashDomain::Artifact
+pub nika_proof::HashDomain::Canonical
+pub nika_proof::HashDomain::Plan
+pub nika_proof::HashDomain::Receipt
+pub nika_proof::HashDomain::Semantic
+pub nika_proof::HashDomain::Source
+pub nika_proof::HashDomain::Trace
+impl nika_proof::HashDomain
+pub const nika_proof::HashDomain::ALL: [Self; 7]
+pub const fn nika_proof::HashDomain::as_str(self) -> &'static str
+pub fn nika_proof::HashDomain::parse(token: &str) -> core::result::Result<Self, nika_proof::UnknownDomain>
+impl core::clone::Clone for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::clone(&self) -> nika_proof::HashDomain
+impl core::cmp::Eq for nika_proof::HashDomain
+impl core::cmp::Ord for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::cmp(&self, other: &nika_proof::HashDomain) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::eq(&self, other: &nika_proof::HashDomain) -> bool
+impl core::cmp::PartialOrd for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::partial_cmp(&self, other: &nika_proof::HashDomain) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_proof::HashDomain
+impl core::marker::StructuralPartialEq for nika_proof::HashDomain
+impl<D> owo_colors::OwoColorize for nika_proof::HashDomain
+impl<Q, K> equivalent::Comparable<K> for nika_proof::HashDomain where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::HashDomain::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_proof::HashDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::HashDomain::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::HashDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::HashDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::HashDomain::equivalent(&self, key: &K) -> bool
+pub fn nika_proof::HashDomain::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_proof::HashDomain where U: core::convert::From<T>
+pub fn nika_proof::HashDomain::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_proof::HashDomain where U: core::convert::Into<T>
+pub type nika_proof::HashDomain::Error = core::convert::Infallible
+pub fn nika_proof::HashDomain::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_proof::HashDomain where U: core::convert::TryFrom<T>
+pub type nika_proof::HashDomain::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_proof::HashDomain::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_proof::HashDomain where T: core::clone::Clone
+pub type nika_proof::HashDomain::Owned = T
+pub fn nika_proof::HashDomain::clone_into(&self, target: &mut T)
+pub fn nika_proof::HashDomain::to_owned(&self) -> T
+impl<T> core::any::Any for nika_proof::HashDomain where T: 'static + ?core::marker::Sized
+pub fn nika_proof::HashDomain::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_proof::HashDomain where T: ?core::marker::Sized
+pub fn nika_proof::HashDomain::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_proof::HashDomain where T: ?core::marker::Sized
+pub fn nika_proof::HashDomain::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_proof::HashDomain where T: core::clone::Clone
+pub unsafe fn nika_proof::HashDomain::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_proof::HashDomain
+pub fn nika_proof::HashDomain::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_proof::HashDomain where T: core::clone::Clone
+pub fn nika_proof::HashDomain::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_proof::HashDomain where T: 'static
+pub fn nika_proof::HashDomain::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_proof::HashDomain where T: core::marker::Copy
+pub fn nika_proof::HashDomain::as_out(&mut self) -> outref::Out<'_, T>
+pub struct nika_proof::SemanticHash(_)
+impl nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::as_hex(&self) -> &str
+pub fn nika_proof::SemanticHash::into_hex(self) -> alloc::string::String
+impl core::clone::Clone for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::clone(&self) -> nika_proof::SemanticHash
+impl core::cmp::Eq for nika_proof::SemanticHash
+impl core::cmp::Ord for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::cmp(&self, other: &nika_proof::SemanticHash) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::eq(&self, other: &nika_proof::SemanticHash) -> bool
+impl core::cmp::PartialOrd for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::partial_cmp(&self, other: &nika_proof::SemanticHash) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_proof::SemanticHash
+impl<D> owo_colors::OwoColorize for nika_proof::SemanticHash
+impl<Q, K> equivalent::Comparable<K> for nika_proof::SemanticHash where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::SemanticHash::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_proof::SemanticHash where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::SemanticHash::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::SemanticHash where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::SemanticHash where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::SemanticHash::equivalent(&self, key: &K) -> bool
+pub fn nika_proof::SemanticHash::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_proof::SemanticHash where U: core::convert::From<T>
+pub fn nika_proof::SemanticHash::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_proof::SemanticHash where U: core::convert::Into<T>
+pub type nika_proof::SemanticHash::Error = core::convert::Infallible
+pub fn nika_proof::SemanticHash::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_proof::SemanticHash where U: core::convert::TryFrom<T>
+pub type nika_proof::SemanticHash::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_proof::SemanticHash::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_proof::SemanticHash where T: core::clone::Clone
+pub type nika_proof::SemanticHash::Owned = T
+pub fn nika_proof::SemanticHash::clone_into(&self, target: &mut T)
+pub fn nika_proof::SemanticHash::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_proof::SemanticHash where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_proof::SemanticHash::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_proof::SemanticHash where T: 'static + ?core::marker::Sized
+pub fn nika_proof::SemanticHash::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_proof::SemanticHash where T: ?core::marker::Sized
+pub fn nika_proof::SemanticHash::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_proof::SemanticHash where T: ?core::marker::Sized
+pub fn nika_proof::SemanticHash::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_proof::SemanticHash where T: core::clone::Clone
+pub unsafe fn nika_proof::SemanticHash::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_proof::SemanticHash
+pub fn nika_proof::SemanticHash::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_proof::SemanticHash where T: core::clone::Clone
+pub fn nika_proof::SemanticHash::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_proof::SemanticHash where T: 'static
+pub fn nika_proof::SemanticHash::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_proof::UnknownDomain(pub alloc::string::String)
+impl core::clone::Clone for nika_proof::UnknownDomain
+pub fn nika_proof::UnknownDomain::clone(&self) -> nika_proof::UnknownDomain
+impl core::cmp::Eq for nika_proof::UnknownDomain
+impl core::cmp::PartialEq for nika_proof::UnknownDomain
+pub fn nika_proof::UnknownDomain::eq(&self, other: &nika_proof::UnknownDomain) -> bool
+impl core::fmt::Debug for nika_proof::UnknownDomain
+pub fn nika_proof::UnknownDomain::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_proof::UnknownDomain
+pub fn nika_proof::UnknownDomain::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_proof::UnknownDomain
+impl<D> owo_colors::OwoColorize for nika_proof::UnknownDomain
+impl<Q, K> equivalent::Equivalent<K> for nika_proof::UnknownDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::UnknownDomain::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::UnknownDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::UnknownDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::UnknownDomain::equivalent(&self, key: &K) -> bool
+pub fn nika_proof::UnknownDomain::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_proof::UnknownDomain where U: core::convert::From<T>
+pub fn nika_proof::UnknownDomain::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_proof::UnknownDomain where U: core::convert::Into<T>
+pub type nika_proof::UnknownDomain::Error = core::convert::Infallible
+pub fn nika_proof::UnknownDomain::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_proof::UnknownDomain where U: core::convert::TryFrom<T>
+pub type nika_proof::UnknownDomain::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_proof::UnknownDomain::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_proof::UnknownDomain where T: core::clone::Clone
+pub type nika_proof::UnknownDomain::Owned = T
+pub fn nika_proof::UnknownDomain::clone_into(&self, target: &mut T)
+pub fn nika_proof::UnknownDomain::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_proof::UnknownDomain where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_proof::UnknownDomain::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_proof::UnknownDomain where T: 'static + ?core::marker::Sized
+pub fn nika_proof::UnknownDomain::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_proof::UnknownDomain where T: ?core::marker::Sized
+pub fn nika_proof::UnknownDomain::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_proof::UnknownDomain where T: ?core::marker::Sized
+pub fn nika_proof::UnknownDomain::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_proof::UnknownDomain where T: core::clone::Clone
+pub unsafe fn nika_proof::UnknownDomain::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_proof::UnknownDomain
+pub fn nika_proof::UnknownDomain::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_proof::UnknownDomain where T: core::clone::Clone
+pub fn nika_proof::UnknownDomain::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_proof::UnknownDomain where T: 'static
+pub fn nika_proof::UnknownDomain::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_proof::FORMAT_VERSION: u32
+pub fn nika_proof::canonical(value: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::hash_in_domain(domain: nika_proof::HashDomain, format_version: u32, ir: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::preimage(domain: nika_proof::HashDomain, format_version: u32, ir: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::semantic_hash(ir: &serde_json::value::Value, format_version: u32) -> nika_proof::SemanticHash

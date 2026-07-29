@@ -61,7 +61,17 @@ mod integrity;
 mod jq;
 mod ledger;
 mod pause;
-pub mod proof;
+/// The proof layer (spec 15) — re-exported whole from the standalone
+/// `nika-proof` crate (L0 · the 15k crate-size split), so every
+/// `nika_runtime::proof::…` path holds. `ir` stays (the resume projection).
+pub mod proof {
+    pub use nika_proof::receipt;
+    pub use nika_proof::{
+        FORMAT_VERSION, HashDomain, SemanticHash, UnknownDomain, canonical, hash_in_domain,
+        preimage, semantic_hash,
+    };
+    pub mod ir;
+}
 mod record;
 mod recover;
 pub mod resume;

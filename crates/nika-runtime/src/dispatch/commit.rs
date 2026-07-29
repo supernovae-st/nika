@@ -6,41 +6,32 @@
 //!
 //! The F-O1 re-gate (NEP-0004 law 2) judges the RESOLVED form of a step's
 //! request — but nothing proved the bytes FIRED are the bytes JUDGED. The
-//! binding, à la `SecureClaw` (« policy decides on the preview · the
-//! executor fires only the commit that matches it »):
+//! binding, à la `SecureClaw`:
 //!
-//! 1. **Preview** — at the resolution point (argv exec rendered · args
-//!    invoke materialized · the re-gate passed) the runtime hashes the
-//!    CANONICAL request (`preview_digest`).
-//! 2. **Commit** — at the firing point (`dispatch_shell` /
-//!    `dispatch_invoke` — the only doors that reach the sink) the runtime
-//!    RECOMPUTES the digest over the about-to-fire bytes and requires
-//!    equality.
-//! 3. **Divergence = fail-closed + finding** — any difference refuses the
-//!    fire ([`DIVERGENCE_CODE`], never transient) and the `divergence:
-//!    {preview, commit}` finding rides the task's terminal frame (never a
-//!    warn · an `on_error:` recovery keeps the finding).
+//! 1. **Preview** — at the resolution point (argv rendered · args
+//!    materialized · the re-gate passed) the runtime hashes the CANONICAL
+//!    request (`preview_digest`).
+//! 2. **Commit** — at the firing point (the only doors to the sink) the
+//!    digest is recomputed over the about-to-fire bytes · equality required.
+//! 3. **Divergence = fail-closed + finding** — the fire is refused
+//!    ([`DIVERGENCE_CODE`], never transient) + the `divergence:
+//!    {preview, commit}` finding rides the terminal frame (never a warn).
 //! 4. **Attestation** — the terminal frame of every fired exec/invoke
-//!    step carries both digests (`preview_digest` · `commit_digest`,
-//!    additive fields — the NEP-0007 discipline, no `trace_format` bump).
+//!    step carries both digests (additive fields · no `trace_format` bump).
 //!
-//! The canonical request is WHAT THE JUDGMENT SAW — the values resolved
-//! at the re-gate — never the runtime's living wall: fields that change
+//! The canonical request is WHAT THE JUDGMENT SAW — fields that change
 //! BETWEEN preview and commit by construction are EXCLUDED, or every
 //! honest run would self-refuse:
 //!
 //! - exec · INCLUDED: the command form (`argv` ordered · `shell` line),
-//!   `cwd`, the rendered `env` map, `stdin`. EXCLUDED: `sandbox` +
-//!   `env_passthrough` (derived from the DECLARED permits after the
-//!   preview — the exercised authority, not the request), `capture` +
-//!   `raw_capture` (output shaping, not the fired bytes), `timeout` (the
-//!   task budget knob — scheduling, not the request).
+//!   `cwd`, `env`, `stdin`. EXCLUDED: `sandbox` + `env_passthrough`
+//!   (authority derived AFTER the preview), `capture` + `raw_capture`
+//!   (output shaping), `timeout` (scheduling).
 //! - invoke · INCLUDED: the tool id + the rendered `args`. EXCLUDED:
 //!   `call_id` (engine-derived identity, never judged).
 //!
 //! The digest law is the receipt family's own ([`crate::resume::jcs_blake3_hex`]
-//! · RFC 8785 JCS + number-fold + blake3 — the F-P4/declassify precedent).
-//! The binding is DETERMINISTIC — never a judge-LLM (arXiv:2605.17634).
+//! · JCS + number-fold + blake3). DETERMINISTIC — never a judge-LLM.
 
 use nika_verb_exec::{ExecCommand, ExecInput};
 use nika_verb_invoke::InvokeInput;
@@ -112,10 +103,8 @@ pub(crate) enum CommitEvidence {
 }
 
 impl super::Dispatched {
-    /// Attach the F-P6 commit attestation to whichever outcome the
-    /// dispatch produced — a fired step attests its binding on success
-    /// AND on a post-gate verb failure alike (the gate's own refusal
-    /// never passes through here: it carries the divergence instead).
+    /// Attach the F-P6 attestation to whichever outcome fired — success
+    /// AND post-gate verb failure alike (the refusal never passes here).
     pub(super) fn with_commit(mut self, attestation: CommitAttestation) -> Self {
         match &mut self.result {
             Ok(ok) => ok.commit = Some(Box::new(attestation)),
@@ -126,11 +115,9 @@ impl super::Dispatched {
         self
     }
 
-    /// F-P6 · the commit gate's fail-closed refusal: the about-to-fire
-    /// request is NOT the judged one (`preview ≠ commit`). Zero byte
-    /// reached the sink; the finding rides the terminal frame as
-    /// `divergence: {preview, commit}` — never transient (a mutated
-    /// request is not healed by a retry), never silent.
+    /// F-P6 · the gate's fail-closed refusal: the about-to-fire request
+    /// is NOT the judged one — zero byte reached the sink; the finding
+    /// rides the terminal frame (never transient · never silent).
     pub(super) fn divergence_refusal(note: &str, divergence: Divergence) -> Self {
         Self {
             note: note.to_owned(),
@@ -162,9 +149,7 @@ where
     D: nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn,
 {
     /// F-P6 · the invoke firing lane: PREVIEW (the digest at the
-    /// resolution point — args materialized · the re-gate passed) → the
-    /// COMMIT gate at the firing point → the tool call. `note` is the
-    /// dispatch's display note.
+    /// resolution point — re-gate passed) → COMMIT gate → the tool call.
     // The `mut` serves the cfg(test) tamper seam only (production never
     // mutates between preview and commit — that is the whole point).
     #[cfg_attr(not(test), allow(unused_mut))]
@@ -225,11 +210,9 @@ where
         }
     }
 
-    /// F-P6 · the exec firing lane: PREVIEW (argv rendered · cwd/env/stdin
-    /// resolved · the re-gate passed — the sandbox/passthrough derivations
-    /// BELOW are excluded from the canonical request by law, see module
-    /// docs) → the jail + env-passthrough derivations → the COMMIT gate at
-    /// the firing point → the spawn.
+    /// F-P6 · the exec firing lane: PREVIEW (argv/cwd/env/stdin resolved ·
+    /// re-gate passed — the derivations BELOW are excluded from the request
+    /// by law) → jail + passthrough → COMMIT gate → the spawn.
     pub(super) async fn run_exec_gated(
         &self,
         note: String,

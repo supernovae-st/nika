@@ -467,21 +467,51 @@ fn resolve_parked(
         cost_unpriced,
         evidence,
     } = failed;
-    let result = recovered_result(
-        scope,
-        task_index,
-        (record, render_error),
-        (cost_usd, cost_unpriced),
-        &with_ns,
-        view,
-    );
+    let result = match recover_template(scope.wf, task_index) {
+        Some(template) => {
+            let render_scope = Scope {
+                records: view,
+                inputs: scope.inputs,
+                config: scope.config,
+                consts: scope.consts,
+                secrets: scope.secrets,
+                with_ns: Some(&with_ns),
+                item: None, // iterations never park (fan-out boundary)
+                index: None,
+                permits: None, // rendering performs no effect (no exec sink)
+            };
+            match expr::render_json(template, &render_scope) {
+                Ok(value) => RunResult::Success {
+                    value,
+                    tokens: None,
+                    // the WHOLE original error rides (spec 13 §payload)
+                    recovered_from: Some(record),
+                    warning: None,
+                    child: None, // recovered value ≠ a child run's outputs
+                    cost_usd,
+                    cost_unpriced,
+                },
+                Err(err) => RunResult::Failed {
+                    error: runtime_error_record(&err),
+                    cost_usd,
+                    cost_unpriced,
+                },
+            }
+        }
+        // Total-function backstop (a park is only ever built FROM the
+        // recover arm): no template ⇒ the classification-time failure.
+        None => RunResult::Failed {
+            error: render_error,
+            cost_usd,
+            cost_unpriced,
+        },
+    };
     let mut settled_as = SettleAs::Ran(Box::new(RanTask {
         note,
         retries,
         agent_events,
         decisions,
-        // F-P6 · the parked failure's evidence rides back out (a
-        // recovered divergence keeps its finding on the terminal frame).
+        // F-P6 · the parked failure's evidence rides back out.
         evidence,
         duration_ms,
         result,
@@ -507,57 +537,6 @@ fn resolve_parked(
         // prompter — there is no approval decision to attest (NEP-0013).
         None,
     )
-}
-
-/// Re-render the recover template against the settled `view` — success
-/// takes the recovered path (`recovered_from` marks the original error ·
-/// the failed attempts' spend rides), a render error takes the
-/// recovery-failed path, and the no-template backstop settles the
-/// classification-time failure (total · no panic). Split out of
-/// [`resolve_parked`] for the 100-line fn ratchet · semantics unchanged.
-fn recovered_result(
-    scope: &ResolveScope<'_>,
-    task_index: usize,
-    (record, render_error): (TaskErrorRecord, TaskErrorRecord),
-    (cost_usd, cost_unpriced): (Option<f64>, Option<nika_types::cost::UnpricedReason>),
-    with_ns: &BTreeMap<String, Value>,
-    view: &BTreeMap<String, TaskRecord>,
-) -> RunResult {
-    let Some(template) = recover_template(scope.wf, task_index) else {
-        return RunResult::Failed {
-            error: render_error,
-            cost_usd,
-            cost_unpriced,
-        };
-    };
-    let render_scope = Scope {
-        records: view,
-        inputs: scope.inputs,
-        config: scope.config,
-        consts: scope.consts,
-        secrets: scope.secrets,
-        with_ns: Some(with_ns),
-        item: None, // iterations never park (fan-out boundary)
-        index: None,
-        permits: None, // rendering performs no effect (no exec sink)
-    };
-    match expr::render_json(template, &render_scope) {
-        Ok(value) => RunResult::Success {
-            value,
-            tokens: None,
-            // the WHOLE original error rides (spec 13 §payload)
-            recovered_from: Some(record),
-            warning: None,
-            child: None, // recovered value ≠ a child run's outputs
-            cost_usd,
-            cost_unpriced,
-        },
-        Err(err) => RunResult::Failed {
-            error: runtime_error_record(&err),
-            cost_usd,
-            cost_unpriced,
-        },
-    }
 }
 
 /// The F-O1 label over the FINAL view (the recover template's own reads

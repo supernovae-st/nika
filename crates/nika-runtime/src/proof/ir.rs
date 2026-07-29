@@ -185,4 +185,56 @@ mod tests {
         let b = semantic_ir_hash(&parse(&renamed)).expect("projectable");
         assert_ne!(a, b, "the workflow id is part of the identity");
     }
+
+    /// The ONE real instance: a receipt folded from the engine's OWN typed
+    /// pieces — a real `RunCertificate` (from an actually-checked workflow),
+    /// the workflow's real semantic hash (the Merkle root), and an `assert:`
+    /// obligation judged at its honest level. The receipt proves THIS
+    /// workflow's identity and verifies. (Moved here with the `ir`
+    /// projection when the receipt/hash primitives split to `nika-proof` —
+    /// the projection stayed with the runtime's resume family.)
+    #[test]
+    fn a_run_receipt_folds_the_engine_certificate_and_verifies() {
+        use nika_proof::receipt::{build_run_receipt, verify};
+        use nika_schema::types::AssertProperty;
+        use serde_json::json;
+
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        );
+        let report = nika_check::check(&wf);
+        let proves = semantic_ir_hash(&wf).expect("projectable");
+
+        // Judge one obligation at its honest level (no_secret_egress is static).
+        let property = AssertProperty::NoSecretEgress;
+        let judged = vec![(property.clone(), property.level(false))];
+
+        let receipt = build_run_receipt(
+            &proves,
+            &report.certificate,
+            &judged,
+            json!({ "outcome": "success" }),
+            "blake3:lockdigest",
+        );
+
+        // The receipt proves THIS workflow's semantic hash and verifies.
+        assert!(
+            verify(&receipt, proves.as_hex()),
+            "the run receipt verifies"
+        );
+        // The engine's real certificate is folded in (attempts · effects · bound).
+        assert!(
+            receipt["certificate"].is_object(),
+            "the RunCertificate is folded, not a placeholder"
+        );
+        // The judged assertion rides with its honest level.
+        assert_eq!(
+            receipt["assertions"][0]["assert"],
+            json!("no_secret_egress")
+        );
+        assert_eq!(receipt["assertions"][0]["level"], json!("StaticProof"));
+        assert_eq!(receipt["lock_digest"], json!("blake3:lockdigest"));
+        // It does NOT verify against a different workflow's identity.
+        assert!(!verify(&receipt, "blake3:someotherworkflow"));
+    }
 }

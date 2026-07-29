@@ -675,9 +675,8 @@ where
             retries,
             agent_events,
             decisions: acc.decisions,
-            // F-P6 · no digest pair honestly aggregates N iterations —
-            // only a REFUSED binding rides (the first diverged one).
-            evidence: acc.evidence,
+            // F-P6 · no pair aggregates N iterations (the `child: None` precedent).
+            evidence: None,
             duration_ms: 0,
             result,
         };

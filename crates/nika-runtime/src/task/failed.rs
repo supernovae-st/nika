@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The settled attempt-loop FAILURE channel — split from `task.rs` at
-//! the 1500-LOC wall (the `task/{declassify,fan_out,finally}` precedent).
+//! The settled attempt-loop failure channel — split from `task.rs` at the
+//! 1500-LOC wall (the `task/{declassify,fan_out,finally}` precedent).
 
 use crate::record::TaskErrorRecord;
 

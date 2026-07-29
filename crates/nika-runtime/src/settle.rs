@@ -655,12 +655,9 @@ fn push_spend_fields(
     }
 }
 
-/// F-P6 · the preview→commit binding evidence — the fired step's two
-/// digests (`preview_digest` · `commit_digest`, equal on an honest fire)
-/// and the gate refusal's `divergence: {preview, commit}` finding (one
-/// compact JSON text · the `child` row precedent). Absent stays absent:
-/// the un-gated verbs (infer · agent) and never-fired steps carry nothing.
-/// `pub(crate)`: the success terminal's emission lives in `emit_task`.
+/// F-P6 · the binding evidence — the fired step's digests (`preview_digest`
+/// · `commit_digest`) or the refusal's `divergence: {preview, commit}` finding
+/// (compact JSON text · the `child` row precedent). `pub(crate)` for `emit_task`.
 pub(crate) fn push_commit_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     evidence: Option<&crate::dispatch::commit::CommitEvidence>,
