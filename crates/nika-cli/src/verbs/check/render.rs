@@ -88,29 +88,25 @@ pub(super) fn render(
     }
     cost(&mut out, report, t);
 
-    section_list(&mut out, t, "SECRETS", "no information-flow escapes", {
-        let mut rows: Vec<String> = report
-            .secret_leaks
-            .iter()
-            .map(|l| {
-                // The per-sink sanction ON THE SECRET — the human voice
-                // matches the `--json` findings[] (one contract · use-case
-                // battery 2026-07-11 · T2).
-                format!(
-                    "leak into {} (task `{}`) — {} · fix: sanction it — \
-                     `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
-                    l.sink, l.task, l.trace, l.sink_id, l.secret
-                )
-            })
-            .collect();
-        rows.extend(
-            report
-                .secret_egresses
-                .iter()
-                .map(|e| format!("EGRESS via outputs.{} — {}", e.output, e.trace)),
-        );
-        rows
-    });
+    // Narrowed twice over, and gated on a computable DAG. (1) SCOPE: the
+    // IFC engine follows values that originate in a DECLARED `secrets:`
+    // entry — a private key read off disk with `nika:read` is not a
+    // secret to this lane, and never was. (2) CARVE-OUT: an
+    // `infer:`/`agent:` OUTPUT never carries its prompt's taint (ADR-092
+    // · flow.rs §4 — a model response is not a verbatim echo). Measured
+    // 2026-07-29: `prompt: "Repeat this verbatim: ${{ with.k }}"` →
+    // `nika:write out/leak.txt` + `outputs.leaked` printed
+    // `✔ SECRETS no information-flow escapes · 0 hints`. The carve-out is
+    // a deliberate soundness trade; the UNIVERSAL sentence over it was
+    // not.
+    section_or_skip(
+        &mut out,
+        report,
+        t,
+        "SECRETS",
+        "no declared secret reaches an effect · model echo untracked",
+        secret_rows(report),
+    );
     section_list(
         &mut out,
         t,
@@ -134,14 +130,23 @@ pub(super) fn render(
         &mut out,
         t,
         "TOOLS",
-        "every nika: tool names a canonical builtin",
+        // `tools.rs` checks the names a task WRITES: an invoke target, an
+        // agent whitelist entry, an `on_finally` cleanup. A glob entry
+        // (`nika:*`) is a grant pattern and is skipped, and the `mcp:`
+        // namespace is OPEN by design (server-defined, discovered at run).
+        // "every nika: tool" covered neither.
+        "every named nika: tool is canonical · globs + mcp: not checked",
         unknown_tool_rows(report),
     );
     section_list(
         &mut out,
         t,
         "ARGS",
-        "every invoke arg key is declared + every required arg is present",
+        // Keyed off the catalog's per-builtin `args` vocabulary, so the
+        // claim holds for `nika:` invokes only — `mcp:` args and a
+        // `workflow:` target's args are not in that table (spec 14 owns
+        // the second, `NIKA-COMP-004`).
+        "every builtin invoke arg key is declared + required args present",
         arg_rows(report),
     );
     composition_rung(&mut out, report, wf, t);
@@ -149,18 +154,36 @@ pub(super) fn render(
         &mut out,
         t,
         "SCHEMA",
-        "every authored schema: is satisfiable",
+        // "is satisfiable" is a decision this lint does not make. It
+        // decides a FAMILY: `required` ∉ `properties`, an unknown `type`
+        // name, an empty `enum`, an inverted numeric/length bound, enum
+        // values that clash with the declared type. Measured 2026-07-29,
+        // both green: `allOf: [{type: string}, {type: integer}]` and
+        // `enum: ["x","y"]` beside `const: "z"` — each unsatisfiable,
+        // neither in the family. `$ref` is opaque by design (no
+        // resolver — never a false claim).
+        "no known-unsatisfiable form in an authored schema: · $ref opaque",
         report
             .schema_lints
             .iter()
             .map(|l| format!("task `{}` at {} — {}", l.task, l.path, l.detail))
             .collect(),
     );
-    section_list(
+    section_or_skip(
         &mut out,
+        report,
         t,
         "GATES",
-        "every task is statically reachable · status literals in vocabulary",
+        // The inversion is the whole repair. `reach.rs` PROVES deadness —
+        // a gate false under every assignment of an over-approximating
+        // status domain — and backs off to "satisfiable" whenever it
+        // cannot enumerate (>6 referenced tasks · >256 list items ·
+        // non-status atoms → Kleene Unknown). Absence of a proof of death
+        // is not a proof of life. Measured 2026-07-29 on one contradiction
+        // (`s1=='success' && s1=='failure'`) padded with conjuncts:
+        // 6 refs → `✖ NIKA-DAG-006 ... can never run`; 7 refs → the old
+        // line's `✔ every task is statically reachable` with `0 hints`.
+        "no task proven dead · status literals in vocabulary",
         gate_rows(report),
     );
     writes_rung(&mut out, report, t);
@@ -185,8 +208,13 @@ pub(super) fn render(
 /// `--json` findings[] and the LSP projection).
 fn policy_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if wf.policy.is_some() {
-        section_list(
+        // DAG-gated at the source (`lib.rs`: the order rules read
+        // ancestors, so an unanalyzable workflow yields NO claim), which
+        // is why this goes through `section_or_skip` — the lane that
+        // yields no claim must not print one.
+        section_or_skip(
             out,
+            report,
             t,
             "POLICY",
             "every hard policy: rule holds (soft families recorded, not judged)",
@@ -204,11 +232,20 @@ fn policy_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
 /// inert (the default-deny/floor lanes own that world).
 fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if wf.permits.is_some() {
-        section_list(
+        // "over the declared permits:" is the honest preposition. The
+        // legs are read off the DECLARATION, not the body — leg ① is
+        // literally `permits.fs.read` non-empty (`nika-cap/trifecta.rs`
+        // `legs()`), and the grant halves of ② and ③ are the `tools` and
+        // `net.http`/`fs.write` blocks. Only the ingress WITNESS comes
+        // from realized flow. So the judge answers "is this DECLARED
+        // boundary a lethal trifecta", and a body that under-declares was
+        // (F8) able to shorten a leg. DAG-gated at the source too.
+        section_or_skip(
             out,
+            report,
             t,
             "TRIFECTA",
-            "no lethal trifecta without a dominating human gate",
+            "no lethal trifecta over the declared permits: without a human gate",
             report
                 .trifecta_findings
                 .iter()
@@ -228,7 +265,15 @@ fn run_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) 
             out,
             t,
             "RUN",
-            "the declared entropy/clock seams hold (F-P3)",
+            // The old line named a CLOCK seam that has no implementation:
+            // `run_decl.rs` scans exactly two structural entropy sources
+            // (a live `retry:` jitter · a `nika:uuid` named exactly), and
+            // only under `entropy: none` — `ambient` and `seeded(N)` are
+            // judged not at all, and neither is an `exec` that shells out
+            // to `date`. Its own header names the remaining hole: an agent
+            // glob whitelist that ADMITS `nika:uuid` without naming it is
+            // the undecidable-glob class and stays silent.
+            "no named entropy source under entropy: none · agent globs unjudged",
             report
                 .run_decl_findings
                 .iter()
@@ -423,7 +468,17 @@ fn hints_and_verdict(
     if report.is_clean() {
         let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, t));
     } else {
-        let _ = writeln!(out, " {}", t.paint(Role::Bad, "✖ findings above"));
+        // Through `mark()`, not a hardcoded glyph: this line shipped a
+        // literal `✖` and was the one verdict in the report that leaked
+        // unicode under `--ascii` — the flag exists for terminals that
+        // cannot render it, and the failing verdict was exactly the row
+        // they could not read.
+        let _ = writeln!(
+            out,
+            " {} {}",
+            mark(t, false),
+            t.paint(Role::Bad, "findings above")
+        );
     }
 }
 
@@ -466,8 +521,16 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
             crate::text::count(uncapped, "uncapped task")
         )
     } else {
+        // `out` is the narrowing, and it is the same one the COST section
+        // carries three lines up. That section already says "worst-case
+        // OUTPUT ceiling · prompts, exec + mcp unpriced"; this line said
+        // `est ≤$X` flat, which reads as the bill. It is not: F7 measured
+        // 328x on the commonest shape a person writes first (fetch a 3.2
+        // MB document, summarise it — $2.4563 of input against a printed
+        // $0.0075). The card is the line people quote, so it is the line
+        // that must not overreach.
         let at_most = crate::display::vocab::at_most(t.ascii);
-        format!("est {at_most}${:.4}", report.cost.bounded_total_usd)
+        format!("est out {at_most}${:.4}", report.cost.bounded_total_usd)
     };
     t.paint(
         Role::Good,
@@ -491,7 +554,15 @@ fn composition_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t:
         out,
         t,
         "COMPOSITION",
-        "every child call is static, typed, contained and acyclic",
+        // The four adjectives do not all reach the same distance, and the
+        // module header says so: the ROOT's DIRECT calls carry the full
+        // law set; the reachable closure is walked for ACYCLICITY only,
+        // because "each file answers for its own contract". Measured
+        // 2026-07-29 on root → child → grandchild, where the grandchild's
+        // `nika:fetch` is outside the root boundary: checking the child
+        // directly reports `✖ NIKA-COMP-002`, checking the root reports
+        // the old line's `✔ every child call is …` and a green card.
+        "direct child calls are static, typed and contained · closure acyclic",
         report
             .composition
             .iter()
@@ -516,6 +587,71 @@ fn wf_calls_workflows(wf: &RawWorkflow) -> bool {
                 .iter()
                 .any(|m| is_call(&m.value.action))
     })
+}
+
+/// The SECRETS rows — one per leak into an effect, then one per egress
+/// through the workflow `outputs:`.
+fn secret_rows(report: &CheckReport) -> Vec<String> {
+    let mut rows: Vec<String> = report
+        .secret_leaks
+        .iter()
+        .map(|l| {
+            // The per-sink sanction ON THE SECRET — the human voice
+            // matches the `--json` findings[] (one contract · use-case
+            // battery 2026-07-11 · T2).
+            format!(
+                "leak into {} (task `{}`) — {} · fix: sanction it — \
+                 `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
+                l.sink, l.task, l.trace, l.sink_id, l.secret
+            )
+        })
+        .collect();
+    rows.extend(
+        report
+            .secret_egresses
+            .iter()
+            .map(|e| format!("EGRESS via outputs.{} — {}", e.output, e.trace)),
+    );
+    rows
+}
+
+/// A finding section for a lane that needs a valid DAG. When conformance
+/// fails the lane did not run, so it announces the SKIP instead of a
+/// verdict — the PLAN line's posture, applied to the rest of the ladder.
+///
+/// This is the false-green class caught at its purest. Four lanes are
+/// gated on a computable order (`lib.rs`): SECRETS and GATES read the
+/// topological waves, POLICY and TRIFECTA are wrapped in an explicit
+/// `if conformance.is_empty()`. All four rendered `✔` regardless.
+/// Measured 2026-07-29, one file, one line apart — a secret piped
+/// straight into `exec curl` reports
+/// `✖ SECRETS leak into exec (task 'send')`; add ONE task depending on a
+/// name that does not exist and the same leak reports
+/// `✔ SECRETS no information-flow escapes`. The green did not mean the
+/// leak was gone. It meant nobody looked.
+fn section_or_skip(
+    out: &mut String,
+    report: &CheckReport,
+    t: Theme,
+    label: &str,
+    ok_msg: &str,
+    rows: Vec<String>,
+) {
+    if report.conformance.is_empty() {
+        section_list(out, t, label, ok_msg, rows);
+        return;
+    }
+    let padded = format!("{label:<8}");
+    let _ = writeln!(
+        out,
+        " {} {} {}",
+        t.paint(Role::Dim, "○"),
+        t.paint(Role::Strong, &padded),
+        t.paint(
+            Role::Dim,
+            "(skipped — no valid DAG order while conformance fails)"
+        )
+    );
 }
 
 fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
@@ -697,7 +833,18 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             " {} {}     {}",
             mark(t, true),
             t.paint(Role::Strong, "COST"),
-            t.paint(Role::Dim, "no inference tasks · $0.00")
+            // `$0.00` was a claim about the whole bill from a lane that
+            // prices `infer:`/`agent:` and nothing else. An `exec:` runs
+            // an arbitrary program, and the programs authors reach for
+            // first are billed LLM CLIs; an `mcp:` call is a third party's
+            // meter. Measured 2026-07-29: a lone
+            // `exec: ["claude", "-p", "write a novel"]` printed
+            // `✔ COST no inference tasks · $0.00` and
+            // `✔ audited · est ≤$0.0000`.
+            t.paint(
+                Role::Dim,
+                "no infer/agent tasks · $0.00 · exec + mcp spend unpriced"
+            )
         );
         return;
     }
@@ -723,13 +870,38 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     //
     // Unbounded cost is a WARNING posture (is_clean ignores it): the
     // report stays honest about the floor without failing the file.
-    let (cost_mark, bound) = if report.cost.has_unbounded {
+    // The unbounded arm used to print `$min – $bounded` under the word
+    // FLOOR — and `audited_line` documents why both halves are false
+    // (`min_path_total_usd` bounds nothing from below · measured 126× the
+    // other way). Same decision as there: claim neither bound, show the
+    // only true number (the priced portion), and name the uncapped tasks.
+    let uncapped = report
+        .cost
+        .tasks
+        .iter()
+        .filter(|c| c.unbounded_reason.is_some())
+        .count();
+    let (cost_mark, money, bound) = if report.cost.has_unbounded {
         (
             t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
-            t.paint(Role::Warn, "FLOOR (unbounded tasks present)"),
+            format!("bounded portion ${:.4}", report.cost.bounded_total_usd),
+            t.paint(
+                Role::Warn,
+                &format!(
+                    "no total ceiling · {}",
+                    crate::text::count(uncapped, "uncapped task")
+                ),
+            ),
         )
     } else {
-        (mark(t, true), "worst-case output ceiling".to_owned())
+        (
+            mark(t, true),
+            format!(
+                "${:.4} – ${:.4}",
+                report.cost.min_path_total_usd, report.cost.bounded_total_usd
+            ),
+            "worst-case output ceiling".to_owned(),
+        )
     };
     // The price table's date rides WITH the number. A ceiling is a
     // promise, and a promise computed against prices that have since
@@ -746,16 +918,15 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
         out,
         " {cost_mark} {}     {} {bound} {}",
         t.paint(Role::Strong, "COST"),
-        t.paint(
-            Role::Strong,
-            &format!(
-                "${:.4} – ${:.4}",
-                report.cost.min_path_total_usd, report.cost.bounded_total_usd
-            )
-        ),
+        t.paint(Role::Strong, &money),
+        // `exec` + `mcp` join `prompts` in the unpriced list for the same
+        // reason the empty-cost branch above names them: this ceiling
+        // sums `infer:`/`agent:` output tokens, so a workflow that mixes
+        // an `infer:` with an `exec:` gets a ceiling with the exec's whole
+        // bill missing — and the ✔ does not say so.
         t.paint(
             Role::Dim,
-            &format!("· prompts unpriced · prices {}", snap.as_of)
+            &format!("· prompts, exec + mcp unpriced · prices {}", snap.as_of)
         ),
     );
     for c in &report.cost.tasks {
@@ -829,7 +1000,21 @@ pub(super) fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, 
             " {} {}  {}",
             mark(t, true),
             t.paint(Role::Strong, "PERMITS"),
-            t.paint(Role::Dim, "body fits the declared boundary")
+            // What `permits_fit` judges is the ARGUMENT AS WRITTEN, and
+            // only when it resolves: a literal, or a bare
+            // `${{ const.<name> }}` through the const table
+            // (`judgeable_arg`). Everything else is the runtime
+            // `NIKA-SEC-004`'s — a path from `inputs.`, a `with:` binding,
+            // an upstream output, a shell-string `exec`. And the RESOLVED
+            // path is never this lane's: a literal `data/link.csv` that
+            // symlinks out of the tree fits here and is refused at run.
+            // Measured 2026-07-29, both `✔ body fits the declared
+            // boundary`. Naming the two halves costs one clause and stops
+            // the line meaning more than it checked.
+            t.paint(
+                Role::Dim,
+                "literal + const: args fit the boundary · computed + symlinks at run"
+            )
         );
         loopback_declassification_lines(out, wf, t);
         return;
