@@ -226,55 +226,7 @@ fn validate_pricing(rules: &[PricingEntry], path: &Path) -> Result<(), CodegenEr
             ));
         }
 
-        validate_rate(entry.input_per_million, "input_per_million", &ctx)?;
-        validate_rate(entry.output_per_million, "output_per_million", &ctx)?;
-        if let Some(v) = entry.cache_write_per_million {
-            validate_rate(v, "cache_write_per_million", &ctx)?;
-        }
-        if let Some(v) = entry.cache_read_per_million {
-            validate_rate(v, "cache_read_per_million", &ctx)?;
-        }
-        if let Some(v) = entry.image_per_million {
-            validate_rate(v, "image_per_million", &ctx)?;
-        }
-        if let Some(v) = entry.reasoning_tokens_per_million {
-            validate_rate(v, "reasoning_tokens_per_million", &ctx)?;
-        }
-
-        // Upstream facts (@1.2). A stored zero is the failure mode this
-        // schema exists to prevent — upstream writes 0 for "not
-        // applicable" (image · video · speech models), and a 0 read as a
-        // ceiling reports the least-bounded model as the most-bounded.
-        // The generator drops those; a zero arriving here is a generator
-        // bug, so it fails the build rather than ship a false limit.
-        validate_token_limit(entry.max_output_tokens, "max_output_tokens", &ctx)?;
-        validate_token_limit(entry.context_window_tokens, "context_window_tokens", &ctx)?;
-        if let Some(s) = entry.status.as_deref() {
-            validate_status(s, &ctx)?;
-        }
-
-        // Research facts (@1.3). Same absence law as the upstream facts —
-        // and one rule harder: a present claim must carry its whole chain
-        // of custody (value · provenance · scope · source · date), because
-        // an unattributed energy number is exactly the class of plausible
-        // garbage this catalog exists to keep out.
-        if let Some(e) = entry.energy.as_ref() {
-            validate_energy(e, &ctx)?;
-        }
-        if let Some(t) = entry.tokenizer.as_deref() {
-            validate_tokenizer(t, &ctx)?;
-        }
-        if let Some(d) = entry.determinism.as_deref() {
-            validate_determinism(d, &ctx)?;
-        }
-
-        // NOTE: `max_output_tokens <= context_window_tokens` is NOT checked.
-        // It is not a property of the upstream snapshot — on non-text
-        // models the two count different units, and 10 of the 633 rules in
-        // the vendored 2026-07-28 snapshot have output > context. That invariant
-        // (NIKA-014) governs our hand-authored capability rules, where we
-        // choose the numbers; here we mirror somebody else's catalog and
-        // must be able to mirror it faithfully.
+        validate_entry_facts(entry, &ctx)?;
     }
 
     // Ordering invariant: within each provider, more specific patterns must come first.
@@ -301,6 +253,59 @@ fn validate_pricing(rules: &[PricingEntry], path: &Path) -> Result<(), CodegenEr
                 }
             }
         }
+    }
+    Ok(())
+}
+
+/// One entry's per-field facts — rates, upstream limits, research claims.
+///
+/// Upstream facts (@1.2): a stored zero is the failure mode this schema
+/// exists to prevent — upstream writes 0 for "not applicable" (image ·
+/// video · speech models), and a 0 read as a ceiling reports the
+/// least-bounded model as the most-bounded. The generator drops those; a
+/// zero arriving here is a generator bug, so it fails the build.
+///
+/// Research facts (@1.3): same absence law, one rule harder — a present
+/// claim carries its whole chain of custody (value · provenance · scope ·
+/// source · date), because an unattributed energy number is exactly the
+/// class of plausible garbage this catalog exists to keep out.
+///
+/// `max_output_tokens <= context_window_tokens` is deliberately NOT
+/// checked: on non-text models the two count different units, and 10 of
+/// the 633 rules in the vendored 2026-07-28 snapshot have output >
+/// context. That invariant (NIKA-014) governs our hand-authored
+/// capability rules; here we mirror somebody else's catalog and must be
+/// able to mirror it faithfully.
+fn validate_entry_facts(entry: &PricingEntry, ctx: &str) -> Result<(), CodegenError> {
+    validate_rate(entry.input_per_million, "input_per_million", ctx)?;
+    validate_rate(entry.output_per_million, "output_per_million", ctx)?;
+    if let Some(v) = entry.cache_write_per_million {
+        validate_rate(v, "cache_write_per_million", ctx)?;
+    }
+    if let Some(v) = entry.cache_read_per_million {
+        validate_rate(v, "cache_read_per_million", ctx)?;
+    }
+    if let Some(v) = entry.image_per_million {
+        validate_rate(v, "image_per_million", ctx)?;
+    }
+    if let Some(v) = entry.reasoning_tokens_per_million {
+        validate_rate(v, "reasoning_tokens_per_million", ctx)?;
+    }
+
+    validate_token_limit(entry.max_output_tokens, "max_output_tokens", ctx)?;
+    validate_token_limit(entry.context_window_tokens, "context_window_tokens", ctx)?;
+    if let Some(s) = entry.status.as_deref() {
+        validate_status(s, ctx)?;
+    }
+
+    if let Some(e) = entry.energy.as_ref() {
+        validate_energy(e, ctx)?;
+    }
+    if let Some(t) = entry.tokenizer.as_deref() {
+        validate_tokenizer(t, ctx)?;
+    }
+    if let Some(d) = entry.determinism.as_deref() {
+        validate_determinism(d, ctx)?;
     }
     Ok(())
 }
@@ -959,14 +964,17 @@ energy = { wh_per_mtok_out = 42.0, provenance = "independent-measured", scope = 
         e.tokenizer = Some("o200k_base".to_string());
         e.determinism = Some("seed".to_string());
         let s = generate_pricing_rs(&fixture_meta(), &[e]);
-        assert!(
-            s.contains(
-                "energy: Some(crate::types::model::ModelEnergy { wh_per_mtok_out: 42.0, \
-                 provenance: \"independent-measured\", scope: \"gpu\", \
-                 source: \"ml.energy v3.0 · B200 · vLLM 0.11.1\", measured_at: \"2025-12\" })"
-            ),
-            "got: {s}"
+        // concat! of single-line literals (a `\`-continuation string here
+        // would blind the fn-length gate's line-based literal stripping).
+        let energy = concat!(
+            "energy: Some(crate::types::model::ModelEnergy { ",
+            "wh_per_mtok_out: 42.0, ",
+            "provenance: \"independent-measured\", ",
+            "scope: \"gpu\", ",
+            "source: \"ml.energy v3.0 · B200 · vLLM 0.11.1\", ",
+            "measured_at: \"2025-12\" })"
         );
+        assert!(s.contains(energy), "got: {s}");
         assert!(s.contains("tokenizer: Some(\"o200k_base\")"), "got: {s}");
         assert!(s.contains("determinism: Some(\"seed\")"), "got: {s}");
     }
