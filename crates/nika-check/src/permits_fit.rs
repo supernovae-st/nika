@@ -313,10 +313,35 @@ fn absent_effect_escape(
     consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
+    // THE RESOURCE defers; THE TOOL AUTHORITY does not.
+    //
+    // Both arms below used to `return` on an unjudgeable argument, which
+    // dropped the whole finding — including a conjunct that never depended on
+    // the argument. Under an ABSENT `permits:` block F-O8 makes every category
+    // empty, so `permits.tools` grants nothing and the invoke cannot run
+    // WHATEVER the url or path turns out to be. That is a certainty, not a
+    // guess, and it was being waived along with the part that genuinely is one.
+    //
+    // Measured 2026-07-29, one cell of a four-cell matrix:
+    //
+    //   literal url            · no permits   check AUTH-006 · run AUTH-006
+    //   `${{ const.x }}`       · no permits   check AUTH-006 · run AUTH-006
+    //   `${{ const.x }}/tail`  · no permits   check GREEN    · run SEC-004
+    //   `${{ const.x }}/tail`  · permits: {}  check SEC-004  · run SEC-004
+    //
+    // A shipped template sat in the green cell. Interpolating a const into a
+    // LARGER string is not a bare reference, so it stays dynamic — correctly —
+    // and the tool conjunct went down with it.
+    //
+    // Per the waiver rule in `lib.rs`: the sub-question that survives is « is
+    // this tool granted at all », which is a set-emptiness test. « which host
+    // or path » is the part that really does belong to the runtime, and it
+    // still does.
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             if judgeable_arg(consts, a, url_arg).is_none() {
-                return; // computed at run time · the runtime refuses
+                escapes_tool(id, "invoke", tool, out);
+                return;
             }
             out.push(CapabilityEscape {
                 task: id.to_owned(),
@@ -333,7 +358,8 @@ fn absent_effect_escape(
         }
         Some(BuiltinEffect::Fs { path_arg, .. }) => {
             if judgeable_arg(consts, a, path_arg).is_none() {
-                return; // computed at run time · the runtime refuses
+                escapes_tool(id, "invoke", tool, out); // the decidable conjunct
+                return;
             }
             out.push(CapabilityEscape {
                 task: id.to_owned(),
@@ -478,17 +504,60 @@ fn check_builtin_effect(
             if let Some(host) = judgeable_arg(consts, a, url_arg)
                 .as_deref()
                 .and_then(url_host)
-                && !nika_types::net::host_is_blocked(&host)
-                && !permits.allows_host(&host)
             {
-                out.push(CapabilityEscape {
-                    task: id.to_owned(),
-                    category: "net",
-                    detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
-                    fix: Some(format!("add \"{host}\" to permits.net.http")),
-                    floor: false,
-                    undeclared: false,
-                });
+                if !nika_types::net::host_is_blocked(&host) && !permits.allows_host(&host) {
+                    out.push(CapabilityEscape {
+                        task: id.to_owned(),
+                        category: "net",
+                        detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
+                        fix: Some(format!("add \"{host}\" to permits.net.http")),
+                        floor: false,
+                        undeclared: false,
+                    });
+                }
+            } else {
+                // WHICH host is unknowable · whether ANY host is granted is not.
+                //
+                // `permits.net.http` empty (or the whole `net:` block absent)
+                // grants zero hosts, so every host lies outside it and the run
+                // CANNOT succeed — a set-emptiness test, decidable without ever
+                // learning the value. Measured 2026-07-29 on a `nika:notify`
+                // whose target is a secret, all three arms of the boundary:
+                //
+                //   net.http absent      check GREEN · run NIKA-SEC-004
+                //   net.http []          check GREEN · run NIKA-SEC-004
+                //   net.http [other]     check GREEN · run NIKA-SEC-004
+                //
+                // Seven shipped showcase files sat in the first two. The third
+                // arm stays silent here and MUST: with a non-empty allowlist the
+                // static pass genuinely does not know whether the runtime host is
+                // in it, and guessing would be the false-refusal this checker
+                // must not make either.
+                //
+                // Per the waiver rule in `lib.rs`, this is the sub-question that
+                // survives « the host is inside a secret, so we cannot judge it ».
+                let grants_nothing = permits.net.as_ref().is_none_or(|n| n.http.is_empty());
+                if grants_nothing {
+                    out.push(CapabilityEscape {
+                        task: id.to_owned(),
+                        category: "net",
+                        detail: format!(
+                            "`{tool}` reaches a host computed at run time, and \
+                             permits.net.http grants none — every host is outside \
+                             an empty allowlist, so the run is refused whatever \
+                             the value turns out to be"
+                        ),
+                        fix: Some(
+                            "add the host to permits.net.http (a secret-borne \
+                             webhook still needs its host named: `egress:` \
+                             sanctions the FLOW, permits.net.http grants the \
+                             CAPABILITY · spec 01-envelope §③)"
+                                .to_owned(),
+                        ),
+                        floor: false,
+                        undeclared: false,
+                    });
+                }
             }
         }
         Some(BuiltinEffect::Fs {
@@ -1491,9 +1560,25 @@ tasks:
     invoke: { tool: "nika:fetch", args: { url: "${{ inputs.target }}" } }
 "#;
         let e = escapes(dynamic);
+        // The RESOURCE defers · the TOOL AUTHORITY does not. This used to
+        // assert nothing fires at all, which conflated two conjuncts: the
+        // host is genuinely unknowable here (law 3), but `permits.tools`
+        // under an absent block grants nothing, so the invoke cannot run
+        // whatever the url turns out to be. Measured on this exact shape,
+        // check and run now return the SAME code:
+        //   check NIKA-AUTH-006 · tools     run NIKA-AUTH-006
+        assert_eq!(
+            e.len(),
+            1,
+            "the tool conjunct survives a dynamic url: {e:?}"
+        );
+        assert_eq!(
+            e[0].category, "tools",
+            "and it is the TOOL, not the host: {e:?}"
+        );
         assert!(
-            e.is_empty(),
-            "dynamic resource under absent = runtime concern (NEP-0003 law 3): {e:?}"
+            !e.iter().any(|x| x.floor),
+            "the floor never saw a host, so it cannot fire (NEP-0003 law 3): {e:?}"
         );
         // A `const.`-backed URL is NOT dynamic and is judged. This half of
         // the test used to assert silence with `const:` in the same slot,
@@ -1527,6 +1612,63 @@ tasks:
         assert!(
             e.iter().any(|x| x.floor),
             "a const-backed loopback target floors at CHECK time, not at run: {e:?}"
+        );
+    }
+
+    /// An empty `net.http` is a CERTAIN run failure · a non-empty one is not.
+    ///
+    /// F13. A `nika:notify` whose target rides a secret has a host no static
+    /// pass can learn, and the whole question looked closed on that ground.
+    /// It is two questions:
+    ///
+    ///   which host?        undecidable · the secret carries it
+    ///   is there ANY host? decidable · set emptiness
+    ///
+    /// Seven shipped showcase files were green at check and refused at run
+    /// with `NIKA-SEC-004` for exactly this. The third arm below is the one
+    /// that must STAY silent: with a non-empty allowlist the checker does not
+    /// know whether the runtime host is in it, and a finding there would be
+    /// the false refusal this checker must not make either. So the test pins
+    /// both directions, because a fix that also fired on arm three would look
+    /// like an improvement and be a regression.
+    #[test]
+    fn an_empty_net_allowlist_is_decidable_a_populated_one_is_not() {
+        let wf = |net: &str| {
+            format!(
+                r#"nika: v1
+workflow:
+  id: n
+secrets:
+  hook:
+    source: env
+    key: H
+    egress:
+      - to: "nika:notify"
+        host_from_self: true
+permits:
+  tools: ["nika:notify"]
+{net}tasks:
+  send:
+    invoke:
+      tool: "nika:notify"
+      args: {{ channel: webhook, target: "${{{{ secrets.hook }}}}", message: "x" }}
+"#
+            )
+        };
+        for (label, net) in [("absent", ""), ("empty", "  net:\n    http: []\n")] {
+            let e = escapes(&wf(&net.replace("\\n", "\n")));
+            assert!(
+                e.iter().any(|x| x.category == "net"),
+                "net.http {label} grants no host, so the run cannot succeed: {e:?}"
+            );
+        }
+        let populated = escapes(&wf("  net:\n    http: [\"api.shop.example.com\"]\n"
+            .replace("\\n", "\n")
+            .as_str()));
+        assert!(
+            !populated.iter().any(|x| x.category == "net"),
+            "a populated allowlist is NOT decidable from here — the secret's host \
+             may or may not be in it, and a finding would be a false refusal: {populated:?}"
         );
     }
 

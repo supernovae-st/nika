@@ -971,3 +971,85 @@ omission. Same shape.
 If it recurs, the thing to capture is the ENVIRONMENT — parent pid, what holds
 the tty, whether the nika process is actually gone — not another repro of the
 command, which is now known to work.
+
+---
+
+# F13 + F16 · the decidable conjunct, recovered twice · the class rule's first two applications
+
+Both were found before the waiver rule was written, and both were repaired
+BY it — which is the only evidence that matters for a ratchet.
+
+## F16 · the tool conjunct went down with the argument
+
+`absent_effect_escape` did this:
+
+```rust
+if judgeable_arg(consts, a, url_arg).is_none() {
+    return; // computed at run time · the runtime refuses
+}
+```
+
+The `return` dropped the WHOLE finding, including a conjunct that never
+depended on the argument. Under an ABSENT `permits:` block F-O8 makes every
+category empty, so `permits.tools` grants nothing and the invoke cannot run
+whatever the url turns out to be.
+
+Four cells, one diverged:
+
+```
+literal url            no permits   check AUTH-006 · run AUTH-006
+`${{ const.x }}`       no permits   check AUTH-006 · run AUTH-006
+`${{ const.x }}/tail`  no permits   check GREEN    · run SEC-004   ← the cell
+`${{ const.x }}/tail`  permits: {}  check SEC-004  · run SEC-004
+```
+
+A shipped template sat in it. Interpolating a const into a LARGER string is not
+a bare reference, so it stays dynamic — correctly — and the tool conjunct went
+down with it. Fixed by falling through to `escapes_tool` instead of returning;
+all four cells now agree, and the message names the TOOL rather than the host,
+because the host is still genuinely unknown.
+
+## F13 · an empty allowlist is a set-emptiness test
+
+A `nika:notify` whose target rides a secret has a host no static pass can
+learn. That looked like the end of it. It is two questions:
+
+```
+which host?         undecidable · the secret carries it
+is there ANY host?  decidable · set emptiness
+```
+
+Measured across the boundary's three arms, before:
+
+```
+net.http absent    check GREEN · run NIKA-SEC-004
+net.http []        check GREEN · run NIKA-SEC-004
+net.http [other]   check GREEN · run NIKA-SEC-004
+```
+
+Seven shipped showcase files sat in the first two. After: the first two refuse
+at check, and **the third stays green on purpose.** With a non-empty allowlist
+the checker does not know whether the runtime host is in it, and a finding
+there would be a false refusal — the mirror error, and the one a careless fix
+would have introduced while looking like an improvement. The test pins both
+directions for exactly that reason.
+
+The diagnostic also carries the distinction the corpus got wrong today:
+
+> `egress:` sanctions the FLOW, `permits.net.http` grants the CAPABILITY ·
+> spec 01-envelope §③
+
+## What these two say about the ratchet
+
+The rule was written after four instances and immediately produced two repairs
+in the next hour. That is the test a ratchet has to pass: not "does the doctrine
+read well" but "does it change what the next person does". The prompt did the
+work —
+
+> *What is the strongest claim I CAN decide here, and does the code make it?*
+
+— and in both cases the answer was sitting one line away from a `return`.
+
+Worth noting what did NOT change: the resource half of both findings still
+defers to the runtime, and correctly. The repair was never "check more"; it was
+"stop discarding the part you had already decided".
