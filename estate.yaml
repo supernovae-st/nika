@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 58
-  aggregate_sha256: b8b68563236ef09143f84099972518b3707a7c7ff60bbd7d2413ac2554f96fc1
+  aggregate_sha256: fa5d0701f2ba8711e7514a1bddb053e8e30a4e430864c0beae64c149c4d45954
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 20
-  aggregate_sha256: cd9a518135272d9af68066cd292f583af51ed94755eabbbeef0e1f9aa95b0127
+  aggregate_sha256: b1bd0eb79efcf60e1b45865ea0ac9ab718fa151a5f146e6f5820bc70801ea70a
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
