@@ -159,6 +159,24 @@ Full rules: [`.claude/rules/commit-granularity.md`](.claude/rules/commit-granula
 
 ---
 
+## Developer Certificate of Origin
+
+Every PR commit carries a `Signed-off-by` trailer matching the commit
+author ([DCO 1.1](https://developercertificate.org) — the Linux-kernel
+convention, the lightweight alternative to a CLA). Signing off certifies
+you have the right to submit the change under AGPL-3.0-or-later.
+
+```
+git commit -s                       # appends: Signed-off-by: Your Name <your-commit-email>
+git rebase --signoff origin/main    # repair an existing branch, then force-push it
+```
+
+CI enforces this on every PR (`.github/workflows/dco.yml`). Merge
+commits and bot-authored commits (`*[bot]`) are exempt, so the heal
+lanes keep flowing.
+
+---
+
 ## Pull request expectations
 
 - **Atomic.** One logical change per PR. No "feat + refactor + docs" bundles.

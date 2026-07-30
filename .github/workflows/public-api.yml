@@ -12,12 +12,19 @@ on:
       - 'crates/**/public-api.txt'
       - 'scripts/ci/public-api-coverage-baseline.txt'
       - '.github/workflows/public-api.yml'
-  # Also run on direct pushes to non-main branches. The Diamond rebuild commits
-  # straight to its feature branch, so a PR-only trigger let the committed
-  # baselines drift silently (caught only when a PR finally opened). main stays
-  # PR-gated, so it is excluded to avoid a redundant re-run after merge.
+  # Run on direct pushes to EVERY branch, main included. The Diamond rebuild
+  # commits straight to its feature branch, so a PR-only trigger let the
+  # committed baselines drift silently (caught only when a PR finally opened).
+  #
+  # main was excluded until 2026-07-30 on the assumption that it stays
+  # PR-gated, which made a redundant post-merge re-run the only cost of
+  # including it. That assumption is false for this org: supernovae-st is
+  # direct-push and main receives commits that never pass through a PR, so the
+  # exclusion was a blind spot exactly the size of the direct-push flow —
+  # measured that day at 352 drifted lines across nine crates, invisible
+  # because a gate that never fires reads exactly like a gate that passes.
+  # One redundant run per merge is the cheaper half of that trade.
   push:
-    branches-ignore: ['main']
     paths:
       - 'crates/**/src/**'
       - 'crates/**/Cargo.toml'

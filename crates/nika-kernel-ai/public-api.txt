@@ -1127,8 +1127,10 @@ pub nika_kernel_ai::provider::InferResponse::trace_id: core::option::Option<nika
 pub nika_kernel_ai::provider::InferResponse::trust_level: core::option::Option<nika_types::trust::TrustLevel>
 pub nika_kernel_ai::provider::InferResponse::ttft_ms: core::option::Option<u64>
 pub nika_kernel_ai::provider::InferResponse::usage: nika_types::token_usage::TokenUsage
+pub nika_kernel_ai::provider::InferResponse::usage_reported: bool
 impl nika_kernel_ai::provider::InferResponse
 pub fn nika_kernel_ai::provider::InferResponse::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, usage: nika_types::token_usage::TokenUsage, stop_reason: nika_kernel_ai::provider::StopReason) -> Self
+pub fn nika_kernel_ai::provider::InferResponse::with_usage_reported(self, reported: bool) -> Self
 impl core::clone::Clone for nika_kernel_ai::provider::InferResponse
 pub fn nika_kernel_ai::provider::InferResponse::clone(&self) -> nika_kernel_ai::provider::InferResponse
 impl core::fmt::Debug for nika_kernel_ai::provider::InferResponse

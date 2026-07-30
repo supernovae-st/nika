@@ -57,6 +57,11 @@ impl<T> nika_error::traits::AsAny for nika_onboard::founding::CanvasTheme where 
 pub fn nika_onboard::founding::CanvasTheme::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_onboard::founding::CanvasTheme where T: core::marker::Copy
 pub fn nika_onboard::founding::CanvasTheme::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::founding::CanvasTheme where T: ?core::marker::Sized
+pub fn nika_onboard::founding::CanvasTheme::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::founding::CanvasTheme::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::founding::CanvasTheme
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::founding::CanvasTheme
 impl<T> typenum::type_operators::Same for nika_onboard::founding::CanvasTheme
 pub type nika_onboard::founding::CanvasTheme::Output = T
 pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
@@ -96,6 +101,11 @@ impl<T> core::convert::From<T> for nika_onboard::Outcome
 pub fn nika_onboard::Outcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_onboard::Outcome where T: 'static
 pub fn nika_onboard::Outcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::Outcome where T: ?core::marker::Sized
+pub fn nika_onboard::Outcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::Outcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::Outcome
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::Outcome
 impl<T> typenum::type_operators::Same for nika_onboard::Outcome
 pub type nika_onboard::Outcome::Output = T
 pub type nika_onboard::Audit<'a> = (dyn core::ops::function::Fn(&str) -> nika_onboard::Outcome + 'a)

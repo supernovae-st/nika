@@ -471,6 +471,8 @@ pub const nika_error::codes::NIKA_1707: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1707: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1708: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1708: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1709: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1709: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_430: nika_error::codes::NikaCode
@@ -481,6 +483,8 @@ pub const nika_error::codes::NIKA_432: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_432: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_433: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_433: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_434: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_434: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_440: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_440: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_441: nika_error::codes::NikaCode
@@ -511,6 +515,8 @@ pub const nika_error::codes::NIKA_467: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_467: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_468: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_468: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_469: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_469: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_601: nika_error::codes::NikaCode
@@ -858,11 +864,13 @@ pub const nika_error::prelude::codes::NIKA_1705: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1706: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1707: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1708: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1709: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_430: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_431: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_432: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_433: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_434: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_440: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_441: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_442: nika_error::codes::NikaCode
@@ -878,6 +886,7 @@ pub const nika_error::prelude::codes::NIKA_465: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_466: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_467: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_468: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_469: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_601: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_602: nika_error::codes::NikaCode

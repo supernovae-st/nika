@@ -343,7 +343,7 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Named workflow law · hard families are judged at check, soft families are only recorded. Hard is require/forbid/allow/limits (NIKA-POLICY-001) · soft is prefer/optimize, never judged in v1 (spec/10-authority.md).",
+      "description": "Named workflow law · hard families are judged at check, soft families are only recorded. Hard is require/forbid/allow/limits/endorsement (NIKA-POLICY-001 · the endorsement mode speaks NIKA-SEC-013) · soft is prefer/optimize, never judged in v1 (spec/10-authority.md).",
       "properties": {
         "require": {
           "type": "object",
@@ -425,6 +425,12 @@
             "quality"
           ],
           "description": "SOFT · declared objective · recorded, never judged (v1)."
+        },
+        "endorsement": {
+          "enum": [
+            "solo"
+          ],
+          "description": "HARD · the NAMED solo mode of endorsement (NEP-0014 · F-P23) · judged at check: a human gate under no declared mode refuses (NIKA-SEC-013 · fail-closed), and a declared solo with more than one gate refuses as the declaration lying."
         }
       }
     },

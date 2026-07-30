@@ -17,7 +17,7 @@
 | files | `read` · `write` · `edit` · `glob` · `grep` | ✅ full |
 | databases | — | ✅ **deliberate** · `mcp:<server>/<tool>` (e.g. `mcp:postgres/query`) |
 | memory / recall | — | ✅ **deliberate** · `mcp:memory-server/*` today · `nika:connectome/*` reserved ([08 §Connectome](../spec/08-out-of-scope.md)) |
-| workflow composition | — | ✅ **deliberate** · deferred `nika:run` + recursion guard ([08 §composition](../spec/08-out-of-scope.md)) |
+| workflow composition | — | ✅ **deliberate** · never a builtin — the `invoke: workflow:` tagged union ([14-composition](../spec/14-composition.md) · the once-proposed `nika:run` is abandoned) |
 | time | `wait` (relative XOR absolute) · `date` | ✅ |
 | hash / crypto | `hash` | ✅ hashing · signing/encryption = deliberate absence (B2) |
 | notify / human | `notify` · `prompt` (blocking approval) | ✅ full |

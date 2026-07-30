@@ -42,7 +42,7 @@ multi-agent swarm without ever leaving validated ground.
 | [`resume-screener`](resume-screener.nika.yaml) | HR / recruiting | one local-model rubric per candidate · PII stays home | `ollama/…` · `for_each` · schema enums · jq sort_by |
 | [`deep-research-brief`](deep-research-brief.nika.yaml) | research / VC | plan → budgeted agent → thinking synthesis | plan-then-execute · budgets · `thinking:` |
 | [`incident-war-room`](incident-war-room.nika.yaml) | SRE / on-call | the postmortem drafts itself — after recovery is PROVEN | `nika:wait` settle · assert · `on_finally:` |
-| [`ceo-monday-brief`](ceo-monday-brief.nika.yaml) | founders / execs | the brief that reports its own LLM bill | 3-branch gather · `nika:inspect` cost |
+| [`ceo-monday-brief`](ceo-monday-brief.nika.yaml) | founders / execs | the Monday brief assembles itself — and the human decision sits at the ROOT of the lethal trifecta | 3-branch gather · root `nika:prompt` gate · capped synthesis |
 | [`release-train`](release-train.nika.yaml) | devops / release | gates → human GO → hold until the window → ship · verify | `nika:wait until:` · `nika:date diff` · `nika:prompt` |
 
 ## Clone and run

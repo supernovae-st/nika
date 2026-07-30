@@ -42,13 +42,13 @@ templates:
   - file: templates/docker-report.nika.yaml
     sha256_16: d038441485332a70
   - file: templates/etl-state.nika.yaml
-    sha256_16: e8d2b3c79e7057f1
+    sha256_16: 2ddc8e379f32352d
   - file: templates/fanout.nika.yaml
     sha256_16: 1b480f5fe640f8e2
   - file: templates/gate-and-act.nika.yaml
     sha256_16: edfd4419aafaa80a
   - file: templates/human-gated-ship.nika.yaml
-    sha256_16: 6ef2b50c6225afb1
+    sha256_16: a399503dc5c9d6b7
   - file: templates/media-asset-pack.nika.yaml
     sha256_16: 7fb6f21d24b378d5
   - file: templates/website-brief.nika.yaml
@@ -63,7 +63,7 @@ showcase:
     workflow: {'id': 'ceo-monday-brief', 'description': 'news + repo pulse + KPIs → one synthesis → dated brief → a ping on every outcome'}
     description: ""
     constructs: [local_model, on_error, output, outputs, secrets, thinking, when, with]
-    sha256_16: 9355efa2370ebd2d
+    sha256_16: 53ef64c1ff5f4114
   - file: examples/competitor-radar.nika.yaml
     workflow: {'id': 'competitor-radar', 'description': 'sitemap → what changed this window → parallel page reads → one brief'}
     description: ""
@@ -103,12 +103,12 @@ showcase:
     workflow: {'id': 'incident-war-room', 'description': 'parallel evidence → typed timeline → settle + recheck → refuse or draft → record'}
     description: ""
     constructs: [local_model, on_error, outputs, retry, schema, secrets, thinking, when, with]
-    sha256_16: f7784acc33886285
+    sha256_16: e0316d28f9a969f2
   - file: examples/invoice-chaser.nika.yaml
     workflow: {'id': 'invoice-chaser', 'description': 'Ledger CSV → overdue filter → drafted reminders → human gate → drafts file'}
     description: ""
     constructs: [local_model, outputs, when, with]
-    sha256_16: a655c503cbaf06a1
+    sha256_16: 698e3ab44c00d911
   - file: examples/localization-factory.nika.yaml
     workflow: {'id': 'localization-factory', 'description': 'glob docs → parallel read → parallel translate → mirror tree'}
     description: ""
@@ -153,7 +153,7 @@ showcase:
     workflow: {'id': 'release-train', 'description': 'parallel gates → one verdict → human GO → hold until the window → ship · verify · record'}
     description: ""
     constructs: [outputs, retry, timeout, when, with]
-    sha256_16: 1eec121e737c0211
+    sha256_16: 52a48b3df7442ad6
   - file: examples/resume-screener.nika.yaml
     workflow: {'id': 'resume-screener', 'description': 'glob CVs → local-model rubric per candidate → deterministic shortlist'}
     description: ""
@@ -163,7 +163,7 @@ showcase:
     workflow: {'id': 'seo-content-brief', 'description': 'Competitor sitemap → top page → gap analysis → typed brief'}
     description: ""
     constructs: [local_model, on_error, output, outputs, schema, with]
-    sha256_16: 274836e7b6be1640
+    sha256_16: 48bb065075c3c3fc
   - file: examples/social-repurpose.nika.yaml
     workflow: {'id': 'social-repurpose', 'description': 'One post → thread + LinkedIn + newsletter, in parallel'}
     description: ""

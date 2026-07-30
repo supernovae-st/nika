@@ -51,6 +51,8 @@ permits:                            # the blast radius · default-deny once pres
     read: ["./state/etl-state.json"]    # SLOT: keep in step with const.state_path
     write: ["./state/etl-state.json"]   # SLOT: idem — the job writes nothing else
   net: { http: ["api.example.com"] }    # SLOT: the source host from const.source_url
+policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
+  endorsement: solo
 
 tasks:
   # NEP-0002 · the Rule of Two, as a check. This run holds all three legs at
