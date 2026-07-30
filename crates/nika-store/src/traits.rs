@@ -10,14 +10,23 @@
 //! ADMITTED entries only — rejections are never hits; they stay named in
 //! [`crate::recall_verified`] and counted in the seal fold.
 //!
-//! Three query facets are named, never silently half-applied: **v1 is
+//! The query facets are named, never silently half-applied: **v1 is
 //! single-tenant** — a non-default [`RecallQuery::tenant`] scope recalls
 //! NOTHING, never everything (ADR-031's mandatory keyspace scope, failed
-//! closed); **`min_score`** is a placeholder (v1 recall is substring, not
-//! similarity — the score is a constant 1.0, so no threshold can bind);
-//! **`observed_after`/`observed_before`** stay deferred (reserved for the
-//! temporal satellite — the frame carries the stamp, v1 does not filter
-//! on it).
+//! closed); **`min_score`** binds UNIFORMLY against v1's constant 1.0
+//! score (substring recall carries no similarity — a threshold above 1.0,
+//! or a NaN, admits nothing; the placeholder never fails open);
+//! **`observed_after`/`observed_before`** bind when the frame carries the
+//! stamp — a stamp-less entry under a WINDOWED query is SKIPPED (the
+//! window cannot bind what it cannot read), never silently windowed-in;
+//! **`limit`** keeps the NEWEST hits (recall ranks ts-descending — the
+//! constant score leaves recency as the honest "ranked" the kernel
+//! contract names). The projection's skip classes — a non-string
+//! `content`, an unknown level word — are named on the recall impl, and
+//! the reserved frame fields (`cipher` · `provenance` · `retention` ·
+//! `redactions`) REFUSE the write (fail-closed — the signed envelope
+//! carries no slot for them, so writing would drop them INSIDE a
+//! signature).
 
 use std::path::PathBuf;
 
@@ -112,7 +121,12 @@ fn frame_value(frame: &MemoryFrame) -> Value {
 }
 
 /// The `MemoryLevel` wire word (mirrors its serde `snake_case` — the frame
-/// value stays readable without the nika-types serde feature).
+/// value stays readable without the nika-types serde feature). The
+/// asymmetry, named: the WRITE side maps a future level to `"working"` —
+/// the signed envelope must stamp SOME word and the future tier's real
+/// name is unknowable here — while the READ side SKIPS an unknown word
+/// (`level_from_str` returns `None`, never a silent downgrade); the
+/// round-trip holds exactly for the tiers this version knows.
 fn level_str(level: MemoryLevel) -> &'static str {
     match level {
         MemoryLevel::Episodic => "episodic",
@@ -140,6 +154,24 @@ fn level_from_str(word: &str) -> Option<MemoryLevel> {
 
 impl MemoryRemember for SignedMemoryStore {
     async fn remember(&self, frame: MemoryFrame) -> Result<MemoryId, MemoryError> {
+        // Fail CLOSED on the reserved fields (cipher · provenance ·
+        // retention · redactions): the v1 envelope carries no slot for
+        // them, so writing anyway would DROP them inside a SIGNED
+        // envelope — a silent loss the signature would then attest.
+        // (Storage is the write path's error class; this refusal is
+        // deterministic — a retry of the same frame refuses again.)
+        if frame.cipher.is_some()
+            || frame.provenance.is_some()
+            || frame.retention.is_some()
+            || frame.redactions.is_some()
+        {
+            return Err(MemoryError::Storage {
+                reason: "reserved frame fields (cipher · provenance · retention · redactions) \
+                     have no slot in the v1 signed envelope — the write is refused, \
+                     never silently dropped inside a signature"
+                    .to_owned(),
+            });
+        }
         let entry = crate::UnsignedEntry::new(
             frame_value(&frame),
             self.label.clone(),
@@ -153,7 +185,101 @@ impl MemoryRemember for SignedMemoryStore {
     }
 }
 
+/// The trait projection of one ADMITTED entry — `None` = the hit is
+/// SKIPPED, the class named where it happens (the trait surface carries
+/// no skip-count channel, so the naming lives in these comments): a
+/// non-string `content` (an honestly-signed non-text frame is not
+/// recallable as text — never a silent empty-content hit, never a
+/// vanishing entry) · an unknown level word (fail-closed tier — skipped,
+/// never downgraded to `Working`; the entry stays ADMITTED in
+/// `recall_verified`, only this projection declines it) · a stamp-less
+/// entry under an observed-window query (the window cannot bind what it
+/// cannot read).
+fn project_hit(entry: &crate::StoreEntry, query: &RecallQuery, needle: &str) -> Option<MemoryHit> {
+    let content = entry
+        .frame
+        .get("content")
+        .and_then(Value::as_str)?
+        .to_owned();
+    if !needle.is_empty() && !content.to_lowercase().contains(needle) {
+        return None;
+    }
+    let level = match entry.frame.get("level").and_then(Value::as_str) {
+        // A v1 writer always stamps the level; a missing word stays the
+        // v1 default (named, not silent).
+        None => MemoryLevel::Working,
+        Some(word) => level_from_str(word)?, // fail-closed tier (the fn doc)
+    };
+    if query.levels.as_ref().is_some_and(|ls| !ls.contains(&level)) {
+        return None;
+    }
+    // min_score binds UNIFORMLY against v1's constant score (every hit
+    // scores 1.0): a threshold above 1.0 admits nothing, and a NaN
+    // threshold admits nothing either (every NaN comparison is false) —
+    // the placeholder never fails open.
+    if query.min_score.is_some_and(|m| m > 1.0 || m.is_nan()) {
+        return None;
+    }
+    // The observed window binds when the frame carries the stamp (the
+    // kernel's ns-canonical `observed_at`), STRICTLY inside: a stamp-less
+    // entry under a windowed query is skipped (the fn doc names the
+    // class); an unwindowed query never asks.
+    if query.observed_after.is_some() || query.observed_before.is_some() {
+        let observed = entry.frame.get("observed_at").and_then(Value::as_u64)?;
+        if query.observed_after.is_some_and(|after| observed <= after) {
+            return None;
+        }
+        if query
+            .observed_before
+            .is_some_and(|before| observed >= before)
+        {
+            return None;
+        }
+    }
+    let tags: Vec<String> = entry
+        .frame
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| t.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    if query
+        .tags
+        .as_ref()
+        .is_some_and(|want| !want.iter().all(|t| tags.contains(t)))
+    {
+        return None;
+    }
+    let mut hit = MemoryHit::new(entry.memory_id(), content, level, 1.0);
+    hit.tags = tags;
+    hit.metadata = entry
+        .frame
+        .get("metadata")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    hit.source = entry
+        .frame
+        .get("source")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    hit.observed_at = entry.frame.get("observed_at").and_then(Value::as_u64);
+    Some(hit)
+}
+
 impl MemoryRecall for SignedMemoryStore {
+    /// v1 recall is substring over ADMITTED entries, ranked MOST-RECENT
+    /// FIRST (ts descending — the constant score carries no similarity
+    /// signal, so recency is the honest "ranked" the kernel contract
+    /// names): `limit` then keeps the NEWEST hits, never the oldest.
+    /// `tags` is conjunctive-ALL (every wanted tag must ride the frame —
+    /// an EMPTY wanted set admits everything, the vacuous truth), while
+    /// `levels: Some([])` filters EVERYTHING (`contains` on an empty set
+    /// is false) — two different empty-set postures, both named. The skip
+    /// classes are named on the `project_hit` projection (non-string
+    /// content · unknown level word · stamp-less under a window).
     async fn recall(&self, query: RecallQuery) -> Result<Vec<MemoryHit>, MemoryError> {
         // ADR-031 fail-CLOSED: v1 is single-tenant — a non-default scope
         // recalls NOTHING, never everything (an unscoped sweep would leak
@@ -169,68 +295,15 @@ impl MemoryRecall for SignedMemoryStore {
             let (crate::RecallVerdict::Admitted, Some(entry)) = (ev.verdict, ev.entry) else {
                 continue;
             };
-            let content = entry
-                .frame
-                .get("content")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned();
-            if !needle.is_empty() && !content.to_lowercase().contains(&needle) {
-                continue;
+            if let Some(hit) = project_hit(&entry, &query, &needle) {
+                hits.push((entry.ts_ms, hit));
             }
-            let level = match entry.frame.get("level").and_then(Value::as_str) {
-                // A v1 writer always stamps the level; a missing word
-                // stays the v1 default (named, not silent).
-                None => MemoryLevel::Working,
-                Some(word) => {
-                    let Some(level) = level_from_str(word) else {
-                        // Fail-closed tier: the signature VERIFIED (the
-                        // content is honest) but the level word is one
-                        // this version does not know — the hit is SKIPPED,
-                        // never downgraded to Working. The entry stays
-                        // ADMITTED in `recall_verified`; only this trait
-                        // projection declines it (named here — the trait
-                        // surface carries no skip-count channel).
-                        continue;
-                    };
-                    level
-                }
-            };
-            if query.levels.as_ref().is_some_and(|ls| !ls.contains(&level)) {
-                continue;
-            }
-            let tags: Vec<String> = entry
-                .frame
-                .get("tags")
-                .and_then(Value::as_array)
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|t| t.as_str().map(str::to_owned))
-                        .collect()
-                })
-                .unwrap_or_default();
-            if query
-                .tags
-                .as_ref()
-                .is_some_and(|want| !want.iter().all(|t| tags.contains(t)))
-            {
-                continue;
-            }
-            let mut hit = MemoryHit::new(entry.memory_id(), content, level, 1.0);
-            hit.tags = tags;
-            hit.metadata = entry
-                .frame
-                .get("metadata")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
-            hit.source = entry
-                .frame
-                .get("source")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
-            hit.observed_at = entry.frame.get("observed_at").and_then(Value::as_u64);
-            hits.push(hit);
         }
+        // Most-recent first (the impl doc names why recency is the rank);
+        // the stable sort keeps the walk's deterministic path order
+        // inside one timestamp.
+        hits.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut hits: Vec<MemoryHit> = hits.into_iter().map(|(_, hit)| hit).collect();
         if let Some(limit) = query.limit {
             hits.truncate(limit);
         }

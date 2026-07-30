@@ -25,6 +25,16 @@ pub enum RejectReason {
     /// The file is not a decodable envelope (bad bytes · missing content
     /// fields — a missing `sig` alone is [`Self::Unsigned`], not this).
     Malformed,
+    /// The file exceeds the walk's per-entry size bound — the malformed
+    /// FAMILY (not a decodable envelope within the walk's bounds), named
+    /// apart so the bound itself is visible in the journal. Never read in
+    /// full: a stuffed multi-GB `.json` can never blow the teardown.
+    Oversized,
+    /// The file rode beyond the walk's per-store entry-count bound —
+    /// UNEXAMINED, never admitted (an unexamined entry can never be
+    /// filtered into trustworthiness — the SMSR floor again), never
+    /// silently dropped: it is counted and named like every rejection.
+    Overflow,
     /// The envelope's format version `"v"` is one this version does not
     /// know — named, never masqueraded as a signature failure (the
     /// signature commits to `v`, so only an honestly-signed NEWER
@@ -55,6 +65,8 @@ impl RejectReason {
         match self {
             Self::Unsigned => "unsigned",
             Self::Malformed => "malformed",
+            Self::Oversized => "oversized",
+            Self::Overflow => "overflow",
             Self::UnsupportedVersion => "unsupported_version",
             Self::KeyMismatch => "key_mismatch",
             Self::StoreMismatch => "store_mismatch",
@@ -214,20 +226,58 @@ pub fn seal_fold(memory_root: &Path, pubkey: &minisign::PublicKey) -> Option<ser
     seal_fold_detailed(memory_root, pubkey).0
 }
 
+/// The admitted set's ONE name: blake3 over the sorted digest hex words,
+/// concatenated (fixed-width 64-hex fields, so the framing is the width).
+/// O(1) in the set's size — the fold line stays constant-size however many
+/// entries admit, so a long-lived store can never grow a seal line the
+/// chain walk's own `MAX_LINE_BYTES` (1 MiB) would refuse: an inline
+/// `[digest…]` list crosses that bound at ~15k admitted entries and the
+/// engine would write a seal its own verifier rejects (H13). The receipt's
+/// claim is kept — "the verified set, named": the set's digest IS its
+/// name. The empty set's digest is blake3 of the empty input (constant) —
+/// `admitted_count: 0` beside it says the size.
+fn admitted_set_digest(admitted: &[String]) -> String {
+    let mut hasher = blake3::Hasher::new();
+    for digest in admitted {
+        hasher.update(digest.as_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
+/// Strip terminal control characters (C0 · C1 · DEL) from a string born
+/// from attacker-plantable bytes (a store dir name riding an io-error
+/// text). The TWIN of `nika_dap::escape_tty`: nika-store is L1 and cannot
+/// import the L4 helper, so the one-liner is replicated here — the same
+/// move the receipt fix used — with the twin named so the two never
+/// diverge silently (both STRIP, neither escapes).
+fn strip_control(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
+
 /// Walk every store under a memory root, verify per entry, and shape what
-/// the run's seal pins — `{"v": 1, "stores": [{"store", "admitted":
-/// [digest…], "rejected": n}]}` — the admitted set NAMED by digest, the
-/// rejections counted AND returned (the [`FoldRejection`] list the
-/// teardown journals one `memory_entry_rejected` event each).
+/// the run's seal pins — `{"v": 1, "stores": [{"store", "set_digest",
+/// "admitted_count", "rejected"}]}` — the admitted set NAMED by one
+/// constant-size digest (the `admitted_set_digest` construction), the
+/// rejections counted
+/// AND returned (the [`FoldRejection`] list the teardown journals one
+/// `memory_entry_rejected` event each).
 ///
 /// Failure is NEVER collapsed to `None` (a `None` reads as "no memory" —
 /// it would erase tamper evidence): a store whose walk fails rides the
 /// fold as `{"store": s, "error": "<reason>"}` beside the
-/// admitted/rejected shape; a per-item `read_dir` error at the root rides
+/// set-digest/counts shape; a per-item `read_dir` error at the root rides
 /// the same way with `store: null` (the name is what the error denies);
-/// a wholly-unreadable root still yields `Some` with the error entry.
+/// a wholly-unreadable root still yields `Some` with the error entry. The
+/// error text embeds paths born from attacker-plantable dir names, so it
+/// is control-stripped AT BIRTH (the `strip_control` twin) — the receipt
+/// field has no machine consumer, the escape is unconditional.
 /// `None` is kept STRICTLY for "no memory root / no stores" (absent is
 /// honest) — the `memory` key then stays OUT of the covers.
+///
+/// The claim's edge, named: entry DELETION is unattested — the fold
+/// attests the integrity of what is present, not the completeness of what
+/// once was (availability sits outside the SMSR integrity claim; the
+/// lineage digest is the v2 hook for it).
 #[must_use]
 pub fn seal_fold_detailed(
     memory_root: &Path,
@@ -235,7 +285,7 @@ pub fn seal_fold_detailed(
 ) -> (Option<serde_json::Value>, Vec<FoldRejection>) {
     let mut rejections = Vec::new();
     let mut folds: Vec<serde_json::Value> = Vec::new();
-    let error_entry = |store: Option<&str>, reason: String| json!({ "store": store.map_or(serde_json::Value::Null, serde_json::Value::from), "error": reason });
+    let error_entry = |store: Option<&str>, reason: String| json!({ "store": store.map_or(serde_json::Value::Null, serde_json::Value::from), "error": strip_control(&reason) });
     if !memory_root.exists() {
         return (None, rejections); // absent is honest — no attestation at all
     }
@@ -285,16 +335,19 @@ pub fn seal_fold_detailed(
                                 }
                             }
                         }
-                        // The receipt pins a SET: sorted + deduped. The
-                        // name binding (RejectReason::NameMismatch) makes
-                        // a repeated digest unreachable through the fs —
-                        // the dedup is the belt-and-braces the SET law
-                        // buys for free.
+                        // The receipt pins a SET, NAMED in O(1): sorted +
+                        // deduped (the name binding — RejectReason::NameMismatch
+                        // — makes a repeated digest unreachable through the
+                        // fs, so the dedup is the belt-and-braces the SET
+                        // law buys for free), then ONE digest of the set
+                        // beside its size — the fold line never grows with
+                        // the admitted set (H13 · [`admitted_set_digest`]).
                         admitted.sort();
                         admitted.dedup();
                         folds.push(json!({
                             "store": store,
-                            "admitted": admitted,
+                            "set_digest": admitted_set_digest(&admitted),
+                            "admitted_count": admitted.len(),
                             "rejected": rejected,
                         }));
                     }

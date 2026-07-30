@@ -735,14 +735,18 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
     // never opens (the retired const-url twin's story is the doc above).
     let fetch_literal = "tasks:\n  upload:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/upload\" }\n";
 
-    // (arm · permits block · body · must the predicate FIRE?)
-    let arms: &[(&str, &str, &str, bool)] = &[
+    // (arm · permits block · body · must the predicate FIRE? · expected
+    // check verdict — ASSERTED, no longer narrated: the comments used to
+    // carry "check refuses it now" with nothing pinning it, and a check
+    // that quietly flipped green would have hollowed the arm's story)
+    let arms: &[(&str, &str, &str, bool, bool)] = &[
         // the honest declaration — green at check, silent at run
         (
             "honest",
             "permits:\n  fs: { read: [\"data/**\"] }\n  tools: [\"nika:read\"]\n",
             read_task,
             false,
+            true,
         ),
         // F8 · the body still reads, the fs grant is deleted
         (
@@ -750,6 +754,7 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
             "permits:\n  tools: [\"nika:read\"]\n",
             read_task,
             false, // check refuses it now — the F8 repair
+            false,
         ),
         // the tool id itself is outside the declared set
         (
@@ -757,15 +762,16 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
             "permits:\n  fs: { read: [\"data/**\"] }\n  tools: [\"nika:jq\"]\n",
             read_task,
             false, // check refuses it now
+            false,
         ),
         // the same dispatch with a LITERAL url — check decides it, so
         // the inversion never opens. The paired baseline.
-        ("fetch-literal-url", "", fetch_literal, false),
+        ("fetch-literal-url", "", fetch_literal, false, false),
     ];
 
     let mut verdicts: Vec<String> = Vec::new();
     let mut failures: Vec<String> = Vec::new();
-    for (name, permits, body, must_fire) in arms {
+    for (name, permits, body, must_fire, expect_check_ok) in arms {
         let wf = root.join(format!("{name}.nika.yaml"));
         std::fs::write(
             &wf,
@@ -776,6 +782,25 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
         let probe = probe(&wf, &[], &[]);
         let observed = probe.observed.expect("a verdict");
         let denied = !observed.authority_denials.is_empty();
+
+        // The arm's check verdict is an ASSERTION, not a narration:
+        // green arms must be green; refused arms must name their law
+        // (the leg-1 idiom — a refusal without a NIKA- finding is a
+        // crash, not a verdict).
+        if probe.check_ok != *expect_check_ok {
+            failures.push(format!(
+                "control arm `{name}`: check verdict — expected {} · got {}:\n{}",
+                if *expect_check_ok { "green" } else { "red" },
+                if probe.check_ok { "green" } else { "red" },
+                probe.check_text
+            ));
+        }
+        if !*expect_check_ok && !probe.check_text.contains("NIKA-") {
+            failures.push(format!(
+                "control arm `{name}`: a refusal must NAME its law (a NIKA- finding):\n{}",
+                probe.check_text
+            ));
+        }
 
         // The law, on every arm: green at check AND denied on authority
         // at run is the inversion, and nothing makes that pair lawful.

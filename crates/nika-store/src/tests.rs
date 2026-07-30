@@ -15,4 +15,22 @@ mod acceptance;
 #[cfg(test)]
 mod api;
 #[cfg(test)]
+mod hardening;
+#[cfg(test)]
 mod tamper_property;
+
+/// The test-side re-construction of the fold's set digest (H13): sort +
+/// dedup, then blake3 over the concatenated 64-hex words. A sibling of
+/// the impl's construction, written twice on purpose — a divergence in
+/// either (the sort · the dedup · the framing) fails the cross-check.
+#[cfg(test)]
+pub(crate) fn set_digest(digests: &[String]) -> String {
+    let mut sorted = digests.to_vec();
+    sorted.sort();
+    sorted.dedup();
+    let mut hasher = blake3::Hasher::new();
+    for digest in &sorted {
+        hasher.update(digest.as_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}

@@ -15,6 +15,25 @@ use crate::analyzer::Edge;
 use nika_schema::expression::scan_templates;
 use nika_schema::raw::{RawAction, RawWorkflow};
 
+/// The wire code a policy finding stamps (spec 10 · F-P4 · F-P23) —
+/// ONE match, every surface: the `--json` `findings[]` fold
+/// (`check/findings.rs`), the console POLICY rung
+/// (`nika-display/check_render.rs`), and the LSP projection all read
+/// THIS. The `approval.*` rules (NEP-0013) speak the
+/// approval-capability code NIKA-SEC-010, the `endorsement.*` rules
+/// (NEP-0017) speak NIKA-SEC-013, every other rule the policy-lane
+/// NIKA-POLICY-001.
+#[must_use]
+pub fn policy_wire_code(rule: &str) -> &'static str {
+    if rule.starts_with("approval.") {
+        "NIKA-SEC-010"
+    } else if rule.starts_with("endorsement.") {
+        "NIKA-SEC-013"
+    } else {
+        "NIKA-POLICY-001"
+    }
+}
+
 /// Judge the hard `policy:` families (require · forbid · allow · limits
 /// · endorsement) over the derived edges. The caller gates on a valid
 /// DAG — the order rules read ancestors, so an unanalyzable workflow
@@ -93,12 +112,34 @@ fn provider_pin(action: &RawAction, root_model: Option<&str>) -> ProviderPin {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
+    use super::policy_wire_code;
     use crate::check;
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
 
     fn report(yaml: &str) -> crate::CheckReport {
         check(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses"))
+    }
+
+    /// 2a · the ONE mapping every surface reads: `approval.*` speaks
+    /// NIKA-SEC-010 (NEP-0013), `endorsement.*` NIKA-SEC-013 (NEP-0017),
+    /// every other rule the policy-lane NIKA-POLICY-001 (spec 10).
+    #[test]
+    fn the_wire_code_mapping_is_prefix_exact() {
+        assert_eq!(
+            policy_wire_code("approval.heterogeneous_batch"),
+            "NIKA-SEC-010"
+        );
+        assert_eq!(policy_wire_code("endorsement.solo_count"), "NIKA-SEC-013");
+        assert_eq!(
+            policy_wire_code("endorsement.undeclared_mode"),
+            "NIKA-SEC-013"
+        );
+        assert_eq!(
+            policy_wire_code("require.human_gate_before"),
+            "NIKA-POLICY-001"
+        );
+        assert_eq!(policy_wire_code("limits.max_tasks"), "NIKA-POLICY-001");
     }
 
     /// Mirror of core/policy/001+002: the gate rule reads REAL ancestry

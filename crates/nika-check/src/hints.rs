@@ -37,6 +37,11 @@
 //! - **concurrent same-path writers** — RETIRED by F-P15 (NEP-0014 law
 //!   1): the write-write race is the `NIKA-SEC-012` FINDING now (the
 //!   DAG analysis pass owns it · a hint is not a boundary).
+//! - **over-cap DAG read** (`analysis`) — H6: past the analysis task
+//!   cap the width/pinch/blast read and the pair scan of the
+//!   write-write law are skipped (the O(n²) `DoS` floor) — the skip is
+//!   STATED here, never silent; the closure-free `for_each` same-path
+//!   flavor still judged.
 //! - **exec with a native path** (`native-first`) — emitted by the
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
@@ -79,7 +84,8 @@ pub struct Hint {
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` · `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
-    /// (additive · agents route on it; the module doc describes each).
+    /// · `analysis` (additive · agents route on it; the module doc
+    /// describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     pub kind: &'static str,
