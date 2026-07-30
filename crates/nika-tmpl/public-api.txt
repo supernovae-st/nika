@@ -277,6 +277,7 @@ pub fn nika_tmpl::expression::is_boolean_shaped(expr: &nika_tmpl::expression::Ex
 pub fn nika_tmpl::expression::parse_expression(src: &str) -> core::result::Result<nika_tmpl::expression::Expr, nika_tmpl::expression::ExprError>
 pub fn nika_tmpl::expression::scan_templates(s: &str) -> core::result::Result<alloc::vec::Vec<nika_tmpl::expression::TemplateIsland>, nika_tmpl::expression::ExprError>
 pub fn nika_tmpl::expression::task_output_paths(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
+pub fn nika_tmpl::expression::with_alias_paths(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
 #[non_exhaustive] pub enum nika_tmpl::ScanError
 pub nika_tmpl::ScanError::Unterminated
 pub nika_tmpl::ScanError::Unterminated::offset: usize
