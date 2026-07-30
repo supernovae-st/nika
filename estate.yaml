@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4236
+  classified_files: 4237
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1319
+    authored: 1320
     authored-pin: 2
     generated: 114
     pinned-copy: 105
@@ -187,8 +187,8 @@ patterns:
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
-  match_count: 19
-  aggregate_sha256: 49b19808523d726b33d9e0a82eea87e1cb93673c7d44a09021aef1669251b8ea
+  match_count: 20
+  aggregate_sha256: cd9a518135272d9af68066cd292f583af51ed94755eabbbeef0e1f9aa95b0127
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 24f741a536c57e70d160109eff838286d96973cc076eafc629e43206c348544c
+  aggregate_sha256: 9b9aa6f149e274551ffdcac861c0ff80406b93d0897a12b17c09995a62d4b919
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
