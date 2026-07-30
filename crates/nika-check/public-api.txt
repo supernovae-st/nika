@@ -19,13 +19,6 @@ impl core::fmt::Debug for nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_check::analyzer::edges::EdgeKind
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Freeze for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Send for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Sync for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Unpin for nika_check::analyzer::edges::EdgeKind
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::EdgeKind
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::EdgeKind
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::EdgeKind
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::EdgeKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
@@ -75,13 +68,6 @@ impl core::fmt::Debug for nika_check::analyzer::edges::SettledState
 pub fn nika_check::analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_check::analyzer::edges::SettledState
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::SettledState
-impl core::marker::Freeze for nika_check::analyzer::edges::SettledState
-impl core::marker::Send for nika_check::analyzer::edges::SettledState
-impl core::marker::Sync for nika_check::analyzer::edges::SettledState
-impl core::marker::Unpin for nika_check::analyzer::edges::SettledState
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::SettledState
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::SettledState
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::SettledState
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::SettledState
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
@@ -131,13 +117,6 @@ pub fn nika_check::analyzer::edges::Edge::eq(&self, other: &nika_check::analyzer
 impl core::fmt::Debug for nika_check::analyzer::edges::Edge
 pub fn nika_check::analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::Edge
-impl core::marker::Freeze for nika_check::analyzer::edges::Edge
-impl core::marker::Send for nika_check::analyzer::edges::Edge
-impl core::marker::Sync for nika_check::analyzer::edges::Edge
-impl core::marker::Unpin for nika_check::analyzer::edges::Edge
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::Edge
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::Edge
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::Edge
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::Edge
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
@@ -182,13 +161,6 @@ pub fn nika_check::analyzer::edges::RecoveryRead::eq(&self, other: &nika_check::
 impl core::fmt::Debug for nika_check::analyzer::edges::RecoveryRead
 pub fn nika_check::analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Freeze for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Send for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Sync for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Unpin for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::RecoveryRead
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::RecoveryRead
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::RecoveryRead
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::RecoveryRead
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
@@ -249,13 +221,6 @@ impl core::fmt::Debug for nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_check::analyzer::edges::EdgeKind
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Freeze for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Send for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Sync for nika_check::analyzer::edges::EdgeKind
-impl core::marker::Unpin for nika_check::analyzer::edges::EdgeKind
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::EdgeKind
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::EdgeKind
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::EdgeKind
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::EdgeKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
@@ -305,13 +270,6 @@ impl core::fmt::Debug for nika_check::analyzer::edges::SettledState
 pub fn nika_check::analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_check::analyzer::edges::SettledState
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::SettledState
-impl core::marker::Freeze for nika_check::analyzer::edges::SettledState
-impl core::marker::Send for nika_check::analyzer::edges::SettledState
-impl core::marker::Sync for nika_check::analyzer::edges::SettledState
-impl core::marker::Unpin for nika_check::analyzer::edges::SettledState
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::SettledState
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::SettledState
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::SettledState
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::SettledState
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
@@ -361,13 +319,6 @@ pub fn nika_check::analyzer::AnalyzedWorkflow::eq(&self, other: &nika_check::ana
 impl core::fmt::Debug for nika_check::analyzer::AnalyzedWorkflow
 pub fn nika_check::analyzer::AnalyzedWorkflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Freeze for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Send for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Sync for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Unpin for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::UnsafeUnpin for nika_check::analyzer::AnalyzedWorkflow
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::AnalyzedWorkflow
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::AnalyzedWorkflow
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::AnalyzedWorkflow
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
@@ -415,13 +366,6 @@ pub fn nika_check::analyzer::edges::Edge::eq(&self, other: &nika_check::analyzer
 impl core::fmt::Debug for nika_check::analyzer::edges::Edge
 pub fn nika_check::analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::Edge
-impl core::marker::Freeze for nika_check::analyzer::edges::Edge
-impl core::marker::Send for nika_check::analyzer::edges::Edge
-impl core::marker::Sync for nika_check::analyzer::edges::Edge
-impl core::marker::Unpin for nika_check::analyzer::edges::Edge
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::Edge
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::Edge
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::Edge
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::Edge
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
@@ -466,13 +410,6 @@ pub fn nika_check::analyzer::edges::RecoveryRead::eq(&self, other: &nika_check::
 impl core::fmt::Debug for nika_check::analyzer::edges::RecoveryRead
 pub fn nika_check::analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Freeze for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Send for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Sync for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::Unpin for nika_check::analyzer::edges::RecoveryRead
-impl core::marker::UnsafeUnpin for nika_check::analyzer::edges::RecoveryRead
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::edges::RecoveryRead
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::edges::RecoveryRead
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::RecoveryRead
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
@@ -531,13 +468,6 @@ pub fn nika_check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::
 impl core::marker::StructuralPartialEq for nika_check::permits_fit::CapabilityEscape
 impl serde_core::ser::Serialize for nika_check::permits_fit::CapabilityEscape
 pub fn nika_check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::permits_fit::CapabilityEscape
-impl core::marker::Send for nika_check::permits_fit::CapabilityEscape
-impl core::marker::Sync for nika_check::permits_fit::CapabilityEscape
-impl core::marker::Unpin for nika_check::permits_fit::CapabilityEscape
-impl core::marker::UnsafeUnpin for nika_check::permits_fit::CapabilityEscape
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::permits_fit::CapabilityEscape
-impl core::panic::unwind_safe::UnwindSafe for nika_check::permits_fit::CapabilityEscape
 impl<D> owo_colors::OwoColorize for nika_check::permits_fit::CapabilityEscape
 impl<Q, K> equivalent::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
@@ -589,13 +519,6 @@ impl core::marker::Copy for nika_check::FindingSeverity
 impl core::marker::StructuralPartialEq for nika_check::FindingSeverity
 impl serde_core::ser::Serialize for nika_check::FindingSeverity
 pub fn nika_check::FindingSeverity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::FindingSeverity
-impl core::marker::Send for nika_check::FindingSeverity
-impl core::marker::Sync for nika_check::FindingSeverity
-impl core::marker::Unpin for nika_check::FindingSeverity
-impl core::marker::UnsafeUnpin for nika_check::FindingSeverity
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::FindingSeverity
-impl core::panic::unwind_safe::UnwindSafe for nika_check::FindingSeverity
 impl<D> owo_colors::OwoColorize for nika_check::FindingSeverity
 impl<Q, K> equivalent::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
@@ -647,13 +570,6 @@ impl core::marker::Copy for nika_check::GateFindingKind
 impl core::marker::StructuralPartialEq for nika_check::GateFindingKind
 impl serde_core::ser::Serialize for nika_check::GateFindingKind
 pub fn nika_check::GateFindingKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::GateFindingKind
-impl core::marker::Send for nika_check::GateFindingKind
-impl core::marker::Sync for nika_check::GateFindingKind
-impl core::marker::Unpin for nika_check::GateFindingKind
-impl core::marker::UnsafeUnpin for nika_check::GateFindingKind
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::GateFindingKind
-impl core::panic::unwind_safe::UnwindSafe for nika_check::GateFindingKind
 impl<D> owo_colors::OwoColorize for nika_check::GateFindingKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
@@ -710,13 +626,6 @@ pub fn nika_check::LeakReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> c
 impl core::marker::StructuralPartialEq for nika_check::LeakReason
 impl serde_core::ser::Serialize for nika_check::LeakReason
 pub fn nika_check::LeakReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::LeakReason
-impl core::marker::Send for nika_check::LeakReason
-impl core::marker::Sync for nika_check::LeakReason
-impl core::marker::Unpin for nika_check::LeakReason
-impl core::marker::UnsafeUnpin for nika_check::LeakReason
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::LeakReason
-impl core::panic::unwind_safe::UnwindSafe for nika_check::LeakReason
 impl<D> owo_colors::OwoColorize for nika_check::LeakReason
 impl<Q, K> equivalent::Equivalent<K> for nika_check::LeakReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::LeakReason::equivalent(&self, key: &K) -> bool
@@ -766,13 +675,6 @@ impl core::marker::Copy for nika_check::PermitTaintKind
 impl core::marker::StructuralPartialEq for nika_check::PermitTaintKind
 impl serde_core::ser::Serialize for nika_check::PermitTaintKind
 pub fn nika_check::PermitTaintKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::PermitTaintKind
-impl core::marker::Send for nika_check::PermitTaintKind
-impl core::marker::Sync for nika_check::PermitTaintKind
-impl core::marker::Unpin for nika_check::PermitTaintKind
-impl core::marker::UnsafeUnpin for nika_check::PermitTaintKind
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::PermitTaintKind
-impl core::panic::unwind_safe::UnwindSafe for nika_check::PermitTaintKind
 impl<D> owo_colors::OwoColorize for nika_check::PermitTaintKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
@@ -822,13 +724,6 @@ impl core::marker::Copy for nika_check::PermitsSource
 impl core::marker::StructuralPartialEq for nika_check::PermitsSource
 impl serde_core::ser::Serialize for nika_check::PermitsSource
 pub fn nika_check::PermitsSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::PermitsSource
-impl core::marker::Send for nika_check::PermitsSource
-impl core::marker::Sync for nika_check::PermitsSource
-impl core::marker::Unpin for nika_check::PermitsSource
-impl core::marker::UnsafeUnpin for nika_check::PermitsSource
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::PermitsSource
-impl core::panic::unwind_safe::UnwindSafe for nika_check::PermitsSource
 impl<D> owo_colors::OwoColorize for nika_check::PermitsSource
 impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
@@ -879,13 +774,6 @@ impl core::marker::Copy for nika_check::UnboundedReason
 impl core::marker::StructuralPartialEq for nika_check::UnboundedReason
 impl serde_core::ser::Serialize for nika_check::UnboundedReason
 pub fn nika_check::UnboundedReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::UnboundedReason
-impl core::marker::Send for nika_check::UnboundedReason
-impl core::marker::Sync for nika_check::UnboundedReason
-impl core::marker::Unpin for nika_check::UnboundedReason
-impl core::marker::UnsafeUnpin for nika_check::UnboundedReason
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::UnboundedReason
-impl core::panic::unwind_safe::UnwindSafe for nika_check::UnboundedReason
 impl<D> owo_colors::OwoColorize for nika_check::UnboundedReason
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
@@ -935,13 +823,6 @@ pub fn nika_check::analyzer::AnalyzedWorkflow::eq(&self, other: &nika_check::ana
 impl core::fmt::Debug for nika_check::analyzer::AnalyzedWorkflow
 pub fn nika_check::analyzer::AnalyzedWorkflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Freeze for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Send for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Sync for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::Unpin for nika_check::analyzer::AnalyzedWorkflow
-impl core::marker::UnsafeUnpin for nika_check::analyzer::AnalyzedWorkflow
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::analyzer::AnalyzedWorkflow
-impl core::panic::unwind_safe::UnwindSafe for nika_check::analyzer::AnalyzedWorkflow
 impl<D> owo_colors::OwoColorize for nika_check::analyzer::AnalyzedWorkflow
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
@@ -992,13 +873,6 @@ pub fn nika_check::Bound::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::
 impl core::marker::StructuralPartialEq for nika_check::Bound
 impl serde_core::ser::Serialize for nika_check::Bound
 pub fn nika_check::Bound::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::Bound
-impl core::marker::Send for nika_check::Bound
-impl core::marker::Sync for nika_check::Bound
-impl core::marker::Unpin for nika_check::Bound
-impl core::marker::UnsafeUnpin for nika_check::Bound
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::Bound
-impl core::panic::unwind_safe::UnwindSafe for nika_check::Bound
 impl<D> owo_colors::OwoColorize for nika_check::Bound
 impl<Q, K> equivalent::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
@@ -1048,13 +922,6 @@ impl core::marker::Copy for nika_check::ByteSpan
 impl core::marker::StructuralPartialEq for nika_check::ByteSpan
 impl serde_core::ser::Serialize for nika_check::ByteSpan
 pub fn nika_check::ByteSpan::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::ByteSpan
-impl core::marker::Send for nika_check::ByteSpan
-impl core::marker::Sync for nika_check::ByteSpan
-impl core::marker::Unpin for nika_check::ByteSpan
-impl core::marker::UnsafeUnpin for nika_check::ByteSpan
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::ByteSpan
-impl core::panic::unwind_safe::UnwindSafe for nika_check::ByteSpan
 impl<D> owo_colors::OwoColorize for nika_check::ByteSpan
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
@@ -1107,13 +974,6 @@ pub fn nika_check::permits_fit::CapabilityEscape::fmt(&self, f: &mut core::fmt::
 impl core::marker::StructuralPartialEq for nika_check::permits_fit::CapabilityEscape
 impl serde_core::ser::Serialize for nika_check::permits_fit::CapabilityEscape
 pub fn nika_check::permits_fit::CapabilityEscape::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::permits_fit::CapabilityEscape
-impl core::marker::Send for nika_check::permits_fit::CapabilityEscape
-impl core::marker::Sync for nika_check::permits_fit::CapabilityEscape
-impl core::marker::Unpin for nika_check::permits_fit::CapabilityEscape
-impl core::marker::UnsafeUnpin for nika_check::permits_fit::CapabilityEscape
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::permits_fit::CapabilityEscape
-impl core::panic::unwind_safe::UnwindSafe for nika_check::permits_fit::CapabilityEscape
 impl<D> owo_colors::OwoColorize for nika_check::permits_fit::CapabilityEscape
 impl<Q, K> equivalent::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
@@ -1160,13 +1020,6 @@ pub fn nika_check::CertTerm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> cor
 impl core::marker::StructuralPartialEq for nika_check::CertTerm
 impl serde_core::ser::Serialize for nika_check::CertTerm
 pub fn nika_check::CertTerm::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::CertTerm
-impl core::marker::Send for nika_check::CertTerm
-impl core::marker::Sync for nika_check::CertTerm
-impl core::marker::Unpin for nika_check::CertTerm
-impl core::marker::UnsafeUnpin for nika_check::CertTerm
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::CertTerm
-impl core::panic::unwind_safe::UnwindSafe for nika_check::CertTerm
 impl<D> owo_colors::OwoColorize for nika_check::CertTerm
 impl<Q, K> equivalent::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
@@ -1238,13 +1091,6 @@ impl core::fmt::Debug for nika_check::CheckReport
 pub fn nika_check::CheckReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_check::CheckReport
 pub fn nika_check::CheckReport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::CheckReport
-impl core::marker::Send for nika_check::CheckReport
-impl core::marker::Sync for nika_check::CheckReport
-impl core::marker::Unpin for nika_check::CheckReport
-impl core::marker::UnsafeUnpin for nika_check::CheckReport
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::CheckReport
-impl core::panic::unwind_safe::UnwindSafe for nika_check::CheckReport
 impl<D> owo_colors::OwoColorize for nika_check::CheckReport
 impl<T, U> core::convert::Into<U> for nika_check::CheckReport where U: core::convert::From<T>
 pub fn nika_check::CheckReport::into(self) -> U
@@ -1287,13 +1133,6 @@ pub fn nika_check::ComposedCost::fmt(&self, f: &mut core::fmt::Formatter<'_>) ->
 impl core::marker::StructuralPartialEq for nika_check::ComposedCost
 impl serde_core::ser::Serialize for nika_check::ComposedCost
 pub fn nika_check::ComposedCost::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::ComposedCost
-impl core::marker::Send for nika_check::ComposedCost
-impl core::marker::Sync for nika_check::ComposedCost
-impl core::marker::Unpin for nika_check::ComposedCost
-impl core::marker::UnsafeUnpin for nika_check::ComposedCost
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::ComposedCost
-impl core::panic::unwind_safe::UnwindSafe for nika_check::ComposedCost
 impl<D> owo_colors::OwoColorize for nika_check::ComposedCost
 impl<T, U> core::convert::Into<U> for nika_check::ComposedCost where U: core::convert::From<T>
 pub fn nika_check::ComposedCost::into(self) -> U
@@ -1339,13 +1178,6 @@ pub fn nika_check::CompositionFinding::fmt(&self, f: &mut core::fmt::Formatter<'
 impl core::marker::StructuralPartialEq for nika_check::CompositionFinding
 impl serde_core::ser::Serialize for nika_check::CompositionFinding
 pub fn nika_check::CompositionFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::CompositionFinding
-impl core::marker::Send for nika_check::CompositionFinding
-impl core::marker::Sync for nika_check::CompositionFinding
-impl core::marker::Unpin for nika_check::CompositionFinding
-impl core::marker::UnsafeUnpin for nika_check::CompositionFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::CompositionFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::CompositionFinding
 impl<D> owo_colors::OwoColorize for nika_check::CompositionFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
@@ -1397,13 +1229,6 @@ pub fn nika_check::ConformanceViolation::fmt(&self, f: &mut core::fmt::Formatter
 impl core::marker::StructuralPartialEq for nika_check::ConformanceViolation
 impl serde_core::ser::Serialize for nika_check::ConformanceViolation
 pub fn nika_check::ConformanceViolation::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::ConformanceViolation
-impl core::marker::Send for nika_check::ConformanceViolation
-impl core::marker::Sync for nika_check::ConformanceViolation
-impl core::marker::Unpin for nika_check::ConformanceViolation
-impl core::marker::UnsafeUnpin for nika_check::ConformanceViolation
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::ConformanceViolation
-impl core::panic::unwind_safe::UnwindSafe for nika_check::ConformanceViolation
 impl<D> owo_colors::OwoColorize for nika_check::ConformanceViolation
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
@@ -1452,13 +1277,6 @@ pub fn nika_check::CostCeiling::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::marker::StructuralPartialEq for nika_check::CostCeiling
 impl serde_core::ser::Serialize for nika_check::CostCeiling
 pub fn nika_check::CostCeiling::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::CostCeiling
-impl core::marker::Send for nika_check::CostCeiling
-impl core::marker::Sync for nika_check::CostCeiling
-impl core::marker::Unpin for nika_check::CostCeiling
-impl core::marker::UnsafeUnpin for nika_check::CostCeiling
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::CostCeiling
-impl core::panic::unwind_safe::UnwindSafe for nika_check::CostCeiling
 impl<D> owo_colors::OwoColorize for nika_check::CostCeiling
 impl<T, U> core::convert::Into<U> for nika_check::CostCeiling where U: core::convert::From<T>
 pub fn nika_check::CostCeiling::into(self) -> U
@@ -1497,13 +1315,6 @@ impl core::fmt::Debug for nika_check::DagAnalysis
 pub fn nika_check::DagAnalysis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_check::DagAnalysis
 pub fn nika_check::DagAnalysis::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::DagAnalysis
-impl core::marker::Send for nika_check::DagAnalysis
-impl core::marker::Sync for nika_check::DagAnalysis
-impl core::marker::Unpin for nika_check::DagAnalysis
-impl core::marker::UnsafeUnpin for nika_check::DagAnalysis
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::DagAnalysis
-impl core::panic::unwind_safe::UnwindSafe for nika_check::DagAnalysis
 impl<D> owo_colors::OwoColorize for nika_check::DagAnalysis
 impl<T, U> core::convert::Into<U> for nika_check::DagAnalysis where U: core::convert::From<T>
 pub fn nika_check::DagAnalysis::into(self) -> U
@@ -1542,13 +1353,6 @@ impl core::fmt::Debug for nika_check::EffectivePermits
 pub fn nika_check::EffectivePermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_check::EffectivePermits
 pub fn nika_check::EffectivePermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::EffectivePermits
-impl core::marker::Send for nika_check::EffectivePermits
-impl core::marker::Sync for nika_check::EffectivePermits
-impl core::marker::Unpin for nika_check::EffectivePermits
-impl core::marker::UnsafeUnpin for nika_check::EffectivePermits
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::EffectivePermits
-impl core::panic::unwind_safe::UnwindSafe for nika_check::EffectivePermits
 impl<D> owo_colors::OwoColorize for nika_check::EffectivePermits
 impl<T, U> core::convert::Into<U> for nika_check::EffectivePermits where U: core::convert::From<T>
 pub fn nika_check::EffectivePermits::into(self) -> U
@@ -1595,13 +1399,6 @@ impl core::marker::Copy for nika_check::EnergyCounts
 impl core::marker::StructuralPartialEq for nika_check::EnergyCounts
 impl serde_core::ser::Serialize for nika_check::EnergyCounts
 pub fn nika_check::EnergyCounts::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::EnergyCounts
-impl core::marker::Send for nika_check::EnergyCounts
-impl core::marker::Sync for nika_check::EnergyCounts
-impl core::marker::Unpin for nika_check::EnergyCounts
-impl core::marker::UnsafeUnpin for nika_check::EnergyCounts
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::EnergyCounts
-impl core::panic::unwind_safe::UnwindSafe for nika_check::EnergyCounts
 impl<D> owo_colors::OwoColorize for nika_check::EnergyCounts
 impl<Q, K> equivalent::Equivalent<K> for nika_check::EnergyCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::EnergyCounts::equivalent(&self, key: &K) -> bool
@@ -1652,13 +1449,6 @@ pub fn nika_check::EnergyReading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -
 impl core::marker::StructuralPartialEq for nika_check::EnergyReading
 impl serde_core::ser::Serialize for nika_check::EnergyReading
 pub fn nika_check::EnergyReading::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::EnergyReading
-impl core::marker::Send for nika_check::EnergyReading
-impl core::marker::Sync for nika_check::EnergyReading
-impl core::marker::Unpin for nika_check::EnergyReading
-impl core::marker::UnsafeUnpin for nika_check::EnergyReading
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::EnergyReading
-impl core::panic::unwind_safe::UnwindSafe for nika_check::EnergyReading
 impl<D> owo_colors::OwoColorize for nika_check::EnergyReading
 impl<T, U> core::convert::Into<U> for nika_check::EnergyReading where U: core::convert::From<T>
 pub fn nika_check::EnergyReading::into(self) -> U
@@ -1703,13 +1493,6 @@ pub fn nika_check::EnergyTask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> c
 impl core::marker::StructuralPartialEq for nika_check::EnergyTask
 impl serde_core::ser::Serialize for nika_check::EnergyTask
 pub fn nika_check::EnergyTask::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::EnergyTask
-impl core::marker::Send for nika_check::EnergyTask
-impl core::marker::Sync for nika_check::EnergyTask
-impl core::marker::Unpin for nika_check::EnergyTask
-impl core::marker::UnsafeUnpin for nika_check::EnergyTask
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::EnergyTask
-impl core::panic::unwind_safe::UnwindSafe for nika_check::EnergyTask
 impl<D> owo_colors::OwoColorize for nika_check::EnergyTask
 impl<T, U> core::convert::Into<U> for nika_check::EnergyTask where U: core::convert::From<T>
 pub fn nika_check::EnergyTask::into(self) -> U
@@ -1749,13 +1532,6 @@ impl core::default::Default for nika_check::FlowFacts
 pub fn nika_check::FlowFacts::default() -> nika_check::FlowFacts
 impl core::fmt::Debug for nika_check::FlowFacts
 pub fn nika_check::FlowFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for nika_check::FlowFacts
-impl core::marker::Send for nika_check::FlowFacts
-impl core::marker::Sync for nika_check::FlowFacts
-impl core::marker::Unpin for nika_check::FlowFacts
-impl core::marker::UnsafeUnpin for nika_check::FlowFacts
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::FlowFacts
-impl core::panic::unwind_safe::UnwindSafe for nika_check::FlowFacts
 impl<D> owo_colors::OwoColorize for nika_check::FlowFacts
 impl<T, U> core::convert::Into<U> for nika_check::FlowFacts where U: core::convert::From<T>
 pub fn nika_check::FlowFacts::into(self) -> U
@@ -1798,13 +1574,6 @@ pub fn nika_check::GateFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::marker::StructuralPartialEq for nika_check::GateFinding
 impl serde_core::ser::Serialize for nika_check::GateFinding
 pub fn nika_check::GateFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::GateFinding
-impl core::marker::Send for nika_check::GateFinding
-impl core::marker::Sync for nika_check::GateFinding
-impl core::marker::Unpin for nika_check::GateFinding
-impl core::marker::UnsafeUnpin for nika_check::GateFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::GateFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::GateFinding
 impl<D> owo_colors::OwoColorize for nika_check::GateFinding
 impl<T, U> core::convert::Into<U> for nika_check::GateFinding where U: core::convert::From<T>
 pub fn nika_check::GateFinding::into(self) -> U
@@ -1846,13 +1615,6 @@ pub fn nika_check::Hint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::f
 impl core::marker::StructuralPartialEq for nika_check::Hint
 impl serde_core::ser::Serialize for nika_check::Hint
 pub fn nika_check::Hint::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::Hint
-impl core::marker::Send for nika_check::Hint
-impl core::marker::Sync for nika_check::Hint
-impl core::marker::Unpin for nika_check::Hint
-impl core::marker::UnsafeUnpin for nika_check::Hint
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::Hint
-impl core::panic::unwind_safe::UnwindSafe for nika_check::Hint
 impl<D> owo_colors::OwoColorize for nika_check::Hint
 impl<Q, K> equivalent::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
@@ -1899,13 +1661,6 @@ pub fn nika_check::InferredPermits::eq(&self, other: &nika_check::InferredPermit
 impl core::fmt::Debug for nika_check::InferredPermits
 pub fn nika_check::InferredPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::InferredPermits
-impl core::marker::Freeze for nika_check::InferredPermits
-impl core::marker::Send for nika_check::InferredPermits
-impl core::marker::Sync for nika_check::InferredPermits
-impl core::marker::Unpin for nika_check::InferredPermits
-impl core::marker::UnsafeUnpin for nika_check::InferredPermits
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::InferredPermits
-impl core::panic::unwind_safe::UnwindSafe for nika_check::InferredPermits
 impl<D> owo_colors::OwoColorize for nika_check::InferredPermits
 impl<Q, K> equivalent::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
@@ -1953,13 +1708,6 @@ pub fn nika_check::MissingArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> c
 impl core::marker::StructuralPartialEq for nika_check::MissingArg
 impl serde_core::ser::Serialize for nika_check::MissingArg
 pub fn nika_check::MissingArg::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::MissingArg
-impl core::marker::Send for nika_check::MissingArg
-impl core::marker::Sync for nika_check::MissingArg
-impl core::marker::Unpin for nika_check::MissingArg
-impl core::marker::UnsafeUnpin for nika_check::MissingArg
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::MissingArg
-impl core::panic::unwind_safe::UnwindSafe for nika_check::MissingArg
 impl<D> owo_colors::OwoColorize for nika_check::MissingArg
 impl<Q, K> equivalent::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
@@ -2006,13 +1754,6 @@ pub fn nika_check::ModelRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>
 impl core::marker::StructuralPartialEq for nika_check::ModelRequirement
 impl serde_core::ser::Serialize for nika_check::ModelRequirement
 pub fn nika_check::ModelRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::ModelRequirement
-impl core::marker::Send for nika_check::ModelRequirement
-impl core::marker::Sync for nika_check::ModelRequirement
-impl core::marker::Unpin for nika_check::ModelRequirement
-impl core::marker::UnsafeUnpin for nika_check::ModelRequirement
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::ModelRequirement
-impl core::panic::unwind_safe::UnwindSafe for nika_check::ModelRequirement
 impl<D> owo_colors::OwoColorize for nika_check::ModelRequirement
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
@@ -2063,13 +1804,6 @@ pub fn nika_check::PermitTaint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::marker::StructuralPartialEq for nika_check::PermitTaint
 impl serde_core::ser::Serialize for nika_check::PermitTaint
 pub fn nika_check::PermitTaint::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::PermitTaint
-impl core::marker::Send for nika_check::PermitTaint
-impl core::marker::Sync for nika_check::PermitTaint
-impl core::marker::Unpin for nika_check::PermitTaint
-impl core::marker::UnsafeUnpin for nika_check::PermitTaint
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::PermitTaint
-impl core::panic::unwind_safe::UnwindSafe for nika_check::PermitTaint
 impl<D> owo_colors::OwoColorize for nika_check::PermitTaint
 impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
@@ -2121,13 +1855,6 @@ pub fn nika_check::Requirements::fmt(&self, f: &mut core::fmt::Formatter<'_>) ->
 impl core::marker::StructuralPartialEq for nika_check::Requirements
 impl serde_core::ser::Serialize for nika_check::Requirements
 pub fn nika_check::Requirements::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::Requirements
-impl core::marker::Send for nika_check::Requirements
-impl core::marker::Sync for nika_check::Requirements
-impl core::marker::Unpin for nika_check::Requirements
-impl core::marker::UnsafeUnpin for nika_check::Requirements
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::Requirements
-impl core::panic::unwind_safe::UnwindSafe for nika_check::Requirements
 impl<D> owo_colors::OwoColorize for nika_check::Requirements
 impl<Q, K> equivalent::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
@@ -2183,13 +1910,6 @@ pub fn nika_check::RunCertificate::fmt(&self, f: &mut core::fmt::Formatter<'_>) 
 impl core::marker::StructuralPartialEq for nika_check::RunCertificate
 impl serde_core::ser::Serialize for nika_check::RunCertificate
 pub fn nika_check::RunCertificate::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::RunCertificate
-impl core::marker::Send for nika_check::RunCertificate
-impl core::marker::Sync for nika_check::RunCertificate
-impl core::marker::Unpin for nika_check::RunCertificate
-impl core::marker::UnsafeUnpin for nika_check::RunCertificate
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::RunCertificate
-impl core::panic::unwind_safe::UnwindSafe for nika_check::RunCertificate
 impl<D> owo_colors::OwoColorize for nika_check::RunCertificate
 impl<Q, K> equivalent::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
@@ -2240,13 +1960,6 @@ pub fn nika_check::RunDeclFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) 
 impl core::marker::StructuralPartialEq for nika_check::RunDeclFinding
 impl serde_core::ser::Serialize for nika_check::RunDeclFinding
 pub fn nika_check::RunDeclFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::RunDeclFinding
-impl core::marker::Send for nika_check::RunDeclFinding
-impl core::marker::Sync for nika_check::RunDeclFinding
-impl core::marker::Unpin for nika_check::RunDeclFinding
-impl core::marker::UnsafeUnpin for nika_check::RunDeclFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::RunDeclFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::RunDeclFinding
 impl<D> owo_colors::OwoColorize for nika_check::RunDeclFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
@@ -2294,13 +2007,6 @@ pub fn nika_check::SchemaLintFinding::fmt(&self, f: &mut core::fmt::Formatter<'_
 impl core::marker::StructuralPartialEq for nika_check::SchemaLintFinding
 impl serde_core::ser::Serialize for nika_check::SchemaLintFinding
 pub fn nika_check::SchemaLintFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::SchemaLintFinding
-impl core::marker::Send for nika_check::SchemaLintFinding
-impl core::marker::Sync for nika_check::SchemaLintFinding
-impl core::marker::Unpin for nika_check::SchemaLintFinding
-impl core::marker::UnsafeUnpin for nika_check::SchemaLintFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::SchemaLintFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::SchemaLintFinding
 impl<D> owo_colors::OwoColorize for nika_check::SchemaLintFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
@@ -2349,13 +2055,6 @@ pub fn nika_check::SchemaTypeFinding::fmt(&self, f: &mut core::fmt::Formatter<'_
 impl core::marker::StructuralPartialEq for nika_check::SchemaTypeFinding
 impl serde_core::ser::Serialize for nika_check::SchemaTypeFinding
 pub fn nika_check::SchemaTypeFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::SchemaTypeFinding
-impl core::marker::Send for nika_check::SchemaTypeFinding
-impl core::marker::Sync for nika_check::SchemaTypeFinding
-impl core::marker::Unpin for nika_check::SchemaTypeFinding
-impl core::marker::UnsafeUnpin for nika_check::SchemaTypeFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::SchemaTypeFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::SchemaTypeFinding
 impl<D> owo_colors::OwoColorize for nika_check::SchemaTypeFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
@@ -2403,13 +2102,6 @@ pub fn nika_check::SecretEgress::fmt(&self, f: &mut core::fmt::Formatter<'_>) ->
 impl core::marker::StructuralPartialEq for nika_check::SecretEgress
 impl serde_core::ser::Serialize for nika_check::SecretEgress
 pub fn nika_check::SecretEgress::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::SecretEgress
-impl core::marker::Send for nika_check::SecretEgress
-impl core::marker::Sync for nika_check::SecretEgress
-impl core::marker::Unpin for nika_check::SecretEgress
-impl core::marker::UnsafeUnpin for nika_check::SecretEgress
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::SecretEgress
-impl core::panic::unwind_safe::UnwindSafe for nika_check::SecretEgress
 impl<D> owo_colors::OwoColorize for nika_check::SecretEgress
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
@@ -2460,13 +2152,6 @@ pub fn nika_check::SecretLeak::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> c
 impl core::marker::StructuralPartialEq for nika_check::SecretLeak
 impl serde_core::ser::Serialize for nika_check::SecretLeak
 pub fn nika_check::SecretLeak::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::SecretLeak
-impl core::marker::Send for nika_check::SecretLeak
-impl core::marker::Sync for nika_check::SecretLeak
-impl core::marker::Unpin for nika_check::SecretLeak
-impl core::marker::UnsafeUnpin for nika_check::SecretLeak
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::SecretLeak
-impl core::panic::unwind_safe::UnwindSafe for nika_check::SecretLeak
 impl<D> owo_colors::OwoColorize for nika_check::SecretLeak
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
@@ -2514,13 +2199,6 @@ pub fn nika_check::SecretRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_
 impl core::marker::StructuralPartialEq for nika_check::SecretRequirement
 impl serde_core::ser::Serialize for nika_check::SecretRequirement
 pub fn nika_check::SecretRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::SecretRequirement
-impl core::marker::Send for nika_check::SecretRequirement
-impl core::marker::Sync for nika_check::SecretRequirement
-impl core::marker::Unpin for nika_check::SecretRequirement
-impl core::marker::UnsafeUnpin for nika_check::SecretRequirement
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::SecretRequirement
-impl core::panic::unwind_safe::UnwindSafe for nika_check::SecretRequirement
 impl<D> owo_colors::OwoColorize for nika_check::SecretRequirement
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
@@ -2573,13 +2251,6 @@ pub fn nika_check::SinkFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::marker::StructuralPartialEq for nika_check::SinkFinding
 impl serde_core::ser::Serialize for nika_check::SinkFinding
 pub fn nika_check::SinkFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::SinkFinding
-impl core::marker::Send for nika_check::SinkFinding
-impl core::marker::Sync for nika_check::SinkFinding
-impl core::marker::Unpin for nika_check::SinkFinding
-impl core::marker::UnsafeUnpin for nika_check::SinkFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::SinkFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::SinkFinding
 impl<D> owo_colors::OwoColorize for nika_check::SinkFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
@@ -2625,13 +2296,6 @@ pub fn nika_check::TaintTrace::eq(&self, other: &nika_check::TaintTrace) -> bool
 impl core::fmt::Debug for nika_check::TaintTrace
 pub fn nika_check::TaintTrace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_check::TaintTrace
-impl core::marker::Freeze for nika_check::TaintTrace
-impl core::marker::Send for nika_check::TaintTrace
-impl core::marker::Sync for nika_check::TaintTrace
-impl core::marker::Unpin for nika_check::TaintTrace
-impl core::marker::UnsafeUnpin for nika_check::TaintTrace
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::TaintTrace
-impl core::panic::unwind_safe::UnwindSafe for nika_check::TaintTrace
 impl<D> owo_colors::OwoColorize for nika_check::TaintTrace
 impl<Q, K> equivalent::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
@@ -2674,13 +2338,6 @@ impl core::fmt::Debug for nika_check::TaskBlast
 pub fn nika_check::TaskBlast::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_check::TaskBlast
 pub fn nika_check::TaskBlast::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::TaskBlast
-impl core::marker::Send for nika_check::TaskBlast
-impl core::marker::Sync for nika_check::TaskBlast
-impl core::marker::Unpin for nika_check::TaskBlast
-impl core::marker::UnsafeUnpin for nika_check::TaskBlast
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::TaskBlast
-impl core::panic::unwind_safe::UnwindSafe for nika_check::TaskBlast
 impl<D> owo_colors::OwoColorize for nika_check::TaskBlast
 impl<T, U> core::convert::Into<U> for nika_check::TaskBlast where U: core::convert::From<T>
 pub fn nika_check::TaskBlast::into(self) -> U
@@ -2727,13 +2384,6 @@ pub fn nika_check::TaskCost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> cor
 impl core::marker::StructuralPartialEq for nika_check::TaskCost
 impl serde_core::ser::Serialize for nika_check::TaskCost
 pub fn nika_check::TaskCost::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::TaskCost
-impl core::marker::Send for nika_check::TaskCost
-impl core::marker::Sync for nika_check::TaskCost
-impl core::marker::Unpin for nika_check::TaskCost
-impl core::marker::UnsafeUnpin for nika_check::TaskCost
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::TaskCost
-impl core::panic::unwind_safe::UnwindSafe for nika_check::TaskCost
 impl<D> owo_colors::OwoColorize for nika_check::TaskCost
 impl<T, U> core::convert::Into<U> for nika_check::TaskCost where U: core::convert::From<T>
 pub fn nika_check::TaskCost::into(self) -> U
@@ -2776,13 +2426,6 @@ impl core::fmt::Debug for nika_check::UnifiedFinding
 pub fn nika_check::UnifiedFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl serde_core::ser::Serialize for nika_check::UnifiedFinding
 pub fn nika_check::UnifiedFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::UnifiedFinding
-impl core::marker::Send for nika_check::UnifiedFinding
-impl core::marker::Sync for nika_check::UnifiedFinding
-impl core::marker::Unpin for nika_check::UnifiedFinding
-impl core::marker::UnsafeUnpin for nika_check::UnifiedFinding
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::UnifiedFinding
-impl core::panic::unwind_safe::UnwindSafe for nika_check::UnifiedFinding
 impl<D> owo_colors::OwoColorize for nika_check::UnifiedFinding
 impl<T, U> core::convert::Into<U> for nika_check::UnifiedFinding where U: core::convert::From<T>
 pub fn nika_check::UnifiedFinding::into(self) -> U
@@ -2826,13 +2469,6 @@ pub fn nika_check::UnknownArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> c
 impl core::marker::StructuralPartialEq for nika_check::UnknownArg
 impl serde_core::ser::Serialize for nika_check::UnknownArg
 pub fn nika_check::UnknownArg::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::UnknownArg
-impl core::marker::Send for nika_check::UnknownArg
-impl core::marker::Sync for nika_check::UnknownArg
-impl core::marker::Unpin for nika_check::UnknownArg
-impl core::marker::UnsafeUnpin for nika_check::UnknownArg
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::UnknownArg
-impl core::panic::unwind_safe::UnwindSafe for nika_check::UnknownArg
 impl<D> owo_colors::OwoColorize for nika_check::UnknownArg
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
@@ -2880,13 +2516,6 @@ pub fn nika_check::UnknownTool::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::marker::StructuralPartialEq for nika_check::UnknownTool
 impl serde_core::ser::Serialize for nika_check::UnknownTool
 pub fn nika_check::UnknownTool::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::UnknownTool
-impl core::marker::Send for nika_check::UnknownTool
-impl core::marker::Sync for nika_check::UnknownTool
-impl core::marker::Unpin for nika_check::UnknownTool
-impl core::marker::UnsafeUnpin for nika_check::UnknownTool
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::UnknownTool
-impl core::panic::unwind_safe::UnwindSafe for nika_check::UnknownTool
 impl<D> owo_colors::OwoColorize for nika_check::UnknownTool
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
@@ -2938,13 +2567,6 @@ pub fn nika_check::WriteConflict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -
 impl core::marker::StructuralPartialEq for nika_check::WriteConflict
 impl serde_core::ser::Serialize for nika_check::WriteConflict
 pub fn nika_check::WriteConflict::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl core::marker::Freeze for nika_check::WriteConflict
-impl core::marker::Send for nika_check::WriteConflict
-impl core::marker::Sync for nika_check::WriteConflict
-impl core::marker::Unpin for nika_check::WriteConflict
-impl core::marker::UnsafeUnpin for nika_check::WriteConflict
-impl core::panic::unwind_safe::RefUnwindSafe for nika_check::WriteConflict
-impl core::panic::unwind_safe::UnwindSafe for nika_check::WriteConflict
 impl<D> owo_colors::OwoColorize for nika_check::WriteConflict
 impl<Q, K> equivalent::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
