@@ -15,6 +15,8 @@
 
 use serde::Serialize;
 
+use crate::SecretLeak;
+
 use super::ByteSpan;
 use super::{CheckReport, FindingSeverity};
 
@@ -104,28 +106,52 @@ fn fold_composition(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
     }
 }
 
-/// Fold every class into the one list — conformance first (the ladder's
-/// own order), then the analysis classes in render order.
-pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
-    let mut out = Vec::new();
-    for c in &report.conformance {
-        let mut f = UnifiedFinding::new("conformance", "CONFORM", c.message.clone());
-        f.code = Some(c.code.clone());
-        f.docs_url = Some(c.docs_url.clone());
-        f.span = c.span;
-        out.push(f);
+/// The fix text for one refused edge — names the LAYER that failed (the
+/// 2026-07-29 audit · run 4): a full sanction teach only when no
+/// `egress:` exists; an author who already declassified gets the missing
+/// rung — the sink to add, the host to align, or the capability layer
+/// (`permits.net.http`) the sanction narrows against, never widens.
+fn leak_fix(l: &SecretLeak) -> String {
+    use super::declass::LeakReason as R;
+    match &l.reason {
+        R::NoEgress => format!(
+            "fix: sanction it — `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
+            l.sink_id, l.secret
+        ),
+        R::SinkNotCleared { sink } => format!(
+            "fix: add `\"{sink}\"` to the `to:` list of the existing `egress:` on `secrets.{}`",
+            l.secret
+        ),
+        R::HostMismatch { declared, actual } => format!(
+            "fix: the `egress:` `host:` ({declared}) must equal the sink's literal destination ({actual}) — a host clears only itself"
+        ),
+        R::CapabilityMissing { host } => format!(
+            "fix: the `egress:` exists — the missing layer is capability: add \"{host}\" to `permits.net.http` (the sanction narrows, never widens, permits)"
+        ),
+        R::DerivedDestination => {
+            "fix: the destination is derived (`${{ }}`-built) — a sanction needs a static-literal destination host"
+                .to_owned()
+        }
+        R::SelfShapeBroken => format!(
+            "fix: `host_from_self` needs the destination to be exactly `${{{{ secrets.{} }}}}` with no other secret in the payload (the non-occlusion guard)",
+            l.secret
+        ),
     }
+}
+
+/// The secrets half of the fold (leaks + output egresses) — extracted
+/// under the fn-length law; one class, one wire code each.
+fn push_secret_rows(out: &mut Vec<UnifiedFinding>, report: &CheckReport) {
     for l in &report.secret_leaks {
-        // The fix is a per-sink sanction ON THE SECRET — spelled out so the
-        // flagship IFC finding is self-serve (the author no longer reads
-        // spec 01 §egress to derive it · use-case battery 2026-07-11 · T2).
         let mut f = UnifiedFinding::new(
             "secret_leak",
             "SECRETS",
             format!(
-                "leak into {} (task `{}`) — {} · fix: sanction it — \
-                 `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
-                l.sink, l.task, l.trace, l.sink_id, l.secret
+                "leak into {} (task `{}`) — {} · {}",
+                l.sink,
+                l.task,
+                l.trace,
+                leak_fix(l)
             ),
         );
         // W4 (spec 10): the flow refusal carries its wire code — the
@@ -146,6 +172,20 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.docs_url = Some(format!("{}/NIKA-SEC-007", super::ERROR_DOCS_BASE));
         out.push(f);
     }
+}
+
+/// Fold every class into the one list — conformance first (the ladder's
+/// own order), then the analysis classes in render order.
+pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
+    let mut out = Vec::new();
+    for c in &report.conformance {
+        let mut f = UnifiedFinding::new("conformance", "CONFORM", c.message.clone());
+        f.code = Some(c.code.clone());
+        f.docs_url = Some(c.docs_url.clone());
+        f.span = c.span;
+        out.push(f);
+    }
+    push_secret_rows(&mut out, report);
     for c in &report.capability_escapes {
         let mut f = UnifiedFinding::new(
             "capability_escape",

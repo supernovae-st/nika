@@ -148,6 +148,7 @@ pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
 pub use data_sink::SinkFinding;
+pub use declass::LeakReason;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use energy::{EnergyCounts, EnergyReading, EnergyTask};
 pub use findings::UnifiedFinding;

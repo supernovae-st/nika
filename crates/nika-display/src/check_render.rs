@@ -631,29 +631,16 @@ fn wf_calls_workflows(wf: &RawWorkflow) -> bool {
 }
 
 /// The SECRETS rows — one per leak into an effect, then one per egress
-/// through the workflow `outputs:`.
+/// through the workflow `outputs:` — read from the ONE findings fold
+/// (`nika-check::findings` owns the fix text: the human voice IS the
+/// `--json` voice, one contract, never a second renderer).
 fn secret_rows(report: &CheckReport) -> Vec<String> {
-    let mut rows: Vec<String> = report
-        .secret_leaks
+    report
+        .findings
         .iter()
-        .map(|l| {
-            // The per-sink sanction ON THE SECRET — the human voice
-            // matches the `--json` findings[] (one contract · use-case
-            // battery 2026-07-11 · T2).
-            format!(
-                "leak into {} (task `{}`) — {} · fix: sanction it — \
-                 `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
-                l.sink, l.task, l.trace, l.sink_id, l.secret
-            )
-        })
-        .collect();
-    rows.extend(
-        report
-            .secret_egresses
-            .iter()
-            .map(|e| format!("EGRESS via outputs.{} — {}", e.output, e.trace)),
-    );
-    rows
+        .filter(|f| f.kind == "secret_leak" || f.kind == "secret_egress")
+        .map(|f| f.message.clone())
+        .collect()
 }
 
 /// A finding section for a lane that needs a valid DAG. When conformance
@@ -911,30 +898,72 @@ fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
     }
 }
 
+/// The COST arm for a workflow with NO own inference task — the `$0.00`
+/// that used to claim the whole bill from a lane that prices
+/// `infer:`/`agent:` and nothing else; the composed-children arm joins
+/// here (extracted under the fn-length law).
+fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
+    if !report.cost.composed.is_empty() {
+        return cost_composed_only(out, report, t);
+    }
+    let _ = writeln!(
+        out,
+        " {} {}     {}",
+        mark(t, true),
+        t.paint(Role::Strong, "COST"),
+        // An `exec:` runs an arbitrary program, and the programs authors
+        // reach for first are billed LLM CLIs; an `mcp:` call is a third
+        // party's meter. Measured 2026-07-29: a lone
+        // `exec: ["claude", "-p", "write a novel"]` printed
+        // `✔ COST no inference tasks · $0.00` and
+        // `✔ audited · est ≤$0.0000`.
+        t.paint(
+            Role::Dim,
+            "no infer/agent tasks · $0.00 · exec + mcp spend unpriced"
+        )
+    );
+}
+
+/// The per-task rows of [`cost`] — a priced row at its cap, or the
+/// UNBOUNDED row with its named reason (extracted under the fn-length law).
+fn cost_task_rows(out: &mut String, report: &CheckReport, t: Theme) {
+    for c in &report.cost.tasks {
+        let model = c.model.as_deref().unwrap_or("?");
+        match (&c.usd, &c.unbounded_reason) {
+            (Some(usd), _) => {
+                let _ = writeln!(
+                    out,
+                    "   {}  {}  ≤{} tk  ${usd:.4}",
+                    c.task,
+                    t.paint(Role::Dim, model),
+                    c.max_tokens.unwrap_or(0),
+                );
+            }
+            (None, reason) => {
+                let why = match reason {
+                    Some(UnboundedReason::NoTokenLimit) => "no max_tokens declared",
+                    Some(UnboundedReason::NoPrice) => "no catalog price (local/unknown model)",
+                    Some(UnboundedReason::UnknownIterations) => {
+                        "for_each over an expression (unknown count)"
+                    }
+                    _ => "unbounded",
+                };
+                let _ = writeln!(
+                    out,
+                    "   {}  {}  {} {}",
+                    c.task,
+                    t.paint(Role::Dim, model),
+                    t.paint(Role::Warn, "UNBOUNDED"),
+                    t.paint(Role::Dim, &format!("— {why}")),
+                );
+            }
+        }
+    }
+}
+
 fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     if report.cost.tasks.is_empty() {
-        if !report.cost.composed.is_empty() {
-            return cost_composed_only(out, report, t);
-        }
-        let _ = writeln!(
-            out,
-            " {} {}     {}",
-            mark(t, true),
-            t.paint(Role::Strong, "COST"),
-            // `$0.00` was a claim about the whole bill from a lane that
-            // prices `infer:`/`agent:` and nothing else. An `exec:` runs
-            // an arbitrary program, and the programs authors reach for
-            // first are billed LLM CLIs; an `mcp:` call is a third party's
-            // meter. Measured 2026-07-29: a lone
-            // `exec: ["claude", "-p", "write a novel"]` printed
-            // `✔ COST no inference tasks · $0.00` and
-            // `✔ audited · est ≤$0.0000`.
-            t.paint(
-                Role::Dim,
-                "no infer/agent tasks · $0.00 · exec + mcp spend unpriced"
-            )
-        );
-        return;
+        return cost_empty_arm(out, report, t);
     }
     // OUTPUT ceiling, and the word is load-bearing. `cost::ceiling` prices
     // `max_tokens`, which the spec defines as "Max OUTPUT tokens"
@@ -1023,38 +1052,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             &format!("· prompts, exec + mcp unpriced · prices {}", snap.as_of)
         ),
     );
-    for c in &report.cost.tasks {
-        let model = c.model.as_deref().unwrap_or("?");
-        match (&c.usd, &c.unbounded_reason) {
-            (Some(usd), _) => {
-                let _ = writeln!(
-                    out,
-                    "   {}  {}  ≤{} tk  ${usd:.4}",
-                    c.task,
-                    t.paint(Role::Dim, model),
-                    c.max_tokens.unwrap_or(0),
-                );
-            }
-            (None, reason) => {
-                let why = match reason {
-                    Some(UnboundedReason::NoTokenLimit) => "no max_tokens declared",
-                    Some(UnboundedReason::NoPrice) => "no catalog price (local/unknown model)",
-                    Some(UnboundedReason::UnknownIterations) => {
-                        "for_each over an expression (unknown count)"
-                    }
-                    _ => "unbounded",
-                };
-                let _ = writeln!(
-                    out,
-                    "   {}  {}  {} {}",
-                    c.task,
-                    t.paint(Role::Dim, model),
-                    t.paint(Role::Warn, "UNBOUNDED"),
-                    t.paint(Role::Dim, &format!("— {why}")),
-                );
-            }
-        }
-    }
+    cost_task_rows(out, report, t);
 }
 
 /// `≤ N Wh` at a ceiling-honest display grain: a tiny bound rounds UP
@@ -1275,6 +1273,13 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
         loopback_declassification_lines(out, wf, t);
         return;
     }
+    permits_escape_rows(out, report, t);
+}
+
+/// The escape/sink/taint rows of [`permits`] (extracted under the
+/// fn-length law) — one per finding, code-first, same voices as
+/// `findings[]`.
+fn permits_escape_rows(out: &mut String, report: &CheckReport, t: Theme) {
     for e in &report.capability_escapes {
         let fix = e
             .fix

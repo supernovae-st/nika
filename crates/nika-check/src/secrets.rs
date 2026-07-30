@@ -41,6 +41,19 @@ pub struct SecretLeak {
     pub sink_id: String,
     /// The full taint chain (`secrets.x → with.t → ...`) for diagnostics.
     pub trace: String,
+    /// WHY the edge refused — the fix ladder's rung (the finding names
+    /// the layer that actually failed: no egress · sink · host ·
+    /// capability · derived destination · broken self-URL shape).
+    pub reason: super::declass::LeakReason,
+}
+
+/// The secret's declared egress rules by name (the scan's own lookup —
+/// a leak always names a DECLARED secret, so the entry exists).
+fn egress_of<'a>(wf: &'a RawWorkflow, secret: &str) -> &'a [nika_schema::types::EgressRule] {
+    wf.secrets
+        .iter()
+        .find(|(name, _)| name.value == secret)
+        .map_or(&[], |(_, decl)| decl.value.egress.as_slice())
 }
 
 /// The precise `egress.to:` clearance a leak needs: an invoke's tool id
@@ -82,6 +95,7 @@ pub struct SecretEgress {
 #[must_use]
 pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> {
     let mut leaks = Vec::new();
+    let permits = wf.permits.as_ref().map(|s| &s.value);
     for (idx, task) in wf.tasks.iter().enumerate() {
         // The flow facts are already sanction-filtered (declass · ADR-092):
         // `effect_leak` / `finally_effect_taint` hold only UNSANCTIONED
@@ -106,9 +120,15 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                 },
                 sink_id: sink_id_of(&task.value.action),
                 trace: trace.render(),
+                reason: super::declass::leak_reason(
+                    egress_of(wf, &trace.secret),
+                    &task.value.action,
+                    permits,
+                ),
             });
         }
         if let Some((trace, sink, cleanup_idx)) = flow.finally_effect_taint(idx) {
+            let cleanup_action = wf.tasks.get(cleanup_idx).map(|t| &t.value.action);
             leaks.push(SecretLeak {
                 task: task.value.id.value.clone(),
                 secret: trace.secret.clone(),
@@ -118,6 +138,9 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                     .get(cleanup_idx)
                     .map_or_else(|| sink.to_owned(), |t| sink_id_of(&t.value.action)),
                 trace: trace.render(),
+                reason: cleanup_action.map_or(super::declass::LeakReason::NoEgress, |a| {
+                    super::declass::leak_reason(egress_of(wf, &trace.secret), a, permits)
+                }),
             });
         }
     }
@@ -668,6 +691,250 @@ tasks:
         assert!(
             l.iter().any(|x| x.secret == "raw" && x.sink == "exec"),
             "the unsanctioned later cleanup leaks: {l:?}"
+        );
+    }
+
+    // ─── the fix ladder (the 2026-07-29 audit · run 4) ───────────────
+
+    const KEYED: &str = "\
+secrets:
+  k:
+    source: env
+    key: K
+";
+
+    /// No `egress:` at all → the full sanction teach (`NoEgress`). An
+    /// `egress:` naming a DIFFERENT sink → `SinkNotCleared` (the author
+    /// already declassified; the fix is to ADD the sink, not re-learn
+    /// the clause).
+    #[test]
+    fn the_ladder_distinguishes_no_egress_from_a_wrong_sink() {
+        let bare = format!(
+            "nika: v1\nworkflow:\n  id: w\n{KEYED}permits: {{ exec: [\"curl\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"curl\", \"${{{{ secrets.k }}}}\", \"https://x.com\"] }}\n"
+        );
+        let l = leaks_of(&bare);
+        assert!(
+            matches!(l[0].reason, super::super::declass::LeakReason::NoEgress),
+            "{:?}",
+            l[0].reason
+        );
+
+        let wrong_sink = "\
+nika: v1
+workflow:
+  id: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:notify\"
+permits:
+  tools: [\"nika:fetch\", \"nika:notify\"]
+  net:
+    http: [\"api.stripe.com\"]
+tasks:
+  t:
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://api.stripe.com/v1/x\"
+        headers: { Authorization: \"Bearer ${{ secrets.k }}\" }
+";
+        let l = leaks_of(wrong_sink);
+        assert!(
+            matches!(
+                &l[0].reason,
+                super::super::declass::LeakReason::SinkNotCleared { sink } if sink == "nika:fetch"
+            ),
+            "{:?}",
+            l[0].reason
+        );
+    }
+
+    /// Right sink, wrong host → `HostMismatch` naming both hosts; right
+    /// sink + right host but no `net.http` → `CapabilityMissing` (the
+    /// capability layer is the one the fix must name — the audit's live
+    /// case).
+    #[test]
+    fn the_ladder_names_the_host_and_the_capability_layer() {
+        let wrong_host = "\
+nika: v1
+workflow:
+  id: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"other.example.com\"
+permits:
+  tools: [\"nika:fetch\"]
+  net:
+    http: [\"api.stripe.com\", \"other.example.com\"]
+tasks:
+  t:
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://api.stripe.com/v1/x\"
+        headers: { Authorization: \"Bearer ${{ secrets.k }}\" }
+";
+        let l = leaks_of(wrong_host);
+        assert!(
+            matches!(
+                &l[0].reason,
+                super::super::declass::LeakReason::HostMismatch { declared, actual }
+                    if declared == "other.example.com" && actual == "api.stripe.com"
+            ),
+            "{:?}",
+            l[0].reason
+        );
+
+        let capability_missing = "\
+nika: v1
+workflow:
+  id: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+permits:
+  tools: [\"nika:fetch\"]
+tasks:
+  t:
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://api.stripe.com/v1/x\"
+        headers: { Authorization: \"Bearer ${{ secrets.k }}\" }
+";
+        let l = leaks_of(capability_missing);
+        assert!(
+            matches!(
+                &l[0].reason,
+                super::super::declass::LeakReason::CapabilityMissing { host }
+                    if host == "api.stripe.com"
+            ),
+            "{:?}",
+            l[0].reason
+        );
+    }
+
+    /// A derived destination (templated URL) → `DerivedDestination`; a
+    /// broken `host_from_self` shape (a second secret co-occurs) →
+    /// `SelfShapeBroken`. The sanctioned form stays clean throughout.
+    #[test]
+    fn the_ladder_names_derived_destinations_and_broken_self_shapes() {
+        let derived = "\
+nika: v1
+workflow:
+  id: w
+const:
+  host: \"api.stripe.com\"
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+permits:
+  tools: [\"nika:fetch\"]
+  net:
+    http: [\"api.stripe.com\"]
+tasks:
+  t:
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://${{ const.host }}/v1/x\"
+        headers: { Authorization: \"Bearer ${{ secrets.k }}\" }
+";
+        let l = leaks_of(derived);
+        assert!(
+            matches!(
+                l[0].reason,
+                super::super::declass::LeakReason::DerivedDestination
+            ),
+            "{:?}",
+            l[0].reason
+        );
+
+        let broken_self = "\
+nika: v1
+workflow:
+  id: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:fetch\"
+        host_from_self: true
+  other: { source: env, key: OTHER }
+permits:
+  tools: [\"nika:fetch\"]
+  net:
+    http: [\"hooks.example.com\"]
+tasks:
+  t:
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"${{ secrets.hook }}\"
+        headers: { Authorization: \"Bearer ${{ secrets.other }}\" }
+";
+        let l = leaks_of(broken_self);
+        assert!(
+            l.iter().any(|x| x.secret == "other"
+                && matches!(x.reason, super::super::declass::LeakReason::NoEgress)),
+            "the second secret is its own unsanctioned leak: {l:?}"
+        );
+    }
+
+    /// The rendered fix names the LAYER (end-to-end through `check`): a
+    /// capability-missing egress teaches `permits.net.http`, never
+    /// « add the clause you already wrote ».
+    #[test]
+    fn the_rendered_fix_teaches_the_missing_layer() {
+        let yaml = "\
+nika: v1
+workflow:
+  id: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+permits:
+  tools: [\"nika:fetch\"]
+tasks:
+  t:
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://api.stripe.com/v1/x\"
+        headers: { Authorization: \"Bearer ${{ secrets.k }}\" }
+";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let report = crate::check(&wf);
+        let finding = report
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-SEC-006"))
+            .expect("the leak finding");
+        assert!(
+            finding.message.contains("permits.net.http")
+                && !finding.message.contains("sanction it"),
+            "the capability layer is the teach: {}",
+            finding.message
         );
     }
 }

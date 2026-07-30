@@ -94,6 +94,97 @@ pub(super) fn is_sanctioned(
         .any(|rule| integrity_ok(secret, rule, action, permits))
 }
 
+/// WHY an unsanctioned edge refused — one reason per refused edge,
+/// computed beside [`is_sanctioned`] so the finding's fix names the
+/// LAYER that actually failed (the 2026-07-29 audit · run 4: every
+/// refused edge used to teach « add `egress:` » even when the clause
+/// was already declared, and the real missing layer — sink · host ·
+/// capability — went unnamed).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub enum LeakReason {
+    /// No `egress:` at all on the secret — the full sanction teach.
+    NoEgress,
+    /// Egress exists, but no rule names THIS sink (`to:`) — the author
+    /// already declassified and must ADD the sink to the list.
+    SinkNotCleared {
+        /// The sink the `to:` list misses.
+        sink: String,
+    },
+    /// A rule matches the sink but the sink's literal destination host
+    /// is not the rule's (robust declassification — a host clears only
+    /// itself).
+    HostMismatch {
+        /// The host the rule clears.
+        declared: String,
+        /// The sink's actual literal destination.
+        actual: String,
+    },
+    /// A rule matches sink + host, but the host is not in
+    /// `permits.net.http` — the capability layer is the missing one
+    /// (the egress narrows, never widens, permits).
+    CapabilityMissing {
+        /// The host the boundary refuses.
+        host: String,
+    },
+    /// The destination is derived (`${{ }}`-built) — a sanction needs a
+    /// static-literal destination, never an injectable one.
+    DerivedDestination,
+    /// A `host_from_self` rule whose shape is broken: the destination is
+    /// not exactly the lone secret, or another secret co-occurs in the
+    /// payload (the non-occlusion guard).
+    SelfShapeBroken,
+}
+
+/// Compute the refusal reason for one refused edge — the caller asks
+/// only on edges [`is_sanctioned`] already refused, so the analysis
+/// reads the SAME rules with the SAME primitives (one seam, no drift).
+/// A full-clear match under a refused edge is a caller bug (`debug_assert`
+/// pins it in dev; production falls back to the full-sanction teach,
+/// the safe default).
+pub(super) fn leak_reason(
+    egress: &[EgressRule],
+    action: &RawAction,
+    permits: Option<&Permits>,
+) -> LeakReason {
+    if egress.is_empty() {
+        return LeakReason::NoEgress;
+    }
+    let sink = sink_id(action).to_owned();
+    let matching: Vec<&EgressRule> = egress.iter().filter(|rule| rule.to == sink).collect();
+    if matching.is_empty() {
+        return LeakReason::SinkNotCleared { sink };
+    }
+    for rule in matching {
+        if rule.host_from_self {
+            // A matching self-URL rule that refused can only have failed
+            // the non-occlusion shape (L2/L3 degrade to the runtime arm).
+            return LeakReason::SelfShapeBroken;
+        }
+        let Some(host) = rule.host.as_deref() else {
+            // A host-less matching rule clears L2/L3 vacuously — the edge
+            // would be sanctioned, so it cannot be in this path.
+            continue;
+        };
+        let Some(dest) = literal_dest_host(action) else {
+            return LeakReason::DerivedDestination;
+        };
+        if dest != host {
+            return LeakReason::HostMismatch {
+                declared: host.to_owned(),
+                actual: dest,
+            };
+        }
+        if !host_within_permits(permits, host) {
+            return LeakReason::CapabilityMissing {
+                host: host.to_owned(),
+            };
+        }
+    }
+    debug_assert!(false, "leak_reason reached over a sanctioned edge");
+    LeakReason::NoEgress
+}
+
 /// The sink id of an effect-carrying action — the value an `egress.to:`
 /// must equal. `exec` for shells, the tool id for an invoke, and `infer` /
 /// `agent` for the provider-egress sink (BUG#3 · a prompt-only egress
