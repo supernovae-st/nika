@@ -173,6 +173,14 @@ pub enum EventKind {
     /// the names). Diagnostic, like the agent-telemetry cohort: the recall
     /// verdict itself rides the recall API.
     MemoryEntryRejected,
+    /// The ONE summary of a rejection flood (`total` + `journaled` fields —
+    /// additive cohort 2026-07-30 · H14 · NEP-0012 law 1): a store stuffed
+    /// with rejections journals at most K individually-named
+    /// `memory_entry_rejected` events, then this summary carrying the TRUE
+    /// total once (the fold's `rejected: n` pins the same number in the
+    /// seal's covers). Same diagnostic posture as its named sibling: the
+    /// fold attests the count, the journal names the evidence, bounded.
+    MemoryRejectionsSummary,
 }
 
 impl EventKind {
@@ -214,6 +222,7 @@ impl EventKind {
             Self::Declassify => "declassify",
             Self::ApprovalDecided => "approval_decided",
             Self::MemoryEntryRejected => "memory_entry_rejected",
+            Self::MemoryRejectionsSummary => "memory_rejections_summary",
         }
     }
 
@@ -287,7 +296,8 @@ impl EventKind {
             Self::PermitChecked
             | Self::Declassify
             | Self::ApprovalDecided
-            | Self::MemoryEntryRejected => EventClass::Security,
+            | Self::MemoryEntryRejected
+            | Self::MemoryRejectionsSummary => EventClass::Security,
             Self::AgentToolsSelected
             | Self::AgentNudge
             | Self::AgentStalled
@@ -370,6 +380,7 @@ mod tests {
         EventKind::Declassify,
         EventKind::ApprovalDecided,
         EventKind::MemoryEntryRejected,
+        EventKind::MemoryRejectionsSummary,
     ];
 
     #[test]
@@ -407,10 +418,11 @@ mod tests {
                 | EventKind::RunSealed
                 | EventKind::Declassify
                 | EventKind::ApprovalDecided
-                | EventKind::MemoryEntryRejected => {}
+                | EventKind::MemoryEntryRejected
+                | EventKind::MemoryRejectionsSummary => {}
             }
         }
-        assert_eq!(ALL.len(), 29, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 30, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -487,9 +499,11 @@ mod tests {
                 "checkpoint_written" | "run_sealed" => Some(EventClass::Durability),
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
-                "permit_checked" | "declassify" | "approval_decided" | "memory_entry_rejected" => {
-                    Some(EventClass::Security)
-                }
+                "permit_checked"
+                | "declassify"
+                | "approval_decided"
+                | "memory_entry_rejected"
+                | "memory_rejections_summary" => Some(EventClass::Security),
                 s if s.starts_with("agent_") => Some(EventClass::Agent),
                 _ => None,
             };
@@ -526,6 +540,18 @@ mod tests {
         assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");
         assert_eq!(k.class(), EventClass::Security);
         assert_eq!(k.as_str(), "memory_entry_rejected");
+    }
+
+    #[test]
+    fn memory_rejections_summary_is_diagnostic_security_evidence() {
+        // H14: the flood summary rides the same posture as its named
+        // sibling — the fold attests the count, the journal names the
+        // evidence ONCE, and neither is a lifecycle state.
+        let k = EventKind::MemoryRejectionsSummary;
+        assert!(!k.is_terminal(), "{k:?} must not be terminal");
+        assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");
+        assert_eq!(k.class(), EventClass::Security);
+        assert_eq!(k.as_str(), "memory_rejections_summary");
     }
 
     #[test]

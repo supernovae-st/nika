@@ -42,6 +42,8 @@ pub nika_store::RejectReason::BadSignature
 pub nika_store::RejectReason::KeyMismatch
 pub nika_store::RejectReason::Malformed
 pub nika_store::RejectReason::NameMismatch
+pub nika_store::RejectReason::Overflow
+pub nika_store::RejectReason::Oversized
 pub nika_store::RejectReason::StoreMismatch
 pub nika_store::RejectReason::Unsigned
 pub nika_store::RejectReason::UnsupportedVersion
@@ -87,6 +89,8 @@ pub fn nika_store::RejectReason::as_any(&self) -> &(dyn core::any::Any + 'static
 impl<T> typenum::type_operators::Same for nika_store::RejectReason
 pub type nika_store::RejectReason::Output = T
 #[non_exhaustive] pub enum nika_store::StoreError
+pub nika_store::StoreError::Conflict
+pub nika_store::StoreError::Conflict::reason: alloc::string::String
 pub nika_store::StoreError::DirLayout
 pub nika_store::StoreError::DirLayout::reason: alloc::string::String
 pub nika_store::StoreError::Io

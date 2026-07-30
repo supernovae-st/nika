@@ -12,10 +12,11 @@
 //! no-provenance-free-filter theorem: unsigned admission floor = 0 %).
 //! Rejections are named ([`RejectReason`]), journaled
 //! (`memory_entry_rejected`), and counted in the seal's `covers["memory"]`
-//! beside the admitted-set digests ([`seal_fold`]). The envelope and the
-//! fold carry `"v": 1` (the envelope's INSIDE the signed preimage —
-//! FCI-003/011/022 · decode dispatches on it, an unknown version
-//! rejecting [`RejectReason::UnsupportedVersion`]).
+//! beside the admitted set's ONE constant-size digest ([`seal_fold`] — the
+//! set's digest is its name, so the seal line never grows with the store).
+//! The envelope and the fold carry `"v": 1` (the envelope's INSIDE the
+//! signed preimage — FCI-003/011/022 · decode dispatches on it, an unknown
+//! version rejecting [`RejectReason::UnsupportedVersion`]).
 //!
 //! Named deviations (`docs/crate-specs/nika-store.md` §2): canonical bytes
 //! = JCS (the engine's ONE canonicalization voice — the `serde_json`
