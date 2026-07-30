@@ -136,6 +136,22 @@ after   ✖ PERMITS [NIKA-SEC-004 · net] task `leak` · exec URL host
 granted (host declared)  ✔ PERMITS  rc=0   (no false refusal)
 ```
 
+**The coherence tail the fix owed (same commit arc):** the new lane
+introduced an F15-class contradiction on its first day — follow the
+`add` fix and NIKA-DRIFT-001 answered « remove the entry » (the drift
+pass did not count exec argv URLs as net uses). Closed in
+`crates/nika-dap/src/drift.rs`: an argv's literal `http(s)://` tokens
+now feed the same host set the invoke effects feed, a dynamic or
+leading-template token poisons it, and a shell line stays opaque (no
+provable completeness — the pass's own law). Pinned by
+`an_exec_argv_url_counts_as_a_net_use` +
+`a_shell_exec_or_dynamic_token_suppresses_net_entry_flags`; the three
+`native-strict` fixtures in `nika-cli` (whose `exec: ["curl", …,
+"https://acme.test"]` shape was the finding's exact class) now declare
+their `net.http` — they test the hint gate, not the escape. Verified
+live both ways: granted → `✔ PERMITS` with NO drift hint · withheld →
+the escape with NO contradictory remove-advice.
+
 ## Probe log (verbatim outputs · each claim MEASURED, §4)
 
 (verbatim excerpts inline per row above — full fixtures + logs under
