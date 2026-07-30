@@ -57,8 +57,8 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
         with:
-          # nika-fx and nika-onboard are publish=true (nika-bm25 class) but
-          # have no crates.io release yet — the action hard-errors on the
-          # registry lookup for a never-published crate. Remove each at its
-          # first release.
-          exclude: nika-fx,nika-onboard,nika-graph
+          # nika-fx, nika-onboard and nika-store are publish=true (nika-bm25
+          # class) but have no crates.io release yet — the action hard-errors
+          # on the registry lookup for a never-published crate. Remove each at
+          # its first release.
+          exclude: nika-fx,nika-onboard,nika-graph,nika-store
