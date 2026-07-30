@@ -16,6 +16,7 @@ use nika_check::{CheckReport, ConformanceViolation, UnboundedReason};
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::VarDecl;
 
+use crate::claims::types_claim;
 use crate::theme::{Role, Theme};
 
 /// One MODELS-rung finding — a `model:` the binary cannot run (#320).
@@ -683,34 +684,6 @@ fn section_or_skip(
             "(skipped — no valid DAG order while conformance fails)"
         )
     );
-}
-
-/// The TYPES claim, narrowed to exactly what the lane covers (F3 ·
-/// 2026-07-30). With no blind spot the old sentence stands; with one,
-/// the line names the count and up to three of the refs the run will
-/// judge — a ✔ that claims exactly what it checked, never more.
-fn types_claim(report: &CheckReport) -> String {
-    let refs: std::collections::BTreeSet<&str> = report
-        .unverifiable_output_refs
-        .iter()
-        .map(|r| r.reference.as_str())
-        .collect();
-    if refs.is_empty() {
-        return "deep references fit the shapes tasks declare · builtin output has none".to_owned();
-    }
-    let n = refs.len();
-    let shown: Vec<&str> = refs.iter().take(3).copied().collect();
-    let more = if n > 3 {
-        format!(" · +{} more", n - 3)
-    } else {
-        String::new()
-    };
-    let noun = if n == 1 { "ref" } else { "refs" };
-    format!(
-        "deep references fit the shapes tasks declare · {n} {noun} into unshaped task \
-         outputs are unverifiable — the run judges them ({}{more})",
-        shown.join(" · ")
-    )
 }
 
 fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
