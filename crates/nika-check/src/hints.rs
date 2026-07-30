@@ -24,8 +24,11 @@
 //! - **no boundary** (`permits`) — RETIRED by F-O8: absent + effects is
 //!   the `NIKA-AUTH-006` ERROR (the escape scan owns it) · absent + pure
 //!   compute gets the legal-zero hint from `check()`.
-//! - **open schema** (`strictness`) — an object schema admitting
-//!   undeclared keys: close it and the output shape is deterministic.
+//! - **explicitly open schema** (`strictness`) — an object node that
+//!   opts undeclared keys back in with `additionalProperties: true`:
+//!   drop the explicit open and the output shape is deterministic
+//!   (since the 2026-07-30 strict-binding lock a declared
+//!   `properties:` level is closed by default — nothing to hint there).
 //! - **grammar-blind constraint** (`schema-portability`) — keywords no
 //!   provider grammar enforces — see [`push_portability_hint`].
 //! - **non-tightening after** (`redundant-gate`) — `after: {x:
@@ -626,15 +629,18 @@ fn push_retry_effects_hint(hints: &mut Vec<Hint>, t: &nika_schema::raw::RawTask)
 }
 
 /// The structured-output determinism hint (class `strictness`): an
-/// object node declaring `properties` but NOT `additionalProperties:
-/// false` admits undeclared keys — the model can emit extra fields and
-/// the validated shape varies across providers/runs. Closing it pins
-/// the shape (the recipe provider-native strict modes require). One
-/// hint per task, however many open nodes.
+/// object node that EXPLICITLY reopens undeclared keys with
+/// `additionalProperties: true` — the model can emit extra fields and
+/// the validated shape varies across providers/runs. Since the
+/// 2026-07-30 strict-binding lock (spec 04 §Static binding validation)
+/// a declared `properties:` level is CLOSED for binding by default, so
+/// an absent `additionalProperties` has nothing to hint — only the
+/// explicit opt-out is named, with the recipe that undoes it. One hint
+/// per task, however many open nodes.
 fn push_strictness_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_json::Value>) {
     if schema.is_some_and(has_open_object) {
         hints.push(hint("strictness", id, format!(
-            "`{id}`'s schema admits undeclared keys — add `additionalProperties: false` to its object nodes for a deterministic output shape across providers"
+            "`{id}`'s schema explicitly opens undeclared keys (`additionalProperties: true`) — since the 2026-07-30 strict-binding lock a declared `properties:` level is closed for binding by default, so remove the explicit open (or set it `false`) for a deterministic output shape across providers"
         )));
     }
 }
@@ -661,18 +667,16 @@ fn for_each_subschema(
     }
 }
 
-/// Whether any object node in the schema declares `properties` without
-/// closing `additionalProperties`; `$ref` is opaque (no claim).
+/// Whether any object node in the schema EXPLICITLY reopens undeclared
+/// keys (`additionalProperties: true`); `$ref` is opaque (no claim).
+/// Post-lock an absent `additionalProperties` is NOT open — declaring
+/// `properties:` closes the level for binding by default — so only the
+/// boolean-`true` opt-out is found here.
 fn has_open_object(node: &serde_json::Value) -> bool {
     node.as_object()
         .filter(|o| !o.contains_key("$ref"))
         .is_some_and(|obj| {
-            let closed = obj.get("additionalProperties") == Some(&serde_json::Value::Bool(false));
-            let has_props = obj
-                .get("properties")
-                .and_then(serde_json::Value::as_object)
-                .is_some();
-            let mut open = !closed && has_props;
+            let mut open = obj.get("additionalProperties") == Some(&serde_json::Value::Bool(true));
             for_each_subschema(obj, &mut |child| open = open || has_open_object(child));
             open
         })
@@ -988,17 +992,42 @@ mod tests {
     }
 
     #[test]
-    fn open_object_schema_gets_the_strictness_hint() {
-        // properties declared but additionalProperties unclosed → the
-        // model can emit undeclared keys → shape varies across providers.
+    fn only_an_explicitly_open_schema_gets_the_strictness_hint() {
+        // The 2026-07-30 strict-binding lock flipped the default: a
+        // declared `properties:` level is CLOSED for binding, so an
+        // absent `additionalProperties` has nothing to hint — only the
+        // explicit `additionalProperties: true` opt-out fires, and the
+        // advice names the lock and the recipe that undoes the open.
         let open = hints_of(
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: true\n        properties:\n          s: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        let hit = open
+            .iter()
+            .find(|h| h.kind == "strictness" && h.task == "a")
+            .expect("the explicit opt-out is hinted");
+        assert!(
+            hit.advice.contains("2026-07-30 strict-binding lock"),
+            "the advice names the lock: {}",
+            hit.advice
+        );
+        assert!(
+            hit.advice
+                .contains("remove the explicit open (or set it `false`)"),
+            "the advice carries the recipe: {}",
+            hit.advice
+        );
+
+        // Declared properties, additionalProperties ABSENT — already
+        // closed by the lock, so the pre-lock hint would be noise here.
+        let closed_by_default = hints_of(
             "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          s: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(
-            open.iter().any(|h| h.kind == "strictness" && h.task == "a"),
-            "{open:?}"
+            !closed_by_default.iter().any(|h| h.kind == "strictness"),
+            "an absent additionalProperties is closed by default: {closed_by_default:?}"
         );
-        // closed at every object node → no hint
+
+        // Explicitly closed at every object node → no hint either.
         let closed = hints_of(
             "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          s: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
@@ -1007,10 +1036,10 @@ mod tests {
 
     #[test]
     fn nested_open_object_is_found_one_hint_per_task() {
-        // the root is closed but a nested items-object is open — still
-        // hinted, and only ONCE for the task.
+        // the root is closed but a nested items-object EXPLICITLY opens —
+        // still hinted, and only ONCE for the task.
         let h = hints_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          tags:\n            type: array\n            items:\n              type: object\n              properties:\n                name: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          tags:\n            type: array\n            items:\n              type: object\n              additionalProperties: true\n              properties:\n                name: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert_eq!(
             h.iter().filter(|x| x.kind == "strictness").count(),

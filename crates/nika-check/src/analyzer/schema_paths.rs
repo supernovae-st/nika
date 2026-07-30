@@ -375,6 +375,47 @@ mod tests {
     }
 
     #[test]
+    fn explicit_false_without_properties_closes_the_level() {
+        // The lock's other closed corner (spec 04 rule 1 · «
+        // `additionalProperties: false` on a level with no `properties:`
+        // also closes it — the declared empty object »). With no
+        // declared keys there is nothing to suggest, so the refusal
+        // carries no did-you-mean.
+        let s = json!({ "type": "object", "additionalProperties": false });
+        let reason = provably_invalid(&s, &[Step::Member("anything".into())]);
+        let refuses = reason
+            .as_ref()
+            .is_some_and(|r| r.contains("closed level") && !r.contains("did you mean"));
+        assert!(
+            refuses,
+            "explicit false without properties refuses, suggestion-free: {reason:?}"
+        );
+    }
+
+    #[test]
+    fn an_undeclared_sibling_read_names_the_declared_sibling() {
+        // The 014 shape (properties declared · NO `additionalProperties`)
+        // is the misspelled-key class the walk exists for: the refusal
+        // carries the did-you-mean against the DECLARED siblings.
+        let s = json!({
+            "type": "object",
+            "required": ["entities"],
+            "properties": {
+                "entities": { "type": "array", "items": { "type": "string" } },
+                "meta": { "type": "object" }
+            }
+        });
+        let reason = provably_invalid(&s, &[Step::Member("entites".into())]);
+        let names_sibling = reason
+            .as_ref()
+            .is_some_and(|r| r.contains("did you mean `entities`"));
+        assert!(
+            names_sibling,
+            "the refusal names the declared sibling: {reason:?}"
+        );
+    }
+
+    #[test]
     fn member_on_scalar_type_is_invalid() {
         let s = closed_schema();
         let reason = provably_invalid(
