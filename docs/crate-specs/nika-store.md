@@ -6,7 +6,7 @@
 | Layer | L1 — memory satellite · the signed-write/verified-recall substrate · `Send + Sync` |
 | Sub-tier | L1-deterministic — pure sign/verify + atomic file envelope · no async at the trait boundary |
 | Design | **F-P8 (SMSR arXiv:2606.12703 · TMA-NM 2606.24322 · MemLineage 2605.14421)** — every store write is SIGNED at write, the label INSIDE the signature; every recall VERIFIES per entry — unsigned · bad signature · rewritten label = REJECTED (never filtered) |
-| LOC budget | ≤1,020 src measured (entry ~220 · dir ~135 · sign ~310 · traits ~255 · errors ~50 · lib ~45) — re-allocated TWICE, honestly: the first sketch's ≤600 missed what the review swarm then priced (the filters and verdict classes the law requires: tenant fail-closed · level skip · name binding · version dispatch → ~820 estimated), and the implementation priced what the estimate still missed (the fold's failure-honesty walk · the third-leg rejection substrate · and the rustdoc the named-not-silent posture writes in full — no fake-compression to fit a number) |
+| LOC budget | ≤1,270 src measured (entry ~220 · dir ~255 · sign ~360 · traits ~325 · errors ~60 · lib ~45) — re-allocated THREE times, honestly: the first sketch's ≤600 missed what the review swarm then priced (the filters and verdict classes the law requires: tenant fail-closed · level skip · name binding · version dispatch → ~820 estimated), the implementation priced what the estimate still missed (the fold's failure-honesty walk · the third-leg rejection substrate · and the rustdoc the named-not-silent posture writes in full — no fake-compression to fit a number), and audit wave B (2026-07-30) priced the hardening the first ship deferred: the O(1) set-digest fold (H13) · the walk's two named bounds (oversize + overflow) · the commit's read-before-rename with the named Conflict · 0600/0700 secret-bearing modes · the trait surface's applied filters (min_score · observed window · ts-ranked limit · the fail-closed reserved fields) → ~1,265 real |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
@@ -46,9 +46,14 @@ touches the key). At recall, every entry is verified **per entry**:
   the signed preimage, so a relabel IS a signature mismatch.
 
 Rejections are never silent filtering: each is a named verdict, a
-journaled event (`memory_entry_rejected` · additive EventKind), and a
-count the run's seal pins in `covers["memory"]` beside the admitted-set
-digests — the receipt names the verified SET.
+journaled event (`memory_entry_rejected` · additive EventKind — bounded,
+the first 32 named + one `memory_rejections_summary` with the true
+total), and a count the run's seal pins in `covers["memory"]` beside the
+admitted set's ONE constant-size digest — the receipt names the verified
+SET, and the set's digest IS its name: blake3 over the sorted digests +
+`admitted_count` keeps the seal line O(1), so a long-lived store can
+never grow a seal line the chain walk's own 1 MiB bound would reject
+(H13 — an inline `[digest…]` list crosses it at ~15k entries).
 
 The crate implements the kernel memory traits
 (`MemoryRemember · MemoryRecall · MemoryForget` + `Sealed` per ADR-078)
@@ -92,11 +97,22 @@ without knowing the signature exists.
    named v2 owe above changes the preimage, decode dispatches on `v`,
    and an unknown version rejects with the named
    `unsupported_version` (never a masquerading `bad_signature`). The seal
-   fold carries its own `"v": 1` beside the store entries. Rejections
-   are journaled one `memory_entry_rejected` event each BEFORE the seal
-   (the law's third leg — the chain covers the names the fold counts),
-   and a store whose walk fails rides the fold as a named
-   `{"store", "error"}` entry, never a collapsed `None`.
+   fold carries its own `"v": 1` beside the store entries — per store
+   `{"store", "set_digest", "admitted_count", "rejected"}` (the O(1)
+   shape, audit wave B · H13) or `{"store", "error"}`. The `"v"` stays
+   **1** across the wave-B shape change, decided honestly: the fold
+   shipped only in #755 and NO tagged release contains it
+   (`git tag --contains 62728587b` is empty — v0.106.1 predates it), so
+   the only consumers ride the same unreleased `main` and move in the
+   same wave; a bump would claim a compatibility boundary with a shape
+   that never reached a release. `v: 1` IS the shipped form, documented
+   here. Rejections are journaled BEFORE the seal, BOUNDED: the first
+   `MAX_JOURNALED_REJECTIONS` (32) ride one `memory_entry_rejected`
+   event each, a flood beyond gets ONE `memory_rejections_summary`
+   carrying the true total (H14 · the law's third leg — the chain
+   covers the names the fold counts), and a store whose walk fails
+   rides the fold as a named `{"store", "error"}` entry, never a
+   collapsed `None`.
 
 ## 3. Public API (draft — the only surface v1 admits)
 
@@ -142,8 +158,8 @@ pub enum StoreError { /* Io · Serialize · KeyMismatch · DirLayout */ }
 ## 4. Acceptance (the law's own pairs)
 
 - **positive** — a legit write is signed + labeled; recall admits it;
-  the seal's `covers["memory"]` pins the admitted digests + the
-  rejection count.
+  the seal's `covers["memory"]` pins the admitted set's digest + the
+  counts.
 - **negative 1** — an entry added OUTSIDE the engine (a direct file
   edit in the store dir) is REJECTED at recall (verify KO) — never
   admitted, never filtered.

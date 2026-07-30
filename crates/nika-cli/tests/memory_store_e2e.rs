@@ -10,7 +10,7 @@
 //! from the CLI crate's vantage (the API the L2 orchestrator will drive)
 //! plus the seal integration:
 //!
-//! - **(a) the positive** — a signed write is admitted and its digest
+//! - **(a) the positive** — a signed write is admitted and its set digest
 //!   lands in the fold (`remember_signed` · `recall_verified` ·
 //!   `seal_fold` through the public API, hermetic keypair).
 //! - **(b) the out-of-engine edit** — one byte flipped in the entry
@@ -19,13 +19,16 @@
 //! - **(c) the unsigned entry** — an envelope whose `sig` was never
 //!   minted is REJECTED (`unsigned`) — the SMSR 0 %-admission floor.
 //! - **(d) the seal** — a run whose CWD holds `.nika/memory/` seals its
-//!   journal with `covers["memory"]` pinning the admitted digests beside
-//!   the rejection count, and the law's third leg rides the SAME journal:
+//!   journal with `covers["memory"]` pinning the admitted set's ONE
+//!   digest + the counts, and the law's third leg rides the SAME journal:
 //!   one `memory_entry_rejected` event per rejection, landed BEFORE the
 //!   `run_sealed` line so the chain covers it. v1 has no production
 //!   memory writer, so the store is SEEDED before the run (signed with
 //!   the same hermetic key the env files carry) — the teardown's
 //!   `memory_attend` is exercised for real, end to end.
+//! - **(e) the planted root** — a FILE at `.nika/memory` is never
+//!   collapsed to "no memory" (H16): the seal names the unreadable root
+//!   as an error entry in the covers.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -76,8 +79,23 @@ fn entry(store: &str, content: &str) -> UnsignedEntry {
     )
 }
 
-/// (a) The positive: a signed write is admitted and its digest lands in
-/// the fold.
+/// The e2e-side re-construction of the fold's set digest (H13): sort +
+/// dedup, blake3 over the concatenated 64-hex words. Written twice on
+/// purpose — a divergence from the substrate's construction (the sort ·
+/// the dedup · the framing) fails this cross-check.
+fn set_digest(digests: &[String]) -> String {
+    let mut sorted = digests.to_vec();
+    sorted.sort();
+    sorted.dedup();
+    let mut hasher = blake3::Hasher::new();
+    for digest in &sorted {
+        hasher.update(digest.as_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
+/// (a) The positive: a signed write is admitted and its set digest lands
+/// in the fold.
 #[test]
 fn a_signed_write_is_admitted_and_its_digest_lands_in_the_fold() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -94,10 +112,11 @@ fn a_signed_write_is_admitted_and_its_digest_lands_in_the_fold() {
     let fold = seal_fold(&root, &pair.pk).expect("a memory root folds");
     assert_eq!(fold["stores"][0]["store"], serde_json::json!("default"));
     assert_eq!(
-        fold["stores"][0]["admitted"],
-        serde_json::json!([written.digest()]),
-        "the receipt names the verified SET"
+        fold["stores"][0]["set_digest"],
+        serde_json::json!(set_digest(&[written.digest()])),
+        "the receipt names the verified SET — ONE constant-size digest (O(1))"
     );
+    assert_eq!(fold["stores"][0]["admitted_count"], serde_json::json!(1));
     assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(0));
 }
 
@@ -210,8 +229,8 @@ fn sealed_covers(journal: &Path) -> serde_json::Value {
 }
 
 /// (d) The seal: a run whose CWD holds `.nika/memory/` seals its journal
-/// with `covers["memory"]` — the admitted digests beside the rejection
-/// count. The store is SEEDED (v1 has no production writer): one honest
+/// with `covers["memory"]` — the admitted set's ONE digest beside the
+/// counts. The store is SEEDED (v1 has no production writer): one honest
 /// entry + one tampered entry, signed/edited with the same hermetic key
 /// the env files carry, so the teardown's custody probe stays off the
 /// OS keychain.
@@ -250,9 +269,14 @@ fn the_seal_covers_carry_the_memory_fold() {
     assert_eq!(memory["v"], serde_json::json!(1), "the fold is versioned");
     assert_eq!(memory["stores"][0]["store"], serde_json::json!("default"));
     assert_eq!(
-        memory["stores"][0]["admitted"],
-        serde_json::json!([honest.digest()]),
-        "the seal pins the admitted digest (the tampered entry never rides)"
+        memory["stores"][0]["set_digest"],
+        serde_json::json!(set_digest(&[honest.digest()])),
+        "the seal pins the set's ONE digest (the tampered entry never rides)"
+    );
+    assert_eq!(
+        memory["stores"][0]["admitted_count"],
+        serde_json::json!(1),
+        "…the set's size beside it"
     );
     assert_eq!(
         memory["stores"][0]["rejected"],
@@ -318,5 +342,36 @@ fn a_run_without_a_memory_store_seals_no_memory_key() {
     assert!(
         covers.get("memory").is_none(),
         "the key stays OUT — a store-less run attests nothing: {covers}"
+    );
+}
+
+/// (e) H16 · the planted root: a FILE at `.nika/memory` is NOT collapsed
+/// to "no memory" (a plant must never pass as honest absence) — the seal
+/// names the unreadable root as an error entry in the covers.
+#[test]
+fn a_planted_file_at_the_memory_root_is_named_never_absent() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let (_pair, envs) = signing_key(tmp.path());
+    std::fs::write(tmp.path().join("w.nika.yaml"), WF).expect("workflow");
+    // The plant: a regular file where the memory root must be a dir.
+    std::fs::create_dir_all(tmp.path().join(".nika")).expect("the .nika dir");
+    std::fs::write(tmp.path().join(MEMORY_ROOT), "not a directory").expect("the plant lands");
+
+    let run = nika_run(tmp.path(), &envs);
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "the run completes · stderr: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let covers = sealed_covers(&journal(tmp.path()));
+    let entry = &covers["memory"]["stores"][0];
+    assert!(
+        entry["store"].is_null(),
+        "no store name to name — the error denies it: {entry}"
+    );
+    assert!(
+        entry["error"].as_str().is_some(),
+        "the unreadable root rides as an error entry, never as absence: {entry}"
     );
 }
