@@ -54,9 +54,10 @@ use nika_verb_invoke::InvokeVerb;
 
 // ─── the fixture · one workflow, all three shipped verbs ───────────────
 
-/// Diamond-shaped DAG: two parallel sources, a typed extraction, a
-/// synthesis joining both sources, a persist joining both infers, and a
-/// statically-closed gate. 4 waves · 6 tasks.
+/// Human-gated diamond DAG: an approve gate dominating both roots
+/// (NEP-0002), two parallel sources, a typed extraction, a synthesis
+/// joining both sources, a persist joining both infers, and a
+/// statically-closed gate. 5 waves · 7 tasks.
 const WORKFLOW_OK: &str = r#"
 nika: v1
 workflow:
