@@ -41,6 +41,8 @@ jobs:
           io.open('SPEC_PIN', 'w', encoding='utf-8').write(s)
           PYEOF
           git add SPEC_PIN
+          python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
+          git add estate.yaml
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
           git checkout -B bot/spec-pin
