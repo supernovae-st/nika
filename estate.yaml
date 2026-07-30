@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 58
-  aggregate_sha256: fa5d0701f2ba8711e7514a1bddb053e8e30a4e430864c0beae64c149c4d45954
+  aggregate_sha256: 4f27bc72499d11d9a6b80d834000ec6fad4f47e952bfb2ca4b162286580a7200
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 660
-  aggregate_sha256: 0bce1c2530cad815b445c644ee31e2561c47091e2a89c13ce3b50af6e49925f8
+  aggregate_sha256: 7fb575eebf8312c76613b7c4dd75243b8804b07ad79813b16fa59d413dea4002
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 115
-  aggregate_sha256: 20d32eb60c997074cd6c9b14a7e1b0b0ef76b5747f2a53967a1320e23c769aba
+  aggregate_sha256: b5bc1cbba01507be3e03667d15580d145d98d8ae48e078177888790dc8280b39
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 129
-  aggregate_sha256: df94b2e1dcf6c38d97bf12bcaef5eb454e2cea33ae6a27b03b17d8be0d653815
+  aggregate_sha256: 618f9af65476d4fe1183d31eaf451ce7e4cbd767735dc0588ab8f09e47e40451
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
