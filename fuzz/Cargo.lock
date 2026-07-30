@@ -2569,6 +2569,7 @@ dependencies = [
  "jsonschema",
  "miette",
  "nika-bm25",
+ "nika-catalog",
  "nika-check",
  "nika-error",
  "nika-kernel",
@@ -2596,6 +2597,7 @@ version = "0.106.1"
 dependencies = [
  "jsonschema",
  "miette",
+ "nika-catalog",
  "nika-error",
  "nika-kernel",
  "nika-providers",
