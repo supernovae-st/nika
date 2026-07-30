@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4240
+  classified_files: 4245
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1323
+    authored: 1328
     authored-pin: 2
     generated: 114
     pinned-copy: 105
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 6ef2d9454655504834e29570c4f9d5940aa7b0b56bc41144892919e6ff166ef6
+  sha256: fd3060f0ecb73d83f5d300258bb3a0015ca6c2ac75dce5cefdec4b478e97714a
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 2844ce3742962c29962453ac22fbb0ea1e08d4f20c95fe75401e1c93315d58ae
+  sha256: 360abdd827533fed2ca8e2e9cf6c12e42e8d5f68b13be3accec5ddeef2b66945
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 661
-  aggregate_sha256: b0c0316314853569cec10b42660701827c390573b4d0d88715cb040d17233ac7
+  match_count: 664
+  aggregate_sha256: 3e5bbb6672c8f3d82acfc2209767d678fd150ea88c2c7f6f98974b6160c9e09e
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 115
-  aggregate_sha256: 725d7d245ad04fa75e4ad9ff08c5712cc4dafe74107a07d08b31110451e3bcc8
+  match_count: 116
+  aggregate_sha256: 02e81cb5099c7c47d8c84c0dfd26b5da910e9cfd6a6b46c9c49f3eaf5e8bf152
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 123
-  aggregate_sha256: 56e6a659f6328e1708a6835775bda1b83b0e19449e7578e504f7686361652824
+  aggregate_sha256: 6d6e17ea2b37171fb5341a3ecb2738f56015b5ad689d51986f5438c8bfe9f528
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -177,8 +177,8 @@ patterns:
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
-  match_count: 97
-  aggregate_sha256: e59f01b1604cfe476876d97f9714b2a5ca7783439ca559644976d61ba3252c21
+  match_count: 98
+  aggregate_sha256: 29a0cdb09305195a2b836f45baba6a5a95c0f603fc28fc9a42e9cd1d46b8c656
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 28
-  aggregate_sha256: 52d1a6025c6426457245456268a0d1fba20a8544f86841b66aaa0ed676d143f0
+  aggregate_sha256: cbba14765cf443119c55c671f14ef1ad125c37f55805181dd00d2dd558da10ae
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
