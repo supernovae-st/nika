@@ -48,6 +48,8 @@ secrets:
     egress:
       - to: "nika:notify"
         host_from_self: true        # the secret value IS the destination URL
+policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
+  endorsement: solo
 
 tasks:
   # ── the verification wave · all checks run in parallel ──

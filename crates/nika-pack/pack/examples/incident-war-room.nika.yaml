@@ -84,6 +84,8 @@ permits:
     # permit bound IS the wall and cannot interpolate (NIKA-AUTH-007).
     read: ["./examples/fixtures/checkout-api-runbook.md"]
     write: ["./incidents/checkout-api-postmortem.md"]
+policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
+  endorsement: solo
 
 tasks:
   # ── the human gate · FIRST, before any evidence is gathered ──

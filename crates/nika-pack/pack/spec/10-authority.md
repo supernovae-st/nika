@@ -68,10 +68,11 @@ policy:
   prefer:                              # SOFT · recorded, never judged (v1)
     providers: [ollama]
   optimize: cost                       # SOFT · recorded, never judged (v1)
+  endorsement: solo                    # HARD · the named solo mode (NEP-0014)
 ```
 
 **Grammar (normative · closed at every level).** `policy:` is a mapping
-of up to six **families**. Unknown families and unknown rule names are
+of up to seven **families**. Unknown families and unknown rule names are
 refusals (`NIKA-PARSE`-class): the rule set is closed per minor —
 patterns are named after the incidents they prevent, raw temporal logic
 is never exposed.
@@ -82,6 +83,7 @@ is never exposed.
 | `forbid:` | **hard** · judged at check | `exec_after: [<effect-class>…]` |
 | `allow:` | **hard** · judged at check | `providers: [<provider>…]` |
 | `limits:` | **hard** · judged at check | `max_tasks: <positive integer>` |
+| `endorsement:` | **hard** · judged at check | `solo` — the NAMED solo mode: exactly one endorser (one human gate), its fresh authorization bound to the action and logged as such · a gate under no declared mode refuses (`NIKA-SEC-013` · fail-closed) · a declared solo with more than one gate refuses as the declaration lying (NEP-0014 · F-P23) |
 | `prefer:` | **soft** · parsed, recorded, NOT judged | `providers: [<provider>…]` (ordered) |
 | `optimize:` | **soft** · parsed, recorded, NOT judged | `cost` \| `latency` \| `quality` |
 

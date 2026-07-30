@@ -76,6 +76,8 @@ permits:
     # segment and never crosses `/`, so nothing here can steer the write into a
     # subtree — which is why this is not `./briefs/**`.
     write: ["./briefs/*-monday.md"]
+policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
+  endorsement: solo
 
 tasks:
   # ── the human gate · FIRST, before anything untrusted enters ──
