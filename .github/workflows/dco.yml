@@ -1,0 +1,58 @@
+name: DCO
+
+# The sign-off gate — every PR commit carries a Signed-off-by trailer
+# matching its author (Developer Certificate of Origin 1.1 ·
+# developercertificate.org). The lightweight alternative to a CLA: each
+# contributor certifies the right to submit under this repo's license.
+# Exempt: merge commits (>1 parent) and bot authors (*[bot]), so the
+# heal lanes keep flowing. Remediation is printed on failure.
+#
+# SECURITY: read-only permissions · no checkout · zero third-party
+# actions · commit data (messages, author names) is fetched via the API
+# inside the script and handled only as quoted shell variables — no
+# github.event expression ever reaches run: (house convention —
+# catalog-verify.yml security note).
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  dco:
+    name: signed-off-by
+    runs-on: ubuntu-latest
+    steps:
+      - name: every PR commit is signed off
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr="$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")"
+          repo="$(jq -r '.repository.full_name' "$GITHUB_EVENT_PATH")"
+          bad=0
+          while IFS= read -r row; do
+            sha="$(jq -r '.sha' <<<"$row")"
+            login="$(jq -r '.login' <<<"$row")"
+            parents="$(jq -r '.parents' <<<"$row")"
+            name="$(jq -r '.name' <<<"$row")"
+            email="$(jq -r '.email' <<<"$row")"
+            msg="$(jq -r '.message' <<<"$row")"
+            if [ "$parents" -gt 1 ]; then echo "skip  ${sha:0:9} merge commit"; continue; fi
+            case "$login" in *'[bot]') echo "skip  ${sha:0:9} bot: $login"; continue;; esac
+            if grep -qiF "Signed-off-by: $name <$email>" <<<"$msg"; then
+              echo "ok    ${sha:0:9} $name <$email>"
+            else
+              echo "FAIL  ${sha:0:9} missing 'Signed-off-by: $name <$email>'"
+              bad=1
+            fi
+          done < <(gh api "repos/$repo/pulls/$pr/commits" --paginate \
+            --jq '.[] | {sha: .sha, login: (.author.login // ""), parents: (.parents | length), name: .commit.author.name, email: .commit.author.email, message: .commit.message} | @json')
+          [ "$bad" -eq 0 ] || {
+            echo
+            echo "Sign off with: git commit -s (repair a branch: git rebase --signoff origin/main, then force-push)."
+            echo "The trailer must match the commit author identity exactly."
+            exit 1
+          }

@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4236
+  classified_files: 4237
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1319
+    authored: 1320
     authored-pin: 2
     generated: 114
     pinned-copy: 105
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 58
-  aggregate_sha256: b3f6e1a71864b3c3888e7f59b0d4252f12d3c87e4f26fef6c23fd43a598e1d3d
+  aggregate_sha256: b8b68563236ef09143f84099972518b3707a7c7ff60bbd7d2413ac2554f96fc1
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -173,7 +173,7 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 75
-  aggregate_sha256: 9139c450df437e5e6c7f9839c88d3252d576779186492abeebece37ee68a08a3
+  aggregate_sha256: 45f241c80db33c3faac3445d2b8cf9c410cd608461987f76f017247af0080112
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
@@ -187,8 +187,8 @@ patterns:
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
-  match_count: 19
-  aggregate_sha256: 49b19808523d726b33d9e0a82eea87e1cb93673c7d44a09021aef1669251b8ea
+  match_count: 20
+  aggregate_sha256: cd9a518135272d9af68066cd292f583af51ed94755eabbbeef0e1f9aa95b0127
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 24f741a536c57e70d160109eff838286d96973cc076eafc629e43206c348544c
+  aggregate_sha256: 9b9aa6f149e274551ffdcac861c0ff80406b93d0897a12b17c09995a62d4b919
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
