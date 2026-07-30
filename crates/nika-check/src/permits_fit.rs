@@ -456,6 +456,56 @@ fn check_exec(
             });
         }
     }
+    check_exec_net(id, command, permits, out);
+}
+
+/// The net arm of the exec fit (the 2026-07-29 audit · run 5 · D1): an
+/// exec whose argv (or shell line) carries a LITERAL URL judges that
+/// host exactly like an invoke's (one boundary, one voice — measured:
+/// `exec: ["curl", "https://evil.example.com"]` outside `permits.net.http`
+/// passed check clean and died only at the OS sandbox — check-green,
+/// run-refused on a statically decidable class). Where the form itself is
+/// already refused (a shell line under a program allowlist · SEC-004) the
+/// net question is moot and this arm never runs; an admissible shell line
+/// is scanned for standalone URL tokens only — a conservative read that
+/// can miss obfuscation but never falsely refuses (the fit lane's own
+/// law); the runtime sandbox owns everything deeper.
+fn check_exec_net(
+    id: &str,
+    command: &RawCommand,
+    permits: &Permits,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    let tokens: Vec<&str> = match command {
+        RawCommand::Argv(parts) => parts.iter().map(|p| p.value.as_str()).collect(),
+        RawCommand::Shell(line) => line.value.split_whitespace().collect(),
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown exec command form: {other:?}"),
+    };
+    for tok in tokens {
+        if !(tok.starts_with("http://") || tok.starts_with("https://")) {
+            continue;
+        }
+        let Some(host) = url_host(tok) else {
+            continue;
+        };
+        if nika_types::net::host_is_blocked(&host) {
+            continue; // the SSRF floor names it already (one voice, never twice)
+        }
+        if !permits.allows_host(&host) {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "net",
+                detail: format!("exec URL host `{host}` is outside permits.net.http"),
+                fix: Some(format!("add \"{host}\" to permits.net.http")),
+                floor: false,
+                undeclared: false,
+            });
+        }
+    }
 }
 
 /// The fine-grained effect table lives in `nika-cap` beside the coarse

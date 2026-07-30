@@ -19,13 +19,13 @@ use nika_kernel::memory::{
     MemoryForget, MemoryFrame, MemoryLevel, MemoryRecall, MemoryRemember, MemoryStore, RecallQuery,
 };
 
-fn keypair() -> (minisign::PublicKey, minisign::SecretKey) {
+pub(crate) fn keypair() -> (minisign::PublicKey, minisign::SecretKey) {
     let pair =
         minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair mints");
     (pair.pk, pair.sk)
 }
 
-fn entry(store: &str, ts: u64, label: Integrity) -> UnsignedEntry {
+pub(crate) fn entry(store: &str, ts: u64, label: Integrity) -> UnsignedEntry {
     UnsignedEntry::new(
         serde_json::json!({"content": format!("fact {store} {ts}")}),
         label,
@@ -35,7 +35,7 @@ fn entry(store: &str, ts: u64, label: Integrity) -> UnsignedEntry {
     )
 }
 
-fn signed_dir() -> (
+pub(crate) fn signed_dir() -> (
     tempfile::TempDir,
     PathBuf,
     minisign::PublicKey,
@@ -100,7 +100,12 @@ fn a_validly_signed_entry_replayed_across_stores_is_store_mismatch() {
         .iter()
         .find(|s| s["store"] == "beta")
         .expect("beta rides the fold");
-    assert_eq!(beta["admitted"], serde_json::json!([]));
+    assert_eq!(
+        beta["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[])),
+        "an empty admitted set is the empty-input digest"
+    );
+    assert_eq!(beta["admitted_count"], serde_json::json!(0));
     assert_eq!(beta["rejected"], serde_json::json!(1));
 }
 
@@ -197,14 +202,17 @@ fn the_error_family_speaks_nika_605_with_the_one_voice() {
     let lay = StoreError::DirLayout {
         reason: "x".to_owned(),
     };
-    for e in [&io, &ser, &lay] {
+    let con = StoreError::Conflict {
+        reason: "x".to_owned(),
+    };
+    for e in [&io, &ser, &lay, &con] {
         assert_eq!(e.nika_code(), nika_error::codes::NIKA_605);
         let help = e.help().map(|h| h.to_string()).expect("help rides");
         assert!(help.contains("Signed-memory store"), "the 605 row: {help}");
     }
     assert!(io.is_transient(), "IO retries");
     assert!(
-        !ser.is_transient() && !lay.is_transient(),
+        !ser.is_transient() && !lay.is_transient() && !con.is_transient(),
         "deterministic classes never retry"
     );
 }
@@ -214,6 +222,8 @@ fn reject_reasons_have_stable_wire_words() {
     let words = [
         (RejectReason::Unsigned, "unsigned"),
         (RejectReason::Malformed, "malformed"),
+        (RejectReason::Oversized, "oversized"),
+        (RejectReason::Overflow, "overflow"),
         (RejectReason::UnsupportedVersion, "unsupported_version"),
         (RejectReason::KeyMismatch, "key_mismatch"),
         (RejectReason::StoreMismatch, "store_mismatch"),
@@ -228,7 +238,11 @@ fn reject_reasons_have_stable_wire_words() {
 
 // ─── The kernel trait surface (ADR-078) ─────────────────────────────
 
-fn store(dir: PathBuf, sk: minisign::SecretKey, pk: minisign::PublicKey) -> SignedMemoryStore {
+pub(crate) fn store(
+    dir: PathBuf,
+    sk: minisign::SecretKey,
+    pk: minisign::PublicKey,
+) -> SignedMemoryStore {
     SignedMemoryStore::new(
         dir,
         "default".to_owned(),
@@ -402,18 +416,20 @@ fn a_verified_entry_riding_a_second_name_is_name_mismatch() {
         (1, 1),
         "the original admits, the copy is NAMED: {verdicts:?}"
     );
-    // …and the fold pins the digest exactly ONCE beside the count (the
-    // admitted set never dupes — the receipt names the verified SET).
+    // …and the fold pins the set's digest exactly once beside the counts
+    // (the admitted set never dupes — the receipt names the verified SET
+    // in O(1): one constant-size digest + its size).
     let fold = seal_fold(&root, &pk).expect("a memory root folds");
     assert_eq!(
-        fold["stores"][0]["admitted"],
-        serde_json::json!([written.digest()])
+        fold["stores"][0]["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[written.digest()]))
     );
+    assert_eq!(fold["stores"][0]["admitted_count"], serde_json::json!(1));
     assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(1));
 }
 
 #[test]
-fn the_detailed_fold_names_each_rejection_and_sorts_the_admitted_set() {
+fn the_detailed_fold_names_each_rejection_and_digests_the_sorted_set() {
     let root = tempfile::tempdir().expect("tempdir");
     let root = root.path().join(MEMORY_ROOT);
     let (pk, sk) = keypair();
@@ -442,13 +458,12 @@ fn the_detailed_fold_names_each_rejection_and_sorts_the_admitted_set() {
 
     let (fold, rejections) = seal_fold_detailed(&root, &pk);
     let fold = fold.expect("a memory root folds");
-    let mut digests = [one.digest(), two.digest()];
-    digests.sort();
     assert_eq!(
-        fold["stores"][0]["admitted"],
-        serde_json::json!(digests),
-        "the admitted SET is sorted"
+        fold["stores"][0]["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[one.digest(), two.digest()])),
+        "the admitted SET is sorted + deduped, then digested once"
     );
+    assert_eq!(fold["stores"][0]["admitted_count"], serde_json::json!(2));
     assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(1));
     assert_eq!(rejections.len(), 1, "one rejection, named for the journal");
     assert_eq!(rejections[0].store, "default");
@@ -478,14 +493,18 @@ fn the_fold_names_a_store_it_cannot_walk_never_collapses() {
     let stores = fold["stores"].as_array().expect("stores");
     assert_eq!(stores.len(), 2, "both stores ride: {stores:?}");
     assert_eq!(stores[0]["store"], serde_json::json!("alpha"));
-    assert_eq!(stores[0]["admitted"], serde_json::json!([written.digest()]));
+    assert_eq!(
+        stores[0]["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[written.digest()]))
+    );
+    assert_eq!(stores[0]["admitted_count"], serde_json::json!(1));
     assert_eq!(stores[1]["store"], serde_json::json!("broken"));
     assert!(
         stores[1]["error"].as_str().is_some(),
         "the failed walk rides as an explicit error entry: {stores:?}"
     );
     assert!(
-        stores[1].get("admitted").is_none(),
+        stores[1].get("set_digest").is_none(),
         "no fabricated empty set beside the error"
     );
 }
@@ -588,8 +607,11 @@ fn a_leftover_tmp_fails_the_commit_never_a_silent_clobber() {
     );
 }
 
+/// A DIRECTORY planted at the canonical name fails the commit's pre-rename
+/// read (a dir is not readable bytes) with the IO class — and the temp is
+/// cleaned up either way, never wedging later commits.
 #[test]
-fn a_failed_rename_cleans_the_tmp_up() {
+fn a_planted_dir_at_the_final_name_fails_and_cleans_the_tmp_up() {
     let (_root, dir, _pk, sk) = signed_dir();
     let first = remember_signed(
         &dir,
@@ -605,7 +627,7 @@ fn a_failed_rename_cleans_the_tmp_up() {
         entry("default", 1_700_000_000_000, Integrity::trusted()),
         &sk,
     )
-    .expect_err("renaming over a directory fails");
+    .expect_err("a directory at the canonical name fails");
     assert!(matches!(err, StoreError::Io { .. }), "{err}");
     assert!(
         !dir.join(format!(".{name}.tmp")).exists(),

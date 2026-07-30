@@ -264,10 +264,11 @@ mod tests {
         assert!(td.quarantine.is_none(), "absent is honest");
     }
 
-    /// F-P8 · the signed-memory fold: a tempdir store with ONE admitted
-    /// entry and ONE tampered entry folds to `{store, admitted: [digest],
-    /// rejected: 1}` and rides the teardown VERBATIM (the seal's
-    /// `extend_covers` places it under `covers["memory"]`).
+    /// F-P8 · the signed-memory fold: a tempdir store with ONE tampered
+    /// entry folds to `{store, set_digest, admitted_count: 0, rejected: 1}`
+    /// (the O(1) shape — the set's digest IS its name) and rides the
+    /// teardown VERBATIM (the seal's `extend_covers` places it under
+    /// `covers["memory"]`).
     #[test]
     fn the_memory_fold_counts_the_admitted_set_and_the_rejected() {
         let pair = minisign::KeyPair::generate_encrypted_keypair(Some(String::new()))
@@ -297,9 +298,17 @@ mod tests {
         assert_eq!(fold["v"], serde_json::json!(1), "the fold is versioned");
         assert_eq!(fold["stores"][0]["store"], serde_json::json!("default"));
         assert_eq!(
-            fold["stores"][0]["admitted"],
-            serde_json::json!([]),
+            fold["stores"][0]["admitted_count"],
+            serde_json::json!(0),
             "the tampered entry never rides the admitted set"
+        );
+        assert_eq!(
+            fold["stores"][0]["set_digest"]
+                .as_str()
+                .expect("the set digest rides")
+                .len(),
+            64,
+            "ONE constant-size digest names the (empty) set"
         );
         assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(1));
 

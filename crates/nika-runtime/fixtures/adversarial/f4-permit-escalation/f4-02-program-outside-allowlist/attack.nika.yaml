@@ -2,13 +2,16 @@
 # untrusted page supplies the PROGRAM NAME through interpolation. The
 # rendered argv[0] is `curl` — outside the allowlist — so the runtime gate
 # refuses after template resolution but before spawn (NIKA-SEC-004). The
-# static lane is blind here by design: the program name is dynamic.
+# static lane is blind here by design: the program name is dynamic. (The
+# literal URL stays DECLARED in net.http: post-D1 an undeclared argv URL
+# is a static net escape — orthogonal to this fixture's subject, and the
+# fixture must keep isolating the runtime program gate.)
 nika: v1
 workflow:
   id: f4-02-program-outside-allowlist
 permits:
   exec: ["git"]
-  net: { http: ["news.example"] }
+  net: { http: ["news.example", "evil.example"] }
   tools: ["nika:fetch"]
 tasks:
   fetch_page:

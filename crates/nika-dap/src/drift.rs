@@ -67,6 +67,13 @@
 //! directory — `builtin_effect` deliberately declines the glob ⊆ glob
 //! question, but the ROOT is decidable); a `nika:fetch` `multipart:`
 //! file part's `path` is an fs read (the defs contract gates it).
+//!
+//! The net model (the D1 parity, 2026-07-29 run 5): an argv-form exec's
+//! LITERAL `http(s)://` tokens ARE net uses — the checker's exec net-fit
+//! refuses the same tokens when undeclared, so this pass must never name
+//! the corresponding grant dead (the F15 two-lanes contradiction class);
+//! a shell-form exec — or a dynamic/unparseable token — poisons the host
+//! set (no provable completeness · no claim, never wrong).
 
 use std::collections::BTreeSet;
 
@@ -322,6 +329,14 @@ impl BodyUsage {
                     &mut self.programs,
                     static_program(&a.command).map(str::to_owned),
                 );
+                // An argv's LITERAL URL tokens reach hosts exactly like an
+                // invoke's — the checker's exec net-fit judges them (D1 ·
+                // run 5, 2026-07-29): this pass must count the same hosts
+                // or it orders the removal of the grant the fit lane just
+                // required (the F15 two-lanes contradiction class). A
+                // SHELL line stays opaque here (no provable completeness —
+                // the same law as `programs` above): it poisons the set.
+                self.eat_exec_urls(&a.command);
                 // An exec child's fs reach is OPAQUE to statics (argv
                 // literals carry no path semantics — `qrsmart --db X` is
                 // undecidable; the OS sandbox owns the reach at run). The
@@ -376,6 +391,28 @@ impl BodyUsage {
             // Infer is effect-free; a future verb joins deliberately (the
             // forward-compat wildcard, same law as the name walker).
             _ => {}
+        }
+    }
+
+    /// The exec arm of the net usage (the D1 parity): an argv's literal
+    /// `http(s)://` tokens contribute their hosts, so a `net.http` grant
+    /// the fit lane required is never named dead here. A token whose host
+    /// is dynamic or unparseable poisons the set (`offer(None)` — no
+    /// claim, never wrong), as does a leading `${{ }}` that can expand to
+    /// a whole URL; a shell line poisons outright (no provable
+    /// completeness — the runtime sandbox owns it, the fit lane's own
+    /// conservative-read law in the other direction).
+    fn eat_exec_urls(&mut self, command: &RawCommand) {
+        let RawCommand::Argv(parts) = command else {
+            self.hosts = None;
+            return;
+        };
+        for tok in parts.iter().map(|p| p.value.as_str()) {
+            if tok.starts_with("http://") || tok.starts_with("https://") {
+                offer(&mut self.hosts, url_host(tok));
+            } else if tok.starts_with("${{") {
+                offer(&mut self.hosts, None);
+            }
         }
     }
 
@@ -934,6 +971,46 @@ mod tests {
                 .iter()
                 .any(|a| a.contains("`permits.net.http` entry")),
             "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn an_exec_argv_url_counts_as_a_net_use() {
+        // The D1 parity (run 5, 2026-07-29): the checker's exec net-fit
+        // REFUSES this exact token undeclared — the drift pass must never
+        // name the declared grant dead for the same token (F15: two
+        // lanes, one judgment).
+        let advice = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: [\"curl\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n",
+        );
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`permits.net.http` entry")),
+            "the exec argv URL is a use: {advice:?}"
+        );
+    }
+
+    #[test]
+    fn a_shell_exec_or_dynamic_token_suppresses_net_entry_flags() {
+        // No provable completeness: the shell form — and a leading
+        // template that can expand to a whole URL — poison the host set
+        // rather than order a load-bearing removal.
+        let shell = drifted(
+            "nika: v1\nworkflow:\n  id: w\npermits: { exec: true, net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { shell: \"curl https://acme.test\" }\n",
+        );
+        assert!(
+            !shell.iter().any(|a| a.contains("`permits.net.http` entry")),
+            "a shell line hides the host set: {shell:?}"
+        );
+        let dynamic = drifted(
+            "nika: v1\nworkflow:\n  id: w\nconst:\n  u: \"https://acme.test\"\npermits:\n  exec: [\"curl\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"${{ const.u }}\"] }\n",
+        );
+        assert!(
+            !dynamic
+                .iter()
+                .any(|a| a.contains("`permits.net.http` entry")),
+            "a leading template hides the host set: {dynamic:?}"
         );
     }
 

@@ -778,7 +778,9 @@ mod tests {
     /// the exit code must agree (the review-swarm untested-branch gap).
     #[test]
     fn native_strict_json_payload_agrees_with_the_exit_code() {
-        let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        // net.http rides along: post-D1 the exec URL is a net USE —
+        // undeclared it would be a PERMITS escape, not a hint-only file.
+        let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
         // matrix · a dev double-run) share the OS tmpdir, and a fixed
         // name let them stomp each other's fixtures mid-read (flaked
@@ -814,7 +816,9 @@ mod tests {
     /// 0 under strict.
     #[test]
     fn native_strict_fails_on_native_first_hints_only() {
-        let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        // net.http rides along: post-D1 the exec URL is a net USE —
+        // undeclared it would be a PERMITS escape, not a hint-only file.
+        let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         let default_run = checked_output("native-default.nika.yaml", helper, false);
         assert_eq!(
             default_run.code, 0,
@@ -861,7 +865,9 @@ mod tests {
         // literal stripper is line-local, so the YAML braces inside the
         // continuation count as code and the reported length runs to the
         // end of the module. Measured: this 24-line test reported as 212.
-        let ledgered = "# EXEC LEDGER ·\n# | task | command | why no native path | unlock |\n# | crawl | curl | legacy auth | nika:fetch oauth |\nnika: v1\nworkflow:\n  id: ledgered\npermits: { exec: [\"curl\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+        // net.http rides along: post-D1 the exec URL is a net USE —
+        // undeclared it would be a PERMITS escape, not a hint-only file.
+        let ledgered = "# EXEC LEDGER ·\n# | task | command | why no native path | unlock |\n# | crawl | curl | legacy auth | nika:fetch oauth |\nnika: v1\nworkflow:\n  id: ledgered\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
         let out = checked_output("ledgered.nika.yaml", ledgered, true);
         assert_eq!(
             out.code, 2,

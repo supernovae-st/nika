@@ -987,4 +987,59 @@ tasks:
             "the fix carries the resolved path: {withheld:?}"
         );
     }
+    /// The exec net-fit (the 2026-07-29 audit · run 5 · D1): an argv
+    /// carrying a LITERAL URL judges the host exactly like an invoke's —
+    /// outside the boundary it is an escape, inside it is clean, the
+    /// shell line is scanned the same, and a floor-blocked host is never
+    /// double-reported.
+    fn exec_net(yaml: &str) -> Vec<CapabilityEscape> {
+        use nika_schema::parser::{ParseMode, parse};
+        use nika_schema::source::FileId;
+        scan_escapes(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn an_exec_url_judges_its_host_like_an_invoke() {
+        let yaml = |net: &str| {
+            format!(
+                "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"curl\"]\n  net:\n    http: [{net}]\ntasks:\n  t:\n    exec: {{ command: [\"curl\", \"https://evil.example.com/x\"] }}\n"
+            )
+        };
+        let granted = exec_net(&yaml(r#""evil.example.com""#));
+        assert!(
+            !granted.iter().any(|e| e.category == "net"),
+            "the declared host admits the exec URL: {granted:?}"
+        );
+        let withheld = exec_net(&yaml(r#""other.example.com""#));
+        assert!(
+            withheld.iter().any(|e| e.category == "net"
+                && e.detail.contains("evil.example.com")
+                && e.fix.as_deref() == Some(r#"add "evil.example.com" to permits.net.http"#)),
+            "the exec URL outside the boundary escapes with the fix: {withheld:?}"
+        );
+        // The shell form is scanned the same way where the form itself is
+        // admissible (`exec: true` — under a program allowlist the pairing
+        // is already refused by form, SEC-004, and the net question is moot).
+        let shell = exec_net(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: true\ntasks:\n  t:\n    exec: { shell: \"curl https://evil.example.com/x\" }\n",
+        );
+        assert!(
+            shell
+                .iter()
+                .any(|e| e.category == "net" && e.detail.contains("evil.example.com")),
+            "the shell-string URL is judged too: {shell:?}"
+        );
+        // A floor-blocked host stays the SSRF floor's own (one voice): the
+        // floor may name the dead `permits` entry, but the exec net-fit
+        // must never ALSO report the same host from the task side.
+        let floor = exec_net(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"curl\"]\n  net:\n    http: [\"10.0.0.8\"]\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://10.0.0.8/x\"] }\n",
+        );
+        assert!(
+            !floor
+                .iter()
+                .any(|e| e.task == "t" && e.detail.contains("10.0.0.8")),
+            "the exec net-fit never double-reports a floor-dead host: {floor:?}"
+        );
+    }
 }
