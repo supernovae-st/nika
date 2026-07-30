@@ -1024,8 +1024,8 @@ pub nika_cli::verbs::wire::WireTarget::Claude
 pub nika_cli::verbs::wire::WireTarget::ClaudeDesktop
 pub nika_cli::verbs::wire::WireTarget::Cline
 pub nika_cli::verbs::wire::WireTarget::Codex
-pub nika_cli::verbs::wire::WireTarget::Copilot
 pub nika_cli::verbs::wire::WireTarget::Continue
+pub nika_cli::verbs::wire::WireTarget::Copilot
 pub nika_cli::verbs::wire::WireTarget::Cursor
 pub nika_cli::verbs::wire::WireTarget::Gemini
 pub nika_cli::verbs::wire::WireTarget::Grok
