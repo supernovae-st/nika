@@ -36,6 +36,8 @@ pub enum WireTarget {
     Qwen,
     Lmstudio,
     Junie,
+    Grok,
+    Antigravity,
     All,
 }
 
@@ -117,7 +119,7 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
         WireTarget::Cline => {
             patch_cursor_like(&cline_settings_path()?, "mcpServers", "cline", false)
         }
-        WireTarget::Codex => patch_codex(&home_path(&[".codex", "config.toml"])?),
+        WireTarget::Codex => patch_toml_mcp(&home_path(&[".codex", "config.toml"])?, "codex"),
         // Continue scans `~/.continue/mcpServers/*.json` (the Claude-Desktop
         // JSON shape, name-keyed) — an OWN-FILE write: the user's
         // comment-bearing config.yaml is never touched (the Zed lesson,
@@ -149,6 +151,23 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "junie",
             false,
         ),
+        // Grok Build reads `~/.grok/config.toml` (`[mcp_servers.nika]` —
+        // the Codex TOML shape at its own path · docs.x.ai
+        // build/features/mcp-servers). Its Claude compat also merges
+        // `~/.claude.json` and the project `.mcp.json`, but the native
+        // table is the first-class door — it survives a
+        // `[compat.claude] mcps = false` toggle.
+        WireTarget::Grok => patch_toml_mcp(&home_path(&[".grok", "config.toml"])?, "grok"),
+        // Antigravity CLI (`agy` · the gemini-cli successor) reads a
+        // STANDALONE mcp_config.json — global under `~/.gemini/config/`,
+        // workspace under `.agents/` (antigravity.google/docs/
+        // gcli-migration). Machine wiring writes the global file; the
+        // workspace `.agents/` side is `nika init` territory. A stdio
+        // entry keeps the standard command/args shape (the
+        // url→serverUrl rename touches remote servers only).
+        WireTarget::Antigravity => {
+            patch_home_mcp(&[".gemini", "config", "mcp_config.json"], "antigravity")
+        }
         #[allow(
             clippy::unreachable,
             reason = "All is expanded to concrete targets before dispatch"
@@ -391,9 +410,10 @@ fn patch_config(
     }
 }
 
-/// Codex CLI reads `~/.codex/config.toml` (`[mcp_servers.nika]` · TOML, not
-/// JSON). `toml_edit` keeps the user's comments and unrelated tables intact.
-fn patch_codex(path: &Path) -> Result<WireAction, String> {
+/// The `[mcp_servers.nika]` TOML family — Codex CLI (`~/.codex/config.toml`)
+/// and Grok Build (`~/.grok/config.toml`) share the exact table shape.
+/// `toml_edit` keeps the user's comments and unrelated tables intact.
+fn patch_toml_mcp(path: &Path, label: &str) -> Result<WireAction, String> {
     let existed = path.exists();
     let body = if existed {
         std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?
@@ -408,14 +428,14 @@ fn patch_codex(path: &Path) -> Result<WireAction, String> {
         .entry("mcp_servers")
         .or_insert(toml_edit::table())
         .as_table_mut()
-        .ok_or_else(|| "codex: mcp_servers is not a TOML table".to_owned())?;
+        .ok_or_else(|| format!("{label}: mcp_servers is not a TOML table"))?;
     servers.set_implicit(true);
 
     let existing = servers.get("nika");
-    let current = existing.is_some_and(codex_entry_is_current);
-    let migrated = existing.is_some_and(codex_entry_is_stale);
+    let current = existing.is_some_and(toml_entry_is_current);
+    let migrated = existing.is_some_and(toml_entry_is_stale);
 
-    let label_path = format!("codex: {}", path.display());
+    let label_path = format!("{label}: {}", path.display());
     if current {
         return Ok(WireAction::Current(label_path));
     }
@@ -445,7 +465,7 @@ fn patch_codex(path: &Path) -> Result<WireAction, String> {
     }
 }
 
-fn codex_args(item: &toml_edit::Item) -> Vec<String> {
+fn toml_args(item: &toml_edit::Item) -> Vec<String> {
     item.get("args")
         .and_then(toml_edit::Item::as_array)
         .map(|args| {
@@ -456,13 +476,13 @@ fn codex_args(item: &toml_edit::Item) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn codex_entry_is_current(item: &toml_edit::Item) -> bool {
+fn toml_entry_is_current(item: &toml_edit::Item) -> bool {
     item.get("command").and_then(toml_edit::Item::as_str) == Some("nika")
-        && codex_args(item) == NIKA_MCP_ARGS
+        && toml_args(item) == NIKA_MCP_ARGS
 }
 
-fn codex_entry_is_stale(item: &toml_edit::Item) -> bool {
-    codex_args(item) == ["mcp", "serve", "--stdio"]
+fn toml_entry_is_stale(item: &toml_edit::Item) -> bool {
+    toml_args(item) == ["mcp", "serve", "--stdio"]
 }
 
 /// `OpenCode` wires MCP through `opencode.json` — its OWN shape (`mcp.nika`
@@ -720,7 +740,7 @@ mod tests {
     fn codex_config_toml_created_with_mcp_servers_table() {
         let dir = temp_dir("codex-create");
         let path = dir.join("config.toml");
-        let action = patch_codex(&path).expect("wire");
+        let action = patch_toml_mcp(&path, "codex").expect("wire");
         assert!(matches!(action, WireAction::Created(_)));
         let body = std::fs::read_to_string(&path).expect("read");
         let doc: toml_edit::DocumentMut = body.parse().expect("toml");
@@ -754,14 +774,14 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_codex(&path).expect("wire");
+        let action = patch_toml_mcp(&path, "codex").expect("wire");
         assert!(matches!(action, WireAction::Updated(_)));
         let body = std::fs::read_to_string(&path).expect("read");
         assert!(body.contains("# my codex setup"), "comment preserved");
         assert!(body.contains("trust_level = \"trusted\""));
         assert!(body.contains("[mcp_servers.github]"));
 
-        let again = patch_codex(&path).expect("wire twice");
+        let again = patch_toml_mcp(&path, "codex").expect("wire twice");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -776,11 +796,55 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_codex(&path).expect("wire");
+        let action = patch_toml_mcp(&path, "codex").expect("wire");
         assert!(matches!(action, WireAction::Migrated(_)));
         let body = std::fs::read_to_string(&path).expect("read");
         assert!(body.contains("args = [\"mcp\"]"));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Client-doors W1.2 · grok: the shared `[mcp_servers.nika]` TOML shape
+    /// at `~/.grok/config.toml` — created, comments preserved, idempotent.
+    #[test]
+    fn grok_config_toml_created_preserves_comments_and_is_idempotent() {
+        let dir = temp_dir("grok");
+        let path = dir.join("config.toml");
+        std::fs::write(
+            &path,
+            "# my grok setup\nmodel = \"grok-4-3\"\n\n[compat.claude]\nskills = true\n",
+        )
+        .expect("fixture");
+
+        let action = patch_toml_mcp(&path, "grok").expect("wire");
+        assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
+        let body = std::fs::read_to_string(&path).expect("read");
+        assert!(body.contains("# my grok setup"), "comment preserved");
+        assert!(body.contains("[compat.claude]"), "unrelated table kept");
+        let doc: toml_edit::DocumentMut = body.parse().expect("toml");
+        assert_eq!(doc["mcp_servers"]["nika"]["command"].as_str(), Some("nika"));
+
+        let again = patch_toml_mcp(&path, "grok").expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Client-doors W1.2 · antigravity: the standalone `mcp_config.json`
+    /// under `~/.gemini/config/` (`mcpServers` root · gcli-migration doc) —
+    /// nested dirs created, then idempotent.
+    #[test]
+    fn antigravity_mcp_config_created_nested_and_idempotent() {
+        let home = temp_dir("antigravity");
+        let path = home.join(".gemini").join("config").join("mcp_config.json");
+
+        let action = patch_cursor_like(&path, "mcpServers", "antigravity", false).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "antigravity", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
     }
 
     #[test]

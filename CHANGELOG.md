@@ -12,6 +12,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika wire grok` + `nika wire antigravity` — two new client doors.**
+  Grok Build gets the Codex-shaped `[mcp_servers.nika]` table in
+  `~/.grok/config.toml` (comments preserved · idempotent — its Claude
+  compat already merges the project `.mcp.json`, the native table survives
+  a `[compat.claude]` toggle); Antigravity CLI (`agy`, the gemini-cli
+  successor) gets the standalone `mcpServers` entry in
+  `~/.gemini/config/mcp_config.json` per Google's migration contract.
+  `wire all` covers both.
+
 - **`nika doctor` speaks the kit↔binary handshake.** Installed plugin kits
   get one row each, probed at the rung their sessions actually load
   (Cursor local drop · Claude Code install of record · Codex per-version

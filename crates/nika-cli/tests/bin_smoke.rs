@@ -759,6 +759,44 @@ fn wire_wave2_targets_create_their_configs() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
+/// Client-doors W1.2 · the wave-4 targets through the real binary: grok
+/// writes the Codex-shaped TOML table under `~/.grok/`, antigravity the
+/// standalone `mcp_config.json` under `~/.gemini/config/`.
+#[test]
+fn wire_wave4_targets_create_their_configs() {
+    let home = workspace_tmp_dir("nika-wire-wave4");
+    std::fs::create_dir_all(&home).expect("home dir");
+
+    for target in ["grok", "antigravity"] {
+        let out = bin()
+            .arg("wire")
+            .arg(target)
+            .env("HOME", &home)
+            .output()
+            .expect("binary runs");
+        assert_eq!(out.status.code(), Some(0), "wire {target} succeeds");
+        let stdout = String::from_utf8(out.stdout).expect("utf8");
+        assert!(stdout.contains("created"), "{target}: {stdout}");
+    }
+
+    let grok = std::fs::read_to_string(home.join(".grok").join("config.toml"))
+        .expect("grok config written");
+    assert!(grok.contains("[mcp_servers.nika]"), "{grok}");
+    assert!(grok.contains("command = \"nika\""), "{grok}");
+
+    let agy: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(home.join(".gemini").join("config").join("mcp_config.json"))
+            .expect("antigravity config written"),
+    )
+    .expect("valid json");
+    assert_eq!(agy["mcpServers"]["nika"]["command"], "nika");
+    assert_eq!(
+        agy["mcpServers"]["nika"]["args"],
+        serde_json::json!(["mcp"])
+    );
+    let _ = std::fs::remove_dir_all(&home);
+}
+
 #[test]
 fn mcp_serves_initialize_and_lists_tools() {
     use std::process::Stdio;
