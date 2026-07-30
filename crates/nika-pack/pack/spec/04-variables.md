@@ -320,12 +320,16 @@ authoring contract ·
 - An engine **SHOULD** validate `tasks.X.output.<path>` references against
   the declared schema at parse time (the misspelled-key class is caught
   before any model is called).
-- An engine **MUST reject only provably-invalid paths** ·
-  `NIKA-VAR-003` · `variable_error`. A path step is *provably invalid*
-  when ·
-  1. a **member step** lands on a schema level that declares
-     `additionalProperties: false` and does NOT list the key in
-     `properties`;
+- An engine **MUST reject invalid paths** · `NIKA-VAR-003` ·
+  `variable_error`. A path step is *invalid* when ·
+  1. a **member step** lands on a schema level that **declares
+     `properties:`** and does NOT list the key — declaring properties
+     CLOSES the level for binding (operator lock 2026-07-30 · strict by
+     default, one voice with the `returns:` walk below). The level opens
+     back up ONLY explicitly: `additionalProperties: true` (or a schema
+     object for extras) makes undeclared siblings legal again.
+     (`additionalProperties: false` on a level with no `properties:`
+     also closes it — the declared empty object.)
   2. a **member step** lands on a level whose `type` excludes `object`;
   3. an **index step** lands on a level whose `type` excludes `array`.
 - The static walk covers the v0.1 subset **`properties` · `items` ·
@@ -333,15 +337,26 @@ authoring contract ·
   (`$ref` · `oneOf` / `anyOf` / `allOf` · `patternProperties` · a missing
   `type` · …) makes that level **open**: the walk stops and the engine
   **MUST NOT** reject anything beneath it.
+- A level that declares **no `properties:` at all** (a bare
+  `type: object`) is **open**: nothing is declared, so nothing can be
+  contradicted — paths beneath it are never statically rejected.
 - Tasks with NO declared schema (every `exec:` / `invoke:` task · an
   `infer:` without `schema:`) are dynamic: paths into their output are
   never statically rejected (a wrong path surfaces at run time as
   `NIKA-VAR-001`).
 
-This keeps the check **sound** (zero false rejections · a valid workflow
-is never refused) while making the declared-schema path the
-better-tooling path (one more reason structured output is the default
-authoring style).
+The balance is deliberate (2026-07-30 · supersedes the earlier
+"only `additionalProperties: false` closes" reading): where the author
+declared NOTHING, the check stays **sound** — open levels and dynamic
+producers are never refused. Where the author DECLARED the shape, the
+declaration is a contract — reading an undeclared sibling of declared
+keys is the misspelled-key class and refuses loudly, with a one-line
+fix either way (declare the key, or open the level with
+`additionalProperties: true`). Note the runtime nuance this owns: JSON
+Schema itself treats an absent `additionalProperties` as permissive at
+run time, and that runtime semantic is unchanged — the static BINDING
+law is stricter than the runtime validator on purpose (catching typos
+before any model is called is the point of declaring a schema).
 
 **`returns:` sharpens the walk (normative · [09-types.md](./09-types.md)).**
 When the producer declares a `returns:` type instead of a raw `schema:`,
