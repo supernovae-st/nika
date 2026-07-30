@@ -16,6 +16,7 @@ use nika_check::{CheckReport, ConformanceViolation, UnboundedReason};
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::VarDecl;
 
+use crate::claims::types_claim;
 use crate::theme::{Role, Theme};
 
 /// One MODELS-rung finding — a `model:` the binary cannot run (#320).
@@ -239,7 +240,10 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
 
 /// POLICY rung (spec 10 · W4) · silent when the file binds no law — the
 /// rows are the ladder's own findings, code first (one voice with
-/// `--json` findings[] and the LSP projection).
+/// `--json` findings[] and the LSP projection: the code is
+/// [`nika_check::policy_wire_code`], the same mapping the findings fold
+/// reads — `approval.*` speaks NIKA-SEC-010, `endorsement.*`
+/// NIKA-SEC-013).
 fn policy_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if wf.policy.is_some() {
         // DAG-gated at the source (`lib.rs`: the order rules read
@@ -255,7 +259,7 @@ fn policy_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
             report
                 .policy_findings
                 .iter()
-                .map(|p| format!("[NIKA-POLICY-001] {}", p.detail))
+                .map(|p| format!("[{}] {}", nika_check::policy_wire_code(p.rule), p.detail))
                 .collect(),
         );
     }
@@ -680,34 +684,6 @@ fn section_or_skip(
             "(skipped — no valid DAG order while conformance fails)"
         )
     );
-}
-
-/// The TYPES claim, narrowed to exactly what the lane covers (F3 ·
-/// 2026-07-30). With no blind spot the old sentence stands; with one,
-/// the line names the count and up to three of the refs the run will
-/// judge — a ✔ that claims exactly what it checked, never more.
-fn types_claim(report: &CheckReport) -> String {
-    let refs: std::collections::BTreeSet<&str> = report
-        .unverifiable_output_refs
-        .iter()
-        .map(|r| r.reference.as_str())
-        .collect();
-    if refs.is_empty() {
-        return "deep references fit the shapes tasks declare · builtin output has none".to_owned();
-    }
-    let n = refs.len();
-    let shown: Vec<&str> = refs.iter().take(3).copied().collect();
-    let more = if n > 3 {
-        format!(" · +{} more", n - 3)
-    } else {
-        String::new()
-    };
-    let noun = if n == 1 { "ref" } else { "refs" };
-    format!(
-        "deep references fit the shapes tasks declare · {n} {noun} into unshaped task \
-         outputs are unverifiable — the run judges them ({}{more})",
-        shown.join(" · ")
-    )
 }
 
 fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
@@ -1400,6 +1376,66 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
                 ),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod policy_rung_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use super::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            Theme::new(false, false, false),
+            &[],
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+        )
+    }
+
+    /// 2a · the console speaks the findings[] voice: an `endorsement.*`
+    /// finding prints NIKA-SEC-013 on the POLICY rung — the rung used to
+    /// stamp NIKA-POLICY-001 on EVERY policy row while the wire spoke
+    /// SEC-013 (measured live broken).
+    #[test]
+    fn a_solo_count_row_prints_sec_013_on_console() {
+        let out = console(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        );
+        let row = out
+            .lines()
+            .find(|l| l.contains("POLICY") && l.contains("solo_count"))
+            .expect("the POLICY finding row");
+        assert!(
+            row.contains("[NIKA-SEC-013]"),
+            "the console speaks the wire code: {row}"
+        );
+        assert!(
+            !out.contains("[NIKA-POLICY-001]"),
+            "no stale policy-lane code on an endorsement row:\n{out}"
+        );
+    }
+
+    /// The mapping is prefix-exact, not a blanket rename: a plain
+    /// policy-lane rule keeps NIKA-POLICY-001 on the console too.
+    #[test]
+    fn a_limits_row_keeps_policy_001_on_console() {
+        let out = console(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
+        );
+        let row = out
+            .lines()
+            .find(|l| l.contains("POLICY") && l.contains('['))
+            .expect("the POLICY finding row");
+        assert!(row.contains("[NIKA-POLICY-001]"), "the lane code: {row}");
     }
 }
 

@@ -20,12 +20,18 @@
 //! - **blast radius** — AND-join makes failure analysis exact: a failed
 //!   task blocks EVERY transitive dependent;
 //! - **write-write conflicts** (F-P15 · NEP-0014 law 1) — two tasks that
-//!   CAN run concurrently (incomparable) and both write the same literal
-//!   `nika:write` path: last-writer-wins is a race the file never
-//!   declares. The LAW (a `NIKA-SEC-012` finding · deterministic) —
-//!   promoted from its advisory-hint era 2026-07-29: parallelism is safe
-//!   exactly where the effects are provably disjoint, and a hint is not
-//!   a boundary.
+//!   CAN run concurrently (incomparable) and both target the same literal
+//!   `nika:write`/`nika:edit` path, compared under LEXICAL normalization
+//!   (`./out/x.md` ≡ `out//x.md` ≡ `out/d/../x.md` ≡ `out/x.md` — pure
+//!   text, no filesystem claim; see [`normalize_lexical`]):
+//!   last-writer-wins is a race the file never declares. The LAW (a
+//!   `NIKA-SEC-012` finding · deterministic) — promoted from its
+//!   advisory-hint era 2026-07-29: parallelism is safe exactly where the
+//!   effects are provably disjoint, and a hint is not a boundary. Above
+//!   [`ANALYSIS_TASK_CAP`] the closure-based pair scan is skipped and
+//!   the skip is STATED ([`DagRead::stated_miss`] — the report carries
+//!   it as a hint, never a silent no-claim); the closure-free
+//!   `for_each` same-path flavor still judges.
 //!
 //! Width can EXCEED the largest wave — witness `p→a1→x2 · p→x1 ·
 //! isolated x0`: waves peak at 2, width is 3 (`{x0, x1, x2}`). The
@@ -44,9 +50,10 @@ use nika_schema::source::Spanned;
 const WRITE_CONFLICT_CODE: &str = "NIKA-SEC-012";
 
 /// One write-write conflict (F-P15 · NEP-0014 law 1): two tasks
-/// incomparable in the DAG closure whose literal `nika:write` paths
-/// collide, or a `for_each` fan writing one constant path — the
-/// last-writer-wins race, refused at check.
+/// incomparable in the DAG closure whose literal `nika:write` /
+/// `nika:edit` paths collide under lexical normalization, or a
+/// `for_each` fan writing one constant path — the last-writer-wins
+/// race, refused at check.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct WriteConflict {
@@ -56,9 +63,12 @@ pub struct WriteConflict {
     /// The second writer — `None` for the `for_each` flavor (the task
     /// races its own iterations).
     pub other: Option<String>,
-    /// The literal `nika:write` path both writes target.
+    /// The colliding path in its LEXICAL normal form (the pair flavor —
+    /// both literals reduce to it) · the literal as spelled (the
+    /// `for_each` flavor — nothing is compared).
     pub path: String,
-    /// The witness sentence (the race, named).
+    /// The witness sentence (the race, named — both spellings when the
+    /// literals differ textually).
     pub detail: String,
     /// The one repair.
     pub fix: String,
@@ -107,27 +117,37 @@ pub(super) struct DagRead {
     pub analysis: Option<DagAnalysis>,
     /// Write-write conflicts (F-P15 · the law, never advisory).
     pub conflicts: Vec<WriteConflict>,
+    /// The STATED MISS when the closure-based read was skipped for width
+    /// (H6 · the verdict-coverage law: a law that did not judge says so,
+    /// in the report's own surface — the builder folds it as a hint).
+    /// `None` when the read ran, and on the conformance skip — that one
+    /// is already stated by the CONFORM rows themselves.
+    pub stated_miss: Option<String>,
 }
 
 impl DagRead {
-    /// The skipped read (conformance failed — claim nothing).
+    /// The skipped read (conformance failed — claim nothing; the
+    /// CONFORM rows state why, so no extra miss rides).
     pub(super) fn skipped() -> Self {
         Self {
             analysis: None,
             conflicts: Vec::new(),
+            stated_miss: None,
         }
     }
 }
 
-/// Above this task count the exact read is SKIPPED (honest, never
-/// wrong — same posture as the conformance gate). The materialized
-/// closure is O(n²) and the matching phases O(E√V): at the parser's
-/// 10k-task cap that is ~400 MB + minutes of CPU from a few-KB YAML —
-/// a `DoS` surface on a checker that markets static safety (house
-/// precedent: the marked-yaml depth caps · the 64 MiB ceilings). At
-/// 2 000 tasks the worst case stays ~60 MB · milliseconds typical —
-/// far above any real workflow. The cap also bounds the augmenting
-/// DFS recursion (≤ n frames · see [`hk_dfs`]).
+/// Above this task count the exact read is SKIPPED — and the skip is a
+/// STATED MISS ([`DagRead::stated_miss`]), never silent; the
+/// closure-free `for_each` same-path flavor of the write-write law
+/// still runs (H6). The materialized closure is O(n²) and the matching
+/// phases O(E√V): at the parser's 10k-task cap that is ~400 MB +
+/// minutes of CPU from a few-KB YAML — a `DoS` surface on a checker
+/// that markets static safety (house precedent: the marked-yaml depth
+/// caps · the 64 MiB ceilings). At 2 000 tasks the worst case stays
+/// ~60 MB · milliseconds typical — far above any real workflow. The cap
+/// also bounds the augmenting DFS recursion (≤ n frames · see
+/// [`hk_dfs`]).
 const ANALYSIS_TASK_CAP: usize = 2_000;
 
 /// Run the engineering read over a conformant workflow.
@@ -142,10 +162,24 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
                 blast_radius: Vec::new(),
             }),
             conflicts: Vec::new(),
+            stated_miss: None,
         };
     }
     if n > ANALYSIS_TASK_CAP {
-        return DagRead::skipped();
+        // H6 · the verdict-coverage law at the cap: the skip is STATED
+        // (never a silent no-claim), and the closure-free flavor of the
+        // write-write law still judges — a fan racing its own iterations
+        // needs no closure.
+        return DagRead {
+            analysis: None,
+            conflicts: scan_for_each_fans(wf),
+            stated_miss: Some(format!(
+                "{n} tasks is over the {ANALYSIS_TASK_CAP}-task analysis cap (the O(n²) closure \
+                 stays a DoS floor): width · pinch points · blast radius made NO claim, and the \
+                 write-write law judged only the `for_each` same-path flavor — the pair scan did \
+                 not run"
+            )),
+        };
     }
 
     let down = downstream_adjacency(&wf.tasks);
@@ -193,6 +227,7 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
             blast_radius: blast,
         }),
         conflicts: scan_parallel_writers(wf, &desc),
+        stated_miss: None,
     }
 }
 
@@ -401,13 +436,20 @@ fn koenig_witness(
     (0..n).filter(|&i| z_left[i] && !z_right[i]).collect()
 }
 
-/// The literal `nika:write` target of a task, when statically known —
-/// island-bearing paths are dynamic and make no static claim.
+/// The literal `nika:write`/`nika:edit` target of a task, when
+/// statically known — island-bearing paths are dynamic and make no
+/// static claim. (H4 · the canon text names BOTH writer builtins: they
+/// take `path:` identically and return it as their output, and the
+/// edit's read-modify-write loses updates to a concurrent writer
+/// exactly like the write's rename does.)
 fn literal_write_path(task: &RawTask) -> Option<&str> {
     let RawAction::Invoke(invoke) = &task.action else {
         return None;
     };
-    if invoke.tool().map(|t| t.value.as_str()) != Some("nika:write") {
+    if !matches!(
+        invoke.tool().map(|t| t.value.as_str()),
+        Some("nika:write" | "nika:edit")
+    ) {
         return None;
     }
     invoke
@@ -419,25 +461,111 @@ fn literal_write_path(task: &RawTask) -> Option<&str> {
         .filter(|p| !p.contains("${{"))
 }
 
+/// The LEXICAL normal form two write paths are compared under (H5 ·
+/// F-P15) — component-wise, pure text, no filesystem access:
+///
+/// - duplicate separators collapse (`out//x.md` ≡ `out/x.md`) and a
+///   trailing separator drops;
+/// - `.` components drop (`./out/x.md` ≡ `out/x.md`);
+/// - `..` pops the last kept component (`out/d/../x.md` ≡ `out/x.md`) —
+///   except a `..` with nothing to pop, which is KEPT verbatim (a
+///   relative path's escape stays its own: `../x.md` ≡ only `../x.md`),
+///   as is one past an absolute root (`/..` ≡ `/`).
+///
+/// The claim is LEXICAL, not filesystem: two spellings sharing a normal
+/// form name one file UNLESS a `..` crossed a symlinked directory (the
+/// kernel resolves `..` against the link target's parent, not the
+/// spelled one) or the filesystem folds case. The error direction is
+/// the safe one — a symlink false positive merely orders two writers
+/// that might have differed; the spelling false negative this fixes
+/// raced two writers on one file.
+fn normalize_lexical(path: &str) -> String {
+    let absolute = path.starts_with('/');
+    let mut kept: Vec<&str> = Vec::new();
+    for component in path.split('/') {
+        match component {
+            "" | "." => {}
+            ".." => match kept.last() {
+                Some(&last) if last != ".." => {
+                    kept.pop();
+                }
+                // Absolute: the root absorbs the `..`. Relative: the
+                // escape is the path's own — kept.
+                _ if absolute => {}
+                _ => kept.push(".."),
+            },
+            c => kept.push(c),
+        }
+    }
+    let joined = kept.join("/");
+    match (absolute, joined.is_empty()) {
+        (true, true) => "/".to_owned(),
+        (true, false) => format!("/{joined}"),
+        // The empty and all-dot spellings share one normal form.
+        (false, true) => ".".to_owned(),
+        (false, false) => joined,
+    }
+}
+
 /// Write-write races, statically (F-P15 · NEP-0014 law 1): two tasks
 /// that CAN run concurrently (incomparable in the closure) and both
-/// write the same literal path — plus the fan-out flavor (`for_each`
-/// over a constant path: every iteration overwrites the same file). The
-/// LAW: each conflict is a finding (an ordering edge — `after:` /
-/// `with:` — discharges it; parallelism is safe exactly where the
-/// writes are provably disjoint).
+/// target the same literal path under lexical normalization — plus the
+/// fan-out flavor ([`scan_for_each_fans`]). The LAW: each conflict is a
+/// finding (an ordering edge — `after:` / `with:` — discharges it;
+/// parallelism is safe exactly where the writes are provably disjoint).
 fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<WriteConflict> {
-    let writers: Vec<(usize, &str)> = wf
+    let mut conflicts = scan_for_each_fans(wf);
+    // (task index · the literal as spelled · its lexical normal form).
+    let writers: Vec<(usize, &str, String)> = wf
         .tasks
         .iter()
         .enumerate()
-        .filter_map(|(i, t)| literal_write_path(&t.value).map(|p| (i, p)))
+        .filter_map(|(i, t)| literal_write_path(&t.value).map(|p| (i, p, normalize_lexical(p))))
         .collect();
 
     let comparable = |a: usize, b: usize| -> bool {
         desc[a][b / 64] & (1u64 << (b % 64)) != 0 || desc[b][a / 64] & (1u64 << (a % 64)) != 0
     };
 
+    for (a, (ai, ap, an)) in writers.iter().enumerate() {
+        for (bi, bp, bn) in writers.iter().skip(a + 1) {
+            if an != bn || comparable(*ai, *bi) {
+                continue;
+            }
+            let (first, second) = (&wf.tasks[*ai].value.id.value, &wf.tasks[*bi].value.id.value);
+            // Both literals are named when the spellings differ — the
+            // collision is exactly that they reduce to one file.
+            let detail = if ap == bp {
+                format!(
+                    "`{first}` and `{second}` can run CONCURRENTLY and both write \
+                     `{ap}` — last-writer-wins is a race the file never declares"
+                )
+            } else {
+                format!(
+                    "`{first}` and `{second}` can run CONCURRENTLY and write the SAME file \
+                     spelled `{ap}` and `{bp}` — last-writer-wins is a race the file never \
+                     declares"
+                )
+            };
+            conflicts.push(WriteConflict {
+                task: first.clone(),
+                other: Some(second.clone()),
+                path: an.clone(),
+                detail,
+                fix: "order them with `after:` (one writer after the other) · or \
+                      merge the writes into one task"
+                    .to_owned(),
+            });
+        }
+    }
+    conflicts
+}
+
+/// The `for_each` flavor, closure-free: a fan writing one constant path
+/// races its OWN iterations — no DAG read is needed, so this judgment
+/// runs even when the closure-based pair scan is capped out (H6 · every
+/// iteration overwrites the same file, the last silently wins).
+fn scan_for_each_fans(wf: &RawWorkflow) -> Vec<WriteConflict> {
     let mut conflicts = Vec::new();
     for t in &wf.tasks {
         if t.value.for_each.is_some()
@@ -454,26 +582,6 @@ fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<WriteConfli
                 ),
                 fix: "derive the path from `${{ item }}` so each iteration writes \
                       its own file · or drop `for_each`"
-                    .to_owned(),
-            });
-        }
-    }
-    for (a, &(ai, ap)) in writers.iter().enumerate() {
-        for &(bi, bp) in writers.iter().skip(a + 1) {
-            if ap != bp || comparable(ai, bi) {
-                continue;
-            }
-            let (first, second) = (&wf.tasks[ai].value.id.value, &wf.tasks[bi].value.id.value);
-            conflicts.push(WriteConflict {
-                task: first.clone(),
-                other: Some(second.clone()),
-                path: ap.to_owned(),
-                detail: format!(
-                    "`{first}` and `{second}` can run CONCURRENTLY and both write \
-                     `{ap}` — last-writer-wins is a race the file never declares"
-                ),
-                fix: "order them with `after:` (one writer after the other) · or \
-                      merge the writes into one task"
                     .to_owned(),
             });
         }
@@ -691,6 +799,140 @@ mod tests {
     }
 
     #[test]
+    fn parallel_editors_same_literal_path_is_a_finding() {
+        // H4 · the canon text names BOTH writer builtins: `nika:edit`
+        // takes `path:` identically, and its read-modify-write loses
+        // updates to a concurrent edit exactly like `nika:write`.
+        let yaml = format!(
+            "{HEADER}  left:\n    invoke:\n      tool: nika:edit\n      args:\n        path: out/report.md\n        find: a\n        replace: b\n  right:\n    invoke:\n      tool: nika:edit\n      args:\n        path: out/report.md\n        find: c\n        replace: d\n"
+        );
+        let conflicts = read(&yaml).conflicts;
+        assert_eq!(conflicts.len(), 1);
+        let c = &conflicts[0];
+        assert_eq!(c.task, "left");
+        assert_eq!(c.other.as_deref(), Some("right"));
+        assert_eq!(c.path, "out/report.md");
+        assert_eq!(c.wire_code(), "NIKA-SEC-012");
+    }
+
+    #[test]
+    fn a_write_and_an_edit_on_one_path_race() {
+        // H4 · the mixed pair: the write's atomic rename and the edit's
+        // read-modify-write have no order — one of them loses.
+        let yaml = format!(
+            "{HEADER}  left:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  right:\n    invoke:\n      tool: nika:edit\n      args:\n        path: out/report.md\n        find: a\n        replace: b\n"
+        );
+        let conflicts = read(&yaml).conflicts;
+        assert_eq!(conflicts.len(), 1, "write+edit on one path refuses");
+        assert_eq!(conflicts[0].wire_code(), "NIKA-SEC-012");
+    }
+
+    #[test]
+    fn path_spellings_collide_after_lexical_normalization() {
+        // H5 · the raw-string compare let `./out/x.md` vs `out/x.md` vs
+        // `out//x.md` vs `out/d/../x.md` evade the law — every spelling
+        // names the same file and must refuse against the plain form.
+        for (a, b) in [
+            ("./out/x.md", "out/x.md"),
+            ("out//x.md", "out/x.md"),
+            ("out/d/../x.md", "out/x.md"),
+        ] {
+            let yaml = format!(
+                "{HEADER}  left:\n    invoke:\n      tool: nika:write\n      args:\n        path: {a}\n        content: \"a\"\n  right:\n    invoke:\n      tool: nika:write\n      args:\n        path: {b}\n        content: \"b\"\n"
+            );
+            let conflicts = read(&yaml).conflicts;
+            assert_eq!(
+                conflicts.len(),
+                1,
+                "`{a}` and `{b}` name one file — the race must refuse"
+            );
+            let c = &conflicts[0];
+            assert_eq!(c.path, "out/x.md", "the normal form rides: {a} vs {b}");
+            assert!(
+                c.detail.contains(a) && c.detail.contains(b),
+                "both spellings named: {}",
+                c.detail
+            );
+        }
+    }
+
+    #[test]
+    fn normalize_lexical_is_component_wise_and_pure() {
+        // H5 · the normal form's edges: dot components drop, duplicate
+        // separators collapse, `..` pops lexically — and an escape past
+        // the root is KEPT (lexically, nothing proves what it pops).
+        assert_eq!(normalize_lexical("./out/x.md"), "out/x.md");
+        assert_eq!(normalize_lexical("out//x.md"), "out/x.md");
+        assert_eq!(normalize_lexical("out/./x.md"), "out/x.md");
+        assert_eq!(normalize_lexical("out/d/../x.md"), "out/x.md");
+        assert_eq!(normalize_lexical("out/x.md"), "out/x.md");
+        assert_eq!(normalize_lexical("../x.md"), "../x.md");
+        assert_eq!(normalize_lexical("a/../../x.md"), "../x.md");
+        assert_eq!(normalize_lexical("/a//b/../c"), "/a/c");
+        assert_eq!(normalize_lexical(""), ".");
+        // Distinct files stay distinct (no merge-happy normalization).
+        assert_ne!(normalize_lexical("out/x.md"), normalize_lexical("out/y.md"));
+    }
+
+    #[test]
+    fn over_the_cap_the_miss_is_stated_and_the_fan_flavor_still_judges() {
+        // H6 · the cap used to judge NOTHING silently. Now the skip is
+        // a STATED MISS the report carries, and the closure-free
+        // `for_each` same-path flavor — which needs no closure — still
+        // refuses above the cap.
+        let mut yaml = String::from(HEADER);
+        yaml.push_str("  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
+        for i in 0..ANALYSIS_TASK_CAP {
+            yaml.push_str(&infer_task(&format!("t{i}"), &[]));
+        }
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        assert_eq!(parsed.tasks.len(), ANALYSIS_TASK_CAP + 1);
+        let analyzed = crate::analyzer::analyze(&parsed).expect("conformant");
+        let read = read_dag(&parsed, &analyzed.topo_waves);
+        assert!(
+            read.analysis.is_none(),
+            "over the cap the exact read claims nothing"
+        );
+        let miss = read
+            .stated_miss
+            .as_deref()
+            .expect("the skip is STATED, never silent");
+        assert!(
+            miss.contains("the pair scan did not run"),
+            "the miss names what did not judge: {miss}"
+        );
+        assert_eq!(read.conflicts.len(), 1, "the fan flavor needs no closure");
+        assert_eq!(read.conflicts[0].task, "fan");
+        assert_eq!(read.conflicts[0].other, None);
+    }
+
+    #[test]
+    fn the_stated_miss_rides_the_report_hints() {
+        // H6 · through `check()`: the miss lands as an `analysis` hint
+        // (JSON `hints[]` + the console HINTS section carry it), and the
+        // fan flavor's refusal lands as the law's finding.
+        let mut yaml = String::from(HEADER);
+        yaml.push_str("  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
+        for i in 0..ANALYSIS_TASK_CAP {
+            yaml.push_str(&infer_task(&format!("t{i}"), &[]));
+        }
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let report = crate::check(&parsed);
+        let hint = report
+            .hints
+            .iter()
+            .find(|h| h.kind == "analysis")
+            .expect("the stated miss rides hints[]");
+        assert!(
+            hint.advice.contains("the pair scan did not run"),
+            "the hint names the miss: {}",
+            hint.advice
+        );
+        assert_eq!(report.write_conflicts.len(), 1);
+        assert_eq!(report.write_conflicts[0].task, "fan");
+    }
+
+    #[test]
     fn empty_workflow_reads_as_width_zero() {
         let parsed = parse(
             "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ntasks: []\n",
@@ -738,7 +980,9 @@ mod tests {
     fn oversized_workflows_skip_the_exact_read_honestly() {
         // One task above the cap: the read is skipped (None · no claim)
         // instead of materializing an O(n²) closure — never slow, never
-        // wrong, same posture as the conformance gate.
+        // wrong. H6: the skip is no longer silent either — the read
+        // carries its STATED MISS (no fan in this fixture, so the
+        // closure-free flavor finds nothing).
         let mut yaml = String::from(HEADER);
         yaml.push_str(&infer_task("t0", &[]));
         for i in 1..=ANALYSIS_TASK_CAP {
@@ -753,6 +997,10 @@ mod tests {
             "above the cap the read claims nothing"
         );
         assert!(read.conflicts.is_empty());
+        assert!(
+            read.stated_miss.is_some(),
+            "above the cap the skip is STATED, never silent"
+        );
     }
 
     #[test]

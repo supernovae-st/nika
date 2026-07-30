@@ -157,6 +157,7 @@ pub use hints::Hint;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
+pub use policy::policy_wire_code;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use run_decl::RunDeclFinding;
@@ -642,6 +643,17 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
+    // H6 · the width-capped DAG read STATES its miss (the
+    // verdict-coverage law: a law that did not judge says so, in the
+    // report's own surface — the JSON `hints[]` and the console HINTS
+    // section both carry it).
+    if let Some(miss) = dag_read.stated_miss {
+        hints.push(Hint {
+            kind: "analysis",
+            task: "-".to_owned(),
+            advice: miss,
+        });
+    }
     // policy reads graph ancestors — valid order or no claim (IFC gating)
     let policy_findings = if conformance.is_empty() {
         policy::scan_policy(wf, &edges)

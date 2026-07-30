@@ -21,6 +21,7 @@
 
 pub mod check_render;
 pub mod chrome;
+mod claims;
 pub mod dag_art;
 pub mod demo;
 pub mod flow;
