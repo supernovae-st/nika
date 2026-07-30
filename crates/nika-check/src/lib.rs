@@ -567,6 +567,33 @@ impl CheckReport {
     }
 }
 
+/// ONE VOICE (spec 04 §Static binding validation · conformance
+/// `runner-protocol.md` class B). Since the 2026-07-30 lock the coded
+/// `NIKA-VAR-003` walk in [`analyze`] owns the strict-binding law, and it
+/// carries the did-you-mean the check-side rung used to be the only holder
+/// of. That rung stays for the shapes the walk declares opaque, but it must
+/// not repeat a reference the walk already refused: one defect printed twice
+/// reads as two defects, and the conformance harness would then see a coded
+/// refusal beside a codeless twin.
+///
+/// The match is on the BACKTICKED reference, not a bare substring — the
+/// violation renders the path inside backticks, so `tasks.a.output.x` cannot
+/// silently swallow a finding about `tasks.a.output.x_2`.
+fn drop_refs_the_coded_walk_refused(
+    findings: Vec<SchemaTypeFinding>,
+    conformance: &[ConformanceViolation],
+) -> Vec<SchemaTypeFinding> {
+    findings
+        .into_iter()
+        .filter(|f| {
+            let quoted = format!("`{}`", f.reference);
+            !conformance
+                .iter()
+                .any(|v| v.code == "NIKA-VAR-003" && v.message.contains(&quoted))
+        })
+        .collect()
+}
+
 /// Run the full static pre-flight over a parsed workflow — INFALLIBLE
 /// (the rustc model: maximal information per run).
 ///
@@ -670,23 +697,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);
     let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
-    // ONE VOICE (spec 04 §Static binding validation · conformance
-    // `runner-protocol.md` class B). Since the 2026-07-30 lock the coded
-    // NIKA-VAR-003 walk in `analyze()` owns the strict-binding law, and it
-    // carries the did-you-mean the check-side rung used to be the only
-    // holder of. That rung stays for the shapes the walk declares opaque,
-    // but it must not repeat a reference the walk already refused: one
-    // defect printed twice reads as two defects, and the conformance
-    // harness would then see a coded refusal beside a codeless twin.
-    let schema_findings: Vec<_> = schema_findings
-        .into_iter()
-        .filter(|f| {
-            let quoted = format!("`{}`", f.reference);
-            !conformance
-                .iter()
-                .any(|v| v.code == "NIKA-VAR-003" && v.message.contains(&quoted))
-        })
-        .collect();
+    let schema_findings = drop_refs_the_coded_walk_refused(schema_findings, &conformance);
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
