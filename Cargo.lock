@@ -4091,6 +4091,7 @@ dependencies = [
 name = "nika-cli"
 version = "0.106.1"
 dependencies = [
+ "blake3",
  "clap",
  "clap_complete",
  "expectrl",
