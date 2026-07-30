@@ -29,8 +29,10 @@ use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 
-/// The rehearsal fixture · diamond DAG · 4 waves · 6 tasks · all three
-/// wave-dispatched verbs + a statically-closed gate.
+/// The rehearsal fixture · human-gated diamond DAG · 5 waves · 7 tasks ·
+/// all three wave-dispatched verbs + a statically-closed gate. The YAML
+/// mirrors `e2e_pipeline.rs`'s `WORKFLOW_OK` verbatim (same YAML in ·
+/// same stream out) — when the trifecta law moves, both twins move.
 const WORKFLOW_OK: &str = r#"
 nika: v1
 workflow:
@@ -40,7 +42,7 @@ workflow:
 model: mock/echo
 
 permits:
-  tools: ["nika:read", "nika:write"]
+  tools: ["nika:prompt", "nika:read", "nika:write"]
   exec: ["wc", "echo"]
   fs:
     read: ["./news.json"]
@@ -51,19 +53,35 @@ const:
   publish: "no"
 
 tasks:
+  # The human gate (NEP-0002 · v2.2 made `exec:` born-ingress). `probe`'s
+  # stdout is content this workflow did not author, it meets a private
+  # `fs.read` and reaches `fs.write` + a second exec: the lethal trifecta.
+  # The gate comes FIRST and BOTH roots descend from it — `gather` carries
+  # the private read, `probe` the untrusted content — because a gate on a
+  # sibling branch dominates nothing.
+  approve:
+    invoke:
+      tool: "nika:prompt"
+      args:
+        mode: "confirm"
+        message: "read ${{ const.source }}, summarize it and write the report?"
+
   gather:
+    after: { approve: success }
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.source }}" }
 
   probe:
+    after: { approve: success }
     exec:
       command: ["wc", "-l", "./news.json"]
 
   extract:
-    with: { facts: "${{ tasks.gather.output }}" }
+    with:
+      gathered: ${{ tasks.gather.output }}
     infer:
-      prompt: "Extract the story fields · ${{ with.facts }}"
+      prompt: "Extract the story fields · ${{ with.gathered }}"
       schema:
         type: object
         properties:
@@ -73,15 +91,17 @@ tasks:
 
   think:
     with:
-      facts: "${{ tasks.gather.output }}"
-      lines: "${{ tasks.probe.output }}"
+      gathered: ${{ tasks.gather.output }}
+      lines: ${{ tasks.probe.output }}
     infer:
-      prompt: "Summarize · ${{ with.facts }} · lines ${{ with.lines }}"
+      prompt: "Summarize · ${{ with.gathered }} · lines ${{ with.lines }}"
       max_tokens: 800
 
   write_out:
-    with: { summary: "${{ tasks.think.output }}" }
-    after: { extract: success }
+    with:
+      summary: ${{ tasks.think.output }}
+    after:
+      extract: success
     invoke:
       tool: "nika:write"
       args:
@@ -89,7 +109,8 @@ tasks:
         content: "${{ with.summary }}"
 
   notify:
-    after: { write_out: terminal }
+    after:
+      write_out: terminal
     when: ${{ const.publish == 'yes' }}
     exec:
       command: ["echo", "done"]
@@ -122,6 +143,20 @@ fn floor_runtime(
     tools: MockToolExecutor,
     provider: MockProvider,
 ) -> FloorRuntime {
+    floor_runtime_with_clock(shell, tools, provider, MockClock::new())
+}
+
+/// [`floor_runtime`] with the clock seam pinned by the caller — the
+/// replay test runs twice and `MockClock::new()` captures wall time at
+/// construction, so the approval ticket's `minted_at_ms` (and therefore
+/// its digest on the `approval_decided` frame) would differ between
+/// runs. One clock, cloned per run, keeps the mint an input.
+fn floor_runtime_with_clock(
+    shell: MockShell,
+    tools: MockToolExecutor,
+    provider: MockProvider,
+    clock: MockClock,
+) -> FloorRuntime {
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));
     Runtime::new(
@@ -134,7 +169,7 @@ fn floor_runtime(
             Arc::new(MockToolDefinitionProvider::new()),
             "mock/echo",
         ),
-        MockClock::new(),
+        clock,
         RuntimeConfig::default(),
     )
 }
@@ -181,6 +216,7 @@ async fn floor_happy_path_same_yaml_same_stream() {
 
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let runtime = floor_runtime(shell, tools, MockProvider::new("mock"));
@@ -195,11 +231,11 @@ async fn floor_happy_path_same_yaml_same_stream() {
 
     assert!(outcome.ok, "happy path completes");
 
-    // The storyboard the rehearsal locked: started · 6 scheduled · the
+    // The storyboard the rehearsal locked: started · 7 scheduled · the
     // wave-ordered task frames · gated notify skipped · terminal.
     let kinds: Vec<EventKind> = events.iter().map(|e| e.kind).collect();
     assert_eq!(kinds[0], EventKind::WorkflowStarted);
-    assert_eq!(kinds[1..=6], [EventKind::TaskScheduled; 6]);
+    assert_eq!(kinds[1..=7], [EventKind::TaskScheduled; 7]);
     assert_eq!(
         *kinds.last().expect("non-empty"),
         EventKind::WorkflowCompleted
@@ -225,6 +261,7 @@ async fn floor_happy_path_same_yaml_same_stream() {
             .find(|(k, t, _)| *k == EventKind::TaskCompleted && t == task)
             .map_or_else(|| panic!("{task} completed"), |(_, _, note)| note.clone())
     };
+    assert_eq!(note_of("approve"), "invoke · nika:prompt");
     assert_eq!(note_of("gather"), "invoke · nika:read");
     assert_eq!(note_of("probe"), "exec · wc");
     assert!(note_of("extract").starts_with("infer · "));
@@ -257,13 +294,19 @@ async fn floor_happy_path_same_yaml_same_stream() {
 
 #[tokio::test]
 async fn floor_stream_is_replay_stable() {
+    // One clock for both runs — the approval mint stamps `minted_at_ms`
+    // from the clock seam and signs it into the ticket digest; a fresh
+    // `MockClock::new()` per run would leak wall time into the stream.
+    let clock = MockClock::new();
     let run_once = || async {
         let (wf, report) = parse_and_check(WORKFLOW_OK);
         let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
         let tools = MockToolExecutor::new()
+            .enqueue_ok(ToolResult::success("call-approve", "true"))
             .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
             .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
-        let runtime = floor_runtime(shell, tools, MockProvider::new("mock"));
+        let runtime =
+            floor_runtime_with_clock(shell, tools, MockProvider::new("mock"), clock.clone());
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
         runtime
@@ -293,7 +336,9 @@ async fn floor_failure_cascades_and_terminal_is_failed() {
     // cascades · notify (needs write_out) cascades BEFORE its gate ·
     // gather + extract stay alive (the other lane).
     let shell = MockShell::new().enqueue_fail(7, "disk full: /var/news");
-    let tools = MockToolExecutor::new().enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
     let runtime = floor_runtime(shell, tools, MockProvider::new("mock"));
 
     let mut stamper = DeterministicStamper::new();
