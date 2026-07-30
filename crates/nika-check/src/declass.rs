@@ -95,7 +95,7 @@ pub(super) fn is_sanctioned(
 }
 
 /// WHY an unsanctioned edge refused — one reason per refused edge,
-/// computed beside [`is_sanctioned`] so the finding's fix names the
+/// computed beside `is_sanctioned` so the finding's fix names the
 /// LAYER that actually failed (the 2026-07-29 audit · run 4: every
 /// refused edge used to teach « add `egress:` » even when the clause
 /// was already declared, and the real missing layer — sink · host ·
@@ -137,7 +137,7 @@ pub enum LeakReason {
 }
 
 /// Compute the refusal reason for one refused edge — the caller asks
-/// only on edges [`is_sanctioned`] already refused, so the analysis
+/// only on edges `is_sanctioned` already refused, so the analysis
 /// reads the SAME rules with the SAME primitives (one seam, no drift).
 /// A full-clear match under a refused edge is a caller bug (`debug_assert`
 /// pins it in dev; production falls back to the full-sanction teach,
