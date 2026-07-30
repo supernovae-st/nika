@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4237
+  classified_files: 4239
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1320
+    authored: 1322
     authored-pin: 2
     generated: 114
     pinned-copy: 105
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 2844ce3742962c29962453ac22fbb0ea1e08d4f20c95fe75401e1c93315d58ae
+  sha256: 292f67545a9a38ed0e3aaa3f0c48c9998154787366f3480adc62365431775484
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 104
-  aggregate_sha256: 2aa88f22d55f7faf25ece4f7dcdceec5892e8c143bf6005197a7981c47dd0e19
+  aggregate_sha256: 1a431bc3eca19a790a64abff1705bb3ae1ccdebf0c2a985a1f0385b955ca6cbd
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -125,7 +125,7 @@ patterns:
 - glob: "crates/nika-runtime/fixtures/adversarial/**"
   class: testimonial
   match_count: 32
-  aggregate_sha256: bcdd0e2ed4eed0e5b0fd42bd8c4e33de12028742c26012926ed025881bd0eef8
+  aggregate_sha256: 02849aecb27bf7d742a14f588bb5d5e483a4241d79164e780e8b11a74f892576
   evidence: "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime"
 - glob: "fuzz/corpus/**"
   class: testimonial
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 660
-  aggregate_sha256: 0bce1c2530cad815b445c644ee31e2561c47091e2a89c13ce3b50af6e49925f8
+  aggregate_sha256: 03be59e9817f1b50d559684a75a3f18fc5b309aa3e4f92ac8510b3b2eedf0e93
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -177,13 +177,13 @@ patterns:
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
-  match_count: 96
-  aggregate_sha256: 027358364374a91b9e7beb4e8e5be83fa3f9a38af6b67583a6486d46c6eed925
+  match_count: 97
+  aggregate_sha256: 9365eb38f6519d295d400b5b0fb027b860ef73882c1d269d235813c14be64871
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 129
-  aggregate_sha256: f6832e910bdf737fa15017c5c3e2a5f48a053862de3e9fa998a4ee026bab6341
+  match_count: 130
+  aggregate_sha256: bfc2a12c0ab9f21238ed127187c459c183060981a9f65ab7960f8cf14523c1e2
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
