@@ -847,6 +847,48 @@ where
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {
+    /// This run's resume identity context (ADR-099 · spec 14 law 10 at the
+    /// `def_hash` tier) — the secret markers + leak-guard set + the
+    /// composer-injected skill texts and child-closure digests, folded once
+    /// per run.
+    fn resume_context(
+        &self,
+        wf: &RawWorkflow,
+        secrets: &BTreeMap<String, Value>,
+    ) -> resume::ResumeContext {
+        resume::ResumeContext::of(
+            wf,
+            secrets,
+            self.model_override.as_deref(),
+            &self.skills,
+            &self.child_closures,
+        )
+    }
+
+    /// The boot manifest (F-P13 · NEP-0014) — the prologue frames, fed from
+    /// the seams this runtime was composed with.
+    fn emit_boot_manifest(
+        &self,
+        wf: &RawWorkflow,
+        workflow_name: &str,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) {
+        emit_prologue(
+            wf,
+            workflow_name,
+            self.source_sha256.as_deref(),
+            self.source_sha256_lf.as_deref(),
+            self.config.sandbox_backend.as_deref(),
+            &self.input_origins,
+            self.resume_compat.as_deref(),
+            self.config.max_cost_usd,
+            &self.approvals,
+            stamper,
+            sink,
+        );
+    }
+
     /// Execute the workflow per the report's wave schedule (spec §3).
     ///
     /// Tasks within a wave dispatch concurrently (capped) and settle in
@@ -898,13 +940,7 @@ where
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
         // `--json` trace is later resumable).
-        let resume_ctx = resume::ResumeContext::of(
-            wf,
-            &secrets,
-            self.model_override.as_deref(),
-            &self.skills,
-            &self.child_closures,
-        );
+        let resume_ctx = self.resume_context(wf, &secrets);
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
@@ -912,19 +948,7 @@ where
         // per run through the schema's one projection; every task's
         // `returns:` contract parses against THIS environment (W3).
         let types = nika_check::named_types(wf);
-        emit_prologue(
-            wf,
-            &workflow_name,
-            self.source_sha256.as_deref(),
-            self.source_sha256_lf.as_deref(),
-            self.config.sandbox_backend.as_deref(),
-            &self.input_origins,
-            self.resume_compat.as_deref(),
-            self.config.max_cost_usd,
-            &self.approvals,
-            stamper,
-            sink,
-        );
+        self.emit_boot_manifest(wf, &workflow_name, stamper, sink);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;

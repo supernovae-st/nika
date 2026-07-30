@@ -215,18 +215,11 @@ enum ChainHeadline {
 /// in the forensics crate (`nika_dap::anchor::tier::evaluate` — the
 /// 15k descent); this verb keeps the OK line, the reproduce shim call
 /// (the fs seam), and the `VerbOutput` envelope + exit code.
-fn tiered(
-    trace: &str,
-    raw: &str,
-    events: usize,
-    head: &str,
-    headline: ChainHeadline,
-    opts: &VerifyOptions,
-    candidates: &[(String, String)],
-) -> VerbOutput {
-    // The replay comparison is the CLI's fs seam — the ladder only
-    // hears what the outcome MEANS.
-    let compared = opts.replay.as_ref().map(|fresh| {
+/// The `--replay` leg's fs seam: run the reproduce comparison and hand the
+/// ladder what the outcome MEANS (never how it was obtained). `None` = the
+/// flag was not passed — verify itself never re-executes.
+fn replay_compare(trace: &str, opts: &VerifyOptions) -> Option<tier::ReplayCompare> {
+    opts.replay.as_ref().map(|fresh| {
         let out = super::trace_reproduce::reproduce(trace, &fresh.to_string_lossy());
         match out.code {
             super::exit::OK => tier::ReplayCompare::Reproduced,
@@ -239,7 +232,36 @@ fn tiered(
                     .to_owned(),
             ),
         }
-    });
+    })
+}
+
+/// The buried-seal render: the chain is intact and one of its lines is a
+/// SEAL with lines after it, so the walk's own headline (a crash reading,
+/// or a flat OK) is replaced — the forgery class states itself.
+fn tampered_verdict(events: usize, head: &str, lines: &[String]) -> VerbOutput {
+    let mut out = format!(
+        "TAMPERED — {events} events · chain intact · head {head}\n  the chain covers every line, and one of them is a SEAL with lines after it"
+    );
+    for line in lines {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{line}");
+    }
+    VerbOutput {
+        text: out,
+        code: super::exit::FILE,
+    }
+}
+
+fn tiered(
+    trace: &str,
+    raw: &str,
+    events: usize,
+    head: &str,
+    headline: ChainHeadline,
+    opts: &VerifyOptions,
+    candidates: &[(String, String)],
+) -> VerbOutput {
+    let compared = replay_compare(trace, opts);
     let report = tier::evaluate(
         trace,
         raw,
@@ -252,22 +274,11 @@ fn tiered(
     // A BURIED seal overrides the walk's headline: the walk reads only the
     // LAST line, so an append after the seal came out as « never reached a
     // terminal frame … killed or crashed » (false — the journal carries a
-    // run_sealed frame) or, when the appended line is itself terminal, as
+    // `run_sealed` frame) or, when the appended line is itself terminal, as
     // a plain « OK · chain intact ». Both readings pointed away from the
-    // tampering; the class states itself here (the ladder line below
-    // carries the why).
+    // tampering; the class states itself here (the ladder lines carry why).
     if let tier::SealTier::Buried { .. } = report.seal {
-        let mut out = format!(
-            "TAMPERED — {events} events · chain intact · head {head}\n  the chain covers every line, and one of them is a SEAL with lines after it"
-        );
-        for line in &report.lines {
-            use std::fmt::Write as _;
-            let _ = write!(out, "\n{line}");
-        }
-        return VerbOutput {
-            text: out,
-            code: super::exit::FILE,
-        };
+        return tampered_verdict(events, head, &report.lines);
     }
     let mut out = match headline {
         ChainHeadline::Torn => format!(
