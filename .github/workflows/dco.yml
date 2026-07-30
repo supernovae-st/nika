@@ -42,6 +42,7 @@ jobs:
             msg="$(jq -r '.message' <<<"$row")"
             if [ "$parents" -gt 1 ]; then echo "skip  ${sha:0:9} merge commit"; continue; fi
             case "$login" in *'[bot]') echo "skip  ${sha:0:9} bot: $login"; continue;; esac
+            case "$name" in *'[bot]') echo "skip  ${sha:0:9} bot author: $name"; continue;; esac
             if grep -qiF "Signed-off-by: $name <$email>" <<<"$msg"; then
               echo "ok    ${sha:0:9} $name <$email>"
             else
