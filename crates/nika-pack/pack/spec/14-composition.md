@@ -121,12 +121,18 @@ templated-target case.
 
 ## `nika:run` and the sibling-run workaround (normative note)
 
-The composition floor of today — `exec: nika run sub.yaml --output json`
-+ `capture: stdout` ([08](./08-out-of-scope.md)) — is **superseded, not
-contradicted**: the native `invoke: workflow:` form gives the same
-sibling run its typed contract, its effect containment, and its trace
-forest, none of which survive a process boundary. The workaround stays
-valid; the native form is what a linter recommends.
+Two histories closed when this chapter shipped, and
+[08](./08-out-of-scope.md) records both. The once-proposed **`nika:run`
+builtin was abandoned, never shipped** · a builtin would have carried the
+child as a string argument — invisible to the type system, the effect
+boundary and the acyclicity check. The field IS the semantics, so the form
+is the tagged union above. The **sibling-run workaround** — `exec: nika run
+sub.yaml --output json` + `capture: stdout` — **remains valid** as the
+process floor (floor 1 of the [08 three floors](./08-out-of-scope.md)) and
+as the one form for what a static call graph cannot express (an unbounded
+cursor chain). What the process boundary cannot carry — the typed contract,
+effect containment, the trace forest — is exactly what `invoke: workflow:`
+adds: wherever the target is static, a linter recommends the native form.
 
 ## What v1 deliberately does not do
 

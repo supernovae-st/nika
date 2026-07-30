@@ -134,6 +134,15 @@ tasks:
         path: "out/briefs/${{ inputs.topic }}.json"
         content: "${{ with.brief }}"
         create_dirs: true
+    # The topic names the output file, and an input is UNTRUSTED by default —
+    # NEP-0004 law 2 re-gates the composed path at check (NIKA-AUTH-008). The
+    # authored door says why THIS value is safe: the receipt records the taint
+    # path · this because · the value digest, and the declassified value must
+    # STILL fit fs.write ["out/briefs/*.json"] — a door, never a bypass.
+    declassify:
+      - from: inputs.topic
+        to: trusted
+        because: "the operator's own brief subject, typed at launch — it names the output file, nothing else"
 
 outputs:
   brief:

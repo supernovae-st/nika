@@ -21,7 +21,7 @@ in stdlib v0.x extensions.
 
 ---
 
-## Workflow composition · DEFERRED
+## Workflow composition · the CALL half SHIPPED ([14](./14-composition.md)) · the TEXTUAL half deferred
 
 ### Multi-file workflows (`include:` · `import:`)
 
@@ -32,42 +32,56 @@ import:
 tasks: ...
 ```
 
-**Why deferred** · single-file workflows are simpler · linter/LSP works without resolving paths · examples are self-contained. Composition may land in v0.2 with explicit import grammar.
+**Why deferred** · single-file workflows are simpler · linter/LSP works without resolving paths · examples are self-contained. Textual import (merging FILES into one workflow) may land in a later minor with an explicit import grammar · it is a different mechanism from CALLING a child workflow, which shipped (next section).
 
-### Sub-workflow invocation · `nika:run` builtin · `import:`
+### Sub-workflow invocation · lifted by [14-composition](./14-composition.md) (`invoke: workflow:`)
+
+> **Shipped** · a parent calls a child as a typed, bounded,
+> authority-contained step. The form is the tagged union on the verb you
+> already know · `invoke:` carries **exactly one** of `tool:` or `workflow:`
+> ([14 · Composition](./14-composition.md) · `NIKA-COMP-001..004` ·
+> reference engine v0.105+).
 
 ```yaml
-# NOT supported in v0.1
-sub:
-    workflow: ./subroutine.nika.yaml
-
-# Also deferred · the nika:run builtin (previously proposed)
 sub:
     invoke:
-      tool: "nika:run"
+      workflow: ./subroutine.nika.yaml   # a STATIC target · never templated (NIKA-COMP-001)
       args:
-        workflow: ./subroutine.nika.yaml
+        topic: "${{ inputs.topic }}"     # each key must fit a DECLARED child input
+    returns: { object: { summary: string } }
 ```
 
-**Why deferred** · subroutine calling needs scope/binding rules that need thought · plus risks of stack overflow (recursion) and scheduler complexity. The proposed `nika:run` builtin is therefore deferred from v0.1 · use `exec: shell: "nika run subroutine.yaml"` as the workaround.
-
-Workaround in v0.1 · use `exec: shell: "nika run subroutine.yaml --output json"` to launch a sibling workflow process: `--output json` (engine CLI) prints the sub-workflow's typed `outputs:` as JSON on stdout · the parent binds it back with `capture: stdout` + a jq `output:` (the typed contract survives the process boundary).
-
-**Recursion guard (normative TODAY · even for the workaround)** · a run that
-launches runs (through the workaround now, through `nika:run` when it lands)
-MUST be bounded by the engine ·
-
-- **Depth cap** · nested run depth above the engine's limit fails the
-  *launching task* (`NIKA-SEC` · the reference engine defaults to a small
-  single-digit depth), never the host process.
-- **Cycle detection** · a workflow file (transitively) launching itself is an
-  **unconditional block** (`NIKA-SEC` · `validation_error` at launch time):
-  a self-launching workflow is a fork bomb, not a recursion scheme.
-
-The composition design (v0.2) inherits these rails unchanged · ONE invocation
-surface (`nika:run` under `invoke:`: per the
+The once-proposed **`nika:run` builtin is ABANDONED, not deferred** · a
+builtin would have carried the child as a string argument — invisible to the
+type system, the effect boundary and the acyclicity check. The field IS the
+semantics (the same command/shell law generalized), so composition shipped
+as the tagged union instead. Per the
 [02-verbs closure argument](./02-verbs.md#the-closure-argument--why-no-case-forces-a-5th-verb)
-a sub-workflow call is the dispatch-and-await model · never a verb).
+a sub-workflow call stays the dispatch-and-await model · never a verb — that
+half of the original design survived unchanged.
+
+**The sibling-run workaround stays valid** · `exec: shell: "nika run
+subroutine.yaml --output json"` launches a sibling workflow PROCESS ·
+`--output json` (engine CLI) prints the child's typed `outputs:` as JSON on
+stdout · the parent binds it back with `capture: stdout` + a jq `output:`
+(the typed contract survives the process boundary). It remains floor 1 below
+and the one form for what a static call graph cannot express (an unbounded
+cursor chain · H23) · wherever the target is static, a linter recommends the
+native form ([14 §workaround](./14-composition.md)).
+
+**Recursion guard (normative · now carried by [14](./14-composition.md))** ·
+the rails this section held while composition was deferred are laws of the
+composition chapter ·
+
+- **Cycle detection** · the static call graph MUST be acyclic — a workflow
+  file (transitively) calling itself is refused **at check**
+  (`NIKA-COMP-003` · law 7): a self-launching workflow is a fork bomb, not a
+  recursion scheme.
+- **Depth cap** · nested run depth above the engine's limit fails the
+  *launching task* fail-closed (`NIKA-SEC-003` · the reference engine
+  defaults to a small single-digit depth), never the host process — the
+  runtime backstop for what static analysis cannot see (the workaround's
+  sibling processes · acyclic-but-deep chains).
 
 ### Macros / templates
 
@@ -316,7 +330,7 @@ server configured » *before* the run) and document intent, but it is a
 convenience, **not a v0.1 incompleteness** · a missing server already fails with
 a clear `NIKA-MCP` error at first call. Single-file v0.1 stays free of
 external-resolution declarations (the same rationale that defers `import:`).
-May land in v0.2 alongside the composition / import grammar.
+May land in v0.2 alongside the import grammar (the composition call form is already IN · [14](./14-composition.md)).
 
 ---
 
@@ -352,8 +366,8 @@ the YAML**. The ladder ·
 
 | Floor | What | Where it lives | Status |
 |---|---|---|---|
-| **1 · launch a sibling run** | one workflow starts another, awaits its typed `outputs:` | `exec: nika run sub.yaml --output json` + `capture: stdout` (the documented workaround · [§composition](#sub-workflow-invocation--nikarun-builtin--import)) | ✅ works in v0.1 |
-| **2 · composition** | a parent calls a child INSIDE a run · dispatch-and-await · one observable tree | the deferred `nika:run` builtin under `invoke:` (+ recursion guard · binding rules) | ⏸️ deferred · additive minor |
+| **1 · launch a sibling run** | one workflow starts another, awaits its typed `outputs:` | `exec: nika run sub.yaml --output json` + `capture: stdout` (the documented workaround · §sub-workflow invocation above) | ✅ valid (the process floor) |
+| **2 · composition** | a parent calls a child INSIDE a run · dispatch-and-await · one observable tree | the `invoke: workflow:` tagged union ([14-composition](./14-composition.md) · `NIKA-COMP-001..004` · static acyclic call graph · `NIKA-SEC-003` depth backstop) | ✅ shipped (spec 14 · reference engine v0.105+) |
 | **3 · orchestration** | long-lived meshes · cross-run dependencies · registries · scheduling · cross-run retry | an orchestrator built ON TOP of the per-workflow run API · never a language construct | 🚫 forever out |
 
 Why the line holds · the conformance contract ([07](./07-conformance.md))
@@ -362,8 +376,9 @@ conformance demanded a durable state store, a scheduler and a registry, no
 alternative engine could ever exist and « one YAML · any conformant engine »
 dies. A language describes one run the way Make describes one build and a
 shell script describes one execution: your CI and your cron live above
-them, not inside them. **Composition IN the language (deferred · additive) ·
-orchestration ON TOP of the language (forever) · never the inverse.**
+them, not inside them. **Composition IN the language (shipped ·
+[14](./14-composition.md)) · orchestration ON TOP of the language (forever)
+· never the inverse.**
 
 ---
 
@@ -379,7 +394,7 @@ or a non-goal, with the line that says whose job it is.
 | H1 | Durable execution (checkpoint · resume · replay) | **OUT · durable-lite tier lifted by ADR-099** | A v0.1 run is a single OS process with in-memory state · crash = re-run from the top · `retry:` is in-process only. The **durable-lite tier** (crash-resume + re-run-from-a-node from the run's own trace · visible `task.cache_hit` · zero author-facing determinism constraints) is lifted by [ADR-099](../adr/adr-099-durable-lite-run-resume.md) · CLI + trace only. Idempotency keys + the full durable-execution waypoint (retries that survive a restart · at-least-once dedup) stay deferred (§Persistence · v0.2+) · until then durability beyond `--resume` is the **host's responsibility** (run under a supervisor · make side-effecting tools idempotent via their own args). |
 | H2 | Streaming between tasks | **OUT** | Tasks are synchronous · a dependent reads the **final assembled value** (§Streaming). Engines MAY stream provider tokens internally/to the user. A between-task stream changes what an *edge* delivers: a future additive edge semantic, never a verb ([02 closure](./02-verbs.md#the-closure-argument--why-no-case-forces-a-5th-verb)). Pub/sub listeners · NEVER in the finite-DAG v1. |
 | H3 | Multimodal artifacts (typed image/audio/video) | **PARTIAL** | v0.1 values are strings · JSON values · and **opaque bytes pass-through** (tool-determined · [02 §invoke output](./02-verbs.md#what--tasksidoutput--holds--per-verb) · `infer.vision` takes file/url refs). No typed media payloads · no content-addressing in the language. Both arrive with the deferred media builtins (stdlib v0.x · §Tooling extensibility). Addressing (e.g. blake3) is engine detail, not language surface. |
-| H4 | Agent-of-agents (sub-agents · budget propagation · trust inheritance) | **PARTIAL** | The `agent:` verb is a **single loop** with per-task budgets (`max_turns` · `max_tokens_total` · normative · [02 §agent](./02-verbs.md)) and a default-deny tool whitelist. Budgets do NOT propagate across tasks (each declares its own). Multi-agent topology · §Advanced agent features (expressible today as multiple `agent:` tasks + explicit `with:` hand-off). Run-recursion is bounded by the §composition recursion guard. |
+| H4 | Agent-of-agents (sub-agents · budget propagation · trust inheritance) | **PARTIAL** | The `agent:` verb is a **single loop** with per-task budgets (`max_turns` · `max_tokens_total` · normative · [02 §agent](./02-verbs.md)) and a default-deny tool whitelist. Budgets do NOT propagate across tasks (each declares its own). Multi-agent topology · §Advanced agent features (expressible today as multiple `agent:` tasks + explicit `with:` hand-off). Run-recursion is bounded by the composition laws (`NIKA-COMP-003` static acyclicity at check · `NIKA-SEC-003` depth backstop · [14](./14-composition.md)). |
 | H5 | Human-in-the-loop (approval gates) | **IN** | `nika:prompt` (blocking confirm with `default:` for non-interactive mode) plus `nika:notify` (fire-and-forget). Pause-state is **live** (the run keeps a process while blocked) · **durable pause shipped with [ADR-099](../adr/adr-099-durable-lite-run-resume.md)'s `--resume`** (a non-interactive default-less blocked `nika:prompt` journals `workflow.paused` + exits cleanly · resume re-arms it) · time-bound it with the task-level `timeout:`. ONE construct · a tool under `invoke:` · forever. |
 | H6 | Evals in-language (asserts · LLM-judge · golden runs) | **PARTIAL** | v0.1 ships the pieces · `schema:` (per-task structured-output gate · auto-retry) · `nika:assert` (fail-fast CEL guard) · `nika:validate` (JSON Schema over data). An LLM-judge is an `infer:` task with a verdict `schema:` — it produces cited FACTS; when the verdict must be a governed DECISION (thresholds · abstention · receipts), those facts feed `nika:decide` over a Decision Bundle ([11-decision](./11-decision.md) · the model never decides). Golden-run testing reuses the conformance fixture shape (input + expected output on `mock/`). Declarative in-file eval blocks · deferred. |
 | H7 | Cost governance (budgets in €/tokens) | **PARTIAL** | Reading IS in-language · `nika:inspect view: cost` (running cost). Enforcement is NOT · hard caps are engine config (§Observability · `budget:` blocks deferred v0.2). The `agent:` budgets (`max_tokens_total`) are the one normative in-language cap today. |
@@ -398,7 +413,7 @@ or a non-goal, with the line that says whose job it is.
 | H20 | Environment targeting (dev / staging / prod) | **WRITTEN (idiom · no field)** | No `environments:` block. The pattern is **launch-time `inputs` + per-env secret paths** · pass `--var env=prod` (engine CLI), branch values with the CEL conditional (`model: ${{ inputs.env == 'prod' ? … : … }}`), and select the secret store path the same way (`secrets.api_key.key` is a per-env vault path the deploy supplies, OR two declared secrets gated by `when:`). Connection-set switching as a first-class construct (GHA environments · Prefect deployments) is a host/deploy concern: the language stays single-file and the env is just another input. An `environments:` sugar block is deferred unless empirical demand. |
 | H21 | Else / default branch (exhaustive choice) | **WRITTEN (idiom · no construct)** | No `else:` / `Choice.Default` construct. Mutually-exclusive branches are two tasks with negated `when:` joined by the defined-null diamond pattern ([03 §branch joins](./03-dag.md)); an N-way switch is N tasks each `when: ${{ inputs.mode == '<case>' }}`. Exhaustiveness is author-maintained (a missing case = all-skip = a `null` at the join, which downstream sees explicitly: it does not silently corrupt). A dedicated `switch:`/`else:` would add a second control-flow primitive beside `when:`/`after:` · deferred · the CEL conditional `?:` already covers conditional VALUES (the common case) without any branch at all. |
 | H22 | Embeddings (`embed(text) → vector`) | **WRITTEN (deliberate absence · `mcp:` / Connectome territory)** | No `embed:` verb and no `nika:embed` builtin. Raw embedding generation is not a language primitive: it is a tool, reached via `invoke: mcp:<embedder>/embed` (any embedding server) or `exec:` (a local model). Semantic RECALL (the RAG read path) is the reference engine's **Connectome** (`nika:connectome/*` · a deferred capability · [§Connectome](#the-connectome--deferred-capability--not-a-deferred-verb)), not a language verb. The language stays about ORCHESTRATION; embedding is a capability the orchestrated tools provide. Stated here because « an AI workflow language with no embeddings » is a fair « did you think of X »: yes · it is `mcp:`/tool territory by design, not a silent gap. |
-| H23 | Cursor pagination / unbounded iteration (« fetch page → follow next-cursor until none ») | **OUT (the bounded forms are written · `while:` stays deferred)** | `for_each` iterates a collection KNOWN up front ([03 §fan-out](./03-dag.md)) and a task cannot `for_each` its own output: cursor-following is inherently unbounded iteration, which is `while:` (deferred above · it breaks the acyclic guarantee AND the static cost story: a workflow whose request count depends on a server's answers is not auditable-before-run). The v0.1 canonical forms · **(a) depth-known** · precompute the page list (`[range(1; N+1)]` via `nika:jq`) + `for_each` with `max_parallel` (page-numbered APIs); **(b) depth-unknown** · an `agent:` task whitelisted to `nika:fetch` + `nika:done` with `max_turns` as the page budget: the loop is budget-bounded and the cap is IN the file (auditable); **(c) heavy crawls** · the host loop (`exec: nika run fetch-page.yaml` per cursor · the composition floor above). A dedicated bounded construct (`while_bounded:` / `unfold:` with a MANDATORY `max_iterations:`) is the additive v0.2 candidate IF empirical demand shows (b) too heavy: it must carry a static iteration cap or it never ships. |
+| H23 | Cursor pagination / unbounded iteration (« fetch page → follow next-cursor until none ») | **OUT (the bounded forms are written · `while:` stays deferred)** | `for_each` iterates a collection KNOWN up front ([03 §fan-out](./03-dag.md)) and a task cannot `for_each` its own output: cursor-following is inherently unbounded iteration, which is `while:` (deferred above · it breaks the acyclic guarantee AND the static cost story: a workflow whose request count depends on a server's answers is not auditable-before-run). The v0.1 canonical forms · **(a) depth-known** · precompute the page list (`[range(1; N+1)]` via `nika:jq`) + `for_each` with `max_parallel` (page-numbered APIs); **(b) depth-unknown** · an `agent:` task whitelisted to `nika:fetch` + `nika:done` with `max_turns` as the page budget: the loop is budget-bounded and the cap is IN the file (auditable); **(c) heavy crawls** · the host loop (`exec: nika run fetch-page.yaml` per cursor · the sibling-run floor above — an unbounded cursor chain has no static call graph, so the native `invoke: workflow:` form cannot express it). A dedicated bounded construct (`while_bounded:` / `unfold:` with a MANDATORY `max_iterations:`) is the additive v0.2 candidate IF empirical demand shows (b) too heavy: it must carry a static iteration cap or it never ships. |
 
 ---
 
