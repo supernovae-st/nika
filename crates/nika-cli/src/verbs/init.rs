@@ -144,7 +144,7 @@ fn wire_name(target: WireTarget) -> &'static str {
 
 /// Intern a clap possible-value name onto the static register.
 fn wire_static(name: &str) -> &'static str {
-    const NAMES: [&str; 20] = [
+    const NAMES: [&str; 22] = [
         "cursor",
         "vscode",
         "windsurf",
@@ -164,6 +164,8 @@ fn wire_static(name: &str) -> &'static str {
         "antigravity",
         "kimi",
         "kiro",
+        "copilot",
+        "amp",
         "all",
     ];
     NAMES.iter().find(|n| **n == name).copied().unwrap_or("all")

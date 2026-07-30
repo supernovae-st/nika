@@ -40,6 +40,8 @@ pub enum WireTarget {
     Antigravity,
     Kimi,
     Kiro,
+    Copilot,
+    Amp,
     All,
 }
 
@@ -153,36 +155,27 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "junie",
             false,
         ),
-        // Grok Build reads `~/.grok/config.toml` (`[mcp_servers.nika]` —
-        // the Codex TOML shape at its own path · docs.x.ai
-        // build/features/mcp-servers). Its Claude compat also merges
-        // `~/.claude.json` and the project `.mcp.json`, but the native
-        // table is the first-class door — it survives a
-        // `[compat.claude] mcps = false` toggle.
+        // Grok Build: the Codex TOML shape at `~/.grok/config.toml` — the
+        // native table survives a `[compat.claude] mcps = false` toggle.
         WireTarget::Grok => patch_toml_mcp(&home_path(&[".grok", "config.toml"])?, "grok"),
-        // Antigravity CLI (`agy` · the gemini-cli successor) reads a
-        // STANDALONE mcp_config.json — global under `~/.gemini/config/`,
-        // workspace under `.agents/` (antigravity.google/docs/
-        // gcli-migration). Machine wiring writes the global file; the
-        // workspace `.agents/` side is `nika init` territory. A stdio
-        // entry keeps the standard command/args shape (the
-        // url→serverUrl rename touches remote servers only).
+        // Antigravity (`agy`): standalone mcp_config.json, global under
+        // `~/.gemini/config/` (workspace `.agents/` = `nika init` land ·
+        // the url→serverUrl rename touches remote servers only).
         WireTarget::Antigravity => {
             patch_home_mcp(&[".gemini", "config", "mcp_config.json"], "antigravity")
         }
-        // Kimi Code CLI reads `mcp.json` at two levels — user
-        // `~/.kimi-code/mcp.json`, project `.kimi-code/mcp.json`
-        // (docs/en/customization/mcp.md · `mcpServers` map · stdio =
-        // command+args). Machine wiring writes the user file; the
-        // project level stays the operator's move (their docs warn that
-        // project stdio entries execute on session start — trust-scoped).
+        // Kimi Code: two-level `mcp.json`; machine wiring writes the user
+        // file (the trust-scoped project level stays the operator's move).
         WireTarget::Kimi => patch_home_mcp(&[".kimi-code", "mcp.json"], "kimi"),
-        // Kiro CLI (the Amazon Q Developer CLI rebrand · Q is frozen at
-        // 1.19.7) reads user `~/.kiro/settings/mcp.json`, workspace
-        // `.kiro/settings/mcp.json` (kiro.dev/docs/cli/migrating-from-q ·
-        // `mcpServers` map · stdio command+args · the legacy
-        // `~/.aws/amazonq/mcp.json` is still read but `.kiro` wins).
+        // Kiro (the Amazon Q rebrand): `~/.kiro/settings/mcp.json` — the
+        // legacy `~/.aws/amazonq/` file is still read but `.kiro` wins.
         WireTarget::Kiro => patch_home_mcp(&[".kiro", "settings", "mcp.json"], "kiro"),
+        // Copilot CLI: the desired matches THEIR writer byte-shape (tools
+        // + type local) so a copilot-added entry reads Current, no churn.
+        WireTarget::Copilot => patch_copilot(&home_path(&[".copilot", "mcp-config.json"])?),
+        // Amp: the LITERAL dotted "amp.mcpServers" key at the settings
+        // root; a JSONC file gets the snippet (the Zed lossless contract).
+        WireTarget::Amp => patch_amp(&home_path(&[".config", "amp", "settings.json"])?),
         #[allow(
             clippy::unreachable,
             reason = "All is expanded to concrete targets before dispatch"
@@ -577,6 +570,118 @@ fn patch_hermes(path: &Path) -> Result<WireAction, String> {
     )))
 }
 
+/// Copilot CLI's own `mcp add` shape — `tools: ["*"]` + `type: "local"`
+/// alongside command/args. Matching their writer keeps a copilot-added
+/// entry `Current` instead of churning it on every `nika wire copilot`.
+fn copilot_server() -> Value {
+    let mut server = Map::new();
+    server.insert(
+        "tools".to_owned(),
+        Value::Array(vec![Value::String("*".to_owned())]),
+    );
+    server.insert("type".to_owned(), Value::String("local".to_owned()));
+    server.insert("command".to_owned(), Value::String("nika".to_owned()));
+    server.insert(
+        "args".to_owned(),
+        Value::Array(
+            NIKA_MCP_ARGS
+                .iter()
+                .map(|arg| Value::String((*arg).to_owned()))
+                .collect(),
+        ),
+    );
+    Value::Object(server)
+}
+
+fn patch_copilot(path: &Path) -> Result<WireAction, String> {
+    let existed = path.exists();
+    let mut root = if existed {
+        read_json(path)?
+    } else {
+        Value::Object(Map::new())
+    };
+    let object = root
+        .as_object_mut()
+        .ok_or_else(|| format!("copilot: {} is not a JSON object", path.display()))?;
+    let servers_value = object
+        .entry("mcpServers".to_owned())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !servers_value.is_object() {
+        *servers_value = Value::Object(Map::new());
+    }
+    let servers = servers_value
+        .as_object_mut()
+        .ok_or_else(|| "copilot: mcpServers is not a JSON object".to_owned())?;
+
+    let existing = servers.get("nika").cloned();
+    let desired = copilot_server();
+    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    if existing.as_ref() == Some(&desired) {
+        return Ok(WireAction::Current(format!("copilot: {}", path.display())));
+    }
+    servers.insert("nika".to_owned(), desired);
+    write_json(path, &root)?;
+    let label_path = format!("copilot: {}", path.display());
+    if migrated {
+        Ok(WireAction::Migrated(label_path))
+    } else if existed {
+        Ok(WireAction::Updated(label_path))
+    } else {
+        Ok(WireAction::Created(label_path))
+    }
+}
+
+/// Amp's settings may be `.jsonc` (their docs allow it) — same lossless
+/// contract as Zed: a file plain-JSON cannot round-trip gets the exact
+/// snippet, byte-identical otherwise.
+fn patch_amp(path: &Path) -> Result<WireAction, String> {
+    let existed = path.exists();
+    let mut root = if existed {
+        match read_json(path) {
+            Ok(value) => value,
+            Err(_) => {
+                return Ok(WireAction::Manual(format!(
+                    "amp: {} is JSONC (comments) — add this under \
+                     \"amp.mcpServers\" yourself:\n  \"nika\": {{ \
+                     \"command\": \"nika\", \"args\": [\"mcp\"] }}",
+                    path.display()
+                )));
+            }
+        }
+    } else {
+        Value::Object(Map::new())
+    };
+    let object = root
+        .as_object_mut()
+        .ok_or_else(|| format!("amp: {} is not a JSON object", path.display()))?;
+    let servers_value = object
+        .entry("amp.mcpServers".to_owned())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !servers_value.is_object() {
+        *servers_value = Value::Object(Map::new());
+    }
+    let servers = servers_value
+        .as_object_mut()
+        .ok_or_else(|| "amp: amp.mcpServers is not a JSON object".to_owned())?;
+
+    let existing = servers.get("nika").cloned();
+    let desired = nika_server(false);
+    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    if existing.as_ref() == Some(&desired) {
+        return Ok(WireAction::Current(format!("amp: {}", path.display())));
+    }
+    servers.insert("nika".to_owned(), desired);
+    write_json(path, &root)?;
+    let label_path = format!("amp: {}", path.display());
+    if migrated {
+        Ok(WireAction::Migrated(label_path))
+    } else if existed {
+        Ok(WireAction::Updated(label_path))
+    } else {
+        Ok(WireAction::Created(label_path))
+    }
+}
+
 fn nika_server(include_type: bool) -> Value {
     let mut server = Map::new();
     if include_type {
@@ -841,6 +946,82 @@ args = ["mcp"]
         let again = patch_toml_mcp(&path, "grok").expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Wave-3 · copilot: the desired matches THEIR writer byte-shape
+    /// (tools `["*"]` + type local) — a copilot-added entry reads Current
+    /// on first contact, never churns. Empirical fixture = the exact
+    /// bytes `copilot mcp add nika -- nika mcp` wrote (1.0.76 · live).
+    #[test]
+    fn copilot_matches_their_own_writer_and_is_idempotent() {
+        let home = temp_dir("copilot");
+        let path = home.join(".copilot").join("mcp-config.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dotdir");
+        std::fs::write(
+            &path,
+            r#"{"mcpServers":{"nika":{"tools":["*"],"type":"local","command":"nika","args":["mcp"]}}}"#,
+        )
+        .expect("their writer's bytes");
+
+        let action = patch_copilot(&path).expect("wire");
+        assert!(
+            matches!(action, WireAction::Current(_)),
+            "their entry must read Current, got {action:?}"
+        );
+
+        std::fs::remove_file(&path).expect("reset");
+        let created = patch_copilot(&path).expect("create");
+        assert!(matches!(created, WireAction::Created(_)));
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["type"], "local");
+        assert_eq!(doc["mcpServers"]["nika"]["tools"], json!(["*"]));
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// Wave-3 · amp: the LITERAL dotted key "amp.mcpServers" at the
+    /// settings root (their writer's shape) · unrelated settings kept ·
+    /// JSONC gets the snippet, byte-identical (the Zed contract).
+    #[test]
+    fn amp_dotted_key_preserves_settings_and_respects_jsonc() {
+        let home = temp_dir("amp");
+        let path = home.join(".config").join("amp").join("settings.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(
+            &path,
+            r#"{"amp.notifications.enabled":true,"amp.mcpServers":{"other":{"command":"x"}}}"#,
+        )
+        .expect("seed");
+
+        let action = patch_amp(&path).expect("wire");
+        assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["amp.notifications.enabled"], true, "unrelated kept");
+        assert_eq!(doc["amp.mcpServers"]["other"]["command"], "x");
+        assert_eq!(doc["amp.mcpServers"]["nika"]["command"], "nika");
+
+        let again = patch_amp(&path).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+
+        let jsonc = "{\n  // amp settings\n  \"amp.anthropic.thinking\": true\n}\n";
+        std::fs::write(&path, jsonc).expect("jsonc seed");
+        let manual = patch_amp(&path).expect("manual");
+        assert!(
+            matches!(&manual, WireAction::Manual(m) if m.contains("amp.mcpServers")),
+            "{manual:?}"
+        );
+        let after = std::fs::read_to_string(&path).expect("read");
+        assert_eq!(after, jsonc, "JSONC byte-identical");
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// The registry law: `wire all` expands to every concrete client —
+    /// a variant added to the enum can never be silently dropped.
+    #[test]
+    fn all_expands_to_every_concrete_target() {
+        let expanded = expand_target(WireTarget::All);
+        assert_eq!(expanded.len(), WireTarget::value_variants().len() - 1);
+        assert!(!expanded.contains(&WireTarget::All));
     }
 
     /// Client-doors W3 · kimi: the user-level `~/.kimi-code/mcp.json`

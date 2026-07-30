@@ -12,6 +12,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika wire copilot` + `nika wire amp` — the wave-3 doors, shapes taken
+  from the clients' own writers.** Copilot CLI gets `~/.copilot/
+  mcp-config.json` with the exact `{tools: ["*"], type: "local"}` entry its
+  own `copilot mcp add` writes (a copilot-added entry reads `· current`,
+  never churns); Amp gets the literal dotted key `"amp.mcpServers"` in
+  `~/.config/amp/settings.json` — JSONC settings get the snippet,
+  byte-identical (the Zed contract). `wire all` covers twenty-one targets.
 - **`nika wire` grows four client doors: grok · antigravity · kimi · kiro.**
   Grok Build gets the Codex-shaped `[mcp_servers.nika]` table in
   `~/.grok/config.toml` (comments preserved · idempotent — its Claude

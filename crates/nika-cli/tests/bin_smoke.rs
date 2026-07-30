@@ -767,7 +767,7 @@ fn wire_wave4_targets_create_their_configs() {
     let home = workspace_tmp_dir("nika-wire-wave4");
     std::fs::create_dir_all(&home).expect("home dir");
 
-    for target in ["grok", "antigravity", "kimi", "kiro"] {
+    for target in ["grok", "antigravity", "kimi", "kiro", "copilot", "amp"] {
         let out = bin()
             .arg("wire")
             .arg(target)
@@ -798,6 +798,7 @@ fn wire_wave4_targets_create_their_configs() {
     for config in [
         home.join(".kimi-code").join("mcp.json"),
         home.join(".kiro").join("settings").join("mcp.json"),
+        home.join(".copilot").join("mcp-config.json"),
     ] {
         let doc: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&config).expect("config written"))
