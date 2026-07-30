@@ -2416,7 +2416,7 @@ pub struct nika_dap::resume::ResumeRequest
 pub nika_dap::resume::ResumeRequest::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_dap::resume::ResumeRequest::compat: core::option::Option<alloc::string::String>
 pub nika_dap::resume::ResumeRequest::from: core::option::Option<alloc::string::String>
-pub nika_dap::resume::ResumeRequest::trace: std::path::PathBuf
+pub nika_dap::resume::ResumeRequest::trace: core::option::Option<std::path::PathBuf>
 impl core::clone::Clone for nika_dap::resume::ResumeRequest
 pub fn nika_dap::resume::ResumeRequest::clone(&self) -> nika_dap::resume::ResumeRequest
 impl core::fmt::Debug for nika_dap::resume::ResumeRequest
