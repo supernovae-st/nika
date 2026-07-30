@@ -1,4 +1,63 @@
 pub mod nika_display
+pub mod nika_display::check_render
+#[non_exhaustive] pub struct nika_display::check_render::ModelFinding
+pub nika_display::check_render::ModelFinding::model: alloc::string::String
+pub nika_display::check_render::ModelFinding::tasks: alloc::vec::Vec<alloc::string::String>
+pub nika_display::check_render::ModelFinding::why: alloc::string::String
+impl nika_display::check_render::ModelFinding
+pub fn nika_display::check_render::ModelFinding::new(model: alloc::string::String, tasks: alloc::vec::Vec<alloc::string::String>, why: alloc::string::String) -> Self
+impl core::clone::Clone for nika_display::check_render::ModelFinding
+pub fn nika_display::check_render::ModelFinding::clone(&self) -> nika_display::check_render::ModelFinding
+impl core::cmp::Eq for nika_display::check_render::ModelFinding
+impl core::cmp::PartialEq for nika_display::check_render::ModelFinding
+pub fn nika_display::check_render::ModelFinding::eq(&self, other: &nika_display::check_render::ModelFinding) -> bool
+impl core::fmt::Debug for nika_display::check_render::ModelFinding
+pub fn nika_display::check_render::ModelFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::check_render::ModelFinding
+impl<D> owo_colors::OwoColorize for nika_display::check_render::ModelFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::check_render::ModelFinding where U: core::convert::From<T>
+pub fn nika_display::check_render::ModelFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::ModelFinding where U: core::convert::Into<T>
+pub type nika_display::check_render::ModelFinding::Error = core::convert::Infallible
+pub fn nika_display::check_render::ModelFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::check_render::ModelFinding where U: core::convert::TryFrom<T>
+pub type nika_display::check_render::ModelFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::check_render::ModelFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::check_render::ModelFinding where T: core::clone::Clone
+pub type nika_display::check_render::ModelFinding::Owned = T
+pub fn nika_display::check_render::ModelFinding::clone_into(&self, target: &mut T)
+pub fn nika_display::check_render::ModelFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::check_render::ModelFinding where T: 'static + ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::check_render::ModelFinding where T: ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::check_render::ModelFinding where T: ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::check_render::ModelFinding where T: core::clone::Clone
+pub unsafe fn nika_display::check_render::ModelFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::check_render::ModelFinding
+pub fn nika_display::check_render::ModelFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::check_render::ModelFinding where T: core::clone::Clone
+pub fn nika_display::check_render::ModelFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::check_render::ModelFinding where T: 'static
+pub fn nika_display::check_render::ModelFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::check_render::ModelFinding where T: ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::check_render::ModelFinding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::check_render::ModelFinding
+impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::ModelFinding
+impl<T> typenum::type_operators::Same for nika_display::check_render::ModelFinding
+pub type nika_display::check_render::ModelFinding::Output = T
+pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
+pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
+pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, model_findings: &[nika_display::check_render::ModelFinding], skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]
 pub fn nika_display::chrome::banner(theme: nika_display::theme::Theme, title: &str, tagline: &str, version: &str) -> alloc::vec::Vec<alloc::string::String>
@@ -9,6 +68,12 @@ pub fn nika_display::chrome::rail_close(theme: nika_display::theme::Theme, text:
 pub fn nika_display::chrome::rail_head(theme: nika_display::theme::Theme, label: &str) -> alloc::string::String
 pub fn nika_display::chrome::rail_line(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
 pub fn nika_display::chrome::rail_pick(theme: nika_display::theme::Theme, n: usize, label: &str, note: &str) -> alloc::string::String
+pub mod nika_display::dag_art
+pub use nika_display::dag_art::GraphDoc
+pub use nika_display::dag_art::project
+pub fn nika_display::dag_art::ascii_art(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::dag_art::to_ascii(doc: &nika_graph::GraphDoc, report: &nika_check::CheckReport, theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::dag_art::wire_graph(doc: &nika_graph::GraphDoc, waves: &[alloc::vec::Vec<usize>]) -> nika_display::wires::WireGraph
 pub mod nika_display::demo
 pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
 pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
@@ -62,6 +127,11 @@ impl<T> nika_error::traits::AsAny for nika_display::flow::Interval where T: 'sta
 pub fn nika_display::flow::Interval::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::flow::Interval where T: core::marker::Copy
 pub fn nika_display::flow::Interval::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::flow::Interval where T: ?core::marker::Sized
+pub fn nika_display::flow::Interval::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::flow::Interval::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::flow::Interval
+impl<T> tracing::instrument::WithSubscriber for nika_display::flow::Interval
 impl<T> typenum::type_operators::Same for nika_display::flow::Interval
 pub type nika_display::flow::Interval::Output = T
 pub fn nika_display::flow::dag_shape(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::string::String
@@ -120,6 +190,11 @@ impl<T> nika_error::traits::AsAny for nika_display::format::ColorChoice where T:
 pub fn nika_display::format::ColorChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::format::ColorChoice where T: core::marker::Copy
 pub fn nika_display::format::ColorChoice::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::format::ColorChoice where T: ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::format::ColorChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::format::ColorChoice
+impl<T> tracing::instrument::WithSubscriber for nika_display::format::ColorChoice
 impl<T> typenum::type_operators::Same for nika_display::format::ColorChoice
 pub type nika_display::format::ColorChoice::Output = T
 pub enum nika_display::format::LinkChoice
@@ -170,6 +245,11 @@ impl<T> nika_error::traits::AsAny for nika_display::format::LinkChoice where T: 
 pub fn nika_display::format::LinkChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::format::LinkChoice where T: core::marker::Copy
 pub fn nika_display::format::LinkChoice::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::format::LinkChoice where T: ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::format::LinkChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::format::LinkChoice
+impl<T> tracing::instrument::WithSubscriber for nika_display::format::LinkChoice
 impl<T> typenum::type_operators::Same for nika_display::format::LinkChoice
 pub type nika_display::format::LinkChoice::Output = T
 pub struct nika_display::format::ColorEnv
@@ -213,8 +293,16 @@ impl<T> nika_error::traits::AsAny for nika_display::format::ColorEnv where T: 's
 pub fn nika_display::format::ColorEnv::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::format::ColorEnv where T: core::marker::Copy
 pub fn nika_display::format::ColorEnv::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::format::ColorEnv where T: ?core::marker::Sized
+pub fn nika_display::format::ColorEnv::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::format::ColorEnv::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::format::ColorEnv
+impl<T> tracing::instrument::WithSubscriber for nika_display::format::ColorEnv
 impl<T> typenum::type_operators::Same for nika_display::format::ColorEnv
 pub type nika_display::format::ColorEnv::Output = T
+impl<T> zvariant::optional::NoneValue for nika_display::format::ColorEnv where T: core::default::Default
+pub type nika_display::format::ColorEnv::NoneType = T
+pub fn nika_display::format::ColorEnv::null_value() -> T
 pub fn nika_display::format::color_enabled(choice: nika_display::format::ColorChoice, env: nika_display::format::ColorEnv, tty: bool) -> bool
 pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::string::String
 pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
@@ -287,6 +375,11 @@ impl<T> nika_error::traits::AsAny for nika_display::state::TaskState where T: 's
 pub fn nika_display::state::TaskState::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::state::TaskState where T: core::marker::Copy
 pub fn nika_display::state::TaskState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::state::TaskState where T: ?core::marker::Sized
+pub fn nika_display::state::TaskState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::state::TaskState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::state::TaskState
+impl<T> tracing::instrument::WithSubscriber for nika_display::state::TaskState
 impl<T> typenum::type_operators::Same for nika_display::state::TaskState
 pub type nika_display::state::TaskState::Output = T
 pub struct nika_display::state::RunView
@@ -334,8 +427,16 @@ impl<T> core::convert::From<T> for nika_display::state::RunView
 pub fn nika_display::state::RunView::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_display::state::RunView where T: 'static
 pub fn nika_display::state::RunView::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::state::RunView where T: ?core::marker::Sized
+pub fn nika_display::state::RunView::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::state::RunView::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::state::RunView
+impl<T> tracing::instrument::WithSubscriber for nika_display::state::RunView
 impl<T> typenum::type_operators::Same for nika_display::state::RunView
 pub type nika_display::state::RunView::Output = T
+impl<T> zvariant::optional::NoneValue for nika_display::state::RunView where T: core::default::Default
+pub type nika_display::state::RunView::NoneType = T
+pub fn nika_display::state::RunView::null_value() -> T
 pub struct nika_display::state::TaskRow
 pub nika_display::state::TaskRow::cached: bool
 pub nika_display::state::TaskRow::cost_usd: core::option::Option<f64>
@@ -387,6 +488,11 @@ impl<T> dyn_clone::DynClone for nika_display::state::TaskRow where T: core::clon
 pub fn nika_display::state::TaskRow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_display::state::TaskRow where T: 'static
 pub fn nika_display::state::TaskRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::state::TaskRow where T: ?core::marker::Sized
+pub fn nika_display::state::TaskRow::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::state::TaskRow::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::state::TaskRow
+impl<T> tracing::instrument::WithSubscriber for nika_display::state::TaskRow
 impl<T> typenum::type_operators::Same for nika_display::state::TaskRow
 pub type nika_display::state::TaskRow::Output = T
 pub fn nika_display::state::str_field<'a>(event: &'a nika_event::event::Event, key: &str) -> core::option::Option<&'a str>
@@ -448,6 +554,11 @@ impl<T> nika_error::traits::AsAny for nika_display::theme::Role where T: 'static
 pub fn nika_display::theme::Role::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::theme::Role where T: core::marker::Copy
 pub fn nika_display::theme::Role::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::theme::Role where T: ?core::marker::Sized
+pub fn nika_display::theme::Role::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::theme::Role::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::theme::Role
+impl<T> tracing::instrument::WithSubscriber for nika_display::theme::Role
 impl<T> typenum::type_operators::Same for nika_display::theme::Role
 pub type nika_display::theme::Role::Output = T
 pub struct nika_display::theme::Theme
@@ -502,6 +613,11 @@ impl<T> nika_error::traits::AsAny for nika_display::theme::Theme where T: 'stati
 pub fn nika_display::theme::Theme::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_display::theme::Theme where T: core::marker::Copy
 pub fn nika_display::theme::Theme::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::theme::Theme where T: ?core::marker::Sized
+pub fn nika_display::theme::Theme::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::theme::Theme::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::theme::Theme
+impl<T> tracing::instrument::WithSubscriber for nika_display::theme::Theme
 impl<T> typenum::type_operators::Same for nika_display::theme::Theme
 pub type nika_display::theme::Theme::Output = T
 pub const nika_display::theme::HEAT_RAMP: [(u8, u8, u8); 5]
@@ -539,6 +655,11 @@ impl<T> core::convert::From<T> for nika_display::wires::WireGraph
 pub fn nika_display::wires::WireGraph::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_display::wires::WireGraph where T: 'static
 pub fn nika_display::wires::WireGraph::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::wires::WireGraph where T: ?core::marker::Sized
+pub fn nika_display::wires::WireGraph::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::wires::WireGraph::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::wires::WireGraph
+impl<T> tracing::instrument::WithSubscriber for nika_display::wires::WireGraph
 impl<T> typenum::type_operators::Same for nika_display::wires::WireGraph
 pub type nika_display::wires::WireGraph::Output = T
 pub fn nika_display::wires::render(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme) -> core::option::Option<alloc::string::String>

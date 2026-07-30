@@ -48,6 +48,9 @@ pub nika_verb_infer::VerbInferError::SchemaValidation
 pub nika_verb_infer::VerbInferError::SchemaValidation::attempts: u32
 pub nika_verb_infer::VerbInferError::SchemaValidation::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::UsageUnmetered
+pub nika_verb_infer::VerbInferError::UsageUnmetered::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::UsageUnmetered::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 impl nika_verb_infer::VerbInferError
 pub fn nika_verb_infer::VerbInferError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
 impl core::error::Error for nika_verb_infer::VerbInferError

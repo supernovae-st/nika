@@ -151,6 +151,9 @@ pub nika_verb_agent::errors::VerbAgentError::Stalled::repeats: u32
 pub nika_verb_agent::errors::VerbAgentError::Stalled::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_verb_agent::errors::VerbAgentError::UsageUnmetered
+pub nika_verb_agent::errors::VerbAgentError::UsageUnmetered::model: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::UsageUnmetered::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::tool: alloc::string::String
@@ -727,6 +730,9 @@ pub nika_verb_agent::VerbAgentError::Stalled::repeats: u32
 pub nika_verb_agent::VerbAgentError::Stalled::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::ToolDefs
 pub nika_verb_agent::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_verb_agent::VerbAgentError::UsageUnmetered
+pub nika_verb_agent::VerbAgentError::UsageUnmetered::model: alloc::string::String
+pub nika_verb_agent::VerbAgentError::UsageUnmetered::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::WhitelistViolation
 pub nika_verb_agent::VerbAgentError::WhitelistViolation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::WhitelistViolation::tool: alloc::string::String
