@@ -94,9 +94,9 @@ use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 
 mod drift;
+pub(crate) mod energy;
 mod models_rung;
-use models_rung::{pricing_section, unresolvable_models};
-use nika_display::check_render::ModelFinding;
+use models_rung::{ModelsAudit, pricing_section, unresolvable_models};
 
 use nika_display::check_render::render;
 #[cfg(test)]
@@ -146,16 +146,16 @@ pub fn run(
     // The MODELS rung (#320): the ladder validated TOOLS but not MODELS —
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
-    let model_findings = unresolvable_models(&report);
+    let models_audit = unresolvable_models(&report, &wf);
     // SKILLS rung (#473 · MODELS pattern): a bad SKILL.md is a FINDING.
     let skills = super::resolve_workflow_skills(&wf);
-    let clean = report.is_clean() && model_findings.is_empty() && skills.findings.is_empty();
+    let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
     let strict_clean = clean && (!native_strict || native_hints == 0);
 
     if json {
         return json_verdict(
             &report,
-            &model_findings,
+            &models_audit,
             &skills,
             &drift_hints,
             clean,
@@ -170,7 +170,7 @@ pub fn run(
         &source,
         path,
         theme,
-        &model_findings,
+        &models_audit,
         &skills,
         &drift_hints,
     );
@@ -242,19 +242,21 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
 }
 
 /// The `--json` verdict: the full report + the machine keys (`clean` ·
-/// `models_resolve` · `model_findings[]` · `skills_resolve` ·
-/// `skill_findings[]` · `pricing` · the strict flag) — never coloured,
-/// the contract bytes are the contract. The drift rows (NIKA-DRIFT-001)
-/// append to `hints[]` in the report's row shape plus their `code`.
+/// `models_resolve` · `models_unjudged` (presence-gated) ·
+/// `model_findings[]` · `skills_resolve` · `skill_findings[]` ·
+/// `pricing` · the strict flag) — never coloured, the contract bytes are
+/// the contract. The drift rows (NIKA-DRIFT-001) append to `hints[]` in
+/// the report's row shape plus their `code`.
 fn json_verdict(
     report: &CheckReport,
-    model_findings: &[ModelFinding],
+    models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
     clean: bool,
     strict_clean: bool,
     native_strict: bool,
 ) -> VerbOutput {
+    let model_findings = &models_audit.findings;
     let mut payload = match serde_json::to_value(report) {
         Ok(v) => v,
         Err(e) => return VerbOutput::env(format!("cannot serialize report: {e}")),
@@ -273,6 +275,17 @@ fn json_verdict(
             "models_resolve".to_owned(),
             serde_json::Value::Bool(model_findings.is_empty()),
         );
+        // The machine twin of the narrowed headline (presence-gated like
+        // `model_findings`): `models_resolve: true` beside a non-zero
+        // `models_unjudged` reads as « every JUDGED model resolves » —
+        // without the count, a consumer cannot tell judged-green from
+        // never-judged.
+        if models_audit.unjudged > 0 {
+            obj.insert(
+                "models_unjudged".to_owned(),
+                serde_json::json!(models_audit.unjudged),
+            );
+        }
         if !model_findings.is_empty() {
             obj.insert(
                 "model_findings".to_owned(),
@@ -458,7 +471,7 @@ mod tests {
             "nika: v1\nworkflow:\n  id: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  think:\n    infer:\n      prompt: hi\n  odd:\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
         );
         let report = nika_check::check(&wf);
-        let section = pricing_section(&report, &unresolvable_models(&report));
+        let section = pricing_section(&report, &unresolvable_models(&report, &wf).findings);
         let models = section["models"].as_array().expect("array");
         assert_eq!(models.len(), 2, "one row per requirements model");
         let by_model = |name: &str| {
@@ -736,28 +749,36 @@ mod tests {
     }
 
     /// The parameterization pin (found 2026-07-29 rendering the
-    /// conformance parity through the reference harness): a TEMPLATED
-    /// `model:` is a run-time fact, so the rung must SKIP it — refusing
-    /// it meant refusing the pattern spec 08 §H8 recommends by name
-    /// (« one workflow, any backend »), on the spec's own fixture
-    /// `stdlib/providers/005-valid-parameterized-model`.
+    /// conformance parity through the reference harness, sharpened
+    /// 2026-07-30 with the shared resolver): a TEMPLATED `model:` is a
+    /// run-time fact, but its DECLARED DEFAULT is not — the rung judges
+    /// the default through `nika_check::static_literal_of` (spec 08 §H8
+    /// « one workflow, any backend » · the spec's own fixture
+    /// `stdlib/providers/005-valid-parameterized-model`), and the green
+    /// line names the via-default judgement.
     #[test]
-    fn models_rung_skips_a_templated_model_and_keeps_its_teeth_on_a_literal() {
-        // The exact shape of the spec fixture: a const-declared pair,
-        // read through `${{ }}` at the task.
+    fn models_rung_judges_a_templated_models_declared_default() {
+        // A bare-literal const (spec 01 §const), read through `${{ }}`
+        // at the task — the parameterization pattern in its simplest
+        // canonical form.
         let out = checked_output(
             "models-param.nika.yaml",
-            "nika: v1\nworkflow:\n  id: p\nconst:\n  model: { type: string, default: \"anthropic/claude-sonnet-4-6\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+            "nika: v1\nworkflow:\n  id: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
             false,
         );
         assert_eq!(
             out.code, 0,
-            "a parameterized model is not a finding: {}",
+            "a resolvable declared default is not a finding: {}",
             out.text
         );
         assert!(
             !out.text.contains("bare model id"),
             "the raw template is never read as an id: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("via declared default"),
+            "the green names WHAT resolved (the default, not the run-time value): {}",
             out.text
         );
         // The teeth stay on what IS statically decidable.
@@ -772,6 +793,88 @@ mod tests {
             literal.text
         );
         assert!(literal.text.contains("bare model id"), "{}", literal.text);
+    }
+
+    /// The sharper half of the same pin: `${{ const.model }}` whose
+    /// const declares a BAD id is a finding — the skip-everything fix
+    /// (69c402333) let a refusable declared default sail through green.
+    /// The fixture uses the TYPED constant form (`{ type, value }` ·
+    /// spec 01 §const normative discriminator) so both resolver arms
+    /// are exercised across this test pair.
+    #[test]
+    fn models_rung_reds_a_templated_models_refusable_default() {
+        let out = checked_output(
+            "models-param-bad.nika.yaml",
+            "nika: v1\nworkflow:\n  id: p\nconst:\n  model: { type: string, value: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+            false,
+        );
+        assert_eq!(
+            out.code, 2,
+            "a refusable declared default is a finding: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("declared default `gpt-5-turbo`"),
+            "the finding names BOTH halves (template + judged default): {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("${{ const.model }}"),
+            "the row shows the model as written: {}",
+            out.text
+        );
+    }
+
+    /// A `{ type, default }` const is a BARE LITERAL OBJECT per the
+    /// spec 01 §const normative discriminator (typed constants carry
+    /// `value:`, not `default:`) — so `${{ const.model }}` over it
+    /// resolves to an object, not a string, and the rung makes NO
+    /// claim. Pinned because the spec's own fixture
+    /// (`stdlib/providers/005-valid-parameterized-model`) writes this
+    /// exact shape: the resolver must never « helpfully » read the
+    /// object's `default` key — analysis never guesses.
+    #[test]
+    fn models_rung_never_guesses_inside_a_literal_object_const() {
+        let out = checked_output(
+            "models-param-object.nika.yaml",
+            "nika: v1\nworkflow:\n  id: p\nconst:\n  model: { type: string, default: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+            false,
+        );
+        assert_eq!(
+            out.code, 0,
+            "a literal-object const is not judgeable — no claim, no finding: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("run-time model") && out.text.contains("unjudged"),
+            "the no-claim posture is named: {}",
+            out.text
+        );
+    }
+
+    /// A templated model with NO static default is UNJUDGED, and the
+    /// headline says so — measured 2026-07-30 before this fix: the same
+    /// file printed `✔ MODELS 1 model resolves in this binary` while the
+    /// rung had skipped its only model wholesale (nothing resolved ·
+    /// nobody looked — the false-green class, MODELS edition).
+    #[test]
+    fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
+        let out = checked_output(
+            "models-param-runtime.nika.yaml",
+            "nika: v1\nworkflow:\n  id: p\ninputs:\n  model: { type: string, required: true }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.model }}\" }\n",
+            false,
+        );
+        assert_eq!(out.code, 0, "no claim is not a finding: {}", out.text);
+        assert!(
+            !out.text.contains("resolves in this binary"),
+            "an unjudged model is never counted as resolving: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("run-time model") && out.text.contains("unjudged"),
+            "the no-claim posture is named: {}",
+            out.text
+        );
     }
 
     /// `--json --native-strict`: the payload's `native_strict_clean` and

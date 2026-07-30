@@ -6,49 +6,63 @@
 //! bodies moved verbatim. The finding TYPE lives beside its renderer
 //! (`nika_display::check_render` · the 15k descent).
 
-pub(crate) use nika_display::check_render::ModelFinding;
+pub(crate) use nika_display::check_render::{ModelFinding, ModelsAudit};
 
 /// Cross `requirements.models` against the RESOLVER (the runnable
 /// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor
 /// catalog, which advertises providers this binary cannot drive (the
 /// azure class: cataloged, unresolvable, green until the run died).
-pub(crate) fn unresolvable_models(report: &nika_check::CheckReport) -> Vec<ModelFinding> {
-    report
-        .requirements
-        .models
-        .iter()
-        .filter_map(|m| {
-            // A TEMPLATED `model:` is not a static fact — its value
-            // arrives at run time (`--var`), so this rung cannot decide
-            // it and must not refuse it: the same « unanalyzable yields
-            // NO claim » law the policy and trifecta lanes follow
-            // (skipped, never wrong).
-            //
-            // Measured 2026-07-29 while rendering the conformance parity
-            // through the reference harness: `model: "${{ const.model }}"`
-            // — whose const declares `anthropic/claude-sonnet-4-6`, a
-            // perfectly runnable pair — was refused as « a bare model id ».
-            // The engine was refusing the parameterization pattern the
-            // spec recommends BY NAME (08 §H8 · « one workflow, any
-            // backend »), on the spec's own fixture
-            // (`stdlib/providers/005-valid-parameterized-model`).
-            //
-            // Judging the declared DEFAULT instead of skipping is the
-            // sharper follow-on (the cost lane already resolves a bare
-            // `${{ authority.name }}` to its literal · `cost.rs`
-            // `static_vars_array_len`): it wants ONE shared resolver in
-            // `nika-check`, not a third private copy — trigger, not a
-            // TODO.
-            if m.model.contains("${{") {
-                return None;
-            }
-            // The ONE law, shared with the MCP lane (#320 follow-up:
-            // the two machine surfaces consult the same fn beside the
-            // resolver — they cannot drift apart again).
-            let why = nika_providers::resolve_refusal(&m.model)?;
-            Some(ModelFinding::new(m.model.clone(), m.tasks.clone(), why))
-        })
-        .collect()
+pub(super) fn unresolvable_models(
+    report: &nika_check::CheckReport,
+    wf: &nika_schema::raw::RawWorkflow,
+) -> ModelsAudit {
+    let mut audit = ModelsAudit::new(Vec::new(), 0, 0);
+    for m in &report.requirements.models {
+        // A TEMPLATED `model:` is not a static fact — its value arrives
+        // at run time (`--var`) — but its DECLARED DEFAULT is: a bare
+        // `${{ <authority>.<name> }}` whose declaration carries a
+        // literal string is judged AS that default, through the ONE
+        // shared resolver ([`nika_check::static_literal_of`] — the same
+        // fn the cost lane counts `for_each` fan-outs with; a third
+        // private copy is how lanes drift). This keeps the rung's teeth
+        // on the parameterization pattern the spec recommends BY NAME
+        // (08 §H8 · measured 2026-07-29: the fix before this one skipped
+        // `${{ const.model }}` wholesale, and the fix before THAT
+        // refused it as « a bare model id » on the spec's own fixture,
+        // `stdlib/providers/005-valid-parameterized-model`). Anything
+        // the resolver cannot answer gets NO claim — skipped, never
+        // wrong — and is COUNTED, so the headline says so.
+        let (judged, via_default) = if m.model.contains("${{") {
+            let Some(default_model) =
+                nika_check::static_literal_of(wf, &m.model).and_then(serde_json::Value::as_str)
+            else {
+                audit.unjudged += 1;
+                continue;
+            };
+            (default_model, true)
+        } else {
+            (m.model.as_str(), false)
+        };
+        // The ONE law, shared with the MCP lane (#320 follow-up: the two
+        // machine surfaces consult the same fn beside the resolver —
+        // they cannot drift apart again).
+        match nika_providers::resolve_refusal(judged) {
+            Some(why) => audit.findings.push(ModelFinding::new(
+                m.model.clone(),
+                m.tasks.clone(),
+                // A via-default refusal names BOTH halves: the template
+                // the author wrote and the default that was judged.
+                if via_default {
+                    format!("declared default `{judged}` — {why}")
+                } else {
+                    why
+                },
+            )),
+            None if via_default => audit.via_default += 1,
+            None => {}
+        }
+    }
+    audit
 }
 
 /// The rates the preflight shows BEFORE the first run: each model the

@@ -14,6 +14,9 @@
 //!
 //! - **unbounded cost** (`cost`) — an `infer:`/`agent:` task with no
 //!   token bound: add one and the cost report becomes a hard ceiling.
+//! - **degenerate cap** (`zero-cap`) — a declared `max_tokens: 0` /
+//!   `max_tokens_total: 0`: arithmetically a true $0/0 Wh output
+//!   ceiling, practically a call no provider will honor.
 //! - **unconsumed output** (`dead-spend`) — a pure `infer:` task whose
 //!   output no one reads (no task references it · not in `outputs:`):
 //!   every token it spends is dead spend.
@@ -79,7 +82,8 @@ use nika_schema::types::CaptureMode;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct Hint {
-    /// The hint class — the closed set today: `cost` · `dead-spend` ·
+    /// The hint class — the closed set today: `cost` · `zero-cap` ·
+    /// `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` · `exec-json-capture` ·
@@ -134,37 +138,26 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         push_redundant_gate_hints(&mut hints, t, id);
         match &t.action {
             RawAction::Infer(a) => {
-                if a.max_tokens.is_none() {
-                    hints.push(hint("cost", id, format!(
-                        "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"
-                    )));
-                }
-                if !consumed.contains(id) && !envelope_ids.contains(id) {
-                    hints.push(hint("dead-spend", id, format!(
-                        "no task or output consumes `tasks.{id}.output` — every token this infer spends is unread; consume it or remove the task"
-                    )));
-                }
-                // `returns:` is a declared shape too — and the PREFERRED one
-                // (one-obvious-way/011): advising `schema:` on a task that
-                // already carries `returns:` would advise the exact pair
-                // NIKA-TYPE-003 refuses. Measured 2026-07-29 on a corpus
-                // lesson: `returns: Entities` + a deep ref drew this hint.
-                if deep_referenced.contains(id)
-                    && a.schema.is_none()
-                    && t.returns.is_none()
-                    && t.output.is_empty()
-                {
-                    hints.push(hint("typing", id, format!(
-                        "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no output shape — declare `returns:` and `nika check` starts proving those field names"
-                    )));
-                }
-                push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
-                push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
+                push_infer_hints(
+                    &mut hints,
+                    t,
+                    id,
+                    a,
+                    &consumed,
+                    &envelope_ids,
+                    &deep_referenced,
+                );
             }
             RawAction::Agent(a) => {
                 if a.max_tokens_total.is_none() {
                     hints.push(hint("cost", id, format!(
                         "declare `max_tokens_total` on `{id}` — the agent loop gets a hard budget instead of UNBOUNDED"
+                    )));
+                }
+                // Same degenerate-cap class as the infer arm.
+                if a.max_tokens_total.as_ref().is_some_and(|t| t.value == 0) {
+                    hints.push(hint("zero-cap", id, format!(
+                        "`max_tokens_total: 0` on `{id}` forbids all output — the agent loop cannot spend anything; set a real budget or remove the task"
                     )));
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
@@ -193,6 +186,56 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_swallowed_exit_hints(&mut hints, wf);
     push_run_clock_hint(&mut hints, wf);
     hints
+}
+
+/// The infer arm of [`scan_hints`] — cost cap · degenerate zero-cap ·
+/// dead-spend · deep-ref typing · the shared schema pair (split at the
+/// 100-line function law).
+fn push_infer_hints(
+    hints: &mut Vec<Hint>,
+    t: &nika_schema::raw::RawTask,
+    id: &str,
+    a: &nika_schema::raw::RawInferAction,
+    consumed: &BTreeSet<String>,
+    envelope_ids: &BTreeSet<&str>,
+    deep_referenced: &BTreeSet<String>,
+) {
+    if a.max_tokens.is_none() {
+        hints.push(hint("cost", id, format!(
+            "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"
+        )));
+    }
+    // The degenerate cap (probe 2026-07-30): `max_tokens: 0` parses,
+    // prices to a true-$0 output ceiling, and sailed through green —
+    // but a zero budget forbids ALL output, so the call cannot produce
+    // anything (providers refuse it). The COST/ENERGY zeros are
+    // arithmetically true; the declaration is still a bug worth naming.
+    if a.max_tokens.as_ref().is_some_and(|t| t.value == 0) {
+        hints.push(hint("zero-cap", id, format!(
+            "`max_tokens: 0` on `{id}` forbids all output — the call cannot produce anything (providers refuse a zero budget); set a real cap or remove the task"
+        )));
+    }
+    if !consumed.contains(id) && !envelope_ids.contains(id) {
+        hints.push(hint("dead-spend", id, format!(
+            "no task or output consumes `tasks.{id}.output` — every token this infer spends is unread; consume it or remove the task"
+        )));
+    }
+    // `returns:` is a declared shape too — and the PREFERRED one
+    // (one-obvious-way/011): advising `schema:` on a task that
+    // already carries `returns:` would advise the exact pair
+    // NIKA-TYPE-003 refuses. Measured 2026-07-29 on a corpus
+    // lesson: `returns: Entities` + a deep ref drew this hint.
+    if deep_referenced.contains(id)
+        && a.schema.is_none()
+        && t.returns.is_none()
+        && t.output.is_empty()
+    {
+        hints.push(hint("typing", id, format!(
+            "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no output shape — declare `returns:` and `nika check` starts proving those field names"
+        )));
+    }
+    push_strictness_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
+    push_portability_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
 }
 
 /// The deadline-vs-undeclared-clock hint (F-P3 finding (b)): a task

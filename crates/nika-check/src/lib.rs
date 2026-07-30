@@ -165,7 +165,7 @@ pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
-pub use walk::static_read_paths;
+pub use walk::{static_literal_of, static_read_paths};
 
 // The analyzer's surface at the crate root — the same shape `nika-schema`
 // re-exported before the split (`analyze` · `AnalyzedWorkflow` · the

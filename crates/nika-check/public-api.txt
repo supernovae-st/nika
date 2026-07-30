@@ -2658,6 +2658,7 @@ pub fn nika_check::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow)
 pub fn nika_check::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
 pub fn nika_check::policy_wire_code(rule: &str) -> &'static str
 pub fn nika_check::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+pub fn nika_check::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check::with_model_override(wf: &nika_schema::raw::workflow::RawWorkflow, model: &str) -> nika_schema::raw::workflow::RawWorkflow

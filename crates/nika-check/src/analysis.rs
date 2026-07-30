@@ -20,18 +20,19 @@
 //! - **blast radius** — AND-join makes failure analysis exact: a failed
 //!   task blocks EVERY transitive dependent;
 //! - **write-write conflicts** (F-P15 · NEP-0014 law 1) — two tasks that
-//!   CAN run concurrently (incomparable) and both target the same literal
-//!   `nika:write`/`nika:edit` path, compared under LEXICAL normalization
-//!   (`./out/x.md` ≡ `out//x.md` ≡ `out/d/../x.md` ≡ `out/x.md` — pure
-//!   text, no filesystem claim; see [`normalize_lexical`]):
-//!   last-writer-wins is a race the file never declares. The LAW (a
-//!   `NIKA-SEC-012` finding · deterministic) — promoted from its
-//!   advisory-hint era 2026-07-29: parallelism is safe exactly where the
-//!   effects are provably disjoint, and a hint is not a boundary. Above
-//!   [`ANALYSIS_TASK_CAP`] the closure-based pair scan is skipped and
-//!   the skip is STATED ([`DagRead::stated_miss`] — the report carries
-//!   it as a hint, never a silent no-claim); the closure-free
-//!   `for_each` same-path flavor still judges.
+//!   CAN run concurrently (incomparable) and both write the same STATIC
+//!   `nika:write`/`nika:edit` key (literal · resolved bare ref ·
+//!   identical immutable ref — [`static_write_key`]), compared under
+//!   LEXICAL normalization (`./out/x.md` ≡ `out//x.md` ≡
+//!   `out/d/../x.md` ≡ `out/x.md` — pure text, no filesystem claim; see
+//!   [`normalize_lexical`]): last-writer-wins is a race the file never
+//!   declares. The LAW (a `NIKA-SEC-012` finding · deterministic) —
+//!   promoted from its advisory-hint era 2026-07-29: parallelism is safe
+//!   exactly where the effects are provably disjoint, and a hint is not
+//!   a boundary. Above [`ANALYSIS_TASK_CAP`] the closure-based pair scan
+//!   is skipped and the skip is STATED ([`DagRead::stated_miss`] — the
+//!   report carries it as a hint, never a silent no-claim); the
+//!   closure-free `for_each` same-path flavor still judges.
 //!
 //! Width can EXCEED the largest wave — witness `p→a1→x2 · p→x1 ·
 //! isolated x0`: waves peak at 2, width is 3 (`{x0, x1, x2}`). The
@@ -50,8 +51,8 @@ use nika_schema::source::Spanned;
 const WRITE_CONFLICT_CODE: &str = "NIKA-SEC-012";
 
 /// One write-write conflict (F-P15 · NEP-0014 law 1): two tasks
-/// incomparable in the DAG closure whose literal `nika:write` /
-/// `nika:edit` paths collide under lexical normalization, or a
+/// incomparable in the DAG closure whose STATIC `nika:write` /
+/// `nika:edit` keys collide under lexical normalization, or a
 /// `for_each` fan writing one constant path — the last-writer-wins
 /// race, refused at check.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -63,9 +64,11 @@ pub struct WriteConflict {
     /// The second writer — `None` for the `for_each` flavor (the task
     /// races its own iterations).
     pub other: Option<String>,
-    /// The colliding path in its LEXICAL normal form (the pair flavor —
-    /// both literals reduce to it) · the literal as spelled (the
-    /// `for_each` flavor — nothing is compared).
+    /// The colliding key in its LEXICAL normal form (the pair flavor —
+    /// both keys reduce to it) · the key as spelled (the `for_each`
+    /// flavor — nothing is compared). A key is a literal path, or the
+    /// canonical bare-ref form (`${{ inputs.f }}`) when the shared
+    /// value is not statically known (`static_write_key`).
     pub path: String,
     /// The witness sentence (the race, named — both spellings when the
     /// literals differ textually).
@@ -436,13 +439,27 @@ fn koenig_witness(
     (0..n).filter(|&i| z_left[i] && !z_right[i]).collect()
 }
 
-/// The literal `nika:write`/`nika:edit` target of a task, when
-/// statically known — island-bearing paths are dynamic and make no
-/// static claim. (H4 · the canon text names BOTH writer builtins: they
-/// take `path:` identically and return it as their output, and the
-/// edit's read-modify-write loses updates to a concurrent writer
-/// exactly like the write's rename does.)
-fn literal_write_path(task: &RawTask) -> Option<&str> {
+/// The STATIC write key of a task's `nika:write`/`nika:edit` target —
+/// two equal keys provably denote the same runtime path:
+///
+/// - a **literal** path (no template) — the key is the path;
+/// - a bare immutable-authority ref whose declaration carries a string
+///   literal — resolved through the ONE shared resolver
+///   ([`crate::static_literal_of`]), so a literal writer and a
+///   `${{ const.p }}` writer on the same path collide;
+/// - a bare immutable-authority ref with NO declared literal — the key
+///   is its canonical form: two IDENTICAL `${{ inputs.f }}` writers
+///   target the same file even while its value is unknown (inputs bind
+///   once per run · const/config never change). Measured 2026-07-30:
+///   this exact shape rendered green while its literal twin was
+///   refused.
+///
+/// Anything else (task refs · `with:` bindings · `${{ item }}` ·
+/// concatenations) is dynamic and makes no static claim. (H4 · both
+/// writer builtins take `path:` identically, and the edit's
+/// read-modify-write loses updates to a concurrent writer exactly like
+/// the write's rename does.)
+fn static_write_key(wf: &RawWorkflow, task: &RawTask) -> Option<String> {
     let RawAction::Invoke(invoke) = &task.action else {
         return None;
     };
@@ -452,13 +469,15 @@ fn literal_write_path(task: &RawTask) -> Option<&str> {
     ) {
         return None;
     }
-    invoke
-        .args
-        .as_ref()?
-        .value
-        .get("path")?
-        .as_str()
-        .filter(|p| !p.contains("${{"))
+    let path = invoke.args.as_ref()?.value.get("path")?.as_str()?;
+    if !path.contains("${{") {
+        return Some(path.to_owned());
+    }
+    if let Some(lit) = crate::static_literal_of(wf, path).and_then(|v| v.as_str()) {
+        return Some(lit.to_owned());
+    }
+    crate::walk::bare_static_ref(path)
+        .map(|(authority, name)| format!("${{{{ {authority}{name} }}}}"))
 }
 
 /// The LEXICAL normal form two write paths are compared under (H5 ·
@@ -509,18 +528,25 @@ fn normalize_lexical(path: &str) -> String {
 
 /// Write-write races, statically (F-P15 · NEP-0014 law 1): two tasks
 /// that CAN run concurrently (incomparable in the closure) and both
-/// target the same literal path under lexical normalization — plus the
-/// fan-out flavor ([`scan_for_each_fans`]). The LAW: each conflict is a
-/// finding (an ordering edge — `after:` / `with:` — discharges it;
-/// parallelism is safe exactly where the writes are provably disjoint).
+/// write the same STATIC key ([`static_write_key`] — a literal, a
+/// resolved bare ref, or two identical bare immutable refs) under
+/// lexical normalization — plus the fan-out flavor
+/// ([`scan_for_each_fans`]). The LAW: each conflict is a finding (an
+/// ordering edge — `after:` / `with:` — discharges it; parallelism is
+/// safe exactly where the writes are provably disjoint).
 fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<WriteConflict> {
     let mut conflicts = scan_for_each_fans(wf);
-    // (task index · the literal as spelled · its lexical normal form).
-    let writers: Vec<(usize, &str, String)> = wf
+    // (task index · the key as spelled · its lexical normal form).
+    let writers: Vec<(usize, String, String)> = wf
         .tasks
         .iter()
         .enumerate()
-        .filter_map(|(i, t)| literal_write_path(&t.value).map(|p| (i, p, normalize_lexical(p))))
+        .filter_map(|(i, t)| {
+            static_write_key(wf, &t.value).map(|p| {
+                let n = normalize_lexical(&p);
+                (i, p, n)
+            })
+        })
         .collect();
 
     let comparable = |a: usize, b: usize| -> bool {
@@ -569,15 +595,15 @@ fn scan_for_each_fans(wf: &RawWorkflow) -> Vec<WriteConflict> {
     let mut conflicts = Vec::new();
     for t in &wf.tasks {
         if t.value.for_each.is_some()
-            && let Some(path) = literal_write_path(&t.value)
+            && let Some(path) = static_write_key(wf, &t.value)
         {
             let task = t.value.id.value.clone();
             conflicts.push(WriteConflict {
                 task: task.clone(),
                 other: None,
-                path: path.to_owned(),
+                path: path.clone(),
                 detail: format!(
-                    "every `for_each` iteration of `{task}` writes the SAME literal \
+                    "every `for_each` iteration of `{task}` writes the SAME \
                      path `{path}` — the last iteration silently wins"
                 ),
                 fix: "derive the path from `${{ item }}` so each iteration writes \
@@ -930,6 +956,52 @@ mod tests {
         );
         assert_eq!(report.write_conflicts.len(), 1);
         assert_eq!(report.write_conflicts[0].task, "fan");
+    }
+
+    #[test]
+    fn identical_immutable_ref_writers_are_a_finding() {
+        // Probe 2026-07-30: two unordered writers on the IDENTICAL
+        // `${{ inputs.f }}` rendered green while the literal twin was
+        // refused — inputs bind once per run, so the two provably
+        // target the same file even though its value is unknown.
+        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"b\"\n";
+        let conflicts = read(yaml).conflicts;
+        assert_eq!(conflicts.len(), 1, "{conflicts:?}");
+        let c = &conflicts[0];
+        assert_eq!(c.path, "${{ inputs.f }}", "the canonical ref IS the key");
+        assert_eq!(c.wire_code(), "NIKA-SEC-012");
+    }
+
+    #[test]
+    fn a_literal_writer_and_a_resolved_ref_writer_collide() {
+        // The shared resolver arm: `${{ const.p }}` declares the SAME
+        // literal another task writes directly — one path, two spellings.
+        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\nconst:\n  p: out/report.md\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ const.p }}\"\n        content: \"b\"\n";
+        let conflicts = read(yaml).conflicts;
+        assert_eq!(conflicts.len(), 1, "{conflicts:?}");
+        assert_eq!(
+            conflicts[0].path, "out/report.md",
+            "resolved to the literal"
+        );
+    }
+
+    #[test]
+    fn distinct_immutable_refs_make_no_claim() {
+        // Two DIFFERENT bare refs may or may not collide at run — the
+        // scan never guesses.
+        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n  g: { type: string, required: true }\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.g }}\"\n        content: \"b\"\n";
+        assert!(read(yaml).conflicts.is_empty());
+    }
+
+    #[test]
+    fn a_for_each_fan_over_one_immutable_ref_races_itself() {
+        // The fan flavor reaches the ref class too: every iteration
+        // writes `${{ inputs.f }}` — one file, N writers.
+        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"x\"\n";
+        let conflicts = read(yaml).conflicts;
+        assert_eq!(conflicts.len(), 1, "{conflicts:?}");
+        assert_eq!(conflicts[0].other, None);
+        assert_eq!(conflicts[0].path, "${{ inputs.f }}");
     }
 
     #[test]

@@ -93,9 +93,12 @@ pub struct Node {
 /// `for_each` fan-out description.
 #[derive(Debug, Serialize)]
 pub struct FanOut {
-    /// `"list"` (literal · known count) or `"expression"` (unknown).
+    /// `"list"` (literal) or `"expression"` (source computed at run).
     pub kind: &'static str,
-    /// Element count for the literal-list form.
+    /// Element count when statically known — a literal list, or an
+    /// expression that is a bare immutable-authority ref over a
+    /// declared literal array (`nika_check::static_literal_of` · the
+    /// same count the cost lane bounds with).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<u64>,
 }
@@ -160,9 +163,17 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                         kind: "list",
                         count: items.as_array().map(|a| a.len() as u64),
                     },
-                    nika_schema::raw::ForEachValue::Expression(_) => FanOut {
+                    // A bare immutable-authority ref over a declared
+                    // literal array has a statically-known count — the
+                    // ONE shared resolver, the same count the cost lane
+                    // bounds with (probe 2026-07-30: the inspect header
+                    // said « no task runs » while this node row said
+                    // `for_each ×?` — one surface, two voices).
+                    nika_schema::raw::ForEachValue::Expression(expr) => FanOut {
                         kind: "expression",
-                        count: None,
+                        count: nika_check::static_literal_of(wf, expr)
+                            .and_then(|v| v.as_array())
+                            .map(|a| a.len() as u64),
                     },
                     #[allow(
                         clippy::unreachable,

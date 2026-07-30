@@ -79,15 +79,30 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
         // documents the 126× measurement. Claim neither bound; show the
         // priced portion.
         format!(
-            "est unbounded · bounded portion ${:.4}",
-            report.cost.bounded_total_usd
+            "est unbounded · bounded portion ${}",
+            crate::text::usd(report.cost.bounded_total_usd)
         )
     } else {
-        format!("≤ ${:.4}", report.cost.bounded_total_usd)
+        // `est out` + the vocab seam, one voice with the audited card:
+        // a flat `≤ $X` read as the whole bill (render.rs documents the
+        // 328× measurement — prompts, exec + mcp are unpriced), and the
+        // hardcoded `≤` leaked unicode under `--ascii` (the same class
+        // as the verdict glyph the card already fixed).
+        format!(
+            "est out {}${}",
+            crate::display::vocab::at_most(theme.ascii),
+            crate::text::usd(report.cost.bounded_total_usd)
+        )
     };
+    // The NEP-0018 §4 aggregate — energy beside cost, same honesty
+    // markers, computed by the SAME classification the check ladder's
+    // ENERGY rung renders (one classifier · two surfaces).
+    let energy = crate::verbs::check::energy::inspect_fragment(&report, theme.ascii)
+        .map(|f| format!(" · {f}"))
+        .unwrap_or_default();
 
     let mut out = format!(
-        "{} · {} · {} · {ceiling}\n",
+        "{} · {} · {} · {ceiling}{energy}\n",
         theme.paint(Role::Strong, &doc.workflow),
         crate::text::count(doc.nodes.len(), "task"),
         crate::text::count(report.waves.len(), "wave"),
@@ -169,7 +184,11 @@ fn node_meta(node: &Node) -> String {
         meta.push(model.clone());
     }
     if let Some([min, max]) = node.cost_interval {
-        meta.push(format!("~${min:.4}-{max:.4}"));
+        meta.push(format!(
+            "~${}-{}",
+            crate::text::usd(min),
+            crate::text::usd(max)
+        ));
     }
     if let Some(fan) = &node.fan_out {
         match fan.count {
@@ -379,6 +398,48 @@ mod tests {
             2,
             "two flow arrows join three waves: {}",
             out.text
+        );
+    }
+
+    /// The header aggregates BOTH honesty ladders (NEP-0018 §4): the
+    /// cost ceiling speaks `est out` + the vocab seam (a flat `≤ $X`
+    /// read as the whole bill · 328× measured — and leaked unicode
+    /// under `--ascii`), and the energy aggregate rides beside it, from
+    /// the SAME classification the check ladder renders.
+    #[test]
+    fn header_carries_cost_and_energy_aggregates() {
+        let body = "nika: v1\nworkflow:\n  id: agg\n\nmodel: groq/qwen/qwen3-32b\n\ntasks:\n  only:\n    infer: { prompt: \"x\", max_tokens: 1000 }\noutputs:\n  result: ${{ tasks.only.output }}\n";
+        let path = tmp(body);
+        let out = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, false, false),
+        );
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text.contains("est out ≤$"),
+            "cost speaks est-out, never a bare bill: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains(" Wh (gpu)"),
+            "the energy aggregate rides the header with its scope: {}",
+            out.text
+        );
+        let ascii = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, true, false),
+        );
+        std::fs::remove_file(&path).ok();
+        assert_eq!(ascii.code, exit::OK, "{}", ascii.text);
+        assert!(
+            ascii.text.contains("est out <=$") && ascii.text.contains("<= "),
+            "ascii twins ride the seam: {}",
+            ascii.text
+        );
+        assert!(
+            !ascii.text.contains('≤'),
+            "no unicode bound mark under --ascii: {}",
+            ascii.text
         );
     }
 

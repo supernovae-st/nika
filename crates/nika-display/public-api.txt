@@ -54,9 +54,63 @@ impl<T> tracing::instrument::Instrument for nika_display::check_render::ModelFin
 impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::ModelFinding
 impl<T> typenum::type_operators::Same for nika_display::check_render::ModelFinding
 pub type nika_display::check_render::ModelFinding::Output = T
+#[non_exhaustive] pub struct nika_display::check_render::ModelsAudit
+pub nika_display::check_render::ModelsAudit::findings: alloc::vec::Vec<nika_display::check_render::ModelFinding>
+pub nika_display::check_render::ModelsAudit::unjudged: usize
+pub nika_display::check_render::ModelsAudit::via_default: usize
+impl nika_display::check_render::ModelsAudit
+pub fn nika_display::check_render::ModelsAudit::new(findings: alloc::vec::Vec<nika_display::check_render::ModelFinding>, unjudged: usize, via_default: usize) -> Self
+impl core::clone::Clone for nika_display::check_render::ModelsAudit
+pub fn nika_display::check_render::ModelsAudit::clone(&self) -> nika_display::check_render::ModelsAudit
+impl core::cmp::Eq for nika_display::check_render::ModelsAudit
+impl core::cmp::PartialEq for nika_display::check_render::ModelsAudit
+pub fn nika_display::check_render::ModelsAudit::eq(&self, other: &nika_display::check_render::ModelsAudit) -> bool
+impl core::fmt::Debug for nika_display::check_render::ModelsAudit
+pub fn nika_display::check_render::ModelsAudit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::check_render::ModelsAudit
+impl<D> owo_colors::OwoColorize for nika_display::check_render::ModelsAudit
+impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
+pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::check_render::ModelsAudit where U: core::convert::From<T>
+pub fn nika_display::check_render::ModelsAudit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::ModelsAudit where U: core::convert::Into<T>
+pub type nika_display::check_render::ModelsAudit::Error = core::convert::Infallible
+pub fn nika_display::check_render::ModelsAudit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::check_render::ModelsAudit where U: core::convert::TryFrom<T>
+pub type nika_display::check_render::ModelsAudit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::check_render::ModelsAudit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::check_render::ModelsAudit where T: core::clone::Clone
+pub type nika_display::check_render::ModelsAudit::Owned = T
+pub fn nika_display::check_render::ModelsAudit::clone_into(&self, target: &mut T)
+pub fn nika_display::check_render::ModelsAudit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::check_render::ModelsAudit where T: 'static + ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::check_render::ModelsAudit where T: ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::check_render::ModelsAudit where T: ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::check_render::ModelsAudit where T: core::clone::Clone
+pub unsafe fn nika_display::check_render::ModelsAudit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::check_render::ModelsAudit
+pub fn nika_display::check_render::ModelsAudit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::check_render::ModelsAudit where T: core::clone::Clone
+pub fn nika_display::check_render::ModelsAudit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::check_render::ModelsAudit where T: 'static
+pub fn nika_display::check_render::ModelsAudit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::check_render::ModelsAudit where T: ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::check_render::ModelsAudit::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::check_render::ModelsAudit
+impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::ModelsAudit
+impl<T> typenum::type_operators::Same for nika_display::check_render::ModelsAudit
+pub type nika_display::check_render::ModelsAudit::Output = T
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
-pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, model_findings: &[nika_display::check_render::ModelFinding], skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String]) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]
@@ -632,6 +686,7 @@ pub fn nika_display::vocab::at_least(ascii: bool) -> &'static str
 pub fn nika_display::vocab::at_most(ascii: bool) -> &'static str
 pub fn nika_display::vocab::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_display::vocab::hint(theme: nika_display::theme::Theme, label: &str, command: &str) -> alloc::string::String
+pub fn nika_display::vocab::usd(amount: f64) -> alloc::string::String
 pub mod nika_display::wires
 pub struct nika_display::wires::WireGraph
 pub nika_display::wires::WireGraph::edges: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
