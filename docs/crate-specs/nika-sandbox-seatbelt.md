@@ -89,9 +89,9 @@ also admits its SQLite journal family — `<db>-wal`, `<db>-shm`, `<db>-journal`
 — as three exact-path `literal` filters on the same rule, access class
 inherited. Without them a confined WAL open dies with `SQLITE_CANTOPEN` (14):
 bisected live 2026-07-29 (macOS 15.6.1 · sqlite 3.43.2 — bare file grant
-fails, the three literals pass WAL/rollback/reopen, an ATTACHed db outside
+fails, the three literals pass WAL/rollback/reopen, an `ATTACH`-ed db outside
 the grant stays refused, and an arbitrary sibling write stays denied). The
-multi-db super-journal (`<db>-mj*`) is deliberately out (an ATTACHed database
+multi-db super-journal (`<db>-mj*`) is deliberately out (an `ATTACH`-ed database
 needs its own grant). The Linux sibling cannot express the family (bwrap has
 no future-file bind) — there a database grant must name its directory.
 
