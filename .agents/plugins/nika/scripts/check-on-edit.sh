@@ -45,14 +45,27 @@ case "$file" in
   *) done_quiet ;;
 esac
 
-# NIKA_BIN wins when set — the seatbelt judges with the binary the WORK
-# targets, not only whatever the PATH serves. Proven need 2026-07-27: the
-# E-split window, where every ratified-grammar file on this machine drew a
-# cry from the PATH's 0.105 while engine main already spoke the new forms.
-# Pointing NIKA_BIN at a main-built nika lets the hook judge 0.106 work
-# BEFORE brew serves it. Same capability-honesty: an unset or broken
-# NIKA_BIN falls back to silence, never to a failure.
-NIKA="${NIKA_BIN:-nika}"
+# The oracle order (F14 · 2026-07-30). NIKA_BIN wins when set — the
+# seatbelt judges with the binary the WORK targets, not only whatever the
+# PATH serves. Proven need 2026-07-27: the E-split window, where every
+# ratified-grammar file on this machine drew a cry from the PATH's 0.105
+# while engine main already spoke the new forms. When NIKA_BIN is unset
+# AND the edited file lives in a tree that builds its own nika, the
+# tree's build IS the binary the work targets — the hook judges with it
+# by default, because the PATH binary can lag the tree (the wrong-judge
+# class: a green from the release the tree is in the middle of fixing).
+# Everywhere else falls back to the PATH's nika. Same capability-honesty:
+# an unset or broken NIKA_BIN and a missing binary fall back to silence,
+# never to a failure.
+NIKA="${NIKA_BIN:-}"
+if [ -z "$NIKA" ]; then
+  root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -n "$root" ] && [ -x "$root/target/debug/nika-cli" ]; then
+    NIKA="$root/target/debug/nika-cli"
+  else
+    NIKA="nika"
+  fi
+fi
 
 if [ ! -f "$file" ] || ! command -v "$NIKA" >/dev/null 2>&1; then
   # Missing file or binary: nothing to audit (the skill teaches the
@@ -103,22 +116,6 @@ if [ "$rc" -eq 0 ] && [ -n "${NIKA_CHECK_ANNOUNCE_CLEAN:-}" ]; then
   printf 'nika check --native-strict · clean · %s (tag %s)\n' "$oracle" "${tag:-unknown}" >&2
 fi
 
-# The one case worth breaking silence for: a build of the engine sits in this
-# tree and the hook is NOT using it. That is the exact configuration that
-# hands a stale green to someone editing the engine, and it is the only
-# configuration where the default is wrong — so it is the only one that
-# speaks. Everywhere else (no local build, or NIKA_BIN already set) stays
-# quiet, including on a clean verdict.
-if [ -z "${NIKA_BIN:-}" ]; then
-  root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null || true)"
-  local_build="$root/target/debug/nika-cli"
-  if [ -n "$root" ] && [ -x "$local_build" ] && [ "$oracle" != "$local_build" ]; then
-    printf 'nika: judged with %s (tag %s), but this tree builds its own:\n  export NIKA_BIN=%s\n' \
-      "$oracle" "${tag:-unknown}" "$local_build" >&2
-    printf '  the tag does not order them — a debug build tracks the last tag, not the tree\n' >&2
-  fi
-fi
-
 if [ "$rc" -ne 2 ]; then
   # Clean (0) or broken oracle (3): nothing to teach — silence.
   done_quiet
@@ -131,7 +128,7 @@ printf '%s\n' "$findings" | head -c 2000 >&2
 printf '\nre-check with the same oracle this hook used:\n  %s check --native-strict %s\n' "$oracle" "$file" >&2
 printf 'oracle: %s (tag %s · a tag does not say what the build contains)\n' \
   "$oracle" "${tag:-unknown}" >&2
-printf 'working ON the engine? point the hook at your build:\n  export NIKA_BIN=<repo>/target/debug/nika-cli\n' >&2
+printf 'inside the engine tree the hook prefers the tree build by default (F14) — override:\n  export NIKA_BIN=<path-to-nika>\n' >&2
 if [ -n "$cc" ]; then
   # PostToolUse exit 2 = stderr fed to Claude, edit already applied.
   exit 2

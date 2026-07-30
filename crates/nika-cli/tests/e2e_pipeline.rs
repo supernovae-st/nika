@@ -54,9 +54,10 @@ use nika_verb_invoke::InvokeVerb;
 
 // ─── the fixture · one workflow, all three shipped verbs ───────────────
 
-/// Diamond-shaped DAG: two parallel sources, a typed extraction, a
-/// synthesis joining both sources, a persist joining both infers, and a
-/// statically-closed gate. 4 waves · 6 tasks.
+/// Human-gated diamond DAG: an approve gate dominating both roots
+/// (NEP-0002), two parallel sources, a typed extraction, a synthesis
+/// joining both sources, a persist joining both infers, and a
+/// statically-closed gate. 5 waves · 7 tasks.
 const WORKFLOW_OK: &str = r#"
 nika: v1
 workflow:
@@ -66,7 +67,7 @@ workflow:
 model: mock/echo
 
 permits:
-  tools: ["nika:read", "nika:write"]
+  tools: ["nika:prompt", "nika:read", "nika:write"]
   exec: ["wc", "echo"]
   fs:
     read: ["./news.json"]
@@ -77,12 +78,27 @@ const:
   publish: "no"
 
 tasks:
+  # The human gate (NEP-0002 · v2.2 made `exec:` born-ingress). `probe`'s
+  # stdout is content this workflow did not author, it meets a private
+  # `fs.read` and reaches `fs.write` + a second exec: the lethal trifecta.
+  # The gate comes FIRST and BOTH roots descend from it — `gather` carries
+  # the private read, `probe` the untrusted content — because a gate on a
+  # sibling branch dominates nothing.
+  approve:
+    invoke:
+      tool: "nika:prompt"
+      args:
+        mode: "confirm"
+        message: "read ${{ const.source }}, summarize it and write the report?"
+
   gather:
+    after: { approve: success }
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.source }}" }
 
   probe:
+    after: { approve: success }
     exec:
       command: ["wc", "-l", "./news.json"]
 
@@ -256,12 +272,13 @@ fn e2e_static_audit_proves_topology_cost_and_permits() {
     assert_eq!(
         wave_ids(&wf, &report),
         [
+            vec!["approve"],
             vec!["gather", "probe"],
             vec!["extract", "think"],
             vec!["write_out"],
             vec!["notify"],
         ],
-        "diamond topology: parallel sources → two infers → persist → gate"
+        "human gate → parallel sources → two infers → persist → conditional send"
     );
 
     // The cost lane is HONEST about the mock model: no catalog price means
@@ -290,6 +307,7 @@ async fn e2e_happy_path_full_pipeline() {
     // the static audit, is its own test above; execute() re-asserts it).
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams = Seams::new(shell, tools);
@@ -307,7 +325,7 @@ async fn e2e_happy_path_full_pipeline() {
     );
 
     let calls = seams.tools.captured_calls();
-    assert_eq!(calls.len(), 2, "gather + write_out");
+    assert_eq!(calls.len(), 3, "approve + gather + write_out");
     // Find by tool name, not by index — intra-wave dispatch order is the
     // engine's freedom, not this test's contract.
     let read = calls
@@ -355,8 +373,9 @@ async fn e2e_happy_path_full_pipeline() {
     let view = fold(&events);
     assert_eq!(view.workflow, "e2e-veille");
     assert_eq!(view.verdict, Some(true));
-    assert_eq!(view.rows().len(), 6);
-    assert_eq!(view.done_count(), 6);
+    // Seven since the NEP-0002 gate joined the graph.
+    assert_eq!(view.rows().len(), 7);
+    assert_eq!(view.done_count(), 7);
     let by_id = states(&view);
     assert_eq!(by_id["gather"], TaskState::Ok);
     assert_eq!(by_id["probe"], TaskState::Ok);
@@ -369,10 +388,10 @@ async fn e2e_happy_path_full_pipeline() {
         "infer completions reported token usage into the fold"
     );
 
-    // The frame: identity line + a 6/6 meter, no failure card.
+    // The frame: identity line + a 7/7 meter, no failure card.
     let lines = frame(&view, &PLAIN, 0);
     assert!(
-        lines[0].contains("e2e-veille · 6 tasks"),
+        lines[0].contains("e2e-veille · 7 tasks"),
         "header: {}",
         lines[0]
     );
@@ -380,7 +399,7 @@ async fn e2e_happy_path_full_pipeline() {
         .iter()
         .find(|l| l.contains("done"))
         .expect("meter line present");
-    assert!(meter.contains("6/6 done"), "meter: {meter}");
+    assert!(meter.contains("7/7 done"), "meter: {meter}");
     assert!(
         !lines.iter().any(|l| l.contains("NIKA-")),
         "no failure card on the happy path"
@@ -400,6 +419,7 @@ async fn e2e_structured_output_validates_real_dataflow() {
     // schema-validated and typed.
     let shell = MockShell::new().enqueue_ok("42\n");
     let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "ok"));
     let seams = Seams::new(shell, tools);
@@ -446,7 +466,9 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
 
     // probe explodes; gather's lane stays alive.
     let shell = MockShell::new().enqueue_fail(7, "disk full: /var/news");
-    let tools = MockToolExecutor::new().enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
     let seams = Seams::new(shell, tools);
 
     let (events, ok) = execute(&wf, &report, &seams).await;
@@ -455,8 +477,18 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
     // Partial scheduling is the point: extract (gather-only deps) RAN,
     // think/write_out/notify never did.
     let calls = seams.tools.captured_calls();
-    assert_eq!(calls.len(), 1, "write_out never reached the tool seam");
-    assert_eq!(calls[0].name, "nika:read");
+    assert_eq!(
+        calls.len(),
+        2,
+        "approve ran · write_out never reached the tool seam"
+    );
+    // By NAME, not index — the file's own rule twenty lines up: intra-wave
+    // dispatch order is the engine's freedom. The gate made `calls[0]` the
+    // prompt and this line the only one that noticed.
+    assert!(
+        calls.iter().any(|c| c.name == "nika:read"),
+        "gather hit the tool seam"
+    );
 
     let view = fold(&events);
     assert_eq!(view.verdict, Some(false));
@@ -472,7 +504,11 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
     // notify's explicit `when:` still gets its evaluation (deps are
     // terminal · the always-pattern lane) — publish=no · gate closed.
     assert_eq!(by_id["notify"], TaskState::Skipped);
-    assert_eq!(view.done_count(), 6, "every task reached a terminal state");
+    assert_eq!(
+        view.done_count(),
+        7,
+        "every task reached a terminal state · the gate included"
+    );
 
     // The failure card carries the registry code end-to-end: verb error →
     // event detail → fold → frame → the explain hint.
@@ -556,6 +592,7 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
     let (wf, report) = parse_and_check(WORKFLOW_OK);
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams = Seams::new(shell, tools);
@@ -584,6 +621,7 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
     // clock pin the whole pipeline (the spec's reproducibility law).
     let shell2 = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools2 = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("call-approve", "true"))
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams2 = Seams::new(shell2, tools2);
@@ -593,7 +631,44 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
         .map(|e| serde_json::to_string(e).expect("event serializes"))
         .collect::<Vec<_>>()
         .join("\n");
-    assert_eq!(ndjson, ndjson2, "two runs, one byte-identical trace");
+    // One field is per-run BY DESIGN and must be: the approval ticket's
+    // digest folds `minted_at_ms`, which is what gives its TTL and its
+    // anti-replay window meaning (nika-runtime/src/approval.rs · a ticket
+    // minted at another instant is another capability). Everything else —
+    // event ids, timestamps, every content hash — is byte-identical, and
+    // that is the property this test exists for.
+    //
+    // What it also shows, and what is NOT by design: the mint reads the
+    // WALL clock while every event timestamp comes from the injected
+    // stamper, so the approval path escapes the Clock injection INV-027
+    // asks for. Routing the mint through the injected clock would make
+    // this carve-out unnecessary — recorded rather than papered over.
+    assert_eq!(
+        strip_approval_digest(&ndjson),
+        strip_approval_digest(&ndjson2),
+        "two runs, one byte-identical trace (modulo the minted-at ticket digest)"
+    );
+}
+
+/// Blank the one per-run field: the approval ticket digest (see above).
+fn strip_approval_digest(ndjson: &str) -> String {
+    let mut out = String::with_capacity(ndjson.len());
+    for line in ndjson.split('\n') {
+        if line.contains("approval_decided")
+            && let Some(i) = line.find("{\"key\":\"digest\",\"value\":\"")
+        {
+            let head = &line[..i];
+            let rest = &line[i..];
+            let end = rest.find("\"}").map_or(rest.len(), |j| j + 2);
+            out.push_str(head);
+            out.push_str("{\"key\":\"digest\",\"value\":\"<minted-at-varies>\"}");
+            out.push_str(&rest[end..]);
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    out
 }
 
 // ─── test 5 · the agent loop over the REAL builtin dispatcher ────────────

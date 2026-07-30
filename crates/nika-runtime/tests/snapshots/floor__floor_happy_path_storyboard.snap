@@ -3,12 +3,17 @@ source: crates/nika-runtime/tests/floor.rs
 expression: lines
 ---
 - "WorkflowStarted ·  · "
+- "TaskScheduled · approve · "
 - "TaskScheduled · gather · "
 - "TaskScheduled · probe · "
 - "TaskScheduled · extract · "
 - "TaskScheduled · think · "
 - "TaskScheduled · write_out · "
 - "TaskScheduled · notify · "
+- "TaskStarted · approve · invoke · nika:prompt"
+- "PermitChecked · approve · "
+- "ApprovalDecided · approve · "
+- "TaskCompleted · approve · invoke · nika:prompt"
 - "TaskStarted · gather · invoke · nika:read"
 - "PermitChecked · gather · "
 - "TaskCompleted · gather · invoke · nika:read"

@@ -157,11 +157,12 @@ pub use hints::Hint;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
+pub use policy::policy_wire_code;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
-pub use schema_typing::SchemaTypeFinding;
+pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
 pub use walk::static_read_paths;
@@ -354,6 +355,12 @@ pub struct CheckReport {
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
     pub schema_findings: Vec<SchemaTypeFinding>,
+    /// Every deep output reference the lane CANNOT judge (F3 ·
+    /// 2026-07-30): the target task exists but declares no output shape
+    /// (a builtin invoke without `returns:` · an exec without `output:`
+    /// bindings). Never a finding — the verdict line counts them so the
+    /// ✔ names its own blind spot. Additive: `report_version` stays 1.
+    pub unverifiable_output_refs: Vec<UnverifiableOutputRef>,
     /// Every `when:`-gate reachability finding — a PROVABLY dead task
     /// (the gate is unsatisfiable under every reachable combination of
     /// upstream terminal statuses) or a status comparison against a
@@ -560,6 +567,33 @@ impl CheckReport {
     }
 }
 
+/// ONE VOICE (spec 04 §Static binding validation · conformance
+/// `runner-protocol.md` class B). Since the 2026-07-30 lock the coded
+/// `NIKA-VAR-003` walk in [`analyze`] owns the strict-binding law, and it
+/// carries the did-you-mean the check-side rung used to be the only holder
+/// of. That rung stays for the shapes the walk declares opaque, but it must
+/// not repeat a reference the walk already refused: one defect printed twice
+/// reads as two defects, and the conformance harness would then see a coded
+/// refusal beside a codeless twin.
+///
+/// The match is on the BACKTICKED reference, not a bare substring — the
+/// violation renders the path inside backticks, so `tasks.a.output.x` cannot
+/// silently swallow a finding about `tasks.a.output.x_2`.
+fn drop_refs_the_coded_walk_refused(
+    findings: Vec<SchemaTypeFinding>,
+    conformance: &[ConformanceViolation],
+) -> Vec<SchemaTypeFinding> {
+    findings
+        .into_iter()
+        .filter(|f| {
+            let quoted = format!("`{}`", f.reference);
+            !conformance
+                .iter()
+                .any(|v| v.code == "NIKA-VAR-003" && v.message.contains(&quoted))
+        })
+        .collect()
+}
+
 /// Run the full static pre-flight over a parsed workflow — INFALLIBLE
 /// (the rustc model: maximal information per run).
 ///
@@ -636,6 +670,17 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
+    // H6 · the width-capped DAG read STATES its miss (the
+    // verdict-coverage law: a law that did not judge says so, in the
+    // report's own surface — the JSON `hints[]` and the console HINTS
+    // section both carry it).
+    if let Some(miss) = dag_read.stated_miss {
+        hints.push(Hint {
+            kind: "analysis",
+            task: "-".to_owned(),
+            advice: miss,
+        });
+    }
     // policy reads graph ancestors — valid order or no claim (IFC gating)
     let policy_findings = if conformance.is_empty() {
         policy::scan_policy(wf, &edges)
@@ -651,6 +696,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);
+    let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
+    let schema_findings = drop_refs_the_coded_walk_refused(schema_findings, &conformance);
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -666,7 +713,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,
         trifecta_findings,
-        schema_findings: schema_typing::scan_types(wf),
+        schema_findings,
+        unverifiable_output_refs,
         unknown_tools: tools::scan_unknown_tools(wf),
         unknown_args: tools::scan_unknown_args(wf),
         missing_args: tools::scan_missing_args(wf),
@@ -940,10 +988,17 @@ tasks:
         assert!(!r.is_clean());
         // rename repairs (did-you-mean)
         assert_eq!(r.unknown_tools[0].suggestion.as_deref(), Some("nika:write"));
+        // The misspelled output key repairs from the CODED voice since
+        // the 2026-07-30 lock: `analyze()`'s NIKA-VAR-003 walk owns the
+        // strict-binding law and carries the suggestion, and the
+        // check-side rung no longer repeats it (one voice). What the
+        // repair loop needs is unchanged — a did-you-mean it can apply.
         assert!(
-            r.schema_findings[0]
-                .detail
-                .contains("did you mean `summary`")
+            r.conformance
+                .iter()
+                .any(|v| v.code == "NIKA-VAR-003" && v.message.contains("did you mean `summary`")),
+            "{:?}",
+            r.conformance
         );
         assert!(
             r.schema_lints

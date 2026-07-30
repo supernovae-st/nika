@@ -30,8 +30,13 @@ use nika_types::resource::Value as FieldValue;
 /// The `--resume` request as parsed from the CLI surface.
 #[derive(Debug, Clone)]
 pub struct ResumeRequest {
-    /// The prior run's NDJSON trace path.
-    pub trace: PathBuf,
+    /// The prior run's NDJSON trace path — `None` on the answers-only
+    /// form (F4 · 2026-07-30): `--answer` WITHOUT `--resume` pre-seeds the
+    /// gates of a FRESH run (the answer waits in the map until the gate
+    /// asks — the CI one-pass gate the rider always meant to serve);
+    /// `Some` folds the skip plan + the paused ticket + the version
+    /// judgment as before.
+    pub trace: Option<PathBuf>,
     /// `--from <task_id>` — force this task + its transitive downstream
     /// to re-run even on an identity match (ADR-099 §3).
     pub from: Option<String>,

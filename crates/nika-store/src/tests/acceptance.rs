@@ -42,7 +42,7 @@ fn write_outside(dir: &Path, name: &str, value: &serde_json::Value) {
 }
 
 /// **positive** — a legit write is signed + labeled; recall admits it; the
-/// seal fold pins the admitted digest + the rejection count.
+/// seal fold pins the admitted set's digest + the counts.
 #[test]
 fn a_signed_write_is_admitted_and_its_digest_lands_in_the_fold() {
     let root = tempfile::tempdir().expect("tempdir");
@@ -99,16 +99,17 @@ fn a_signed_write_is_admitted_and_its_digest_lands_in_the_fold() {
         "digest stable across decode"
     );
 
-    // The fold pins the admitted digest + the zero rejection count (and
+    // The fold pins the admitted set's ONE digest + the counts (and
     // carries its own format version beside the stores).
     let fold = seal_fold(&root, &pk).expect("a memory root folds");
     assert_eq!(fold["v"], serde_json::json!(1), "the fold is versioned");
     assert_eq!(fold["stores"][0]["store"], serde_json::json!("default"));
     assert_eq!(
-        fold["stores"][0]["admitted"],
-        serde_json::json!([written.digest()]),
-        "the receipt names the verified SET"
+        fold["stores"][0]["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[written.digest()])),
+        "the receipt names the verified SET — its digest IS the name (O(1))"
     );
+    assert_eq!(fold["stores"][0]["admitted_count"], serde_json::json!(1));
     assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(0));
 }
 
@@ -142,7 +143,12 @@ fn a_direct_file_edit_is_rejected_bad_signature() {
         "one flipped byte anywhere in the envelope = rejected"
     );
     let fold = seal_fold(&root, &pk).expect("a memory root folds");
-    assert_eq!(fold["stores"][0]["admitted"], serde_json::json!([]));
+    assert_eq!(
+        fold["stores"][0]["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[])),
+        "no admission — the empty set's digest"
+    );
+    assert_eq!(fold["stores"][0]["admitted_count"], serde_json::json!(0));
     assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(1));
 }
 
@@ -250,9 +256,10 @@ fn an_unsigned_entry_is_zero_percent_admission() {
     assert_eq!(unsigned, 2, "both unsigned shapes are NAMED: {verdicts:?}");
     let fold = seal_fold(&root, &pk).expect("a memory root folds");
     assert_eq!(
-        fold["stores"][0]["admitted"],
-        serde_json::json!([honest.digest()])
+        fold["stores"][0]["set_digest"],
+        serde_json::json!(crate::tests::set_digest(&[honest.digest()]))
     );
+    assert_eq!(fold["stores"][0]["admitted_count"], serde_json::json!(1));
     assert_eq!(
         fold["stores"][0]["rejected"],
         serde_json::json!(2),

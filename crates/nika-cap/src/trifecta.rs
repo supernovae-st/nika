@@ -168,14 +168,18 @@ fn grants_untrusted_ingress(tools: &[String]) -> bool {
 
 /// The three legs off the DECLARED boundary (NEP-0002 §Specification ·
 /// v2.0: ② needs the grant AND one realized source — a granted-but-never
-/// invoked ingress no longer arms the trifecta).
+/// invoked ingress no longer arms the trifecta · F2 2026-07-30: the exec
+/// permit is an ingress CHANNEL, the grant twin of `classify(exec) =
+/// born_ingress` — a subprocess imports content the workflow did not
+/// author, so `exec` allowed arms leg ② exactly like a fetch grant).
 fn legs(permits: &Permits, subjects: &[TrifectaSubject]) -> (bool, bool, bool) {
     let private_read = permits.fs.as_ref().is_some_and(|fs| !fs.read.is_empty());
-    let untrusted_ingress = subjects.iter().any(|s| s.ingress_source)
-        && permits
+    let ingress_granted = permits.allows_exec()
+        || permits
             .tools
             .as_ref()
             .is_some_and(|t| grants_untrusted_ingress(t));
+    let untrusted_ingress = subjects.iter().any(|s| s.ingress_source) && ingress_granted;
     let external_egress = permits.net.as_ref().is_some_and(|n| !n.http.is_empty())
         || permits
             .fs

@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use nika_types::types::{NikaType, assignable, parse_type};
 
 use crate::analyzer::named_types;
-use nika_schema::expression::{Expr, scan_templates, task_output_paths};
+use nika_schema::expression::{Expr, scan_templates, task_output_paths, with_alias_paths};
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::{VarDecl, type_expr_display};
 
@@ -47,6 +47,24 @@ pub struct SchemaTypeFinding {
     pub detail: String,
 }
 
+/// A deep `tasks.<id>.output.<path…>` reference the lane CANNOT judge
+/// (F3 · 2026-07-30): the target task exists but declares NO output
+/// shape — a builtin invoke without `returns:`, an exec without
+/// `output:` bindings. Not a finding (the soundness law stands: no proof
+/// either way, no finding) — but an ✔ that stays silent about them reads
+/// as universal while the run dies on a missing key, so the verdict line
+/// counts them and names its own blind spot (the F7 narrowing pattern:
+/// the line claims exactly what it covers).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct UnverifiableOutputRef {
+    /// Where the reference appears (task id · `<id> (on_finally)` ·
+    /// `outputs`).
+    pub site: String,
+    /// The reference, rendered (`tasks.inspect.output.total_usd`).
+    pub reference: String,
+}
+
 /// One task's declared output address space.
 enum Shape<'a> {
     /// `schema:` on an infer/agent task — a JSON Schema to descend.
@@ -58,9 +76,13 @@ enum Shape<'a> {
 
 /// Scan every expression island in the workflow and type-check deep
 /// `tasks.<id>.output.<path…>` references against declared shapes.
+/// Returns the findings AND the unverifiable refs (F3): a deep ref whose
+/// target task exists but declares no output shape is no finding — the
+/// verdict line counts it instead of reading as universal.
 #[must_use]
-pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
+pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<UnverifiableOutputRef>) {
     let mut findings = Vec::new();
+    let mut unverifiable = Vec::new();
     // for_each source typing reads VAR declarations, not output shapes —
     // it must run even when no task carries a `schema:`/`output:`.
     scan_for_each_sources(wf, &mut findings);
@@ -69,30 +91,69 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
     // the shapes map can borrow either surface.
     let lowered = crate::analyzer::lowered_returns(wf);
     let shapes = declared_shapes(wf, &lowered);
-    if shapes.is_empty() {
-        return findings; // no output shapes → only the for_each findings
-    }
+    // NO early return when `shapes` is empty: with zero declared shapes
+    // every deep ref into an existing task is unverifiable — the F3 case
+    // itself — and counting them is now this lane's duty.
+    let all_tasks: std::collections::BTreeSet<&str> =
+        wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
         for text in task_texts(&task.value) {
-            check_text(id, text, &shapes, &mut findings);
+            check_text(
+                id,
+                text,
+                &shapes,
+                &all_tasks,
+                &mut findings,
+                &mut unverifiable,
+            );
+        }
+        // A `with:` alias bound to a SHAPELESS task's whole output
+        // carries the same blind spot one hop further (F3's own repro
+        // reads `with.bill.total_usd`, not `tasks.bill.output.total_usd`).
+        let aliases = shapeless_with_aliases(&task.value, &shapes, &all_tasks);
+        if !aliases.is_empty() {
+            for text in task_texts(&task.value) {
+                check_alias_text(id, text, &aliases, &mut unverifiable);
+            }
         }
         for cleanup in &task.value.on_finally {
             let site = format!("{id} (on_finally)");
             if let Some(when) = &cleanup.value.when
                 && let Some(expr) = when.value.as_expr()
             {
-                check_text(&site, expr, &shapes, &mut findings);
+                check_text(
+                    &site,
+                    expr,
+                    &shapes,
+                    &all_tasks,
+                    &mut findings,
+                    &mut unverifiable,
+                );
             }
             for text in action_texts(&cleanup.value.action) {
-                check_text(&site, text, &shapes, &mut findings);
+                check_text(
+                    &site,
+                    text,
+                    &shapes,
+                    &all_tasks,
+                    &mut findings,
+                    &mut unverifiable,
+                );
             }
         }
     }
     for (_, decl) in &wf.outputs {
-        check_text("outputs", &decl.value().value, &shapes, &mut findings);
+        check_text(
+            "outputs",
+            &decl.value().value,
+            &shapes,
+            &all_tasks,
+            &mut findings,
+            &mut unverifiable,
+        );
     }
-    findings
+    (findings, unverifiable)
 }
 
 /// A `for_each:` source that is a BARE `${{ inputs.X }}`/`${{ config.X }}`/
@@ -169,6 +230,75 @@ fn bare_authority_reference(src: &str) -> Option<(String, String)> {
         return Some((r.clone(), field.clone()));
     }
     None
+}
+
+/// The `with:` aliases of one task that bind a SHAPELESS task's whole
+/// output (`bill: "${{ tasks.bill.output }}"` where `bill` declares no
+/// shape) — a deep read THROUGH the alias is exactly as unverifiable as
+/// the direct deep ref (F3's own repro reads `with.bill.total_usd`).
+/// Maps alias → producer id.
+fn shapeless_with_aliases(
+    task: &RawTask,
+    shapes: &BTreeMap<&str, Shape<'_>>,
+    all_tasks: &std::collections::BTreeSet<&str>,
+) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (name, v) in &task.with {
+        let Some(s) = v.value.as_str() else {
+            continue;
+        };
+        let Some(producer) = bare_whole_output_ref(s) else {
+            continue;
+        };
+        if all_tasks.contains(producer.as_str()) && !shapes.contains_key(producer.as_str()) {
+            out.insert(name.value.clone(), producer);
+        }
+    }
+    out
+}
+
+/// The producer id of a value that is EXACTLY `${{ tasks.<id>.output }}`
+/// (one island covering the whole string · no deeper path).
+fn bare_whole_output_ref(s: &str) -> Option<String> {
+    let islands = scan_templates(s).ok()?;
+    let [island] = islands.as_slice() else {
+        return None;
+    };
+    if !s[..island.start].trim().is_empty() || !s[island.end..].trim().is_empty() {
+        return None;
+    }
+    match task_output_paths(&island.expr).as_slice() {
+        [(id, path)] if path.is_empty() => Some(id.clone()),
+        _ => None,
+    }
+}
+
+/// Scan one text for deep reads THROUGH a `with:` alias bound to a
+/// shapeless task output — the same blind spot as the direct deep ref,
+/// one hop later (the alias is the edge since W2 « the flow »).
+fn check_alias_text(
+    site: &str,
+    text: &str,
+    aliases: &BTreeMap<String, String>,
+    unverifiable: &mut Vec<UnverifiableOutputRef>,
+) {
+    let Ok(islands) = scan_templates(text) else {
+        return;
+    };
+    for island in islands {
+        for (alias, path) in with_alias_paths(&island.expr) {
+            let Some(producer) = aliases.get(&alias) else {
+                continue; // an alias bound to a shaped/local value is the shape lanes'
+            };
+            unverifiable.push(UnverifiableOutputRef {
+                site: site.to_owned(),
+                reference: format!(
+                    "tasks.{producer}.output.{} (via with.{alias})",
+                    path.join(".")
+                ),
+            });
+        }
+    }
 }
 
 /// Collect each task's declared output address space. `output:` bindings
@@ -293,11 +423,17 @@ fn collect_value_strings<'a>(value: &'a Value, out: &mut Vec<&'a str>) {
 }
 
 /// Type-check every island of one text against the declared shapes.
+/// A deep ref whose target IS a workflow task but carries no declared
+/// shape is no finding (the soundness law) — it is counted as
+/// unverifiable instead, so the verdict line can name its blind spot.
+#[allow(clippy::too_many_arguments)] // the two out-lanes + the two task sets ride together
 fn check_text(
     site: &str,
     text: &str,
     shapes: &BTreeMap<&str, Shape<'_>>,
+    all_tasks: &std::collections::BTreeSet<&str>,
     findings: &mut Vec<SchemaTypeFinding>,
+    unverifiable: &mut Vec<UnverifiableOutputRef>,
 ) {
     // a malformed island is the parser/analyzer's finding, not ours
     let Ok(islands) = scan_templates(text) else {
@@ -309,7 +445,18 @@ fn check_text(
                 continue; // whole-output reference · always valid
             }
             let Some(shape) = shapes.get(target.as_str()) else {
-                continue; // un-shaped task · output is opaque
+                // A real task with NO declared output shape: the lane
+                // cannot prove anything (opaque), but the ✔ must not
+                // read as checked-and-fine (F3). A target that is no
+                // task at all is the DAG lane's finding, never this
+                // one's.
+                if all_tasks.contains(target.as_str()) {
+                    unverifiable.push(UnverifiableOutputRef {
+                        site: site.to_owned(),
+                        reference: format!("tasks.{target}.output.{}", path.join(".")),
+                    });
+                }
+                continue;
             };
             let detail = match shape {
                 Shape::Schema(schema) => resolve(schema, &path),
@@ -411,7 +558,11 @@ mod tests {
     use nika_schema::source::FileId;
 
     fn findings_of(yaml: &str) -> Vec<SchemaTypeFinding> {
-        scan_types(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+        scan_types(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse")).0
+    }
+
+    fn unverifiable_of(yaml: &str) -> Vec<UnverifiableOutputRef> {
+        scan_types(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse")).1
     }
 
     fn for_each_wf(authority: &str, var_decl: &str) -> String {
@@ -608,5 +759,63 @@ mod tests {
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1, "left admits, neither fails all branches");
         assert!(f[0].reference.ends_with("neither"));
+    }
+
+    /// F3 (2026-07-30): a deep ref into a task with NO declared output
+    /// shape (a builtin invoke without `returns:`) stays NO finding —
+    /// the soundness law — but it is COUNTED as unverifiable, so the
+    /// verdict line names its blind spot instead of reading as
+    /// universal. A ref into a SHAPED task is judged, never counted; a
+    /// ref into a task that does not exist is the DAG lane's, never
+    /// this one's.
+    #[test]
+    fn a_deep_ref_into_a_shapeless_task_is_unverifiable_not_a_finding() {
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  inspect:\n    invoke: { tool: \"nika:inspect\", args: { view: \"cost\" } }\n  report:\n    infer: { prompt: \"total ${{ tasks.inspect.output.total_usd }}\" }\n";
+        let findings = findings_of(yaml);
+        assert!(
+            findings.is_empty(),
+            "no proof either way, no finding: {findings:?}"
+        );
+        let unverifiable = unverifiable_of(yaml);
+        assert_eq!(
+            unverifiable.len(),
+            1,
+            "the blind spot is counted exactly once: {unverifiable:?}"
+        );
+        assert_eq!(unverifiable[0].site, "report", "{unverifiable:?}");
+        assert_eq!(
+            unverifiable[0].reference, "tasks.inspect.output.total_usd",
+            "{unverifiable:?}"
+        );
+    }
+
+    #[test]
+    fn a_deep_ref_through_a_with_alias_is_unverifiable_too() {
+        // The record's own repro (run 5 · F3): the shapeless output is
+        // bound WHOLE into `with:` and the deep read happens one hop
+        // later, through the alias.
+        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: { tools: [\"nika:inspect\"], exec: [\"echo\"] }\ntasks:\n  bill:\n    invoke: { tool: \"nika:inspect\", args: { view: \"cost\" } }\n  report:\n    with: { bill: \"${{ tasks.bill.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.bill.total_usd }}\"] }\n";
+        let unverifiable = unverifiable_of(yaml);
+        assert_eq!(
+            unverifiable.len(),
+            1,
+            "the aliased blind spot is counted: {unverifiable:?}"
+        );
+        assert_eq!(unverifiable[0].site, "report", "{unverifiable:?}");
+        assert_eq!(
+            unverifiable[0].reference, "tasks.bill.output.total_usd (via with.bill)",
+            "{unverifiable:?}"
+        );
+    }
+
+    #[test]
+    fn a_ref_into_a_missing_task_is_the_dag_lanes_never_this_count() {
+        let unverifiable = unverifiable_of(
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output.x }}\" }\n",
+        );
+        assert!(
+            unverifiable.is_empty(),
+            "a nonexistent target is never this lane's to count: {unverifiable:?}"
+        );
     }
 }

@@ -614,8 +614,10 @@ mod tests {
     /// failed `nika check --native-strict` in the shell and was refused
     /// by the hook in front of `nika run`. The `is_clean` mirror law — a
     /// check that fails the shell must not read as success over MCP —
-    /// is what this pins.
-    const LEAVES_THE_NATIVE_PATH: &str = "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"curl\"] }\ntasks:\n  grab:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+    /// is what this pins. (The fixture declares its `net.http`: post-D1
+    /// the exec URL is a net USE — undeclared it would be a PERMITS
+    /// escape, and this test row is about the hint gate, not the escape.)
+    const LEAVES_THE_NATIVE_PATH: &str = "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  grab:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
 
     #[test]
     fn check_is_strict_about_the_native_path_by_default() {

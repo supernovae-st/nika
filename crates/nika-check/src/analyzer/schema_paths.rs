@@ -9,10 +9,21 @@
 //! checked at parse time. The contract is **soundness** · only
 //! PROVABLY-invalid paths are rejected (`NIKA-VAR-003`) ·
 //!
-//! 1. a member step on a level declaring `additionalProperties: false`
-//!    whose `properties` omit the key;
+//! 1. a member step on a level that DECLARES `properties` which omit
+//!    the key, or declares `additionalProperties: false`;
 //! 2. a member step on a level whose `type` excludes `object`;
 //! 3. an index step on a level whose `type` excludes `array`.
+//!
+//! Rule 1's first half is the operator lock of 2026-07-30 (spec 04
+//! rewritten · conformance `runner-protocol.md` class D): declaring
+//! `properties:` CLOSES a level for binding, because a structured
+//! output `schema:` compiles strict and the misspelled-key class is
+//! the whole point of the walk. `additionalProperties: true` (or a
+//! schema object) reopens it explicitly; a level that declares
+//! nothing stays opaque and nothing beneath it is rejected. Before
+//! the lock this walk waited for an explicit `additionalProperties:
+//! false`, which is why the check-side strict-binding rung had to
+//! refuse CODELESS beside it — two voices for one law. One voice now.
 //!
 //! The walk covers the v0.1 subset (`properties` · `items` · `type` ·
 //! `additionalProperties`) — any other construct (`$ref` · `oneOf` ·
@@ -26,6 +37,7 @@ use serde_json::Value;
 use nika_schema::error::SchemaError;
 use nika_schema::expression::{Expr, Literal};
 use nika_schema::source::Span;
+use nika_types::suggest::{did_you_mean, suggestion_clause};
 
 use super::scan::WorkflowIndex;
 
@@ -216,18 +228,42 @@ fn provably_invalid(schema: &Value, steps: &[Step]) -> Option<String> {
                         "member step `.{key}` on a level whose type excludes object"
                     ));
                 }
-                if let Some(Value::Object(props)) = map.get("properties")
-                    && let Some(next) = props.get(key)
-                {
+                let props = map.get("properties").and_then(Value::as_object);
+                if let Some(next) = props.and_then(|p| p.get(key)) {
                     level = next;
                     continue;
                 }
+                // The level does not declare `key`. Only an EXPLICIT
+                // opt-out reopens it.
+                if matches!(
+                    map.get("additionalProperties"),
+                    Some(Value::Bool(true) | Value::Object(_))
+                ) {
+                    return None;
+                }
+                // The misspelled-key class is the reason this walk
+                // exists, so it carries the suggestion the check-side
+                // rung used to be kept around for.
+                let hint = |p: &serde_json::Map<String, Value>| {
+                    suggestion_clause(did_you_mean(key, p.keys().map(String::as_str)))
+                };
                 if map.get("additionalProperties") == Some(&Value::Bool(false)) {
                     return Some(format!(
-                        "key `{key}` absent from a closed level (additionalProperties: false)"
+                        "key `{key}` absent from a closed level \
+                         (additionalProperties: false){}",
+                        props.map(hint).unwrap_or_default()
                     ));
                 }
-                return None; // open level
+                if let Some(props) = props {
+                    return Some(format!(
+                        "key `{key}` absent from a level that declares its properties \
+                         [{}]{} — declaring `properties:` closes a level for binding · \
+                         `additionalProperties: true` reopens it",
+                        props.keys().cloned().collect::<Vec<_>>().join(", "),
+                        hint(props)
+                    ));
+                }
+                return None; // declares nothing here · genuinely opaque
             }
             Step::Index(i) => {
                 if type_excludes("array") {
@@ -299,9 +335,41 @@ mod tests {
 
     #[test]
     fn missing_key_on_open_level_passes() {
-        let s = json!({ "type": "object", "properties": {} });
+        // Spec 04 · « a level that declares NO `properties:` at all (a
+        // bare `type: object`) is open: nothing is declared, so nothing
+        // can be contradicted ». This is the soundness half of the
+        // 2026-07-30 lock and it must survive it.
+        let s = json!({ "type": "object" });
         assert_eq!(
             provably_invalid(&s, &[Step::Member("anything".into())]),
+            None
+        );
+    }
+
+    #[test]
+    fn an_empty_properties_map_still_closes_the_level() {
+        // The corner the lock decides against the pre-lock reading:
+        // `properties: {}` DECLARES properties and lists nothing, so
+        // every key is outside the declaration (spec 04 rule 1 · « the
+        // declared empty object »). Before the lock this passed.
+        let s = json!({ "type": "object", "properties": {} });
+        let reason = provably_invalid(&s, &[Step::Member("anything".into())]);
+        assert!(
+            reason.is_some_and(|r| r.contains("declares its properties")),
+            "an empty declaration is still a declaration"
+        );
+    }
+
+    #[test]
+    fn explicit_additional_properties_reopens_a_declared_level() {
+        // The one-line fix the message prescribes has to actually work.
+        let s = json!({
+            "type": "object",
+            "additionalProperties": true,
+            "properties": { "entities": { "type": "array" } }
+        });
+        assert_eq!(
+            provably_invalid(&s, &[Step::Member("maybe_extra".into())]),
             None
         );
     }
@@ -347,7 +415,12 @@ mod tests {
 
     #[test]
     fn type_list_including_object_passes_member_step() {
-        let s = json!({ "type": ["object", "null"], "properties": {} });
+        // What this guards is the TYPE-LIST arm — `["object","null"]`
+        // does not exclude object, so rule 2 must not fire. The key is
+        // declared on purpose: since the 2026-07-30 lock an undeclared
+        // key would refuse under rule 1 and the test would pass for the
+        // wrong reason (it used to lean on `properties: {}` being open).
+        let s = json!({ "type": ["object", "null"], "properties": { "x": { "type": "string" } } });
         assert_eq!(provably_invalid(&s, &[Step::Member("x".into())]), None);
     }
 

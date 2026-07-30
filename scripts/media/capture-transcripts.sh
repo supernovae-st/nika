@@ -50,7 +50,16 @@ else
 fi
 
 # ── dag-execution ───────────────────────────────────────────────────────
-SHOWCASE="crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"
+SHOWCASE="crates/nika-pack/pack/examples/pr-review-fanout.nika.yaml"
+# The path is asserted, not assumed: every capture below redirects stderr INTO
+# its artifact, so a missing input does not fail the script — it writes the
+# reader an error message where a diagram belongs. This one had been pointing
+# at a `showcase/t3-` layout the pack flattened away, and both artifacts
+# carried "cannot read ..." instead of a DAG (measured 2026-07-30).
+[[ -f "$SHOWCASE" ]] || {
+  echo "FATAL: showcase example missing: $SHOWCASE" >&2
+  exit 1
+}
 nika inspect --format mermaid "$SHOWCASE" >"$RAW/graph-fanout.mmd" 2>&1
 nika check --color never "$SHOWCASE" >"$RAW/check-fanout.txt" 2>&1
 

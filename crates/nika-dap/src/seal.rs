@@ -358,7 +358,7 @@ pub fn seal_event(
 /// (its digest rides; the body stays the evidence pack's surface), the
 /// budgets ρ consumed against the certificate's ceiling, the
 /// effects ε exercised against the declared bound, the signed-memory
-/// fold (F-P8 · the admitted digests + the rejection count), and the
+/// fold (F-P8 · the admitted set's digest + the rejection count), and the
 /// failed run's quarantine fold (F-P14 · la dette du run). Every field is
 /// ADDITIVE — `seal_format` stays 1: the verify tier reads `covers`
 /// tolerantly (unknown keys are ignored, verified by the tier tests),
@@ -382,11 +382,15 @@ pub struct SealTeardown {
     /// The effects ε fold (exercised vs declared), pre-shaped by the caller.
     pub effects: Option<serde_json::Value>,
     /// The memory fold (F-P8 · SMSR signed memory): `{"v": 1, "stores":
-    /// [{store, admitted: [digest…], rejected: n} | {store, error}]}` —
-    /// the admitted set NAMED by digest, the rejections counted (unsigned
-    /// · bad signature · relabel = rejected, never filtered) and named
-    /// one `memory_entry_rejected` journal event each BEFORE this seal
-    /// (the chain covers them), a failed store walk NAMED in place.
+    /// [{store, set_digest, admitted_count, rejected} | {store,
+    /// error}]}` — the admitted set NAMED by ONE constant-size digest
+    /// (blake3 over the sorted digests — the set's digest IS its name,
+    /// so the seal line never crosses the chain walk's 1 MiB line bound,
+    /// H13), the rejections counted (unsigned · bad signature · relabel
+    /// = rejected, never filtered) and named — the first
+    /// `MAX_JOURNALED_REJECTIONS` as `memory_entry_rejected` journal
+    /// events, a flood as ONE `memory_rejections_summary` — BEFORE this
+    /// seal (the chain covers them), a failed store walk NAMED in place.
     /// Pre-shaped by the caller from `nika_store::seal_fold`. Rides ONLY
     /// when the run's CWD holds a `.nika/memory/` store — `None` keeps
     /// the key OUT (absent is honest).
@@ -509,8 +513,9 @@ fn extend_covers(
         covers["effects"] = effects.clone();
     }
     // F-P8 · the signed-memory fold rides verbatim: the seal pins the
-    // verified SET (the admitted digests) and the rejection count beside
-    // it; `None` keeps the key OUT (absent is honest).
+    // verified SET (its ONE set digest + the admitted count) and the
+    // rejection count beside it; `None` keeps the key OUT (absent is
+    // honest).
     if let Some(memory) = &teardown.memory {
         covers["memory"] = memory.clone();
     }
@@ -940,7 +945,7 @@ mod tests {
     }
 
     /// F-P8 (SMSR signed memory) · the memory fold rides `covers`
-    /// additively — the admitted digests + the rejection count — and the
+    /// additively — the admitted set's ONE digest + the counts — and the
     /// signature verifies over the extended object; a `None` keeps the
     /// key OUT (no `.nika/memory/` in the run's CWD ⇒ nothing to attest).
     #[test]
@@ -952,9 +957,8 @@ mod tests {
             "stores": [
                 {
                     "store": "default",
-                    "admitted": [
-                        "b2f1a0c94e6d41f8a0d3c5b7e9f1a2c4b6d8e0f2a4c6b8d0e2f4a6c8b0d2e4f6",
-                    ],
+                    "set_digest": "b2f1a0c94e6d41f8a0d3c5b7e9f1a2c4b6d8e0f2a4c6b8d0e2f4a6c8b0d2e4f6",
+                    "admitted_count": 1,
                     "rejected": 1,
                 },
             ],
@@ -974,19 +978,24 @@ mod tests {
         let covers: serde_json::Value = mint_and_covers(&teardown, &sk, &pk);
 
         // The classic four ride unchanged; the memory fold joins them
-        // VERBATIM (the admitted digests AND the rejection count).
+        // VERBATIM (the set digest AND the counts).
         assert_eq!(covers["head"], serde_json::json!("ab12cd"));
         assert_eq!(
             covers["memory"]["stores"][0]["store"],
             serde_json::json!("default")
         );
         assert_eq!(
-            covers["memory"]["stores"][0]["admitted"][0]
+            covers["memory"]["stores"][0]["set_digest"]
                 .as_str()
-                .expect("the digest rides")
+                .expect("the set digest rides")
                 .len(),
             64,
-            "the admitted set is NAMED by full digest"
+            "the admitted set is NAMED by ONE constant-size digest (H13)"
+        );
+        assert_eq!(
+            covers["memory"]["stores"][0]["admitted_count"],
+            serde_json::json!(1),
+            "the set's size rides beside its name"
         );
         assert_eq!(
             covers["memory"]["stores"][0]["rejected"],

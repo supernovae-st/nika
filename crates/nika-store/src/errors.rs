@@ -35,6 +35,16 @@ pub enum StoreError {
         /// What violates the layout.
         reason: String,
     },
+    /// A commit's canonical file name already holds DIFFERENT bytes — an
+    /// out-of-engine plant at that name is tamper evidence: the write is
+    /// refused, never a silent clobber (identical bytes are the idempotent
+    /// rewrite — a no-op, not an error).
+    #[error("memory entry conflict: {reason}")]
+    #[diagnostic(help("{}", codes::code_help(codes::NIKA_605)))]
+    Conflict {
+        /// Which name carries divergent bytes.
+        reason: String,
+    },
 }
 
 impl NikaErrorCode for StoreError {

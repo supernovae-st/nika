@@ -441,11 +441,13 @@ struct RunArgs {
     /// rotated secret · external state · an infer output to re-roll).
     #[arg(long, value_name = "TASK_ID", requires = "resume")]
     from: Option<String>,
-    /// Answer a paused `nika:prompt` at resume (repeatable · ADR-099
-    /// rider): binds as the named task's answer — `--answer ok=true` for
-    /// confirm, a string for input, one of the choices for choice. The
-    /// value parses as JSON when it parses, else rides as a string.
-    #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
+    /// Answer a `nika:prompt` gate (repeatable · ADR-099 rider): binds as
+    /// the named task's answer — `--answer ok=true` for confirm, a string
+    /// for input, one of the choices for choice. The value parses as JSON
+    /// when it parses, else rides as a string. Without `--resume` the
+    /// answer is PRE-SEEDED on the fresh run: it waits in the gate map
+    /// and is consumed when the task asks (the CI one-pass gate).
+    #[arg(long = "answer", value_name = "TASK=VALUE")]
     answer: Vec<String>,
     /// Run ONE task and its transitive upstream only (the regenerate-one-
     /// block move): the full workflow still audits (spans · findings stay
@@ -833,15 +835,14 @@ fn run_verb(
     plain: bool,
     ascii: bool,
 ) -> u8 {
-    let resume = args
-        .resume
-        .as_ref()
-        .map(|trace| nika_dap::resume::ResumeRequest {
-            trace: trace.clone(),
+    let resume = (args.resume.is_some() || !args.answer.is_empty()).then(|| {
+        nika_dap::resume::ResumeRequest {
+            trace: args.resume.clone(),
             from: args.from.clone(),
             answers: args.answer.clone(),
             compat: args.resume_compat.clone(),
-        });
+        }
+    });
     let mode = resolve_run_mode(args.quiet, args.no_progress || plain);
     let mut theme = term_theme(color.with_no_color(false), ascii || plain, link_when);
     // The duration accents ride the interactive surface ONLY — the

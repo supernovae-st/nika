@@ -64,6 +64,25 @@ pub fn bare_task_refs(expr: &Expr) -> Vec<String> {
     out
 }
 
+/// Every `with.<alias>.<path…>` access chain with its FULL path after
+/// the alias — the aliased twin of [`task_output_paths`]: a `with:`
+/// binding can hold a task's whole output, so a deep read THROUGH the
+/// alias is the same dataflow hop as the direct deep reference (F3's
+/// own repro binds `with.bill` then reads `with.bill.total_usd`).
+#[must_use]
+pub fn with_alias_paths(expr: &Expr) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    walk_chains(expr, &mut |root, path| {
+        if root == "with"
+            && path.len() >= 2
+            && let Some(alias) = path.first()
+        {
+            out.push((alias.clone(), path[1..].to_vec()));
+        }
+    });
+    out
+}
+
 /// Whether the expression ROOT is boolean-shaped (spec `03-dag.md`
 /// §when valid/invalid lists) · `||` · `&&` · `!` · any relation · or a
 /// bool literal. A bare path / non-bool literal root is NOT.

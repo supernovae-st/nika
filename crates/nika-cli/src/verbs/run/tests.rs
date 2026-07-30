@@ -1,0 +1,400 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(clippy::expect_used)]
+
+//! Tests for the `run` verb — split out of `mod.rs` when the F4
+//! `--answer` pre-seed pushed the file past the 1500-LOC hard cap
+//! (ADR-023). A pure move at the `#[cfg(test)]` boundary: same
+//! cases, same imports, no logic touched.
+
+use std::collections::BTreeMap;
+
+use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run};
+use crate::Theme;
+use serde_json::json;
+
+/// The #332 plan object: waves resolve indices → task ids, one
+/// `{id, verb}` row per task, the report's cost/permits/requirements
+/// ride verbatim, and `effects_executed` states the contract.
+#[test]
+fn dry_run_payload_projects_the_versioned_plan() {
+    let yaml = "nika: v1\nworkflow:\n  id: demo\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"go ${{ with.prev }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::source::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    let p = dry_run_payload("demo.nika.yaml", &wf, &report);
+    assert_eq!(p["plan_version"], 1);
+    assert_eq!(p["workflow"], "demo");
+    assert_eq!(p["waves"], json!([["a"], ["b"]]));
+    assert_eq!(p["tasks"][0]["verb"], "exec");
+    assert_eq!(p["tasks"][1]["verb"], "infer");
+    assert_eq!(p["effects_executed"], false);
+    assert_eq!(p["permits"]["source"], "absent");
+    assert!(p["cost"].is_object() && p["requirements"].is_object());
+}
+
+/// The empty-state voice (design §3 rider): an ENV refusal (missing
+/// file) carries the house prefix + ONE fix line + a closing
+/// newline; FILE findings pass through to the check card untouched.
+#[test]
+fn refusal_text_teaches_only_the_env_class() {
+    let env = crate::verbs::VerbOutput {
+        text: "cannot read demo.yaml: No such file or directory (os error 2)".to_owned(),
+        code: exit::ENV,
+    };
+    let voiced = super::refusal_text(&env);
+    assert!(
+        voiced.starts_with("nika run: cannot read demo.yaml"),
+        "{voiced}"
+    );
+    assert!(voiced.contains("fix: check the path"), "{voiced}");
+    assert!(voiced.ends_with('\n'), "closes its own line: {voiced:?}");
+
+    let findings = crate::verbs::VerbOutput {
+        text: "PARSE X  [NIKA-PARSE-009] two verbs".to_owned(),
+        code: exit::FILE,
+    };
+    assert_eq!(super::refusal_text(&findings), findings.text);
+}
+
+/// A noiseless theme (no colour · no animation) for the run tests — they
+/// exercise the COMPOSITION + exit code, not the render surface.
+fn plain_theme() -> Theme {
+    Theme::new(false, true, false)
+}
+
+fn stage(name: &str, yaml: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join("nika-cli-run-mod-tests");
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join(name);
+    std::fs::write(&path, yaml).expect("fixture written");
+    path
+}
+
+/// `--model mock/echo` on a workflow whose envelope is a LOCAL model
+/// resolves + runs to SUCCESS offline — mock/echo needs no provider, so
+/// the override is the offline-preview path the example tip suggests.
+#[test]
+fn model_override_runs_a_local_model_workflow_offline() {
+    let wf = stage(
+        "override-infer.nika.yaml",
+        "nika: v1\nworkflow:\n  id: override-infer\nmodel: ollama/llama3.1\ntasks:\n  think:\n    infer: { prompt: \"hello\" }\n",
+    );
+    let code = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        Some("mock/echo"),
+        &[],
+        None,
+        true, // tests never write .nika/traces (cwd hygiene)
+        None, // whole-workflow runs (scoping has its own tests)
+        false,
+        None,
+        true,
+        false, // unsigned-tolerant (the signature gate has its own test)
+    );
+    assert_eq!(
+        code,
+        exit::OK,
+        "the mock/echo override runs the local-model workflow offline"
+    );
+}
+
+/// The override actually CHANGES the resolved model: the same workflow
+/// that needs a provider (`ollama/llama3.1`) succeeds because the
+/// override swapped in the keyless/networkless mock — proving the
+/// envelope model was not the one resolved.
+#[test]
+fn model_override_replaces_the_resolved_model() {
+    let wf = stage(
+        "override-swap.nika.yaml",
+        "nika: v1\nworkflow:\n  id: override-swap\nmodel: ollama/llama3.1\ntasks:\n  ask:\n    infer: { prompt: \"bonjour\" }\n",
+    );
+    // With the override → mock/echo resolves with no provider → OK.
+    let overridden = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        Some("mock/echo"),
+        &[],
+        None,
+        true, // tests never write .nika/traces (cwd hygiene)
+        None, // whole-workflow runs (scoping has its own tests)
+        false,
+        None,
+        true,
+        false, // unsigned-tolerant (the signature gate has its own test)
+    );
+    assert_eq!(
+        overridden,
+        exit::OK,
+        "the override resolved mock/echo, not the envelope's ollama model"
+    );
+}
+
+// ── `--answer` without `--resume` (the 2026-07-30 audit · F4) ───────
+
+/// The CI one-pass gate: a FRESH run with a pre-seeded answer
+/// consumes it at the gate and completes — no trace, no resume, no
+/// TTY. Before F4 the clap surface refused the pairing outright
+/// (`requires = "resume"`); the gate map always could consume it.
+#[test]
+fn answer_without_resume_preseeds_the_gate() {
+    let wf = stage(
+        "answer-fresh.nika.yaml",
+        "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+    );
+    let req = nika_dap::resume::ResumeRequest {
+        trace: None, // the answers-only form — no plan, no paused ticket
+        from: None,
+        answers: vec!["ask=true".to_owned()],
+        compat: None,
+    };
+    let code = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        None,
+        &[],
+        Some(&req),
+        true, // tests never write .nika/traces (cwd hygiene)
+        None, // whole-workflow runs (scoping has its own tests)
+        false,
+        None,
+        true,
+        false, // unsigned-tolerant (the signature gate has its own test)
+    );
+    assert_eq!(
+        code,
+        exit::OK,
+        "the pre-seeded answer clears the gate on a fresh run"
+    );
+}
+
+/// The same pairing still validates the answer keys against the
+/// workflow — an unknown task id refuses at admission (the parse
+/// never relaxes with the new form).
+#[test]
+fn answer_without_resume_still_refuses_an_unknown_task() {
+    let wf = stage(
+        "answer-unknown.nika.yaml",
+        "nika: v1\nworkflow:\n  id: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n",
+    );
+    let req = nika_dap::resume::ResumeRequest {
+        trace: None,
+        from: None,
+        answers: vec!["ghost=true".to_owned()],
+        compat: None,
+    };
+    let code = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        None,
+        &[],
+        Some(&req),
+        true,
+        None,
+        false,
+        None,
+        true,
+        false,
+    );
+    assert_eq!(
+        code,
+        exit::ENV,
+        "an answer for a task that does not exist refuses at admission"
+    );
+}
+
+// ── `--var` (F4) — the required-var class was UNRUNNABLE from the CLI ──
+
+/// The workflow of the field repro: a `required: true` var with no
+/// default. Before F4 there was NO way to run it from the CLI.
+const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow:\n  id: needs-var\nmodel: mock/echo\ninputs:\n  topic:\n    type: string\n    required: true\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
+
+fn run_with_vars(name: &str, vars: &[String]) -> u8 {
+    let wf = stage(name, REQUIRED_VAR_WF);
+    run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        None,
+        vars,
+        None,
+        true, // tests never write .nika/traces (cwd hygiene)
+        None, // whole-workflow runs (scoping has its own tests)
+        false,
+        None,
+        true,
+        false, // unsigned-tolerant (the signature gate has its own test)
+    )
+}
+
+#[test]
+fn var_flag_satisfies_a_required_var() {
+    // Without the flag the run refuses at ADMISSION (issue #603 ·
+    // NIKA-1708 · exit 3) — before the DAG spends a task; the mid-DAG
+    // NIKA-VAR-001 at the first `${{ inputs.topic }}` read was the bug.
+    assert_eq!(
+        run_with_vars("var-missing.nika.yaml", &[]),
+        exit::ENV,
+        "an unsatisfied required input refuses at admission (#603)"
+    );
+    // With `--var topic=rust` the SAME workflow runs green.
+    assert_eq!(
+        run_with_vars("var-provided.nika.yaml", &["topic=rust".to_owned()]),
+        exit::OK,
+        "--var makes the required-var workflow runnable"
+    );
+}
+
+#[test]
+fn var_flag_refuses_unknown_keys_and_bad_shapes() {
+    // A typo'd key must refuse LOUDLY (exit 3 · never silently ignored).
+    assert_eq!(
+        run_with_vars("var-unknown.nika.yaml", &["topik=rust".to_owned()]),
+        exit::ENV,
+        "unknown --var key is refused"
+    );
+    // A pair without `=` is an operator input error, same class.
+    assert_eq!(
+        run_with_vars("var-shape.nika.yaml", &["topic".to_owned()]),
+        exit::ENV,
+        "malformed --var pair is refused"
+    );
+}
+
+/// #473 e2e (mock · offline): the resolved-skills wiring is
+/// LOAD-BEARING through the production composition — the same
+/// skills-carrying agent workflow settles GREEN when the composer's
+/// map rides `with_skills`, and fails with the check-time code when
+/// an embedder skips it (the wiring, proven from the CLI seam; the
+/// injected system BYTES are pinned at the runtime's provider seam).
+#[test]
+fn capture_mock_outputs_carries_the_resolved_skills() {
+    // Uniqueness: pid + an atomic discriminator — a pid-only dir is
+    // shared by EVERY test in the process and parallel tests collide
+    // (one's cleanup wiped the other's fixture under gate load — the
+    // 2026-07-21 NIKA-AGENT-003 flake).
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "nika-run-skills-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let skill = dir.join("SKILL.md");
+    std::fs::write(&skill, "---\nname: s\ndescription: d\n---\nBe careful.\n")
+        .expect("fixture skill");
+    let yaml = format!(
+        "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+        skill.display()
+    );
+    let wf = nika_schema::parse(
+        &yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "the pure ladder is fs-free");
+
+    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    assert!(resolved.findings.is_empty(), "the skill file resolves");
+    let theme = Theme::new(false, true, false);
+    let (code, _) =
+        capture_mock_outputs(&wf, &report, resolved.texts, theme).expect("composition succeeds");
+    assert_eq!(code, exit::OK, "skills composed → the mock run is green");
+
+    // The control: WITHOUT the map the dispatch refuses (proves the
+    // seam is load-bearing, not decorative).
+    let (code, _) = capture_mock_outputs(&wf, &report, BTreeMap::new(), theme)
+        .expect("composition still succeeds");
+    assert_eq!(
+        code,
+        exit::WORKFLOW,
+        "no skills map → NIKA-AGENT-003 task failure"
+    );
+}
+
+/// `--require-signature` refuses an unsigned workflow BEFORE any task
+/// executes: exit 2, and the exec task's sentinel is never created.
+/// The counterfactual (the file itself is runnable) rides a dry-run —
+/// plan only, zero effects.
+#[test]
+fn require_signature_refuses_unsigned_before_execution() {
+    let sentinel =
+        std::env::temp_dir().join(format!("nika-sig-gate-sentinel-{}", std::process::id()));
+    let _ = std::fs::remove_file(&sentinel);
+    let yaml = format!(
+        "nika: v1\nworkflow:\n  id: sig-gate\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
+        sentinel.display()
+    );
+    let wf = stage("sig-gate.nika.yaml", &yaml);
+    let gated = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        None,
+        &[],
+        None,
+        true, // tests never write .nika/traces (cwd hygiene)
+        None,
+        false,
+        None,
+        true,
+        true, // --require-signature
+    );
+    assert_eq!(
+        gated,
+        exit::FILE,
+        "unsigned + --require-signature must refuse (exit 2)"
+    );
+    assert!(
+        !sentinel.exists(),
+        "the gate fired BEFORE execution — the exec task never ran"
+    );
+    // The counterfactual: the SAME file without the flag plans green.
+    let planned = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        true, // --dry-run: plan only, zero effects
+        None,
+        &[],
+        None,
+        true,
+        None,
+        false,
+        None,
+        true,
+        false, // unsigned-tolerant default
+    );
+    assert_eq!(planned, exit::OK, "the workflow itself is runnable");
+}

@@ -1915,9 +1915,11 @@ impl<T> tracing::instrument::Instrument for nika_dap::memory::RejectedEntry
 impl<T> tracing::instrument::WithSubscriber for nika_dap::memory::RejectedEntry
 impl<T> typenum::type_operators::Same for nika_dap::memory::RejectedEntry
 pub type nika_dap::memory::RejectedEntry::Output = T
+pub const nika_dap::memory::MAX_JOURNALED_REJECTIONS: usize
 pub fn nika_dap::memory::attend(cwd: core::option::Option<&std::path::Path>) -> nika_dap::memory::MemoryAttend
 pub fn nika_dap::memory::journal_rejected(trace: &mut nika_dap::journal::TraceFileSink, rejected: &[nika_dap::memory::RejectedEntry])
 pub fn nika_dap::memory::rejected_event(entry: &nika_dap::memory::RejectedEntry) -> nika_event::event::Event
+pub fn nika_dap::memory::rejections_summary_event(total: usize) -> nika_event::event::Event
 pub mod nika_dap::otel
 pub struct nika_dap::otel::ExportOutcome
 pub nika_dap::otel::ExportOutcome::broken_at: core::option::Option<usize>
@@ -2414,7 +2416,7 @@ pub struct nika_dap::resume::ResumeRequest
 pub nika_dap::resume::ResumeRequest::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_dap::resume::ResumeRequest::compat: core::option::Option<alloc::string::String>
 pub nika_dap::resume::ResumeRequest::from: core::option::Option<alloc::string::String>
-pub nika_dap::resume::ResumeRequest::trace: std::path::PathBuf
+pub nika_dap::resume::ResumeRequest::trace: core::option::Option<std::path::PathBuf>
 impl core::clone::Clone for nika_dap::resume::ResumeRequest
 pub fn nika_dap::resume::ResumeRequest::clone(&self) -> nika_dap::resume::ResumeRequest
 impl core::fmt::Debug for nika_dap::resume::ResumeRequest

@@ -13,6 +13,17 @@
 //! returns a SYNTHESIZED schema-conformant instance (`mock_schema` · F3),
 //! so every structured workflow dry-runs offline instead of dying
 //! NIKA-INFER-002 after burning its retry budget.
+//!
+//! The tool-call contract (M1 · the offline agent rehearsal): tools
+//! granted ⇒ the mock invokes the FIRST granted tool, schema-shaped args
+//! — UNTIL the conversation shows that call cannot progress (its last
+//! call to the same tool ERRORED, or the call it is about to make
+//! repeats a prior one BYTE-IDENTICALLY), at which point a granted
+//! `nika:done` is preferred (schema-shaped result, like any tool). A
+//! first-granted `nika:done` still fires on turn one (agent/002); no
+//! `nika:done` granted ⇒ the first tool stands and the loop exhausts
+//! honestly (agent/001). The witnesses are read off the request's own
+//! messages — the mock stays stateless, so determinism is untouched.
 
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -21,7 +32,7 @@ use std::task::{Context, Poll};
 use futures_core::Stream;
 use nika_kernel::ai::provider::{
     ContentBlock, InferEvent, InferEventStream, InferRequest, InferResponse, ProviderError,
-    ResponseFormat, Role, StopReason, TokenUsage,
+    ResponseFormat, Role, StopReason, TokenUsage, ToolChoice, ToolDef,
 };
 
 use super::mock_schema;
@@ -36,13 +47,18 @@ use crate::registry::ResolvedProvider;
 /// against the tool's own schema — an agent loop drives offline to its
 /// `done` (002) or its exhaustion (001). No tools offered (or tool use
 /// disabled) ⇒ the plain echo, unchanged.
+///
+/// M1's amendment: a first tool that is not `nika:done` stalls the loop
+/// byte-identically once its synthesized args error or succeed without
+/// changing the next call (NIKA-467 — the contract broke
+/// templates/agent-loop and the research/review examples at rehearsal).
+/// So after the FIRST errored or byte-identical repeated call to the
+/// same tool, a granted `nika:done` is preferred ([`done_preference`]).
 pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> InferResponse {
     let called = match &request.tool_choice {
-        nika_kernel::ai::provider::ToolChoice::None => None,
-        nika_kernel::ai::provider::ToolChoice::Specific(name) => {
-            request.tools.iter().find(|t| &t.name == name)
-        }
-        _ => request.tools.first(),
+        ToolChoice::None => None,
+        ToolChoice::Specific(name) => request.tools.iter().find(|t| &t.name == name),
+        _ => done_preference(request, request.tools.first()),
     };
     if let Some(tool) = called {
         let input = mock_schema::synthesize(&tool.parameters);
@@ -124,6 +140,71 @@ pub(crate) fn infer_stream<H>(
         finish_reason_raw: full.finish_reason_raw.clone(),
     }));
     Box::pin(ReadyStream(events))
+}
+
+/// M1 — the offline-rehearsal loop escape. When the default pick (the
+/// FIRST granted tool) is not `nika:done` and the conversation shows the
+/// call cannot progress, prefer a granted `nika:done` — with its args
+/// synthesized against the offered schema like any tool, so the loop's
+/// `schema:` contract still validates. No `nika:done` granted ⇒ the
+/// first tool stands (agent/001 still exhausts); a first-granted
+/// `nika:done` is already the pick and fires on turn one (agent/002).
+fn done_preference<'a>(
+    request: &'a InferRequest,
+    first: Option<&'a ToolDef>,
+) -> Option<&'a ToolDef> {
+    let tool = first?;
+    if tool.name == "nika:done" || !stalled_on(request, tool) {
+        return first;
+    }
+    request
+        .tools
+        .iter()
+        .find(|t| t.name == "nika:done")
+        .or(first)
+}
+
+/// Has the conversation already seen `tool` called in a way the next
+/// call cannot progress past? Two witnesses, both read off the request's
+/// own messages (the agent loop rides results as user-role `ToolResult`
+/// blocks keyed by the call id):
+///
+/// - the tool's last call ERRORED (`is_error: true` — the loop's
+///   model-feedback seam for every non-security tool failure); or
+/// - the call the mock is about to make repeats a prior call
+///   BYTE-IDENTICALLY (the synthesized args are deterministic — same
+///   tool, same bytes, same observation: the NIKA-467 stall signature).
+fn stalled_on(request: &InferRequest, tool: &ToolDef) -> bool {
+    let input = mock_schema::synthesize(&tool.parameters);
+    request.messages.iter().any(|message| {
+        message.content.iter().any(|block| {
+            let ContentBlock::ToolUse {
+                id,
+                name,
+                input: prior,
+            } = block
+            else {
+                return false;
+            };
+            name == &tool.name && (prior == &input || result_errored(request, id))
+        })
+    })
+}
+
+/// The `ToolResult` riding a prior call carries `is_error: true`.
+fn result_errored(request: &InferRequest, tool_use_id: &str) -> bool {
+    request.messages.iter().any(|message| {
+        message.content.iter().any(|block| {
+            matches!(
+                block,
+                ContentBlock::ToolResult {
+                    tool_use_id: id,
+                    is_error: true,
+                    ..
+                } if id == tool_use_id
+            )
+        })
+    })
 }
 
 fn last_user_text(request: &InferRequest) -> String {
@@ -236,16 +317,12 @@ mod tests {
         let rp = resolved();
         let mut request = req("loop forever");
         request.tools = vec![
-            nika_kernel::ai::provider::ToolDef::new(
+            ToolDef::new(
                 "nika:wait",
                 "wait",
                 serde_json::json!({ "type": "object", "required": ["ms"], "properties": { "ms": { "type": "integer" } } }),
             ),
-            nika_kernel::ai::provider::ToolDef::new(
-                "nika:done",
-                "done",
-                serde_json::json!({ "type": "object" }),
-            ),
+            ToolDef::new("nika:done", "done", serde_json::json!({ "type": "object" })),
         ];
         let a = infer(&rp, &request);
         let ContentBlock::ToolUse { id, name, input } = &a.content[0] else {
@@ -263,7 +340,7 @@ mod tests {
 
         // Tool use explicitly disabled ⇒ the plain echo, unchanged.
         let mut off = req("loop forever");
-        off.tool_choice = nika_kernel::ai::provider::ToolChoice::None;
+        off.tool_choice = ToolChoice::None;
         off.tools = request.tools.clone();
         let plain = infer(&rp, &off);
         let ContentBlock::Text { text } = &plain.content[0] else {
@@ -273,14 +350,148 @@ mod tests {
 
         // A specific choice names its tool, first or not.
         let mut specific = req("finish");
-        specific.tool_choice =
-            nika_kernel::ai::provider::ToolChoice::Specific("nika:done".to_owned());
+        specific.tool_choice = ToolChoice::Specific("nika:done".to_owned());
         specific.tools = request.tools;
         let done = infer(&rp, &specific);
         let ContentBlock::ToolUse { name, .. } = &done.content[0] else {
             panic!("expected a tool call");
         };
         assert_eq!(name, "nika:done");
+    }
+
+    // ─── M1 · the done-preference ────────────────────────────────────
+
+    fn wait_def() -> ToolDef {
+        ToolDef::new(
+            "nika:wait",
+            "wait",
+            serde_json::json!({ "type": "object", "required": ["ms"], "properties": { "ms": { "type": "integer" } } }),
+        )
+    }
+
+    fn done_def() -> ToolDef {
+        ToolDef::new(
+            "nika:done",
+            "done",
+            serde_json::json!({ "type": "object", "required": ["result"], "properties": { "result": { "type": "string" } } }),
+        )
+    }
+
+    /// A turn-2 conversation exactly as the agent loop builds it: the
+    /// mock's turn-1 call (its own id + args) rides as an assistant
+    /// message, the tool's result as a user `ToolResult` block.
+    fn after_call(name: &str, input: serde_json::Value, is_error: bool) -> Vec<Message> {
+        vec![
+            Message::text(Role::User, "work the loop"),
+            Message::new(
+                Role::Assistant,
+                vec![ContentBlock::ToolUse {
+                    id: "mock-call-1".to_owned(),
+                    name: name.to_owned(),
+                    input,
+                }],
+            ),
+            Message::new(
+                Role::User,
+                vec![ContentBlock::ToolResult {
+                    tool_use_id: "mock-call-1".to_owned(),
+                    content: if is_error {
+                        "NIKA-BUILTIN-WAIT-001 · unparseable duration".to_owned()
+                    } else {
+                        "null".to_owned()
+                    },
+                    is_error,
+                }],
+            ),
+        ]
+    }
+
+    fn tool_request(tools: Vec<ToolDef>, history: Vec<Message>) -> InferRequest {
+        let mut request = InferRequest::new("echo", history);
+        request.tools = tools;
+        request
+    }
+
+    fn called_name(response: &InferResponse) -> &str {
+        let ContentBlock::ToolUse { name, .. } = &response.content[0] else {
+            panic!("expected a tool call, got {:?}", response.content[0]);
+        };
+        name
+    }
+
+    /// M1 · the wait+done rehearsal: the wait's synthesized args ERROR
+    /// deterministically against the real builtin — after that first
+    /// errored call the mock prefers the granted `nika:done` (with a
+    /// schema-shaped result) instead of stalling byte-identically.
+    #[test]
+    fn an_errored_call_prefers_a_granted_done() {
+        let rp = resolved();
+        let wait = wait_def();
+        let history = after_call("nika:wait", mock_schema::synthesize(&wait.parameters), true);
+        let request = tool_request(vec![wait, done_def()], history);
+        let a = infer(&rp, &request);
+        let ContentBlock::ToolUse { name, input, .. } = &a.content[0] else {
+            panic!("expected a tool call, got {:?}", a.content[0]);
+        };
+        assert_eq!(name, "nika:done");
+        assert_eq!(input["result"], "mock", "the schema-shaped result rides");
+        assert!(matches!(a.stop_reason, StopReason::ToolUse));
+        // Deterministic: the same conversation always makes the same pick.
+        let b = infer(&rp, &request);
+        assert_eq!(
+            serde_json::to_value(&a.content[0]).expect("serializes"),
+            serde_json::to_value(&b.content[0]).expect("serializes"),
+            "the preference is byte-stable"
+        );
+    }
+
+    /// M1 · the stall twin: even a SUCCESSFUL call cannot be repeated —
+    /// the mock's next call would be byte-identical (deterministic
+    /// synthesis), which is exactly the NIKA-467 signature, so the
+    /// granted `nika:done` wins on turn two.
+    #[test]
+    fn a_byte_identical_repeat_prefers_done_even_after_a_success() {
+        let rp = resolved();
+        let wait = wait_def();
+        let history = after_call(
+            "nika:wait",
+            mock_schema::synthesize(&wait.parameters),
+            false,
+        );
+        let request = tool_request(vec![wait, done_def()], history);
+        assert_eq!(called_name(&infer(&rp, &request)), "nika:done");
+    }
+
+    /// agent/001's shape: NO `nika:done` granted — the stall witness
+    /// changes nothing, the first tool stands, and the loop exhausts
+    /// honestly (the fixture pins the exhaustion at the runtime).
+    #[test]
+    fn no_done_offered_keeps_calling_the_first_tool() {
+        let rp = resolved();
+        let wait = wait_def();
+        let history = after_call("nika:wait", mock_schema::synthesize(&wait.parameters), true);
+        let request = tool_request(vec![wait], history);
+        assert_eq!(called_name(&infer(&rp, &request)), "nika:wait");
+    }
+
+    /// agent/002's shape: `nika:done` IS the first granted tool — turn
+    /// one, no witness needed, the preference never even runs.
+    #[test]
+    fn done_first_fires_on_turn_one() {
+        let rp = resolved();
+        let request = tool_request(vec![done_def()], vec![Message::text(Role::User, "finish")]);
+        assert_eq!(called_name(&infer(&rp, &request)), "nika:done");
+    }
+
+    /// The preference is not a hair trigger: a prior call to the same
+    /// tool with DIFFERENT args that succeeded is no stall witness — the
+    /// mock's own call would be new bytes, so the first tool stands.
+    #[test]
+    fn a_successful_different_call_is_no_stall_witness() {
+        let rp = resolved();
+        let history = after_call("nika:wait", serde_json::json!({ "ms": 42 }), false);
+        let request = tool_request(vec![wait_def(), done_def()], history);
+        assert_eq!(called_name(&infer(&rp, &request)), "nika:wait");
     }
 
     #[tokio::test]

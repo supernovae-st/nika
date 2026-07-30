@@ -363,3 +363,75 @@ fn a_var_override_satisfies_the_required_input() {
         "the override reached the read: {written}"
     );
 }
+
+/// M1 · the offline agent rehearsal, end to end at the binary: an agent
+/// granted `["nika:wait", "nika:done"]` watches its FIRST tool error
+/// once (the mock's synthesized args fail the real `nika:wait`
+/// contract), then the mock prefers the granted `nika:done` — the loop
+/// completes in two turns instead of stalling byte-identically
+/// (NIKA-467, the pre-fix verdict on this exact shape).
+#[test]
+fn a_wait_done_agent_errors_once_then_completes_via_done() {
+    const WAIT_DONE: &str = r#"
+nika: v1
+workflow:
+  id: run-agent-mock-done
+model: mock/echo
+permits:
+  tools: ["nika:wait", "nika:done"]
+tasks:
+  loop:
+    agent:
+      prompt: "wait once, then finish"
+      tools: ["nika:wait", "nika:done"]
+      max_turns: 5
+"#;
+    let wf = fixture("agent-wait-done.nika.yaml", WAIT_DONE);
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--json")
+        .args(["--color", "never"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the rehearsal completes · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        !stdout.contains("agent_stalled") && !stdout.contains("NIKA-467"),
+        "no byte-identical stall"
+    );
+    // The wait errored EXACTLY once (turn 1) — then the mock preferred
+    // the granted done (turn 2 is loop-owned: no dispatch frame rides).
+    let wait_frames: Vec<&str> = stdout
+        .lines()
+        .filter(|l| l.contains("\"kind\":\"tool_invoked\"") && l.contains("nika:wait"))
+        .collect();
+    assert_eq!(
+        wait_frames.len(),
+        1,
+        "one wait call, errored, never repeated: {stdout}"
+    );
+    let frame: serde_json::Value = serde_json::from_str(wait_frames[0]).expect("one JSON event");
+    assert!(
+        frame["fields"]
+            .as_array()
+            .expect("fields")
+            .iter()
+            .any(|f| f["key"] == "error" && f["value"] == true),
+        "the wait's synthesized args error deterministically: {}",
+        wait_frames[0]
+    );
+    let completed = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"task_completed\""))
+        .expect("the loop completed");
+    assert!(
+        completed.contains("agent · 2 turns"),
+        "done on turn two, deterministically: {completed}"
+    );
+}

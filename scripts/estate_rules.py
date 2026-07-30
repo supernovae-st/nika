@@ -120,7 +120,7 @@ PATTERNS = [
     {
         "glob": "crates/nika-runtime/fixtures/adversarial/**",
         "class": "testimonial",
-        "evidence": "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/fixtures.rs — the injection red-team battery owned by the runtime",
+        "evidence": "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime",
     },
     {
         "glob": "fuzz/corpus/**",

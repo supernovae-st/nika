@@ -18,7 +18,40 @@
 set -Eeuo pipefail
 
 readonly VALID_TYPES='feat|fix|chore|docs|perf|test|refactor|build|ci|revert|security'
-readonly VALID_SCOPES='workspace|kernel|catalog|error|kernel-mock|ci|hygiene|docs|adr|hq|deps|release|dx|rules|skills|hooks|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|runtime|provider|dag|event|resilience|core|db|mcp|cli|tui|schema|screen|diamond|coherence|typos|nika-[a-z0-9-]+'
+
+# Scopes that nothing on disk can derive: sibling repos, cross-cutting concerns
+# and named surfaces. Everything the tree DOES describe — workspace crates and
+# script surfaces — is derived below, because a hand-kept list goes stale the
+# moment either grows. Measured 2026-07-30: `dap`, `proof`, `check` and `pack`
+# warned as unknown while `runtime` and `cli` passed, purely by order of
+# addition; then `media` warned on the very commit that fixed the crate half.
+readonly UNDERIVABLE_SCOPES='workspace|docs|api|hq|deps|dx|rules|skills|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|provider|resilience|db|tui|diamond|coherence|typos'
+
+# Every workspace crate, as both its full name and its `nika-`-stripped short
+# form (`fix(dap)` and `fix(nika-dap)` are the same intent, and history carries
+# both), plus every script surface (`scripts/media` → `media`, which is how
+# `ci`, `hooks`, `hygiene`, `adr`, `release` and `test` earn their place too).
+# Falls back to the pattern alone if the tree is unreachable, since this check
+# only ever warns and must never block a commit over its own plumbing.
+derive_tree_scopes() {
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ -d "$root/crates" ]] || return 1
+  {
+    # shellcheck disable=SC2012  # names only, no metadata needed
+    ls -1 "$root/crates" 2>/dev/null \
+      | sed -e 's/$/|/' -e 's/^nika-\(.*\)|$/nika-\1|\1|/'
+    find "$root/scripts" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null \
+      | sed 's/$/|/'
+  } | tr -d '\n' | sed 's/|$//'
+}
+
+TREE_SCOPES="$(derive_tree_scopes || true)"
+if [[ -n "$TREE_SCOPES" ]]; then
+  readonly VALID_SCOPES="${UNDERIVABLE_SCOPES}|${TREE_SCOPES}"
+else
+  readonly VALID_SCOPES="${UNDERIVABLE_SCOPES}|ci|hooks|hygiene|adr|release|test|nika-[a-z0-9-]+"
+fi
 readonly COAUTHOR_PATTERN='^Co-Authored-By: Nika 🦋 <nika@supernovae\.studio>$'
 readonly MAX_HEADER=100
 readonly MAX_BODY_LINE=72
@@ -70,7 +103,7 @@ DESCRIPTION="${HEADER#*: }"
 if [[ -n "$COMMIT_SCOPE" ]]; then
   SCOPE_INNER="${COMMIT_SCOPE:1:${#COMMIT_SCOPE}-2}" # strip parens
   if ! printf '%s' "$SCOPE_INNER" | grep -qE "^(${VALID_SCOPES})$"; then
-    warn "Scope '${SCOPE_INNER}' is not in the known list. Add it to commitlint.config.js if intentional."
+    warn "Scope '${SCOPE_INNER}' is neither a workspace crate nor a known surface. If it is intentional, add it to UNDERIVABLE_SCOPES in scripts/hooks/validate-conventional-commit.sh (crate scopes need no edit — they are derived from crates/)."
   fi
 fi
 
