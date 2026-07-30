@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 58
-  aggregate_sha256: 468e6c27c6e49cbf9b1094bfe79062d286050c549d399d766645c81fced0b20b
+  aggregate_sha256: c3ff687d88a2fd6d42924bdc4119de663e1d47cee11e2d8d9b828ef20b75a79e
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)"
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 9b9aa6f149e274551ffdcac861c0ff80406b93d0897a12b17c09995a62d4b919
+  aggregate_sha256: 452fead4560e72869cc7d9d352723449549f79de086a8ca3237416d7ba80bdc2
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
