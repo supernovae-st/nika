@@ -126,7 +126,7 @@ patterns:
   class: testimonial
   match_count: 32
   aggregate_sha256: bcdd0e2ed4eed0e5b0fd42bd8c4e33de12028742c26012926ed025881bd0eef8
-  evidence: "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/fixtures.rs — the injection red-team battery owned by the runtime"
+  evidence: "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime"
 - glob: "fuzz/corpus/**"
   class: testimonial
   match_count: 2659
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 129
-  aggregate_sha256: df94b2e1dcf6c38d97bf12bcaef5eb454e2cea33ae6a27b03b17d8be0d653815
+  aggregate_sha256: f6832e910bdf737fa15017c5c3e2a5f48a053862de3e9fa998a4ee026bab6341
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
