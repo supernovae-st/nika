@@ -18,7 +18,34 @@
 set -Eeuo pipefail
 
 readonly VALID_TYPES='feat|fix|chore|docs|perf|test|refactor|build|ci|revert|security'
-readonly VALID_SCOPES='workspace|kernel|catalog|error|kernel-mock|ci|hygiene|docs|adr|hq|deps|release|dx|rules|skills|hooks|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|runtime|provider|dag|event|resilience|core|db|mcp|cli|tui|schema|screen|diamond|coherence|typos|nika-[a-z0-9-]+'
+
+# Non-crate scopes: surfaces, repos and cross-cutting concerns that are not a
+# workspace member. Crate scopes are NOT listed here — they are derived below,
+# because a hand-kept list goes stale the moment the fleet grows (measured
+# 2026-07-30: `dap`, `proof`, `check` and `pack` all warned as unknown while
+# `runtime` and `cli` passed, purely because the newer crates were never added).
+readonly NON_CRATE_SCOPES='workspace|ci|hygiene|docs|adr|api|hq|deps|release|dx|rules|skills|hooks|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|provider|resilience|db|tui|diamond|coherence|typos'
+
+# Every workspace crate, as both its full name and its `nika-`-stripped short
+# form (`fix(dap)` and `fix(nika-dap)` are the same intent, and history carries
+# both). Derived from the directory listing; falls back to the pattern alone if
+# the tree is not reachable, since this check only ever warns.
+derive_crate_scopes() {
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ -d "$root/crates" ]] || return 1
+  # shellcheck disable=SC2012  # names only, no metadata needed
+  ls -1 "$root/crates" 2>/dev/null \
+    | sed -e 's/$/|/' -e 's/^nika-\(.*\)|$/nika-\1|\1|/' \
+    | tr -d '\n' | sed 's/|$//'
+}
+
+CRATE_SCOPES="$(derive_crate_scopes || true)"
+if [[ -n "$CRATE_SCOPES" ]]; then
+  readonly VALID_SCOPES="${NON_CRATE_SCOPES}|${CRATE_SCOPES}"
+else
+  readonly VALID_SCOPES="${NON_CRATE_SCOPES}|nika-[a-z0-9-]+"
+fi
 readonly COAUTHOR_PATTERN='^Co-Authored-By: Nika 🦋 <nika@supernovae\.studio>$'
 readonly MAX_HEADER=100
 readonly MAX_BODY_LINE=72
@@ -70,7 +97,7 @@ DESCRIPTION="${HEADER#*: }"
 if [[ -n "$COMMIT_SCOPE" ]]; then
   SCOPE_INNER="${COMMIT_SCOPE:1:${#COMMIT_SCOPE}-2}" # strip parens
   if ! printf '%s' "$SCOPE_INNER" | grep -qE "^(${VALID_SCOPES})$"; then
-    warn "Scope '${SCOPE_INNER}' is not in the known list. Add it to commitlint.config.js if intentional."
+    warn "Scope '${SCOPE_INNER}' is neither a workspace crate nor a known surface. If it is intentional, add it to NON_CRATE_SCOPES in scripts/hooks/validate-conventional-commit.sh (crate scopes need no edit — they are derived from crates/)."
   fi
 fi
 
