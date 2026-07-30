@@ -98,16 +98,9 @@ pub(super) fn analyze_content_flow(
                     .find_map(|r| source_of(&r, &with_src, item_src.as_ref(), &output, &id_of));
             }
 
-            // The file channel arms on ARRIVED taint, never on born output
-            // (trifecta_core.py: « a TAINTED writer earlier in run order » ·
-            // its writer_origin requires `eff is not None`). This clause
-            // used `out_src` and the difference was invisible until F2:
-            // exec became the first action both born-ingress AND a writer,
-            // so a bare `wc -l` started arming the channel and ANY two
-            // exec tasks under a declared `fs.read` completed the trifecta
-            // with zero real flow — the engine refused five clean fixtures
-            // the reference judge accepted. Arrival-based matches the law:
-            // untrusted bytes reached a task that can stage them on disk.
+            // The file channel arms on ARRIVED taint (`effect_src`), never
+            // on born output — the full story and its mutation-proven pin:
+            // `trifecta::tests::two_execs_with_no_flow_between_them_pass`.
             if effect_src.is_some()
                 && any_writer_so_far.is_none()
                 && classify(&task.action, mcp_trusted).1
