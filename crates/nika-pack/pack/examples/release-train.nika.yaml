@@ -77,6 +77,8 @@ permits:
       - "./VERSION"
       - "./CHANGELOG.md"
       - "./schemas/workflow.schema.json"
+policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
+  endorsement: solo
 
 tasks:
   t0:

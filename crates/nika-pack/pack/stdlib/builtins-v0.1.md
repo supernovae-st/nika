@@ -721,8 +721,9 @@ keep ONE data language (« no two ways to transform data »). Canonical recipes 
 | `nika:json_merge` (recursive `*`) | `.[0] * .[1]` on a `[base, overlay]` input (jaq `obj_merge` · source-verified 2026-05-27) |
 
 Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrate`
-(use `for_each` for bounded fan-out · sub-workflow composition is deferred per
-`08-out-of-scope.md`) · `nika:locale_lookup` (niche i18n → stdlib-extended).
+(use `for_each` for bounded fan-out · a sub-workflow call is the `invoke:
+workflow:` tagged union per `14-composition.md` · never a builtin) ·
+`nika:locale_lookup` (niche i18n → stdlib-extended).
 
 ---
 
