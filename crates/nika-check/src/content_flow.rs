@@ -135,9 +135,20 @@ fn source_of(
 /// writes_fs)` — the module doc's source table, and the writer clause.
 /// The ingress predicates are nika-cap's shared ones (check≡run — the
 /// runtime's F-O1 label reads the same law).
+///
+/// `exec:` is born-ingress (F2 · 2026-07-30 · operator decision A, run 5):
+/// a subprocess is a trust boundary — its stdout is content the workflow
+/// did not author (a curled page · a git log with hostile subjects · a
+/// compromised binary), exactly the class `nika:fetch` is judged for.
+/// Until this row read `(false, true)` the SAME flow drew SEC-009 over
+/// `nika:fetch` and a ✔ over `exec curl` — a perverse incentive to leave
+/// the native path (measured live). Every exec workflow's posture moves
+/// with this row: its outputs taint downstream effects like any other
+/// ingress, and the trifecta's leg ② counts the exec permit as an
+/// ingress channel (`nika_cap::trifecta` — the grant twin of this law).
 pub(super) fn classify(action: &RawAction, mcp_trusted: &dyn Fn(&str) -> bool) -> (bool, bool) {
     match action {
-        RawAction::Exec(_) => (false, true),
+        RawAction::Exec(_) => (true, true),
         RawAction::Agent(a) => (
             a.tools
                 .iter()

@@ -196,10 +196,15 @@ impl<'a> ValueTaint<'a> {
 /// Is the task's verb a born untrusted-ingress source (v1 · the shared
 /// nika-cap predicates): an invoked `nika:fetch` · any `mcp:*` tool
 /// (fail-closed — no catalog consult at runtime) · an `agent:` whose
-/// whitelist admits ingress. A child `workflow:` call is not (spec 14
-/// owns its boundary — `tool()` is `None`).
+/// whitelist admits ingress · an `exec:` (F2 · 2026-07-30 · operator
+/// decision A: a subprocess is a trust boundary — its stdout is content
+/// the workflow did not author, the same class `nika:fetch` is judged
+/// for; the check twin is `content_flow::classify`, check≡run by
+/// construction). A child `workflow:` call is not (spec 14 owns its
+/// boundary — `tool()` is `None`).
 fn born_untrusted(action: &RawAction) -> bool {
     match action {
+        RawAction::Exec(_) => true,
         RawAction::Invoke(inv) => inv
             .tool()
             .is_some_and(|t| nika_cap::invoke_tool_is_ingress(t.value.as_str(), false)),
@@ -412,8 +417,12 @@ mod tests {
 
     #[test]
     fn taint_flows_from_an_upstream_output_through_with_into_the_effect() {
+        // The consumer is an INFER (never a born source): the output
+        // label is the pure propagation story. (It used to ride an exec —
+        // since F2 2026-07-30 exec is born-untrusted, and the born
+        // witness would mask the propagation this test is about.)
         let task = parse_task(&format!(
-            "{HEAD}  use:\n    with: {{ page: \"${{{{ tasks.dl.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.page }}}}\" }}\n"
+            "{HEAD}  use:\n    with: {{ page: \"${{{{ tasks.dl.output }}}}\" }}\n    infer: {{ prompt: \"${{{{ with.page }}}}\", max_tokens: 5 }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl"));
@@ -424,7 +433,7 @@ mod tests {
     #[test]
     fn with_values_reference_earlier_with_keys() {
         let task = parse_task(&format!(
-            "{HEAD}  use:\n    with:\n      a: \"${{{{ tasks.dl.output }}}}\"\n      b: \"${{{{ with.a }}}}\"\n    exec: {{ shell: \"echo ${{{{ with.b }}}}\" }}\n"
+            "{HEAD}  use:\n    with:\n      a: \"${{{{ tasks.dl.output }}}}\"\n      b: \"${{{{ with.a }}}}\"\n    infer: {{ prompt: \"${{{{ with.b }}}}\", max_tokens: 5 }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl"));
@@ -433,7 +442,7 @@ mod tests {
     #[test]
     fn inputs_reads_are_the_caller_boundary() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    exec: {{ shell: \"echo ${{{{ inputs.q }}}}\" }}\n"
+            "{HEAD}  t:\n    infer: {{ prompt: \"${{{{ inputs.q }}}}\", max_tokens: 5 }}\n"
         ));
         assert_eq!(
             task_integrity(&task, &records(Vec::new())),
@@ -460,22 +469,26 @@ mod tests {
     }
 
     #[test]
-    fn exec_is_not_a_born_source_v1() {
-        // The file channel (a tainted writer → this reader) is the
-        // declared v1 residual (ENGINE.md risk (d)).
+    fn exec_is_a_born_source() {
+        // F2 · 2026-07-30 (operator decision A, run 5): a subprocess is a
+        // trust boundary — its stdout is content the workflow did not
+        // author, judged exactly like `nika:fetch`'s. The check twin is
+        // `content_flow::classify` (check≡run). The file channel (a
+        // tainted writer → this reader) stays the declared v1 residual
+        // (ENGINE.md risk (d)) — orthogonal to this born law.
         let task = parse_task(&format!(
             "{HEAD}  t:\n    exec: {{ shell: \"cat out.txt\" }}\n"
         ));
         assert_eq!(
             task_integrity(&task, &records(Vec::new())),
-            Integrity::trusted()
+            Integrity::untrusted("t")
         );
     }
 
     #[test]
     fn recover_reads_propagate_when_the_effect_is_clean() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    exec: {{ shell: \"echo hi\" }}\n    on_error: {{ recover: \"${{{{ tasks.dl.output }}}}\" }}\n"
+            "{HEAD}  t:\n    infer: {{ prompt: \"hi\", max_tokens: 5 }}\n    on_error: {{ recover: \"${{{{ tasks.dl.output }}}}\" }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl"));
@@ -484,13 +497,13 @@ mod tests {
     #[test]
     fn for_each_item_carries_the_collections_taint() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
+            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl"));
         // A literal list is authored — clean even with an item read.
         let literal = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
+            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
         ));
         assert_eq!(
             task_integrity(&literal, &records(Vec::new())),
@@ -611,9 +624,12 @@ mod tests {
         assert_eq!(task_integrity(&task, &recs), Integrity::trusted());
 
         // A tasks.<id>.output door lifts the record's label at the
-        // CONSUMER (the record itself keeps its provenance).
+        // CONSUMER (the record itself keeps its provenance). (The consumer
+        // rides an invoke, never a born source — since F2 an exec's own
+        // output is untrusted regardless of what it read, which would
+        // mask the door this test is about.)
         let consumer = parse_task(&format!(
-            "{HEAD}  use:\n    exec: {{ command: [\"tar\", \"-xf\", \"${{{{ tasks.dl.output }}}}\"] }}\n    declassify:\n      - {{ from: tasks.dl.output, to: trusted, because: \"pinned artifact, hash-reviewed\" }}\n"
+            "{HEAD}  use:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.dl.output }}}}\" }}\n    declassify:\n      - {{ from: tasks.dl.output, to: trusted, because: \"pinned artifact, hash-reviewed\" }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(

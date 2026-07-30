@@ -87,11 +87,16 @@ pub fn is_pure_internal(tool: &str) -> bool {
 pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<BuiltinEffect> {
     match tool {
         "nika:fetch" => Some(BuiltinEffect::Net { url_arg: "url" }),
-        // notify is a net egress ONLY on the webhook channel (a literal
-        // `target` URL); other channels ride engine-configured transports,
-        // not a workflow-declared host. A dynamic channel is unclassifiable
-        // statically (runtime concern).
-        "nika:notify" if literal_str(args, "channel").as_deref() == Some("webhook") => {
+        // notify is a net egress on the webhook channel — and webhook is
+        // the DEFAULT (the def's own contract: "v0.1 engines support the
+        // webhook channel" · `target` IS "the webhook URL"), so an absent
+        // `channel:` rides it. Other channels ride engine-configured
+        // transports, not a workflow-declared host; a dynamic channel is
+        // unclassifiable statically (runtime concern). Until 2026-07-30
+        // the absent-channel case fell through to `None` and the
+        // fetch→notify trifecta passed check clean (the spec corpus's
+        // `trifecta-realized-flow-ungated` pinned the hole).
+        "nika:notify" if notify_webhook_channel(args) => {
             Some(BuiltinEffect::Net { url_arg: "target" })
         }
         "nika:read" => Some(BuiltinEffect::Fs {
@@ -204,6 +209,17 @@ fn literal_str(args: Option<&serde_json::Value>, key: &str) -> Option<String> {
     Some(s.to_owned())
 }
 
+/// notify's channel is the webhook when the arg is ABSENT (the def's own
+/// default: "v0.1 engines support the webhook channel") or literally
+/// `webhook` — a present-but-templated channel is UNCLASSIFIABLE, never a
+/// default (dynamic → the runtime's concern, like every dynamic arg).
+fn notify_webhook_channel(args: Option<&serde_json::Value>) -> bool {
+    match args.and_then(|a| a.get("channel")) {
+        None => true,
+        Some(_) => literal_str(args, "channel").as_deref() == Some("webhook"),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -216,6 +232,14 @@ mod tests {
         let webhook = json!({ "channel": "webhook", "target": "https://x.test/h" });
         assert_eq!(
             builtin_effect("nika:notify", Some(&webhook)),
+            Some(BuiltinEffect::Net { url_arg: "target" })
+        );
+        // webhook is the DEFAULT channel (the def's own contract), so an
+        // absent `channel:` is net too — the absent case passing as
+        // non-egress was the corpus-pinned false-green (2026-07-30).
+        let default_channel = json!({ "target": "https://x.test/h", "message": "hi" });
+        assert_eq!(
+            builtin_effect("nika:notify", Some(&default_channel)),
             Some(BuiltinEffect::Net { url_arg: "target" })
         );
         let desktop = json!({ "channel": "desktop" });
