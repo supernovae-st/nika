@@ -388,7 +388,7 @@ tasks:
 /// tiny budget runs green — the gate reads the FLOOR, and composition
 /// never refuses spuriously.
 #[test]
-fn the_childs_floor_bounds_the_parent_budget_before_any_token() {
+fn the_child_floor_bounds_the_parent_budget_before_any_token() {
     let dir = tmp_dir("comp-budget");
     let priced = "\
 nika: v1
