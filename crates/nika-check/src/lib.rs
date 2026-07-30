@@ -161,7 +161,7 @@ pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
-pub use schema_typing::SchemaTypeFinding;
+pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
 pub use walk::static_read_paths;
@@ -354,6 +354,12 @@ pub struct CheckReport {
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
     pub schema_findings: Vec<SchemaTypeFinding>,
+    /// Every deep output reference the lane CANNOT judge (F3 ·
+    /// 2026-07-30): the target task exists but declares no output shape
+    /// (a builtin invoke without `returns:` · an exec without `output:`
+    /// bindings). Never a finding — the verdict line counts them so the
+    /// ✔ names its own blind spot. Additive: `report_version` stays 1.
+    pub unverifiable_output_refs: Vec<UnverifiableOutputRef>,
     /// Every `when:`-gate reachability finding — a PROVABLY dead task
     /// (the gate is unsatisfiable under every reachable combination of
     /// upstream terminal statuses) or a status comparison against a
@@ -651,6 +657,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);
+    let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -666,7 +673,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,
         trifecta_findings,
-        schema_findings: schema_typing::scan_types(wf),
+        schema_findings,
+        unverifiable_output_refs,
         unknown_tools: tools::scan_unknown_tools(wf),
         unknown_args: tools::scan_unknown_args(wf),
         missing_args: tools::scan_missing_args(wf),

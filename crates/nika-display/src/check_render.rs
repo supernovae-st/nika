@@ -197,15 +197,15 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
         out,
         t,
         "TYPES",
-        // Narrowed on purpose. The scan is sound (schema_typing.rs: an
-        // opaque shape resolves to "unknown — no finding", never a
-        // guess), but the old line — "every deep output reference fits
-        // its declared shape" — read as universal. It is not: a builtin
-        // has no way to declare an output shape, so `output.total_usd`
-        // on a `nika:inspect` task is UNCHECKED, not checked-and-fine.
-        // A green that means less than it says spends trust and returns
-        // nothing; this one now claims exactly what it covers.
-        "deep references fit the shapes tasks declare · builtin output has none",
+        // Narrowed on purpose — twice. First pass (the comment that
+        // stood here): the scan is sound (schema_typing.rs: an opaque
+        // shape resolves to "unknown — no finding", never a guess), so
+        // the universal sentence died. Second pass (F3 · 2026-07-30):
+        // the generic « builtin output has none » read the same on a
+        // file WITH deep refs into unshaped outputs as on one without —
+        // a vacuous ✔ that dies at run on a missing key. The claim now
+        // names THIS file's blind spot (count + refs) when one exists.
+        &types_claim(report),
         report
             .schema_findings
             .iter()
@@ -680,6 +680,34 @@ fn section_or_skip(
             "(skipped — no valid DAG order while conformance fails)"
         )
     );
+}
+
+/// The TYPES claim, narrowed to exactly what the lane covers (F3 ·
+/// 2026-07-30). With no blind spot the old sentence stands; with one,
+/// the line names the count and up to three of the refs the run will
+/// judge — a ✔ that claims exactly what it checked, never more.
+fn types_claim(report: &CheckReport) -> String {
+    let refs: std::collections::BTreeSet<&str> = report
+        .unverifiable_output_refs
+        .iter()
+        .map(|r| r.reference.as_str())
+        .collect();
+    if refs.is_empty() {
+        return "deep references fit the shapes tasks declare · builtin output has none".to_owned();
+    }
+    let n = refs.len();
+    let shown: Vec<&str> = refs.iter().take(3).copied().collect();
+    let more = if n > 3 {
+        format!(" · +{} more", n - 3)
+    } else {
+        String::new()
+    };
+    let noun = if n == 1 { "ref" } else { "refs" };
+    format!(
+        "deep references fit the shapes tasks declare · {n} {noun} into unshaped task \
+         outputs are unverifiable — the run judges them ({}{more})",
+        shown.join(" · ")
+    )
 }
 
 fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
