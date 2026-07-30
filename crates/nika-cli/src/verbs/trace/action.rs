@@ -65,8 +65,16 @@ pub enum TraceAction {
     /// against a custody key) · ANCHORED (the `<trace>.anchor.json`
     /// sidecar verifies fully offline) · REPLAYED (--replay compares
     /// a fresh run). The HIGHEST honestly-attained tier is reported.
-    /// Exit 0 the tier holds · 2 broken/forged · 3 unchained (pre-chain
-    /// journal) or a missing input.
+    /// Three refusals name themselves rather than hide in a tier:
+    /// TAMPERED · SEAL BURIED (lines chained AFTER the seal — appending
+    /// needs only write access, so this is forgery, never a crash) ·
+    /// ANCHOR FORGED (a sidecar that vouches for nothing) · and
+    /// SEAL UNATTRIBUTABLE (the seal names a key you do not hold: the
+    /// signature is NOT judged, which is a missing input and never
+    /// evidence of forgery).
+    /// Exit 0 the tier holds · 2 broken chain, forged seal or forged
+    /// anchor · 3 unchained (pre-chain journal), a missing input, or a
+    /// seal this host cannot attribute.
     Verify {
         /// Trace NDJSON path(s) — a shell glob (`.nika/traces/*.ndjson`)
         /// just works: each file verifies under its own header, the
