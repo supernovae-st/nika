@@ -13,7 +13,10 @@
 //! Always offline (no `--ping` here — that stays doctor's opt-in), always
 //! exit `0` (a greeting is never a failure — even a bare machine gets
 //! routed, not scolded), and PRESENCE-only like everything probe-backed:
-//! no secret value exists in this module by construction. Re-runnable
+//! no secret value exists in this module by construction. The ONE breach
+//! of presence-only: with exactly ONE workflow on disk the concierge
+//! audits THAT file in-process (parse + check ladder · bounded, never a
+//! walk) before any `run` line may be printed (P0-3 · LOI-3). Re-runnable
 //! anytime: welcome is a living mirror, not a splash screen.
 
 use std::fmt::Write as _;
@@ -25,40 +28,77 @@ use crate::verbs::{VerbOutput, probe};
 
 /// The next moves, keyed on where this workspace actually IS — the
 /// concierge hands over ONE key, not the keyring (row 0 carries the
-/// weight; the others stay dim context). Presence-only inputs — the
-/// mirror never audits. Comments stay ≤26 chars: the widest command
-/// pads to 45 and the whole row must live inside 80 columns.
-fn start_moves(glance: Glance) -> [(&'static str, &'static str); 3] {
+/// weight; the others stay dim context). Presence-only inputs — EXCEPT
+/// the 1-workflow case, where `gate` carries the exact file's audit
+/// verdict (P0-3): a `run` line is only ever printed for a file the
+/// ladder just saw clean, and a priced model always carries LOI-3's
+/// cap. The multi-workflow case stays generic BY DESIGN — no N-file
+/// audit on a greeting (`welcome --deep` owns the full truth).
+/// Comments stay ≤26 chars: the widest command pads to 45 and the
+/// whole row must live inside 80 columns.
+fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str); 3] {
     match (glance.workflows, glance.agents_md) {
         // The stranger's moment: nothing here yet — see one run, then found.
         (0, _) => [
             (
-                "nika examples run 01-hello --model mock/echo",
+                "nika examples run 01-hello --model mock/echo".to_owned(),
                 "offline proof · zero keys",
             ),
-            ("nika init", "found this repo (wizard)"),
-            ("nika new", "guided first workflow"),
+            ("nika init".to_owned(), "found this repo (wizard)"),
+            ("nika new".to_owned(), "guided first workflow"),
         ],
         // Workflows live here but the agents were never briefed — the
-        // founding wizard skips existing files, so it only ADDS.
+        // founding wizard skips existing files, so it only ADDS. With
+        // exactly ONE file the dim run line obeys the same P0-3 gate as
+        // the head (the audit is already paid for); with several it
+        // stays generic (no N-file audit on a greeting).
         (_, false) => [
-            ("nika init", "brief agents · adds only"),
-            ("nika run", "your workflow, found"),
-            ("nika examples", "the teaching corpus"),
+            ("nika init".to_owned(), "brief agents · adds only"),
+            gate.map_or_else(|| ("nika run".to_owned(), "your workflow, found"), run_line),
+            ("nika examples".to_owned(), "the teaching corpus"),
         ],
-        // One workflow, fully founded: run it (bare — the lazy door
-        // resolves the only workflow and says so).
-        (1, true) => [
-            ("nika run", "your workflow, found"),
-            ("nika check", "audit before running"),
-            ("nika examples", "the teaching corpus"),
-        ],
+        // One workflow, fully founded AND clean: run it (bare — the
+        // lazy door resolves the only workflow and says so).
+        (1, true) => match gate {
+            Some(g) if g.proposable => [
+                run_line(g),
+                ("nika check".to_owned(), "audit before running"),
+                ("nika examples".to_owned(), "the teaching corpus"),
+            ],
+            // Red — or no verdict at all: the exact file is audited
+            // FIRST (a run CTA here is precisely what P0-3 forbids).
+            _ => [
+                gate.map_or_else(
+                    || ("nika check".to_owned(), "audit before running"),
+                    run_line,
+                ),
+                ("nika examples".to_owned(), "the teaching corpus"),
+                ("nika welcome --deep".to_owned(), "the workspace truth"),
+            ],
+        },
         // Several workflows, founded: the whole-workspace lens first.
         (_, true) => [
-            ("nika welcome --deep", "the workspace truth"),
-            ("nika run <file>", "pick one · check twin"),
-            ("nika examples", "the teaching corpus"),
+            ("nika welcome --deep".to_owned(), "the workspace truth"),
+            ("nika run <file>".to_owned(), "pick one · check twin"),
+            ("nika examples".to_owned(), "the teaching corpus"),
         ],
+    }
+}
+
+/// The exact-file run line (P0-3 + LOI-3): a red file gets
+/// `check <path>`; a clean priced file gets the cap placeholder on the
+/// command, always; a clean unpriced file gets the bare lazy-door run
+/// (unpriced is UNKNOWN, never worded « free »).
+fn run_line(g: &RunGate) -> (String, &'static str) {
+    if !g.proposable {
+        (format!("nika check {}", g.path), "red · audit before run")
+    } else if g.priced {
+        (
+            "nika run --max-cost-usd <usd>".to_owned(),
+            "priced model · cap it",
+        )
+    } else {
+        ("nika run".to_owned(), "your workflow, found")
     }
 }
 
@@ -72,6 +112,21 @@ struct Glance {
     workflows: usize,
     /// An `AGENTS.md` sits at the root — the repo's agents are briefed.
     agents_md: bool,
+}
+
+/// The one-file verdict behind the run CTA (P0-3 · LOI-3) — computed
+/// ONLY when the workspace carries exactly one workflow (the audit cost
+/// is bounded to that file; the multi case keeps a generic CTA).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RunGate {
+    /// The root-relative path, for the `check <file>` CTA.
+    path: String,
+    /// The exact file parses AND the check ladder is clean — the ONLY
+    /// condition under which welcome may print a `run` line.
+    proposable: bool,
+    /// At least one resolved task model carries a catalog price (LOI-3:
+    /// a priced run suggestion always bears `--max-cost-usd`).
+    priced: bool,
 }
 
 /// Counts DERIVED from the embedded surfaces at call time — never typed by
@@ -92,7 +147,10 @@ struct EngineCounts {
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let probe = probe::collect(false);
-    let glance = glance(Path::new("."));
+    let root = Path::new(".");
+    let (glance, sole) = glance(root);
+    // P0-3: the ONE file is audited before any run line may name it.
+    let gate = sole.as_deref().map(|rel| run_gate(root, rel));
     let counts = EngineCounts {
         builtins: nika_builtin::tool_defs().len(),
         locals: probe.providers.iter().filter(|p| !p.requires_key).count(),
@@ -101,15 +159,17 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
         templates: nika_pack::template_names().len(),
     };
     if json {
-        return VerbOutput::ok(render_json(&probe, glance, counts));
+        return VerbOutput::ok(render_json(&probe, glance, gate.as_ref(), counts));
     }
-    VerbOutput::ok(render_human(&probe, glance, counts, theme))
+    VerbOutput::ok(render_human(&probe, glance, gate.as_ref(), counts, theme))
 }
 
 /// The workspace glance — a bounded, dot-dir-skipping walk (depth ≤ 4 ·
 /// ≤ 4000 entries): a greeting must stay instant on a monorepo and must
-/// never wander into `node_modules`/`target`.
-fn glance(dir: &Path) -> Glance {
+/// never wander into `node_modules`/`target`. Returns the sole file's
+/// root-relative path alongside, exactly when `workflows == 1` (the run
+/// CTA's audit target).
+fn glance(dir: &Path) -> (Glance, Option<std::path::PathBuf>) {
     let git = dir
         .canonicalize()
         .unwrap_or_else(|_| dir.to_path_buf())
@@ -119,11 +179,46 @@ fn glance(dir: &Path) -> Glance {
     let mut paths = Vec::new();
     probe::collect_workflow_paths(dir, dir, 4, &mut budget, &mut paths);
     let workflows = paths.len();
-    Glance {
-        git,
-        workflows,
-        agents_md: dir.join("AGENTS.md").exists(),
-    }
+    let sole = (workflows == 1).then(|| paths.swap_remove(0));
+    (
+        Glance {
+            git,
+            workflows,
+            agents_md: dir.join("AGENTS.md").exists(),
+        },
+        sole,
+    )
+}
+
+/// Audit ONE file in-process — parse + the check ladder + the catalog
+/// price lookup (the same per-file fold `welcome --deep` runs, here
+/// bounded to the single workflow a 1-file workspace carries). Anything
+/// unreadable or unparseable is RED — never silently runnable.
+fn run_gate(root: &Path, rel: &Path) -> RunGate {
+    let path = rel.display().to_string();
+    let verdict = |proposable, priced| RunGate {
+        path: path.clone(),
+        proposable,
+        priced,
+    };
+    let Ok(yaml) = std::fs::read_to_string(root.join(rel)) else {
+        return verdict(false, false);
+    };
+    let Ok(wf) = nika_schema::parse(
+        &yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    ) else {
+        return verdict(false, false);
+    };
+    let report = nika_check::check(&wf);
+    let priced = report.cost.tasks.iter().any(|t| {
+        t.model
+            .as_deref()
+            .and_then(nika_catalog::find_pricing_for)
+            .is_some()
+    });
+    verdict(report.is_clean(), priced)
 }
 
 /// The wired/unwired glyph pair — ✓/✗ with an ASCII column (`+`/`x`),
@@ -162,12 +257,18 @@ tasks:
 /// beat (the 100-line fn cap forced this shape here too, and the shape
 /// is better); pure over its inputs (tests pass synthetic probes + a
 /// plain theme).
-fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Theme) -> String {
+fn render_human(
+    probe: &Probe,
+    glance: Glance,
+    gate: Option<&RunGate>,
+    counts: EngineCounts,
+    theme: Theme,
+) -> String {
     let mut s = String::new();
     identity_section(&mut s, probe, theme);
     machine_section(&mut s, probe, glance, theme);
     binary_section(&mut s, counts, glance, theme);
-    start_section(&mut s, theme, glance);
+    start_section(&mut s, theme, glance, gate);
     s
 }
 
@@ -310,13 +411,13 @@ fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: T
 }
 
 /// The hand-off — the state's own three moves, then where to learn more.
-fn start_section(s: &mut String, theme: Theme, glance: Glance) {
+fn start_section(s: &mut String, theme: Theme, glance: Glance, gate: Option<&RunGate>) {
     let _ = writeln!(
         s,
         "{}",
         theme.paint(Role::Strong, "start here (offline · zero keys)")
     );
-    let moves = start_moves(glance);
+    let moves = start_moves(glance, gate);
     let width = moves
         .iter()
         .map(|(cmd, _)| cmd.chars().count())
@@ -367,8 +468,14 @@ fn cloud_key_counts(providers: &[ProviderProbe]) -> (usize, usize) {
 /// The versioned machine mirror — additive-only (`welcome_version: 1`).
 /// Names and booleans and counts, by construction: nothing in the probe
 /// carries a value a secret could ride.
-fn render_json(probe: &Probe, glance: Glance, counts: EngineCounts) -> String {
-    let start: Vec<&str> = start_moves(glance).iter().map(|(cmd, _)| *cmd).collect();
+fn render_json(
+    probe: &Probe,
+    glance: Glance,
+    gate: Option<&RunGate>,
+    counts: EngineCounts,
+) -> String {
+    let moves = start_moves(glance, gate);
+    let start: Vec<&str> = moves.iter().map(|(cmd, _)| cmd.as_str()).collect();
     let mut machine = probe::environment_json(probe);
     machine["config"] = serde_json::json!(probe.config_path);
     serde_json::json!({
@@ -468,7 +575,9 @@ mod tests {
     }
 
     /// The concierge hands over ONE key per state — the four states each
-    /// lead with their own move (presence-only inputs · never an audit).
+    /// lead with their own move. The 1-workflow-founded state is keyed on
+    /// the file's VERDICT too (P0-3): the clean gate below is what keeps
+    /// `run` eligible at all.
     #[test]
     fn start_moves_key_on_the_workspace_state() {
         let g = |workflows, agents_md| Glance {
@@ -476,14 +585,141 @@ mod tests {
             workflows,
             agents_md,
         };
+        let clean = RunGate {
+            path: "a.nika.yaml".to_owned(),
+            proposable: true,
+            priced: false,
+        };
         assert!(
-            start_moves(g(0, false))[0]
+            start_moves(g(0, false), None)[0]
                 .0
                 .contains("examples run 01-hello")
         );
-        assert_eq!(start_moves(g(2, false))[0].0, "nika init");
-        assert_eq!(start_moves(g(1, true))[0].0, "nika run");
-        assert_eq!(start_moves(g(5, true))[0].0, "nika welcome --deep");
+        assert_eq!(start_moves(g(2, false), None)[0].0, "nika init");
+        // FLIP (P0-3 · audit UX 2026-07-30): this line pinned « 1 workflow
+        // + AGENTS.md → nika run head » with NO verdict — the finding's
+        // exact reproduction. `run` now leads ONLY behind a clean gate;
+        // the red and priced arms are pinned by the scratch-dir tests
+        // (one_red_workflow_gets_check_never_run · the LOI-3 twins).
+        assert_eq!(start_moves(g(1, true), Some(&clean))[0].0, "nika run");
+        assert_eq!(start_moves(g(5, true), None)[0].0, "nika welcome --deep");
+    }
+
+    /// A scratch workspace on disk (auto-cleaned) — the run-CTA tests
+    /// audit REAL files, never synthetic flags.
+    fn scratch(files: &[(&str, &str)]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("scratch dir");
+        for (name, body) in files {
+            std::fs::write(dir.path().join(name), body).expect("write");
+        }
+        dir
+    }
+
+    /// The context.rs red fixture: `when:` as a bare string is a
+    /// conformance finding — the file parses, the ladder refuses it.
+    const RED_WORKFLOW: &str = "nika: v1\nworkflow:\n  id: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n";
+
+    /// P0-3 (audit UX 2026-07-30) — one RED workflow, agents briefed:
+    /// the concierge must NEVER carry a `nika run` CTA (head or dim)
+    /// for a file the ladder has not seen clean; the head is
+    /// `nika check <the exact file>`. Human and JSON both eat from
+    /// `start_moves`, and the JSON projection is asserted too.
+    #[test]
+    fn one_red_workflow_gets_check_never_run() {
+        let dir = scratch(&[("AGENTS.md", "x"), ("bad.nika.yaml", RED_WORKFLOW)]);
+        let (g, sole) = glance(dir.path());
+        assert_eq!(g.workflows, 1, "the scratch holds exactly one file");
+        assert!(g.agents_md);
+        let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
+        assert!(
+            !gate.as_ref().expect("a gate for the sole file").proposable,
+            "the `when: maybe` fixture is RED for real"
+        );
+        let moves = start_moves(g, gate.as_ref());
+        assert_eq!(
+            moves[0].0, "nika check bad.nika.yaml",
+            "a red file is audited, never run: {moves:?}"
+        );
+        for (cmd, _) in &moves {
+            assert!(
+                !cmd.starts_with("nika run"),
+                "no run CTA while the exact file is red: {moves:?}"
+            );
+        }
+        let raw = render_json(&synthetic_probe(), g, gate.as_ref(), counts());
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
+        assert_eq!(v["start"][0], "nika check bad.nika.yaml", "{raw}");
+        assert!(
+            !raw.contains("nika run"),
+            "the JSON mirror carries no run CTA on a red file: {raw}"
+        );
+    }
+
+    /// The twin that must NOT regress: one CLEAN unpriced workflow
+    /// (mock/echo) keeps the bare `nika run` head — and the wording
+    /// never calls an unpriced model « free » (LOI-3: unknown stays
+    /// unknown, it is merely uncapped by law's absence of a price).
+    #[test]
+    fn one_clean_mock_workflow_keeps_the_run_cta_uncapped() {
+        let dir = scratch(&[
+            ("AGENTS.md", "x"),
+            (
+                "good.nika.yaml",
+                "nika: v1\nworkflow:\n  id: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+            ),
+        ]);
+        let (g, sole) = glance(dir.path());
+        assert_eq!(g.workflows, 1);
+        let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
+        let gate = gate.expect("a gate for the sole file");
+        assert!(
+            gate.proposable && !gate.priced,
+            "mock/echo: clean, unpriced"
+        );
+        let moves = start_moves(g, Some(&gate));
+        assert_eq!(
+            moves[0].0, "nika run",
+            "clean + unpriced → run leads: {moves:?}"
+        );
+        for (cmd, _) in &moves {
+            assert!(
+                !cmd.contains("--max-cost-usd"),
+                "an unpriced model carries no cap placeholder: {moves:?}"
+            );
+        }
+        let text = render_human(&synthetic_probe(), g, Some(&gate), counts(), plain());
+        assert!(
+            !text.contains("free"),
+            "unpriced is never « free »:\n{text}"
+        );
+    }
+
+    /// LOI-3 — one CLEAN workflow on a PRICED model (openai/*): the run
+    /// line the concierge prints always carries the spend cap, with an
+    /// explicit placeholder the operator fills.
+    #[test]
+    fn one_clean_priced_workflow_carries_the_loi3_cap() {
+        let dir = scratch(&[
+            ("AGENTS.md", "x"),
+            (
+                "priced.nika.yaml",
+                "nika: v1\nworkflow:\n  id: priced\nmodel: openai/gpt-4o-mini\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+            ),
+        ]);
+        let (g, sole) = glance(dir.path());
+        assert_eq!(g.workflows, 1);
+        let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
+        let gate = gate.expect("a gate for the sole file");
+        assert!(gate.proposable && gate.priced, "openai/*: clean, priced");
+        let moves = start_moves(g, Some(&gate));
+        assert!(
+            moves[0].0.starts_with("nika run"),
+            "a clean priced file still runs head-first: {moves:?}"
+        );
+        assert!(
+            moves[0].0.contains("--max-cost-usd"),
+            "LOI-3: a priced run CTA carries the cap: {moves:?}"
+        );
     }
 
     /// The mirror speaks the sovereign lane ONLY when bytes are on disk
@@ -497,7 +733,7 @@ mod tests {
             workflows: 0,
             agents_md: false,
         };
-        let silent = render_human(&synthetic_probe(), glance, counts(), plain());
+        let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
         assert!(
             !silent.contains("  models"),
             "zero models = zero line:\n{silent}"
@@ -506,7 +742,7 @@ mod tests {
         let mut probe = synthetic_probe();
         probe.models.count = 2;
         probe.models.bytes = 211 * 1024 * 1024;
-        let shown = render_human(&probe, glance, counts(), plain());
+        let shown = render_human(&probe, glance, None, counts(), plain());
         assert!(
             shown.contains("models     2 pulled · 211.0 MiB on disk"),
             "the sovereign lane is in the mirror:\n{shown}"
@@ -524,7 +760,7 @@ mod tests {
             workflows: 0,
             agents_md: false,
         };
-        let silent = render_human(&synthetic_probe(), glance, counts(), plain());
+        let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
         assert!(!silent.contains("  kits"), "no kits = no line:\n{silent}");
 
         let mut probe = synthetic_probe();
@@ -538,7 +774,7 @@ mod tests {
                 version: "0.105.0".to_owned(), // another train — drift
             },
         ];
-        let shown = render_human(&probe, glance, counts(), plain());
+        let shown = render_human(&probe, glance, None, counts(), plain());
         assert!(
             shown.contains("kits       claude 0.105.0 vs binary 0.0.0-test"),
             "only the DRIFTED kit is named, the aligned one is silent:\n{shown}"
@@ -556,6 +792,7 @@ mod tests {
                 workflows: 2,
                 agents_md: false,
             },
+            None,
             counts(),
             plain(),
         );
@@ -671,6 +908,7 @@ mod tests {
                 workflows: 0,
                 agents_md: false,
             },
+            None,
             EngineCounts {
                 builtins: 25,
                 locals: 5,
@@ -707,6 +945,7 @@ mod tests {
                 workflows: 1,
                 agents_md: true,
             },
+            None,
             counts(),
             Theme::new(false, true, false),
         );
@@ -755,6 +994,7 @@ mod tests {
                 workflows: 0,
                 agents_md: true,
             },
+            None,
             counts(),
         );
         let v: serde_json::Value = serde_json::from_str(&raw).expect("welcome --json parses");
@@ -783,11 +1023,12 @@ mod tests {
         std::fs::write(nested.join("b.nika.yml"), "x").expect("write");
         std::fs::write(heavy.join("c.nika.yaml"), "x").expect("write");
         std::fs::write(tmp.join("AGENTS.md"), "x").expect("write");
-        let g = glance(&tmp);
+        let (g, sole) = glance(&tmp);
         std::fs::remove_dir_all(&tmp).ok();
         assert!(g.git, "sees the .git ancestor");
         assert_eq!(g.workflows, 2, "counts a.nika.yaml + flows/b.nika.yml only");
         assert!(g.agents_md);
+        assert!(sole.is_none(), "two files → no sole audit target");
     }
 
     #[test]
