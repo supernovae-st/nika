@@ -400,6 +400,13 @@ fn parse_response(
         .pointer("/choices/0/finish_reason")
         .and_then(Value::as_str);
     let mut resp = InferResponse::new(content, usage, map_finish(raw_finish));
+    // The budget law (R3-F1): an omitting backend gets an UNREPORTED
+    // mark, not a fabricated zero the budgets would trust — and an EMPTY
+    // usage object carries no signal, same class as the omission.
+    resp.usage_reported = v.pointer("/usage").is_some_and(|u| {
+        !u.is_null()
+            && (u.pointer("/prompt_tokens").is_some() || u.pointer("/completion_tokens").is_some())
+    });
     resp.request_id = v
         .pointer("/id")
         .and_then(Value::as_str)

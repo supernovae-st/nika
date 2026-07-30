@@ -865,9 +865,9 @@ where
         )
     }
 
-    /// The boot manifest (F-P13 · NEP-0014) — the prologue frames, fed from
-    /// the seams this runtime was composed with.
-    fn emit_boot_manifest(
+    /// The prologue emission (extracted under the fn-length law — the
+    /// boot section's arg marshalling, one line at the call site).
+    fn emit_run_prologue(
         &self,
         wf: &RawWorkflow,
         workflow_name: &str,
@@ -948,7 +948,7 @@ where
         // per run through the schema's one projection; every task's
         // `returns:` contract parses against THIS environment (W3).
         let types = nika_check::named_types(wf);
-        self.emit_boot_manifest(wf, &workflow_name, stamper, sink);
+        self.emit_run_prologue(wf, &workflow_name, stamper, sink);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;

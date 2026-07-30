@@ -637,6 +637,7 @@ where
         usage_acc: &mut TokenUsage,
         input: &AgentInput,
     ) -> Result<InferResponse, VerbAgentError> {
+        let model = request.model.clone();
         let response =
             self.provider
                 .infer(request)
@@ -654,6 +655,19 @@ where
         // The pricing-grade fold — every meter (cache · reasoning ·
         // thinking), not just the budget scalar above.
         usage_acc.absorb(&response.usage);
+        // The 2026-07-29 audit (run 3 · R3-F1): a billed backend that
+        // omits the usage block reads (0,0) to every budget and ledger —
+        // the loop would CONTINUE past `max_tokens_total`, invisibly
+        // (reproduced on the oracle: a 2-turn green loop under a
+        // 1-token budget over 1,800 billed tokens). Fail CLOSED on a
+        // catalog-priced model; a mock/local zero is a TRUE zero (the
+        // documented unmetered carve-out), never an invented number.
+        if !response.usage_reported && nika_catalog::find_pricing_for(&model).is_some() {
+            return Err(VerbAgentError::UsageUnmetered {
+                model,
+                spend: Box::default(), // decorated at the return seam
+            });
+        }
         observer.on_event(&AgentEvent::BudgetCheckpoint {
             turn,
             total_tokens: *total_tokens,

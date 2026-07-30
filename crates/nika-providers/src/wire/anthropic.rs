@@ -458,6 +458,10 @@ fn parse_response(
 
     let raw_stop = v.pointer("/stop_reason").and_then(Value::as_str);
     let mut resp = InferResponse::new(content, usage, map_stop(raw_stop));
+    resp.usage_reported = v.pointer("/usage").is_some_and(|u| {
+        !u.is_null()
+            && (u.pointer("/input_tokens").is_some() || u.pointer("/output_tokens").is_some())
+    });
     resp.request_id = v
         .pointer("/id")
         .and_then(Value::as_str)
