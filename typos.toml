@@ -85,6 +85,13 @@ intoto     = "intoto"
 [files]
 extend-exclude = [
   "target/",
+  # One French session checkpoint. The words it trips on — `sur`, `clos`,
+  # `classe`, `restauration` — are plausible English typos of `sure`,
+  # `close`, `class` and `restoration`, so allowing them in extend-words
+  # would blind the gate across 57 crates of public code. Excluding the one
+  # file that is not English masks nothing else. The franglais list above
+  # stays for words that cannot be mistaken for English (`raison`, `projet`).
+  "docs/plans/2026-07-30-checkpoint-next-session.md",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

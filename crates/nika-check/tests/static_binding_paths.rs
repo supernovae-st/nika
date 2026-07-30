@@ -133,8 +133,13 @@ fn valid_index_and_member_chain_is_accepted() {
 }
 
 #[test]
-fn open_level_is_never_rejected() {
-    // no additionalProperties: false → unknown keys stay legal.
+fn a_level_that_declares_nothing_is_never_rejected() {
+    // The soundness half, and it survives the 2026-07-30 lock: `meta` is a
+    // bare `type: object` with no `properties`, so nothing is declared and
+    // nothing beneath it can be contradicted (spec 04 §Static binding
+    // validation). This case used to also assert that `surprise` — an
+    // undeclared SIBLING of a declared key — stayed legal; the lock decides
+    // that the other way, and it is now the test below.
     let yaml = r#"
 nika: v1
 workflow:
@@ -149,10 +154,61 @@ tasks:
           meta: { type: object }
   report:
     with:
-      a: "${{ tasks.extract.output.surprise }}"
       b: "${{ tasks.extract.output.meta.anything.deep }}"
     exec:
-      command: ["r", "${{ with.a }}", "${{ with.b }}"]
+      command: ["r", "${{ with.b }}"]
+"#;
+    assert_eq!(codes(yaml), Vec::<String>::new());
+}
+
+#[test]
+fn an_undeclared_sibling_of_a_declared_key_is_rejected() {
+    // The strict half (operator lock 2026-07-30 · conformance fixture
+    // core/variables/014): declaring `properties:` CLOSES the level for
+    // binding, so the misspelled-key class refuses without waiting for an
+    // explicit `additionalProperties: false`.
+    let yaml = r#"
+nika: v1
+workflow:
+  id: sbp-sibling
+tasks:
+  extract:
+    infer:
+      prompt: "Extract"
+      schema:
+        type: object
+        properties:
+          meta: { type: object }
+  report:
+    with:
+      a: "${{ tasks.extract.output.surprise }}"
+    exec:
+      command: ["r", "${{ with.a }}"]
+"#;
+    assert_eq!(codes(yaml), vec!["NIKA-VAR-003".to_string()]);
+}
+
+#[test]
+fn explicitly_reopening_a_declared_level_makes_it_legal_again() {
+    // The one-line fix the message prescribes, proven end to end.
+    let yaml = r#"
+nika: v1
+workflow:
+  id: sbp-reopened
+tasks:
+  extract:
+    infer:
+      prompt: "Extract"
+      schema:
+        type: object
+        additionalProperties: true
+        properties:
+          meta: { type: object }
+  report:
+    with:
+      a: "${{ tasks.extract.output.surprise }}"
+    exec:
+      command: ["r", "${{ with.a }}"]
 "#;
     assert_eq!(codes(yaml), Vec::<String>::new());
 }
