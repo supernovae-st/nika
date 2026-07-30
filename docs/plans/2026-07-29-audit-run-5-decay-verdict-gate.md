@@ -62,10 +62,10 @@ line. (The protocol's own calibration probe, re-run verbatim.)
 | F7 · cost 328× | fetch 3.2MB → summarise | **CLOSED by narrowing** | `✔ COST $0.0050 – $0.0050 worst-case OUTPUT ceiling · prompts, exec + mcp unpriced` — the gap is named on the line |
 | F15 · check vs infer-permits | const-bearing path | **CLOSED** | infer offers `read: ["./data/x.txt"]`; check names the same path as the required fix — one resolved identity, zero contradiction |
 | F5 · summary misattribution | two failed execs | **CLOSED** | both errors carried, task-named, causal order (`first` then `second`) |
-| **F2 · SEC-009 perverse incentive** | native fetch→write→exec-read vs exec curl | **REGRESSION (still open · P0)** | native shape: `NIKA-SEC-009 lethal trifecta complete` fires · identical exec-curl shape: `✔ TRIFECTA no lethal trifecta` — the escape is live today (exec ingress never born_ingress, content_flow.rs:140 unchanged) |
-| **F3 · TYPES vacuity** | `.total_usd` from `nika:inspect view: cost` (shapeless output) | **REGRESSION (still open · P0)** | `✔ TYPES deep references fit the shapes tasks declare · builtin output has none` — the ref passes check and dies at run (builtin output has no declared shape; nothing to fit against) |
-| **F4 · --answer headless** | `run --answer confirm=true` (no --resume) | **REGRESSION (still open · P1)** | still refused: `--resume <TRACE>` required — the CI one-pass gate is unusable headless |
-| **F14 · edit hook** | `NIKA="${NIKA_BIN:-nika}"` | **REGRESSION (still present)** | the hook still judges with a possibly-stale PATH binary (`check-on-edit.sh:55`) |
+| **F2 · SEC-009 perverse incentive** | native fetch→write→exec-read vs exec curl | **FIXED after the run (operator decision A · 2026-07-30)** | the law moved: `exec` is born-ingress (`content_flow.rs` · the runtime twin `integrity.rs` · leg ② counts the exec permit as an ingress channel). Measured on this run's own fixtures: exec-curl 0→2 SEC-009, native 1→1 unchanged. NEP-0002 amended v2.2 + the spec corpus/example follow (see « The repair ») |
+| **F3 · TYPES vacuity** | `.total_usd` from `nika:inspect view: cost` (shapeless output) | **FIXED after the run (decision C · the A half)** | the verdict names its blind spot per file: `✔ TYPES … · 1 ref into unshaped task outputs are unverifiable — the run judges them (tasks.bill.output.total_usd (via with.bill))` — the `with:`-alias hop counted too. The B half (builtin `returns:` shapes) stays the named arc |
+| **F4 · --answer headless** | `run --answer confirm=true` (no --resume) | **FIXED after the run** | `--answer` pre-seeds the gate map on a fresh run — the CI one-pass completes (2/2 done · the gate consumes the queued answer); an unknown task id still refuses at admission |
+| **F14 · edit hook** | `NIKA="${NIKA_BIN:-nika}"` | **FIXED after the run** | `check-on-edit.sh` resolves the edited file's tree build (`target/debug/nika-cli`) by default when the tree builds its own nika — `NIKA_BIN` still wins, PATH is the fallback outside any nika tree (3 configurations proven) |
 | F6 · banner repeats | iTerm re-render | carried: reported-never-reproduced | — |
 | F9/F10 | unrecovered | carried: attested-only (protocol §6.5) | — |
 | OPEN · trifecta over-approx | leg ③ witness selection | carried: open question (operator's) | — |
@@ -85,26 +85,30 @@ D2 probe (a secret in `outputs:`) returned the honest verdict
 run 1 (reactive)        12 reproduced defects in this domain
 run DECAY (systematic)   4 recurring (F2 · F3 · F4 · F14)
                        + 1 new (D1, false-green P0 — fixed this run)
+
+after the operator's four decisions (2026-07-30):
+                       0 recurring standing — F2 · F3-A · F4 · F14 all
+                       fixed and proven on this run's own fixtures
+                       (F3's B half — builtin `returns:` shapes — stays
+                       the named architectural arc)
                        
 7 of 12 verified CLOSED on today's oracle — each with its discriminating
 probe re-run green (F11 · F8-law · F13 · F1-contract · F7-narrowing ·
 F15-parity · F5-causal-order).
 ```
 
-**The total falls — the severity histogram does not.** By the protocol's
-own caveat (a systematic sweep finds more per hour, so flat = decay), a
-fall to ~40 % says the class IS being shed. But the recurring mass sits
-entirely in the **false-green/fail-open family**: F2's trifecta escape
-(P0), F3's shapeless-output pass (P0) — and the sweep itself turned up
-D1, a brand-new false-green P0 **in the same family**, so the class is
-not exhausted. It died inside its own run (every session finding has),
-which is the sweep working; what remains open is not sweep work. The
-plain fail-closed and teaching classes are closed; **the class that
-regenerates is the verdict that claims more than it covers at the
-fs/net/judgment seams** — and its two standing P0s (F2 · F3) are both
-modeling decisions, named below as the operator's, not the sweep's.
-That is the answer the curve gives today, and it points at the seams,
-not the sweep.
+**The total falls — and this time the severity histogram moved.** By
+the protocol's own caveat (a systematic sweep finds more per hour, so
+flat = decay), a fall to ~40 % said the class was being shed; the
+post-run repair arc then took the recurring mass to ZERO — every one of
+the four is fixed and re-proven on this run's own fixtures. The two P0s
+turned out to be exactly what the sweep said they were: modeling
+decisions, not bugs — F2 died the day the operator picked « the
+subprocess is a trust boundary » (one law row + its runtime twin + the
+grant twin), F3's vacuity died by narrowing (the verdict names its
+blind spot per file). The regeneration question is now the run #6
+question: does the false-green/fail-open family FIND new seams (#5's
+never-audited surfaces), or is the class actually tarred?
 
 ## The repair (shipped this run)
 
@@ -152,6 +156,39 @@ their `net.http` — they test the hint gate, not the escape. Verified
 live both ways: granted → `✔ PERMITS` with NO drift hint · withheld →
 the escape with NO contradictory remove-advice.
 
+**F2 — the exec verb is born-ingress (shipped after the run, operator
+decision A):** three rows of one law, check≡run — `content_flow.rs`'s
+classify arm (`exec → (true, …)`), the runtime F-O1 twin
+(`integrity.rs::born_untrusted`), and the grant twin (`nika_cap`'s leg
+② counts `permits.exec` as an ingress channel). Measured on this run's
+own fixtures: the exec-curl shape goes 0→2 SEC-009 (the escape dies),
+the native shape stays 1→1 (no collateral). NEP-0002 amended to v2.2
+(governance + `05-errors.md` + the reference `trifecta_core.py` — whose
+`with:`-alias/`for_each` sweep gap the new law exposed and which was
+fixed to mirror the engine, differential back to 49/49), and the
+spec's own showcase `pr-review-fanout` took the canonical early gate
+(dominance is structural: a sibling `todo_sweep` branch bypassing the
+prompt re-opened the finding until it too descended from it).
+
+**The coherence tail F2 owed:** the spec corpus's
+`trifecta-realized-flow-ungated` fixture (fetch → `nika:notify` with a
+`target:` and NO `channel:`) passed the ENGINE clean while the
+reference core refused it — `builtin_effect` judged notify net ONLY on
+a literal `channel: webhook`, while the def's own contract makes
+webhook the DEFAULT channel (`target` IS "the webhook URL"). The
+absent-channel case now classifies net (a present-but-templated channel
+stays unclassifiable, never a default). One false-green fewer, pinned
+by the corpus fixture itself.
+
+**One wave-order observation (recorded, not fixed):** the file channel
+(a tainted writer → a later exec reader under `fs.read`) reads the
+sweep's declaration order WITHIN a wave — a same-wave writer→reader
+pair through a file with no DAG edge lands on whichever side the
+declaration order picks (the native F2 shape's `render` task sits on
+the unflagged side). The wave-frozen view is the declared
+approximation; naming the seam is this run's honesty, judging it is a
+future sweep's.
+
 ## Probe log (verbatim outputs · each claim MEASURED, §4)
 
 (verbatim excerpts inline per row above — full fixtures + logs under
@@ -159,10 +196,11 @@ the escape with NO contradictory remove-advice.
 
 ## Follow-on (named, not hidden)
 
-- F2's escape asks a modeling decision (is exec ingress untrusted?) —
-  **operator's call, not a sweep's** (the current law is documented at
-  content_flow.rs:140; changing it changes every exec workflow's
-  trifecta posture).
-- F3's class asks for builtin output shapes (the stdlib's `returns:`
-  surface) — architectural, named.
-- F4's `--answer` on a first run is a small, bounded UX fix, named.
+- F3's B half — builtin output shapes (the stdlib's `returns:` surface)
+  make the TYPES verdict CAPABLE, not just honest — architectural,
+  named (the operator's decision C).
+- The wave-order seam above (the file channel's same-wave
+  writer→reader read) — recorded, its judgment belongs to a future run.
+- Run #5 of the protocol — the never-audited surfaces — is the sweep
+  that measures whether this arc tarred the false-green family or
+  moved it (the operator picked « after F2/F3 land »).
