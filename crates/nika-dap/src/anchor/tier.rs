@@ -32,6 +32,23 @@ pub enum SealTier {
     Sealed(SealVerdict),
     /// A seal-shaped line that fails ANY check — the forgery class.
     Forged(String),
+    /// A `run_sealed` frame exists but is NOT the journal's last complete
+    /// line: lines were chained AFTER the seal. The seal is emitted as a
+    /// journal's last line and covers every line before it (see
+    /// [`crate::seal`]), so anything after it is outside everything it
+    /// attests — and re-chaining needs only write access, never the key.
+    /// The append-after-seal forgery class, never a crash (a killed run
+    /// leaves no seal at all).
+    Buried {
+        /// FILE line number (1-based) of the buried `run_sealed` frame.
+        line: usize,
+        /// How many complete lines are chained after it.
+        trailing: usize,
+    },
+    /// A seal whose `key_id` matches NO candidate: the signature is not
+    /// judged at all. An absent key is a missing input (the ENV class),
+    /// never evidence of forgery — the honest « I cannot attribute this ».
+    Unattributable(String),
 }
 
 /// The SEALED tier, pure over its inputs (tests inject candidates):
@@ -101,8 +118,16 @@ pub fn seal_tier(
         .iter()
         .find(|(pk_box, _)| crate::seal::fingerprint(pk_box) == key_id);
     let Some((pk_box, source)) = matched else {
-        return SealTier::Forged(format!(
-            "the seal names key {} — no candidate matches (not --key, ~/.nika/keys/run-signing.pub, or the retired.pub ledger)",
+        // The 2026-07-30 adversarial pass: this used to be FORGED (exit
+        // FILE) — an intact, genuinely sealed journal verified WITHOUT its
+        // public key was told « SEAL FORGED » on no evidence whatsoever.
+        // Forgery is a CLAIM and needs proof: a key that is not in custody
+        // proves nothing about the signature, it only means the verifier
+        // cannot judge it (the third-party case the transparency artifact
+        // exists for). Missing input → the ENV class, non-zero so a gate
+        // still fails closed, and never an accusation.
+        return SealTier::Unattributable(format!(
+            "the seal names key {} — no candidate carries it (not --key, ~/.nika/keys/run-signing.pub, or the retired.pub ledger)",
             crate::escape_tty(key_id)
         ));
     };
@@ -191,6 +216,33 @@ pub fn anchor_tier(
         Ok(verified) => AnchorTier::Anchored(verified),
         Err(reason) => AnchorTier::Gap(reason),
     }
+}
+
+/// Is a `run_sealed` frame BURIED — present among the verified lines but
+/// not the last of them? Returns `(FILE line, trailing complete lines)`.
+///
+/// The seal is emitted as a journal's last line ([`crate::seal`]) and its
+/// `covers` binds the head + count BEFORE it, so a sealed journal with
+/// lines after its seal is tampered: the trailing lines are outside
+/// everything the signature attests, and re-chaining them needs only
+/// write access — the very move the SEALED tier exists to catch.
+///
+/// `events` is the walk's VERIFIED line count, so a torn tail is already
+/// excluded: a crash mid-write right after sealing leaves the seal as the
+/// last COMPLETE line and is not buried (a crash is not a forgery).
+fn buried_seal(raw: &str, events: usize) -> Option<(usize, usize)> {
+    let verified: Vec<(usize, &str)> = raw
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty())
+        .take(events)
+        .collect();
+    let (pos, (lineno, _)) = verified.iter().enumerate().find(|(_, (_, line))| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .is_ok_and(|v| v.get("kind").and_then(|k| k.as_str()) == Some("run_sealed"))
+    })?;
+    let trailing = verified.len().saturating_sub(pos + 1);
+    (trailing > 0).then_some((lineno + 1, trailing))
 }
 
 /// The last COMPLETE journal line as parsed JSON (`events` counts the
@@ -345,14 +397,115 @@ mod tests {
             seal_tier(line.as_ref(), events, &candidates),
             SealTier::Forged(_)
         ));
-        // A key-id mismatch across ALL candidates → Forged.
+        // A key-id mismatch across ALL candidates → UNATTRIBUTABLE (never
+        // Forged: not having the key proves nothing about the signature).
         let (other_box, _) = keypair();
         let strangers = vec![(other_box, "stranger".to_owned())];
         let line = last_complete_line(&journal, events);
-        let SealTier::Forged(reason) = seal_tier(line.as_ref(), events, &strangers) else {
-            unreachable!("a key-id mismatch never passes")
+        let SealTier::Unattributable(reason) = seal_tier(line.as_ref(), events, &strangers) else {
+            unreachable!("a key-id mismatch never passes as Sealed, and is not forgery")
         };
-        assert!(reason.contains("no candidate matches"), "{reason}");
+        assert!(reason.contains("no candidate carries it"), "{reason}");
+    }
+
+    /// The 2026-07-30 adversarial pass · APPEND-AFTER-SEAL: a valid seal
+    /// with lines chained after it is the forgery class (exit FILE), and
+    /// the report names WHERE the seal is + HOW MANY lines follow. The
+    /// mutation that proves the test: the same journal WITHOUT the
+    /// appended line attains SEALED.
+    #[test]
+    fn a_buried_seal_is_the_append_forgery_never_a_silence() {
+        let (pk_box, sk) = keypair();
+        let journal = sealed_journal(&["workflow_started", "workflow_completed"], &sk, &pk_box);
+        let candidates = vec![(pk_box.clone(), "test".to_owned())];
+
+        // The control arm (the mutation): unappended → SEALED.
+        let clean = evaluate(
+            "t.ndjson",
+            &journal,
+            3,
+            &"0".repeat(64),
+            false,
+            None,
+            &candidates,
+        );
+        assert!(
+            matches!(clean.seal, SealTier::Sealed(_)),
+            "the unappended journal seals: {:?}",
+            clean.seal
+        );
+
+        // One line chained AFTER the seal — write access only, no key.
+        let seal_line = journal.lines().last().expect("the seal line");
+        let appended = serde_json::json!({
+            "id": {"uuid": "01912345-0000-7000-8000-0000000000ff"},
+            "timestamp": 9999, "kind": "task_completed", "run": null,
+            "correlation": null, "fields": [{"key": "task", "value": "appended"}],
+            "chain": sha256_hex(seal_line.as_bytes()),
+        });
+        let forged = format!(
+            "{journal}{}\n",
+            serde_json::to_string(&appended).expect("appended line")
+        );
+
+        let report = evaluate(
+            "t.ndjson",
+            &forged,
+            4,
+            &"0".repeat(64),
+            false,
+            None,
+            &candidates,
+        );
+        assert_eq!(
+            report.seal,
+            SealTier::Buried {
+                line: 3,
+                trailing: 1
+            },
+            "the buried seal is located + counted: {:?}",
+            report.seal
+        );
+        assert_eq!(report.exit, TierExit::File, "the forgery class");
+        assert_eq!(
+            report.attained,
+            AttainedTier::Ok,
+            "nothing above chain-intact is claimed"
+        );
+        let said = report.lines.join("\n");
+        assert!(said.contains("SEAL BURIED"), "{said}");
+        assert!(
+            said.contains("line 3") && said.contains("1 line(s)"),
+            "the report names where + how many: {said}"
+        );
+    }
+
+    /// The distinction the class must never lose: a journal TORN mid-write
+    /// right after sealing is a crash, not an append — the walk excludes
+    /// the torn line from `events`, so the seal is still the last COMPLETE
+    /// line and the ladder climbs normally.
+    #[test]
+    fn a_torn_tail_after_the_seal_is_a_crash_not_a_buried_seal() {
+        let (pk_box, sk) = keypair();
+        let journal = sealed_journal(&["workflow_started", "workflow_completed"], &sk, &pk_box);
+        let torn = format!("{journal}{{\"id\":{{\"uuid\":\"0191");
+        let candidates = vec![(pk_box, "test".to_owned())];
+        // events = 3: the walk's VERIFIED count excludes the torn line.
+        let report = evaluate(
+            "t.ndjson",
+            &torn,
+            3,
+            &"0".repeat(64),
+            false,
+            None,
+            &candidates,
+        );
+        assert!(
+            matches!(report.seal, SealTier::Sealed(_)),
+            "a crash mid-write never reads as tampering: {:?}",
+            report.seal
+        );
+        assert_eq!(report.exit, TierExit::Ok);
     }
 
     /// NEP-0012 law 2 · the OSC52 class: an artifact-originated `key_id`
@@ -372,8 +525,10 @@ mod tests {
                 {"key": "sig", "value": "untrusted-sig"}
             ]
         });
-        let SealTier::Forged(reason) = seal_tier(Some(&line), 1, &[]) else {
-            unreachable!("a key with no candidate is the honest failure")
+        // (The class moved Forged → Unattributable 2026-07-30; the escape
+        // property is the subject and must survive the reclassification.)
+        let SealTier::Unattributable(reason) = seal_tier(Some(&line), 1, &[]) else {
+            unreachable!("a key with no candidate is unattributable, not forged")
         };
         assert!(
             !reason.chars().any(char::is_control),
@@ -525,44 +680,6 @@ pub enum ReplayCompare {
     CannotRun(String),
 }
 
-/// The Unsealed arm of [`evaluate`] (extracted under the fn-length
-/// law). The 2026-07-29 audit (run 2 · the anchor contract's silent
-/// arm): this early return used to swallow `require_anchor` —
-/// `--anchored` on an UNSEALED journal exited Ok without a word
-/// (measured: missing sidecar rc=0, forged sidecar rc=0, while the
-/// sealed path honors 3/2 exactly). The anchor verifies against the
-/// seal's key, so the tier is UNATTAINABLE here — the honest refusal:
-/// exit ENV (the `--anchored` contract's own class for a required tier
-/// that cannot be attained), the requirement named out loud. Unflagged,
-/// the journal is honestly what it is: a quiet Ok with nothing more
-/// proven.
-fn unsealed_report(seal: SealTier, require_anchor: bool, mut lines: Vec<String>) -> TierReport {
-    if require_anchor {
-        lines.push(
-            "ANCHORED — REQUIRED but the journal is unsealed (no run_sealed \
-             line): the anchor verifies against the seal's key, so the \
-             tier is unattainable"
-                .to_owned(),
-        );
-        return TierReport {
-            seal,
-            anchor: AnchorTier::Required,
-            replay: ReplayTier::NotAsked,
-            attained: AttainedTier::Ok,
-            exit: TierExit::Env,
-            lines,
-        };
-    }
-    TierReport {
-        seal,
-        anchor: AnchorTier::NotPresent,
-        replay: ReplayTier::NotAsked,
-        attained: AttainedTier::Ok,
-        exit: TierExit::Ok,
-        lines,
-    }
-}
-
 /// The tier evaluation: seal leg → anchor leg → replay leg, then the
 /// attained tier + exit class + report lines. `torn` is carried only
 /// for the OK-line decision, which stays the CLI's.
@@ -577,27 +694,33 @@ pub fn evaluate(
     candidates: &[(String, String)],
 ) -> TierReport {
     let mut lines = Vec::new();
+    // Before the seal leg: is a seal BURIED under appended lines? Every
+    // leg below reads the LAST complete line, so an append after the seal
+    // used to make the whole ladder go quiet — the seal invisible, the
+    // exit 0, and the walk's own headline blaming a crash for what is the
+    // append-after-seal forgery (measured 2026-07-30 · both an ordinary
+    // frame and a `workflow_completed` appended after a valid seal
+    // verified rc=0). The seal names the run's END; lines past it are not
+    // that run's.
+    if let Some((line, trailing)) = buried_seal(raw, events) {
+        lines.push(format!(
+            "SEAL BURIED — the journal carries a run_sealed frame at line {line} with \
+             {trailing} line(s) chained AFTER it: the seal is a journal's last line and \
+             covers everything before it, so those lines are outside all it attests\n  \
+             appending + re-chaining needs only write access, never the key — this is \
+             tampering, not a crash (a killed run leaves no seal at all)"
+        ));
+        return terminal_seal_report(
+            SealTier::Buried { line, trailing },
+            AnchorTier::NotPresent,
+            TierExit::File,
+            lines,
+        );
+    }
     let seal = seal_tier(last_complete_line(raw, events).as_ref(), events, candidates);
-    let verdict = match &seal {
-        SealTier::Unsealed => return unsealed_report(seal, require_anchor, lines),
-        SealTier::Forged(reason) => {
-            lines.push(format!("SEAL FORGED — {reason}"));
-            return TierReport {
-                seal,
-                anchor: AnchorTier::NotPresent,
-                replay: ReplayTier::NotAsked,
-                attained: AttainedTier::Ok,
-                exit: TierExit::File,
-                lines,
-            };
-        }
-        SealTier::Sealed(v) => {
-            lines.push(format!(
-                "SEALED — the run_sealed signature verifies · key {} ({})",
-                v.key_id, v.source
-            ));
-            v.clone()
-        }
+    let verdict = match seal_leg(&seal, require_anchor, &mut lines) {
+        Ok(verdict) => verdict,
+        Err((anchor, exit)) => return terminal_seal_report(seal, anchor, exit, lines),
     };
     let Some((anchor, attained, mut exit)) =
         anchor_leg(trace, head, &verdict, require_anchor, &mut lines)
@@ -647,6 +770,84 @@ pub fn evaluate(
         attained,
         exit,
         lines,
+    }
+}
+
+/// A ladder that stopped at the seal leg: nothing above chain-intact is
+/// claimed, and no later leg was consulted.
+fn terminal_seal_report(
+    seal: SealTier,
+    anchor: AnchorTier,
+    exit: TierExit,
+    lines: Vec<String>,
+) -> TierReport {
+    TierReport {
+        seal,
+        anchor,
+        replay: ReplayTier::NotAsked,
+        attained: AttainedTier::Ok,
+        exit,
+        lines,
+    }
+}
+
+/// The seal leg: voice the seal verdict and hand the anchor leg its key —
+/// `Err((anchor, exit))` when the ladder stops here (every class but
+/// `Sealed`). The tier vocabulary is CLOSED in this module: a variant
+/// added without teaching this match must not fall through to a silent
+/// Ok (the false-green class).
+fn seal_leg(
+    seal: &SealTier,
+    require_anchor: bool,
+    lines: &mut Vec<String>,
+) -> Result<SealVerdict, (AnchorTier, TierExit)> {
+    match seal {
+        SealTier::Sealed(v) => {
+            lines.push(format!(
+                "SEALED — the run_sealed signature verifies · key {} ({})",
+                v.key_id, v.source
+            ));
+            Ok(v.clone())
+        }
+        SealTier::Unsealed => {
+            // The 2026-07-29 audit (run 2 · the anchor contract's silent
+            // arm): this return used to swallow `require_anchor` —
+            // `--anchored` on an UNSEALED journal exited Ok without a word
+            // (measured: missing sidecar rc=0, forged sidecar rc=0, while
+            // the sealed path honors 3/2 exactly). The anchor verifies
+            // against the seal's key, so the tier is UNATTAINABLE here —
+            // the honest refusal: exit ENV (the `--anchored` contract's own
+            // class for a required tier that cannot be attained), the
+            // requirement named out loud.
+            if require_anchor {
+                lines.push(
+                    "ANCHORED — REQUIRED but the journal is unsealed (no run_sealed \
+                     line): the anchor verifies against the seal's key, so the \
+                     tier is unattainable"
+                        .to_owned(),
+                );
+                return Err((AnchorTier::Required, TierExit::Env));
+            }
+            Err((AnchorTier::NotPresent, TierExit::Ok))
+        }
+        SealTier::Forged(reason) => {
+            lines.push(format!("SEAL FORGED — {reason}"));
+            Err((AnchorTier::NotPresent, TierExit::File))
+        }
+        SealTier::Unattributable(reason) => {
+            lines.push(format!(
+                "SEAL UNATTRIBUTABLE — {reason}\n  the signature is NOT judged: an absent \
+                 key is a missing input, never evidence of forgery — pass --key <pub> or \
+                 `nika key trust` the signer to climb to SEALED"
+            ));
+            Err((AnchorTier::NotPresent, TierExit::Env))
+        }
+        SealTier::Buried { .. } => {
+            lines.push(
+                "SEAL BURIED — the ladder cannot judge a buried seal (checked above)".to_owned(),
+            );
+            Err((AnchorTier::NotPresent, TierExit::File))
+        }
     }
 }
 

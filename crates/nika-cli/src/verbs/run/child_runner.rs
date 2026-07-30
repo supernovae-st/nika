@@ -143,6 +143,92 @@ fn refusal(code: &str, message: String) -> ChildRunRefusal {
     }
 }
 
+/// The transitive child-source closure digest per STATIC `workflow:`
+/// target of `wf` — the calling tasks' resume-identity input (ADR-099
+/// trap 6 across the file boundary · spec 14 law 10 at the `def_hash`
+/// tier). Each digest is a Merkle fold over the child's source bytes
+/// AND its own children's digests, so a grandchild edit re-keys every
+/// caller up the chain. A target that fails to resolve, parse, or
+/// bound (cycle · depth · registry) simply gets NO entry — the
+/// referencing task is then not resume-eligible: it re-runs live,
+/// never wrong-skips (the honest direction, the skills #473 law).
+pub(crate) fn closure_digests(wf: &RawWorkflow, file: &Path) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for target in workflow_targets_of(wf) {
+        let resolved = resolve_against(file, &target);
+        let mut stack = Vec::new();
+        if let Some(digest) = closure_digest(&resolved, &mut stack, 1) {
+            out.insert(target, digest);
+        }
+    }
+    out
+}
+
+/// Every static `workflow:` target `wf`'s tasks carry (main verbs +
+/// `on_finally` minis) — the resolution roots of [`closure_digests`].
+fn workflow_targets_of(wf: &RawWorkflow) -> Vec<String> {
+    fn of(action: &nika_schema::raw::RawAction) -> Option<String> {
+        match action {
+            nika_schema::raw::RawAction::Invoke(a) => match &a.target {
+                nika_schema::raw::RawInvokeTarget::Workflow(w) => Some(w.value.clone()),
+                nika_schema::raw::RawInvokeTarget::Tool(_) => None,
+            },
+            _ => None,
+        }
+    }
+    let mut out = Vec::new();
+    for task in &wf.tasks {
+        out.extend(of(&task.value.action));
+        for mini in &task.value.on_finally {
+            out.extend(of(&mini.value.action));
+        }
+    }
+    out
+}
+
+/// One child's closure digest — sha256 over a version-tagged fold of
+/// `sha256(source bytes)` + every `(target, child digest)` pair in
+/// `BTreeMap` order (deterministic · framing NUL-separated). The direct
+/// source component is the SAME primitive as the trace-forest row's
+/// `def_hash` (sha256 of the child's exact bytes). `None` = the
+/// closure cannot be drawn honestly (unreadable · unparseable · a
+/// registry target · a cycle · past the run depth bound).
+fn closure_digest(path: &Path, stack: &mut Vec<PathBuf>, depth: u32) -> Option<String> {
+    if depth > nika_runtime::child::MAX_RUN_DEPTH {
+        return None;
+    }
+    let identity = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if stack.contains(&identity) {
+        return None;
+    }
+    let source = std::fs::read_to_string(path).ok()?;
+    let wf = nika_schema::parse(&source, FileId::new(0), ParseMode::Strict).ok()?;
+    stack.push(identity);
+    let mut children = BTreeMap::new();
+    for target in workflow_targets_of(&wf) {
+        if target.starts_with("registry:") {
+            stack.pop();
+            return None;
+        }
+        let digest = closure_digest(&resolve_against(path, &target), stack, depth + 1);
+        let Some(digest) = digest else {
+            stack.pop();
+            return None;
+        };
+        children.insert(target, digest);
+    }
+    stack.pop();
+    let mut fold = String::from("nika-child-closure:v1\u{0}");
+    fold.push_str(&sha256_hex(source.as_bytes()));
+    for (target, digest) in &children {
+        fold.push('\u{0}');
+        fold.push_str(target);
+        fold.push('\u{0}');
+        fold.push_str(digest);
+    }
+    Some(sha256_hex(fold.as_bytes()))
+}
+
 /// Resolve `target` against the DIRECTORY of `parent` (the same law the
 /// static lane applies lexically — here on the real filesystem path).
 fn resolve_against(parent: &Path, target: &str) -> PathBuf {

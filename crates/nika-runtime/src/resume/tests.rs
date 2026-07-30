@@ -28,6 +28,7 @@ mod unit {
             secret_values: Vec::new(),
             default_model: None,
             skills: BTreeMap::new(),
+            child_closures: BTreeMap::new(),
         }
     }
 
@@ -140,11 +141,13 @@ mod unit {
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
             None,
             &BTreeMap::new(),
+            &BTreeMap::new(),
         );
         let ctx_v2 = ResumeContext::of(
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-2"))]),
             None,
+            &BTreeMap::new(),
             &BTreeMap::new(),
         );
         let a = stamp(
@@ -175,6 +178,7 @@ mod unit {
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
             None,
             &BTreeMap::new(),
+            &BTreeMap::new(),
         );
         let c = stamp(
             &wf2.tasks[0].value,
@@ -204,7 +208,13 @@ mod unit {
         let env = BTreeMap::new();
         let stamp_with = |yaml: &str, over: Option<&str>| {
             let wf = parse(yaml);
-            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), over, &BTreeMap::new());
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                over,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+            );
             stamp(
                 &wf.tasks[0].value,
                 &records,
@@ -270,7 +280,7 @@ mod unit {
         let env = BTreeMap::new();
         let stamp_with = |yaml: &str, skills: &BTreeMap<String, String>| {
             let wf = parse(yaml);
-            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), None, skills);
+            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new());
             stamp(
                 &wf.tasks[0].value,
                 &records,
@@ -331,6 +341,7 @@ mod unit {
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("hunter2-secret"))]),
             None,
+            &BTreeMap::new(),
             &BTreeMap::new(),
         );
         let vars = BTreeMap::new();
@@ -451,6 +462,51 @@ mod unit {
             })
         );
     }
+
+    /// Spec 14 law 10 (`def_hash` tier) · a `workflow:` call's DEFINITION
+    /// identity covers the composer-resolved child closure digest: a
+    /// changed digest re-keys the call (an edited child re-runs) · the
+    /// same digest is stable · a MISSING entry makes the task
+    /// non-eligible (never a wrong skip) · a `tool:` invoke never
+    /// consults the map.
+    #[test]
+    fn child_closure_rekeys_the_call_and_absence_disqualifies() {
+        const CALLER: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\", args: { name: \"x\" } }\n";
+        const TOOL: &str = "nika: v1\nworkflow:\n  id: t\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"go?\", default: true } }\n";
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let stamp_with = |yaml: &str, closures: &BTreeMap<String, String>| {
+            let wf = parse(yaml);
+            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), None, &BTreeMap::new(), closures);
+            stamp(
+                &wf.tasks[0].value,
+                &records,
+                &vars,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &ctx,
+            )
+        };
+        let d1 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-one".to_owned())]);
+        let d2 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-two".to_owned())]);
+
+        let a = stamp_with(CALLER, &d1).expect("eligible");
+        let b = stamp_with(CALLER, &d2).expect("eligible");
+        assert_ne!(a.def_hash, b.def_hash, "an edited child re-keys the call");
+
+        let a2 = stamp_with(CALLER, &d1).expect("eligible");
+        assert_eq!(a, a2, "unchanged closure → same stamp");
+
+        assert!(
+            stamp_with(CALLER, &BTreeMap::new()).is_none(),
+            "no closure entry → not eligible (re-runs, never wrong-skips)"
+        );
+
+        // A tool invoke is untouched by the map (same stamp either way).
+        let t1 = stamp_with(TOOL, &BTreeMap::new()).expect("eligible");
+        let t2 = stamp_with(TOOL, &d1).expect("eligible");
+        assert_eq!(t1, t2, "tool invokes never consult the closure map");
+    }
 }
 
 /// The trace-carry proof: a REAL run through the runtime (mock seams)
@@ -538,7 +594,13 @@ mod trace_carry {
 
         // Recompute the stamp from the same coordinates — it matches the
         // journaled fields (the skip predicate `--resume` evaluates).
-        let ctx = crate::resume::ResumeContext::of(&wf, &BTreeMap::new(), None, &BTreeMap::new());
+        let ctx = crate::resume::ResumeContext::of(
+            &wf,
+            &BTreeMap::new(),
+            None,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+        );
         let stamp = crate::resume::stamp(
             &wf.tasks[0].value,
             &BTreeMap::new(),

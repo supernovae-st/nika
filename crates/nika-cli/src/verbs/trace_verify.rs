@@ -215,6 +215,43 @@ enum ChainHeadline {
 /// in the forensics crate (`nika_dap::anchor::tier::evaluate` — the
 /// 15k descent); this verb keeps the OK line, the reproduce shim call
 /// (the fs seam), and the `VerbOutput` envelope + exit code.
+/// The `--replay` leg's fs seam: run the reproduce comparison and hand the
+/// ladder what the outcome MEANS (never how it was obtained). `None` = the
+/// flag was not passed — verify itself never re-executes.
+fn replay_compare(trace: &str, opts: &VerifyOptions) -> Option<tier::ReplayCompare> {
+    opts.replay.as_ref().map(|fresh| {
+        let out = super::trace_reproduce::reproduce(trace, &fresh.to_string_lossy());
+        match out.code {
+            super::exit::OK => tier::ReplayCompare::Reproduced,
+            super::exit::FILE => tier::ReplayCompare::Diverged(out.text),
+            _ => tier::ReplayCompare::CannotRun(
+                out.text
+                    .lines()
+                    .next()
+                    .unwrap_or("the reproduce path cannot run")
+                    .to_owned(),
+            ),
+        }
+    })
+}
+
+/// The buried-seal render: the chain is intact and one of its lines is a
+/// SEAL with lines after it, so the walk's own headline (a crash reading,
+/// or a flat OK) is replaced — the forgery class states itself.
+fn tampered_verdict(events: usize, head: &str, lines: &[String]) -> VerbOutput {
+    let mut out = format!(
+        "TAMPERED — {events} events · chain intact · head {head}\n  the chain covers every line, and one of them is a SEAL with lines after it"
+    );
+    for line in lines {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{line}");
+    }
+    VerbOutput {
+        text: out,
+        code: super::exit::FILE,
+    }
+}
+
 fn tiered(
     trace: &str,
     raw: &str,
@@ -224,6 +261,25 @@ fn tiered(
     opts: &VerifyOptions,
     candidates: &[(String, String)],
 ) -> VerbOutput {
+    let compared = replay_compare(trace, opts);
+    let report = tier::evaluate(
+        trace,
+        raw,
+        events,
+        head,
+        opts.anchored,
+        compared.as_ref(),
+        candidates,
+    );
+    // A BURIED seal overrides the walk's headline: the walk reads only the
+    // LAST line, so an append after the seal came out as « never reached a
+    // terminal frame … killed or crashed » (false — the journal carries a
+    // `run_sealed` frame) or, when the appended line is itself terminal, as
+    // a plain « OK · chain intact ». Both readings pointed away from the
+    // tampering; the class states itself here (the ladder lines carry why).
+    if let tier::SealTier::Buried { .. } = report.seal {
+        return tampered_verdict(events, head, &report.lines);
+    }
     let mut out = match headline {
         ChainHeadline::Torn => format!(
             "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
@@ -240,31 +296,6 @@ fn tiered(
             "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
         ),
     };
-    // The replay comparison is the CLI's fs seam — the ladder only
-    // hears what the outcome MEANS.
-    let compared = opts.replay.as_ref().map(|fresh| {
-        let out = super::trace_reproduce::reproduce(trace, &fresh.to_string_lossy());
-        match out.code {
-            super::exit::OK => tier::ReplayCompare::Reproduced,
-            super::exit::FILE => tier::ReplayCompare::Diverged(out.text),
-            _ => tier::ReplayCompare::CannotRun(
-                out.text
-                    .lines()
-                    .next()
-                    .unwrap_or("the reproduce path cannot run")
-                    .to_owned(),
-            ),
-        }
-    });
-    let report = tier::evaluate(
-        trace,
-        raw,
-        events,
-        head,
-        opts.anchored,
-        compared.as_ref(),
-        candidates,
-    );
     for line in &report.lines {
         use std::fmt::Write as _;
         let _ = write!(out, "\n{line}");
@@ -619,10 +650,15 @@ mod tests {
         let _ = std::fs::remove_file(key);
     }
 
-    /// The key-id mismatch: the seal names a key no candidate carries
-    /// — honest failure, never a pass.
+    /// The key-id mismatch: the seal names a key no candidate carries —
+    /// honest failure, never a pass, AND never an accusation. The
+    /// 2026-07-30 adversarial pass moved this from FILE (« SEAL FORGED »
+    /// on an intact, genuinely sealed journal whose key simply was not in
+    /// custody — the third-party case a transparency artifact exists for)
+    /// to ENV: the signature is not judged. Non-zero either way, so a
+    /// `verify && promote` gate still fails closed.
     #[test]
-    fn a_key_id_mismatch_across_all_candidates_fails() {
+    fn a_key_id_mismatch_across_all_candidates_is_unattributable_never_forged() {
         let (pk_a, sk_a) = keypair();
         let (pk_b, _sk_b) = keypair();
         // Sealed with A's secret + pub recorded — the candidates only B.
@@ -630,9 +666,65 @@ mod tests {
         let trace = stage("mismatch.ndjson", &journal);
         let key = stage_key("mismatch.pub", &pk_b);
         let out = verify_with(&trace.to_string_lossy(), &opts_with_key(key.clone()));
-        assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
-        assert!(out.text.contains("no candidate matches"), "{}", out.text);
+        assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
+        assert!(out.text.contains("SEAL UNATTRIBUTABLE"), "{}", out.text);
+        assert!(out.text.contains("no candidate carries it"), "{}", out.text);
+        assert!(
+            !out.text.contains("FORGED"),
+            "an absent key is never evidence of forgery: {}",
+            out.text
+        );
         let _ = std::fs::remove_file(trace);
+        let _ = std::fs::remove_file(key);
+    }
+
+    /// The 2026-07-30 adversarial pass · APPEND-AFTER-SEAL at the CLI
+    /// plane: a valid seal with a line chained after it reports TAMPERED
+    /// (exit FILE) and NEVER blames a crash. The two measured pre-fix
+    /// renders are both asserted away: the appended line's kind decides
+    /// whether the walk said « INCOMPLETE … killed or crashed » (a false
+    /// statement — the journal carries a `run_sealed` frame) or « OK · chain
+    /// intact » — and both exited 0 with the seal never mentioned.
+    #[test]
+    fn a_buried_seal_reports_tampered_and_never_blames_a_crash() {
+        let (pk_box, sk) = keypair();
+        let journal = sealed_journal(&["workflow_started", "workflow_completed"], &sk, &pk_box);
+        let seal_line = journal.lines().last().expect("the seal line").to_owned();
+        let key = stage_key("buried.pub", &pk_box);
+
+        // Both appended kinds: an ordinary frame (walk → Incomplete) and a
+        // terminal one (walk → Intact). Same verdict, same exit.
+        for (name, kind) in [
+            ("buried-plain.ndjson", "task_completed"),
+            ("buried-terminal.ndjson", "workflow_completed"),
+        ] {
+            let appended = serde_json::json!({
+                "id": {"uuid": "01912345-0000-7000-8000-0000000000ff"},
+                "timestamp": 9999, "kind": kind, "run": null,
+                "correlation": null, "fields": [{"key": "task", "value": "appended"}],
+                "chain": sha256_hex(seal_line.as_bytes()),
+            });
+            let forged = format!(
+                "{journal}{}\n",
+                serde_json::to_string(&appended).expect("appended line")
+            );
+            let trace = stage(name, &forged);
+            let out = verify_with(&trace.to_string_lossy(), &opts_with_key(key.clone()));
+            assert_eq!(
+                out.code,
+                super::super::exit::FILE,
+                "the append is the forgery class ({kind}): {}",
+                out.text
+            );
+            assert!(out.text.contains("TAMPERED"), "{}", out.text);
+            assert!(out.text.contains("SEAL BURIED"), "{}", out.text);
+            assert!(
+                !out.text.contains("killed or crashed"),
+                "a seal proves the run ended — never a crash story ({kind}): {}",
+                out.text
+            );
+            let _ = std::fs::remove_file(trace);
+        }
         let _ = std::fs::remove_file(key);
     }
 

@@ -502,6 +502,277 @@ fn an_answer_against_edited_content_halts_with_content_mismatch() {
     );
 }
 
+// ─── (e) resume ACROSS a composition (spec 14 law 10 · condition 8) ─────
+//
+// The def_hash-tier demonstration: a parent's `invoke: workflow:` call
+// participates in resume with the child's transitive source closure in
+// its identity. Unchanged files cache-hit across the boundary; an
+// edited child (or grandchild) re-runs the call instead of serving the
+// old child's output (the wrong-skip this suite exists to forbid); a
+// run torn mid-composition re-runs the child WHOLE (the coarse tier —
+// within-child granularity rides the W6 semantic IR, not claimed here).
+
+/// A per-test directory (composition needs parent+child side by side,
+/// and the edited-child cases MUTATE files — never share fixtures).
+fn comp_dir(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir()
+        .join("nika-resume-e2e")
+        .join(format!("{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("comp dir");
+    dir
+}
+
+fn write_in(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+    let path = dir.join(name);
+    std::fs::write(&path, body).expect("fixture written");
+    path
+}
+
+const COMP_CHILD: &str = r#"
+nika: v1
+workflow:
+  id: greet-child
+inputs:
+  name: { type: string, required: true }
+permits: { exec: ["echo"] }
+tasks:
+  greet:
+    exec: { command: ["echo", "hello ${{ inputs.name }}"] }
+outputs:
+  greeting: { value: "${{ tasks.greet.output }}", type: string }
+"#;
+
+const COMP_PARENT: &str = r#"
+nika: v1
+workflow:
+  id: greet-parent
+permits: { exec: ["echo"] }
+tasks:
+  before:
+    exec: { command: ["echo", "pre"] }
+  call:
+    after:
+      before: success
+    invoke:
+      workflow: "./child.nika.yaml"
+      args: { name: "composition" }
+    returns: { object: { greeting: string } }
+outputs:
+  echoed: { value: "${{ tasks.call.output.greeting }}", type: string }
+"#;
+
+/// Run `parent` in `dir` with `--json`, return the stream (rc asserted).
+fn comp_run_json(dir: &std::path::Path, parent: &std::path::Path, extra: &[&str]) -> String {
+    let mut args = vec![
+        "run",
+        parent.to_str().expect("utf8"),
+        "--json",
+        "--color",
+        "never",
+    ];
+    args.extend_from_slice(extra);
+    let out = bin()
+        .current_dir(dir)
+        .args(&args)
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout).expect("utf8")
+}
+
+/// The parent's `--output json` line (the outputs object).
+fn comp_outputs(dir: &std::path::Path, parent: &std::path::Path, extra: &[&str]) -> String {
+    let mut args = vec!["run", parent.to_str().expect("utf8"), "--output", "json"];
+    args.extend_from_slice(extra);
+    let out = bin()
+        .current_dir(dir)
+        .args(&args)
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout).expect("utf8")
+}
+
+/// Condition 8, the happy half: with NOTHING changed, the resume
+/// cache-hits ACROSS the composition — the `call` task skips (the
+/// child never re-executes) and the outputs are identical to the
+/// uninterrupted run.
+#[test]
+fn resume_across_a_composition_cache_hits_the_call() {
+    let dir = comp_dir("comp-hit");
+    write_in(&dir, "child.nika.yaml", COMP_CHILD);
+    let parent = write_in(&dir, "parent.nika.yaml", COMP_PARENT);
+
+    let baseline = comp_outputs(&dir, &parent, &[]);
+    let stream = comp_run_json(&dir, &parent, &[]);
+    let trace = write_in(&dir, "full.ndjson", &stream);
+
+    let resumed = comp_run_json(&dir, &parent, &["--resume", trace.to_str().expect("utf8")]);
+    assert!(
+        !events_for(&resumed, "task_cache_hit", "call").is_empty(),
+        "the call skips across the boundary:\n{resumed}"
+    );
+    assert!(
+        events_for(&resumed, "task_started", "call").is_empty(),
+        "the child never re-executes:\n{resumed}"
+    );
+    assert!(has_kind(&resumed, "workflow_completed"), "{resumed}");
+
+    let resumed_outputs = comp_outputs(&dir, &parent, &["--resume", trace.to_str().expect("utf8")]);
+    assert_eq!(
+        resumed_outputs, baseline,
+        "outputs identical to the uninterrupted run"
+    );
+}
+
+/// Condition 8, the law's teeth (ADR-099 trap 6 across the file
+/// boundary): the child is EDITED between the run and the resume — the
+/// call must NOT cache-hit (the old child's output would be wrong), it
+/// re-runs live and the outputs match a fresh run of the edited tree.
+#[test]
+fn an_edited_child_reruns_the_call_instead_of_serving_stale_output() {
+    let dir = comp_dir("comp-edit");
+    write_in(&dir, "child.nika.yaml", COMP_CHILD);
+    let parent = write_in(&dir, "parent.nika.yaml", COMP_PARENT);
+
+    let stream = comp_run_json(&dir, &parent, &[]);
+    let trace = write_in(&dir, "before-edit.ndjson", &stream);
+
+    // The child's behavior changes under the trace's feet.
+    write_in(
+        &dir,
+        "child.nika.yaml",
+        &COMP_CHILD.replace("hello ${{ inputs.name }}", "goodbye ${{ inputs.name }}"),
+    );
+
+    let resumed = comp_run_json(&dir, &parent, &["--resume", trace.to_str().expect("utf8")]);
+    assert!(
+        events_for(&resumed, "task_cache_hit", "call").is_empty(),
+        "an edited child NEVER cache-hits the call (trap 6):\n{resumed}"
+    );
+    assert!(
+        !events_for(&resumed, "task_started", "call").is_empty(),
+        "the call re-runs live:\n{resumed}"
+    );
+    // The untouched sibling still skips — invalidation is exact.
+    assert!(
+        !events_for(&resumed, "task_cache_hit", "before").is_empty(),
+        "the untouched task still skips:\n{resumed}"
+    );
+
+    let resumed_outputs = comp_outputs(&dir, &parent, &["--resume", trace.to_str().expect("utf8")]);
+    assert!(
+        resumed_outputs.contains("goodbye composition"),
+        "the resumed run serves the EDITED child's output, never the stale one: {resumed_outputs}"
+    );
+}
+
+/// Condition 8, transitive: a GRANDCHILD edit re-keys the whole call
+/// chain — the closure digest is a Merkle fold, so the parent's call
+/// re-runs even though the direct child's bytes are unchanged.
+#[test]
+fn an_edited_grandchild_reruns_the_call_transitively() {
+    let dir = comp_dir("comp-grand");
+    let leaf = r#"
+nika: v1
+workflow:
+  id: leaf
+permits: { exec: ["echo"] }
+tasks:
+  speak:
+    exec: { command: ["echo", "leaf-v1"] }
+outputs:
+  word: { value: "${{ tasks.speak.output }}", type: string }
+"#;
+    let mid = r#"
+nika: v1
+workflow:
+  id: mid
+permits: { exec: ["echo"] }
+tasks:
+  descend:
+    invoke: { workflow: "./leaf.nika.yaml" }
+    returns: { object: { word: string } }
+outputs:
+  relayed: { value: "${{ tasks.descend.output.word }}", type: string }
+"#;
+    let parent = r#"
+nika: v1
+workflow:
+  id: root
+permits: { exec: ["echo"] }
+tasks:
+  call:
+    invoke: { workflow: "./mid.nika.yaml" }
+    returns: { object: { relayed: string } }
+outputs:
+  heard: { value: "${{ tasks.call.output.relayed }}", type: string }
+"#;
+    write_in(&dir, "leaf.nika.yaml", leaf);
+    write_in(&dir, "mid.nika.yaml", mid);
+    let root = write_in(&dir, "root.nika.yaml", parent);
+
+    let stream = comp_run_json(&dir, &root, &[]);
+    let trace = write_in(&dir, "grand.ndjson", &stream);
+
+    // Only the LEAF changes — two files above it, the call must re-run.
+    write_in(&dir, "leaf.nika.yaml", &leaf.replace("leaf-v1", "leaf-v2"));
+
+    let resumed = comp_run_json(&dir, &root, &["--resume", trace.to_str().expect("utf8")]);
+    assert!(
+        events_for(&resumed, "task_cache_hit", "call").is_empty(),
+        "a grandchild edit re-keys the whole chain:\n{resumed}"
+    );
+    let outputs = comp_outputs(&dir, &root, &["--resume", trace.to_str().expect("utf8")]);
+    assert!(
+        outputs.contains("leaf-v2"),
+        "the resumed run reflects the grandchild edit: {outputs}"
+    );
+}
+
+/// Condition 8, the torn half: the first run's trace is CUT before the
+/// call completed (a kill mid-composition). The resume skips the
+/// completed upstream and re-runs the child WHOLE — the honest coarse
+/// tier (within-child granularity is W6's, stated, never faked).
+#[test]
+fn a_composition_torn_mid_child_reruns_the_child_whole() {
+    let dir = comp_dir("comp-torn");
+    write_in(&dir, "child.nika.yaml", COMP_CHILD);
+    let parent = write_in(&dir, "parent.nika.yaml", COMP_PARENT);
+
+    let stream = comp_run_json(&dir, &parent, &[]);
+    let mut kept = Vec::new();
+    for line in stream.lines() {
+        kept.push(line);
+        if line.contains("\"kind\":\"task_completed\"") && line.contains("\"before\"") {
+            break;
+        }
+    }
+    let trace = write_in(&dir, "torn.ndjson", &format!("{}\n", kept.join("\n")));
+
+    let resumed = comp_run_json(&dir, &parent, &["--resume", trace.to_str().expect("utf8")]);
+    assert!(
+        !events_for(&resumed, "task_cache_hit", "before").is_empty(),
+        "the completed upstream skips:\n{resumed}"
+    );
+    assert!(
+        !events_for(&resumed, "task_started", "call").is_empty(),
+        "the interrupted call re-runs (the child runs whole):\n{resumed}"
+    );
+    assert!(has_kind(&resumed, "workflow_completed"), "{resumed}");
+}
+
 // ─── (d) the cross-version judgment (F-P21 · NEP-0014 law 4) ───────────
 
 /// Rewrite the trace's recorded `engine_version` (the `workflow_started`

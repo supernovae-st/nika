@@ -279,18 +279,29 @@ pub(crate) struct ResumeContext {
     /// not just the path (spec 02 §agent skills · the same ADR-099 law
     /// as an edited prompt: a changed skill re-runs the task).
     skills: BTreeMap<String, String>,
+    /// The composer-resolved child-workflow closure digests (`workflow:`
+    /// target as written → the transitive source-closure digest). A
+    /// calling task's DEFINITION identity covers the child's CONTENT,
+    /// not just its path (spec 14 law 10 at the `def_hash` tier · the
+    /// same ADR-099 trap-6 law as an edited task: an edited child —
+    /// or grandchild — re-runs the call instead of serving the old
+    /// child's cached output). A target the composer did not resolve
+    /// makes the task non-eligible (records no key · never skips).
+    child_closures: BTreeMap<String, String>,
 }
 
 impl ResumeContext {
     /// Build the context from the workflow's declared `secrets:` block +
     /// the run's resolved values + the composer's `--model` override
     /// (the effective default model falls back to the envelope's) + the
-    /// composer-resolved skill texts.
+    /// composer-resolved skill texts + the composer-resolved child
+    /// closure digests (spec 14 · the composition resume identity).
     pub(crate) fn of(
         wf: &RawWorkflow,
         resolved: &BTreeMap<String, Value>,
         model_override: Option<&str>,
         skills: &BTreeMap<String, String>,
+        child_closures: &BTreeMap<String, String>,
     ) -> Self {
         let markers = wf
             .secrets
@@ -319,6 +330,7 @@ impl ResumeContext {
             secret_values,
             default_model,
             skills: skills.clone(),
+            child_closures: child_closures.clone(),
         }
     }
 
@@ -375,6 +387,24 @@ pub(crate) fn stamp(
             .as_object_mut()?
             .insert("skills_content".to_owned(), Value::Object(contents));
     }
+    // Spec 14 law 10 (the def_hash tier) · ADR-099 trap 6 across the
+    // file boundary: a child-workflow call's DEFINITION identity covers
+    // the child's transitive source closure — the composer resolves one
+    // digest per static target (the #473 skills seam: the composer owns
+    // the file reads, the runtime keys identity on what it hands over).
+    // A target with no digest → non-eligible (never skips · the honest
+    // degrade — a wrong skip is the one unforgivable failure mode).
+    let targets = workflow_targets(task);
+    if !targets.is_empty() {
+        let mut closures = serde_json::Map::new();
+        for target in targets {
+            let digest = ctx.child_closures.get(target)?;
+            closures.insert(target.to_owned(), json!(digest));
+        }
+        definition
+            .as_object_mut()?
+            .insert("child_closure".to_owned(), Value::Object(closures));
+    }
     let inputs = input_value(task, records, inputs, config, consts, &ctx.markers)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
@@ -409,6 +439,27 @@ fn reads_default_model(task: &RawTask) -> bool {
             .on_finally
             .iter()
             .any(|mini| action_reads(&mini.value.action))
+}
+
+/// Every STATIC child-workflow target this task carries (the main verb
+/// plus every `on_finally` mini) — the `skill_paths` twin for spec 14.
+/// A `tool:` invoke never lands here: its identity is the tool ref plus
+/// its args alone, unchanged.
+fn workflow_targets(task: &RawTask) -> Vec<&str> {
+    fn of(action: &RawAction) -> Option<&str> {
+        match action {
+            RawAction::Invoke(a) => match &a.target {
+                nika_schema::raw::RawInvokeTarget::Workflow(w) => Some(w.value.as_str()),
+                nika_schema::raw::RawInvokeTarget::Tool(_) => None,
+            },
+            _ => None,
+        }
+    }
+    let mut out: Vec<&str> = of(&task.action).into_iter().collect();
+    for mini in &task.on_finally {
+        out.extend(of(&mini.value.action));
+    }
+    out
 }
 
 /// Every `skills:` path this task carries (the main verb + every
