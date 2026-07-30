@@ -37,18 +37,15 @@ const CORE_GAPS: &[(&str, &str)] = &[
     // the outcome-class spellings success·failure·skipped·terminal —
     // the 8 after:-carrying rows deleted the day the rename landed, per
     // the ratchet « a landed wave forces removing its row »).
-    // ── R3b · a STALE FIXTURE at the pin (spec-side, not an engine
-    // gap): envelope/010 declares `type: text` and still expects the
-    // NIKA-PARSE namespace, but NIKA-PARSE-015 is retired-never-reuse
-    // (canon.yaml:312-316 · LAW-GRAMMAR-0211 — « what stays outside
-    // TypeExpr refuses via NIKA-TYPE-001 »). The engine emits the
-    // lawful NIKA-TYPE-001; the fixture's own note is R3b-aware, its
-    // namespace line is not. Row deletes the day the spec re-points the
-    // fixture at NIKA-TYPE.
-    (
-        "envelope/010-typed-var-bad-type",
-        "spec fixture stale for R3b (expects NIKA-PARSE · law: NIKA-TYPE-001)",
-    ),
+    // ── R3b · envelope/010 CLOSED 2026-07-30: the operator locked TYPE
+    // (conformance `runner-protocol.md` class D — « the type system owns
+    // the type-fit ») and the spec re-pointed the fixture at the
+    // NIKA-TYPE-001 both oracles already emitted. The row deleted the
+    // day the pin landed, per the ratchet.
+    // ── EMPTY on purpose. The core tier is 131/131 and the ledger is
+    // bidirectional: adding a row here is a claim that the engine
+    // CANNOT hold a verdict, and the suite proves that claim by
+    // failing when the fixture starts passing.
 ];
 
 #[test]

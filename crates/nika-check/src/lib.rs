@@ -658,6 +658,23 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);
     let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
+    // ONE VOICE (spec 04 §Static binding validation · conformance
+    // `runner-protocol.md` class B). Since the 2026-07-30 lock the coded
+    // NIKA-VAR-003 walk in `analyze()` owns the strict-binding law, and it
+    // carries the did-you-mean the check-side rung used to be the only
+    // holder of. That rung stays for the shapes the walk declares opaque,
+    // but it must not repeat a reference the walk already refused: one
+    // defect printed twice reads as two defects, and the conformance
+    // harness would then see a coded refusal beside a codeless twin.
+    let schema_findings: Vec<_> = schema_findings
+        .into_iter()
+        .filter(|f| {
+            let quoted = format!("`{}`", f.reference);
+            !conformance
+                .iter()
+                .any(|v| v.code == "NIKA-VAR-003" && v.message.contains(&quoted))
+        })
+        .collect();
     let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -948,10 +965,17 @@ tasks:
         assert!(!r.is_clean());
         // rename repairs (did-you-mean)
         assert_eq!(r.unknown_tools[0].suggestion.as_deref(), Some("nika:write"));
+        // The misspelled output key repairs from the CODED voice since
+        // the 2026-07-30 lock: `analyze()`'s NIKA-VAR-003 walk owns the
+        // strict-binding law and carries the suggestion, and the
+        // check-side rung no longer repeats it (one voice). What the
+        // repair loop needs is unchanged — a did-you-mean it can apply.
         assert!(
-            r.schema_findings[0]
-                .detail
-                .contains("did you mean `summary`")
+            r.conformance
+                .iter()
+                .any(|v| v.code == "NIKA-VAR-003" && v.message.contains("did you mean `summary`")),
+            "{:?}",
+            r.conformance
         );
         assert!(
             r.schema_lints
