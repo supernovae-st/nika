@@ -34,6 +34,8 @@ jobs:
           bash scripts/sync-pack.sh ../spec
           git add crates/nika-pack/pack
           if git diff --cached --quiet; then echo "pack current — nothing to resync"; exit 0; fi
+          python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
+          git add estate.yaml
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
           git checkout -B bot/pack-resync
