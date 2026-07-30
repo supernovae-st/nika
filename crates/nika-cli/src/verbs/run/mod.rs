@@ -287,7 +287,7 @@ fn run_verdict(
         output_json,
         theme,
         mode,
-        resume.is_some(),
+        resume.is_some_and(|r| r.trace.is_some()),
         trace_sink(no_trace_file),
         !no_outputs,
         model_override,
@@ -341,10 +341,15 @@ fn resume_setup(
 ) -> Result<ResumeSetup, u8> {
     let (plan, paused, compat) = match resume {
         None => (None, None, None),
-        Some(req) => {
-            let (plan, paused, compat) = load_resume_plan(req, wf, output_json)?;
-            (Some(plan), paused, compat)
-        }
+        Some(req) => match req.trace.as_deref() {
+            // The answers-only form (F4): no trace, no plan — the answers
+            // below ride into the gate map and wait for the ask.
+            None => (None, None, None),
+            Some(trace) => {
+                let (plan, paused, compat) = load_resume_plan(req, trace, wf, output_json)?;
+                (Some(plan), paused, compat)
+            }
+        },
     };
     let answers =
         nika_dap::resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
@@ -377,6 +382,7 @@ fn resume_setup(
 /// The exit code (already printed + enveloped) — ENV for every refusal.
 fn load_resume_plan(
     req: &ResumeRequest,
+    trace: &std::path::Path,
     wf: &RawWorkflow,
     output_json: bool,
 ) -> Result<
@@ -387,13 +393,13 @@ fn load_resume_plan(
     ),
     u8,
 > {
-    let label = req.trace.display().to_string();
+    let label = trace.display().to_string();
     let refuse = |message: String| {
         eprintln!("nika run: {message}");
         epilogue::emit_error_envelope(&message, output_json);
         exit::ENV
     };
-    let raw = std::fs::read_to_string(&req.trace)
+    let raw = std::fs::read_to_string(trace)
         .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
     let recovered =
         recover_events(&raw, &label).map_err(|message| refuse(format!("--resume: {message}")))?;
@@ -1303,6 +1309,87 @@ mod tests {
             overridden,
             exit::OK,
             "the override resolved mock/echo, not the envelope's ollama model"
+        );
+    }
+
+    // ── `--answer` without `--resume` (the 2026-07-30 audit · F4) ───────
+
+    /// The CI one-pass gate: a FRESH run with a pre-seeded answer
+    /// consumes it at the gate and completes — no trace, no resume, no
+    /// TTY. Before F4 the clap surface refused the pairing outright
+    /// (`requires = "resume"`); the gate map always could consume it.
+    #[test]
+    fn answer_without_resume_preseeds_the_gate() {
+        let wf = stage(
+            "answer-fresh.nika.yaml",
+            "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        );
+        let req = nika_dap::resume::ResumeRequest {
+            trace: None, // the answers-only form — no plan, no paused ticket
+            from: None,
+            answers: vec!["ask=true".to_owned()],
+            compat: None,
+        };
+        let code = run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            None,
+            &[],
+            Some(&req),
+            true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
+            false,
+            None,
+            true,
+            false, // unsigned-tolerant (the signature gate has its own test)
+        );
+        assert_eq!(
+            code,
+            exit::OK,
+            "the pre-seeded answer clears the gate on a fresh run"
+        );
+    }
+
+    /// The same pairing still validates the answer keys against the
+    /// workflow — an unknown task id refuses at admission (the parse
+    /// never relaxes with the new form).
+    #[test]
+    fn answer_without_resume_still_refuses_an_unknown_task() {
+        let wf = stage(
+            "answer-unknown.nika.yaml",
+            "nika: v1\nworkflow:\n  id: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n",
+        );
+        let req = nika_dap::resume::ResumeRequest {
+            trace: None,
+            from: None,
+            answers: vec!["ghost=true".to_owned()],
+            compat: None,
+        };
+        let code = run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            None,
+            &[],
+            Some(&req),
+            true,
+            None,
+            false,
+            None,
+            true,
+            false,
+        );
+        assert_eq!(
+            code,
+            exit::ENV,
+            "an answer for a task that does not exist refuses at admission"
         );
     }
 
