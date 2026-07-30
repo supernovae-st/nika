@@ -514,14 +514,29 @@ fn bound_text(bound: Option<&Value>) -> String {
     text
 }
 
-/// The stable scalar render (strings verbatim · numbers/bools plain ·
-/// null named).
+/// The stable scalar render (strings ESCAPED · numbers/bools plain ·
+/// null named). A receipt is an untrusted artifact (F-P16 · NEP-0012
+/// law 2): a string cloned raw into the explain output would reach the
+/// TTY with its control bytes live (the OSC52 / terminal-escape
+/// class), so the string arm routes through the escape. The READING
+/// posture is unaffected — `verify` owns the proof and never reads
+/// this render.
 fn scalar_text(value: &Value) -> String {
     match value {
-        Value::String(s) => s.clone(),
+        Value::String(s) => escape_tty(s),
         Value::Null => "null".to_owned(),
         other => other.to_string(),
     }
+}
+
+/// Strip every control character (C0 · C1 · DEL — ESC dies, so the
+/// OSC52 clipboard class dies) from an artifact-originated string
+/// before it reaches a terminal. The local twin of
+/// `nika_dap::escape_tty`, duplicated deliberately: that one-voice
+/// helper lives at L4, and this L0 crate cannot depend on an interface
+/// crate — the semantics are identical and both are pinned by test.
+fn escape_tty(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
 }
 
 #[cfg(test)]
@@ -602,4 +617,28 @@ mod tests {
     // engine's OWN certificate + the workflow's semantic IR hash) lives
     // with the `ir` projection — nika-runtime's `proof::ir` tests, since
     // the projection stayed with the runtime's resume family.
+
+    /// F-P16 · NEP-0012 law 2: a receipt is an UNTRUSTED artifact — its
+    /// strings reach the explain TTY escaped (ESC dies, so the OSC52
+    /// clipboard class dies), never live.
+    #[test]
+    fn explain_escapes_control_chars_in_artifact_strings() {
+        let mut r = sample();
+        r["trace_verdict"]["outcome"] = json!("success\u{1b}]52;;evil\u{7}\nforged-line");
+        let out = explain_receipt(&r);
+        assert!(
+            !out.contains('\u{1b}'),
+            "no live ESC reaches the TTY: {out:?}"
+        );
+        assert!(!out.contains('\u{7}'), "no live BEL either: {out:?}");
+        // The escape STRIPS (it does not mangle): the visible text
+        // survives on one line, control bytes gone.
+        assert!(
+            out.contains("success]52;;evilforged-line"),
+            "the text survives, stripped: {out:?}"
+        );
+        // And the escape helper's own edges (the nika_dap twin's pin).
+        assert_eq!(escape_tty("plain-key_1234"), "plain-key_1234");
+        assert_eq!(escape_tty("\u{7f}\u{9b}"), "");
+    }
 }

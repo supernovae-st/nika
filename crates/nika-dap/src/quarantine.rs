@@ -22,6 +22,20 @@
 //! `run_sealed` line's `covers` via the F-P2 teardown (which proves
 //! THAT the end happened; F-P14 says WHAT the end must do).
 //!
+//! Two Success settle classes are NOT debt — only paths THIS run
+//! actually wrote are:
+//!
+//! - **recovered** (`cause == Recovered`) — the task FAILED, its
+//!   `on_error: recover:` chain settled it, and the record's `output`
+//!   is the AUTHOR-SUPPLIED fallback value, not a path a verb wrote.
+//!   Moving it would rename an arbitrary author-named file past the
+//!   permits boundary (the write permits gated the failed verb's
+//!   `path:`, never the recover arm's value).
+//! - **cache-hit** (the id rides [`RunOutcome::cache_hits`]) — a
+//!   resumed run's hit REHYDRATES a prior run's honest output; nothing
+//!   was written here, so there is nothing to quarantine (the prior
+//!   run's own teardown already judged that debt).
+//!
 //! Boundaries (the ledger text): the saga/compensation palier is
 //! declared P2 — no `finally:` schema block in v1, no new `EventKind`,
 //! no runtime change (the runtime stays fs-free by design; this is the
@@ -36,7 +50,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use nika_runtime::{RunOutcome, TaskStatus};
+use nika_runtime::{RunOutcome, TaskStatus, TerminalCause};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 
 /// The write-capable builtins whose settled outputs ARE the
@@ -80,9 +94,17 @@ pub fn attend(
 /// Dedupe first-wins (two tasks writing the same path move it once);
 /// non-string outputs are skipped (v1 scope — the writers return
 /// strings by contract, anything else is not a path we can name).
+///
+/// Two Success classes are excluded — only a path THIS run's verb
+/// actually wrote is debt: a `Recovered` record's output is the
+/// author's `recover:` fallback (the failed verb wrote nothing; moving
+/// the author-named value would be an arbitrary file move past the
+/// permits boundary), and a cache-hit record rehydrates a PRIOR run's
+/// output (nothing written here — the prior teardown judged its debt).
 fn written_paths(wf: &RawWorkflow, outcome: &RunOutcome) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut paths = Vec::new();
+    let cache_hits: BTreeSet<&str> = outcome.cache_hits.iter().map(String::as_str).collect();
     for task in &wf.tasks {
         let RawAction::Invoke(invoke) = &task.value.action else {
             continue;
@@ -93,11 +115,18 @@ fn written_paths(wf: &RawWorkflow, outcome: &RunOutcome) -> Vec<String> {
         if !WRITER_TOOLS.contains(&tool.value.as_str()) {
             continue;
         }
-        let Some(record) = outcome.records.get(task.value.id.value.as_str()) else {
+        let id = task.value.id.value.as_str();
+        let Some(record) = outcome.records.get(id) else {
             continue;
         };
         if record.status != TaskStatus::Success {
             continue; // cancelled/upstream/failed records carry Null (spec 04)
+        }
+        if record.cause == TerminalCause::Recovered {
+            continue; // the recover arm's fallback — this run wrote no path
+        }
+        if cache_hits.contains(id) {
+            continue; // a rehydrated prior output — not this run's debt
         }
         let candidates: &[serde_json::Value] = match &record.output {
             single @ serde_json::Value::String(_) => std::slice::from_ref(single),
@@ -330,6 +359,55 @@ tasks:
             // `f` · `j` · `x` · `z` never settled — no record at all.
         ]);
         assert_eq!(written_paths(&wf, &outcome), ["one.txt"]);
+    }
+
+    /// H7 — a RECOVERED writer is not debt: the task failed, its
+    /// `on_error: recover:` arm settled it, and the record's `output` is
+    /// the AUTHOR-SUPPLIED fallback value — a path no verb of this run
+    /// wrote. Moving it would rename an arbitrary author-named file past
+    /// the permits boundary, so the enumeration names NOTHING and the
+    /// fold never happens.
+    #[test]
+    fn a_recovered_writers_output_is_not_debt() {
+        let wf = parsed(WF);
+        let mut recovered = TaskRecord::unran(TaskStatus::Success, TerminalCause::Recovered);
+        recovered.output = serde_json::json!("author-named.txt");
+        recovered.recovered_from = Some(nika_runtime::TaskErrorRecord {
+            code: "NIKA-BUILTIN-WRITE-001".to_owned(),
+            message: "the write failed".to_owned(),
+            transient: false,
+        });
+        let outcome = outcome_with(&[("a", recovered)]);
+        assert!(
+            written_paths(&wf, &outcome).is_empty(),
+            "the recover arm's value is no path this run wrote"
+        );
+        assert!(
+            attend(&wf, &outcome, None).is_none(),
+            "no debt, no quarantine fold"
+        );
+    }
+
+    /// H8 — a CACHE-HIT writer is not debt: a resumed run's hit
+    /// rehydrates a PRIOR run's honest output (status Success · cause
+    /// Normal — the hit is visible only on `outcome.cache_hits`).
+    /// Nothing was written here, so the enumeration names NOTHING.
+    #[test]
+    fn a_cache_hit_writers_output_is_not_debt() {
+        let wf = parsed(WF);
+        let mut outcome = outcome_with(&[(
+            "a",
+            settled(TaskStatus::Success, serde_json::json!("one.txt")),
+        )]);
+        outcome.cache_hits.push("a".to_owned());
+        assert!(
+            written_paths(&wf, &outcome).is_empty(),
+            "the rehydrated output is the prior run's, not this run's debt"
+        );
+        assert!(
+            attend(&wf, &outcome, None).is_none(),
+            "no debt, no quarantine fold"
+        );
     }
 
     /// The lane gate: a COMPLETED run attests nothing even when writers
