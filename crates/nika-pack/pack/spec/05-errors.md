@@ -144,6 +144,7 @@ these from this file alone.
 | `NIKA-VALUES-002` | the pre-flip envelope `env:` block — dead since the E-split; `config:` is workflow config, `exec.env` is one subprocess's OS environment ([04 §values](./04-variables.md)) | `validation_error` | false |
 | `NIKA-VALUES-003` | a value-namespace read outside the four-authority family (`${{ params.X }}` and friends) ([04 §values](./04-variables.md)) | `validation_error` | false |
 | `NIKA-INFER-001` | provider call failed (HTTP error · provider refusal) | `provider_error` | engine-assessed |
+| `NIKA-INFER-003` | the provider reported no token usage for a priced model — the ledger cannot bill the call honestly (fail-closed · the usage-absence gate, R3-F1) | `validation_error` | false |
 | `NIKA-INFER-002` | structured output failed `schema:` validation (after any engine-internal retries) | `validation_error` | false |
 | `NIKA-EXEC-001` | non-zero exit code (default capture modes · see [02 §exec](./02-verbs.md#exec--shell-command)) | `process_error` | false |
 | `NIKA-EXEC-002` | spawn failure (command not found · permission) | `process_error` | false |
@@ -153,6 +154,7 @@ these from this file alone.
 | `NIKA-AGENT-002` | `max_tokens_total` exhausted before completion | `budget_error` | false |
 | `NIKA-AGENT-003` | a `skills:` path does not resolve (file missing/unreadable at compose time · [02 §Agent Skills](./02-verbs.md#agent-skills--skills)) | `validation_error` | false |
 | `NIKA-AGENT-004` | a `skills:` file is not a valid Agent Skill (no/unterminated/non-mapping frontmatter · missing/empty `name`/`description`) | `validation_error` | false |
+| `NIKA-AGENT-005` | the provider reported no token usage for a priced model — every budget and ledger reads the turn as free, so the loop fails closed (the usage-absence gate · R3-F1) | `budget_error` | false |
 | `NIKA-MCP-001` | MCP server not configured / not reachable at call time | `tool_error` | engine-assessed |
 | `NIKA-MCP-002` | MCP tool call failed (transport · tool-side error) | `tool_error` | engine-assessed |
 | `NIKA-SEC-001` | `exec:` blocklist hit | `security_error` | false |

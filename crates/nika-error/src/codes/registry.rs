@@ -256,6 +256,15 @@ pub const NIKA_433: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "infer-model-resolution",
 };
+/// NIKA-434: The backend omitted the usage block on a priced model —
+/// the ledger cannot bill the call honestly (fail-closed, wire
+/// `NIKA-INFER-003`).
+pub const NIKA_434: NikaCode = NikaCode {
+    num: 434,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "infer-usage-unmetered",
+};
 /// NIKA-440: Command exited non-zero in a default capture mode.
 pub const NIKA_440: NikaCode = NikaCode {
     num: 440,
@@ -368,6 +377,14 @@ pub const NIKA_468: NikaCode = NikaCode {
     category: Category::Verb,
     severity: Severity::Error,
     slug: "agent-security-boundary",
+};
+/// NIKA-469: The backend omitted the usage block on a priced model —
+/// the budget cannot meter the turn (fail-closed, wire `NIKA-AGENT-005`).
+pub const NIKA_469: NikaCode = NikaCode {
+    num: 469,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-usage-unmetered",
 };
 
 /// NIKA-999: Internal error (catch-all).
@@ -855,15 +872,15 @@ pub const NIKA_1709: NikaCode = NikaCode {
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450,
-    NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466,
-    NIKA_467, NIKA_468, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_605, NIKA_700,
-    NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005,
-    NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104,
-    NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203,
-    NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305,
-    NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502,
-    NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
-    NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706, NIKA_1707,
-    NIKA_1708, NIKA_1709,
+    NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_434, NIKA_440, NIKA_441, NIKA_442,
+    NIKA_450, NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465,
+    NIKA_466, NIKA_467, NIKA_468, NIKA_469, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604,
+    NIKA_605, NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003,
+    NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102,
+    NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201,
+    NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303,
+    NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
+    NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603,
+    NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705,
+    NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709,
 ];

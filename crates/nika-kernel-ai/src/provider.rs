@@ -290,6 +290,13 @@ pub struct InferResponse {
     pub content: Vec<ContentBlock>,
     /// Token usage.
     pub usage: TokenUsage,
+    /// Whether the backend REPORTED the usage for this response — `true`
+    /// by construction default (the honest case, mocks included: a mock's
+    /// zero is a TRUE zero, not an unknown). The wires clear it when the
+    /// backend omits the usage block: on a PRICED model that makes the
+    /// spend invisible to every budget and ledger, and the gates
+    /// downstream fail CLOSED on it (2026-07-29 audit · run 3 · R3-F1).
+    pub usage_reported: bool,
     /// Why the model stopped.
     pub stop_reason: StopReason,
     /// Time to first token in milliseconds.
@@ -322,6 +329,7 @@ impl InferResponse {
         Self {
             content,
             usage,
+            usage_reported: true,
             stop_reason,
             ttft_ms: None,
             cached_tokens: None,
@@ -334,6 +342,15 @@ impl InferResponse {
             trust_level: None,
             gen_ai: crate::genai::GenAiAttrs::new(),
         }
+    }
+
+    /// Mark the usage as reported (or not) by the backend — the wires set
+    /// this from the response's usage-block presence (the field doc
+    /// carries the budget law it arms).
+    #[must_use]
+    pub fn with_usage_reported(mut self, reported: bool) -> Self {
+        self.usage_reported = reported;
+        self
     }
 }
 

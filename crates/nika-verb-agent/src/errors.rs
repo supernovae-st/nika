@@ -18,7 +18,7 @@
 
 use nika_error::codes::{
     NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NIKA_468,
-    NikaCode,
+    NIKA_469, NikaCode,
 };
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
@@ -64,6 +64,25 @@ pub enum VerbAgentError {
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,
         /// The spend the loop had already incurred.
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The backend omitted the usage block on a PRICED model (NIKA-469 ·
+    /// wire `NIKA-AGENT-005`) — every budget and ledger reads that turn as
+    /// free, so the loop fails CLOSED instead of continuing invisibly
+    /// (the 2026-07-29 audit, run 3 · R3-F1: an omitting backend
+    /// completed a 2-turn loop green under `max_tokens_total: 1` over
+    /// 1,800 billed tokens — reproduced both directions on the oracle).
+    /// The mock/local zero is a TRUE zero and stays the documented
+    /// unmetered carve-out; a number is never invented.
+    #[error(
+        "the provider reported no token usage for priced model `{model}` — the budget cannot meter this call (fail-closed)"
+    )]
+    #[diagnostic(code(nika::verb::agent_usage_unmetered))]
+    UsageUnmetered {
+        /// The priced model whose spend is now invisible.
+        model: String,
+        /// The spend the loop had already incurred (billed turns are real).
         spend: Box<SpendOnFailure>,
     },
 
@@ -179,6 +198,7 @@ impl VerbAgentError {
         match &mut self {
             Self::MaxTurns { spend, .. }
             | Self::MaxTokens { spend, .. }
+            | Self::UsageUnmetered { spend, .. }
             | Self::WhitelistViolation { spend, .. }
             | Self::Inference { spend, .. }
             | Self::SchemaValidation { spend, .. }
@@ -197,6 +217,7 @@ impl VerbAgentError {
         match self {
             Self::MaxTurns { spend, .. }
             | Self::MaxTokens { spend, .. }
+            | Self::UsageUnmetered { spend, .. }
             | Self::WhitelistViolation { spend, .. }
             | Self::Inference { spend, .. }
             | Self::SchemaValidation { spend, .. }
@@ -219,6 +240,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::ToolDefs { .. } => NIKA_466,
             Self::Stalled { .. } => NIKA_467,
             Self::SecurityBoundary { .. } => NIKA_468,
+            Self::UsageUnmetered { .. } => NIKA_469,
         }
     }
 
@@ -244,6 +266,7 @@ impl NikaErrorCode for VerbAgentError {
         match self {
             Self::MaxTurns { .. } => "NIKA-AGENT-001".to_owned(),
             Self::MaxTokens { .. } => "NIKA-AGENT-002".to_owned(),
+            Self::UsageUnmetered { .. } => "NIKA-AGENT-005".to_owned(),
             Self::WhitelistViolation { .. } => "NIKA-SEC-002".to_owned(),
             Self::Inference { .. } => "NIKA-INFER-001".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
@@ -266,7 +289,8 @@ impl NikaErrorCode for VerbAgentError {
             | Self::SchemaValidation { .. }
             | Self::InvalidParam { .. }
             | Self::Stalled { .. }
-            | Self::SecurityBoundary { .. } => false,
+            | Self::SecurityBoundary { .. }
+            | Self::UsageUnmetered { .. } => false,
             // Mid-loop provider failures inherit the provider's verdict
             // (rate limits ARE transient).
             Self::Inference { source, .. } => source.is_transient(),

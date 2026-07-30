@@ -32,6 +32,23 @@ pub enum VerbInferError {
         spend: Box<SpendOnFailure>,
     },
 
+    /// The backend omitted the usage block on a PRICED model (NIKA-434 ·
+    /// wire `NIKA-INFER-003`) — the ledger would bill this task $0 while
+    /// the provider charges real money (the 2026-07-29 audit, run 3 ·
+    /// R3-F1 · the agent loop's `NIKA-AGENT-005` sibling). Fail-closed; a
+    /// mock/local zero is a TRUE zero (the documented unmetered
+    /// carve-out), never an invented number.
+    #[error(
+        "the provider reported no token usage for priced model `{model}` — the ledger cannot bill this call honestly (fail-closed)"
+    )]
+    #[diagnostic(code(nika::verb::infer_usage_unmetered))]
+    UsageUnmetered {
+        /// The priced model whose spend is now invisible.
+        model: String,
+        /// The spend of the round-trips that DID run before this call.
+        spend: Box<SpendOnFailure>,
+    },
+
     /// The output never satisfied the task `schema:` within the retry budget.
     #[error("structured output failed schema validation after {attempts} attempt(s): {detail}")]
     #[diagnostic(code(nika::verb::infer_schema_validation))]
@@ -75,9 +92,9 @@ impl VerbInferError {
     #[must_use]
     pub fn spend(&self) -> Option<&SpendOnFailure> {
         match self {
-            Self::ProviderCall { spend, .. } | Self::SchemaValidation { spend, .. } => {
-                spend.has_signal().then_some(spend)
-            }
+            Self::ProviderCall { spend, .. }
+            | Self::UsageUnmetered { spend, .. }
+            | Self::SchemaValidation { spend, .. } => spend.has_signal().then_some(spend),
             Self::InvalidParam { .. } | Self::ModelResolution { .. } => None,
         }
     }
@@ -87,6 +104,7 @@ impl NikaErrorCode for VerbInferError {
     fn nika_code(&self) -> NikaCode {
         match self {
             Self::ProviderCall { .. } => codes::NIKA_430,
+            Self::UsageUnmetered { .. } => codes::NIKA_434,
             Self::SchemaValidation { .. } => codes::NIKA_431,
             Self::InvalidParam { .. } => codes::NIKA_432,
             Self::ModelResolution { .. } => codes::NIKA_433,
@@ -102,6 +120,7 @@ impl NikaErrorCode for VerbInferError {
     fn spec_code(&self) -> String {
         match self {
             Self::ProviderCall { .. } | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
+            Self::UsageUnmetered { .. } => "NIKA-INFER-003".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
             Self::InvalidParam { .. } => self.nika_code().to_string(),
         }
@@ -113,6 +132,7 @@ impl NikaErrorCode for VerbInferError {
             // and 5xx are transient; auth and model-not-found are not).
             Self::ProviderCall { source, .. } => source.is_transient(),
             Self::SchemaValidation { .. }
+            | Self::UsageUnmetered { .. }
             | Self::InvalidParam { .. }
             | Self::ModelResolution { .. } => false,
         }

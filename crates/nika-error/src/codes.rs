@@ -185,6 +185,9 @@ fn verb_help(num: u16) -> &'static str {
         433 => {
             "The `model:` string did not resolve. Use `provider/model` with a provider from the canonical catalog and ensure its API key is configured."
         }
+        434 => {
+            "The provider returned no token usage for a priced model, so the ledger cannot bill the call honestly — it refuses rather than record $0 for real spend (fail-closed). Use a backend that reports usage, or drop the priced model's budget reliance explicitly."
+        }
         440 => {
             "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
         }
@@ -221,6 +224,9 @@ fn verb_help(num: u16) -> &'static str {
         }
         466 => {
             "The tool-definition source failed (builtin catalog or MCP tools/list). Check the MCP server availability for mcp:* whitelist entries."
+        }
+        469 => {
+            "The provider returned no token usage for a priced model, so the budget cannot meter the call — the loop refuses rather than continue invisibly (fail-closed). Point at a backend that reports usage (every first-party wire does), or accept the spend unbudgeted explicitly."
         }
         _ => "Verb execution failed. Check the task definition against the spec for this verb.",
     }

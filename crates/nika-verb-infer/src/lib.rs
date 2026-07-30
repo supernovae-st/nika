@@ -264,6 +264,9 @@ where
                         spend: incurred(&usage_total),
                     })?;
             usage_total.absorb(&response.usage);
+            // R3-F1 (2026-07-29 audit · run 3 · the agent loop's own
+            // `NIKA-AGENT-005` sibling): the usage-absence gate.
+            refuse_unmetered(&response, model, incurred(&usage_total))?;
             let text = response_text(&response);
 
             let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
@@ -304,6 +307,25 @@ where
             }
         }
     }
+}
+
+/// The R3-F1 gate (extracted under the fn-length law · the agent loop's
+/// `NIKA-AGENT-005` sibling): a priced backend that omits the usage
+/// block would bill this task $0 in the ledger while charging real
+/// money — fail CLOSED; a mock/local zero is a TRUE zero (the
+/// documented unmetered carve-out), never an invented number.
+fn refuse_unmetered(
+    response: &InferResponse,
+    model: &str,
+    spend: Box<SpendOnFailure>,
+) -> Result<(), VerbInferError> {
+    if !response.usage_reported && nika_catalog::find_pricing_for(model).is_some() {
+        return Err(VerbInferError::UsageUnmetered {
+            model: model.to_owned(),
+            spend,
+        });
+    }
+    Ok(())
 }
 
 /// Spec-level parameter validation (NIKA-432 class).
@@ -876,7 +898,7 @@ mod tests {
     #[tokio::test]
     async fn underspecified_schema_rides_json_mode_on_the_openai_path() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"head\":{\"x\":1},\"sections\":[]}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"head\":{\"x\":1},\"sections\":[]}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("translate the payload");
         input.schema = Some(json!({ "type": "object" }));
@@ -910,7 +932,7 @@ mod tests {
     #[tokio::test]
     async fn deepseek_schema_takes_the_instruction_wire() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let registry = Registry::new(
             Arc::clone(&seam),
@@ -979,7 +1001,7 @@ mod tests {
         // Valid JSON, but the required `age` never arrived — the reply was
         // cut off. Budget 0 → single shot → straight to the terminal error.
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"length"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
@@ -1008,8 +1030,8 @@ mod tests {
     #[tokio::test]
     async fn truncated_reply_fails_fast_without_burning_the_retry_budget() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"length"}],"usage":{}}"#,
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
@@ -1031,8 +1053,8 @@ mod tests {
             } => {
                 assert_eq!(*attempts, 1, "no blind re-ask at the same budget");
                 assert!(
-                    !spend.has_signal(),
-                    "the mock reports no usage — spend must not invent one"
+                    spend.has_signal(),
+                    "the round-trip reported usage — the billed call is honestly metered"
                 );
                 assert!(
                     detail.contains("token limit"),
@@ -1055,8 +1077,8 @@ mod tests {
     #[tokio::test]
     async fn retry_message_is_a_numbered_repair_list_at_the_wire() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
@@ -1103,7 +1125,7 @@ mod tests {
     async fn coercible_reply_lands_in_one_round_trip() {
         let seam = SeamHttp::with_json(&[
             r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":\"36\",\"field\":\" Mathematics \"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}"#,
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36,\"field\":\"mathematics\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36,\"field\":\"mathematics\"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
@@ -1140,8 +1162,8 @@ mod tests {
     #[tokio::test]
     async fn uncoercible_miss_still_retries() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
@@ -1160,7 +1182,7 @@ mod tests {
     #[tokio::test]
     async fn a_normal_stop_carries_no_truncation_hint() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
@@ -1185,7 +1207,7 @@ mod tests {
     #[tokio::test]
     async fn fully_specified_schema_keeps_the_strict_path_on_openai() {
         let seam = SeamHttp::with_json(&[
-            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
         ]);
         let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({

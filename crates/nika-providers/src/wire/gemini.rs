@@ -359,6 +359,11 @@ fn parse_response(
         .iter()
         .any(|b| matches!(b, ContentBlock::ToolUse { .. }));
     let mut resp = InferResponse::new(content, usage, map_finish(raw_finish, has_call));
+    resp.usage_reported = v.pointer("/usageMetadata").is_some_and(|u| {
+        !u.is_null()
+            && (u.pointer("/promptTokenCount").is_some()
+                || u.pointer("/candidatesTokenCount").is_some())
+    });
     resp.request_id = v
         .pointer("/responseId")
         .and_then(Value::as_str)

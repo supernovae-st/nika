@@ -6,6 +6,7 @@
 //! `mod tests` semantics · `super::*` reaches the crate root).
 
 use super::*;
+use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::{InferResponse, StopReason, TokenUsage};
 use nika_kernel::runtime::tool_executor::ToolResult;
 use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
@@ -1350,4 +1351,55 @@ async fn model_override_and_system_prompt_ride_the_request() {
     assert_eq!(req.temperature, Some(0.2));
     assert!(matches!(req.messages[0].role, Role::System));
     assert!(matches!(req.messages[1].role, Role::User));
+}
+
+// ── §R3-F1 · the usage-absence gate (the 2026-07-29 audit, run 3) ────
+
+/// A billed backend that omits the usage block on a PRICED model: the
+/// loop fails CLOSED (`NIKA-AGENT-005`), never continues invisibly past
+/// the budget it just blinded. The refusal rides the turn it was
+/// discovered on (it cannot be known before the response arrives).
+#[tokio::test]
+async fn an_omitting_backend_on_a_priced_model_fails_closed() {
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(
+            tool_use_response("call-1", "nika:read", serde_json::json!({"path": "./x.md"}))
+                .with_usage_reported(false),
+        ),
+        MockToolExecutor::new(),
+        vec![def("nika:read")],
+    );
+    let mut input = AgentInput::new("go");
+    input.model = Some("anthropic/claude-sonnet-5".to_owned());
+    input.tools = vec!["nika:read".to_owned()];
+    let err = r.verb.run(input).await.expect_err("the gate refuses");
+    assert!(
+        matches!(err, VerbAgentError::UsageUnmetered { .. }),
+        "{err:?}"
+    );
+    assert_eq!(err.spec_code(), "NIKA-AGENT-005");
+    assert!(!err.is_transient(), "a wire-contract verdict never retries");
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        1,
+        "the call ran once — the absence is discovered on its response"
+    );
+}
+
+/// The carve-out: an unreported zero on an UNPRICED model (the mock's
+/// honest zero) is the documented unmetered case — the loop proceeds.
+#[tokio::test]
+async fn an_unreported_zero_on_an_unpriced_model_proceeds() {
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(text_response("honest zero").with_usage_reported(false)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let out = r
+        .verb
+        .run(AgentInput::new("hi"))
+        .await
+        .expect("the carve-out proceeds");
+    assert_eq!(out.output, AgentValue::Text("honest zero".to_owned()));
 }
