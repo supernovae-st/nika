@@ -1029,6 +1029,8 @@ pub nika_cli::verbs::wire::WireTarget::Gemini
 pub nika_cli::verbs::wire::WireTarget::Grok
 pub nika_cli::verbs::wire::WireTarget::Hermes
 pub nika_cli::verbs::wire::WireTarget::Junie
+pub nika_cli::verbs::wire::WireTarget::Kimi
+pub nika_cli::verbs::wire::WireTarget::Kiro
 pub nika_cli::verbs::wire::WireTarget::Lmstudio
 pub nika_cli::verbs::wire::WireTarget::Opencode
 pub nika_cli::verbs::wire::WireTarget::Qwen

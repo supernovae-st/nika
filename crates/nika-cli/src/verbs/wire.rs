@@ -38,6 +38,8 @@ pub enum WireTarget {
     Junie,
     Grok,
     Antigravity,
+    Kimi,
+    Kiro,
     All,
 }
 
@@ -168,6 +170,19 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
         WireTarget::Antigravity => {
             patch_home_mcp(&[".gemini", "config", "mcp_config.json"], "antigravity")
         }
+        // Kimi Code CLI reads `mcp.json` at two levels — user
+        // `~/.kimi-code/mcp.json`, project `.kimi-code/mcp.json`
+        // (docs/en/customization/mcp.md · `mcpServers` map · stdio =
+        // command+args). Machine wiring writes the user file; the
+        // project level stays the operator's move (their docs warn that
+        // project stdio entries execute on session start — trust-scoped).
+        WireTarget::Kimi => patch_home_mcp(&[".kimi-code", "mcp.json"], "kimi"),
+        // Kiro CLI (the Amazon Q Developer CLI rebrand · Q is frozen at
+        // 1.19.7) reads user `~/.kiro/settings/mcp.json`, workspace
+        // `.kiro/settings/mcp.json` (kiro.dev/docs/cli/migrating-from-q ·
+        // `mcpServers` map · stdio command+args · the legacy
+        // `~/.aws/amazonq/mcp.json` is still read but `.kiro` wins).
+        WireTarget::Kiro => patch_home_mcp(&[".kiro", "settings", "mcp.json"], "kiro"),
         #[allow(
             clippy::unreachable,
             reason = "All is expanded to concrete targets before dispatch"
@@ -826,6 +841,31 @@ args = ["mcp"]
         let again = patch_toml_mcp(&path, "grok").expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Client-doors W3 · kimi: the user-level `~/.kimi-code/mcp.json`
+    /// (`mcpServers` map · their customization/mcp.md) — created, then
+    /// idempotent, other servers preserved.
+    #[test]
+    fn kimi_mcp_json_created_and_idempotent() {
+        let home = temp_dir("kimi");
+        let path = home.join(".kimi-code").join("mcp.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dotdir");
+        std::fs::write(&path, r#"{"mcpServers":{"other":{"command":"x"}}}"#).expect("seed");
+
+        let action = patch_cursor_like(&path, "mcpServers", "kimi", false).expect("wire");
+        assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+        assert_eq!(
+            doc["mcpServers"]["other"]["command"], "x",
+            "other server kept"
+        );
+
+        let again = patch_cursor_like(&path, "mcpServers", "kimi", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
     }
 
     /// Client-doors W1.2 · antigravity: the standalone `mcp_config.json`
