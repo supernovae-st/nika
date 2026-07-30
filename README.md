@@ -273,15 +273,15 @@ of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
-| Review a PR before merging | `nika examples run showcase/t3-pr-review-fanout` | developers |
-| Turn meeting notes into owned actions | `nika examples run showcase/t1-meeting-actions` | everyone |
-| Digest a week of standups | `nika examples run showcase/t1-standup-digest` | teams |
-| Draft release notes from commits | `nika examples run showcase/t2-release-notes` | maintainers |
-| Triage a support inbox | `nika examples run showcase/t2-support-triage` | support · ops |
-| Chase unpaid invoices politely | `nika examples run showcase/t2-invoice-chaser` | founders |
-| Track competitors weekly | `nika examples run showcase/t3-competitor-radar` | founders |
-| Screen resumes against a role | `nika examples run showcase/t3-resume-screener` | hiring |
-| Build a Monday operating brief | `nika examples run showcase/t4-ceo-monday-brief` | founders |
+| Review a PR before merging | `nika examples run pr-review-fanout` | developers |
+| Turn meeting notes into owned actions | `nika examples run meeting-actions` | everyone |
+| Digest a week of standups | `nika examples run standup-digest` | teams |
+| Draft release notes from commits | `nika examples run release-notes` | maintainers |
+| Triage a support inbox | `nika examples run support-triage` | support · ops |
+| Chase unpaid invoices politely | `nika examples run invoice-chaser` | founders |
+| Track competitors weekly | `nika examples run competitor-radar` | founders |
+| Screen resumes against a role | `nika examples run resume-screener` | hiring |
+| Build a Monday operating brief | `nika examples run ceo-monday-brief` | founders |
 
 The full gallery, every workflow sha256-pinned and proven in CI, lives in
 [`examples/`](examples/): foundation patterns, business showcases, and the

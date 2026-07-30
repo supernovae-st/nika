@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 130
-  aggregate_sha256: bfc2a12c0ab9f21238ed127187c459c183060981a9f65ab7960f8cf14523c1e2
+  aggregate_sha256: 018d9e97780e8ada85afb287b2f1f882a66326669a320fb2926b5a1685ea3da4
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -218,7 +218,7 @@ patterns:
 - glob: "media/**"
   class: generated
   match_count: 51
-  aggregate_sha256: f169eb2f7ec751d5fbfd15d688de61c6818422b7efdac7ed06bc2304c758bf40
+  aggregate_sha256: f7f2531887db65fc649305ab8640ebf79db02474ca40918475be8f809d7c7c8b
   evidence: "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary"
   derivation:
     tool: "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)"
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: da1a0bc6987d13b544e00a7ded2443d56ede74e4b94ea57b71391dfe70afd670
+  aggregate_sha256: 997a7d3f811b837098229c7402481452b5d12610a633a906334d81c04a3eced9
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
