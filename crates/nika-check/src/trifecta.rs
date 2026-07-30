@@ -374,6 +374,29 @@ mod tests {
         );
     }
 
+    /// The two-exec pin (F2 regression · 2026-07-30): born-ingress must
+    /// NOT arm the file channel by itself. When exec became born-ingress
+    /// AND a writer, the writer clause — armed on OUTPUT taint — made any
+    /// two exec tasks under a declared `fs.read` a trifecta with zero real
+    /// flow: `wc -l` "staged" its own stdout nobody wrote anywhere, and a
+    /// later `echo done`, binding nothing, "read" it. Five clean fixtures
+    /// refused; the reference judge (`trifecta_core.py` · « a TAINTED writer
+    /// earlier in run order » · `writer_origin` needs arrived taint) said
+    /// clean on every one. The channel arms on ARRIVAL now, and this pin
+    /// dies if it ever arms on birth again.
+    #[test]
+    fn two_execs_with_no_flow_between_them_pass() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./news.json\"] }\n  exec: [\"wc\", \"echo\"]\ntasks:\n  probe:\n    exec: { command: [\"wc\", \"-l\", \"./news.json\"] }\n  notify:\n    after: { probe: success }\n    exec: { command: [\"echo\", \"done\"] }\n",
+        );
+        assert!(
+            r.trifecta_findings.is_empty(),
+            "a state edge carries no bytes — born output alone must not \
+             cross the file channel: {:?}",
+            r.trifecta_findings
+        );
+    }
+
     /// The parallel-clean pin: an egress on a branch no untrusted content
     /// reaches is NOT a trifecta (v1.1 fired here too).
     #[test]
