@@ -36,7 +36,7 @@ templates:
   - file: templates/agent-loop.nika.yaml
     sha256_16: fba1d9e2c3c6c05d
   - file: templates/api-upload-and-create.nika.yaml
-    sha256_16: a159c013142a0288
+    sha256_16: 6a66f28263c1cb0d
   - file: templates/chain.nika.yaml
     sha256_16: db5460bf09b58462
   - file: templates/docker-report.nika.yaml
@@ -44,7 +44,7 @@ templates:
   - file: templates/etl-state.nika.yaml
     sha256_16: e8d2b3c79e7057f1
   - file: templates/fanout.nika.yaml
-    sha256_16: 8bc7121f826240f2
+    sha256_16: 1b480f5fe640f8e2
   - file: templates/gate-and-act.nika.yaml
     sha256_16: edfd4419aafaa80a
   - file: templates/human-gated-ship.nika.yaml
