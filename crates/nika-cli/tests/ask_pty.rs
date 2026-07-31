@@ -45,8 +45,11 @@ fn fresh_dir(tag: &str) -> tempfile::TempDir {
 }
 
 /// One default-less confirm gate feeding one downstream task — the
-/// smallest workflow whose first run crosses a human gate.
-const GATED: &str = "nika: v1\nworkflow:\n  id: gate-ask\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"deploy the thing?\" }\n  after:\n    with:\n      approved: ${{ tasks.ask.output }}\n    exec: { command: [\"echo\", \"went\", \"${{ with.approved }}\"] }\n";
+/// smallest workflow whose first run crosses a human gate. The route is
+/// AFFIRMATIVE (bound answer + `when: == true` · NIKA-SEC-014): a `no`
+/// fires exactly zero effects, so the fixture practices the law the
+/// check teaches.
+const GATED: &str = "nika: v1\nworkflow:\n  id: gate-ask\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"deploy the thing?\" }\n  after:\n    with:\n      approved: ${{ tasks.ask.output }}\n    when: ${{ with.approved == true }}\n    exec: { command: [\"echo\", \"went\", \"${{ with.approved }}\"] }\n";
 
 /// Spawn `nika run gate.nika.yaml` on a PTY in `dir` — colour env
 /// hermetic (the nika#675 lesson), `NO_COLOR` pinned so every `expect`

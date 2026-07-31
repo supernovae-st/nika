@@ -187,7 +187,7 @@ fn kit_ships_hooks(client: &str) -> bool {
 }
 
 /// The per-host runtime receipt (H5 · audit UX 2026-07-30: « aucun
-/// receipt runtime commun » — doctor rendered a flat finding pile and
+/// shared runtime receipt » — doctor rendered a flat finding pile and
 /// nothing said, per host, WHAT was verified versus assumed). One row
 /// per probed host: the earned level plus the canaries that PROVE it,
 /// the rails still missing for the rung above, and the exact repair

@@ -137,7 +137,7 @@ PATTERNS = [
         "class": "generated",
         "evidence": ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)",
         "derivation": {
-            "tool": "cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt (cargo-public-api 0.51.0 pinned · regenerate from the public-api-actual CI artifact)",
+            "tool": "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)",
             "gate": ".github/workflows/public-api.yml (drift → RED) + semver-checks.yml (breaking-vs-additive) + scripts/ci/public-api-coverage-baseline.txt (the monotonic floor)",
             "inputs": ["crates/<crate>/src/**", "crates/<crate>/Cargo.toml", "cargo-public-api 0.51.0"],
         },

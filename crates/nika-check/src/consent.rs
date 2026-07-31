@@ -336,7 +336,7 @@ fn carrying_keys(task: &RawTask, prompt: &str, env: &RefusalEnv) -> BTreeSet<Str
 /// whole expression evaluates to [`K3::False`] under output = false.
 /// Shared with the policy lane (`check/policy.rs`) — the ONE evaluator
 /// both the refusal and the hard `require.human_gate_before` judge read
-/// (the juge pur in nika-cap cannot parse expressions; the projection
+/// (the pure judge in nika-cap cannot parse expressions; the projection
 /// carries its verdict).
 pub(crate) fn affirmative(task: &RawTask, prompt: &str) -> bool {
     let Some(when) = task.when.as_ref() else {
