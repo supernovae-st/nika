@@ -79,6 +79,53 @@ hatch** below (no new provider name needed).
 > and the largest model-aggregation gateway deserves first-class one-field
 > selection. Together · Fireworks · custom gateways still use the escape hatch.
 
+## The three lists · three laws (why 17 · why the catalog knows more · why MCP never closes)
+
+Three different lists ride the tool/model surface, and each obeys a
+different law — naming them kills a recurring confusion:
+
+1. **The provider PREFIX list is CLOSED at <!-- canon:providers -->17<!-- /canon -->** — a
+   list may be closed in the language only because an escape hatch
+   exists (§The `openai` escape hatch: any OpenAI-compatible server,
+   today, without waiting for anyone). A closure with a door is a
+   curation; without one it would be a wall.
+2. **The engine's CATALOG knows MORE than the language admits** (its
+   yellow-pages carry rows for endpoints beyond the 17 — reachable
+   through the hatch). That asymmetry is by design: the catalog records
+   the world; the language admits a curated subset it can teach, test
+   and price. A provider absent from the 17 is not illegal — it is
+   un-blessed (no named prefix, no doc room), never unreachable.
+3. **MCP servers are OPEN, forever** — `mcp:<server>/<tool>` accepts
+   any server because YOUR OWN server is the premise of the protocol.
+   Closing that list would refuse the user's own machine; no hatch
+   could repair it. The engine's MCP catalog rows are knowledge
+   (defaults · capability hints), never law.
+
+The same rule read once more: **the spec closes only what it can refuse
+while a hatch keeps the closure honest; everything else is catalog
+knowledge.**
+
+## Registration policy · how the 17 grows (the post-freeze door)
+
+The prefix list is a **registry, not grammar**. `/spec/v1.0.0` freezes
+the FORM (`model: <provider>/<name>` · the refusal law `NIKA-PROVIDER`);
+the membership keeps growing, additively, under this policy — the
+IANA-registry pattern (the RFC freezes; the registry lives):
+
+- **Evidence required** · a new row enters with (a) a wire the engine
+  speaks (one of the existing dialects, or the adapter that adds one),
+  (b) a sourced catalog row (pricing/limits with provenance), and
+  (c) at least one conformance fixture exercising the prefix.
+- **Door** · a PR on this repo touching `canon/providers.yaml` + this
+  doc + the fixture — reviewed like any change; no NEP needed (a
+  membership row changes no law). Changes to the FORM itself (the
+  field grammar, the refusal semantics) DO take a NEP.
+- **Nobody waits** · the `openai` + base_url hatch means an unlisted
+  provider is usable the same day; the row is a blessing (a named
+  prefix · a doc room · a priced catalog entry), never a gate.
+- Removal is a tombstone, never a deletion (workflows citing a retired
+  prefix must keep failing with a TAUGHT error, not an unknown one).
+
 ## Local vs cloud · the prefix decides
 
 The **provider prefix IS the local/cloud signal** (no separate `local:` flag,
@@ -538,7 +585,7 @@ infer:
 
 **Models** · `gemini-2.0-flash` · `gemini-2.0-pro` · `gemini-1.5-pro` · (pass-through).
 
-**Auth** · `GOOGLE_API_KEY` env var · OR ADC.
+**Auth** · `GEMINI_API_KEY` env var (`NIKA_GEMINI_API_KEY` overrides it · the engine reads the NIKA-prefixed name first).
 
 **Features** · long context (1M+ tokens) · multimodal native (text · image · audio · video) · structured output.
 

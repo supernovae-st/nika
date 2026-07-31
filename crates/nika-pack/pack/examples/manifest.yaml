@@ -133,7 +133,7 @@ showcase:
     workflow: {'id': 'pr-review-fanout', 'description': 'changed files → one read-only review agent each → merged REVIEW.md'}
     description: ""
     constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, with]
-    sha256_16: e56394e363bd26b7
+    sha256_16: e42bf771f3f1e390
   - file: examples/price-watch.nika.yaml
     workflow: {'id': 'price-watch', 'description': 'Watch a product price, ping me when it drops below my target'}
     description: ""
@@ -143,7 +143,7 @@ showcase:
     workflow: {'id': 'release-notes', 'description': 'git log → typed release notes → CHANGELOG insert → team ping'}
     description: ""
     constructs: [local_model, on_error, outputs, schema, secrets, when, with]
-    sha256_16: 46362fb2ff1d9a6b
+    sha256_16: 0b222e5c1a8a2785
   - file: examples/release-radar.nika.yaml
     workflow: {'id': 'release-radar', 'description': 'dependency release feed → diff vs last run → only the NEW ships'}
     description: ""

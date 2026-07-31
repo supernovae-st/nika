@@ -49,7 +49,7 @@ const:
   review_root: "src/"      # the swarm's territory · keep in step with permits.fs.read
 
 permits:
-  tools: ["nika:done", "nika:grep", "nika:jq", "nika:read", "nika:write"]
+  tools: ["nika:done", "nika:grep", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
   # The argv form (`exec.command:`) runs one named program with its arguments
   # and no shell between them, which is what makes a program allowlist mean
   # something. A `exec.shell:` task is refused against a list — measured:
@@ -76,9 +76,24 @@ permits:
     write: ["./REVIEW.md"]
 
 tasks:
+  # The human gate (NEP-0002 · v2.2). `git diff` output is UNTRUSTED
+  # content — a hostile branch names its own files — and this workflow
+  # pairs it with a private `fs.read` and egress-capable tasks: the
+  # lethal trifecta, unless a human dominates the path. The gate comes
+  # FIRST so every task the diff output reaches descends from it (a gate
+  # on a sibling branch dominates nothing — the data edge would bypass
+  # it). Under `--answer approve=true` the CI one-pass answers it here.
+  approve:
+    invoke:
+      tool: "nika:prompt"
+      args:
+        mode: "confirm"
+        message: "diff ${{ const.base_ref }}...HEAD and fan out one review agent per changed file?"
+
   # `--diff-filter=d` drops deletions: a file that no longer exists cannot be
   # reviewed, and asking an agent to read it just burns a turn on an error.
   changed:
+    after: { approve: success }
     exec:
       command: ["git", "diff", "--name-only", "--diff-filter=d", "${{ const.base_ref }}...HEAD"]
 
@@ -95,8 +110,11 @@ tasks:
           | map(select(startswith("${{ const.review_root }}")))
 
   # The deterministic pass. Debt does not need a model to be found, and this
-  # runs whether or not anything changed.
+  # runs whether or not anything changed. It too descends from the gate —
+  # dominance is structural: a sibling branch that bypasses `approve`
+  # would re-open the trifecta no matter how clean its own content is.
   todo_sweep:
+    after: { approve: success }
     invoke:
       tool: "nika:grep"
       args:
