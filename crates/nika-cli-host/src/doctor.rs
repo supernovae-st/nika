@@ -22,21 +22,21 @@
 use std::fmt::Write as _;
 
 // The probe layer (structs + collectors) lives in `verbs::probe` — the ONE
-// detection engine `doctor` and `welcome` share. Re-exported `pub(crate)` so
+// detection engine `doctor` and `welcome` share. Re-exported `pub` so
 // this module's tests (and historical importers) keep their names.
+use crate::clients_registry::RegistryCoverage;
 use crate::display::theme::{Role, Theme};
-use crate::verbs::clients_registry::RegistryCoverage;
-pub(crate) use crate::verbs::probe::{
+use crate::output::{VerbOutput, exit};
+pub use crate::probe::{
     AdoptionState, CapabilityLevel, ClientProbe, HostCapabilityReceipt, ImageProbe, KitProbe,
     ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
-use crate::verbs::{VerbOutput, exit};
 use nika_providers::probe::ExecutionLocus;
 
 /// Severity of one diagnosis line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum Level {
+pub enum Level {
     /// `✔` healthy.
     Ok,
     /// `⚠` advisory (the run may still work).
@@ -68,7 +68,7 @@ impl Level {
 
 /// One diagnosis line · a problem carries the exact PRINTED fix (never run).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub(crate) struct Finding {
+pub struct Finding {
     pub level: Level,
     pub label: String,
     pub detail: String,
@@ -77,7 +77,7 @@ pub(crate) struct Finding {
 
 /// Pure diagnosis → ordered findings (binary · config · cloud providers ·
 /// local summary · the inference-readiness gate).
-pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
+pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     let mut out = vec![
         Finding {
             level: Level::Ok,
@@ -357,7 +357,7 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
 /// speaks when a typo'd knob fell back to its default (a knob silently
 /// doing nothing would be hidden magic).
 fn retention_findings(
-    retention: &crate::verbs::trace::retention::RetentionConfig,
+    retention: &crate::retention::RetentionConfig,
     notes: &[String],
 ) -> Vec<Finding> {
     let mut out = vec![Finding {
@@ -546,7 +546,8 @@ const fn capability_surfaces(level: CapabilityLevel) -> &'static str {
 }
 
 /// Exit code · `ENV(3)` when any `Fail`, else `OK(0)`.
-pub(crate) fn exit_code(findings: &[Finding]) -> u8 {
+#[must_use]
+pub fn exit_code(findings: &[Finding]) -> u8 {
     if findings.iter().any(|f| f.level == Level::Fail) {
         exit::ENV
     } else {
@@ -564,7 +565,8 @@ pub(crate) fn exit_code(findings: &[Finding]) -> u8 {
 /// flat findings could never express. H5: the per-host runtime receipts
 /// ride alongside too (additive) — what each host earned, what was
 /// verified versus assumed, and the repair, per host.
-pub(crate) fn render_json(
+#[must_use]
+pub fn render_json(
     findings: &[Finding],
     state: AdoptionState,
     receipts: &[HostCapabilityReceipt],
@@ -596,7 +598,8 @@ const LABEL_COL: usize = 10;
 /// enter width arithmetic — the same law as `Theme::glyph`). The sober
 /// register (colour off · links off · every pipe) is byte-identical to the
 /// themeless render it replaces.
-pub(crate) fn render(findings: &[Finding], theme: Theme) -> String {
+#[must_use]
+pub fn render(findings: &[Finding], theme: Theme) -> String {
     let mut s = String::new();
     let count = |level: Level| findings.iter().filter(|f| f.level == level).count();
     let (ok, warn, fail) = (count(Level::Ok), count(Level::Warn), count(Level::Fail));
@@ -620,7 +623,7 @@ pub(crate) fn render(findings: &[Finding], theme: Theme) -> String {
 
 /// OSC-8-wrap the linkable targets inside ONE printed doctor line — an
 /// existing file path (`/…` or `./…` · canonicalize-gated through the
-/// [`crate::verbs::linked_path`] seam: a link that cannot open stays plain)
+/// [`crate::output::linked_path`] seam: a link that cannot open stays plain)
 /// or an `https://` URL. Token-bounded on spaces, and the printed TEXT never
 /// changes — with the `links` capability off (every pipe · `--hyperlink
 /// never`) the line is returned VERBATIM, so the sober register stays
@@ -635,7 +638,7 @@ fn link_targets(theme: Theme, text: &str) -> String {
             if token.starts_with("https://") {
                 theme.link(token, token)
             } else if token.starts_with('/') || token.starts_with("./") {
-                crate::verbs::linked_path(theme, token)
+                crate::output::linked_path(theme, token)
             } else {
                 token.to_owned()
             }
@@ -753,9 +756,10 @@ fn ping_finding((id, addr, state): &(String, String, PingState)) -> Finding {
 /// Strip `user:pass@` from a URL for DISPLAY — a local media URL is
 /// config, not a credential, but `http://user:s3cret@tts.lan` in a CI
 /// log leaks the embedded secret (the rust-pro review's F5). The
-/// userinfo is replaced, never echoed. `pub(crate)`: the endpoint rows
+/// userinfo is replaced, never echoed. `pub`: the endpoint rows
 /// (catalog · welcome) redact through the SAME seam.
-pub(crate) fn redact_userinfo(url: &str) -> String {
+#[must_use]
+pub fn redact_userinfo(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return url.to_owned();
     };
@@ -773,15 +777,15 @@ pub(crate) fn redact_userinfo(url: &str) -> String {
 /// exact bytes; `--json` never colours.
 #[must_use]
 pub fn run(ping: bool, json: bool, theme: Theme) -> VerbOutput {
-    let probe = crate::verbs::probe::collect(ping);
+    let probe = crate::probe::collect(ping);
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
             render_json(
                 &findings,
-                crate::verbs::probe::adoption_state(&probe),
-                &crate::verbs::probe::capability_receipts(&probe),
+                crate::probe::adoption_state(&probe),
+                &crate::probe::capability_receipts(&probe),
             )
         } else {
             render(&findings, theme)

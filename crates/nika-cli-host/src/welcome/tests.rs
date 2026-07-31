@@ -1,9 +1,7 @@
 use super::*;
-use crate::verbs::clients_registry::RegistryCoverage;
-use crate::verbs::exit;
-use crate::verbs::probe::{
-    ClientProbe, ImageProbe, PingState, PricingProbe, ProviderProbe, TtsProbe,
-};
+use crate::clients_registry::RegistryCoverage;
+use crate::output::exit;
+use crate::probe::{ClientProbe, ImageProbe, PingState, PricingProbe, ProviderProbe, TtsProbe};
 use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
 
 /// The default synthetic readiness — recognized · loopback · the
@@ -21,7 +19,7 @@ fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
 
 fn synthetic_probe() -> Probe {
     Probe {
-        models: crate::verbs::probe::ModelsProbe::default(),
+        models: crate::probe::ModelsProbe::default(),
         version: "0.0.0-test".to_owned(),
         config_path: None,
         providers: vec![
@@ -75,7 +73,7 @@ fn synthetic_probe() -> Probe {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     }
@@ -322,11 +320,11 @@ fn mirror_names_kit_drift_and_stays_silent_when_aligned() {
 
     let mut probe = synthetic_probe();
     probe.kits = vec![
-        crate::verbs::probe::KitProbe {
+        crate::probe::KitProbe {
             client: "codex".to_owned(),
             version: "0.0.7".to_owned(), // same 0.0 train as the binary
         },
-        crate::verbs::probe::KitProbe {
+        crate::probe::KitProbe {
             client: "claude".to_owned(),
             version: "0.105.0".to_owned(), // another train — drift
         },
@@ -507,7 +505,7 @@ fn shipped_shape_probe() -> Probe {
         stale: false,
     };
     Probe {
-        models: crate::verbs::probe::ModelsProbe::default(),
+        models: crate::probe::ModelsProbe::default(),
         version: "0.98.0".to_owned(),
         config_path: None,
         providers: ["ollama", "lmstudio", "llamacpp", "localai", "vllm"]
@@ -540,7 +538,7 @@ fn shipped_shape_probe() -> Probe {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     }
@@ -612,31 +610,6 @@ fn ascii_theme_swaps_every_glyph() {
             "unicode {glyph} leaked into --ascii:\n{text}"
         );
     }
-}
-
-#[test]
-fn the_sample_is_a_real_workflow_that_checks_clean() {
-    // The honesty law, applied to marketing: the six lines the
-    // stranger reads must BE a checkable workflow, not pseudo-yaml.
-    let path = std::env::temp_dir().join(format!(
-        "nika-welcome-sample-{}.nika.yaml",
-        std::process::id()
-    ));
-    std::fs::write(&path, format!("{SAMPLE}\n")).expect("sample written");
-    let out = crate::verbs::check::run(
-        path.to_str().expect("utf8"),
-        false,
-        false,
-        None,
-        Theme::new(false, false, false),
-    );
-    std::fs::remove_file(&path).ok();
-    assert_eq!(
-        out.code,
-        exit::OK,
-        "the welcome sample must check clean:\n{}",
-        out.text
-    );
 }
 
 #[test]

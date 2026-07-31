@@ -16,16 +16,16 @@ use std::path::{Path, PathBuf};
 
 use nika_providers::ProviderRegistry;
 use nika_providers::probe::ExecutionLocus;
-pub(crate) use nika_providers::probe::{PingState, ProviderProbe, env_present};
+pub use nika_providers::probe::{PingState, ProviderProbe, env_present};
 
-use crate::verbs::clients_registry::{self, RegistryCoverage};
-use crate::verbs::trace::retention::RetentionConfig;
+use crate::clients_registry::{self, RegistryCoverage};
+use crate::retention::RetentionConfig;
 use serde_json::Value;
 
 /// The injected environment facts `diagnose` reasons over — PURE · testable.
 /// The CLI fills it from the real env; tests pass synthetic probes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Probe {
+pub struct Probe {
     pub version: String,
     /// `Some(path)` when a user config file exists.
     pub config_path: Option<String>,
@@ -66,12 +66,12 @@ pub(crate) struct Probe {
 
 // The models-dir facts live with their store (the descended member) —
 // re-exported so `doctor`'s diagnosis keeps one import surface.
-pub(crate) use nika_models::ModelsProbe;
+pub use nika_models::ModelsProbe;
 
 /// The pricing-catalog facts — all derived from the vendored snapshot
 /// (zero network · the born-stale law keeps counts read-time-derived).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct PricingProbe {
+pub struct PricingProbe {
     /// Snapshot date (ISO `YYYY-MM-DD`).
     pub as_of: String,
     /// Upstream sha256 prefix (provenance pin).
@@ -87,7 +87,7 @@ pub(crate) struct PricingProbe {
 
 /// The TTS-plane environment facts (presence only, never values).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct TtsProbe {
+pub struct TtsProbe {
     pub openai_key: bool,
     pub elevenlabs_key: bool,
     /// `Some(url)` when `NIKA_TTS_LOCAL_URL` is set (config, displayable).
@@ -96,7 +96,7 @@ pub(crate) struct TtsProbe {
 
 /// The image-plane environment facts (presence only, never values).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct ImageProbe {
+pub struct ImageProbe {
     pub openai_key: bool,
     pub gemini_key: bool,
     pub xai_key: bool,
@@ -110,7 +110,7 @@ pub(crate) struct ImageProbe {
 /// declares. Found kits only — a client without the kit is not a
 /// finding (the MCP wire via `nika wire` needs no kit).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct KitProbe {
+pub struct KitProbe {
     pub client: String,
     pub version: String,
 }
@@ -118,7 +118,7 @@ pub(crate) struct KitProbe {
 /// Agent/editor MCP wiring facts — config presence only, not file contents in
 /// the rendered report.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ClientProbe {
+pub struct ClientProbe {
     pub id: String,
     pub path: String,
     pub present: bool,
@@ -131,7 +131,7 @@ pub(crate) struct ClientProbe {
 /// exist). The scale is honest: every rung is EARNED by a detected
 /// surface, and MCP alone is never « guarded ».
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CapabilityLevel {
+pub enum CapabilityLevel {
     /// L1 — the oracle MCP only: the host can ASK (`nika_check` …),
     /// nothing guards the edit or the run.
     OracleOnly,
@@ -150,7 +150,7 @@ pub(crate) enum CapabilityLevel {
 impl CapabilityLevel {
     /// The machine token rendered on the doctor line (kebab-case).
     #[must_use]
-    pub(crate) const fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::OracleOnly => "oracle-only",
             Self::AuthoringEnabled => "authoring-enabled",
@@ -166,7 +166,7 @@ impl ClientProbe {
     /// the client's name alone. MCP-only ⇒ `OracleOnly`, JAMAIS
     /// `Guarded` (P0-9).
     #[must_use]
-    pub(crate) fn capability(&self, kits: &[KitProbe]) -> CapabilityLevel {
+    pub fn capability(&self, kits: &[KitProbe]) -> CapabilityLevel {
         if !self.current || !kits.iter().any(|k| k.client == self.id) {
             return CapabilityLevel::OracleOnly;
         }
@@ -199,7 +199,7 @@ fn kit_ships_hooks(client: &str) -> bool {
 /// « the hooks landed with it » (or did not) is a lookup, and the
 /// receipt says so.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub(crate) struct HostCapabilityReceipt {
+pub struct HostCapabilityReceipt {
     /// The probed host id (`claude` · `cursor` · `hermes` …).
     pub host: String,
     /// The installed kit's declared version — `None` when no kit was
@@ -236,7 +236,7 @@ impl ClientProbe {
     /// [`ClientProbe::capability`] climbs (one truth, never recomputed),
     /// plus the provenance the flat level token could not carry.
     #[must_use]
-    pub(crate) fn capability_receipt(&self, kits: &[KitProbe]) -> HostCapabilityReceipt {
+    pub fn capability_receipt(&self, kits: &[KitProbe]) -> HostCapabilityReceipt {
         let kit = kits.iter().find(|k| k.client == self.id);
         let mut components: Vec<String> = Vec::new();
         let mut canaries: Vec<String> = Vec::new();
@@ -301,7 +301,7 @@ impl ClientProbe {
 /// `doctor --json` (H5 · additive against summary/findings/
 /// `adoption_state`, in probe order).
 #[must_use]
-pub(crate) fn capability_receipts(probe: &Probe) -> Vec<HostCapabilityReceipt> {
+pub fn capability_receipts(probe: &Probe) -> Vec<HostCapabilityReceipt> {
     probe
         .clients
         .iter()
@@ -314,7 +314,7 @@ pub(crate) fn capability_receipts(probe: &Probe) -> Vec<HostCapabilityReceipt> {
 /// both `doctor` and `welcome` consume — a second detector would be a
 /// second truth.
 #[must_use]
-pub(crate) fn collect(ping: bool) -> Probe {
+pub fn collect(ping: bool) -> Probe {
     // ADR-100 D4 — the knobs GC actually enforces, observed once here so
     // `diagnose` stays pure over the Probe.
     let (retention, retention_notes) = RetentionConfig::from_env();
@@ -554,7 +554,8 @@ fn codex_cache_version(cache_dir: &Path) -> Option<String> {
 /// `false` when either side does not parse (never guess a train). The
 /// welcome mirror keys its kit lane on this; doctor's direction-aware
 /// diagnosis keeps its own ordering.
-pub(crate) fn train_differs(a: &str, b: &str) -> bool {
+#[must_use]
+pub fn train_differs(a: &str, b: &str) -> bool {
     match (version_key(a), version_key(b)) {
         (Some((am, an, _)), Some((bm, bn, _))) => (am, an) != (bm, bn),
         _ => false,
@@ -571,11 +572,8 @@ fn version_key(v: &str) -> Option<(u64, u64, u64)> {
     Some((maj, min, patch))
 }
 
-pub(crate) fn client_probe_any(
-    id: &str,
-    paths: &[PathBuf],
-    server_path: &[&str; 2],
-) -> ClientProbe {
+#[must_use]
+pub fn client_probe_any(id: &str, paths: &[PathBuf], server_path: &[&str; 2]) -> ClientProbe {
     let mut probes: Vec<ClientProbe> = paths
         .iter()
         .map(|path| client_probe(id, path, server_path))
@@ -732,7 +730,7 @@ pub use nika_dap::inventory::{SKIP_DIRS, collect_workflow_paths};
 /// context): client wiring booleans · local provider ids · cloud key
 /// COUNTS. Names and counts by construction — no value exists to leak.
 #[must_use]
-pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
+pub fn environment_json(probe: &Probe) -> serde_json::Value {
     let clients: Vec<serde_json::Value> = probe
         .clients
         .iter()
@@ -816,7 +814,7 @@ fn recorded_run_count() -> usize {
 ///   happened » cannot be told from a real one. The rung is not
 ///   invented; runs without a live path today read `Installed`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AdoptionState {
+pub enum AdoptionState {
     /// The floor: no cloud key, no local engagement, no recorded run.
     /// The keyless engines in the catalog are SEED facts — present on
     /// every machine, so they can never count as detection.
@@ -841,7 +839,7 @@ pub(crate) enum AdoptionState {
 impl AdoptionState {
     /// The machine token (`doctor --json` · `snake_case`, additive).
     #[must_use]
-    pub(crate) const fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Installed => "installed",
             Self::LocalDetected => "local_detected",
@@ -856,7 +854,7 @@ impl AdoptionState {
     /// `metric + " — " + cta` must fit the 67 columns welcome's
     /// `  state      ` row leaves inside 80.
     #[must_use]
-    pub(crate) fn metric(self, probe: &Probe) -> String {
+    pub fn metric(self, probe: &Probe) -> String {
         match self {
             Self::Installed => "installed · no inference path".to_owned(),
             Self::LocalDetected => {
@@ -922,7 +920,7 @@ impl AdoptionState {
     /// « see doctor » (the audit's closure proof: distinct CTA per
     /// distinct state).
     #[must_use]
-    pub(crate) const fn cta(self) -> &'static str {
+    pub const fn cta(self) -> &'static str {
         match self {
             Self::Installed => "proof → nika examples run 01-hello",
             Self::LocalDetected => "start it, then nika doctor --ping",
@@ -938,7 +936,7 @@ impl AdoptionState {
 /// wins; a rung is only ever earned by a fact the probe actually
 /// measured.
 #[must_use]
-pub(crate) fn adoption_state(probe: &Probe) -> AdoptionState {
+pub fn adoption_state(probe: &Probe) -> AdoptionState {
     let cloud_configured = probe
         .providers
         .iter()

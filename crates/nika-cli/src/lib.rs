@@ -27,11 +27,10 @@
 pub use nika_display as display;
 pub use nika_display::demo;
 pub mod anchor;
-pub(crate) mod context_envelope;
-pub mod metrics;
+pub use nika_cli_host::metrics;
 pub mod registry;
 pub mod seal;
-pub(crate) mod text;
+pub(crate) use nika_cli_host::text;
 pub mod verbs;
 pub mod wires;
 

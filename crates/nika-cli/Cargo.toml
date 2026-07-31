@@ -12,6 +12,7 @@ publish                = false  # Internal L4 interface crate (the binary ships,
 
 [dependencies]
 nika-event  = { path = "../nika-event", version = "0.106.0" }  # the REAL event taxonomy (the fold input)
+nika-cli-host = { path = "../nika-cli-host", version = "0.106.0" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
 nika-types  = { path = "../nika-types", version = "0.106.0" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.106.0" } # parse (check · inspect · graph · run)
 nika-check  = { path = "../nika-check", version = "0.106.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
@@ -54,7 +55,7 @@ tokio            = { workspace = true }                                   # the 
 # Build `nika model serve` for real: the candle backend + the loopback
 # OpenAI-compat server (ADR-091 · ADR-093) — forwarded to the descended
 # local-models member. Off by default (the lean-core contract).
-local-infer = ["nika-models/local-infer"]
+local-infer = ["nika-models/local-infer", "nika-cli-host/local-infer"]
 # Apple-GPU kernels for the local backend (macOS only — CI's Linux
 # feature-matrix excludes this name, keep them aligned).
 metal       = ["local-infer", "nika-models/metal"]

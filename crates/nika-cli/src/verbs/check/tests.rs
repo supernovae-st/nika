@@ -1068,3 +1068,29 @@ fn unresolved_reference_never_also_drifts() {
         out.text
     );
 }
+
+/// The honesty law, applied to marketing: the six lines the welcome
+/// stranger reads must BE a checkable workflow, not pseudo-yaml.
+/// (Lives cli-side since ADR-110: SAMPLE is the host member's, `check::run` is ours.)
+#[test]
+fn the_welcome_sample_is_a_real_workflow_that_checks_clean() {
+    let path = std::env::temp_dir().join(format!(
+        "nika-welcome-sample-{}.nika.yaml",
+        std::process::id()
+    ));
+    std::fs::write(&path, format!("{}\n", crate::verbs::welcome::SAMPLE)).expect("sample written");
+    let out = crate::verbs::check::run(
+        path.to_str().expect("utf8"),
+        false,
+        false,
+        None,
+        crate::Theme::new(false, false, false),
+    );
+    std::fs::remove_file(&path).ok();
+    assert_eq!(
+        out.code,
+        crate::verbs::exit::OK,
+        "the welcome sample must check clean:\n{}",
+        out.text
+    );
+}

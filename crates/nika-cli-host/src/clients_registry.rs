@@ -19,23 +19,22 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 /// The vendored snapshot — ONE source, embedded at compile time.
-const VENDORED: &str = include_str!("../../data/clients.registry.yaml");
+const VENDORED: &str = include_str!("../data/clients.registry.yaml");
 
 /// The wire targets doctor has a CONCRETE config probe for, in the
 /// historical doctor row order (the render order is load-bearing —
 /// findings and receipts ride probe order).
-pub(crate) const PROBE_MECHANISMS: &[&str] =
-    &["cursor", "windsurf", "claude", "zed", "hermes", "vscode"];
+pub const PROBE_MECHANISMS: &[&str] = &["cursor", "windsurf", "claude", "zed", "hermes", "vscode"];
 
 /// The wire targets whose kit landing doctor can read (class A today),
 /// in the historical kit row order. Consumed by the matrix-coherence
 /// test (the gating itself re-derives from the registry at runtime).
 #[cfg(test)]
-pub(crate) const KIT_MECHANISMS: &[&str] = &["cursor", "claude", "codex"];
+pub const KIT_MECHANISMS: &[&str] = &["cursor", "claude", "codex"];
 
 /// The parsed matrix: the rows the probe/doctor surfaces derive from.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
-pub(crate) struct ClientsRegistry {
+pub struct ClientsRegistry {
     pub schema_version: u32,
     pub clients: Vec<RegistryClient>,
 }
@@ -44,7 +43,7 @@ pub(crate) struct ClientsRegistry {
 /// the matrix carries prose (install lines · proofs · gap reasons)
 /// the binary never renders.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
-pub(crate) struct RegistryClient {
+pub struct RegistryClient {
     pub id: String,
     pub name: String,
     #[serde(rename = "class")]
@@ -65,7 +64,7 @@ pub(crate) struct RegistryClient {
 /// read time from the vendored snapshot (the born-stale law), never
 /// typed by hand.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct RegistryCoverage {
+pub struct RegistryCoverage {
     /// Every client row in the matrix.
     pub declared: usize,
     /// Rows `nika wire` can write today (`wire:` present).
@@ -83,7 +82,7 @@ pub(crate) struct RegistryCoverage {
 /// The vendored matrix, parsed once — `None` only if the embedded
 /// snapshot cannot parse (impossible by construction: the parse test
 /// pins it; a degradation path, never a guess).
-pub(crate) fn vendored() -> Option<&'static ClientsRegistry> {
+pub fn vendored() -> Option<&'static ClientsRegistry> {
     static REGISTRY: OnceLock<Option<ClientsRegistry>> = OnceLock::new();
     REGISTRY
         .get_or_init(|| serde_yaml_bw::from_str(VENDORED).ok())
@@ -91,7 +90,8 @@ pub(crate) fn vendored() -> Option<&'static ClientsRegistry> {
 }
 
 /// Derive the coverage facts from the matrix — pure.
-pub(crate) fn coverage(registry: &ClientsRegistry) -> RegistryCoverage {
+#[must_use]
+pub fn coverage(registry: &ClientsRegistry) -> RegistryCoverage {
     let mut cov = RegistryCoverage {
         declared: registry.clients.len(),
         ..RegistryCoverage::default()
@@ -118,13 +118,15 @@ pub(crate) fn coverage(registry: &ClientsRegistry) -> RegistryCoverage {
 /// Does the matrix claim this wire target for a client today? An
 /// absent registry (the impossible parse failure above) degrades to
 /// `true` — the historical probe set, never a silent coverage loss.
-pub(crate) fn registry_wires(target: &str) -> bool {
+#[must_use]
+pub fn registry_wires(target: &str) -> bool {
     vendored().is_none_or(|r| r.clients.iter().any(|c| c.wire.as_deref() == Some(target)))
 }
 
 /// Does the matrix ship the plugin kit for this wire target (a class-A
 /// row claims it)? Same degrade-open law as [`registry_wires`].
-pub(crate) fn registry_ships_kit(target: &str) -> bool {
+#[must_use]
+pub fn registry_ships_kit(target: &str) -> bool {
     vendored().is_none_or(|r| {
         r.clients
             .iter()
@@ -306,7 +308,7 @@ mod tests {
             disk,
             VENDORED.as_bytes(),
             "the vendored snapshot drifted from {ssot:?} — re-vendor: \
-             cp <agents>/repo/clients.yaml crates/nika-cli/data/clients.registry.yaml"
+             cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml"
         );
     }
 }

@@ -665,7 +665,7 @@ fn dry_run_lists_the_plan_and_writes_nothing() {
             ..WireOptions::default()
         },
     );
-    assert_eq!(out.code, crate::verbs::exit::OK, "{out:?}");
+    assert_eq!(out.code, crate::output::exit::OK, "{out:?}");
     assert!(
         out.text.contains("dry-run"),
         "the plan says it is one: {out:?}"
@@ -697,7 +697,7 @@ fn dry_run_reports_current_and_keeps_bytes_identical() {
             ..WireOptions::default()
         },
     );
-    assert_eq!(out.code, crate::verbs::exit::OK, "{out:?}");
+    assert_eq!(out.code, crate::output::exit::OK, "{out:?}");
     assert!(out.text.contains("current"), "{out:?}");
     let after = std::fs::read_to_string(&path).expect("read");
     assert_eq!(after, wired, "byte-identical under a preview");
@@ -750,7 +750,7 @@ fn all_consent_truth_table() {
 #[test]
 fn wire_all_without_consent_is_refused_naming_the_path() {
     let out = run_with(WireTarget::All, ".", WireOptions::default());
-    assert_eq!(out.code, crate::verbs::exit::ENV, "{out:?}");
+    assert_eq!(out.code, crate::output::exit::ENV, "{out:?}");
     assert!(out.text.contains("--dry-run"), "{out:?}");
     assert!(out.text.contains("wire detected"), "{out:?}");
     assert!(out.text.contains("--yes"), "{out:?}");
@@ -773,8 +773,8 @@ fn wire_all_dry_run_previews_without_consent() {
         },
     );
     assert!(
-        out.code == crate::verbs::exit::OK
-            || (out.code == crate::verbs::exit::ENV && out.text.contains("skipped")),
+        out.code == crate::output::exit::OK
+            || (out.code == crate::output::exit::ENV && out.text.contains("skipped")),
         "the exit code predicts the run's (skips included): {out:?}"
     );
     assert!(out.text.contains("dry-run"), "{out:?}");

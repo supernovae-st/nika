@@ -31,8 +31,8 @@ use nika_providers::probe::ExecutionLocus;
 
 use crate::context_envelope::{self, ContextEnvelope, ContextMode, EnvFacts, EvidenceSource};
 use crate::display::theme::{Role, Theme};
-use crate::verbs::probe::Probe;
-use crate::verbs::{VerbOutput, probe};
+use crate::probe::Probe;
+use crate::{output::VerbOutput, probe};
 
 /// The next moves, keyed on where this workspace actually IS — the
 /// concierge hands over ONE key, not the keyring (row 0 carries the
@@ -411,7 +411,7 @@ fn mark(theme: Theme, on: bool) -> String {
 }
 
 /// One client's cell in the editors row (`cursor ✓` · `vscode ✗`).
-fn client_cell(theme: Theme, c: &crate::verbs::probe::ClientProbe) -> String {
+fn client_cell(theme: Theme, c: &crate::probe::ClientProbe) -> String {
     format!("{} {}", c.id, mark(theme, c.current))
 }
 
@@ -420,7 +420,7 @@ fn client_cell(theme: Theme, c: &crate::verbs::probe::ClientProbe) -> String {
 /// knows). The SAME shape as the embedded `01-hello` example, so the
 /// START block's `nika examples run 01-hello` runs exactly what the eye
 /// just read — a test pins that the sample checks clean for real.
-pub(crate) const SAMPLE: &str = r#"nika: v1
+pub const SAMPLE: &str = r#"nika: v1
 workflow:
   id: hello
 model: mock/echo
@@ -537,7 +537,7 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
                 s,
                 "  endpoint   {} → {} ({})",
                 p.id,
-                crate::verbs::doctor::redact_userinfo(&p.endpoint),
+                crate::doctor::redact_userinfo(&p.endpoint),
                 p.readiness.execution_locus.label()
             );
         }
@@ -569,7 +569,7 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
     let drifted: Vec<String> = probe
         .kits
         .iter()
-        .filter(|k| crate::verbs::probe::train_differs(&k.version, &probe.version))
+        .filter(|k| crate::probe::train_differs(&k.version, &probe.version))
         .map(|k| format!("{} {}", k.client, k.version))
         .collect();
     if !drifted.is_empty() {

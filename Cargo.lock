@@ -4100,6 +4100,7 @@ dependencies = [
  "nika-cap",
  "nika-catalog",
  "nika-check",
+ "nika-cli-host",
  "nika-dap",
  "nika-display",
  "nika-error",
@@ -4133,6 +4134,28 @@ dependencies = [
  "tokio",
  "toml_edit",
  "uuid",
+]
+
+[[package]]
+name = "nika-cli-host"
+version = "0.106.1"
+dependencies = [
+ "clap",
+ "nika-builtin",
+ "nika-catalog",
+ "nika-check",
+ "nika-dap",
+ "nika-display",
+ "nika-models",
+ "nika-pack",
+ "nika-providers",
+ "nika-runtime",
+ "nika-schema",
+ "serde",
+ "serde_json",
+ "serde_yaml_bw",
+ "tempfile",
+ "toml_edit",
 ]
 
 [[package]]

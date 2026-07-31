@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 /// The session's mode — the ONE decision every consumer branches on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum ContextMode {
+pub enum ContextMode {
     /// No reliable folder evidence: chat only, zero workspace claim.
     ChatOnly,
     /// A validated folder binds the session.
@@ -44,7 +44,7 @@ pub(crate) enum ContextMode {
 /// Where the folder evidence came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum EvidenceSource {
+pub enum EvidenceSource {
     /// The host's session-open folder selection.
     HostSelection,
     /// The directory of the host's active file.
@@ -59,7 +59,7 @@ pub(crate) enum EvidenceSource {
 /// The evidence record: the source PLUS any subdir→root expansion (an
 /// expansion is always displayed, never silent).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Evidence {
+pub struct Evidence {
     /// How the candidate cwd reached us.
     pub source: EvidenceSource,
     /// Set when the candidate sat in a SUBDIR of the resolved root —
@@ -70,7 +70,7 @@ pub(crate) struct Evidence {
 /// Host environment facts — the impure half, collected once by the
 /// caller so [`resolve`] stays pure + testable.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct EnvFacts {
+pub struct EnvFacts {
     /// How the candidate cwd was obtained.
     pub evidence: EvidenceSource,
     /// Every root the host opened (0/1 = single-root · >1 = multi-root,
@@ -95,7 +95,7 @@ impl EnvFacts {
     /// the host knows how it named the folder.
     #[allow(clippy::disallowed_methods)] // presence-only reads of NON-secret session vars
     #[must_use]
-    pub(crate) fn detect() -> Self {
+    pub fn detect() -> Self {
         let remote = std::env::var_os("SSH_CONNECTION")
             .or_else(|| std::env::var_os("SSH_TTY"))
             .map(|_| "ssh".to_owned());
@@ -114,7 +114,7 @@ impl EnvFacts {
 
 /// The resolved context — serializable (the hook/envelope wire surface).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ContextEnvelope {
+pub struct ContextEnvelope {
     /// Chat-only vs workspace — the one branch.
     pub mode: ContextMode,
     /// The candidate as the host named it (render form · empty in
@@ -162,7 +162,7 @@ impl ContextEnvelope {
     /// the consumer MUST ask (root 0 is never the silent pick).
     #[must_use]
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn requires_explicit_root(&self) -> bool {
+    pub fn requires_explicit_root(&self) -> bool {
         self.mode == ContextMode::Workspace
             && self.workspace_roots.len() > 1
             && self.canonical_root.is_none()
@@ -171,7 +171,7 @@ impl ContextEnvelope {
     /// Name the root explicitly (the multi-root door). Refuses a root
     /// the host never opened; on accept, re-binds the nonce.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn select_root(&mut self, root: &Path) -> bool {
+    pub fn select_root(&mut self, root: &Path) -> bool {
         let Ok(canon) = root.canonicalize() else {
             return false;
         };
@@ -187,7 +187,7 @@ impl ContextEnvelope {
 /// Resolve the session context from the candidate cwd + host facts.
 /// Pure: every impure input arrives as a parameter.
 #[must_use]
-pub(crate) fn resolve(candidate: Option<&Path>, facts: &EnvFacts) -> ContextEnvelope {
+pub fn resolve(candidate: Option<&Path>, facts: &EnvFacts) -> ContextEnvelope {
     // The chat-only law (P0-14 · handoff §6.2): absent · invalid ·
     // unreachable → chat_only. The process cwd is NEVER consulted.
     let Some(candidate) = candidate else {

@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use clap::ValueEnum;
 use serde_json::{Map, Value};
 
-use crate::verbs::VerbOutput;
+use crate::output::VerbOutput;
 
 const NIKA_MCP_ARGS: [&str; 1] = ["mcp"];
 
@@ -220,7 +220,7 @@ fn resolve_targets(target: WireTarget, dir: &str) -> Vec<WireTarget> {
 /// The clients this machine SHOWS — the same presence truth `doctor`
 /// reports. probe.rs owns its client list privately, so the wiring
 /// registry re-derives it at the same paths through the probe's own
-/// [`client_probe_any`](crate::verbs::probe::client_probe_any) machinery
+/// [`client_probe_any`](crate::probe::client_probe_any) machinery
 /// (one detection semantics — presence only, never a guess).
 fn detected_targets(dir: &str) -> Vec<WireTarget> {
     match home_path(&[]) {
@@ -232,7 +232,7 @@ fn detected_targets(dir: &str) -> Vec<WireTarget> {
 fn detected_targets_in(home: &Path, dir: &Path) -> Vec<WireTarget> {
     let mcp_servers: &[&str; 2] = &["mcpServers", "nika"];
     let probes = [
-        crate::verbs::probe::client_probe_any(
+        crate::probe::client_probe_any(
             "cursor",
             &[
                 home.join(".cursor").join("mcp.json"),
@@ -240,7 +240,7 @@ fn detected_targets_in(home: &Path, dir: &Path) -> Vec<WireTarget> {
             ],
             mcp_servers,
         ),
-        crate::verbs::probe::client_probe_any(
+        crate::probe::client_probe_any(
             "windsurf",
             &[home
                 .join(".codeium")
@@ -248,20 +248,20 @@ fn detected_targets_in(home: &Path, dir: &Path) -> Vec<WireTarget> {
                 .join("mcp_config.json")],
             mcp_servers,
         ),
-        crate::verbs::probe::client_probe_any("claude", &[home.join(".claude.json")], mcp_servers),
-        crate::verbs::probe::client_probe_any(
+        crate::probe::client_probe_any("claude", &[home.join(".claude.json")], mcp_servers),
+        crate::probe::client_probe_any(
             "zed",
             &[home.join(".config").join("zed").join("settings.json")],
             &["context_servers", "nika"],
         ),
         // Hermes is YAML — the JSON probe never parses it, but DETECTION
         // is presence only, and `present` is exactly that.
-        crate::verbs::probe::client_probe_any(
+        crate::probe::client_probe_any(
             "hermes",
             &[home.join(".hermes").join("config.yaml")],
             &["mcp_servers", "nika"],
         ),
-        crate::verbs::probe::client_probe_any(
+        crate::probe::client_probe_any(
             "vscode",
             &[dir.join(".vscode").join("mcp.json")],
             &["servers", "nika"],

@@ -4,7 +4,7 @@ use std::time::Duration;
 use nika_providers::ProviderRegistry;
 
 use super::*;
-use crate::verbs::probe::client_probe_any;
+use crate::probe::client_probe_any;
 use nika_providers::probe::{
     ExecutionLocus, ProviderReadiness, env_present, ping_addr, spawn_ping,
 };
@@ -115,7 +115,7 @@ fn a_lan_override_is_named_on_the_local_lane() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -170,7 +170,7 @@ fn key_present_is_ok_and_exits_zero() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -203,7 +203,7 @@ fn unset_key_is_a_warn_with_a_fix_not_a_fail() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -241,7 +241,7 @@ fn never_prints_a_secret_value() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -269,7 +269,7 @@ fn no_provider_at_all_fails_with_exit_three() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -292,7 +292,7 @@ fn local_provider_alone_is_a_usable_path_exit_zero() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -388,7 +388,7 @@ fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -396,7 +396,7 @@ fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
     let json: serde_json::Value = serde_json::from_str(&render_json(
         &findings,
         AdoptionState::KeyPresent,
-        &crate::verbs::probe::capability_receipts(&probe),
+        &crate::probe::capability_receipts(&probe),
     ))
     .expect("valid JSON");
     // The pre-H5 fields are untouched (additive means additive).
@@ -503,7 +503,7 @@ fn sidecar_row_tracks_the_build_feature() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -597,7 +597,7 @@ fn doctor_names_each_host_capability_level() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -632,7 +632,7 @@ fn client_probe_reports_stale_wiring_with_a_wire_fix() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -731,7 +731,7 @@ fn diagnose_carries_one_kit_row_per_found_surface() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -955,7 +955,7 @@ fn local_line_hands_off_to_ping_and_ping_lines_render() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
@@ -1128,7 +1128,7 @@ fn diagnose_emits_one_registry_coverage_row() {
         tts: TtsProbe::default(),
         local_pings: Vec::new(),
         pricing: PricingProbe::default(),
-        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
     };
