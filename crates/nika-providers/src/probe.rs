@@ -119,11 +119,14 @@ fn endpoint_host(url: &str) -> Option<&str> {
 /// `.internal`). Public DNS names are NOT Lan — the loopback call is
 /// [`nika_types::net::is_exact_loopback_literal`]'s, upstream of this.
 fn is_lan_host(host: &str) -> bool {
+    // seam-bypass-ok: pure parse + range math on a held string, zero OS reach
+    use std::net::IpAddr;
+
     let literal = host.trim_start_matches('[').trim_end_matches(']');
-    if let Ok(ip) = literal.parse::<std::net::IpAddr>() {
+    if let Ok(ip) = literal.parse::<IpAddr>() {
         return match ip {
-            std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
-            std::net::IpAddr::V6(v6) => {
+            IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
+            IpAddr::V6(v6) => {
                 let s = v6.segments();
                 // fc00::/7 (unique local) · fe80::/10 (link-local).
                 (s[0] & 0xfe00) == 0xfc00 || (s[0] & 0xffc0) == 0xfe80

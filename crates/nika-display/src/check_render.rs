@@ -643,7 +643,7 @@ fn unbounded_census(report: &CheckReport) -> String {
 /// this line counts them so a scroll-past never misses advice silently.
 ///
 /// The grade is the card's honesty gate (P0-6 · 2026-07-30): past
-/// [`RiskGrade::Supervised`] the line is NEVER green. `✔ audited · est
+/// [`nika_check::RiskGrade::Supervised`] the line is NEVER green. `✔ audited · est
 /// unbounded` in `Role::Good` shipped exactly that lie — an agent loop
 /// at `max_turns: 100` with no token cap closed on a green card while
 /// the COST section named the uncapped task three lines up. High and
