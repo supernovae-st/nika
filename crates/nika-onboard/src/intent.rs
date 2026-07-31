@@ -1273,4 +1273,33 @@ mod adversarial_pass_2026_07_31 {
             "empty is calm"
         );
     }
+
+    /// The LIVING bounds of [`TAU_CATALOG`] (Q2 of the socratic pass):
+    /// the floor was measured against TODAY's corpus, and nothing used
+    /// to force a re-measure when the corpus moves. These two probes
+    /// ARE the bounds — a corpus change that lets a vague utterance
+    /// route (or starves the honest one below the floor plus the
+    /// contract gate) turns this red, and red here means « re-run
+    /// `calibration_probe`, re-derive `TAU_CATALOG` », never « bump the
+    /// assertion ».
+    #[test]
+    fn tau_catalog_bounds_hold_on_the_living_corpus() {
+        for vague in ["make it good", "do the thing properly"] {
+            assert!(
+                matches!(route(vague), RoutingOutcome::NeedsClarification { .. }),
+                "`{vague}` is vague and must never route — TAU_CATALOG drifted under the corpus"
+            );
+        }
+        // The honest end stays reachable: the invoice probe either
+        // routes or leads its clarify list (the probe test pins which).
+        match route("chase unpaid invoices every friday") {
+            RoutingOutcome::Routed { template, .. } => assert_eq!(template, "invoice-chaser"),
+            RoutingOutcome::NeedsClarification { candidates, .. } => {
+                assert_eq!(
+                    candidates.first().map(String::as_str),
+                    Some("invoice-chaser")
+                );
+            }
+        }
+    }
 }
