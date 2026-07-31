@@ -270,6 +270,16 @@ const KIT_CURSOR_HOOKS: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/hooks/cursor-hooks.json"
 ));
 
+/// The kit's Codex manifest — test-only anchor: the plugin page's first
+/// contact (description · defaultPrompt) is pinned against the three-door
+/// CTA contract so a copy edit cannot silently re-expose engine
+/// capabilities as the entry points.
+#[cfg(test)]
+const KIT_CODEX_MANIFEST: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/.codex-plugin/plugin.json"
+));
+
 const CURSOR_HOOKS_JSON: &str = r#"{
   "hooks": {
     "sessionStart": [
@@ -725,6 +735,48 @@ mod tests {
             shape(&kit),
             "project hooks.json drifted from the kit manifest"
         );
+    }
+
+    /// The Codex plugin page opens with the three DOORS — one per visitor
+    /// state (create · discover · continue), never three engine
+    /// capabilities of equal weight (UX audit 2026-07-30 · three-door CTA
+    /// spec). Create is the primary door and the first CTA in the chat —
+    /// the platform's Try now is a system CTA and is never duplicated —
+    /// and « Nothing runs automatically. » is persistent copy, not a
+    /// tooltip. Validation and trace diagnosis stay available BEHIND the
+    /// Continue door; they no longer compete with first value.
+    #[test]
+    fn the_codex_manifest_opens_with_the_three_doors() {
+        let create = "Help me turn one task I repeat into a Nika workflow.";
+        let discover = "Teach me what Nika is through one small, concrete and safe example.";
+        let cont = "Inspect the current project's Nika state in read-only mode.";
+        for door in [create, discover, cont] {
+            assert!(
+                KIT_CODEX_MANIFEST.contains(door),
+                "missing door prompt: {door}"
+            );
+        }
+        let pos = |needle: &str| KIT_CODEX_MANIFEST.find(needle).expect("door present");
+        assert!(
+            pos(create) < pos(discover) && pos(discover) < pos(cont),
+            "create is the primary door — first in chat order"
+        );
+        assert!(
+            KIT_CODEX_MANIFEST.contains("Nothing runs automatically."),
+            "the safety line is persistent copy, not a tooltip"
+        );
+        // The retired capability trio (audit 2026-07-30): three internal
+        // capabilities presented as equals. They moved behind Continue.
+        for retired in [
+            "Turn this repeatable task into a checked Nika workflow.",
+            "Validate this .nika.yaml file and repair every finding.",
+            "Diagnose this failed Nika run from its trace.",
+        ] {
+            assert!(
+                !KIT_CODEX_MANIFEST.contains(retired),
+                "retired capability prompt still on the page: {retired}"
+            );
+        }
     }
 
     /// The subagents keep their kit identity — Cursor matches them by

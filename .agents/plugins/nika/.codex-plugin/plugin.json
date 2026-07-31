@@ -1,6 +1,6 @@
 {
   "name": "nika",
-  "description": "Nika — intent-as-code for AI workflows: author a reviewable DAG in YAML, audit cost and permits BEFORE running, keep tamper-evident traces after. Requires the nika binary: brew install supernovae-st/tap/nika",
+  "description": "Turn a task you repeat into a workflow you can understand, check and reuse — checked before anything runs, proven after. Requires the nika binary: brew install supernovae-st/tap/nika",
   "version": "0.106.0",
   "author": {
     "name": "SuperNovae Studio",
@@ -15,8 +15,8 @@
   "hooks": "./hooks/claude-hooks.json",
   "interface": {
     "displayName": "Nika",
-    "shortDescription": "Intent as code for AI",
-    "longDescription": "Nika turns repeatable AI work into a file. One .nika.yaml holds the whole job as a reviewable DAG: model calls, shell steps, tool calls and bounded agent loops, with the data edges written down instead of implied.\n\nThe file is audited before it runs. `nika check` reads the plan, the cost ceiling, the secret flows, the types and the effect boundary, and every finding teaches its own fix. Nothing is spent to find out that a workflow was wrong.\n\nWhat the plugin adds to your agent: skills for authoring, debugging, operating and migrating workflows; subagents that write a file, root-cause a failed run from its trace, or port an existing script; slash commands for the audit, the scaffold, the trace and the permits boundary; and a read-only oracle that answers schema, example, template and catalog questions without touching your shell.\n\nRunning stays yours. The plugin proposes the command; you type it. Spend is capped at the call that would cross the cap, the effect boundary is declared in the file and reviewable in a diff, and every run leaves a hash-chained trace you can verify afterwards.",
+    "shortDescription": "Turn a repeated task into a checked workflow",
+    "longDescription": "Turn a task you repeat into a workflow you can understand, check and reuse.\n\nYour task → A preview → A checked workflow.\n\nNothing runs automatically. Describe the task and Nika shows the plan first — inputs, steps and output — before any file is written. The workflow is then audited before it can run: `nika check` reads the plan, the cost ceiling, the secret flows, the types and the effect boundary, and every finding teaches its own fix. Nothing is spent to find out that a workflow was wrong.\n\nWhat the plugin adds to your agent: skills for authoring, debugging, operating and migrating workflows; subagents that write a file, root-cause a failed run from its trace, or port an existing script; slash commands for the audit, the scaffold, the trace and the permits boundary; and a read-only oracle that answers schema, example, template and catalog questions without touching your shell.\n\nRunning stays yours. The plugin proposes the command; you type it. Spend is capped at the call that would cross the cap, the effect boundary is declared in the file and reviewable in a diff, and every run leaves a hash-chained trace you can verify afterwards.",
     "developerName": "SuperNovae Studio",
     "category": "Developer Tools",
     "capabilities": [
@@ -29,9 +29,9 @@
     "websiteURL": "https://nika.sh",
     "supportURL": "https://github.com/supernovae-st/nika/issues",
     "defaultPrompt": [
-      "Turn this repeatable task into a checked Nika workflow.",
-      "Validate this .nika.yaml file and repair every finding.",
-      "Diagnose this failed Nika run from its trace."
+      "Help me turn one task I repeat into a Nika workflow. First identify the current project, restate the outcome in my language, and show a simple visual preview with inputs, steps and output. Do not create a file, call a model or run anything yet.",
+      "Teach me what Nika is through one small, concrete and safe example. Show the user request, the workflow preview, what nika check proves, what a run would do, and what the trace would explain. Do not write files, call a model, inspect private project files or run anything. End by asking whether I want to adapt the example to my own work.",
+      "Inspect the current project's Nika state in read-only mode. Show the exact resolved project path and the evidence used to select it. Tell me whether the best next step is to create, review, repair or resume one workflow, and offer exactly one primary action. Do not modify files, call a paid model or run a workflow."
     ],
     "brandColor": "#4f86ff",
     "logo": "./assets/nika-logo.png",
