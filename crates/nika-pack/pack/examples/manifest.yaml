@@ -17,7 +17,7 @@ foundation:
   - file: examples/05-fetch-chain.nika.yaml
     sha256_16: b2aff8eaca44bba3
   - file: examples/06-code-review.nika.yaml
-    sha256_16: 99bd4736eebd11cc
+    sha256_16: 1f6b785901dff464
   - file: examples/07-for-each-locales.nika.yaml
     sha256_16: 396c1cc81c62d259
   - file: examples/08-config-values.nika.yaml
