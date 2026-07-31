@@ -18,12 +18,18 @@
 //! audits THAT file in-process (parse + check ladder · bounded, never a
 //! walk) before any `run` line may be printed (P0-3 · LOI-3). Re-runnable
 //! anytime: welcome is a living mirror, not a splash screen.
+//!
+//! P0-14 rides the binary too (W2): the session context is resolved ONCE
+//! through `context_envelope::resolve` at the top of `run` — the surface
+//! hands the cwd it can name (never a process-cwd fallback), and a
+//! chat-only envelope renders « chat only », never a workspace pretence.
 
 use std::fmt::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nika_providers::probe::ExecutionLocus;
 
+use crate::context_envelope::{self, ContextEnvelope, ContextMode, EnvFacts, EvidenceSource};
 use crate::display::theme::{Role, Theme};
 use crate::verbs::probe::Probe;
 use crate::verbs::{VerbOutput, probe};
@@ -156,17 +162,79 @@ struct EngineCounts {
     templates: usize,
 }
 
+/// The envelope facts the mirror renders (P0-14 · W2) — the envelope
+/// itself stays in `context_envelope`; the mirror eats this small owned
+/// view. The legacy render ([`ContextView::legacy`]) is Workspace with an
+/// EMPTY root: the workspace row then keeps its historical shape, so the
+/// pre-envelope render tests stay byte-identical.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ContextView {
+    /// Chat-only vs workspace — the one branch (the envelope's own).
+    mode: ContextMode,
+    /// The RESOLVED root the workspace row names (display form) — empty
+    /// in chat-only and in the legacy render.
+    root: String,
+    /// The subdir the candidate expanded FROM, when it sat below the
+    /// root — always displayed, never a silent rewrite.
+    expanded_from: Option<PathBuf>,
+}
+
+impl ContextView {
+    /// The pre-envelope render: workspace mode, no root segment.
+    fn legacy() -> Self {
+        Self {
+            mode: ContextMode::Workspace,
+            root: String::new(),
+            expanded_from: None,
+        }
+    }
+}
+
+/// The chat-only glance: zero walk ran, so zero claim — every stranger
+/// arm stays gated behind a COMPLETE scan this view never fakes.
+const CHAT_ONLY_GLANCE: Glance = Glance {
+    git: false,
+    workflows: 0,
+    agents_md: false,
+    complete: false,
+};
+
+/// The root the workspace row names — the RESOLVED root, never the
+/// as-typed candidate alone: a subdir candidate resolves up to the git
+/// root (the evidence carries the subdir alongside, so the row shows
+/// both).
+fn root_label(envelope: &ContextEnvelope) -> String {
+    match (&envelope.evidence.expanded_from, &envelope.git_root) {
+        (Some(_), Some(root)) => root.display().to_string(),
+        _ => envelope.display_path.clone(),
+    }
+}
+
 /// The `nika welcome` verb. `json` emits the versioned machine projection
 /// (`welcome_version: 1` · additive-only, like every machine envelope);
 /// the human mirror renders through the ONE colour seam (`Theme` ·
 /// semantic never decorative — the same law every other surface obeys).
+///
+/// The CLI's folder evidence is the directory the operator LAUNCHED in —
+/// the surface names it explicitly; `resolve` never invents one.
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
+    let candidate = std::env::current_dir().ok();
+    run_in(json, theme, candidate.as_deref())
+}
+
+/// The envelope-first verb body (P0-14 binary-side): resolve the session
+/// context from the candidate the surface named, then branch — chat-only
+/// renders the truth and the spec's two doors, workspace renders the
+/// mirror rooted at the RESOLVED folder. The process cwd is never
+/// consulted here: `None` in, chat-only out.
+fn run_in(json: bool, theme: Theme, candidate: Option<&Path>) -> VerbOutput {
+    let facts = EnvFacts {
+        evidence: candidate.map_or(EvidenceSource::None, |_| EvidenceSource::ExplicitCwd),
+        ..EnvFacts::detect()
+    };
+    let envelope = context_envelope::resolve(candidate, &facts);
     let probe = probe::collect(false);
-    let root = Path::new(".");
-    let (glance, sole) = glance(root, 4000);
-    // P0-3: the ONE file is audited before any run line may name it.
-    let gate = sole.as_deref().map(|rel| run_gate(root, rel));
     let counts = EngineCounts {
         builtins: nika_builtin::tool_defs().len(),
         locals: probe.providers.iter().filter(|p| !p.requires_key).count(),
@@ -174,10 +242,48 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
         examples: nika_pack::example_slugs().len(),
         templates: nika_pack::template_names().len(),
     };
+    if envelope.mode == ContextMode::ChatOnly {
+        // No reliable folder evidence: NO walk, NO gate, NO workspace
+        // claim — the mirror says « chat only » and routes to the two
+        // doors the spec allows (an isolated example · a chosen project).
+        let ctx = ContextView {
+            mode: ContextMode::ChatOnly,
+            ..ContextView::legacy()
+        };
+        if json {
+            return VerbOutput::ok(render_chat_only_json(&probe, counts));
+        }
+        return VerbOutput::ok(render_with_context(
+            &probe,
+            CHAT_ONLY_GLANCE,
+            None,
+            counts,
+            &ctx,
+            theme,
+        ));
+    }
+    // Workspace: the walk + the gate run on the VALIDATED candidate (the
+    // envelope's project root), never on a process-cwd guess.
+    let root = envelope.project_root.clone();
+    let (glance, sole) = glance(&root, 4000);
+    // P0-3: the ONE file is audited before any run line may name it.
+    let gate = sole.as_deref().map(|rel| run_gate(&root, rel));
+    let ctx = ContextView {
+        mode: ContextMode::Workspace,
+        root: root_label(&envelope),
+        expanded_from: envelope.evidence.expanded_from.clone(),
+    };
     if json {
         return VerbOutput::ok(render_json(&probe, glance, gate.as_ref(), counts));
     }
-    VerbOutput::ok(render_human(&probe, glance, gate.as_ref(), counts, theme))
+    VerbOutput::ok(render_with_context(
+        &probe,
+        glance,
+        gate.as_ref(),
+        counts,
+        &ctx,
+        theme,
+    ))
 }
 
 /// The workspace glance — a bounded, dot-dir-skipping walk (depth ≤ 4 ·
@@ -273,10 +379,11 @@ tasks:
     infer: { prompt: "say hello to the operator", max_tokens: 50 }"#;
 
 /// The human mirror — sections: identity · this machine · this binary ·
-/// (the language, first time only) · start here · learn. One helper per
-/// beat (the 100-line fn cap forced this shape here too, and the shape
-/// is better); pure over its inputs (tests pass synthetic probes + a
-/// plain theme).
+/// (the language, first time only) · start here · learn. This legacy
+/// entry is the TEST seam: it carries NO envelope view (an empty root),
+/// so the pre-envelope render tests stay byte-identical; `run_in`
+/// renders through [`render_with_context`] with the resolved envelope.
+#[cfg(test)]
 fn render_human(
     probe: &Probe,
     glance: Glance,
@@ -284,11 +391,23 @@ fn render_human(
     counts: EngineCounts,
     theme: Theme,
 ) -> String {
+    render_with_context(probe, glance, gate, counts, &ContextView::legacy(), theme)
+}
+
+/// The envelope-aware mirror — the one `run_in` renders with.
+fn render_with_context(
+    probe: &Probe,
+    glance: Glance,
+    gate: Option<&RunGate>,
+    counts: EngineCounts,
+    ctx: &ContextView,
+    theme: Theme,
+) -> String {
     let mut s = String::new();
     identity_section(&mut s, probe, theme);
-    machine_section(&mut s, probe, glance, theme);
-    binary_section(&mut s, counts, glance, theme);
-    start_section(&mut s, theme, glance, gate);
+    machine_section(&mut s, probe, glance, ctx, theme);
+    binary_section(&mut s, counts, glance, ctx, theme);
+    start_section(&mut s, theme, glance, gate, ctx);
     s
 }
 
@@ -311,23 +430,25 @@ fn identity_section(s: &mut String, probe: &Probe, theme: Theme) {
     let _ = writeln!(s);
 }
 
-/// The machine half of the mirror — editors · local · keys · workspace.
-fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) {
+/// The machine half of the mirror — editors · local · keys · the P0-14
+/// session row ([`session_row`]).
+fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextView, theme: Theme) {
     let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this machine"));
     let editors: Vec<String> = probe
         .clients
         .iter()
         .map(|c| client_cell(theme, c))
         .collect();
-    let unwired = probe.clients.iter().any(|c| !c.current);
+    let unwired = probe.clients.iter().find(|c| !c.current);
     let _ = writeln!(
         s,
         "  editors    {}{}",
         editors.join(" · "),
-        if unwired {
-            // Four unwired ids + a long hint broke 80 — the short form
-            // still names the exact command.
-            theme.paint(Role::Dim, "   → nika wire all")
+        if let Some(c) = unwired {
+            // H7 (audit UX 2026-07-30): never recommend `wire all` — one
+            // named host, one consented mutation at a time. The short
+            // form keeps the line under 80 and names the exact command.
+            theme.paint(Role::Dim, &format!("   → nika wire {}", c.id))
         } else {
             String::new()
         }
@@ -410,31 +531,66 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) 
             theme.paint(Role::Dim, "· fixes → nika doctor"),
         );
     }
-    let _ = writeln!(
-        s,
-        "  workspace  git {} · {} · agents {}",
-        mark(theme, glance.git),
-        match (glance.workflows, glance.complete) {
-            // P0-4: « no workflows yet » is a claim only a COMPLETE scan
-            // may make; a truncated walk renders the honest lower bound.
-            (0, true) => "no workflows yet".to_owned(),
-            (0, false) => "0 found · scan partial".to_owned(),
-            (1, true) => "1 workflow".to_owned(),
-            (n, true) => format!("{n} workflows"),
-            (n, false) => format!("{n}+ found · scan partial"),
-        },
-        if glance.agents_md {
-            format!("briefed {} (AGENTS.md)", mark(theme, true))
-        } else {
-            format!("not briefed {}", theme.paint(Role::Dim, "→ nika init"))
-        }
-    );
+    session_row(s, glance, ctx, theme);
     let _ = writeln!(s);
 }
 
-/// What this binary carries — derived counts, and (first contact only)
-/// the six-line taste of the language itself.
-fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: Theme) {
+/// The P0-14 row closing the machine section: chat-only SAYS « chat
+/// only » and claims nothing (no git bit, no count, no agents row —
+/// there is no workspace here); workspace names the RESOLVED root and
+/// traces the subdir expansion (displayed, never silent).
+fn session_row(s: &mut String, glance: Glance, ctx: &ContextView, theme: Theme) {
+    match ctx.mode {
+        ContextMode::ChatOnly => {
+            let _ = writeln!(s, "  session    chat only — no reliable project detected");
+        }
+        ContextMode::Workspace => {
+            let _ = write!(s, "  workspace  ");
+            if !ctx.root.is_empty() {
+                let _ = write!(s, "{} · ", ctx.root);
+            }
+            let _ = write!(
+                s,
+                "git {} · {} · agents {}",
+                mark(theme, glance.git),
+                match (glance.workflows, glance.complete) {
+                    // P0-4: « no workflows yet » is a claim only a COMPLETE scan
+                    // may make; a truncated walk renders the honest lower bound.
+                    (0, true) => "no workflows yet".to_owned(),
+                    (0, false) => "0 found · scan partial".to_owned(),
+                    (1, true) => "1 workflow".to_owned(),
+                    (n, true) => format!("{n} workflows"),
+                    (n, false) => format!("{n}+ found · scan partial"),
+                },
+                if glance.agents_md {
+                    format!("briefed {} (AGENTS.md)", mark(theme, true))
+                } else {
+                    format!("not briefed {}", theme.paint(Role::Dim, "→ nika init"))
+                }
+            );
+            if let Some(from) = &ctx.expanded_from {
+                let _ = write!(
+                    s,
+                    " {}",
+                    theme.paint(Role::Dim, &format!("· from {}", from.display()))
+                );
+            }
+            let _ = writeln!(s);
+        }
+    }
+    let _ = writeln!(s);
+}
+
+/// What this binary carries — derived counts, and the six-line taste of
+/// the language itself (first contact only — chat-only included: the
+/// isolated example IS the sample's run).
+fn binary_section(
+    s: &mut String,
+    counts: EngineCounts,
+    glance: Glance,
+    ctx: &ContextView,
+    theme: Theme,
+) {
     let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this binary"));
     let _ = writeln!(
         s,
@@ -446,8 +602,9 @@ fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: T
     );
     let _ = writeln!(s);
     // The stranger's moment is gated on a COMPLETE zero (P0-4) — a
-    // partial scan cannot know the workspace is empty.
-    if glance.workflows == 0 && glance.complete {
+    // partial scan cannot know the workspace is empty. Chat-only holds
+    // no scan at all: the sample rides as the isolated example instead.
+    if ctx.mode == ContextMode::ChatOnly || (glance.workflows == 0 && glance.complete) {
         let _ = writeln!(
             s,
             "{}",
@@ -461,13 +618,35 @@ fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: T
 }
 
 /// The hand-off — the state's own three moves, then where to learn more.
-fn start_section(s: &mut String, theme: Theme, glance: Glance, gate: Option<&RunGate>) {
+/// Chat-only keys on no workspace at all: the two doors the spec allows
+/// (an isolated example · choosing a project) plus the corpus.
+fn start_section(
+    s: &mut String,
+    theme: Theme,
+    glance: Glance,
+    gate: Option<&RunGate>,
+    ctx: &ContextView,
+) {
     let _ = writeln!(
         s,
         "{}",
         theme.paint(Role::Strong, "start here (offline · zero keys)")
     );
-    let moves = start_moves(glance, gate);
+    let moves = if ctx.mode == ContextMode::ChatOnly {
+        [
+            (
+                "nika examples run 01-hello --model mock/echo".to_owned(),
+                "isolated · zero keys",
+            ),
+            (
+                "cd <project> && nika welcome".to_owned(),
+                "choose a project first",
+            ),
+            ("nika examples".to_owned(), "the teaching corpus"),
+        ]
+    } else {
+        start_moves(glance, gate)
+    };
     let width = moves
         .iter()
         .map(|(cmd, _)| cmd.chars().count())
@@ -539,6 +718,35 @@ fn render_json(
             "templates": counts.templates,
         },
         "start": start,
+    })
+    .to_string()
+}
+
+/// The chat-only machine mirror — the SAME versioned envelope, minus
+/// every workspace claim (there is none to make), plus the mode and the
+/// two doors the spec allows. Additive against `welcome_version: 1`: the
+/// `context` key is the chat-only signal.
+fn render_chat_only_json(probe: &Probe, counts: EngineCounts) -> String {
+    let mut machine = probe::environment_json(probe);
+    machine["config"] = serde_json::json!(probe.config_path);
+    serde_json::json!({
+        "welcome_version": 1,
+        "version": probe.version,
+        "context": { "mode": "chat_only" },
+        "machine": machine,
+        "engine": {
+            "verbs": 4,
+            "builtins": counts.builtins,
+            "local_providers": counts.locals,
+            "cloud_providers": counts.clouds,
+            "examples": counts.examples,
+            "templates": counts.templates,
+        },
+        "start": [
+            "nika examples run 01-hello --model mock/echo",
+            "cd <project> && nika welcome",
+            "nika examples",
+        ],
     })
     .to_string()
 }
@@ -1287,6 +1495,78 @@ mod tests {
         assert_eq!(g.workflows, 2, "counts a.nika.yaml + flows/b.nika.yml only");
         assert!(g.agents_md);
         assert!(sole.is_none(), "two files → no sole audit target");
+    }
+
+    /// P0-14 binary-side (W2): candidate `None` → chat-only. The mirror
+    /// SAYS it and makes zero workspace claim — no workspace row, no
+    /// inventory count, no agents line — and routes to the two doors the
+    /// spec allows (an isolated example · choosing a project).
+    #[test]
+    fn chat_only_says_so_and_claims_no_workspace() {
+        let out = run_in(false, plain(), None);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text
+                .contains("chat only — no reliable project detected"),
+            "chat-only says so:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("  workspace"),
+            "no workspace row in chat-only:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("workflows") && !out.text.contains("agents"),
+            "no workspace inventory claim in chat-only:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("isolated") && out.text.contains("choose a project"),
+            "the two chat-only doors are named:\n{}",
+            out.text
+        );
+        let json = run_in(true, plain(), None);
+        assert_eq!(json.code, exit::OK, "{}", json.text);
+        assert!(
+            json.text.contains("\"chat_only\""),
+            "the machine mirror carries the mode: {}",
+            json.text
+        );
+        assert!(
+            !json.text.contains("\"workspace\""),
+            "no workspace projection in chat-only: {}",
+            json.text
+        );
+    }
+
+    /// P0-14 binary-side (W2): a candidate sitting in a SUBDIR resolves
+    /// UP to the git root — the workspace row names the resolved root AND
+    /// traces the expansion (`expanded_from`), never a silent rewrite.
+    #[test]
+    fn workspace_names_the_root_and_traces_the_subdir_expansion() {
+        let dir = tempfile::tempdir().expect("scratch");
+        std::fs::create_dir(dir.path().join(".git")).expect("mkdir .git");
+        let deep = dir.path().join("crates").join("nika-cli");
+        std::fs::create_dir_all(&deep).expect("mkdir deep");
+        let out = run_in(false, plain(), Some(&deep));
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        let root = dir.path().canonicalize().expect("canon root");
+        let deep_canon = deep.canonicalize().expect("canon deep");
+        let row = out
+            .text
+            .lines()
+            .find(|l| l.contains("  workspace"))
+            .expect("a workspace row")
+            .to_owned();
+        assert!(
+            row.contains(&root.display().to_string()),
+            "the row names the resolved root: {row}"
+        );
+        assert!(
+            row.contains(&format!("from {}", deep_canon.display())),
+            "the subdir→root expansion is traced: {row}"
+        );
     }
 
     #[test]
