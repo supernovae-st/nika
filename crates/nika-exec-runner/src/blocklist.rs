@@ -161,15 +161,89 @@ const DANGEROUS_PROGRAMS: &[&str] = &[
     "env", "xargs",
 ];
 
-/// Shell + interpreter basenames whose INLINE-EVAL form re-parses an argument
-/// AS code — the argv re-exec class shell mode blocks (`sh -c` · `python -c` ·
-/// `perl -e` · `node -e`) but a name-only check would miss. Running them on a
-/// SCRIPT FILE (`["python", "app.py"]`) stays allowed; only an inline-eval
-/// flag is refused at the floor (route a genuine need via `pre_validated`).
-const RE_EXEC_INTERPRETERS: &[&str] = &[
-    "sh", "bash", "zsh", "dash", "ksh", "csh", "tcsh", //
-    "python", "python2", "python3", "perl", "ruby", "node", "php", "deno", "bun",
-];
+/// One interpreter family's inline-eval signature (P0-13 · audit UX
+/// 2026-07-30). The flag that re-parses an argument AS code is a property of
+/// the INTERPRETER (and its subcommand), not a global set — `python -c` and
+/// `node -p` eval, but `node -c` is a syntax check, `php -r` evals, and
+/// `unittest -p <pattern>` is the module's own flag, not a print-eval. A
+/// global set both over-blocked (the `python3 -m unittest … -p` false
+/// positive) and under-blocked (`deno eval <code>` — a SUBCOMMAND the flag
+/// scan never saw).
+#[derive(Clone, Copy)]
+struct EvalSpec {
+    /// Short-option LETTERS: any single-dash bundle containing one re-parses
+    /// code (`perl -pe` · `node -pe` · `sh -ce`).
+    short_letters: &'static [char],
+    /// Long eval flags, EXACT — only where the interpreter really has them.
+    long_flags: &'static [&'static str],
+    /// Eval SUBCOMMANDS (`deno eval <code>`) — code execution with no flag.
+    eval_subcommands: &'static [&'static str],
+    /// Flags that CONSUME the next argv element as their operand — skipped,
+    /// so the scan resumes after them (`python3 -X faulthandler -c …`).
+    value_flags: &'static [&'static str],
+    /// The module handoff (python `-m`): everything after `-m <module>` is
+    /// the MODULE's argv — the interpreter's scan stops there.
+    module_flag: Option<&'static str>,
+}
+
+/// The per-interpreter eval table — `None` for a program with no inline-eval
+/// form. Running any of these on a SCRIPT FILE (`["python","app.py"]`) stays
+/// allowed; only an eval flag/subcommand in the INTERPRETER's own argv
+/// (before the script positional, `--`, or `-m <module>`) is refused at the
+/// floor (route a genuine need via `pre_validated`).
+fn eval_spec(base: &str) -> Option<EvalSpec> {
+    const SHELLS: EvalSpec = EvalSpec {
+        short_letters: &['c'],
+        long_flags: &[],
+        eval_subcommands: &[],
+        value_flags: &[],
+        module_flag: None,
+    };
+    const PYTHON: EvalSpec = EvalSpec {
+        short_letters: &['c'],
+        long_flags: &[],
+        eval_subcommands: &[],
+        value_flags: &["-W", "-X"],
+        module_flag: Some("-m"),
+    };
+    const PERL_RUBY: EvalSpec = EvalSpec {
+        short_letters: &['e', 'E'],
+        long_flags: &[],
+        eval_subcommands: &[],
+        value_flags: &["-I", "-M", "-m", "-r"],
+        module_flag: None,
+    };
+    const NODE: EvalSpec = EvalSpec {
+        short_letters: &['e', 'p'],
+        long_flags: &["--eval", "--print"],
+        eval_subcommands: &[],
+        value_flags: &["-r", "--require", "--import", "--loader"],
+        module_flag: None,
+    };
+    const DENO_BUN: EvalSpec = EvalSpec {
+        short_letters: &['e', 'p'],
+        long_flags: &["--eval", "--print"],
+        eval_subcommands: &["eval"],
+        value_flags: &["-r", "--require", "--import", "--loader"],
+        module_flag: None,
+    };
+    const PHP: EvalSpec = EvalSpec {
+        short_letters: &['r'],
+        long_flags: &[],
+        eval_subcommands: &[],
+        value_flags: &["-d", "-c"],
+        module_flag: None,
+    };
+    match base {
+        "sh" | "bash" | "zsh" | "dash" | "ksh" | "csh" | "tcsh" => Some(SHELLS),
+        "python" | "python2" | "python3" => Some(PYTHON),
+        "perl" | "ruby" => Some(PERL_RUBY),
+        "node" => Some(NODE),
+        "deno" | "bun" => Some(DENO_BUN),
+        "php" => Some(PHP),
+        _ => None,
+    }
+}
 
 /// Zero-width / invisible characters stripped before the blocklist check
 /// (NFKC preserves these — they are a confusable-bypass vector on their own).
@@ -331,12 +405,14 @@ pub(crate) fn check_program(program: &str) -> Result<(), ShellError> {
 /// Check a full argv-form command at the floor: the program IDENTITY
 /// ([`check_program`]) PLUS the structural re-exec class that shell mode
 /// blocks but a name-only check misses — an interpreter invoked with an
-/// inline-eval flag (`["sh","-c",…]` · `["python","-c",…]` · `["perl","-e",…]`),
-/// `nc -e`/`-c` (reverse shell), `dd if=`/`of=` (raw disk). Checked
-/// STRUCTURALLY (per discrete argv element), so a LITERAL argument that merely
-/// CONTAINS such text is NOT a false positive — the difference from a joined-
-/// string scan. Without this the argv form re-introduces every interpreter /
-/// `env` danger shell mode forbids (review P0).
+/// inline-eval flag or subcommand (`["sh","-c",…]` · `["python","-c",…]` ·
+/// `["perl","-e",…]` · `["deno","eval",…]`, per the interpreter's own
+/// [`eval_spec`] · P0-13), `nc -e`/`-c` (reverse shell), `dd if=`/`of=`
+/// (raw disk). Checked STRUCTURALLY (positionally, per discrete argv
+/// element), so a LITERAL argument that merely CONTAINS such text is NOT a
+/// false positive — the difference from a joined-string scan. Without this
+/// the argv form re-introduces every interpreter / `env` danger shell mode
+/// forbids (review P0).
 ///
 /// # Errors
 ///
@@ -345,13 +421,12 @@ pub(crate) fn check_argv(program: &str, args: &[String]) -> Result<(), ShellErro
     check_program(program)?;
     let base = program_basename(program);
 
-    if RE_EXEC_INTERPRETERS.contains(&base.as_str()) && args.iter().any(|a| is_inline_eval_flag(a))
-    {
+    if interpreter_eval_requested(&base, args) {
         return Err(ShellError::Blocked {
             reason: format!(
                 "argv interpreter inline-eval refused: {base:?} with an eval flag \
-                 (-c/-e/-r) runs attacker-influenceable code — run a script file \
-                 or route via pre_validated"
+                 or subcommand runs attacker-influenceable code — run a script \
+                 file or route via pre_validated"
             ),
         });
     }
@@ -376,19 +451,47 @@ pub(crate) fn check_argv(program: &str, args: &[String]) -> Result<(), ShellErro
     Ok(())
 }
 
-/// Whether an interpreter arg requests INLINE code evaluation (vs running a
-/// script file): the short eval flags (`-c` sh/python · `-e`/`-E` perl/ruby/
-/// node · `-r` php · `-p` node-print) and the `--eval`/`--print` long forms;
-/// bundled forms (`-ce`, `-pe`) match by prefix. A script-file argument is not
-/// a flag, so `["python", "app.py"]` stays allowed.
-fn is_inline_eval_flag(arg: &str) -> bool {
-    const LONG: &[&str] = &["--eval", "--print", "--exec", "--command"];
-    LONG.contains(&arg)
-        || arg.starts_with("-c")
-        || arg.starts_with("-e")
-        || arg.starts_with("-E")
-        || arg.starts_with("-r")
-        || arg.starts_with("-p")
+/// Whether an interpreter's argv requests INLINE code evaluation (vs running
+/// a script file) — POSITIONAL over the discrete argv elements, per the
+/// interpreter's [`EvalSpec`] (P0-13): an eval flag (`python -c` · `node -p`
+/// · `perl -pe` · `php -r`) or an eval SUBCOMMAND (`deno eval`) before the
+/// handoff point refuses; the scan stops at the first positional (the script
+/// file — the flags after it are the SCRIPT's argv), at `--`, and at the
+/// module handoff (`python -m <module>` — the flags after it are the
+/// MODULE's, so `python3 -m unittest discover -p test_*.py` stays allowed).
+fn interpreter_eval_requested(base: &str, args: &[String]) -> bool {
+    let Some(spec) = eval_spec(base) else {
+        return false;
+    };
+    let mut i = 0;
+    while i < args.len() {
+        let arg = args[i].as_str();
+        if arg == "--" || Some(arg) == spec.module_flag {
+            return false; // `--` / `-m <module>`: the rest is not the interpreter's
+        }
+        if spec.value_flags.contains(&arg) {
+            i += 2; // the flag's operand is a value, not an option
+            continue;
+        }
+        if arg.starts_with("--") {
+            if spec.long_flags.contains(&arg) {
+                return true;
+            }
+        } else if let Some(bundle) = arg.strip_prefix('-') {
+            if bundle.is_empty() {
+                return false; // `-` (stdin handoff): the rest is the script's
+            }
+            if bundle.chars().any(|c| spec.short_letters.contains(&c)) {
+                return true;
+            }
+        } else {
+            // First positional: an eval subcommand, else the script file —
+            // everything after it belongs to the script.
+            return spec.eval_subcommands.contains(&arg);
+        }
+        i += 1;
+    }
+    false
 }
 
 #[cfg(test)]
@@ -727,6 +830,79 @@ mod tests {
         assert!(argv_ok("bash", &["deploy.sh", "prod"]));
         assert!(argv_ok("ruby", &["rake", "test"]));
         assert!(argv_ok("python", &["-m", "pytest"])); // -m is module, not eval
+    }
+
+    // ── P0-13 (audit UX 2026-07-30): eval flags are PER-INTERPRETER ──
+    //
+    // The old global flag set (`-c`/`-e`/`-E`/`-r`/`-p` for every
+    // interpreter) both over-blocked (`unittest -p <pattern>` · `node -c`
+    // syntax check) and under-blocked (`deno eval <code>` — a subcommand,
+    // not a flag). The table is per interpreter + positional over argv.
+
+    #[test]
+    fn argv_floor_python_m_makes_later_flags_the_modules() {
+        // THE false positive of the finding (fixture
+        // journey-python-unittest-pattern): after `-m <module>` the rest of
+        // argv is the MODULE's — `unittest -p <pattern>` is a pattern flag,
+        // not a print-eval.
+        assert!(argv_ok(
+            "python3",
+            &["-m", "unittest", "discover", "tests", "-p", "test_*.py"]
+        ));
+        assert!(argv_ok("python3", &["-m", "pip", "--version"]));
+        // …but python's OWN eval flag still refuses, wherever it sits.
+        assert!(argv_blocked("python3", &["-c", "import os"]));
+        assert!(argv_blocked("python", &["-v", "-c", "x"]));
+    }
+
+    #[test]
+    fn argv_floor_node_p_and_print_block_but_c_is_a_syntax_check() {
+        // node's eval-print flags refuse; `-c`/`--check` is a SYNTAX CHECK
+        // (no code runs) — the global table mis-mapped `-c` onto node.
+        assert!(argv_blocked("node", &["-p", "1+1"]));
+        assert!(argv_blocked("node", &["--print", "1+1"]));
+        assert!(argv_blocked("node", &["-e", "x"]));
+        assert!(argv_blocked("node", &["--eval", "x"]));
+        assert!(argv_blocked("node", &["-pe", "x"])); // bundled eval-print
+        assert!(argv_ok("node", &["-c", "server.js"]));
+        assert!(argv_ok("node", &["--check", "server.js"]));
+    }
+
+    #[test]
+    fn argv_floor_deno_bun_eval_subcommand_blocks() {
+        // The reverse false-negative of the finding: `deno eval <code>`
+        // re-parses an argument AS code via a SUBCOMMAND the global-flag
+        // scan never looked at.
+        assert!(argv_blocked("deno", &["eval", "Deno.exit(1)"]));
+        assert!(argv_blocked("bun", &["eval", "process.exit(1)"]));
+        // …while other subcommands and the node-style flags stay per family.
+        assert!(argv_ok("deno", &["run", "server.ts"]));
+        assert!(argv_blocked("bun", &["-e", "x"]));
+    }
+
+    #[test]
+    fn argv_floor_php_perl_ruby_keep_their_own_eval_flags() {
+        assert!(argv_blocked("php", &["-r", "system('id');"]));
+        assert!(argv_blocked("perl", &["-e", "x"]));
+        assert!(argv_blocked("perl", &["-pe", "s/a/b/"])); // bundled eval
+        assert!(argv_blocked("ruby", &["-e", "x"]));
+        assert!(argv_blocked("ruby", &["-E", "x"]));
+        // No cross-family bleed: `-c` is not eval for php/perl/ruby (ruby's
+        // `-c` is a syntax check, php's `-l` a lint).
+        assert!(argv_ok("ruby", &["-c", "app.rb"]));
+        assert!(argv_ok("php", &["-l", "index.php"]));
+    }
+
+    #[test]
+    fn argv_floor_eval_flags_stop_at_the_script_positional() {
+        // Positional argv parsing: the flags AFTER the script file belong to
+        // the SCRIPT (they land in its argv), not to the interpreter.
+        assert!(argv_ok("python3", &["app.py", "-p", "8080"]));
+        assert!(argv_ok("node", &["server.js", "-p", "8080"]));
+        // Value-taking interpreter flags consume their operand — scanning
+        // resumes after them, so the eval flag is still caught.
+        assert!(argv_blocked("python3", &["-X", "faulthandler", "-c", "x"]));
+        assert!(argv_blocked("node", &["--require", "ts-node", "-e", "x"]));
     }
 
     #[test]
