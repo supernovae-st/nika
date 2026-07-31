@@ -8,7 +8,9 @@
 # Cursor hook contract (docs/agent/hooks · sessionStart): input is
 # JSON on STDIN; the response's "additional_context" string joins the
 # session's initial context. Exit 0 always; a workspace without Nika
-# gets silence ({}), never noise.
+# gets silence ({}), never noise — and a chat without a reliable
+# payload cwd stays chat_only: the hook's own process cwd is NEVER
+# evidence of a project (P0-14).
 #
 # Two health probes ride the same seed (the kit teaches, it never
 # installs):
@@ -24,7 +26,8 @@
 #
 # The context string is STATIC — fixed content, hand-escaped once.
 # The ONLY interpolated tokens are version strings sanitized to
-# [0-9.] (tr -cd), so nothing user-controlled can break the JSON.
+# [0-9.] (tr -cd) and the workspace root, JSON-escaped at emission —
+# so nothing user-controlled can break the JSON.
 set -euo pipefail
 
 input="$(cat)"
@@ -58,7 +61,7 @@ command -v nika >/dev/null 2>&1 && bin_ok=1
 
 install_teach='Nika kit note: the nika binary is not on PATH. Every surface of this kit (MCP oracle · /nika: commands · hooks · subagents) invokes it and stays dead until it lands. Install: brew install supernovae-st/tap/nika (other paths: nika.sh) · then restart the session.'
 
-# Workspace root: the payload cwd when present, else where the host ran us.
+# The payload's cwd, when the envelope carries one.
 if command -v python3 >/dev/null 2>&1; then
   cwd="$(printf '%s' "$input" | python3 -c 'import json,sys
 try:
@@ -68,25 +71,42 @@ except Exception:
 else
   cwd="$(printf '%s' "$input" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
 fi
-[ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" || true
-# A session opened in a SUBDIR of the workspace must still get the map
-# (proven lost 2026-07-12): resolve the git toplevel when there is one —
-# the workspace markers (.nika/ · .cursor/rules/nika.mdc · *.nika.yaml)
-# live at the root. Not a git repo → stay where we are (old behavior).
-root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-[ -n "$root" ] && [ -d "$root" ] && cd "$root" || true
+
+# Workspace root: the payload cwd, and ONLY the payload cwd. A chat
+# without a reliable folder stays chat_only — the hook's own process
+# cwd is NEVER evidence of a project (P0-14 · audit UX 2026-07-30:
+# payload {} or a dead cwd silently inherited the host's cwd and
+# "found" a workspace no one named). Absent · invalid · unreachable
+# → no cd, no detection.
+evidence=""
+root=""
+if [ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" 2>/dev/null; then
+  evidence="payload_cwd"
+  # A session opened in a SUBDIR of the workspace must still get the
+  # map (proven lost 2026-07-12): resolve the git toplevel when there
+  # is one — the workspace markers (.nika/ · .cursor/rules/nika.mdc ·
+  # *.nika.yaml) live at the root. Not a git repo → stay on the
+  # payload cwd (old behavior).
+  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$top" ] && [ -d "$top" ] && cd "$top" 2>/dev/null || true
+  root="$(pwd)"
+fi
 
 # Nika-enabled = a .nika/ store, an equipped repo (`nika init` wrote
 # .cursor/rules/nika.mdc — the session right after init is exactly
 # when the map matters, before any workflow exists), or any workflow
 # file near the root. Bounded probe (depth 3 · prune the heavy dirs)
 # — this runs at every session open and must stay in the milliseconds.
+# chat_only (no payload cwd) → no probe at all: the process cwd is
+# not a workspace.
 enabled=""
-if [ -d .nika ] || [ -f .cursor/rules/nika.mdc ]; then
-  enabled=1
-else
-  hit="$(find . -maxdepth 3 \( -name node_modules -o -name .git -o -name target -o -name dist \) -prune -o \( -name '*.nika.yaml' -o -name '*.nika.yml' \) -print -quit 2>/dev/null || true)"
-  [ -n "$hit" ] && enabled=1
+if [ -n "$evidence" ]; then
+  if [ -d .nika ] || [ -f .cursor/rules/nika.mdc ]; then
+    enabled=1
+  else
+    hit="$(find . -maxdepth 3 \( -name node_modules -o -name .git -o -name target -o -name dist \) -prune -o \( -name '*.nika.yaml' -o -name '*.nika.yml' \) -print -quit 2>/dev/null || true)"
+    [ -n "$hit" ] && enabled=1
+  fi
 fi
 
 if [ -z "$enabled" ]; then
@@ -103,8 +123,16 @@ fi
 # interpolation. Both envelopes carry the SAME text.
 map='This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml workflow files, audited BEFORE they run (nika check), cost-bounded while they run, hash-chain traced after (.nika/traces/). Laws: (1) nika check <file> must pass before proposing any run; running is the human'"'"'s move (propose the nika run line, with --max-cost-usd when spend matters). (2) Cost honesty: report the ceiling; a local model is unpriced, never free. (3) The boundary: an absent permits: block is ZERO authority, not a floor · any effect with no grant refuses NIKA-AUTH-006 at check. (4) Values ride four authorities · inputs (caller-supplied) · config (deployment-supplied) · const (baked in the file) · secrets (store references) · vars: and env: are dead envelope fields. Installed surfaces: read-only MCP oracle (nika_check, nika_inspect, nika_explain, nika_schema, nika_examples, nika_template, nika_canon, nika_catalog, nika_tools) · subagents nika-author (write a workflow), nika-debugger (root-cause a run from its trace), nika-migrator (port a script) · skills nika-authoring, nika-debugging, nika-operating, nika-migration · commands check, explain, new, trace, permits, doctor (slash-prefixed per your client). CLI: nika check|run|test|trace|evidence|explain|inspect|new|examples|catalog|doctor|welcome|wire|model|init|spec|sign|key|mcp|lsp|dap|completions. When the user describes repeatable or multi-step AI work, propose a Nika workflow.'
 
+# A claim names its proof: the resolved root and the evidence source
+# (P0-14 — an unnamed "this workspace" taught the agent to trust a
+# path it could not see). The root is the one interpolated token
+# besides the sanitized versions; JSON-escape \ and " so a hostile
+# or accented path cannot break the envelope.
+root_json="$(printf '%s' "$root" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+origin="Workspace root: $root_json (evidence: $evidence). "
+
 if [ -z "$bin_ok" ]; then
-  emit "$map $install_teach"
+  emit "$origin$map $install_teach"
   exit 0
 fi
 
@@ -136,5 +164,5 @@ if [ -n "$kitv" ] && [ -n "$binv" ]; then
   fi
 fi
 
-emit "$map$drift"
+emit "$origin$map$drift"
 exit 0
