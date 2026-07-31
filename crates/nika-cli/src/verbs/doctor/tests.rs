@@ -1,0 +1,1139 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
+use nika_providers::ProviderRegistry;
+
+use super::*;
+use crate::verbs::probe::client_probe_any;
+use nika_providers::probe::{
+    ExecutionLocus, ProviderReadiness, env_present, ping_addr, spawn_ping,
+};
+
+/// The sober register — the byte-frozen baseline every pipe reads.
+const PLAIN: Theme = Theme::new(false, false, false);
+
+fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
+    ProviderReadiness {
+        recognized: true,
+        configured,
+        reachable: None,
+        model_available: None,
+        priced: false,
+        execution_locus: locus,
+    }
+}
+
+fn cloud(id: &str, var: &str, present: bool) -> ProviderProbe {
+    ProviderProbe {
+        id: id.to_owned(),
+        requires_key: true,
+        key_present: present,
+        fix_var: var.to_owned(),
+        structured_native: id != "deepseek",
+        readiness: readiness(present, ExecutionLocus::Cloud),
+        endpoint: format!("https://api.{id}.example/v1"),
+    }
+}
+fn local(id: &str) -> ProviderProbe {
+    ProviderProbe {
+        id: id.to_owned(),
+        requires_key: false,
+        key_present: false,
+        fix_var: String::new(),
+        structured_native: true,
+        readiness: readiness(true, ExecutionLocus::Loopback),
+        endpoint: "http://127.0.0.1:11434".to_owned(),
+    }
+}
+
+#[test]
+fn provider_row_separates_recognized_from_configured() {
+    // P0-5: « recognized » is never « ready » — the row names the
+    // two rungs separately, and reachability stays the opt-in
+    // `--ping` lane's word (never implied by a present key).
+    let present = provider_finding(&cloud("anthropic", "ANTHROPIC_API_KEY", true));
+    assert!(
+        present
+            .detail
+            .contains("recognized · configured (key present)"),
+        "{}",
+        present.detail
+    );
+    assert!(
+        !present.detail.contains("reachable"),
+        "no ping ran — the word must not appear: {}",
+        present.detail
+    );
+    let unset = provider_finding(&cloud("anthropic", "ANTHROPIC_API_KEY", false));
+    assert_eq!(unset.level, Level::Warn);
+    assert!(
+        unset
+            .detail
+            .contains("recognized · not configured (ANTHROPIC_API_KEY unset)"),
+        "{}",
+        unset.detail
+    );
+    assert_eq!(unset.fix.as_deref(), Some("export ANTHROPIC_API_KEY=…"));
+}
+
+#[test]
+fn a_cloud_proxy_override_is_never_laundered_as_cloud() {
+    // P0-20 on the keyed lane: an operator proxy in front of mistral
+    // is NAMED with its locus — never read as « the vendor default ».
+    let mut p = cloud("mistral", "MISTRAL_API_KEY", true);
+    p.endpoint = "https://proxy.corp.example/v1".to_owned();
+    p.readiness.execution_locus = ExecutionLocus::Remote;
+    let f = provider_finding(&p);
+    assert!(
+        f.detail.contains("https://proxy.corp.example/v1"),
+        "{}",
+        f.detail
+    );
+    assert!(
+        f.detail.contains("(remote — not the vendor default)"),
+        "{}",
+        f.detail
+    );
+}
+
+#[test]
+fn a_lan_override_is_named_on_the_local_lane() {
+    // P0-20: ollama pointed at the GPU box must not render « local »
+    // — the endpoint and its locus get their own row.
+    let mut ollama = local("ollama");
+    ollama.endpoint = "http://gpu.lan:11434".to_owned();
+    ollama.readiness.execution_locus = ExecutionLocus::Lan;
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.0.0".to_owned(),
+        config_path: None,
+        providers: vec![ollama],
+        clients: Vec::new(),
+        kits: Vec::new(),
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let findings = diagnose(&probe);
+    let rows: Vec<_> = findings.iter().filter(|f| f.label == "local").collect();
+    assert!(
+        rows.iter()
+            .any(|f| f.detail.contains("http://gpu.lan:11434")
+                && f.detail.contains("(lan — not loopback)")),
+        "the override is named: {rows:?}"
+    );
+    // A loopback ollama earns NO extra row — the exception gets the ink.
+    let quiet = Probe {
+        providers: vec![local("ollama")],
+        ..probe
+    };
+    let findings = diagnose(&quiet);
+    assert_eq!(
+        findings.iter().filter(|f| f.label == "local").count(),
+        1,
+        "loopback stays the one summary line: {findings:?}"
+    );
+}
+
+#[test]
+fn instruction_fallback_cloud_is_named_on_the_health_surface() {
+    // deepseek carries a key but no native json_schema — the doctor
+    // row says so; a native provider's row stays unannotated.
+    let deepseek = cloud("deepseek", "DEEPSEEK_API_KEY", true);
+    let f = provider_finding(&deepseek);
+    assert!(
+        f.detail.contains("instruction + local validation"),
+        "{}",
+        f.detail
+    );
+    let openai = cloud("openai", "OPENAI_API_KEY", true);
+    let f = provider_finding(&openai);
+    assert!(!f.detail.contains("instruction"), "{}", f.detail);
+}
+
+#[test]
+fn key_present_is_ok_and_exits_zero() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.81.0".to_owned(),
+        config_path: Some("~/.nika/config.toml".to_owned()),
+        providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let f = diagnose(&probe);
+    let prov = f
+        .iter()
+        .find(|f| f.label == "provider")
+        .expect("provider line");
+    assert_eq!(prov.level, Level::Ok);
+    assert!(prov.detail.contains("key present"));
+    assert_eq!(exit_code(&f), exit::OK);
+}
+
+#[test]
+fn unset_key_is_a_warn_with_a_fix_not_a_fail() {
+    // An unset cloud key is advisory — exit stays 0 (a local provider is a
+    // valid path · doctor cannot know which provider the user needs).
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.81.0".to_owned(),
+        config_path: None,
+        providers: vec![
+            cloud("anthropic", "ANTHROPIC_API_KEY", false),
+            local("ollama"),
+        ],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let f = diagnose(&probe);
+    let prov = f
+        .iter()
+        .find(|f| f.label == "provider")
+        .expect("provider line");
+    assert_eq!(prov.level, Level::Warn);
+    assert_eq!(
+        prov.fix.as_deref(),
+        Some("export ANTHROPIC_API_KEY=…"),
+        "the exact fix command is printed"
+    );
+    assert!(
+        !f.iter().any(|f| f.level == Level::Fail),
+        "a local path exists"
+    );
+    assert_eq!(exit_code(&f), exit::OK);
+}
+
+#[test]
+fn never_prints_a_secret_value() {
+    // The probe carries only a bool — there is no field a value could ride.
+    // Assert the rendered report carries the VAR NAME, never a value.
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.81.0".to_owned(),
+        config_path: None,
+        providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let text = render(&diagnose(&probe), PLAIN);
+    assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
+    assert!(
+        !text.contains("sk-"),
+        "no secret-shaped value leaks: {text}"
+    );
+}
+
+#[test]
+fn no_provider_at_all_fails_with_exit_three() {
+    // A broken/empty catalog — no cloud key AND no local server: the real
+    // "cannot infer" environment error (spec §4 ENV).
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.81.0".to_owned(),
+        config_path: None,
+        providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let f = diagnose(&probe);
+    assert!(f.iter().any(|f| f.level == Level::Fail));
+    assert_eq!(exit_code(&f), exit::ENV);
+}
+
+#[test]
+fn local_provider_alone_is_a_usable_path_exit_zero() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.81.0".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama"), local("vllm")],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let f = diagnose(&probe);
+    let loc = f.iter().find(|f| f.label == "local").expect("local line");
+    assert_eq!(loc.level, Level::Ok);
+    assert!(loc.detail.contains("ollama") && loc.detail.contains("vllm"));
+    assert_eq!(exit_code(&f), exit::OK, "a local path is usable");
+}
+
+#[test]
+fn json_lane_carries_summary_and_findings_verbatim() {
+    let findings = vec![
+        Finding {
+            level: Level::Ok,
+            label: "binary".to_owned(),
+            detail: "v0.96.0".to_owned(),
+            fix: None,
+        },
+        Finding {
+            level: Level::Fail,
+            label: "config".to_owned(),
+            detail: "broken".to_owned(),
+            fix: Some("nika wire claude".to_owned()),
+        },
+    ];
+    let json: serde_json::Value =
+        serde_json::from_str(&render_json(&findings, AdoptionState::KeyPresent, &[]))
+            .expect("valid JSON");
+    assert_eq!(json["summary"]["ok"], 1);
+    assert_eq!(json["summary"]["fail"], 1);
+    assert_eq!(json["findings"][0]["level"], "ok");
+    assert_eq!(json["findings"][1]["fix"], "nika wire claude");
+}
+
+/// P0-21 — the machine lane carries the adoption rung next to the
+/// findings: agents/CI branch on ONE state token, not on a parse of
+/// the flat finding rows.
+#[test]
+fn doctor_json_serializes_the_adoption_state() {
+    let findings = vec![Finding {
+        level: Level::Ok,
+        label: "binary".to_owned(),
+        detail: "v0".to_owned(),
+        fix: None,
+    }];
+    for (state, token) in [
+        (AdoptionState::Installed, "installed"),
+        (AdoptionState::LocalDetected, "local_detected"),
+        (AdoptionState::LocalReachable, "local_reachable"),
+        (AdoptionState::KeyPresent, "key_present"),
+        (AdoptionState::RealReady, "real_ready"),
+    ] {
+        let json: serde_json::Value =
+            serde_json::from_str(&render_json(&findings, state, &[])).expect("valid JSON");
+        assert_eq!(json["adoption_state"], token, "{state:?}");
+    }
+}
+
+/// H5 — the machine lane gains the per-host runtime receipts
+/// ADDITIVELY: summary · findings · `adoption_state` stay verbatim,
+/// and each receipt carries the verified-vs-assumed provenance the
+/// flat findings never could.
+#[test]
+fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.96.0".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama")],
+        clients: vec![
+            ClientProbe {
+                id: "hermes".to_owned(),
+                path: "~/.hermes/config.yaml".to_owned(),
+                present: true,
+                current: true,
+                stale: false,
+            },
+            ClientProbe {
+                id: "cursor".to_owned(),
+                path: "~/.cursor/mcp.json".to_owned(),
+                present: true,
+                current: true,
+                stale: false,
+            },
+        ],
+        kits: vec![KitProbe {
+            client: "cursor".to_owned(),
+            version: "0.106.0".to_owned(),
+        }],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let findings = diagnose(&probe);
+    let json: serde_json::Value = serde_json::from_str(&render_json(
+        &findings,
+        AdoptionState::KeyPresent,
+        &crate::verbs::probe::capability_receipts(&probe),
+    ))
+    .expect("valid JSON");
+    // The pre-H5 fields are untouched (additive means additive).
+    assert_eq!(
+        json["summary"]["ok"],
+        findings.iter().filter(|f| f.level == Level::Ok).count() as u64
+    );
+    assert_eq!(json["findings"][0]["label"], "binary");
+    assert_eq!(json["adoption_state"], "key_present");
+    // The receipts lane: one row per probed host, in probe order.
+    let receipts = json["receipts"].as_array().expect("receipts array");
+    assert_eq!(receipts.len(), 2);
+    assert_eq!(receipts[0]["host"], "hermes");
+    assert_eq!(receipts[0]["capability"], "oracle-only");
+    assert_eq!(receipts[0]["repair"], "nika wire hermes");
+    assert_eq!(receipts[0]["level_assumed"], false);
+    assert!(
+        receipts[0]["missing_rails"]
+            .as_array()
+            .expect("rails")
+            .iter()
+            .any(|rail| rail == "hooks"),
+        "{receipts:?}"
+    );
+    assert_eq!(receipts[1]["host"], "cursor");
+    assert_eq!(receipts[1]["capability"], "guarded");
+    assert_eq!(receipts[1]["version"], "0.106.0");
+    assert_eq!(receipts[1]["level_assumed"], true);
+    assert_eq!(
+        receipts[1]["components"]
+            .as_array()
+            .expect("components")
+            .len(),
+        3
+    );
+}
+
+// ── The pricing snapshot line (Cost Intelligence 2026-07-08) ──
+
+fn pricing(age_days: Option<u32>) -> PricingProbe {
+    PricingProbe {
+        as_of: "2026-07-07".to_owned(),
+        sha: "d31a39603aa5419d".to_owned(),
+        rules: 606,
+        providers: 10,
+        age_days,
+    }
+}
+
+#[test]
+fn pricing_line_names_the_snapshot_identity() {
+    let f = pricing_finding(&pricing(Some(3)));
+    assert_eq!(f.level, Level::Ok);
+    assert!(f.detail.contains("606 models"), "{}", f.detail);
+    assert!(f.detail.contains("10 providers"), "{}", f.detail);
+    assert!(f.detail.contains("2026-07-07"), "{}", f.detail);
+    assert!(f.detail.contains("d31a39603aa5419d"), "{}", f.detail);
+    assert!(
+        f.detail.contains("list rates"),
+        "the public-catalog basis is named — private/proxy deals are \
+             not reflected and the line must say so: {}",
+        f.detail
+    );
+    assert!(f.fix.is_none());
+}
+
+#[test]
+fn stale_pricing_snapshot_warns_with_the_upgrade_fix() {
+    // The staleness gap no surveyed tool closes: past the threshold
+    // the line flips ⚠ and prints the exact remedy.
+    let f = pricing_finding(&pricing(Some(PRICING_STALE_DAYS + 1)));
+    assert_eq!(f.level, Level::Warn);
+    assert!(f.detail.contains("days old"), "{}", f.detail);
+    assert!(
+        f.fix.as_deref().is_some_and(|x| x.contains("upgrade nika")),
+        "{:?}",
+        f.fix
+    );
+    // AT the threshold stays green (stale means PAST it).
+    assert_eq!(
+        pricing_finding(&pricing(Some(PRICING_STALE_DAYS))).level,
+        Level::Ok
+    );
+    // An uncomputable age never guesses stale.
+    assert_eq!(pricing_finding(&pricing(None)).level, Level::Ok);
+}
+
+/// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
+/// (the null char `'\0'`) would erase the level cue the operator scans for.
+/// The sidecar row is a BUILD fact: present exactly when this binary
+/// carries the `local-infer` feature, absent otherwise — the default
+/// doctor stays byte-identical.
+#[test]
+fn sidecar_row_tracks_the_build_feature() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.99.0".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama")],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let sidecar = diagnose(&probe).into_iter().find(|f| f.label == "sidecar");
+    if cfg!(feature = "local-infer") {
+        let row = sidecar.expect("built with local-infer — the row must appear");
+        assert_eq!(row.level, Level::Ok);
+        assert!(row.detail.contains("nika model serve"), "{}", row.detail);
+    } else {
+        assert!(sidecar.is_none(), "default build carries no sidecar row");
+    }
+}
+
+/// The models row (issue #146 · the sidecar's dir+count half): pulled
+/// models list on ANY build; an empty store rows only on a sidecar
+/// build (teaching pull) — the default doctor stays byte-identical.
+#[test]
+fn models_row_reports_the_dir_and_count_once_pulled() {
+    let with_models = ModelsProbe {
+        root: Some("/home/x/.nika/models".to_owned()),
+        count: 2,
+        bytes: 3 * 1024 * 1024 * 1024,
+    };
+    let rows = models_finding(&with_models);
+    assert_eq!(rows.len(), 1, "pulled models row on EVERY build");
+    assert_eq!(rows[0].level, Level::Ok);
+    assert_eq!(rows[0].label, "models");
+    assert!(
+        rows[0].detail.contains("/home/x/.nika/models"),
+        "{}",
+        rows[0].detail
+    );
+    assert!(rows[0].detail.contains("2 GGUF"), "{}", rows[0].detail);
+    assert!(rows[0].detail.contains("3.0 GiB"), "{}", rows[0].detail);
+    assert!(
+        rows[0].detail.contains("nika model list"),
+        "{}",
+        rows[0].detail
+    );
+}
+
+#[test]
+fn empty_models_store_teaches_pull_only_on_a_sidecar_build() {
+    let rows = models_finding(&ModelsProbe::default());
+    if cfg!(feature = "local-infer") {
+        assert_eq!(rows.len(), 1, "sidecar build with nothing to serve warns");
+        assert_eq!(rows[0].level, Level::Warn);
+        assert!(
+            rows[0]
+                .fix
+                .as_deref()
+                .is_some_and(|f| f.contains("nika model pull")),
+            "{rows:?}"
+        );
+    } else {
+        assert!(rows.is_empty(), "default build + zero pulls = no row");
+    }
+}
+
+#[test]
+fn level_glyphs_are_distinct() {
+    assert_eq!(Level::Ok.glyph(), '✔');
+    assert_eq!(Level::Warn.glyph(), '⚠');
+    assert_eq!(Level::Fail.glyph(), '✖');
+}
+
+#[test]
+fn doctor_names_each_host_capability_level() {
+    // P0-9 — the flat « wired at … » line claimed a host parity
+    // that does not exist: an oracle-only host and a guarded one
+    // now read as the two DIFFERENT rungs they are.
+    let wired = |id: &str| ClientProbe {
+        id: id.to_owned(),
+        path: format!("~/.{id}/cfg"),
+        present: true,
+        current: true,
+        stale: false,
+    };
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.106.0".to_owned(),
+        config_path: None,
+        providers: vec![],
+        clients: vec![wired("hermes"), wired("cursor")],
+        kits: vec![KitProbe {
+            client: "cursor".to_owned(),
+            version: "0.106.0".to_owned(),
+        }],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let text = render(&diagnose(&probe), PLAIN);
+    assert!(
+        text.contains("hermes wired · oracle-only (mcp · no hooks)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("cursor wired · guarded (kit + hooks)"),
+        "{text}"
+    );
+}
+
+#[test]
+fn client_probe_reports_stale_wiring_with_a_wire_fix() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.90.0".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama")],
+        clients: vec![ClientProbe {
+            id: "cursor".to_owned(),
+            path: "~/.cursor/mcp.json".to_owned(),
+            present: true,
+            current: false,
+            stale: true,
+        }],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let text = render(&diagnose(&probe), PLAIN);
+    assert!(text.contains("stale MCP args"), "{text}");
+    assert!(text.contains("fix: nika wire cursor"), "{text}");
+}
+
+// ── The kit↔binary handshake (the drift surface CI alone carried) ──
+
+fn kit(client: &str, version: &str) -> KitProbe {
+    KitProbe {
+        client: client.to_owned(),
+        version: version.to_owned(),
+    }
+}
+
+#[test]
+fn kit_on_the_binary_train_is_ok_and_patch_drift_is_not_a_finding() {
+    // 0.106.0 kit vs 0.106.1 binary — same train, patch releases
+    // ship binary-only, the row stays green with no fix.
+    let f = kit_finding(&kit("codex", "0.106.0"), "0.106.1");
+    assert_eq!(f.level, Level::Ok);
+    assert_eq!(f.label, "kit");
+    assert!(f.detail.contains("on the binary's train"), "{}", f.detail);
+    assert!(f.fix.is_none());
+}
+
+#[test]
+fn lagging_kit_names_the_refresh_for_its_own_client() {
+    // Codex climbs ONE rung; Claude Code climbs TWO — the fix is
+    // per-client, never generic when the client is known.
+    let f = kit_finding(&kit("codex", "0.104.0"), "0.106.1");
+    assert_eq!(f.level, Level::Warn);
+    assert!(
+        f.detail.contains("lags the binary (0.106.1)"),
+        "{}",
+        f.detail
+    );
+    assert_eq!(
+        f.fix.as_deref(),
+        Some("codex plugin marketplace upgrade nika")
+    );
+
+    let f = kit_finding(&kit("claude", "0.104.0"), "0.106.1");
+    assert_eq!(
+        f.fix.as_deref(),
+        Some("claude plugin marketplace update nika, then claude plugin update nika@nika"),
+        "both rungs are named — the half-climbed ladder is the proven trap"
+    );
+
+    let f = kit_finding(&kit("cursor", "0.104.0"), "0.106.1");
+    assert!(
+        f.fix
+            .as_deref()
+            .is_some_and(|x| x.contains("update-mirrors.sh")),
+        "{:?}",
+        f.fix
+    );
+
+    let f = kit_finding(&kit("someclient", "0.104.0"), "0.106.1");
+    assert!(
+        f.fix.as_deref().is_some_and(|x| x.contains("marketplace")),
+        "unknown client still gets a generic refresh: {:?}",
+        f.fix
+    );
+}
+
+#[test]
+fn kit_ahead_of_the_binary_names_the_binary_upgrade() {
+    let f = kit_finding(&kit("claude", "0.108.0"), "0.106.1");
+    assert_eq!(f.level, Level::Warn);
+    assert!(f.detail.contains("rides ahead"), "{}", f.detail);
+    assert_eq!(f.fix.as_deref(), Some("brew upgrade nika"));
+}
+
+#[test]
+fn unparseable_kit_version_warns_without_guessing_a_train() {
+    let f = kit_finding(&kit("codex", "garbage"), "0.106.1");
+    assert_eq!(f.level, Level::Warn);
+    assert!(f.detail.contains("unparseable"), "{}", f.detail);
+    assert!(f.fix.is_none(), "no fix can be honest without a train");
+}
+
+#[test]
+fn diagnose_carries_one_kit_row_per_found_surface() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.106.1".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama")],
+        clients: vec![],
+        kits: vec![kit("codex", "0.106.0"), kit("claude", "0.104.0")],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let findings = diagnose(&probe);
+    let kits: Vec<_> = findings.iter().filter(|f| f.label == "kit").collect();
+    assert_eq!(kits.len(), 2, "one row per found kit, absence is silence");
+    assert_eq!(kits[0].level, Level::Ok);
+    assert_eq!(kits[1].level, Level::Warn);
+}
+
+#[test]
+fn major_minor_parses_trains_and_rejects_junk() {
+    assert_eq!(major_minor("0.106.1"), Some((0, 106)));
+    assert_eq!(
+        major_minor("1.0.0-rc.2"),
+        Some((1, 0)),
+        "an rc rides its release's train — the tag lives in the patch slot"
+    );
+    assert_eq!(major_minor("garbage"), None);
+    assert_eq!(major_minor(""), None);
+    assert_eq!(major_minor("7"), None, "a train needs both components");
+}
+
+#[test]
+fn cursor_probe_accepts_workspace_config_from_extension() {
+    let dir = temp_dir("cursor-workspace");
+    let global = dir.join("home").join(".cursor").join("mcp.json");
+    let workspace = dir.join("repo").join(".cursor").join("mcp.json");
+    std::fs::create_dir_all(workspace.parent().expect("parent")).expect("mkdir");
+    std::fs::write(
+        &workspace,
+        r#"{"mcpServers":{"nika":{"command":"nika","args":["mcp"]}}}"#,
+    )
+    .expect("fixture");
+
+    let paths = vec![global, workspace.clone()];
+    let probe = client_probe_any("cursor", &paths, &["mcpServers", "nika"]);
+    assert!(probe.current);
+    assert_eq!(probe.path, workspace.display().to_string());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `env_present` is a PRESENCE check (set + non-empty) — read against real
+/// vars so no racy `set_var` is needed. PATH is always set + non-empty
+/// (kills the `-> false` constant + the `!is_empty` negation); a name
+/// nothing sets is absent (kills the `-> true` constant).
+#[test]
+fn env_present_reflects_the_real_environment() {
+    assert!(env_present("PATH"), "PATH is set + non-empty");
+    assert!(!env_present("NIKA_CLI_DEFINITELY_UNSET_VARIABLE_XYZZY"));
+}
+
+#[test]
+fn the_real_catalog_has_no_fail_and_renders() {
+    // The wired run() over the canonical catalog: local providers exist, so
+    // there is never a hard Fail (exit 0) even with no keys in the test env.
+    // ping=false — the default run stays fully offline, in tests too.
+    let out = run(false, false, PLAIN);
+    assert_eq!(out.code, exit::OK, "the catalog always offers a path");
+    assert!(out.text.contains("binary"), "renders the binary line");
+    // The LLM test backend stays hidden (no `mock — key` provider row);
+    // the IMAGE line's `mock ready` is operator-facing truth (the image
+    // mock is a documented, always-available provider).
+    assert!(
+        !out.text.contains("mock —"),
+        "the LLM test backend is hidden"
+    );
+    assert!(out.text.contains("image"), "the image plane renders");
+    assert!(out.text.contains("tts"), "the tts plane renders");
+}
+
+/// The report opens on the ONE verdict line — level counts first,
+/// sections unchanged below. The glyph tracks the WORST level (✔
+/// with warns · ✖ only on a fail).
+#[test]
+fn render_opens_with_the_verdict_count_line() {
+    let ok = Finding {
+        level: Level::Ok,
+        label: "binary".to_owned(),
+        detail: "v0 · self-contained".to_owned(),
+        fix: None,
+    };
+    let warn = Finding {
+        level: Level::Warn,
+        label: "provider".to_owned(),
+        detail: "x — KEY unset".to_owned(),
+        fix: Some("export KEY=…".to_owned()),
+    };
+    let text = render(&[ok.clone(), ok.clone(), warn.clone()], PLAIN);
+    let first = text.lines().next().expect("verdict line");
+    assert_eq!(first, "✔ 2 ok · 1 warn · 0 fail");
+    assert!(text.contains("binary"), "sections unchanged: {text}");
+
+    let fail = Finding {
+        level: Level::Fail,
+        label: "providers".to_owned(),
+        detail: "no path".to_owned(),
+        fix: None,
+    };
+    let red = render(&[ok, warn, fail], PLAIN);
+    assert!(
+        red.starts_with("✖ 1 ok · 1 warn · 1 fail"),
+        "a fail flips the verdict glyph: {red}"
+    );
+}
+
+#[allow(clippy::disallowed_methods)]
+fn temp_dir(name: &str) -> PathBuf {
+    let base = std::env::var_os("CARGO_TARGET_TMPDIR").map_or_else(
+        || {
+            std::env::current_dir()
+                .expect("current dir")
+                .join("target")
+                .join("tmp")
+        },
+        PathBuf::from,
+    );
+    let dir = base.join(format!("nika-doctor-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    dir
+}
+
+#[test]
+fn ping_addr_extracts_authority_and_defaults_ports() {
+    assert_eq!(
+        ping_addr("http://127.0.0.1:11434/v1/chat/completions").as_deref(),
+        Some("127.0.0.1:11434")
+    );
+    assert_eq!(
+        ping_addr("https://example.test/v1").as_deref(),
+        Some("example.test:443")
+    );
+    assert_eq!(ping_addr("http://host/v1").as_deref(), Some("host:80"));
+    assert_eq!(ping_addr("ftp://x"), None);
+    assert_eq!(ping_addr("http://"), None);
+}
+
+/// The single-probe composition the parallel collector applies per
+/// surface — kept here so the probe contract stays directly tested.
+fn ping_once(addr: &str, timeout: Duration) -> PingState {
+    match spawn_ping(addr, timeout).recv_timeout(timeout) {
+        Ok(Some(ms)) => PingState::Reachable(ms),
+        _ => PingState::Unreachable,
+    }
+}
+
+#[test]
+fn userinfo_never_prints_and_never_dials() {
+    // F5: an operator embedding basic-auth in a local URL must not
+    // see it echoed (CI logs) nor dialed as part of the host.
+    assert_eq!(
+        redact_userinfo("http://user:s3cret@tts.lan:8080/v1"),
+        "http://***@tts.lan:8080/v1"
+    );
+    assert_eq!(
+        redact_userinfo("http://tts.lan:8080"),
+        "http://tts.lan:8080"
+    );
+    assert_eq!(redact_userinfo("no-scheme"), "no-scheme");
+    assert_eq!(
+        ping_addr("http://user:s3cret@tts.lan:8080/v1").as_deref(),
+        Some("tts.lan:8080")
+    );
+}
+
+#[test]
+fn effective_base_url_reaches_the_ping() {
+    use nika_providers::ProvidersConfig;
+    // The anti-doctor fix: --ping probes the OVERRIDDEN url, not the
+    // seed — the registry answers the override when one is present.
+    let config =
+        ProvidersConfig::new().with_base_url("ollama", "http://10.9.9.9:7777/v1/chat/completions");
+    let reg = ProviderRegistry::without_http(config);
+    assert_eq!(
+        reg.effective_base_url("ollama"),
+        Some("http://10.9.9.9:7777/v1/chat/completions")
+    );
+    let reg2 = ProviderRegistry::without_http(ProvidersConfig::new());
+    assert!(
+        reg2.effective_base_url("ollama")
+            .is_some_and(|u| u.contains("127.0.0.1:11434"))
+    );
+    assert_eq!(reg2.effective_base_url("nope"), None);
+}
+
+#[test]
+fn tcp_ping_reachable_and_unreachable() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().expect("addr").to_string();
+    assert!(matches!(
+        ping_once(&addr, Duration::from_millis(300)),
+        PingState::Reachable(_)
+    ));
+    // Bind then drop → the port is free again: nothing listens on it.
+    let closed = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        l.local_addr().expect("addr").to_string()
+    };
+    assert_eq!(
+        ping_once(&closed, Duration::from_millis(300)),
+        PingState::Unreachable
+    );
+    assert_eq!(
+        ping_once("not-an-addr", Duration::from_millis(300)),
+        PingState::Unreachable
+    );
+}
+
+#[test]
+fn local_line_hands_off_to_ping_and_ping_lines_render() {
+    let base = Probe {
+        models: ModelsProbe::default(),
+        version: "0.0.0".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama")],
+        clients: Vec::new(),
+        kits: Vec::new(),
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let findings = diagnose(&base);
+    let local = findings
+        .iter()
+        .find(|f| f.label == "local")
+        .expect("local line");
+    assert!(
+        local.fix.as_deref().is_some_and(|f| f.contains("--ping")),
+        "unpinged run must hand off to --ping"
+    );
+
+    let pinged = Probe {
+        models: ModelsProbe::default(),
+        local_pings: vec![
+            (
+                "ollama".to_owned(),
+                "127.0.0.1:11434".to_owned(),
+                PingState::Reachable(3),
+            ),
+            (
+                "vllm".to_owned(),
+                "127.0.0.1:8000".to_owned(),
+                PingState::Unreachable,
+            ),
+        ],
+        ..base
+    };
+    let findings = diagnose(&pinged);
+    let pings: Vec<_> = findings.iter().filter(|f| f.label == "ping").collect();
+    assert_eq!(pings.len(), 2);
+    assert!(pings[0].detail.contains("listening on 127.0.0.1:11434"));
+    assert_eq!(pings[0].level, Level::Ok);
+    assert!(pings[1].detail.contains("nothing listening"));
+    assert_eq!(pings[1].level, Level::Warn);
+    let local = findings
+        .iter()
+        .find(|f| f.label == "local")
+        .expect("local line");
+    assert!(local.fix.is_none(), "pinged run drops the hand-off");
+}
+
+/// Every label `diagnose` can emit fits STRICTLY inside the fixed
+/// [`LABEL_COL`] cell — the grid never shears (nextest school).
+#[test]
+fn every_label_fits_the_fixed_column() {
+    for label in [
+        "binary",
+        "config",
+        "lsp",
+        "mcp",
+        "sidecar",
+        "traces",
+        "agent",
+        "kit",
+        "registry",
+        "provider",
+        "providers",
+        "local",
+        "ping",
+        "image",
+        "tts",
+        "pricing",
+    ] {
+        assert!(
+            label.len() <= LABEL_COL,
+            "label `{label}` ({}) exceeds LABEL_COL ({LABEL_COL})",
+            label.len()
+        );
+    }
+}
+
+/// Item-3 wiring: on the linked register an https target inside a
+/// detail line rides the OSC-8 wrapper (text unchanged); the sober
+/// register — every pipe — keeps its exact bytes, zero escapes.
+#[test]
+fn linked_register_wraps_https_targets_and_sober_stays_frozen() {
+    let f = vec![Finding {
+        level: Level::Ok,
+        label: "pricing".to_owned(),
+        detail: "snapshot · see https://docs.nika.sh/errors for codes".to_owned(),
+        fix: None,
+    }];
+    let sober = render(&f, PLAIN);
+    assert!(
+        !sober.contains('\x1b'),
+        "sober register is escape-free: {sober:?}"
+    );
+    let mut linked = PLAIN;
+    linked.links = true;
+    let out = render(&f, linked);
+    assert!(
+        out.contains(
+            "\x1b]8;;https://docs.nika.sh/errors\x1b\\https://docs.nika.sh/errors\x1b]8;;\x1b\\"
+        ),
+        "https target rides OSC-8: {out:?}"
+    );
+}
+
+// ── The registry coverage row (H6 · Q1 2026-07-31) ──
+
+/// The row renders the derived counts and NAMES the wireable
+/// clients doctor cannot probe — a declared-not-probed client is
+/// listed, never silently dropped; an unparsed registry is a loud
+/// warning, never a silent zero.
+#[test]
+fn registry_finding_names_the_declared_not_probed() {
+    let cov = RegistryCoverage {
+        declared: 31,
+        wireable: 15,
+        probed: 6,
+        wire_pending: 2,
+        declared_not_probed: vec!["cline".to_owned(), "codex".to_owned()],
+    };
+    let f = registry_finding(&cov);
+    assert_eq!(f.level, Level::Ok);
+    assert_eq!(f.label, "registry");
+    assert!(f.detail.contains("31 declared"), "{}", f.detail);
+    assert!(f.detail.contains("15 wireable"), "{}", f.detail);
+    assert!(f.detail.contains("6 probed"), "{}", f.detail);
+    assert!(f.detail.contains("declared-not-probed"), "{}", f.detail);
+    assert!(f.detail.contains("cline"), "named: {}", f.detail);
+    assert!(f.detail.contains("codex"), "named: {}", f.detail);
+    assert!(f.detail.contains("wire-pending"), "{}", f.detail);
+    assert!(f.fix.is_none(), "no repair: the gap is engine-side");
+
+    let quiet = registry_finding(&RegistryCoverage {
+        declared: 31,
+        wireable: 6,
+        probed: 6,
+        wire_pending: 0,
+        declared_not_probed: vec![],
+    });
+    assert!(
+        !quiet.detail.contains("declared-not-probed"),
+        "no gap, no gap line: {}",
+        quiet.detail
+    );
+    assert!(
+        !quiet.detail.contains("wire-pending"),
+        "no pending, no pending line: {}",
+        quiet.detail
+    );
+
+    let broken = registry_finding(&RegistryCoverage::default());
+    assert_eq!(broken.level, Level::Warn);
+    assert!(broken.detail.contains("unavailable"), "{}", broken.detail);
+}
+
+/// `diagnose` emits EXACTLY ONE registry row, after the client/kit
+/// lanes, with the counts the probe derived.
+#[test]
+fn diagnose_emits_one_registry_coverage_row() {
+    let base = Probe {
+        models: ModelsProbe::default(),
+        version: "0.0.0".to_owned(),
+        config_path: None,
+        providers: vec![],
+        clients: Vec::new(),
+        kits: Vec::new(),
+        clients_registry: RegistryCoverage {
+            declared: 31,
+            wireable: 15,
+            probed: 6,
+            wire_pending: 0,
+            declared_not_probed: vec!["cline".to_owned()],
+        },
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::verbs::trace::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let findings = diagnose(&base);
+    let rows: Vec<_> = findings.iter().filter(|f| f.label == "registry").collect();
+    assert_eq!(rows.len(), 1, "one coverage row: {findings:?}");
+    assert!(rows[0].detail.contains("31 declared"), "{}", rows[0].detail);
+}
