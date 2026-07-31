@@ -92,13 +92,17 @@ tasks:
         message: "read ${{ const.source }}, summarize it and write the report?"
 
   gather:
-    after: { approve: success }
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.source }}" }
 
   probe:
-    after: { approve: success }
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     exec:
       command: ["wc", "-l", "./news.json"]
 
@@ -307,7 +311,12 @@ async fn e2e_happy_path_full_pipeline() {
     // the static audit, is its own test above; execute() re-asserts it).
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams = Seams::new(shell, tools);
@@ -419,7 +428,12 @@ async fn e2e_structured_output_validates_real_dataflow() {
     // schema-validated and typed.
     let shell = MockShell::new().enqueue_ok("42\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "ok"));
     let seams = Seams::new(shell, tools);
@@ -467,7 +481,12 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
     // probe explodes; gather's lane stays alive.
     let shell = MockShell::new().enqueue_fail(7, "disk full: /var/news");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
     let seams = Seams::new(shell, tools);
 
@@ -592,7 +611,12 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
     let (wf, report) = parse_and_check(WORKFLOW_OK);
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams = Seams::new(shell, tools);
@@ -621,7 +645,12 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
     // clock pin the whole pipeline (the spec's reproducibility law).
     let shell2 = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools2 = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams2 = Seams::new(shell2, tools2);

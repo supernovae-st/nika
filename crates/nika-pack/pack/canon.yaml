@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 0ba43c3f1739633bf550b9b1b9bd1b9c53b92f4af20701ad0c5bbd07500004d1
+# body-sha256: 36c2f131f2bfb6e1da92ea0b2b40e0b4750bf0185282fa68db962ab5090e15e3
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -65,7 +65,7 @@ counts:
   templates: 10
   error_namespaces: 25
   error_categories: 12
-  error_codes: 102
+  error_codes: 103
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -296,7 +296,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 102
+  count: 103
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -396,7 +396,8 @@ error_codes:
     - { code: NIKA-SEC-010, category: security_error, transient: "false", failure: "the approval-capability law is violated · a rate-limited approval burst (the N+1th distinct mint of a run) · an approval whose resolved content hash differs from the shown hash (content_mismatch) · a ticket replayed across runs or steps (scope_mismatch) · or the static heterogeneous-batch refusal (one prompt unleashing two or more effect classes) — the 6th invariant (NEP-0013 · F-P4)" }
     - { code: NIKA-SEC-011, category: security_error, transient: "false", failure: "preview-commit divergence — the commit digest recomputed at the sink over the exact bytes about to fire differs from the preview digest computed at resolution (one bit of rendered argv · a permuted context field · a mutated tool argument) · the step refuses fail-closed and the receipt carries divergence:{preview, commit} — judged = executed at the action scale (NEP-0015 · F-P6)" }
     - { code: NIKA-SEC-012, category: security_error, transient: "false", failure: "unordered shared writes — two tasks incomparable in the DAG closure whose literal nika:write/nika:edit paths collide with no ordering edge (after: · with:) to serialize them, or a for_each fan writing one constant path · parallelism is safe exactly where the writes are provably disjoint (NEP-0014 law 1 · F-P15)" }
-    - { code: NIKA-SEC-013, category: security_error, transient: "false", failure: "the endorsement mode law — a human gate (invoke: nika:prompt) declared under a policy: block that names no endorsement mode refuses fail-closed (endorsement.undeclared_mode · F-F5 · zero implicit escape), and endorsement: solo carried by a workflow with more than one gate refuses as the declaration lying (endorsement.solo_count · exactly one endorser) (NEP-0014 · F-P23)" }
+    - { code: NIKA-SEC-013, category: security_error, transient: "false", failure: "the endorsement mode law — a human gate (invoke: nika:prompt) declared under a policy: block that names no endorsement mode refuses fail-closed (endorsement.undeclared_mode · F-F5 · zero implicit escape), and endorsement: solo carried by a workflow with more than one gate refuses as the declaration lying (endorsement.solo_count · exactly one endorser) (NEP-0017 · F-P23)" }
+    - { code: NIKA-SEC-014, category: security_error, transient: "false", failure: "the affirmative-consent law — a confirm-mode human gate (invoke: nika:prompt · mode absent or confirm) reaches an egress-capable task over a route no affirmative gate closes: a REFUSED confirm settles success with value false, so a bare after: { gate: success } edge, a when: that never reads the answer, and a when: provably true on the refusal all let the effect through · the gate is credited only when every route consumes the answer and proves false on it (the Kleene-falsifiable when: · when: false · a closer confirm gate owns its closure) · an undecidable gate (a nested binding · a non-fragment expression) defers to the advisory hint, never a refusal (NEP-0020 · P0-2 of the 2026-07-30 audit)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-ASSERT-001, category: validation_error, transient: "false", failure: "an assert: claims a level the evidence does not support (a StaticProof the IR cannot decide · a mis-leveled obligation · spec 15)" }

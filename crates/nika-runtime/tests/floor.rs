@@ -67,13 +67,17 @@ tasks:
         message: "read ${{ const.source }}, summarize it and write the report?"
 
   gather:
-    after: { approve: success }
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.source }}" }
 
   probe:
-    after: { approve: success }
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     exec:
       command: ["wc", "-l", "./news.json"]
 
@@ -216,7 +220,11 @@ async fn floor_happy_path_same_yaml_same_stream() {
 
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The affirmative gate reads the STRUCTURED plane, like the
+            // real confirm (content stays the model-facing view).
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let runtime = floor_runtime(shell, tools, MockProvider::new("mock"));
@@ -302,7 +310,12 @@ async fn floor_stream_is_replay_stable() {
         let (wf, report) = parse_and_check(WORKFLOW_OK);
         let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
         let tools = MockToolExecutor::new()
-            .enqueue_ok(ToolResult::success("call-approve", "true"))
+            .enqueue_ok(
+                // The affirmative gate reads the STRUCTURED plane, like the
+                // real confirm (content stays the model-facing view).
+                ToolResult::success("call-approve", "true")
+                    .with_structured(serde_json::json!(true)),
+            )
             .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
             .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
         let runtime =
@@ -337,7 +350,11 @@ async fn floor_failure_cascades_and_terminal_is_failed() {
     // gather + extract stay alive (the other lane).
     let shell = MockShell::new().enqueue_fail(7, "disk full: /var/news");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The affirmative gate reads the STRUCTURED plane, like the
+            // real confirm (content stays the model-facing view).
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
     let runtime = floor_runtime(shell, tools, MockProvider::new("mock"));
 

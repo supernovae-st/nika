@@ -10,6 +10,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika init` writes the two project MCP doors.** The root `.mcp.json`
+  (the standard `mcpServers` stanza FOUR agent surfaces read natively:
+  Claude Code project scope · Grok Build via its Claude compat · GitHub
+  Copilot CLI · Warp) and `.agents/mcp_config.json` (Antigravity CLI's
+  workspace file, beside the authoring skill under the cross-vendor
+  `.agents/` convention). One shared body, seventeen scaffold targets —
+  a repo equipped by `nika init` now hands the read-only oracle to six
+  clients with zero machine wiring.
+
 ### Fixed
 
 - **`nika examples copy` brings the recipe's ingredients.** Every
