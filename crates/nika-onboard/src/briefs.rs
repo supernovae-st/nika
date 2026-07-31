@@ -48,9 +48,10 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   declaration · unknown keys refused); a run
   paused on a `nika:prompt` resumes with `--resume <trace> --answer
   <task>=<value>` (confirm gates take booleans: `--answer approve=true`).
-- **Pin** · `nika test <file> --update` writes `<file>.golden.json` from an
-  offline mock run; `nika test <file>` replays and compares — deterministic,
-  zero keys, the CI gate.
+- **Pin** · `nika test <file> --update` writes `<file>.golden.json` from a
+  simulated run — the model is `mock/echo` (offline · deterministic) and
+  real effects are REFUSED, never performed; `nika test <file>` replays
+  and compares — zero keys, the CI gate.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
   `nika welcome` is the short mirror (machine · workspace · next commands).
 - **Context** · `nika welcome --deep --json` — the whole workspace truth in one

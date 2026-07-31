@@ -215,7 +215,7 @@ nika check flow.nika.yaml            # the audit · exit 0 clean · 2 findings
 nika explain flow.nika.yaml          # the story · waves · cost BEFORE a token · what it touches
 nika explain NIKA-VAR-001            # any code · cause · category · fix-form
 nika run flow.nika.yaml --var topic=rust   # launch inputs · repeatable
-nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI
+nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI (simulated · effects refused)
 nika run flow.nika.yaml --task hero    # regenerate ONE task + its upstream cone
 nika run flow.nika.yaml --resume .nika/traces/<run>.ndjson   # skip journaled successes
 nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a paused gate

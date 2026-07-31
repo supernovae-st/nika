@@ -429,7 +429,7 @@ mod tests {
     /// one that bites, and the payload stays parseable afterwards.
     #[test]
     fn redacting_sink_rewrites_the_json_escaped_form() {
-        let secret = "ab\"cd1234"; // ≥ the floor · carries a quote
+        let secret = "ab\"cd1234"; // carries a quote — provenance governs, never length
         let payload = serde_json::json!({"class": "ok", "value": secret}).to_string();
         let events = scrubbed(secret, outcome_event(&payload));
         let outcome = outcome_of(&events[0]);
