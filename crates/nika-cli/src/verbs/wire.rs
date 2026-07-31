@@ -6,6 +6,12 @@
 //! Installers stay conservative and never mutate editor state implicitly. This
 //! verb is the explicit, idempotent bridge: it adds or repairs the Nika MCP
 //! entry while preserving every unrelated server in the host config.
+//!
+//! The door (H7 · audit UX 2026-07-30): preview (`--dry-run`) → detected
+//! (`wire detected` — only what this machine shows) → one client by name.
+//! `all` is the advanced door: it rewrites every known client config, so it
+//! owes the operator a preview, a live `y` on a terminal, or an explicit
+//! `--yes` in a pipe — never a silent sweep.
 
 use std::path::{Path, PathBuf};
 
@@ -42,6 +48,12 @@ pub enum WireTarget {
     Kiro,
     Copilot,
     Amp,
+    /// Only the clients THIS machine shows (the probe's presence truth)
+    /// — the recommended door: `wire detected --dry-run`, then
+    /// `wire detected`.
+    Detected,
+    /// Every supported client — the advanced door: preview with
+    /// `--dry-run`, confirm live on a terminal, or pass `--yes` in a pipe.
     All,
 }
 
@@ -58,13 +70,82 @@ enum WireAction {
     Manual(String),
 }
 
+/// The `wire` door's knobs (H7 · audit UX 2026-07-30): a preview that
+/// never writes, and the consent `all` owes the operator.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct WireOptions {
+    /// Plan only — render created/updated/current/manual per client,
+    /// write nothing (the `run --dry-run` law: plan only, zero effects).
+    pub dry_run: bool,
+    /// Consent to `all` without a prompt (scripts · CI — a terminal asks).
+    pub yes: bool,
+    /// Both ends of the conversation are a terminal: `all` may ask
+    /// instead of refusing (the clig.dev interactivity rule).
+    pub interactive: bool,
+}
+
+/// The compat door (init's injected wire effect): a terminal may consent
+/// live, a pipe may not — everything else keeps the scripted defaults.
 #[must_use]
 pub fn run(target: WireTarget, dir: &str) -> VerbOutput {
+    run_with(
+        target,
+        dir,
+        WireOptions {
+            interactive: interactive_terminal(),
+            ..WireOptions::default()
+        },
+    )
+}
+
+/// The full door (H7): `detected` wires only what the machine shows,
+/// `dry_run` renders the plan and writes nothing, and `all` — the
+/// every-client sweep — owes a preview, a live `y`, or an explicit
+/// `--yes`. A bare `all` in a pipe is refused, naming the right door.
+#[must_use]
+pub fn run_with(target: WireTarget, dir: &str, options: WireOptions) -> VerbOutput {
+    if target == WireTarget::All {
+        match all_consent(options.dry_run, options.yes, options.interactive) {
+            AllConsent::Refuse => {
+                return VerbOutput::env(format!(
+                    "wire all rewrites {} client configs and nothing asked\n  \
+                     preview:     nika wire all --dry-run\n  \
+                     recommended: nika wire detected  (only what this machine has)\n  \
+                     consent:     nika wire all --yes",
+                    expand_target(WireTarget::All).len()
+                ));
+            }
+            AllConsent::Prompt => {
+                use std::io::Write as _;
+                let targets = expand_target(target);
+                let mut out = std::io::stdout().lock();
+                let _ = writeln!(out, "{}", render_plan(&collect_plan(&targets, dir)));
+                if !ask_consent(&mut out, targets.len()) {
+                    return VerbOutput::ok(
+                        "aborted · nothing written — `nika wire detected` wires only \
+                         what this machine has"
+                            .to_owned(),
+                    );
+                }
+            }
+            AllConsent::Proceed => {}
+        }
+    }
+
+    let targets = resolve_targets(target, dir);
+    if targets.is_empty() {
+        return VerbOutput::ok(
+            "no MCP client detected on this machine — `nika wire all --dry-run` \
+             previews every supported client · `nika wire <client>` wires one by name"
+                .to_owned(),
+        );
+    }
+
     let mut actions = Vec::new();
     let mut failed = false;
 
-    for one in expand_target(target) {
-        match wire_one(one, dir) {
+    for one in targets {
+        match wire_one(one, dir, options.dry_run) {
             Ok(action) => actions.push(action),
             Err(message) => {
                 failed = true;
@@ -73,7 +154,11 @@ pub fn run(target: WireTarget, dir: &str) -> VerbOutput {
         }
     }
 
-    let text = render(&actions);
+    let text = if options.dry_run {
+        render_plan(&actions)
+    } else {
+        render(&actions)
+    };
     if failed {
         VerbOutput::env(text)
     } else {
@@ -81,33 +166,158 @@ pub fn run(target: WireTarget, dir: &str) -> VerbOutput {
     }
 }
 
+/// The `all` consent verdict (pure — the prompt I/O lives in
+/// [`run_with`]; the `model pull` confirm-gate precedent).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AllConsent {
+    /// `--dry-run` (nothing to consent to) or an explicit `--yes`.
+    Proceed,
+    /// A terminal: show the plan, then ask.
+    Prompt,
+    /// No terminal, no `--yes`: refuse, naming the right door.
+    Refuse,
+}
+
+fn all_consent(dry_run: bool, yes: bool, interactive: bool) -> AllConsent {
+    if dry_run || yes {
+        AllConsent::Proceed
+    } else if interactive {
+        AllConsent::Prompt
+    } else {
+        AllConsent::Refuse
+    }
+}
+
+/// Both ends of a conversation present? (the prompt needs stdin AND a
+/// terminal to ask on — the `model pull` rule).
+fn interactive_terminal() -> bool {
+    use std::io::IsTerminal as _;
+    std::io::stdin().is_terminal() && std::io::stderr().is_terminal()
+}
+
+/// Ask on the conversation stream, read one line from stdin — `y`/`yes`
+/// applies the plan, anything else (or an unreadable answer) aborts
+/// without a write. The prompt rides the SAME `Write` seam the init
+/// wizard uses (this crate bans the `eprint!` macros).
+fn ask_consent(out: &mut impl std::io::Write, count: usize) -> bool {
+    let _ = write!(out, "wire all: apply to {count} client configs? [y/N] ");
+    let _ = out.flush();
+    let mut line = String::new();
+    if std::io::stdin().read_line(&mut line).is_err() {
+        return false;
+    }
+    let answer = line.trim();
+    answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes")
+}
+
+fn resolve_targets(target: WireTarget, dir: &str) -> Vec<WireTarget> {
+    match target {
+        WireTarget::Detected => detected_targets(dir),
+        other => expand_target(other),
+    }
+}
+
+/// The clients this machine SHOWS — the same presence truth `doctor`
+/// reports. probe.rs owns its client list privately, so the wiring
+/// registry re-derives it at the same paths through the probe's own
+/// [`client_probe_any`](crate::verbs::probe::client_probe_any) machinery
+/// (one detection semantics — presence only, never a guess).
+fn detected_targets(dir: &str) -> Vec<WireTarget> {
+    match home_path(&[]) {
+        Ok(home) => detected_targets_in(&home, Path::new(dir)),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn detected_targets_in(home: &Path, dir: &Path) -> Vec<WireTarget> {
+    let mcp_servers: &[&str; 2] = &["mcpServers", "nika"];
+    let probes = [
+        crate::verbs::probe::client_probe_any(
+            "cursor",
+            &[
+                home.join(".cursor").join("mcp.json"),
+                dir.join(".cursor").join("mcp.json"),
+            ],
+            mcp_servers,
+        ),
+        crate::verbs::probe::client_probe_any(
+            "windsurf",
+            &[home
+                .join(".codeium")
+                .join("windsurf")
+                .join("mcp_config.json")],
+            mcp_servers,
+        ),
+        crate::verbs::probe::client_probe_any("claude", &[home.join(".claude.json")], mcp_servers),
+        crate::verbs::probe::client_probe_any(
+            "zed",
+            &[home.join(".config").join("zed").join("settings.json")],
+            &["context_servers", "nika"],
+        ),
+        // Hermes is YAML — the JSON probe never parses it, but DETECTION
+        // is presence only, and `present` is exactly that.
+        crate::verbs::probe::client_probe_any(
+            "hermes",
+            &[home.join(".hermes").join("config.yaml")],
+            &["mcp_servers", "nika"],
+        ),
+        crate::verbs::probe::client_probe_any(
+            "vscode",
+            &[dir.join(".vscode").join("mcp.json")],
+            &["servers", "nika"],
+        ),
+    ];
+    probes
+        .iter()
+        .filter(|probe| probe.present)
+        .filter_map(|probe| WireTarget::from_str(&probe.id, true).ok())
+        .collect()
+}
+
+/// The plan half of a run: every outcome, zero writes (the interactive
+/// `all` preview reads it before asking).
+fn collect_plan(targets: &[WireTarget], dir: &str) -> Vec<WireAction> {
+    targets
+        .iter()
+        .map(|one| match wire_one(*one, dir, true) {
+            Ok(action) => action,
+            Err(message) => WireAction::Skipped(message),
+        })
+        .collect()
+}
+
 fn expand_target(target: WireTarget) -> Vec<WireTarget> {
     match target {
         // Every concrete client, in declaration order (the clap registry
-        // is the one list — no hand-maintained twin to drift).
+        // is the one list — no hand-maintained twin to drift). `All` and
+        // `Detected` are DOORS, not clients.
         WireTarget::All => WireTarget::value_variants()
             .iter()
             .copied()
-            .filter(|t| *t != WireTarget::All)
+            .filter(|t| !matches!(t, WireTarget::All | WireTarget::Detected))
             .collect(),
         other => vec![other],
     }
 }
 
-fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
+fn wire_one(target: WireTarget, dir: &str, dry_run: bool) -> Result<WireAction, String> {
     match target {
         // The user-home `mcpServers` family — one shape, per-client paths
         // (gemini: shared settings.json, server names must not contain `_`
         // — upstream policy parser splits on it, `nika` is safe · qwen: the
         // gemini-cli fork, same key, its own dotdir).
-        WireTarget::Cursor => patch_home_mcp(&[".cursor", "mcp.json"], "cursor"),
-        WireTarget::Claude => patch_home_mcp(&[".claude.json"], "claude"),
-        WireTarget::Windsurf => {
-            patch_home_mcp(&[".codeium", "windsurf", "mcp_config.json"], "windsurf")
+        WireTarget::Cursor => patch_home_mcp(&[".cursor", "mcp.json"], "cursor", dry_run),
+        WireTarget::Claude => patch_home_mcp(&[".claude.json"], "claude", dry_run),
+        WireTarget::Windsurf => patch_home_mcp(
+            &[".codeium", "windsurf", "mcp_config.json"],
+            "windsurf",
+            dry_run,
+        ),
+        WireTarget::Gemini => patch_home_mcp(&[".gemini", "settings.json"], "gemini", dry_run),
+        WireTarget::Qwen => patch_home_mcp(&[".qwen", "settings.json"], "qwen", dry_run),
+        WireTarget::Vscode => {
+            patch_vscode(&Path::new(dir).join(".vscode").join("mcp.json"), dry_run)
         }
-        WireTarget::Gemini => patch_home_mcp(&[".gemini", "settings.json"], "gemini"),
-        WireTarget::Qwen => patch_home_mcp(&[".qwen", "settings.json"], "qwen"),
-        WireTarget::Vscode => patch_vscode(&Path::new(dir).join(".vscode").join("mcp.json")),
         // Claude DESKTOP is a different app with a different config file
         // than Claude Code's ~/.claude.json — the wave-3 double gap (#449).
         WireTarget::ClaudeDesktop => patch_cursor_like(
@@ -115,15 +325,22 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "mcpServers",
             "claude-desktop",
             false,
+            dry_run,
         ),
         // Cline hot-reloads its settings file (chokidar watcher), shape =
         // Cursor-style `mcpServers` record — the resolver below picks the
         // live globalStorage file when a host IDE has it, else the stable
         // `~/.cline/data/settings/` home (#449 wave-3b).
-        WireTarget::Cline => {
-            patch_cursor_like(&cline_settings_path()?, "mcpServers", "cline", false)
+        WireTarget::Cline => patch_cursor_like(
+            &cline_settings_path()?,
+            "mcpServers",
+            "cline",
+            false,
+            dry_run,
+        ),
+        WireTarget::Codex => {
+            patch_toml_mcp(&home_path(&[".codex", "config.toml"])?, "codex", dry_run)
         }
-        WireTarget::Codex => patch_toml_mcp(&home_path(&[".codex", "config.toml"])?, "codex"),
         // Continue scans `~/.continue/mcpServers/*.json` (the Claude-Desktop
         // JSON shape, name-keyed) — an OWN-FILE write: the user's
         // comment-bearing config.yaml is never touched (the Zed lesson,
@@ -131,20 +348,24 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
         // the hint rides the verdict line (#449 wave-3b).
         WireTarget::Continue => {
             let path = home_path(&[".continue", "mcpServers", "nika.json"])?;
-            patch_cursor_like(&path, "mcpServers", "continue", false)
+            patch_cursor_like(&path, "mcpServers", "continue", false, dry_run)
                 .map(|a| with_hint(a, "reload Continue (or re-save config.yaml) to pick it up"))
         }
         // Zed keeps its settings under ~/.config on EVERY platform (macOS
         // included — deliberate upstream choice, zed.dev/docs).
-        WireTarget::Zed => patch_zed(&home_path(&[".config", "zed", "settings.json"])?),
+        WireTarget::Zed => patch_zed(&home_path(&[".config", "zed", "settings.json"])?, dry_run),
         // OpenCode merges the PROJECT-local opencode.json over the global
         // one (opencode.ai/docs/mcp-servers) — the project file is the
         // least-privilege home (the repo the oracle serves).
-        WireTarget::Opencode => patch_opencode(&Path::new(dir).join("opencode.json")),
-        WireTarget::Hermes => patch_hermes(&home_path(&[".hermes", "config.yaml"])?),
-        WireTarget::Lmstudio => {
-            patch_cursor_like(&lmstudio_mcp_path()?, "mcpServers", "lmstudio", false)
-        }
+        WireTarget::Opencode => patch_opencode(&Path::new(dir).join("opencode.json"), dry_run),
+        WireTarget::Hermes => patch_hermes(&home_path(&[".hermes", "config.yaml"])?, dry_run),
+        WireTarget::Lmstudio => patch_cursor_like(
+            &lmstudio_mcp_path()?,
+            "mcpServers",
+            "lmstudio",
+            false,
+            dry_run,
+        ),
         // Junie reads project-scope `.junie/mcp/mcp.json` (`mcpServers`
         // root · junie-cli-mcp-configuration.html); the global
         // `~/.junie/mcp/mcp.json` exists but the project file is the
@@ -154,33 +375,40 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "mcpServers",
             "junie",
             false,
+            dry_run,
         ),
         // Grok Build: the Codex TOML shape at `~/.grok/config.toml` — the
         // native table survives a `[compat.claude] mcps = false` toggle.
-        WireTarget::Grok => patch_toml_mcp(&home_path(&[".grok", "config.toml"])?, "grok"),
+        WireTarget::Grok => patch_toml_mcp(&home_path(&[".grok", "config.toml"])?, "grok", dry_run),
         // Antigravity (`agy`): standalone mcp_config.json, global under
         // `~/.gemini/config/` (workspace `.agents/` = `nika init` land ·
         // the url→serverUrl rename touches remote servers only).
-        WireTarget::Antigravity => {
-            patch_home_mcp(&[".gemini", "config", "mcp_config.json"], "antigravity")
-        }
+        WireTarget::Antigravity => patch_home_mcp(
+            &[".gemini", "config", "mcp_config.json"],
+            "antigravity",
+            dry_run,
+        ),
         // Kimi Code: two-level `mcp.json`; machine wiring writes the user
         // file (the trust-scoped project level stays the operator's move).
-        WireTarget::Kimi => patch_home_mcp(&[".kimi-code", "mcp.json"], "kimi"),
+        WireTarget::Kimi => patch_home_mcp(&[".kimi-code", "mcp.json"], "kimi", dry_run),
         // Kiro (the Amazon Q rebrand): `~/.kiro/settings/mcp.json` — the
         // legacy `~/.aws/amazonq/` file is still read but `.kiro` wins.
-        WireTarget::Kiro => patch_home_mcp(&[".kiro", "settings", "mcp.json"], "kiro"),
+        WireTarget::Kiro => patch_home_mcp(&[".kiro", "settings", "mcp.json"], "kiro", dry_run),
         // Copilot CLI: the desired matches THEIR writer byte-shape (tools
         // + type local) so a copilot-added entry reads Current, no churn.
-        WireTarget::Copilot => patch_copilot(&home_path(&[".copilot", "mcp-config.json"])?),
+        WireTarget::Copilot => {
+            patch_copilot(&home_path(&[".copilot", "mcp-config.json"])?, dry_run)
+        }
         // Amp: the LITERAL dotted "amp.mcpServers" key at the settings
         // root; a JSONC file gets the snippet (the Zed lossless contract).
-        WireTarget::Amp => patch_amp(&home_path(&[".config", "amp", "settings.json"])?),
+        WireTarget::Amp => patch_amp(&home_path(&[".config", "amp", "settings.json"])?, dry_run),
         #[allow(
             clippy::unreachable,
-            reason = "All is expanded to concrete targets before dispatch"
+            reason = "doors are expanded to concrete targets before dispatch"
         )]
-        WireTarget::All => unreachable!("WireTarget::All must be expanded before dispatch"),
+        WireTarget::All | WireTarget::Detected => {
+            unreachable!("wire doors must be resolved before dispatch")
+        }
     }
 }
 
@@ -284,7 +512,7 @@ fn lmstudio_mcp_path_from(home: &Path) -> PathBuf {
 /// succeeding ⇒ no comments existed); otherwise return
 /// [`WireAction::Manual`] with the exact snippet and leave the user's file
 /// byte-identical.
-fn patch_zed(path: &Path) -> Result<WireAction, String> {
+fn patch_zed(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
     let label_path = format!("zed: {}", path.display());
     let mut root = if existed {
@@ -323,7 +551,9 @@ fn patch_zed(path: &Path) -> Result<WireAction, String> {
     }
 
     servers.insert("nika".to_owned(), desired);
-    write_json(path, &root)?;
+    if !dry_run {
+        write_json(path, &root)?;
+    }
 
     if migrated {
         Ok(WireAction::Migrated(label_path))
@@ -352,13 +582,13 @@ fn zed_server() -> Value {
     Value::Object(server)
 }
 
-fn patch_vscode(path: &Path) -> Result<WireAction, String> {
-    patch_config(path, "servers", "vscode", true)
+fn patch_vscode(path: &Path, dry_run: bool) -> Result<WireAction, String> {
+    patch_config(path, "servers", "vscode", true, dry_run)
 }
 
 /// The user-home `mcpServers` shape shared by the cursor-like family.
-fn patch_home_mcp(parts: &[&str], label: &str) -> Result<WireAction, String> {
-    patch_cursor_like(&home_path(parts)?, "mcpServers", label, false)
+fn patch_home_mcp(parts: &[&str], label: &str, dry_run: bool) -> Result<WireAction, String> {
+    patch_cursor_like(&home_path(parts)?, "mcpServers", label, false, dry_run)
 }
 
 fn patch_cursor_like(
@@ -366,8 +596,9 @@ fn patch_cursor_like(
     server_key: &str,
     label: &str,
     include_type: bool,
+    dry_run: bool,
 ) -> Result<WireAction, String> {
-    patch_config(path, server_key, label, include_type)
+    patch_config(path, server_key, label, include_type, dry_run)
 }
 
 fn patch_config(
@@ -375,6 +606,7 @@ fn patch_config(
     server_key: &str,
     label: &str,
     include_type: bool,
+    dry_run: bool,
 ) -> Result<WireAction, String> {
     let existed = path.exists();
     let mut root = if existed {
@@ -406,7 +638,9 @@ fn patch_config(
     }
 
     servers.insert("nika".to_owned(), desired);
-    write_json(path, &root)?;
+    if !dry_run {
+        write_json(path, &root)?;
+    }
 
     let label_path = format!("{label}: {}", path.display());
     if migrated {
@@ -421,7 +655,7 @@ fn patch_config(
 /// The `[mcp_servers.nika]` TOML family — Codex CLI (`~/.codex/config.toml`)
 /// and Grok Build (`~/.grok/config.toml`) share the exact table shape.
 /// `toml_edit` keeps the user's comments and unrelated tables intact.
-fn patch_toml_mcp(path: &Path, label: &str) -> Result<WireAction, String> {
+fn patch_toml_mcp(path: &Path, label: &str, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
     let body = if existed {
         std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?
@@ -457,12 +691,14 @@ fn patch_toml_mcp(path: &Path, label: &str) -> Result<WireAction, String> {
     entry.insert("args", toml_edit::value(args));
     servers.insert("nika", toml_edit::Item::Table(entry));
 
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    if !dry_run {
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        }
+        std::fs::write(path, doc.to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
     }
-    std::fs::write(path, doc.to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
 
     if migrated {
         Ok(WireAction::Migrated(label_path))
@@ -497,7 +733,7 @@ fn toml_entry_is_stale(item: &toml_edit::Item) -> bool {
 /// with `type: local` + the WHOLE argv in `command`), not the
 /// `mcpServers` family — so it gets a dedicated desired-value while
 /// reusing the same read/merge/write mechanics (#330).
-fn patch_opencode(path: &Path) -> Result<WireAction, String> {
+fn patch_opencode(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
     let mut root = if existed {
         read_json(path)?
@@ -527,7 +763,9 @@ fn patch_opencode(path: &Path) -> Result<WireAction, String> {
         return Ok(WireAction::Current(format!("opencode: {}", path.display())));
     }
     servers.insert("nika".to_owned(), desired);
-    write_json(path, &root)?;
+    if !dry_run {
+        write_json(path, &root)?;
+    }
     let label_path = format!("opencode: {}", path.display());
     if existed {
         Ok(WireAction::Updated(label_path))
@@ -547,12 +785,15 @@ const HERMES_SNIPPET: &str =
 /// (the JSONC precedent): CREATE the file when missing, recognize a
 /// CURRENT entry, otherwise hand back the exact snippet
 /// ([`WireAction::Manual`]) and leave the user's file byte-identical.
-fn patch_hermes(path: &Path) -> Result<WireAction, String> {
+fn patch_hermes(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     if !path.exists() {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        if !dry_run {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("{}: {e}", parent.display()))?;
+            }
+            std::fs::write(path, HERMES_SNIPPET).map_err(|e| format!("{}: {e}", path.display()))?;
         }
-        std::fs::write(path, HERMES_SNIPPET).map_err(|e| format!("{}: {e}", path.display()))?;
         return Ok(WireAction::Created(format!("hermes: {}", path.display())));
     }
     let body = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -593,7 +834,7 @@ fn copilot_server() -> Value {
     Value::Object(server)
 }
 
-fn patch_copilot(path: &Path) -> Result<WireAction, String> {
+fn patch_copilot(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
     let mut root = if existed {
         read_json(path)?
@@ -620,7 +861,9 @@ fn patch_copilot(path: &Path) -> Result<WireAction, String> {
         return Ok(WireAction::Current(format!("copilot: {}", path.display())));
     }
     servers.insert("nika".to_owned(), desired);
-    write_json(path, &root)?;
+    if !dry_run {
+        write_json(path, &root)?;
+    }
     let label_path = format!("copilot: {}", path.display());
     if migrated {
         Ok(WireAction::Migrated(label_path))
@@ -634,7 +877,7 @@ fn patch_copilot(path: &Path) -> Result<WireAction, String> {
 /// Amp's settings may be `.jsonc` (their docs allow it) — same lossless
 /// contract as Zed: a file plain-JSON cannot round-trip gets the exact
 /// snippet, byte-identical otherwise.
-fn patch_amp(path: &Path) -> Result<WireAction, String> {
+fn patch_amp(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
     let mut root = if existed {
         match read_json(path) {
@@ -671,7 +914,9 @@ fn patch_amp(path: &Path) -> Result<WireAction, String> {
         return Ok(WireAction::Current(format!("amp: {}", path.display())));
     }
     servers.insert("nika".to_owned(), desired);
-    write_json(path, &root)?;
+    if !dry_run {
+        write_json(path, &root)?;
+    }
     let label_path = format!("amp: {}", path.display());
     if migrated {
         Ok(WireAction::Migrated(label_path))
@@ -753,6 +998,28 @@ fn render(actions: &[WireAction]) -> String {
     lines.join("\n")
 }
 
+/// The `--dry-run` render: the SAME per-client outcomes as [`render`],
+/// phrased as intent (« would ») under a header that says nothing was
+/// written — a preview that reads like a receipt would be a lie (H7).
+fn render_plan(actions: &[WireAction]) -> String {
+    let mut lines = vec!["dry-run · plan only · nothing written".to_owned()];
+    for action in actions {
+        let line = match action {
+            WireAction::Created(path) => format!("+ would create {path}"),
+            WireAction::Updated(path) => format!("+ would update {path}"),
+            WireAction::Migrated(path) => {
+                format!("+ would migrate {path} (`mcp serve --stdio` → `mcp`)")
+            }
+            WireAction::Current(path) => format!("· current {path}"),
+            WireAction::Skipped(message) => format!("✖ skipped {message}"),
+            WireAction::Manual(message) => format!("✋ manual {message}"),
+        };
+        lines.push(line);
+    }
+    lines.push("→ re-run without --dry-run to apply".to_owned());
+    lines.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -765,14 +1032,14 @@ mod tests {
     fn opencode_project_config_created_and_idempotent() {
         let dir = temp_dir("opencode");
         let path = dir.join("opencode.json");
-        let first = patch_opencode(&path).expect("create");
+        let first = patch_opencode(&path, false).expect("create");
         assert!(matches!(first, WireAction::Created(_)), "{first:?}");
         let body: Value = read_json(&path).expect("json");
         assert_eq!(body["mcp"]["nika"]["type"], "local");
         assert_eq!(body["mcp"]["nika"]["command"][0], "nika");
         assert_eq!(body["mcp"]["nika"]["command"][1], "mcp");
         assert_eq!(body["mcp"]["nika"]["enabled"], true);
-        let second = patch_opencode(&path).expect("re-run");
+        let second = patch_opencode(&path, false).expect("re-run");
         assert!(matches!(second, WireAction::Current(_)), "{second:?}");
     }
 
@@ -785,7 +1052,7 @@ mod tests {
             r#"{"mcp":{"other":{"type":"remote"},"nika":{"type":"local","command":["nika","mcp","serve"]}},"theme":"dark"}"#,
         )
         .expect("seed");
-        let action = patch_opencode(&path).expect("repair");
+        let action = patch_opencode(&path, false).expect("repair");
         assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
         let body: Value = read_json(&path).expect("json");
         assert_eq!(
@@ -802,15 +1069,15 @@ mod tests {
     fn hermes_yaml_creates_detects_and_never_rewrites() {
         let dir = temp_dir("hermes");
         let path = dir.join("config.yaml");
-        let first = patch_hermes(&path).expect("create");
+        let first = patch_hermes(&path, false).expect("create");
         assert!(matches!(first, WireAction::Created(_)), "{first:?}");
-        let second = patch_hermes(&path).expect("re-run");
+        let second = patch_hermes(&path, false).expect("re-run");
         assert!(matches!(second, WireAction::Current(_)), "{second:?}");
         // A pre-existing file WITHOUT our entry: snippet handed back,
         // bytes untouched (comments/anchors are the operator's).
         let foreign = "# my hermes\nmodel: hermes-4\nmcp_servers:\n  other: { command: x }\n";
         std::fs::write(&path, foreign).expect("seed");
-        let third = patch_hermes(&path).expect("manual");
+        let third = patch_hermes(&path, false).expect("manual");
         let WireAction::Manual(msg) = &third else {
             unreachable!("expected Manual, got {third:?}");
         };
@@ -823,7 +1090,7 @@ mod tests {
     fn vscode_config_uses_stdio_and_mcp_arg() {
         let dir = temp_dir("vscode");
         let path = dir.join("vscode-mcp.json");
-        let action = patch_vscode(&path).expect("wire");
+        let action = patch_vscode(&path, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)));
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["servers"]["nika"]["type"], "stdio");
@@ -848,7 +1115,7 @@ mod tests {
         )
         .expect("fixture");
 
-        let action = patch_cursor_like(&path, "mcpServers", "cursor", false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "cursor", false, false).expect("wire");
         assert!(matches!(action, WireAction::Migrated(_)));
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["github"]["command"], "gh");
@@ -860,7 +1127,7 @@ mod tests {
     fn codex_config_toml_created_with_mcp_servers_table() {
         let dir = temp_dir("codex-create");
         let path = dir.join("config.toml");
-        let action = patch_toml_mcp(&path, "codex").expect("wire");
+        let action = patch_toml_mcp(&path, "codex", false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)));
         let body = std::fs::read_to_string(&path).expect("read");
         let doc: toml_edit::DocumentMut = body.parse().expect("toml");
@@ -894,14 +1161,14 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_toml_mcp(&path, "codex").expect("wire");
+        let action = patch_toml_mcp(&path, "codex", false).expect("wire");
         assert!(matches!(action, WireAction::Updated(_)));
         let body = std::fs::read_to_string(&path).expect("read");
         assert!(body.contains("# my codex setup"), "comment preserved");
         assert!(body.contains("trust_level = \"trusted\""));
         assert!(body.contains("[mcp_servers.github]"));
 
-        let again = patch_toml_mcp(&path, "codex").expect("wire twice");
+        let again = patch_toml_mcp(&path, "codex", false).expect("wire twice");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -916,7 +1183,7 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_toml_mcp(&path, "codex").expect("wire");
+        let action = patch_toml_mcp(&path, "codex", false).expect("wire");
         assert!(matches!(action, WireAction::Migrated(_)));
         let body = std::fs::read_to_string(&path).expect("read");
         assert!(body.contains("args = [\"mcp\"]"));
@@ -935,7 +1202,7 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_toml_mcp(&path, "grok").expect("wire");
+        let action = patch_toml_mcp(&path, "grok", false).expect("wire");
         assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
         let body = std::fs::read_to_string(&path).expect("read");
         assert!(body.contains("# my grok setup"), "comment preserved");
@@ -943,7 +1210,7 @@ args = ["mcp"]
         let doc: toml_edit::DocumentMut = body.parse().expect("toml");
         assert_eq!(doc["mcp_servers"]["nika"]["command"].as_str(), Some("nika"));
 
-        let again = patch_toml_mcp(&path, "grok").expect("re-run");
+        let again = patch_toml_mcp(&path, "grok", false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -963,14 +1230,14 @@ args = ["mcp"]
         )
         .expect("their writer's bytes");
 
-        let action = patch_copilot(&path).expect("wire");
+        let action = patch_copilot(&path, false).expect("wire");
         assert!(
             matches!(action, WireAction::Current(_)),
             "their entry must read Current, got {action:?}"
         );
 
         std::fs::remove_file(&path).expect("reset");
-        let created = patch_copilot(&path).expect("create");
+        let created = patch_copilot(&path, false).expect("create");
         assert!(matches!(created, WireAction::Created(_)));
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["type"], "local");
@@ -993,19 +1260,19 @@ args = ["mcp"]
         )
         .expect("seed");
 
-        let action = patch_amp(&path).expect("wire");
+        let action = patch_amp(&path, false).expect("wire");
         assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["amp.notifications.enabled"], true, "unrelated kept");
         assert_eq!(doc["amp.mcpServers"]["other"]["command"], "x");
         assert_eq!(doc["amp.mcpServers"]["nika"]["command"], "nika");
 
-        let again = patch_amp(&path).expect("re-run");
+        let again = patch_amp(&path, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
 
         let jsonc = "{\n  // amp settings\n  \"amp.anthropic.thinking\": true\n}\n";
         std::fs::write(&path, jsonc).expect("jsonc seed");
-        let manual = patch_amp(&path).expect("manual");
+        let manual = patch_amp(&path, false).expect("manual");
         assert!(
             matches!(&manual, WireAction::Manual(m) if m.contains("amp.mcpServers")),
             "{manual:?}"
@@ -1016,12 +1283,25 @@ args = ["mcp"]
     }
 
     /// The registry law: `wire all` expands to every concrete client —
-    /// a variant added to the enum can never be silently dropped.
+    /// a variant added to the enum can never be silently dropped. The
+    /// count is PINNED (anti-drift: the list moved 15→17→19→21): adding
+    /// a client means updating this pin DELIBERATELY. `All`/`Detected`
+    /// are doors, never expansion results.
     #[test]
     fn all_expands_to_every_concrete_target() {
         let expanded = expand_target(WireTarget::All);
-        assert_eq!(expanded.len(), WireTarget::value_variants().len() - 1);
+        assert_eq!(
+            expanded.len(),
+            21,
+            "the concrete-client pin moved — deliberate?"
+        );
+        assert_eq!(
+            expanded.len(),
+            WireTarget::value_variants().len() - 2,
+            "every variant minus the two doors"
+        );
         assert!(!expanded.contains(&WireTarget::All));
+        assert!(!expanded.contains(&WireTarget::Detected));
     }
 
     /// Client-doors W3 · kimi: the user-level `~/.kimi-code/mcp.json`
@@ -1034,7 +1314,7 @@ args = ["mcp"]
         std::fs::create_dir_all(path.parent().expect("parent")).expect("dotdir");
         std::fs::write(&path, r#"{"mcpServers":{"other":{"command":"x"}}}"#).expect("seed");
 
-        let action = patch_cursor_like(&path, "mcpServers", "kimi", false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "kimi", false, false).expect("wire");
         assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
@@ -1044,7 +1324,7 @@ args = ["mcp"]
             "other server kept"
         );
 
-        let again = patch_cursor_like(&path, "mcpServers", "kimi", false).expect("re-run");
+        let again = patch_cursor_like(&path, "mcpServers", "kimi", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
@@ -1057,13 +1337,15 @@ args = ["mcp"]
         let home = temp_dir("antigravity");
         let path = home.join(".gemini").join("config").join("mcp_config.json");
 
-        let action = patch_cursor_like(&path, "mcpServers", "antigravity", false).expect("wire");
+        let action =
+            patch_cursor_like(&path, "mcpServers", "antigravity", false, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "antigravity", false).expect("re-run");
+        let again =
+            patch_cursor_like(&path, "mcpServers", "antigravity", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
@@ -1072,8 +1354,8 @@ args = ["mcp"]
     fn current_config_is_idempotent() {
         let dir = temp_dir("idempotent");
         let path = dir.join("mcp.json");
-        let _ = patch_cursor_like(&path, "mcpServers", "cursor", false).expect("wire");
-        let action = patch_cursor_like(&path, "mcpServers", "cursor", false).expect("wire");
+        let _ = patch_cursor_like(&path, "mcpServers", "cursor", false, false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "cursor", false, false).expect("wire");
         assert!(matches!(action, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1082,7 +1364,7 @@ args = ["mcp"]
     fn zed_config_created_under_context_servers() {
         let dir = temp_dir("zed-create");
         let path = dir.join("settings.json");
-        let action = patch_zed(&path).expect("wire");
+        let action = patch_zed(&path, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)));
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["context_servers"]["nika"]["command"], "nika");
@@ -1102,7 +1384,7 @@ args = ["mcp"]
         let jsonc = "{\n  // Zed settings\n  \"theme\": \"One Dark\"\n}\n";
         std::fs::write(&path, jsonc).expect("fixture");
 
-        let action = patch_zed(&path).expect("wire");
+        let action = patch_zed(&path, false).expect("wire");
         assert!(
             matches!(
                 &action,
@@ -1137,14 +1419,14 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_zed(&path).expect("wire");
+        let action = patch_zed(&path, false).expect("wire");
         assert!(matches!(action, WireAction::Migrated(_)));
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["theme"], "One Dark", "unrelated settings preserved");
         assert_eq!(doc["context_servers"]["github"]["command"], "gh");
         assert_eq!(doc["context_servers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_zed(&path).expect("wire twice");
+        let again = patch_zed(&path, false).expect("wire twice");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1169,7 +1451,7 @@ args = ["mcp"]
         )
         .expect("fixture");
 
-        let action = patch_cursor_like(&path, "mcpServers", "gemini", false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "gemini", false, false).expect("wire");
         assert!(matches!(action, WireAction::Migrated(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["theme"], "GitHub", "unrelated settings preserved");
@@ -1177,7 +1459,7 @@ args = ["mcp"]
         assert_eq!(doc["mcpServers"]["context7"]["command"], "npx");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "gemini", false).expect("re-run");
+        let again = patch_cursor_like(&path, "mcpServers", "gemini", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1220,13 +1502,15 @@ args = ["mcp"]
         std::fs::create_dir_all(home.join(".lmstudio")).expect("root");
         let path = lmstudio_mcp_path_from(&home);
 
-        let action = patch_cursor_like(&path, "mcpServers", "lmstudio", false).expect("wire");
+        let action =
+            patch_cursor_like(&path, "mcpServers", "lmstudio", false, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "lmstudio", false).expect("re-run");
+        let again =
+            patch_cursor_like(&path, "mcpServers", "lmstudio", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
@@ -1274,13 +1558,13 @@ args = ["mcp"]
         let home = temp_dir("cline-cfg");
         let path = cline_settings_path_from(&home);
 
-        let action = patch_cursor_like(&path, "mcpServers", "cline", false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "cline", false, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "cline", false).expect("re-run");
+        let again = patch_cursor_like(&path, "mcpServers", "cline", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
@@ -1294,7 +1578,7 @@ args = ["mcp"]
         let home = temp_dir("continue");
         let path = home.join(".continue").join("mcpServers").join("nika.json");
 
-        let action = patch_cursor_like(&path, "mcpServers", "continue", false)
+        let action = patch_cursor_like(&path, "mcpServers", "continue", false, false)
             .map(|a| with_hint(a, "reload Continue"))
             .expect("wire");
         assert!(
@@ -1305,7 +1589,7 @@ args = ["mcp"]
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "continue", false)
+        let again = patch_cursor_like(&path, "mcpServers", "continue", false, false)
             .map(|a| with_hint(a, "reload Continue"))
             .expect("re-run");
         assert!(
@@ -1342,7 +1626,8 @@ args = ["mcp"]
         std::fs::create_dir_all(path.parent().expect("parent")).expect("app dir");
         std::fs::write(&path, r#"{"mcpServers":{"other":{"command":"x"}}}"#).expect("seed");
 
-        let action = patch_cursor_like(&path, "mcpServers", "claude-desktop", false).expect("wire");
+        let action =
+            patch_cursor_like(&path, "mcpServers", "claude-desktop", false, false).expect("wire");
         assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
@@ -1350,7 +1635,7 @@ args = ["mcp"]
         assert_eq!(doc["mcpServers"]["other"]["command"], "x");
 
         let again =
-            patch_cursor_like(&path, "mcpServers", "claude-desktop", false).expect("re-run");
+            patch_cursor_like(&path, "mcpServers", "claude-desktop", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
@@ -1362,13 +1647,13 @@ args = ["mcp"]
         let home = temp_dir("qwen");
         let path = home.join(".qwen").join("settings.json");
 
-        let action = patch_cursor_like(&path, "mcpServers", "qwen", false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "qwen", false, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "qwen", false).expect("re-run");
+        let again = patch_cursor_like(&path, "mcpServers", "qwen", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
@@ -1380,15 +1665,155 @@ args = ["mcp"]
         let project = temp_dir("junie");
         let path = project.join(".junie").join("mcp").join("mcp.json");
 
-        let action = patch_cursor_like(&path, "mcpServers", "junie", false).expect("wire");
+        let action = patch_cursor_like(&path, "mcpServers", "junie", false, false).expect("wire");
         assert!(matches!(action, WireAction::Created(_)), "{action:?}");
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
-        let again = patch_cursor_like(&path, "mcpServers", "junie", false).expect("re-run");
+        let again = patch_cursor_like(&path, "mcpServers", "junie", false, false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(project);
+    }
+
+    /// H7 · audit UX 2026-07-30: `wire all` rewrote every known client
+    /// config with no preview and no consent. The honest door is
+    /// preview (`--dry-run`) → detected (`wire detected`) → one client;
+    /// `all` asks on a terminal and refuses in a pipe without `--yes`.
+    #[test]
+    fn dry_run_lists_the_plan_and_writes_nothing() {
+        let dir = temp_dir("dry-run");
+        let dir_str = dir.to_str().expect("utf8 temp dir");
+        let out = run_with(
+            WireTarget::Vscode,
+            dir_str,
+            WireOptions {
+                dry_run: true,
+                ..WireOptions::default()
+            },
+        );
+        assert_eq!(out.code, crate::verbs::exit::OK, "{out:?}");
+        assert!(
+            out.text.contains("dry-run"),
+            "the plan says it is one: {out:?}"
+        );
+        assert!(
+            out.text.contains("would create") && out.text.contains(".vscode"),
+            "the plan names the action and the path: {out:?}"
+        );
+        assert!(
+            !dir.join(".vscode").join("mcp.json").exists(),
+            "a preview never writes"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// H7 · dry-run on an already-wired client reports `current` and
+    /// leaves the bytes untouched (no mtime-noise rewrite either).
+    #[test]
+    fn dry_run_reports_current_and_keeps_bytes_identical() {
+        let dir = temp_dir("dry-run-current");
+        let path = dir.join("opencode.json");
+        let wired = r#"{"mcp":{"nika":{"type":"local","command":["nika","mcp"],"enabled":true}}}"#;
+        std::fs::write(&path, wired).expect("seed");
+        let out = run_with(
+            WireTarget::Opencode,
+            dir.to_str().expect("utf8"),
+            WireOptions {
+                dry_run: true,
+                ..WireOptions::default()
+            },
+        );
+        assert_eq!(out.code, crate::verbs::exit::OK, "{out:?}");
+        assert!(out.text.contains("current"), "{out:?}");
+        let after = std::fs::read_to_string(&path).expect("read");
+        assert_eq!(after, wired, "byte-identical under a preview");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// H7 · `detected`: only the clients THIS machine shows (the probe's
+    /// presence truth) — an absent client's config is never created.
+    #[test]
+    fn detected_targets_cover_only_present_clients() {
+        let home = temp_dir("detected-home");
+        let dir = temp_dir("detected-dir");
+        assert!(
+            detected_targets_in(&home, &dir).is_empty(),
+            "a bare machine detects nothing"
+        );
+
+        std::fs::create_dir_all(home.join(".cursor")).expect("dir");
+        std::fs::write(home.join(".cursor").join("mcp.json"), "{}").expect("seed");
+        std::fs::write(home.join(".claude.json"), "{}").expect("seed");
+        assert_eq!(
+            detected_targets_in(&home, &dir),
+            vec![WireTarget::Cursor, WireTarget::Claude],
+            "probe order · present only"
+        );
+
+        std::fs::create_dir_all(dir.join(".vscode")).expect("dir");
+        std::fs::write(dir.join(".vscode").join("mcp.json"), "{}").expect("seed");
+        let found = detected_targets_in(&home, &dir);
+        assert_eq!(found.len(), 3);
+        assert!(found.contains(&WireTarget::Vscode), "workspace-scope seen");
+        assert!(!found.contains(&WireTarget::Windsurf), "absent stays out");
+        let _ = std::fs::remove_dir_all(home);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// H7 · the consent gate is PURE (the `model pull` confirm-gate
+    /// precedent): dry-run or `--yes` proceeds, a terminal prompts, a
+    /// bare pipe is refused.
+    #[test]
+    fn all_consent_truth_table() {
+        assert_eq!(all_consent(true, false, false), AllConsent::Proceed);
+        assert_eq!(all_consent(false, true, false), AllConsent::Proceed);
+        assert_eq!(all_consent(false, false, true), AllConsent::Prompt);
+        assert_eq!(all_consent(false, false, false), AllConsent::Refuse);
+    }
+
+    /// H7 · a bare `wire all` in a pipe refuses HONESTLY: exit 3, and
+    /// the refusal names the right door (preview · detected · --yes).
+    #[test]
+    fn wire_all_without_consent_is_refused_naming_the_path() {
+        let out = run_with(WireTarget::All, ".", WireOptions::default());
+        assert_eq!(out.code, crate::verbs::exit::ENV, "{out:?}");
+        assert!(out.text.contains("--dry-run"), "{out:?}");
+        assert!(out.text.contains("wire detected"), "{out:?}");
+        assert!(out.text.contains("--yes"), "{out:?}");
+    }
+
+    /// H7 · `wire all --dry-run` is the preview — no consent needed,
+    /// nothing written (the temp workspace stays empty). The exit code
+    /// PREDICTS the run's: a client whose existing config is unreadable
+    /// is a `✖ skipped` line and flips the code to ENV — on a machine
+    /// with all-healthy configs the preview exits OK.
+    #[test]
+    fn wire_all_dry_run_previews_without_consent() {
+        let dir = temp_dir("all-dry-run");
+        let out = run_with(
+            WireTarget::All,
+            dir.to_str().expect("utf8"),
+            WireOptions {
+                dry_run: true,
+                ..WireOptions::default()
+            },
+        );
+        assert!(
+            out.code == crate::verbs::exit::OK
+                || (out.code == crate::verbs::exit::ENV && out.text.contains("skipped")),
+            "the exit code predicts the run's (skips included): {out:?}"
+        );
+        assert!(out.text.contains("dry-run"), "{out:?}");
+        assert!(
+            out.text.contains("opencode.json"),
+            "the workspace-scope client is planned: {out:?}"
+        );
+        assert!(
+            !dir.join("opencode.json").exists(),
+            "a preview never writes"
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[allow(clippy::disallowed_methods)]

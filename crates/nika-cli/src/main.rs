@@ -243,14 +243,24 @@ enum Command {
     #[command(display_order = 10)]
     Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
+    /// The door: `detected --dry-run` previews what this machine shows ·
+    /// `detected` wires it · `<client>` wires one · `all` is the advanced
+    /// sweep (previewed, then confirmed or `--yes`).
     #[command(display_order = 50)]
     Wire {
-        /// Client to wire.
+        /// Client to wire (`detected` = only the clients this machine shows).
         #[arg(value_enum)]
         target: verbs::wire::WireTarget,
         /// Workspace directory for repo-local clients such as VS Code.
         #[arg(long, default_value = ".")]
         dir: String,
+        /// Print the per-client plan (created/updated/current/manual) —
+        /// writes nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Consent to `all` without a prompt (scripts · CI — a terminal asks).
+        #[arg(long)]
+        yes: bool,
     },
     /// Local models — pull from the Hugging Face Hub, serve on this
     /// machine, list/rm the disk (ONE models dir · no external daemon).
@@ -596,6 +606,21 @@ fn spec_verb(canon: bool, schema: bool) -> u8 {
     }
 }
 
+/// The `wire` door (H7): clap's flags plus the terminal fact `all`'s
+/// consent gate reads (a terminal asks · a pipe needs `--yes`).
+fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: bool) -> u8 {
+    let interactive = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
+    emit(&verbs::wire::run_with(
+        target,
+        dir,
+        verbs::wire::WireOptions {
+            dry_run,
+            yes,
+            interactive,
+        },
+    ))
+}
+
 fn concierge(plain_theme: Theme) -> std::process::ExitCode {
     if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
         return emit(&verbs::welcome::run(false, plain_theme)).into();
@@ -656,7 +681,12 @@ fn main() -> std::process::ExitCode {
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
-        Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
+        Command::Wire {
+            target,
+            dir,
+            dry_run,
+            yes,
+        } => wire_verb(target, &dir, dry_run, yes),
         Command::Model { action } => model_args::model_verb(action),
         Command::Spec { canon, schema } => spec_verb(canon, schema),
         Command::Catalog { json, tools } => {
