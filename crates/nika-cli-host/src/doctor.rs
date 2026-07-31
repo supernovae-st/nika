@@ -21,13 +21,13 @@
 
 use std::fmt::Write as _;
 
-// The probe layer (structs + collectors) lives in `verbs::probe` — the ONE
-// detection engine `doctor` and `welcome` share. Re-exported `pub` so
-// this module's tests (and historical importers) keep their names.
+// The probe layer (structs + collectors) lives in `crate::probe` — the ONE
+// detection engine `doctor` and `welcome` share. Re-exported crate-internally
+// so this module's tests keep their historical names.
 use crate::clients_registry::RegistryCoverage;
 use crate::display::theme::{Role, Theme};
 use crate::output::{VerbOutput, exit};
-pub use crate::probe::{
+pub(crate) use crate::probe::{
     AdoptionState, CapabilityLevel, ClientProbe, HostCapabilityReceipt, ImageProbe, KitProbe,
     ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
@@ -776,7 +776,7 @@ pub fn redact_userinfo(url: &str) -> String {
 }
 
 /// Diagnose the environment: build the real probe (the shared
-/// `verbs::probe` engine · PRESENCE-only · offline unless `ping`), then
+/// [`crate::probe`] engine · PRESENCE-only · offline unless `ping`), then
 /// render the findings. The theme comes from the global
 /// `--color`/`--hyperlink` chain (main.rs) — a piped doctor keeps its
 /// exact bytes; `--json` never colours.

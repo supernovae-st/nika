@@ -1012,7 +1012,7 @@ fn run_verb(
     // exact bytes.
     theme.accents = mode == verbs::run::RenderMode::Live;
     // Duration heat additionally needs colour + the truecolor PROOF.
-    theme.heat = theme.accents && theme.color && truecolor_env();
+    theme.heat = theme.accents && theme.color && nika_cli_host::output::truecolor_env();
     // The live storyboard breathes (the braille beat between settles) —
     // interactive surface only, and the motion opt-out wins (the same
     // env the replay honours).
@@ -1115,7 +1115,7 @@ fn trace_render(
     // `trace show` keeps its exact legacy bytes.
     theme.accents = tty;
     // Duration heat additionally needs colour + the truecolor PROOF.
-    theme.heat = tty && theme.color && truecolor_env();
+    theme.heat = tty && theme.color && nika_cli_host::output::truecolor_env();
 
     // The shape tails ride the interactive surface only: a TTY render
     // (show OR replay) carries them unless `--no-outputs`; a piped
@@ -1221,15 +1221,10 @@ fn env_flag(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
 }
 
-/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
-/// The duration-heat ramp fires only on proof — 256-colour terminals
-/// get the flat fallback, never an approximated ramp (design §1.5).
-fn truecolor_env() -> bool {
-    env_value("COLORTERM").is_some_and(|v| v == "truecolor" || v == "24bit")
-}
-
-/// Read a presentation variable's VALUE (`CLICOLOR` · `TERM` ·
-/// `COLORTERM`) — the same non-secret seam as [`env_flag`].
+/// Read a presentation variable's VALUE (`CLICOLOR` · `TERM`) — the same
+/// non-secret seam as [`env_flag`]. The truecolor PROOF reads through the
+/// host member's [`nika_cli_host::output::truecolor_env`], never a local
+/// shadow.
 #[allow(clippy::disallowed_methods)]
 fn env_value(name: &str) -> Option<String> {
     std::env::var(name).ok()

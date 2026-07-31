@@ -1,5 +1,4 @@
 pub mod nika_cli_host
-pub use nika_cli_host::Role
 pub use nika_cli_host::Theme
 pub use nika_cli_host::display
 pub mod nika_cli_host::clients_registry
@@ -180,323 +179,7 @@ pub fn nika_cli_host::clients_registry::coverage(registry: &nika_cli_host::clien
 pub fn nika_cli_host::clients_registry::registry_ships_kit(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::registry_wires(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::vendored() -> core::option::Option<&'static nika_cli_host::clients_registry::ClientsRegistry>
-pub mod nika_cli_host::context_envelope
-pub enum nika_cli_host::context_envelope::ContextMode
-pub nika_cli_host::context_envelope::ContextMode::ChatOnly
-pub nika_cli_host::context_envelope::ContextMode::Workspace
-impl core::clone::Clone for nika_cli_host::context_envelope::ContextMode
-pub fn nika_cli_host::context_envelope::ContextMode::clone(&self) -> nika_cli_host::context_envelope::ContextMode
-impl core::cmp::Eq for nika_cli_host::context_envelope::ContextMode
-impl core::cmp::PartialEq for nika_cli_host::context_envelope::ContextMode
-pub fn nika_cli_host::context_envelope::ContextMode::eq(&self, other: &nika_cli_host::context_envelope::ContextMode) -> bool
-impl core::fmt::Debug for nika_cli_host::context_envelope::ContextMode
-pub fn nika_cli_host::context_envelope::ContextMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_cli_host::context_envelope::ContextMode
-impl core::marker::StructuralPartialEq for nika_cli_host::context_envelope::ContextMode
-impl serde_core::ser::Serialize for nika_cli_host::context_envelope::ContextMode
-pub fn nika_cli_host::context_envelope::ContextMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_cli_host::context_envelope::ContextMode
-pub fn nika_cli_host::context_envelope::ContextMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_cli_host::context_envelope::ContextMode
-impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::context_envelope::ContextMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextMode::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::ContextMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::ContextMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextMode::equivalent(&self, key: &K) -> bool
-pub fn nika_cli_host::context_envelope::ContextMode::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli_host::context_envelope::ContextMode where U: core::convert::From<T>
-pub fn nika_cli_host::context_envelope::ContextMode::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::context_envelope::ContextMode where U: core::convert::Into<T>
-pub type nika_cli_host::context_envelope::ContextMode::Error = core::convert::Infallible
-pub fn nika_cli_host::context_envelope::ContextMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::context_envelope::ContextMode where U: core::convert::TryFrom<T>
-pub type nika_cli_host::context_envelope::ContextMode::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::context_envelope::ContextMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::context_envelope::ContextMode where T: core::clone::Clone
-pub type nika_cli_host::context_envelope::ContextMode::Owned = T
-pub fn nika_cli_host::context_envelope::ContextMode::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::context_envelope::ContextMode::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::context_envelope::ContextMode where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextMode::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::context_envelope::ContextMode where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextMode::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::context_envelope::ContextMode where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextMode::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::context_envelope::ContextMode where T: core::clone::Clone
-pub unsafe fn nika_cli_host::context_envelope::ContextMode::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::context_envelope::ContextMode
-pub fn nika_cli_host::context_envelope::ContextMode::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::context_envelope::ContextMode where T: core::clone::Clone
-pub fn nika_cli_host::context_envelope::ContextMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::context_envelope::ContextMode where T: 'static
-pub fn nika_cli_host::context_envelope::ContextMode::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_cli_host::context_envelope::ContextMode where T: core::marker::Copy
-pub fn nika_cli_host::context_envelope::ContextMode::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_cli_host::context_envelope::ContextMode where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::context_envelope::ContextMode where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextMode::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::context_envelope::ContextMode::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::context_envelope::ContextMode
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::context_envelope::ContextMode
-impl<T> typenum::type_operators::Same for nika_cli_host::context_envelope::ContextMode
-pub type nika_cli_host::context_envelope::ContextMode::Output = T
-pub enum nika_cli_host::context_envelope::EvidenceSource
-pub nika_cli_host::context_envelope::EvidenceSource::ActiveFile
-pub nika_cli_host::context_envelope::EvidenceSource::ExplicitCwd
-pub nika_cli_host::context_envelope::EvidenceSource::HostSelection
-pub nika_cli_host::context_envelope::EvidenceSource::None
-impl core::clone::Clone for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::clone(&self) -> nika_cli_host::context_envelope::EvidenceSource
-impl core::cmp::Eq for nika_cli_host::context_envelope::EvidenceSource
-impl core::cmp::PartialEq for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::eq(&self, other: &nika_cli_host::context_envelope::EvidenceSource) -> bool
-impl core::default::Default for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::default() -> nika_cli_host::context_envelope::EvidenceSource
-impl core::fmt::Debug for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_cli_host::context_envelope::EvidenceSource
-impl core::marker::StructuralPartialEq for nika_cli_host::context_envelope::EvidenceSource
-impl serde_core::ser::Serialize for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_cli_host::context_envelope::EvidenceSource
-impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::context_envelope::EvidenceSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EvidenceSource::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::EvidenceSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::EvidenceSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EvidenceSource::equivalent(&self, key: &K) -> bool
-pub fn nika_cli_host::context_envelope::EvidenceSource::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli_host::context_envelope::EvidenceSource where U: core::convert::From<T>
-pub fn nika_cli_host::context_envelope::EvidenceSource::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::context_envelope::EvidenceSource where U: core::convert::Into<T>
-pub type nika_cli_host::context_envelope::EvidenceSource::Error = core::convert::Infallible
-pub fn nika_cli_host::context_envelope::EvidenceSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::context_envelope::EvidenceSource where U: core::convert::TryFrom<T>
-pub type nika_cli_host::context_envelope::EvidenceSource::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::context_envelope::EvidenceSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::context_envelope::EvidenceSource where T: core::clone::Clone
-pub type nika_cli_host::context_envelope::EvidenceSource::Owned = T
-pub fn nika_cli_host::context_envelope::EvidenceSource::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::context_envelope::EvidenceSource::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::context_envelope::EvidenceSource where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EvidenceSource::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::context_envelope::EvidenceSource where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EvidenceSource::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::context_envelope::EvidenceSource where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EvidenceSource::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::context_envelope::EvidenceSource where T: core::clone::Clone
-pub unsafe fn nika_cli_host::context_envelope::EvidenceSource::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::context_envelope::EvidenceSource
-pub fn nika_cli_host::context_envelope::EvidenceSource::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::context_envelope::EvidenceSource where T: core::clone::Clone
-pub fn nika_cli_host::context_envelope::EvidenceSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::context_envelope::EvidenceSource where T: 'static
-pub fn nika_cli_host::context_envelope::EvidenceSource::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_cli_host::context_envelope::EvidenceSource where T: core::marker::Copy
-pub fn nika_cli_host::context_envelope::EvidenceSource::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> serde_core::de::DeserializeOwned for nika_cli_host::context_envelope::EvidenceSource where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::context_envelope::EvidenceSource where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EvidenceSource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::context_envelope::EvidenceSource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::context_envelope::EvidenceSource
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::context_envelope::EvidenceSource
-impl<T> typenum::type_operators::Same for nika_cli_host::context_envelope::EvidenceSource
-pub type nika_cli_host::context_envelope::EvidenceSource::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::context_envelope::EvidenceSource where T: core::default::Default
-pub type nika_cli_host::context_envelope::EvidenceSource::NoneType = T
-pub fn nika_cli_host::context_envelope::EvidenceSource::null_value() -> T
-pub struct nika_cli_host::context_envelope::ContextEnvelope
-pub nika_cli_host::context_envelope::ContextEnvelope::canonical_root: core::option::Option<std::path::PathBuf>
-pub nika_cli_host::context_envelope::ContextEnvelope::container_identity: core::option::Option<alloc::string::String>
-pub nika_cli_host::context_envelope::ContextEnvelope::display_path: alloc::string::String
-pub nika_cli_host::context_envelope::ContextEnvelope::evidence: nika_cli_host::context_envelope::Evidence
-pub nika_cli_host::context_envelope::ContextEnvelope::execution_cwd: core::option::Option<std::path::PathBuf>
-pub nika_cli_host::context_envelope::ContextEnvelope::git_root: core::option::Option<std::path::PathBuf>
-pub nika_cli_host::context_envelope::ContextEnvelope::inventory_complete: bool
-pub nika_cli_host::context_envelope::ContextEnvelope::mode: nika_cli_host::context_envelope::ContextMode
-pub nika_cli_host::context_envelope::ContextEnvelope::nonce: alloc::string::String
-pub nika_cli_host::context_envelope::ContextEnvelope::project_root: std::path::PathBuf
-pub nika_cli_host::context_envelope::ContextEnvelope::remote_identity: core::option::Option<alloc::string::String>
-pub nika_cli_host::context_envelope::ContextEnvelope::workflow_root: core::option::Option<std::path::PathBuf>
-pub nika_cli_host::context_envelope::ContextEnvelope::workspace_roots: alloc::vec::Vec<std::path::PathBuf>
-pub nika_cli_host::context_envelope::ContextEnvelope::worktree_identity: core::option::Option<alloc::string::String>
-pub nika_cli_host::context_envelope::ContextEnvelope::writable: bool
-impl nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::requires_explicit_root(&self) -> bool
-pub fn nika_cli_host::context_envelope::ContextEnvelope::select_root(&mut self, root: &std::path::Path) -> bool
-impl core::clone::Clone for nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::clone(&self) -> nika_cli_host::context_envelope::ContextEnvelope
-impl core::cmp::Eq for nika_cli_host::context_envelope::ContextEnvelope
-impl core::cmp::PartialEq for nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::eq(&self, other: &nika_cli_host::context_envelope::ContextEnvelope) -> bool
-impl core::fmt::Debug for nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_cli_host::context_envelope::ContextEnvelope
-impl serde_core::ser::Serialize for nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_cli_host::context_envelope::ContextEnvelope
-impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::context_envelope::ContextEnvelope where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextEnvelope::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::ContextEnvelope where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::ContextEnvelope where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextEnvelope::equivalent(&self, key: &K) -> bool
-pub fn nika_cli_host::context_envelope::ContextEnvelope::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli_host::context_envelope::ContextEnvelope where U: core::convert::From<T>
-pub fn nika_cli_host::context_envelope::ContextEnvelope::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::context_envelope::ContextEnvelope where U: core::convert::Into<T>
-pub type nika_cli_host::context_envelope::ContextEnvelope::Error = core::convert::Infallible
-pub fn nika_cli_host::context_envelope::ContextEnvelope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::context_envelope::ContextEnvelope where U: core::convert::TryFrom<T>
-pub type nika_cli_host::context_envelope::ContextEnvelope::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::context_envelope::ContextEnvelope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::context_envelope::ContextEnvelope where T: core::clone::Clone
-pub type nika_cli_host::context_envelope::ContextEnvelope::Owned = T
-pub fn nika_cli_host::context_envelope::ContextEnvelope::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::context_envelope::ContextEnvelope::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::context_envelope::ContextEnvelope where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextEnvelope::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::context_envelope::ContextEnvelope where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextEnvelope::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::context_envelope::ContextEnvelope where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextEnvelope::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::context_envelope::ContextEnvelope where T: core::clone::Clone
-pub unsafe fn nika_cli_host::context_envelope::ContextEnvelope::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::context_envelope::ContextEnvelope
-pub fn nika_cli_host::context_envelope::ContextEnvelope::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::context_envelope::ContextEnvelope where T: core::clone::Clone
-pub fn nika_cli_host::context_envelope::ContextEnvelope::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::context_envelope::ContextEnvelope where T: 'static
-pub fn nika_cli_host::context_envelope::ContextEnvelope::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_cli_host::context_envelope::ContextEnvelope where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::context_envelope::ContextEnvelope where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::ContextEnvelope::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::context_envelope::ContextEnvelope::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::context_envelope::ContextEnvelope
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::context_envelope::ContextEnvelope
-impl<T> typenum::type_operators::Same for nika_cli_host::context_envelope::ContextEnvelope
-pub type nika_cli_host::context_envelope::ContextEnvelope::Output = T
-pub struct nika_cli_host::context_envelope::EnvFacts
-pub nika_cli_host::context_envelope::EnvFacts::container_identity: core::option::Option<alloc::string::String>
-pub nika_cli_host::context_envelope::EnvFacts::evidence: nika_cli_host::context_envelope::EvidenceSource
-pub nika_cli_host::context_envelope::EnvFacts::inventory_complete: bool
-pub nika_cli_host::context_envelope::EnvFacts::remote_identity: core::option::Option<alloc::string::String>
-pub nika_cli_host::context_envelope::EnvFacts::workspace_roots: alloc::vec::Vec<std::path::PathBuf>
-pub nika_cli_host::context_envelope::EnvFacts::writable: core::option::Option<bool>
-impl nika_cli_host::context_envelope::EnvFacts
-pub fn nika_cli_host::context_envelope::EnvFacts::detect() -> Self
-impl core::clone::Clone for nika_cli_host::context_envelope::EnvFacts
-pub fn nika_cli_host::context_envelope::EnvFacts::clone(&self) -> nika_cli_host::context_envelope::EnvFacts
-impl core::default::Default for nika_cli_host::context_envelope::EnvFacts
-pub fn nika_cli_host::context_envelope::EnvFacts::default() -> nika_cli_host::context_envelope::EnvFacts
-impl core::fmt::Debug for nika_cli_host::context_envelope::EnvFacts
-pub fn nika_cli_host::context_envelope::EnvFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_cli_host::context_envelope::EnvFacts
-impl<T, U> core::convert::Into<U> for nika_cli_host::context_envelope::EnvFacts where U: core::convert::From<T>
-pub fn nika_cli_host::context_envelope::EnvFacts::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::context_envelope::EnvFacts where U: core::convert::Into<T>
-pub type nika_cli_host::context_envelope::EnvFacts::Error = core::convert::Infallible
-pub fn nika_cli_host::context_envelope::EnvFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::context_envelope::EnvFacts where U: core::convert::TryFrom<T>
-pub type nika_cli_host::context_envelope::EnvFacts::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::context_envelope::EnvFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::context_envelope::EnvFacts where T: core::clone::Clone
-pub type nika_cli_host::context_envelope::EnvFacts::Owned = T
-pub fn nika_cli_host::context_envelope::EnvFacts::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::context_envelope::EnvFacts::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::context_envelope::EnvFacts where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EnvFacts::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::context_envelope::EnvFacts where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EnvFacts::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::context_envelope::EnvFacts where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EnvFacts::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::context_envelope::EnvFacts where T: core::clone::Clone
-pub unsafe fn nika_cli_host::context_envelope::EnvFacts::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::context_envelope::EnvFacts
-pub fn nika_cli_host::context_envelope::EnvFacts::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::context_envelope::EnvFacts where T: core::clone::Clone
-pub fn nika_cli_host::context_envelope::EnvFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::context_envelope::EnvFacts where T: 'static
-pub fn nika_cli_host::context_envelope::EnvFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::context_envelope::EnvFacts where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::EnvFacts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::context_envelope::EnvFacts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::context_envelope::EnvFacts
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::context_envelope::EnvFacts
-impl<T> typenum::type_operators::Same for nika_cli_host::context_envelope::EnvFacts
-pub type nika_cli_host::context_envelope::EnvFacts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::context_envelope::EnvFacts where T: core::default::Default
-pub type nika_cli_host::context_envelope::EnvFacts::NoneType = T
-pub fn nika_cli_host::context_envelope::EnvFacts::null_value() -> T
-pub struct nika_cli_host::context_envelope::Evidence
-pub nika_cli_host::context_envelope::Evidence::expanded_from: core::option::Option<std::path::PathBuf>
-pub nika_cli_host::context_envelope::Evidence::source: nika_cli_host::context_envelope::EvidenceSource
-impl core::clone::Clone for nika_cli_host::context_envelope::Evidence
-pub fn nika_cli_host::context_envelope::Evidence::clone(&self) -> nika_cli_host::context_envelope::Evidence
-impl core::cmp::Eq for nika_cli_host::context_envelope::Evidence
-impl core::cmp::PartialEq for nika_cli_host::context_envelope::Evidence
-pub fn nika_cli_host::context_envelope::Evidence::eq(&self, other: &nika_cli_host::context_envelope::Evidence) -> bool
-impl core::fmt::Debug for nika_cli_host::context_envelope::Evidence
-pub fn nika_cli_host::context_envelope::Evidence::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_cli_host::context_envelope::Evidence
-impl serde_core::ser::Serialize for nika_cli_host::context_envelope::Evidence
-pub fn nika_cli_host::context_envelope::Evidence::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_cli_host::context_envelope::Evidence
-pub fn nika_cli_host::context_envelope::Evidence::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_cli_host::context_envelope::Evidence
-impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::context_envelope::Evidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::Evidence::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::Evidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::context_envelope::Evidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::Evidence::equivalent(&self, key: &K) -> bool
-pub fn nika_cli_host::context_envelope::Evidence::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli_host::context_envelope::Evidence where U: core::convert::From<T>
-pub fn nika_cli_host::context_envelope::Evidence::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::context_envelope::Evidence where U: core::convert::Into<T>
-pub type nika_cli_host::context_envelope::Evidence::Error = core::convert::Infallible
-pub fn nika_cli_host::context_envelope::Evidence::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::context_envelope::Evidence where U: core::convert::TryFrom<T>
-pub type nika_cli_host::context_envelope::Evidence::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::context_envelope::Evidence::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::context_envelope::Evidence where T: core::clone::Clone
-pub type nika_cli_host::context_envelope::Evidence::Owned = T
-pub fn nika_cli_host::context_envelope::Evidence::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::context_envelope::Evidence::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::context_envelope::Evidence where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::Evidence::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::context_envelope::Evidence where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::Evidence::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::context_envelope::Evidence where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::Evidence::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::context_envelope::Evidence where T: core::clone::Clone
-pub unsafe fn nika_cli_host::context_envelope::Evidence::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::context_envelope::Evidence
-pub fn nika_cli_host::context_envelope::Evidence::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::context_envelope::Evidence where T: core::clone::Clone
-pub fn nika_cli_host::context_envelope::Evidence::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::context_envelope::Evidence where T: 'static
-pub fn nika_cli_host::context_envelope::Evidence::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_cli_host::context_envelope::Evidence where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::context_envelope::Evidence where T: ?core::marker::Sized
-pub fn nika_cli_host::context_envelope::Evidence::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::context_envelope::Evidence::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::context_envelope::Evidence
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::context_envelope::Evidence
-impl<T> typenum::type_operators::Same for nika_cli_host::context_envelope::Evidence
-pub type nika_cli_host::context_envelope::Evidence::Output = T
-pub fn nika_cli_host::context_envelope::resolve(candidate: core::option::Option<&std::path::Path>, facts: &nika_cli_host::context_envelope::EnvFacts) -> nika_cli_host::context_envelope::ContextEnvelope
 pub mod nika_cli_host::doctor
-pub use nika_cli_host::doctor::ModelsProbe
-pub use nika_cli_host::doctor::PingState
-pub use nika_cli_host::doctor::ProviderProbe
-pub enum nika_cli_host::doctor::AdoptionState
-pub nika_cli_host::doctor::AdoptionState::Installed
-pub nika_cli_host::doctor::AdoptionState::KeyPresent
-pub nika_cli_host::doctor::AdoptionState::LocalDetected
-pub nika_cli_host::doctor::AdoptionState::LocalReachable
-pub nika_cli_host::doctor::AdoptionState::RealReady
 impl nika_cli_host::probe::AdoptionState
 pub const fn nika_cli_host::probe::AdoptionState::as_str(self) -> &'static str
 pub const fn nika_cli_host::probe::AdoptionState::cta(self) -> &'static str
@@ -552,11 +235,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::AdoptionState
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::AdoptionState
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::AdoptionState
 pub type nika_cli_host::probe::AdoptionState::Output = T
-pub enum nika_cli_host::doctor::CapabilityLevel
-pub nika_cli_host::doctor::CapabilityLevel::AuthoringEnabled
-pub nika_cli_host::doctor::CapabilityLevel::FullyIntegrated
-pub nika_cli_host::doctor::CapabilityLevel::Guarded
-pub nika_cli_host::doctor::CapabilityLevel::OracleOnly
 impl nika_cli_host::probe::CapabilityLevel
 pub const fn nika_cli_host::probe::CapabilityLevel::as_str(self) -> &'static str
 impl core::clone::Clone for nika_cli_host::probe::CapabilityLevel
@@ -667,12 +345,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::doctor::Level
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::doctor::Level
 impl<T> typenum::type_operators::Same for nika_cli_host::doctor::Level
 pub type nika_cli_host::doctor::Level::Output = T
-pub struct nika_cli_host::doctor::ClientProbe
-pub nika_cli_host::doctor::ClientProbe::current: bool
-pub nika_cli_host::doctor::ClientProbe::id: alloc::string::String
-pub nika_cli_host::doctor::ClientProbe::path: alloc::string::String
-pub nika_cli_host::doctor::ClientProbe::present: bool
-pub nika_cli_host::doctor::ClientProbe::stale: bool
 impl nika_cli_host::probe::ClientProbe
 pub fn nika_cli_host::probe::ClientProbe::capability(&self, kits: &[nika_cli_host::probe::KitProbe]) -> nika_cli_host::probe::CapabilityLevel
 impl nika_cli_host::probe::ClientProbe
@@ -780,17 +452,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::doctor::Finding
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::doctor::Finding
 impl<T> typenum::type_operators::Same for nika_cli_host::doctor::Finding
 pub type nika_cli_host::doctor::Finding::Output = T
-pub struct nika_cli_host::doctor::HostCapabilityReceipt
-pub nika_cli_host::doctor::HostCapabilityReceipt::canaries: alloc::vec::Vec<alloc::string::String>
-pub nika_cli_host::doctor::HostCapabilityReceipt::capability: alloc::string::String
-pub nika_cli_host::doctor::HostCapabilityReceipt::components: alloc::vec::Vec<alloc::string::String>
-pub nika_cli_host::doctor::HostCapabilityReceipt::host: alloc::string::String
-pub nika_cli_host::doctor::HostCapabilityReceipt::level_assumed: bool
-pub nika_cli_host::doctor::HostCapabilityReceipt::missing_rails: alloc::vec::Vec<alloc::string::String>
-pub nika_cli_host::doctor::HostCapabilityReceipt::repair: core::option::Option<alloc::string::String>
-pub nika_cli_host::doctor::HostCapabilityReceipt::root: core::option::Option<alloc::string::String>
-pub nika_cli_host::doctor::HostCapabilityReceipt::surface: alloc::string::String
-pub nika_cli_host::doctor::HostCapabilityReceipt::version: core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_cli_host::probe::HostCapabilityReceipt
 pub fn nika_cli_host::probe::HostCapabilityReceipt::clone(&self) -> nika_cli_host::probe::HostCapabilityReceipt
 impl core::cmp::Eq for nika_cli_host::probe::HostCapabilityReceipt
@@ -841,11 +502,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::HostCapability
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::HostCapabilityReceipt
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::HostCapabilityReceipt
 pub type nika_cli_host::probe::HostCapabilityReceipt::Output = T
-pub struct nika_cli_host::doctor::ImageProbe
-pub nika_cli_host::doctor::ImageProbe::gemini_key: bool
-pub nika_cli_host::doctor::ImageProbe::local_url: core::option::Option<alloc::string::String>
-pub nika_cli_host::doctor::ImageProbe::openai_key: bool
-pub nika_cli_host::doctor::ImageProbe::xai_key: bool
 impl core::clone::Clone for nika_cli_host::probe::ImageProbe
 pub fn nika_cli_host::probe::ImageProbe::clone(&self) -> nika_cli_host::probe::ImageProbe
 impl core::cmp::Eq for nika_cli_host::probe::ImageProbe
@@ -899,9 +555,6 @@ pub type nika_cli_host::probe::ImageProbe::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::ImageProbe where T: core::default::Default
 pub type nika_cli_host::probe::ImageProbe::NoneType = T
 pub fn nika_cli_host::probe::ImageProbe::null_value() -> T
-pub struct nika_cli_host::doctor::KitProbe
-pub nika_cli_host::doctor::KitProbe::client: alloc::string::String
-pub nika_cli_host::doctor::KitProbe::version: alloc::string::String
 impl core::clone::Clone for nika_cli_host::probe::KitProbe
 pub fn nika_cli_host::probe::KitProbe::clone(&self) -> nika_cli_host::probe::KitProbe
 impl core::cmp::Eq for nika_cli_host::probe::KitProbe
@@ -950,12 +603,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::KitProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::KitProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::KitProbe
 pub type nika_cli_host::probe::KitProbe::Output = T
-pub struct nika_cli_host::doctor::PricingProbe
-pub nika_cli_host::doctor::PricingProbe::age_days: core::option::Option<u32>
-pub nika_cli_host::doctor::PricingProbe::as_of: alloc::string::String
-pub nika_cli_host::doctor::PricingProbe::providers: usize
-pub nika_cli_host::doctor::PricingProbe::rules: usize
-pub nika_cli_host::doctor::PricingProbe::sha: alloc::string::String
 impl core::clone::Clone for nika_cli_host::probe::PricingProbe
 pub fn nika_cli_host::probe::PricingProbe::clone(&self) -> nika_cli_host::probe::PricingProbe
 impl core::cmp::Eq for nika_cli_host::probe::PricingProbe
@@ -1009,21 +656,6 @@ pub type nika_cli_host::probe::PricingProbe::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::PricingProbe where T: core::default::Default
 pub type nika_cli_host::probe::PricingProbe::NoneType = T
 pub fn nika_cli_host::probe::PricingProbe::null_value() -> T
-pub struct nika_cli_host::doctor::Probe
-pub nika_cli_host::doctor::Probe::clients: alloc::vec::Vec<nika_cli_host::probe::ClientProbe>
-pub nika_cli_host::doctor::Probe::clients_registry: nika_cli_host::clients_registry::RegistryCoverage
-pub nika_cli_host::doctor::Probe::config_path: core::option::Option<alloc::string::String>
-pub nika_cli_host::doctor::Probe::image: nika_cli_host::probe::ImageProbe
-pub nika_cli_host::doctor::Probe::kits: alloc::vec::Vec<nika_cli_host::probe::KitProbe>
-pub nika_cli_host::doctor::Probe::local_pings: alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers::probe::PingState)>
-pub nika_cli_host::doctor::Probe::models: nika_models::ModelsProbe
-pub nika_cli_host::doctor::Probe::pricing: nika_cli_host::probe::PricingProbe
-pub nika_cli_host::doctor::Probe::providers: alloc::vec::Vec<nika_providers::probe::ProviderProbe>
-pub nika_cli_host::doctor::Probe::recorded_runs: usize
-pub nika_cli_host::doctor::Probe::retention: nika_dap::retention::RetentionConfig
-pub nika_cli_host::doctor::Probe::retention_notes: alloc::vec::Vec<alloc::string::String>
-pub nika_cli_host::doctor::Probe::tts: nika_cli_host::probe::TtsProbe
-pub nika_cli_host::doctor::Probe::version: alloc::string::String
 impl core::clone::Clone for nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::Probe::clone(&self) -> nika_cli_host::probe::Probe
 impl core::cmp::Eq for nika_cli_host::probe::Probe
@@ -1072,10 +704,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::Probe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::Probe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::Probe
 pub type nika_cli_host::probe::Probe::Output = T
-pub struct nika_cli_host::doctor::TtsProbe
-pub nika_cli_host::doctor::TtsProbe::elevenlabs_key: bool
-pub nika_cli_host::doctor::TtsProbe::local_url: core::option::Option<alloc::string::String>
-pub nika_cli_host::doctor::TtsProbe::openai_key: bool
 impl core::clone::Clone for nika_cli_host::probe::TtsProbe
 pub fn nika_cli_host::probe::TtsProbe::clone(&self) -> nika_cli_host::probe::TtsProbe
 impl core::cmp::Eq for nika_cli_host::probe::TtsProbe
@@ -1607,7 +1235,6 @@ pub mod nika_cli_host::probe
 pub use nika_cli_host::probe::ModelsProbe
 pub use nika_cli_host::probe::PingState
 pub use nika_cli_host::probe::ProviderProbe
-pub use nika_cli_host::probe::SKIP_DIRS
 pub use nika_cli_host::probe::collect_workflow_paths
 pub use nika_cli_host::probe::env_present
 pub enum nika_cli_host::probe::AdoptionState
@@ -2138,7 +1765,6 @@ pub type nika_cli_host::probe::TtsProbe::NoneType = T
 pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
 pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe) -> nika_cli_host::probe::AdoptionState
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>
-pub fn nika_cli_host::probe::client_probe_any(id: &str, paths: &[std::path::PathBuf], server_path: &[&str; 2]) -> nika_cli_host::probe::ClientProbe
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
 pub fn nika_cli_host::probe::train_differs(a: &str, b: &str) -> bool

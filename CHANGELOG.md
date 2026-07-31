@@ -18,7 +18,8 @@ the arc closed every one: welcome gates its run CTA on the exact file's
 verdict, a non-affirmative consent fires zero effects (NIKA-SEC-014, minted
 spec-first with its conformance fixtures), the hooks' judge moved into the
 binary (`nika guard`, fail-visible, bypass matrix in test), autonomy is
-graded before it is colored (the risk rung never renders green past High),
+graded before it is colored (the risk rung never renders green past
+Supervised),
 the data journey names sources, destinations and secrets before the run,
 and redaction works by provenance — a one-byte secret dies the same death
 as a long one. Around the core the doors multiplied honestly: one client

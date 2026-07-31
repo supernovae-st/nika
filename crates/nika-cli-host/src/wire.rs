@@ -218,10 +218,12 @@ fn resolve_targets(target: WireTarget, dir: &str) -> Vec<WireTarget> {
 }
 
 /// The clients this machine SHOWS — the same presence truth `doctor`
-/// reports. probe.rs owns its client list privately, so the wiring
-/// registry re-derives it at the same paths through the probe's own
-/// [`client_probe_any`](crate::probe::client_probe_any) machinery
-/// (one detection semantics — presence only, never a guess).
+/// reports. Both ride the shared [`crate::detect`] table: one per-client
+/// path list, one registry gate (a client dropped from the matrix leaves
+/// BOTH lists — never wire-visible but doctor-invisible), and one probe
+/// semantics through [`client_probe_any`](crate::probe::client_probe_any)
+/// (presence only, never a guess — a YAML config the JSON probe cannot
+/// parse still DETECTS on `present`, which is exactly that).
 fn detected_targets(dir: &str) -> Vec<WireTarget> {
     match home_path(&[]) {
         Ok(home) => detected_targets_in(&home, Path::new(dir)),
@@ -230,45 +232,9 @@ fn detected_targets(dir: &str) -> Vec<WireTarget> {
 }
 
 fn detected_targets_in(home: &Path, dir: &Path) -> Vec<WireTarget> {
-    let mcp_servers: &[&str; 2] = &["mcpServers", "nika"];
-    let probes = [
-        crate::probe::client_probe_any(
-            "cursor",
-            &[
-                home.join(".cursor").join("mcp.json"),
-                dir.join(".cursor").join("mcp.json"),
-            ],
-            mcp_servers,
-        ),
-        crate::probe::client_probe_any(
-            "windsurf",
-            &[home
-                .join(".codeium")
-                .join("windsurf")
-                .join("mcp_config.json")],
-            mcp_servers,
-        ),
-        crate::probe::client_probe_any("claude", &[home.join(".claude.json")], mcp_servers),
-        crate::probe::client_probe_any(
-            "zed",
-            &[home.join(".config").join("zed").join("settings.json")],
-            &["context_servers", "nika"],
-        ),
-        // Hermes is YAML — the JSON probe never parses it, but DETECTION
-        // is presence only, and `present` is exactly that.
-        crate::probe::client_probe_any(
-            "hermes",
-            &[home.join(".hermes").join("config.yaml")],
-            &["mcp_servers", "nika"],
-        ),
-        crate::probe::client_probe_any(
-            "vscode",
-            &[dir.join(".vscode").join("mcp.json")],
-            &["servers", "nika"],
-        ),
-    ];
-    probes
+    crate::detect::sights(Some(home), dir)
         .iter()
+        .map(|sight| crate::probe::client_probe_any(sight.id, &sight.paths, &sight.server_path))
         .filter(|probe| probe.present)
         .filter_map(|probe| WireTarget::from_str(&probe.id, true).ok())
         .collect()
@@ -552,7 +518,9 @@ fn patch_zed(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     let existing = servers.get("nika").cloned();
     let desired = zed_server();
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     if existing.as_ref() == Some(&desired) {
         return Ok(WireAction::Current(label_path));
     }
@@ -637,7 +605,9 @@ fn patch_config(
 
     let existing = servers.get("nika").cloned();
     let desired = nika_server(include_type);
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     let current = existing.as_ref().is_some_and(|value| *value == desired);
 
     if current {
@@ -795,10 +765,11 @@ fn patch_hermes(path: &Path, dry_run: bool) -> Result<WireAction, String> {
         return Ok(WireAction::Created(format!("hermes: {}", path.display())));
     }
     let body = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    // CURRENT means the canonical block is present verbatim-modulo-indent:
-    // a `nika:` server whose command line names the binary. Anything else
-    // is the operator\u2019s file to edit \u2014 print the snippet, touch nothing.
-    let has_nika = body.contains("nika:") && body.contains("command: nika");
+    // CURRENT means the canonical block is present verbatim-modulo-indent
+    // — the shared `detect::hermes_recognized` predicate (a `nika:` server
+    // whose command line names the binary). Anything else is the
+    // operator’s file to edit — print the snippet, touch nothing.
+    let has_nika = crate::detect::hermes_recognized(&body);
     if has_nika {
         return Ok(WireAction::Current(format!("hermes: {}", path.display())));
     }
@@ -854,7 +825,9 @@ fn patch_copilot(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     let existing = servers.get("nika").cloned();
     let desired = copilot_server();
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     if existing.as_ref() == Some(&desired) {
         return Ok(WireAction::Current(format!("copilot: {}", path.display())));
     }
@@ -907,7 +880,9 @@ fn patch_amp(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     let existing = servers.get("nika").cloned();
     let desired = nika_server(false);
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     if existing.as_ref() == Some(&desired) {
         return Ok(WireAction::Current(format!("amp: {}", path.display())));
     }
@@ -941,16 +916,6 @@ fn nika_server(include_type: bool) -> Value {
         ),
     );
     Value::Object(server)
-}
-
-fn is_stale_server(value: &Value) -> bool {
-    let Some(args) = value.get("args").and_then(Value::as_array) else {
-        return false;
-    };
-    args.len() == 3
-        && args[0].as_str() == Some("mcp")
-        && args[1].as_str() == Some("serve")
-        && args[2].as_str() == Some("--stdio")
 }
 
 fn read_json(path: &Path) -> Result<Value, String> {

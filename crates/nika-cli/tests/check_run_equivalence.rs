@@ -226,6 +226,116 @@ fn statically_refused_fixtures_never_execute() {
     );
 }
 
+/// Mapping-law row 1, second tier — the POLICY corpus replays at the
+/// binary under the same contract: every statically-refused fixture
+/// refuses BEFORE the prologue (zero task frames) and voices its judged
+/// code. The tier's clean consent pattern (`012-consent-affirmative-clean`
+/// · NEP-0020) does the opposite walk: the run is NOT refused, the
+/// non-interactive confirm settles on its `default: false` (a refusal,
+/// per the spec's substitution), the affirmative `when:` closes, and the
+/// irreversible exec NEVER starts — the runtime half of NIKA-SEC-014,
+/// proven on the one fixture whose whole point is that the gate works.
+#[test]
+fn policy_consent_fixtures_replay_at_the_binary() {
+    let root = spec_dir().join("conformance/tests/core/policy");
+    assert!(
+        root.is_dir(),
+        "policy tier missing: {} — set NIKA_SPEC_DIR",
+        root.display()
+    );
+    let mut red = 0usize;
+    let mut clean_skipped = 0usize;
+    let mut consent_clean = 0usize;
+    let mut failures: Vec<String> = Vec::new();
+    for dir in fixture_dirs(&root) {
+        let name = dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let input = dir.join("input.yaml");
+        if !input.is_file() {
+            continue;
+        }
+        let expected: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.join("expected.json")).expect("expected.json"),
+        )
+        .expect("expected parses");
+        if expected["valid"].as_bool() == Some(true) {
+            if name.starts_with("012") {
+                consent_clean += 1;
+                let observed = run_observed(&input, &[], &[]);
+                if !observed.ok {
+                    failures.push(format!(
+                        "{name}: the clean consent pattern must RUN (the refusal is a decision, never a failure)\n{}",
+                        observed.text
+                    ));
+                }
+                // ask settles success (the default false IS the refusal);
+                // push settles skipped and so never started — the gate
+                // consumed the answer and the exec fired zero times.
+                if observed.statuses.get("ask").map(String::as_str) != Some("success") {
+                    failures.push(format!(
+                        "{name}: the gate must settle success on its default (observed {:?})",
+                        observed.statuses.get("ask")
+                    ));
+                }
+                if observed.statuses.get("push").map(String::as_str) != Some("skipped") {
+                    failures.push(format!(
+                        "{name}: the affirmative gate must close on the refusal (observed {:?})",
+                        observed.statuses.get("push")
+                    ));
+                }
+            } else {
+                clean_skipped += 1; // clean core fixtures may declare real effects — never run here
+            }
+            continue;
+        }
+        red += 1;
+        let observed = run_observed(&input, &[], &[]);
+        if observed.ok {
+            failures.push(format!("{name}: judged red but the run SUCCEEDED"));
+        }
+        if observed.kinds.iter().any(|k| k.starts_with("task_")) {
+            failures.push(format!(
+                "{name}: judged red but tasks ran — the refusal must land pre-prologue ({:?})",
+                observed.kinds
+            ));
+        }
+        for err in expected["errors"].as_array().into_iter().flatten() {
+            let code = err["code"].as_str().unwrap_or_default();
+            if !code.is_empty() && !observed.text.contains(code) {
+                failures.push(format!("{name}: the refusal never voices {code}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "the policy tier must replay under the same mapping law:\n{}",
+        failures.join("\n")
+    );
+    assert!(
+        red >= 2,
+        "the policy corpus carries the consent reds (saw {red})"
+    );
+    // The CI judges at SPEC_PIN, which may predate the 012 clean fixture:
+    // the clean-run proof is mandatory WHEN the pin carries the fixture,
+    // and silently absent would mean silently unproven — so the count is
+    // pinned at most one, and the printout names which mode ran.
+    assert!(
+        consent_clean <= 1,
+        "at most one clean consent fixture (saw {consent_clean})"
+    );
+    println!(
+        "equivalence leg 1b (policy tier): {red} red replayed · {clean_skipped} clean checked-only · {}",
+        if consent_clean == 1 {
+            "012 ran its refusal to a closed gate"
+        } else {
+            "012 absent at this pin (the clean-run proof rides the next pin bump)"
+        }
+    );
+}
+
 /// One fixture's `expected-run.json` against one observed run: the
 /// workflow verdict, per-task terminal status, wire code, and output.
 /// Output assertions are SUBSTRING contracts: the frame carries the

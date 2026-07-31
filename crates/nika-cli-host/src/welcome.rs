@@ -4,7 +4,7 @@
 //! `nika welcome` — the mirror moment (30-seconds surface · first contact).
 //!
 //! One command, one screen: what Nika IS (the tagline block), what THIS
-//! machine already has (the shared `verbs::probe` engine — the same
+//! machine already has (the shared [`crate::probe`] engine — the same
 //! detection `doctor` diagnoses with · one truth, two voices), what this
 //! BINARY carries (counts DERIVED live from the embedded pack/catalog,
 //! never hardcoded — the born-stale law), and the three commands to run
@@ -682,8 +682,6 @@ fn binary_section(
     }
 }
 
-/// The hand-off — the state's own three moves, then where to learn more.
-/// Chat-only keys on no workspace at all: the two doors the spec allows
 /// The chat-only doors (the spec's two: an isolated example · choosing a
 /// project) plus the corpus — ONE source: the render and the W8
 /// impression journal read the same moves (a drift between what is shown
@@ -702,6 +700,8 @@ fn chat_only_moves() -> [(String, &'static str); 3] {
     ]
 }
 
+/// The hand-off — the state's own three moves, then where to learn more.
+/// Chat-only keys on no workspace at all: the two doors the spec allows
 /// (an isolated example · choosing a project) plus the corpus.
 fn start_section(
     s: &mut String,
