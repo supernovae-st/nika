@@ -922,6 +922,7 @@ async fn execute_output_json_lane(
 ) -> RunVerdict {
     let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
+    fold.set_trace_recorded(!trace.is_disabled());
     let mut tee = Tee::new(fold, trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (mut sink, trace) = tee.into_parts();
@@ -1040,7 +1041,11 @@ async fn execute_fold_lane(
     // inspect trust; Live+accents only (the sink gates again).
     let map = (mode == RenderMode::Live && theme.accents)
         .then(|| (super::graph::project(wf, report), report.waves.clone()));
+    let trace_recorded = !trace.is_disabled();
     let (fold, spinner) = shared_fold(theme, mode, outputs, plan.clone(), map);
+    if let Ok(mut f) = fold.lock() {
+        f.set_trace_recorded(trace_recorded);
+    }
     // #321 — the plain lane's stderr liveness rider (`still running ·
     // <task> · <n>s · <model>` every ~10s): a piped local-model run
     // must never read as a hang. Plain ONLY — Live already repaints ·
@@ -1086,7 +1091,7 @@ async fn execute_fold_lane(
     // time waterfall + the outputs pointer (design §2c). The sober
     // registers stay untouched — CI logs never grow chart art.
     if mode == RenderMode::Live {
-        epilogue::print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
+        epilogue::print_flow_epilogue(sink.view(), &outcome.outputs, theme, file, trace_recorded);
     }
     fold_lane_verdict(
         &mut sink,

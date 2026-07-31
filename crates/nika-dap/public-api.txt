@@ -1803,6 +1803,7 @@ pub fn nika_dap::journal::TraceFileSink::chain_len(&self) -> usize
 pub fn nika_dap::journal::TraceFileSink::disabled() -> Self
 pub fn nika_dap::journal::TraceFileSink::finalize(&mut self)
 pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Option<core::io::error::Error>
+pub fn nika_dap::journal::TraceFileSink::is_disabled(&self) -> bool
 pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
 impl nika_runtime::stamp::EventSink for nika_dap::journal::TraceFileSink

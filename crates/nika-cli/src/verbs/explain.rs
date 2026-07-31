@@ -101,24 +101,31 @@ fn canon_row(code: &str) -> Option<String> {
 /// allocation hole is deliberate). States what the class BECAME so an
 /// old trace, doc or memory that names the code still gets an answer.
 fn retired_row(code: &str) -> Option<String> {
-    let teaching = match code {
-        "NIKA-DAG-003" => {
+    // (teaching, the LIVE successor code — its page is the one that
+    // exists; a retired per-code URL is a 404, measured 2026-08-01:
+    // the site's error pages project the CURRENT canon table, and a
+    // retired code is exactly the row it no longer carries.)
+    let (teaching, successor) = match code {
+        "NIKA-DAG-003" => (
             "« a `tasks.X` reference with no declared edge » became \
              INEXPRESSIBLE in W2 « the flow »: the `with:` binding IS the \
              edge (derived, never restated), and a reference outside the \
              boundary is NIKA-VAR-021 (hoist it into `with:` — \
-             `nika check --fix` applies it)"
-        }
-        "NIKA-PARSE-016" => {
+             `nika check --fix` applies it)",
+            "NIKA-VAR-021",
+        ),
+        "NIKA-PARSE-016" => (
             "the jq-binding-contains-template class folded into \
-             NIKA-VAR-005 at the deep-conformance registry remap"
-        }
+             NIKA-VAR-005 at the deep-conformance registry remap",
+            "NIKA-VAR-005",
+        ),
         _ => return None,
     };
     Some(format!(
         "{code} · retired — never reused\n\n  {teaching}\n\n\
-         full docs: https://nika.sh/errors/{code} — retired codes keep \
-         their page; the successor code carries the live teaching.\n"
+         full docs: https://nika.sh/errors/{successor} — the successor \
+         code carries the live page; a retired code's own page is gone \
+         with its registry row.\n"
     ))
 }
 
@@ -312,6 +319,20 @@ mod tests {
         assert_eq!(folded.code, exit::OK, "{}", folded.text);
         assert!(folded.text.contains("retired"), "{}", folded.text);
         assert!(folded.text.contains("NIKA-VAR-005"), "{}", folded.text);
+        // The test's own name, finally enforced: the docs door taught is
+        // the SUCCESSOR's page — a retired code's per-code URL is a 404
+        // (measured 2026-08-01 · the site projects the CURRENT canon
+        // table, and retirement is exactly the row it no longer has).
+        assert!(
+            out.text.contains("errors/NIKA-VAR-021"),
+            "the taught URL is the live successor page:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("errors/NIKA-DAG-003"),
+            "never the retired 404:\n{}",
+            out.text
+        );
     }
 
     #[test]

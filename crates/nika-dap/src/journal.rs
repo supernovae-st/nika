@@ -164,6 +164,16 @@ impl TraceFileSink {
         self.path.as_deref()
     }
 
+    /// Whether this journal is the permanently-silent opt-out shape —
+    /// the fact a teaching surface needs BEFORE any lazy open: a door
+    /// taught toward a disabled journal is a door to a file that will
+    /// never exist (`path()` is lazily `None` on BOTH shapes early, so
+    /// it cannot carry this distinction).
+    #[must_use]
+    pub fn is_disabled(&self) -> bool {
+        matches!(self.lane, Lane::Disabled)
+    }
+
     /// The buffered fs error, if journaling ever failed.
     #[must_use]
     pub fn into_error(self) -> Option<std::io::Error> {
