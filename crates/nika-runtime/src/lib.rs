@@ -79,6 +79,10 @@ pub mod resume;
 mod retry;
 mod secret;
 mod settle;
+/// The effects-simulated seams (the `nika test` plane · P0-16) — `pub`
+/// because [`SimRuntime`](compose::SimRuntime) names them in its spelling
+/// (the `compose::StderrEmitter` precedent).
+pub mod simulated;
 mod stamp;
 mod task;
 mod trust;
@@ -112,7 +116,8 @@ pub use admit::{
     unbounded_breakdown,
 };
 pub use compose::{
-    ProdRuntime, RunSeams, RuntimeCapabilities, capabilities_of, production_runtime,
+    ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
+    simulated_runtime,
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;

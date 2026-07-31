@@ -4,8 +4,11 @@
 //! `nika test <file>` — the golden test (F7 · workflows you can CI).
 //!
 //! check the workflow (the ADR-092 ladder · audit BEFORE run) · run it
-//! under the MOCK provider (offline · zero key · deterministic +
-//! schema-conformant since F3) · capture the typed `outputs:` as ONE
+//! under the SIMULATED plane — the MODEL is `mock/echo` (offline · zero
+//! key · deterministic + schema-conformant since F3) AND real effects
+//! are refused (P0-16 · no network, no subprocess, no writes: a task
+//! that needs one fails with « effects disabled under `nika test` » —
+//! it never silently performs it) · capture the typed `outputs:` as ONE
 //! canonical JSON document · compare against the sibling golden
 //! `<file>.golden.json`. `--update` (re)writes the golden instead.
 //!
@@ -70,7 +73,7 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
         return out.code;
     }
 
-    // ── The mock run (offline · deterministic) ──────────────────────
+    // ── The mock run (simulated plane · offline · deterministic) ──────
     let (code, outputs) =
         match super::run::capture_mock_outputs(&wf, &report, resolved.texts, theme) {
             Ok(pair) => pair,
@@ -185,8 +188,9 @@ fn write_golden(golden_path: &str, actual: &Value, theme: Theme) -> u8 {
 fn missing_golden_hint(file: &str, golden_path: &str) -> String {
     format!(
         "nika test · no golden yet for {file}\n\
-         \n  the golden pins this workflow's typed `outputs:` under the mock\n\
-         \x20 provider (offline · deterministic) — future runs must match it.\n\
+         \n  the golden pins this workflow's typed `outputs:` under the simulated\n\
+         \x20 plane (mock model · effects refused · offline · deterministic) —\n\
+         \x20 future runs must match it.\n\
          \n  create it:   nika test {file} --update\n\
          \x20 then commit: {golden_path}\n"
     )

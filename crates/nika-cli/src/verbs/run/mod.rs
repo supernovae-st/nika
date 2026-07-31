@@ -45,7 +45,7 @@ use teardown::attended_facts;
 
 use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
 use nika_dap::resume::ResumeRequest;
-use nika_runtime::compose::{ProdRuntime, capabilities_of, production_runtime};
+use nika_runtime::compose::{ProdRuntime, capabilities_of, production_runtime, simulated_runtime};
 use nika_runtime::scope_to_task;
 
 /// The workflow's semantic hash for the run seal (the proof layer's
@@ -555,11 +555,16 @@ fn composed_runtime(
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
 /// `outputs:` — the `nika test` seam (F7). The envelope model is replaced
 /// by `mock/echo` through the SAME composition path as `--model` (offline ·
-/// zero key · deterministic + schema-conformant since F3). The fold is a
-/// DIAGNOSTIC here — it goes to stderr (verdict card on failure only), so
-/// the caller owns stdout for its own verdict/diff surface. `skills` =
-/// the composer-resolved SKILL.md texts (#473 · the caller gates their
-/// findings first, same as `run`).
+/// zero key · deterministic + schema-conformant since F3) — and since P0-16
+/// the composition is the SIMULATED plane ([`simulated_runtime`]): the
+/// model swap never left the tool/exec seams real again — net, exec, and
+/// write effects REFUSE with « effects disabled under `nika test` », so a
+/// mock run produces zero external effects (a workflow that needs one
+/// fails its golden run honestly, it never silently performs it). The fold
+/// is a DIAGNOSTIC here — it goes to stderr (verdict card on failure
+/// only), so the caller owns stdout for its own verdict/diff surface.
+/// `skills` = the composer-resolved SKILL.md texts (#473 · the caller
+/// gates their findings first, same as `run`).
 pub(crate) fn capture_mock_outputs(
     wf: &RawWorkflow,
     report: &CheckReport,
@@ -567,7 +572,7 @@ pub(crate) fn capture_mock_outputs(
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let caps = capabilities_of(wf);
-    let runtime = production_runtime("mock/echo", caps, wf.run.as_ref().map(|s| &s.value))
+    let runtime = simulated_runtime("mock/echo", caps, wf.run.as_ref().map(|s| &s.value))
         .map_err(|e| e.to_string())?;
     let runtime = runtime.with_skills(skills);
     let rt = tokio::runtime::Builder::new_current_thread()

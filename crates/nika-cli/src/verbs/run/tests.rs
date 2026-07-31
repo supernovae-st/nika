@@ -338,6 +338,96 @@ fn capture_mock_outputs_carries_the_resolved_skills() {
     );
 }
 
+// ── P0-16 (audit 2026-07-30) · the mock plane disables EFFECTS ────────
+//
+// `nika test` swaps the MODEL for mock/echo — but before the simulated
+// plane, the tool/exec seams stayed REAL: a workflow whose check passed
+// wrote files, ran subprocesses, fetched URLs under a verb documented
+// « offline ». The simulated plane refuses net/exec/write with an honest
+// « effects disabled » message; these sentinels prove zero bytes and zero
+// children escape.
+
+/// A unique-per-test temp dir (pid + atomic discriminator — the parallel-
+/// test collision class the skills e2e above names).
+fn sentinel_dir(tag: &str) -> std::path::PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "nika-test-fx-{tag}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    dir
+}
+
+/// P0-16 · `invoke nika:write` under `capture_mock_outputs` never lands a
+/// byte: the task is REFUSED (« effects disabled » · the run fails), and
+/// the target file does not exist after the run.
+#[test]
+fn capture_mock_outputs_refuses_write_effects() {
+    let dir = sentinel_dir("write");
+    let sentinel = dir.join("sentinel.txt");
+    let yaml = format!(
+        "nika: v1\nworkflow:\n  id: fx-write\nmodel: mock/echo\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"{}/**\"] }} }}\ntasks:\n  w:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{}\", content: \"must never land\" }} }}\n",
+        dir.display(),
+        sentinel.display()
+    );
+    let wf = nika_schema::parse(
+        &yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "a permitted write passes check");
+
+    let (code, _) = capture_mock_outputs(&wf, &report, BTreeMap::new(), plain_theme())
+        .expect("composition succeeds");
+    assert_eq!(
+        code,
+        exit::WORKFLOW,
+        "the write is refused under the simulated plane — the run cannot go green on a disabled effect"
+    );
+    assert!(
+        !sentinel.exists(),
+        "P0-16 · zero writes under `nika test`: {} must not exist",
+        sentinel.display()
+    );
+}
+
+/// P0-16 · an `exec` task under `capture_mock_outputs` spawns no child:
+/// the sentinel the command would create never appears.
+#[test]
+fn capture_mock_outputs_refuses_exec_effects() {
+    let dir = sentinel_dir("exec");
+    let sentinel = dir.join("sentinel.txt");
+    let yaml = format!(
+        "nika: v1\nworkflow:\n  id: fx-exec\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
+        sentinel.display()
+    );
+    let wf = nika_schema::parse(
+        &yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "a permitted exec passes check");
+
+    let (code, _) = capture_mock_outputs(&wf, &report, BTreeMap::new(), plain_theme())
+        .expect("composition succeeds");
+    assert_eq!(
+        code,
+        exit::WORKFLOW,
+        "the exec is refused under the simulated plane — the run cannot go green on a disabled effect"
+    );
+    assert!(
+        !sentinel.exists(),
+        "P0-16 · zero subprocesses under `nika test`: {} must not exist",
+        sentinel.display()
+    );
+}
+
 /// `--require-signature` refuses an unsigned workflow BEFORE any task
 /// executes: exit 2, and the exec task's sentinel is never created.
 /// The counterfactual (the file itself is runnable) rides a dry-run —
