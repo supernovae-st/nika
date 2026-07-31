@@ -21,6 +21,7 @@
 //! exempt by design.
 
 use nika_catalog::export::{CatalogExport, ProviderExport, catalog_export};
+use nika_cli_host::machine_truth::MachineTruth;
 use nika_providers::ProviderRegistry;
 use nika_providers::probe::ExecutionLocus;
 
@@ -71,12 +72,17 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
     // The same env composition a run uses — the listing classifies the
     // endpoints the runtime would ACTUALLY hit, overrides included.
     let registry = ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
-    VerbOutput::ok(human_listing(&export, theme, &local_loci(&registry)))
+    let truth = MachineTruth::from_registry(&registry);
+    VerbOutput::ok(human_listing(&export, theme, &local_loci(&registry), truth))
 }
 
 /// The human teaching listing — sections LOCAL then CLOUD, doctrine order.
-fn human_listing(export: &CatalogExport, theme: Theme, loci: &[LocalLocus]) -> String {
-    let providers = export.providers.len();
+fn human_listing(
+    export: &CatalogExport,
+    theme: Theme,
+    loci: &[LocalLocus],
+    truth: MachineTruth,
+) -> String {
     let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
 
     let mut local: Vec<&ProviderExport> = export.providers.iter().filter(|p| p.local).collect();
@@ -84,8 +90,30 @@ fn human_listing(export: &CatalogExport, theme: Theme, loci: &[LocalLocus]) -> S
     let mut cloud: Vec<&ProviderExport> = export.providers.iter().filter(|p| !p.local).collect();
     cloud.sort_by(|a, b| cloud_rank(a.id).cmp(&cloud_rank(b.id)));
 
-    let mut out =
-        format!("nika catalog — {providers} providers · {models} models (embedded · offline)\n");
+    // Every number NAMES its facet (RAMS-12 · A-06): « catalog entries »
+    // here, « wired in this build » for what welcome counts, « take a
+    // key » for the doctor's cloud rows — three facets of one machine,
+    // never three contradictions. One derivation serves all three
+    // (`MachineTruth`), and machine_truth_surfaces.rs pins the renders.
+    let mut out = format!(
+        "nika catalog — {n} catalog entries · {models} models (embedded · offline)\n",
+        n = truth.catalog_entries,
+    );
+    {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            out,
+            "{}",
+            theme.paint(
+                Role::Dim,
+                &format!(
+                    "  {wired} wired in this build · {slots} take a key — nika doctor shows their state",
+                    wired = truth.wired,
+                    slots = truth.cloud_key_slots,
+                ),
+            ),
+        );
+    }
     out.push('\n');
     // « zero network » is EARNED: only when every local engine resolves
     // to loopback. One override off-loopback and the claim falls.
@@ -238,19 +266,38 @@ mod tests {
         );
     }
 
+    /// A hand-built truth with three DISTINCT numbers — the render test
+    /// stays pure (injected facts, no env), and distinct values prove
+    /// each rendered number reads its own facet, never a neighbour's.
+    fn distinct_truth(export: &CatalogExport) -> MachineTruth {
+        MachineTruth {
+            catalog_entries: export.providers.len(),
+            wired: 7,
+            cloud_key_slots: 3,
+        }
+    }
+
     #[test]
     fn human_listing_counts_agree_with_the_projection() {
         let export = catalog_export();
-        let text = human_listing(&export, PLAIN, &loopback_loci());
-        let providers = export.providers.len();
+        let truth = distinct_truth(&export);
+        let text = human_listing(&export, PLAIN, &loopback_loci(), truth);
         let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
         assert!(
-            text.contains(&format!("{providers} providers")),
-            "the header states the provider count",
+            text.contains(&format!("{} catalog entries", truth.catalog_entries)),
+            "the header NAMES its facet (RAMS-12):\n{text}",
         );
         assert!(
             text.contains(&format!("{models} models")),
             "the header states the model count",
+        );
+        assert!(
+            text.contains("7 wired in this build"),
+            "the wired facet is named under the header:\n{text}",
+        );
+        assert!(
+            text.contains("3 take a key"),
+            "the key-slot facet is named under the header:\n{text}",
         );
     }
 
@@ -271,7 +318,7 @@ mod tests {
     fn zero_network_is_earned_by_loopback_only() {
         let export = catalog_export();
         // All locals on loopback → the sovereign claim holds.
-        let text = human_listing(&export, PLAIN, &loopback_loci());
+        let text = human_listing(&export, PLAIN, &loopback_loci(), distinct_truth(&export));
         assert!(
             text.contains("LOCAL (zero key · zero network)"),
             "loopback keeps the claim:\n{text}"
@@ -286,7 +333,7 @@ mod tests {
             endpoint: "http://192.168.1.50:11434".to_owned(),
             locus: ExecutionLocus::Lan,
         };
-        let text = human_listing(&export, PLAIN, &loci);
+        let text = human_listing(&export, PLAIN, &loci, distinct_truth(&export));
         assert!(
             !text.contains("zero network"),
             "a LAN engine never launders as « zero network »:\n{text}"
