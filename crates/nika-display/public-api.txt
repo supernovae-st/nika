@@ -131,6 +131,7 @@ pub fn nika_display::dag_art::wire_graph(doc: &nika_graph::GraphDoc, waves: &[al
 pub mod nika_display::demo
 pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
 pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_display::demo::paused() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::retrying() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::success() -> alloc::vec::Vec<nika_event::event::Event>
 pub mod nika_display::flow
@@ -378,6 +379,7 @@ pub enum nika_display::state::TaskState
 pub nika_display::state::TaskState::Cancelled
 pub nika_display::state::TaskState::Failed
 pub nika_display::state::TaskState::Ok
+pub nika_display::state::TaskState::Paused
 pub nika_display::state::TaskState::Pending
 pub nika_display::state::TaskState::Retrying
 pub nika_display::state::TaskState::Running
@@ -438,6 +440,7 @@ pub nika_display::state::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_display::state::RunView::cost_usd: f64
 pub nika_display::state::RunView::elapsed_ms: u64
 pub nika_display::state::RunView::external_map: bool
+pub nika_display::state::RunView::paused_task: core::option::Option<alloc::string::String>
 pub nika_display::state::RunView::permits: core::option::Option<alloc::string::String>
 pub nika_display::state::RunView::retries: u32
 pub nika_display::state::RunView::token_samples: alloc::vec::Vec<u64>
@@ -447,6 +450,7 @@ pub nika_display::state::RunView::workflow: alloc::string::String
 pub nika_display::state::RunView::workflow_detail: core::option::Option<alloc::string::String>
 impl nika_display::state::RunView
 pub fn nika_display::state::RunView::apply(&mut self, event: &nika_event::event::Event)
+pub fn nika_display::state::RunView::cancelled_count(&self) -> usize
 pub fn nika_display::state::RunView::done_count(&self) -> usize
 pub fn nika_display::state::RunView::failed_count(&self) -> usize
 pub fn nika_display::state::RunView::last_ts_ms(&self) -> core::option::Option<i64>

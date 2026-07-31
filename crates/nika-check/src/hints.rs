@@ -295,19 +295,22 @@ fn push_run_clock_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
 /// intersection: {success, skipped} ∩ terminal = the value edge alone ·
 /// one-obvious-way/008); tighten to `success` or drop it.
 /// The `headless-prompt` hint: a `nika:prompt` with no `default:` cannot
-/// answer itself, so the workflow completes ONLY with a human at the
-/// keyboard. Headless — which is where CI and every agent lives — the run
-/// dies on `NIKA-BUILTIN-PROMPT-001`.
+/// answer itself — unattended, the run PARKS at this gate (ADR-099
+/// durable pause · exit 4 · the resume line taught on the frame); at a
+/// terminal the gate asks directly. The one-pass unattended answer is
+/// `--answer <task>=<value>` at launch.
 ///
 /// The absence of a `default:` is a STATIC fact, visible in the file
 /// before anything runs. Saying nothing about it at check time is how an
 /// agent hands over a workflow it just audited green and the human
-/// watches it fail on the first run — reported from Cursor 2026-07-28,
-/// where the agent did its job correctly and the oracle was the one
-/// that lied.
+/// watches it park on the first run — reported from Cursor 2026-07-28
+/// (when the park was still a hard NIKA-BUILTIN-PROMPT-001 death: the
+/// agent did its job correctly and the oracle was the one that lied),
+/// then again live 2026-07-31 (seo-live-review, 13ms, 22 cancelled
+/// rows — the arc that armed the pause on every lane).
 ///
 /// Advisory, not a refusal: an interactive workflow is a legitimate
-/// thing to author. The hint names the cost, it does not forbid it.
+/// thing to author. The hint names the behavior, it does not forbid it.
 fn push_headless_prompt_hint(
     hints: &mut Vec<Hint>,
     id: &str,
@@ -330,11 +333,11 @@ fn push_headless_prompt_hint(
         "headless-prompt",
         id,
         format!(
-            "`nika:prompt` on `{id}` declares no `default:` — this workflow can only \
-             complete with a human at the keyboard, and a headless run (CI, or an \
-             agent handing it over) fails NIKA-BUILTIN-PROMPT-001 before it finishes. \
-             Declare the `default:` the unattended path should take, or pass the run \
-             over as `nika run <file> --resume <trace> --answer {id}=<value>`"
+            "`nika:prompt` on `{id}` declares no `default:` — unattended (CI, or an \
+             agent handing it over) the run pauses at this gate awaiting a human \
+             (exit 4 · the resume line taught on the frame); at a terminal it asks \
+             directly. Answer it in one pass with `nika run <file> --answer \
+             {id}=<value>`, or declare the `default:` the unattended path should take"
         ),
     ));
 }
@@ -872,10 +875,11 @@ mod tests {
 
     #[test]
     fn a_prompt_without_a_default_names_its_headless_cost() {
-        // Reported from Cursor 2026-07-28: an agent audited a workflow
-        // green and handed it over, and the run died on
-        // NIKA-BUILTIN-PROMPT-001. The agent behaved correctly; the
-        // oracle was silent about a fact sitting in the file.
+        // Reported from Cursor 2026-07-28 (a green audit, then a dead
+        // first run) and again live 2026-07-31 (seo-live-review): the
+        // oracle was silent about a fact sitting in the file. The hint
+        // now teaches the BEHAVIOR (unattended = durable pause) and the
+        // two one-command answers, not a code the CLI no longer dies on.
         let bare = hints_of(
             "nika: v1\nworkflow:\n  id: w\npermits:\n  tools: [\"nika:prompt\"]\ntasks:\n  confirm:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n",
         );
@@ -884,11 +888,17 @@ mod tests {
             .find(|h| h.kind == "headless-prompt")
             .expect("a prompt with no default names its headless cost");
         assert_eq!(hit.task, "confirm");
-        assert!(
-            hit.advice.contains("NIKA-BUILTIN-PROMPT-001"),
-            "the hint names the code the run will emit: {}",
-            hit.advice
-        );
+        for lesson in [
+            "pauses at this gate",
+            "--answer confirm=<value>",
+            "`default:`",
+        ] {
+            assert!(
+                hit.advice.contains(lesson),
+                "the hint teaches `{lesson}`: {}",
+                hit.advice
+            );
+        }
 
         // A declared default IS the unattended path — nothing to say.
         let defaulted = hints_of(

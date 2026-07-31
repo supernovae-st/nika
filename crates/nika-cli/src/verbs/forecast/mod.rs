@@ -312,8 +312,9 @@ fn fold_occurrence(acc: &mut TaskAcc, occ: &TaskSample, nonfinite: &mut usize) {
             acc.failed += 1;
             return; // task_failed carries no duration/cost sample
         }
-        // Attempted, torn before a terminal — it RAN, no sample.
-        TaskState::Running | TaskState::Retrying => {
+        // Attempted, torn before a terminal — it RAN, no sample. A
+        // paused gate (ADR-099) is the same shape: opened, awaiting.
+        TaskState::Running | TaskState::Retrying | TaskState::Paused => {
             acc.ran_in_runs += 1;
             return;
         }

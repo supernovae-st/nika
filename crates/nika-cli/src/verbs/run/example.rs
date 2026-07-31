@@ -221,6 +221,7 @@ mod tests {
                 message: message.to_owned(),
                 transient: false,
             }),
+            paused: None,
         }
     }
 
