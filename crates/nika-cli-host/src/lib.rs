@@ -23,6 +23,7 @@ pub use nika_display as display;
 pub mod clients_registry;
 pub mod context_envelope;
 pub mod doctor;
+pub mod machine_truth;
 pub mod metrics;
 pub mod output;
 pub mod probe;

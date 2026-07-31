@@ -1135,6 +1135,65 @@ pub fn nika_cli_host::doctor::redact_userinfo(url: &str) -> alloc::string::Strin
 pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], theme: nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt]) -> alloc::string::String
 pub fn nika_cli_host::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub mod nika_cli_host::machine_truth
+pub struct nika_cli_host::machine_truth::MachineTruth
+pub nika_cli_host::machine_truth::MachineTruth::catalog_entries: usize
+pub nika_cli_host::machine_truth::MachineTruth::cloud_key_slots: usize
+pub nika_cli_host::machine_truth::MachineTruth::wired: usize
+impl nika_cli_host::machine_truth::MachineTruth
+pub fn nika_cli_host::machine_truth::MachineTruth::from_probes(probes: &[nika_providers::probe::ProviderProbe]) -> Self
+pub fn nika_cli_host::machine_truth::MachineTruth::from_registry(registry: &nika_providers::registry::ProviderRegistry) -> Self
+impl core::clone::Clone for nika_cli_host::machine_truth::MachineTruth
+pub fn nika_cli_host::machine_truth::MachineTruth::clone(&self) -> nika_cli_host::machine_truth::MachineTruth
+impl core::cmp::Eq for nika_cli_host::machine_truth::MachineTruth
+impl core::cmp::PartialEq for nika_cli_host::machine_truth::MachineTruth
+pub fn nika_cli_host::machine_truth::MachineTruth::eq(&self, other: &nika_cli_host::machine_truth::MachineTruth) -> bool
+impl core::fmt::Debug for nika_cli_host::machine_truth::MachineTruth
+pub fn nika_cli_host::machine_truth::MachineTruth::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::machine_truth::MachineTruth
+impl core::marker::StructuralPartialEq for nika_cli_host::machine_truth::MachineTruth
+impl<D> owo_colors::OwoColorize for nika_cli_host::machine_truth::MachineTruth
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::machine_truth::MachineTruth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::machine_truth::MachineTruth::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::machine_truth::MachineTruth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::machine_truth::MachineTruth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::machine_truth::MachineTruth::equivalent(&self, key: &K) -> bool
+pub fn nika_cli_host::machine_truth::MachineTruth::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::machine_truth::MachineTruth where U: core::convert::From<T>
+pub fn nika_cli_host::machine_truth::MachineTruth::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::machine_truth::MachineTruth where U: core::convert::Into<T>
+pub type nika_cli_host::machine_truth::MachineTruth::Error = core::convert::Infallible
+pub fn nika_cli_host::machine_truth::MachineTruth::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::machine_truth::MachineTruth where U: core::convert::TryFrom<T>
+pub type nika_cli_host::machine_truth::MachineTruth::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::machine_truth::MachineTruth::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::machine_truth::MachineTruth where T: core::clone::Clone
+pub type nika_cli_host::machine_truth::MachineTruth::Owned = T
+pub fn nika_cli_host::machine_truth::MachineTruth::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::machine_truth::MachineTruth::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::machine_truth::MachineTruth where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::machine_truth::MachineTruth::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::machine_truth::MachineTruth where T: ?core::marker::Sized
+pub fn nika_cli_host::machine_truth::MachineTruth::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::machine_truth::MachineTruth where T: ?core::marker::Sized
+pub fn nika_cli_host::machine_truth::MachineTruth::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::machine_truth::MachineTruth where T: core::clone::Clone
+pub unsafe fn nika_cli_host::machine_truth::MachineTruth::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::machine_truth::MachineTruth
+pub fn nika_cli_host::machine_truth::MachineTruth::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::machine_truth::MachineTruth where T: core::clone::Clone
+pub fn nika_cli_host::machine_truth::MachineTruth::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::machine_truth::MachineTruth where T: 'static
+pub fn nika_cli_host::machine_truth::MachineTruth::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::machine_truth::MachineTruth where T: core::marker::Copy
+pub fn nika_cli_host::machine_truth::MachineTruth::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::machine_truth::MachineTruth where T: ?core::marker::Sized
+pub fn nika_cli_host::machine_truth::MachineTruth::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::machine_truth::MachineTruth::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::machine_truth::MachineTruth
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::machine_truth::MachineTruth
+impl<T> typenum::type_operators::Same for nika_cli_host::machine_truth::MachineTruth
+pub type nika_cli_host::machine_truth::MachineTruth::Output = T
 pub mod nika_cli_host::metrics
 pub enum nika_cli_host::metrics::Cta
 pub nika_cli_host::metrics::Cta::Continue
