@@ -25,6 +25,7 @@ use std::fmt::Write as _;
 // detection engine `doctor` and `welcome` share. Re-exported `pub(crate)` so
 // this module's tests (and historical importers) keep their names.
 use crate::display::theme::{Role, Theme};
+use crate::verbs::clients_registry::RegistryCoverage;
 pub(crate) use crate::verbs::probe::{
     AdoptionState, CapabilityLevel, ClientProbe, HostCapabilityReceipt, ImageProbe, KitProbe,
     ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
@@ -124,6 +125,10 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     for kit in &probe.kits {
         out.push(kit_finding(kit, &probe.version));
     }
+
+    // H6 — the matrix coverage row closes the client lane: how much of
+    // the ONE registry doctor actually sees, the not-probed NAMED.
+    out.push(registry_finding(&probe.clients_registry));
 
     // Display order practices the presentation lock (teaching surface ·
     // the first screen after install): the sovereign keyless line leads,
@@ -484,6 +489,47 @@ fn client_finding(client: &ClientProbe, kits: &[KitProbe]) -> Finding {
         label: "agent".to_owned(),
         detail: format!("{} not wired", client.id),
         fix: Some(format!("nika wire {}", client.id)),
+    }
+}
+
+/// The H6 coverage row — the client matrix counts, DERIVED from the
+/// vendored registry (never a hand count). A wireable client without a
+/// probe mechanism is NAMED (declared-not-probed): doctor says how much
+/// of the matrix it sees, and the unseen is listed, not dropped. An
+/// unparsed registry is a loud warning, never a silent zero.
+fn registry_finding(cov: &RegistryCoverage) -> Finding {
+    if cov.declared == 0 {
+        return Finding {
+            level: Level::Warn,
+            label: "registry".to_owned(),
+            detail: "client registry unavailable — the vendored snapshot did not parse".to_owned(),
+            fix: None,
+        };
+    }
+    let mut detail = format!(
+        "client matrix · {} declared · {} wireable · {} probed",
+        cov.declared, cov.wireable, cov.probed
+    );
+    if !cov.declared_not_probed.is_empty() {
+        let _ = write!(
+            detail,
+            " · {} declared-not-probed ({})",
+            cov.declared_not_probed.len(),
+            cov.declared_not_probed.join(" · ")
+        );
+    }
+    if cov.wire_pending > 0 {
+        let _ = write!(
+            detail,
+            " · {} wire-pending (next release)",
+            cov.wire_pending
+        );
+    }
+    Finding {
+        level: Level::Ok,
+        label: "registry".to_owned(),
+        detail,
+        fix: None,
     }
 }
 
@@ -858,6 +904,7 @@ mod tests {
             providers: vec![ollama],
             clients: Vec::new(),
             kits: Vec::new(),
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -912,6 +959,7 @@ mod tests {
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -944,6 +992,7 @@ mod tests {
             ],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -981,6 +1030,7 @@ mod tests {
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1008,6 +1058,7 @@ mod tests {
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1030,6 +1081,7 @@ mod tests {
             providers: vec![local("ollama"), local("vllm")],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1125,6 +1177,7 @@ mod tests {
                 client: "cursor".to_owned(),
                 version: "0.106.0".to_owned(),
             }],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1239,6 +1292,7 @@ mod tests {
             providers: vec![local("ollama")],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1332,6 +1386,7 @@ mod tests {
                 client: "cursor".to_owned(),
                 version: "0.106.0".to_owned(),
             }],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1366,6 +1421,7 @@ mod tests {
                 stale: true,
             }],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1464,6 +1520,7 @@ mod tests {
             providers: vec![local("ollama")],
             clients: vec![],
             kits: vec![kit("codex", "0.106.0"), kit("claude", "0.104.0")],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1687,6 +1744,7 @@ mod tests {
             providers: vec![local("ollama")],
             clients: Vec::new(),
             kits: Vec::new(),
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1748,6 +1806,7 @@ mod tests {
             "traces",
             "agent",
             "kit",
+            "registry",
             "provider",
             "providers",
             "local",
@@ -1789,5 +1848,87 @@ mod tests {
             ),
             "https target rides OSC-8: {out:?}"
         );
+    }
+
+    // ── The registry coverage row (H6 · Q1 2026-07-31) ──
+
+    /// The row renders the derived counts and NAMES the wireable
+    /// clients doctor cannot probe — a declared-not-probed client is
+    /// listed, never silently dropped; an unparsed registry is a loud
+    /// warning, never a silent zero.
+    #[test]
+    fn registry_finding_names_the_declared_not_probed() {
+        let cov = RegistryCoverage {
+            declared: 31,
+            wireable: 15,
+            probed: 6,
+            wire_pending: 2,
+            declared_not_probed: vec!["cline".to_owned(), "codex".to_owned()],
+        };
+        let f = registry_finding(&cov);
+        assert_eq!(f.level, Level::Ok);
+        assert_eq!(f.label, "registry");
+        assert!(f.detail.contains("31 declared"), "{}", f.detail);
+        assert!(f.detail.contains("15 wireable"), "{}", f.detail);
+        assert!(f.detail.contains("6 probed"), "{}", f.detail);
+        assert!(f.detail.contains("declared-not-probed"), "{}", f.detail);
+        assert!(f.detail.contains("cline"), "named: {}", f.detail);
+        assert!(f.detail.contains("codex"), "named: {}", f.detail);
+        assert!(f.detail.contains("wire-pending"), "{}", f.detail);
+        assert!(f.fix.is_none(), "no repair: the gap is engine-side");
+
+        let quiet = registry_finding(&RegistryCoverage {
+            declared: 31,
+            wireable: 6,
+            probed: 6,
+            wire_pending: 0,
+            declared_not_probed: vec![],
+        });
+        assert!(
+            !quiet.detail.contains("declared-not-probed"),
+            "no gap, no gap line: {}",
+            quiet.detail
+        );
+        assert!(
+            !quiet.detail.contains("wire-pending"),
+            "no pending, no pending line: {}",
+            quiet.detail
+        );
+
+        let broken = registry_finding(&RegistryCoverage::default());
+        assert_eq!(broken.level, Level::Warn);
+        assert!(broken.detail.contains("unavailable"), "{}", broken.detail);
+    }
+
+    /// `diagnose` emits EXACTLY ONE registry row, after the client/kit
+    /// lanes, with the counts the probe derived.
+    #[test]
+    fn diagnose_emits_one_registry_coverage_row() {
+        let base = Probe {
+            models: ModelsProbe::default(),
+            version: "0.0.0".to_owned(),
+            config_path: None,
+            providers: vec![],
+            clients: Vec::new(),
+            kits: Vec::new(),
+            clients_registry: RegistryCoverage {
+                declared: 31,
+                wireable: 15,
+                probed: 6,
+                wire_pending: 0,
+                declared_not_probed: vec!["cline".to_owned()],
+            },
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
+            recorded_runs: 0,
+        };
+        let findings = diagnose(&base);
+        let rows: Vec<_> = findings.iter().filter(|f| f.label == "registry").collect();
+        assert_eq!(rows.len(), 1, "one coverage row: {findings:?}");
+        assert!(rows[0].detail.contains("31 declared"), "{}", rows[0].detail);
     }
 }

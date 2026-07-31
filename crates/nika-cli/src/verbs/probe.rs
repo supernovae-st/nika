@@ -18,6 +18,7 @@ use nika_providers::ProviderRegistry;
 use nika_providers::probe::ExecutionLocus;
 pub(crate) use nika_providers::probe::{PingState, ProviderProbe, env_present};
 
+use crate::verbs::clients_registry::{self, RegistryCoverage};
 use crate::verbs::trace::retention::RetentionConfig;
 use serde_json::Value;
 
@@ -33,6 +34,10 @@ pub(crate) struct Probe {
     /// Installed plugin-kit surfaces (found only — absence is silence,
     /// the kit is optional).
     pub kits: Vec<KitProbe>,
+    /// The client-matrix coverage (H6 · Q1 2026-07-31): derived from
+    /// the vendored nika-agents registry — the counts doctor renders
+    /// are read-time derivations of the ONE SSOT, never hand counts.
+    pub clients_registry: RegistryCoverage,
     /// The `nika:image_generate` plane — key/URL PRESENCE only.
     pub image: ImageProbe,
     /// The `nika:tts_generate` plane — key/URL PRESENCE only.
@@ -324,6 +329,9 @@ pub(crate) fn collect(ping: bool) -> Probe {
         providers,
         clients: client_probes(),
         kits: kit_probes(),
+        clients_registry: clients_registry::vendored()
+            .map(clients_registry::coverage)
+            .unwrap_or_default(),
         image: ImageProbe {
             openai_key: env_present("NIKA_OPENAI_API_KEY") || env_present("OPENAI_API_KEY"),
             gemini_key: env_present("NIKA_GEMINI_API_KEY") || env_present("GEMINI_API_KEY"),
@@ -363,54 +371,72 @@ pub(crate) fn collect(ping: bool) -> Probe {
     }
 }
 
+/// The probe LIST derives from the vendored client registry (H6): a
+/// client is probed only while the matrix claims its wire target — the
+/// hard-coded set is gone, the per-target MECHANISM (which file, which
+/// key) stays engine-side knowledge. Row order is the historical one
+/// ([`clients_registry::PROBE_MECHANISMS`] mirrors it): findings and
+/// receipts ride probe order.
 fn client_probes() -> Vec<ClientProbe> {
     let mut probes = Vec::new();
     let cursor_workspace_path = PathBuf::from(".").join(".cursor").join("mcp.json");
     if let Some(home) = home_dir() {
-        let cursor_paths = vec![home.join(".cursor").join("mcp.json"), cursor_workspace_path];
-        probes.push(client_probe_any(
-            "cursor",
-            &cursor_paths,
-            &["mcpServers", "nika"],
-        ));
-        probes.push(client_probe(
-            "windsurf",
-            &home
-                .join(".codeium")
-                .join("windsurf")
-                .join("mcp_config.json"),
-            &["mcpServers", "nika"],
-        ));
-        probes.push(client_probe(
-            "claude",
-            &home.join(".claude.json"),
-            &["mcpServers", "nika"],
-        ));
+        if clients_registry::registry_wires("cursor") {
+            let cursor_paths = vec![home.join(".cursor").join("mcp.json"), cursor_workspace_path];
+            probes.push(client_probe_any(
+                "cursor",
+                &cursor_paths,
+                &["mcpServers", "nika"],
+            ));
+        }
+        if clients_registry::registry_wires("windsurf") {
+            probes.push(client_probe(
+                "windsurf",
+                &home
+                    .join(".codeium")
+                    .join("windsurf")
+                    .join("mcp_config.json"),
+                &["mcpServers", "nika"],
+            ));
+        }
+        if clients_registry::registry_wires("claude") {
+            probes.push(client_probe(
+                "claude",
+                &home.join(".claude.json"),
+                &["mcpServers", "nika"],
+            ));
+        }
         // Zed: ~/.config on EVERY platform (upstream choice) · the MCP
         // entry lives under `context_servers` (zed.dev/docs/ai/mcp). The
         // JSON probe is best-effort on Zed's JSONC settings: a commented
         // file parses as not-wired → the fix line says `nika wire zed`,
         // which itself degrades to the ✋ manual snippet. Honest chain.
-        probes.push(client_probe(
-            "zed",
-            &home.join(".config").join("zed").join("settings.json"),
-            &["context_servers", "nika"],
-        ));
+        if clients_registry::registry_wires("zed") {
+            probes.push(client_probe(
+                "zed",
+                &home.join(".config").join("zed").join("settings.json"),
+                &["context_servers", "nika"],
+            ));
+        }
         // Hermes: YAML, the JSON probe cannot see it (H2 — wireable
         // since `nika wire hermes`, invisible in doctor until now).
-        probes.push(hermes_probe(&home.join(".hermes").join("config.yaml")));
-    } else {
+        if clients_registry::registry_wires("hermes") {
+            probes.push(hermes_probe(&home.join(".hermes").join("config.yaml")));
+        }
+    } else if clients_registry::registry_wires("cursor") {
         probes.push(client_probe(
             "cursor",
             &cursor_workspace_path,
             &["mcpServers", "nika"],
         ));
     }
-    probes.push(client_probe(
-        "vscode",
-        &PathBuf::from(".").join(".vscode").join("mcp.json"),
-        &["servers", "nika"],
-    ));
+    if clients_registry::registry_wires("vscode") {
+        probes.push(client_probe(
+            "vscode",
+            &PathBuf::from(".").join(".vscode").join("mcp.json"),
+            &["servers", "nika"],
+        ));
+    }
     probes
 }
 
@@ -425,7 +451,9 @@ fn client_probes() -> Vec<ClientProbe> {
 ///   codex  · the highest per-version cache dir under `plugins/cache`
 ///            (fallback: the marketplace clone's manifest)
 /// Presence + one version string per client — nothing else is read, an
-/// unreadable surface is silence.
+/// unreadable surface is silence. The LANDINGS derive from the vendored
+/// registry (H6): a kit is probed only while the matrix keeps the
+/// client's class-A wire row ([`clients_registry::KIT_MECHANISMS`]).
 fn kit_probes() -> Vec<KitProbe> {
     let Some(home) = home_dir() else {
         return Vec::new();
@@ -435,53 +463,59 @@ fn kit_probes() -> Vec<KitProbe> {
         version,
     };
     let mut out = Vec::new();
-    if let Some(v) = manifest_version(
-        &home
-            .join(".cursor")
-            .join("plugins")
-            .join("local")
-            .join("nika")
-            .join(".claude-plugin")
-            .join("plugin.json"),
-    ) {
+    if clients_registry::registry_ships_kit("cursor")
+        && let Some(v) = manifest_version(
+            &home
+                .join(".cursor")
+                .join("plugins")
+                .join("local")
+                .join("nika")
+                .join(".claude-plugin")
+                .join("plugin.json"),
+        )
+    {
         out.push(kit("cursor", v));
     }
-    let claude_clone = home
-        .join(".claude")
-        .join("plugins")
-        .join("marketplaces")
-        .join("nika")
-        .join(".agents")
-        .join("plugins")
-        .join("nika")
-        .join(".claude-plugin")
-        .join("plugin.json");
-    if let Some(v) = claude_installed_version(&home.join(".claude").join("plugins"))
-        .or_else(|| manifest_version(&claude_clone))
-    {
-        out.push(kit("claude", v));
-    }
-    let codex_clone = home
-        .join(".codex")
-        .join(".tmp")
-        .join("marketplaces")
-        .join("nika")
-        .join(".agents")
-        .join("plugins")
-        .join("nika")
-        .join(".claude-plugin")
-        .join("plugin.json");
-    if let Some(v) = codex_cache_version(
-        &home
-            .join(".codex")
+    if clients_registry::registry_ships_kit("claude") {
+        let claude_clone = home
+            .join(".claude")
             .join("plugins")
-            .join("cache")
+            .join("marketplaces")
             .join("nika")
-            .join("nika"),
-    )
-    .or_else(|| manifest_version(&codex_clone))
-    {
-        out.push(kit("codex", v));
+            .join(".agents")
+            .join("plugins")
+            .join("nika")
+            .join(".claude-plugin")
+            .join("plugin.json");
+        if let Some(v) = claude_installed_version(&home.join(".claude").join("plugins"))
+            .or_else(|| manifest_version(&claude_clone))
+        {
+            out.push(kit("claude", v));
+        }
+    }
+    if clients_registry::registry_ships_kit("codex") {
+        let codex_clone = home
+            .join(".codex")
+            .join(".tmp")
+            .join("marketplaces")
+            .join("nika")
+            .join(".agents")
+            .join("plugins")
+            .join("nika")
+            .join(".claude-plugin")
+            .join("plugin.json");
+        if let Some(v) = codex_cache_version(
+            &home
+                .join(".codex")
+                .join("plugins")
+                .join("cache")
+                .join("nika")
+                .join("nika"),
+        )
+        .or_else(|| manifest_version(&codex_clone))
+        {
+            out.push(kit("codex", v));
+        }
     }
     out
 }
@@ -718,6 +752,16 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
         .iter()
         .map(|k| serde_json::json!({ "client": k.client, "version": k.version }))
         .collect();
+    // H6 — the matrix coverage rides next to the per-host rows
+    // (additive): « 6 probed » alone rendered a completeness that does
+    // not exist; the not-probed are NAMED.
+    let registry = serde_json::json!({
+        "declared": probe.clients_registry.declared,
+        "wireable": probe.clients_registry.wireable,
+        "probed": probe.clients_registry.probed,
+        "wire_pending": probe.clients_registry.wire_pending,
+        "declared_not_probed": probe.clients_registry.declared_not_probed,
+    });
     let locals: Vec<&str> = probe
         .providers
         .iter()
@@ -733,6 +777,7 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
     serde_json::json!({
         "clients": clients,
         "kits": kits,
+        "clients_registry": registry,
         "local_providers": locals,
         "models_pulled": probe.models.count,
         "models_bytes": probe.models.bytes,
@@ -1101,6 +1146,7 @@ mod tests {
             ],
             clients: vec![],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: vec![],
@@ -1367,6 +1413,68 @@ mod tests {
         assert!(
             probe.providers.iter().all(|p| !p.id.is_empty()),
             "provider rows are ids, not values"
+        );
+    }
+
+    // ── The client registry (H6 · Q1 2026-07-31 — the binary consumes
+    // the vendored nika-agents matrix) ──
+
+    #[test]
+    fn the_real_probe_derives_registry_coverage_from_the_vendored_matrix() {
+        let probe = collect(false);
+        let cov = &probe.clients_registry;
+        assert!(
+            cov.declared >= 27,
+            "the matrix is 27+ clients, got {}",
+            cov.declared
+        );
+        // Every wireable client is probed or honestly declared — and
+        // the probed rows are a SUBSET of what the matrix wires (a
+        // row the matrix drops leaves the probe list with it).
+        assert_eq!(
+            cov.probed + cov.declared_not_probed.len(),
+            cov.wireable,
+            "{cov:?}"
+        );
+        assert!(cov.probed >= 6, "the 6 known mechanisms, got {cov:?}");
+        for client in &probe.clients {
+            assert!(
+                clients_registry::registry_wires(&client.id),
+                "probed {} is not matrix-claimed",
+                client.id
+            );
+            assert!(
+                !cov.declared_not_probed.contains(&client.id),
+                "{} cannot be probed AND declared-not-probed",
+                client.id
+            );
+        }
+        // The kit lanes ride the same derivation.
+        for kit in &probe.kits {
+            assert!(
+                clients_registry::registry_ships_kit(&kit.client),
+                "kit {} is not a matrix class-A wire row",
+                kit.client
+            );
+        }
+    }
+
+    #[test]
+    fn environment_json_carries_the_registry_lane() {
+        let probe = collect(false);
+        let env = environment_json(&probe);
+        let lane = &env["clients_registry"];
+        assert_eq!(
+            lane["declared"].as_u64(),
+            Some(probe.clients_registry.declared as u64)
+        );
+        assert_eq!(
+            lane["probed"].as_u64(),
+            Some(probe.clients_registry.probed as u64)
+        );
+        assert!(
+            lane["declared_not_probed"].is_array(),
+            "the not-probed are named, machine-readable: {lane}"
         );
     }
 }

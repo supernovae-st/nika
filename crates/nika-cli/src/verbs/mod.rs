@@ -12,6 +12,7 @@
 
 pub mod catalog;
 pub mod check;
+pub(crate) mod clients_registry;
 pub mod context;
 pub mod doctor;
 pub mod evidence;
