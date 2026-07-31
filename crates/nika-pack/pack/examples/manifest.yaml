@@ -44,7 +44,7 @@ templates:
   - file: templates/etl-state.nika.yaml
     sha256_16: 2a7b3145104abc43
   - file: templates/fanout.nika.yaml
-    sha256_16: a6620ae22da1887d
+    sha256_16: 5adced90c8f80684
   - file: templates/gate-and-act.nika.yaml
     sha256_16: 3bc291b44971559a
   - file: templates/human-gated-ship.nika.yaml
@@ -105,10 +105,10 @@ showcase:
     constructs: [local_model, on_error, outputs, retry, schema, secrets, thinking, when, with]
     sha256_16: e0316d28f9a969f2
   - file: examples/invoice-chaser.nika.yaml
-    workflow: {'id': 'invoice-chaser', 'description': 'Ledger CSV → overdue filter → drafted reminders → human gate → drafts file'}
+    workflow: {'id': 'invoice-chaser', 'description': 'chase unpaid invoices · ledger CSV → overdue filter → drafted reminders → human gate → drafts file'}
     description: ""
     constructs: [local_model, outputs, when, with]
-    sha256_16: 698e3ab44c00d911
+    sha256_16: b5c19589cc85ddee
   - file: examples/localization-factory.nika.yaml
     workflow: {'id': 'localization-factory', 'description': 'glob docs → parallel read → parallel translate → mirror tree'}
     description: ""
@@ -120,10 +120,10 @@ showcase:
     constructs: [local_model, outputs, schema, with]
     sha256_16: 9958994e785950b5
   - file: examples/model-bench.nika.yaml
-    workflow: {'id': 'model-bench', 'description': 'benchmark and compare three local models — the same question to every seat → one measured table (latency · length)'}
+    workflow: {'id': 'model-bench', 'description': 'benchmark and compare local models — the same question to each seat → one measured table (latency · length)'}
     description: ""
     constructs: [local_model, outputs, with]
-    sha256_16: d24bac5bcd4a29b5
+    sha256_16: 418430274da68609
   - file: examples/og-images.nika.yaml
     workflow: {'id': 'og-images', 'description': 'Generate the launch OG hero image set into out/og'}
     description: ""
