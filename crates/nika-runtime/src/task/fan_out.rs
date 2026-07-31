@@ -77,6 +77,13 @@ pub(super) struct FanOutAccum {
     /// The FIRST unpriced reason across iterations (they share one model,
     /// so the first is the class) — rides the parent's terminal frame.
     pub(super) unpriced: Option<nika_types::cost::UnpricedReason>,
+    /// Iterations that did NOT truly succeed — a `recover:` fallback stood
+    /// in, an `on_error: skip` nulled the index, or a swallowed failure
+    /// held its slot (`fail_fast: false`). The fan's own note carries the
+    /// count (V7-1 · wave-3 Marta: 2 of 3 items died at their timeout
+    /// under `recover: null` and the card said `✔ 3 items · 5/5 done` —
+    /// she found out by counting the trace).
+    pub(super) recovered: usize,
 }
 
 /// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
@@ -96,6 +103,7 @@ where
         tokens_sum: None,
         cost_sum: None,
         unpriced: None,
+        recovered: 0,
     };
 
     while let Some(iter_ran) = stream.next().await {
@@ -110,8 +118,16 @@ where
                 tokens,
                 cost_usd,
                 cost_unpriced,
+                ref recovered_from,
                 ..
             } => {
+                // A repaired iteration is a Success whose value is the
+                // fallback — the ONE fact distinguishing it from a task
+                // that legitimately produced its value (a bare null
+                // count would misread honest nulls as deaths).
+                if recovered_from.is_some() {
+                    acc.recovered += 1;
+                }
                 acc.outputs.push(value);
                 if let Some(n) = tokens {
                     acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
@@ -124,8 +140,13 @@ where
                 }
             }
             // Per-iteration `on_error: skip` contributes null at its
-            // index — positional alignment survives (spec 03).
-            RunResult::SkippedWithError { .. } => acc.outputs.push(Value::Null),
+            // index — positional alignment survives (spec 03). Silent by
+            // declaration, counted all the same: the fan's note owes the
+            // reader the tally either way.
+            RunResult::SkippedWithError { .. } => {
+                acc.recovered += 1;
+                acc.outputs.push(Value::Null);
+            }
             RunResult::Failed { error, .. } => {
                 acc.outputs.push(Value::Null);
                 if acc.first_error.is_none() {
@@ -216,6 +237,23 @@ pub(super) fn fan_out_result(
             cost_usd,
             cost_unpriced,
         },
+    }
+}
+
+/// The fan's terminal note — the honest tally (V7-1): a fan whose K
+/// iterations were repaired (`recover:` fallback · `on_error: skip`)
+/// SAYS so on its own row. A green `✔ N items` over silently-nulled
+/// work taught wave-3 Marta to distrust the card (she counted the
+/// trace by hand); a healthy fan keeps its historical row byte-stable
+/// (no zero-count tail — calm stays calm).
+pub(super) fn fan_note(total: usize, recovered: usize) -> String {
+    if recovered > 0 {
+        format!(
+            "for_each · {ok}/{total} ok · {recovered} recovered",
+            ok = total.saturating_sub(recovered),
+        )
+    } else {
+        format!("for_each · {total} items")
     }
 }
 
