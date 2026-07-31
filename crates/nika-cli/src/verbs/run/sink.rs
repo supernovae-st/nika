@@ -182,7 +182,14 @@ impl<W: Write> FoldSink<W> {
         }
         let lines = match self.mode {
             RenderMode::Quiet => verdict_frame(&self.view, &self.theme),
-            RenderMode::Plain => stream_summary(&self.view, &self.theme),
+            // The plain close carries the FRUIT block (A-2): the files
+            // the run materialized + the model's last word — composed
+            // here (sizes are a stat, the display crate holds no I/O).
+            RenderMode::Plain => stream_summary(
+                &self.view,
+                &self.theme,
+                &super::epilogue::fruit_notes(&self.view),
+            ),
             _ if self.outputs => frame_with_outputs(&self.view, &self.theme, 0),
             _ => frame(&self.view, &self.theme, 0),
         };

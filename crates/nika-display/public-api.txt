@@ -194,7 +194,7 @@ pub fn nika_display::flow::fmt_wall_ms(ms: u64) -> alloc::string::String
 pub fn nika_display::flow::heat_bucket(wall_ms: u64, max_ms: u64) -> usize
 pub fn nika_display::flow::interval_of(row: &nika_display::state::TaskRow, now_ms: core::option::Option<i64>) -> core::option::Option<nika_display::flow::Interval>
 pub fn nika_display::flow::lane_marks(view: &nika_display::state::RunView) -> alloc::vec::Vec<bool>
-pub fn nika_display::flow::verdict_card(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, outputs_note: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::flow::verdict_card(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, notes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::flow::waterfall(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_display::format
 pub enum nika_display::format::ColorChoice
@@ -363,12 +363,71 @@ pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::stri
 pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
 pub fn nika_display::format::links_enabled(choice: nika_display::format::LinkChoice, tty: bool, term_dumb: bool) -> bool
 pub fn nika_display::format::osc8(url: &str, text: &str, id: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_display::fruit
+pub struct nika_display::fruit::WroteFile
+pub nika_display::fruit::WroteFile::path: alloc::string::String
+pub nika_display::fruit::WroteFile::verb: &'static str
+impl core::clone::Clone for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::clone(&self) -> nika_display::fruit::WroteFile
+impl core::cmp::Eq for nika_display::fruit::WroteFile
+impl core::cmp::PartialEq for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::eq(&self, other: &nika_display::fruit::WroteFile) -> bool
+impl core::fmt::Debug for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::fruit::WroteFile
+impl<D> owo_colors::OwoColorize for nika_display::fruit::WroteFile
+impl<Q, K> equivalent::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::equivalent(&self, key: &K) -> bool
+pub fn nika_display::fruit::WroteFile::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::fruit::WroteFile where U: core::convert::From<T>
+pub fn nika_display::fruit::WroteFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::fruit::WroteFile where U: core::convert::Into<T>
+pub type nika_display::fruit::WroteFile::Error = core::convert::Infallible
+pub fn nika_display::fruit::WroteFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::fruit::WroteFile where U: core::convert::TryFrom<T>
+pub type nika_display::fruit::WroteFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::fruit::WroteFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::fruit::WroteFile where T: core::clone::Clone
+pub type nika_display::fruit::WroteFile::Owned = T
+pub fn nika_display::fruit::WroteFile::clone_into(&self, target: &mut T)
+pub fn nika_display::fruit::WroteFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::fruit::WroteFile where T: 'static + ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::fruit::WroteFile where T: ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::fruit::WroteFile where T: ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::fruit::WroteFile where T: core::clone::Clone
+pub unsafe fn nika_display::fruit::WroteFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::fruit::WroteFile where T: core::clone::Clone
+pub fn nika_display::fruit::WroteFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::fruit::WroteFile where T: 'static
+pub fn nika_display::fruit::WroteFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::fruit::WroteFile where T: ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::fruit::WroteFile::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::fruit::WroteFile
+impl<T> tracing::instrument::WithSubscriber for nika_display::fruit::WroteFile
+impl<T> typenum::type_operators::Same for nika_display::fruit::WroteFile
+pub type nika_display::fruit::WroteFile::Output = T
+pub fn nika_display::fruit::asks_inputs_back(text: &str) -> bool
+pub fn nika_display::fruit::cautions(view: &nika_display::state::RunView, ascii: bool) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::fruit::inputs_all_recovered(view: &nika_display::state::RunView) -> core::option::Option<usize>
+pub fn nika_display::fruit::last_said(view: &nika_display::state::RunView) -> core::option::Option<(&str, &str)>
+pub fn nika_display::fruit::rehearsal(view: &nika_display::state::RunView) -> bool
+pub fn nika_display::fruit::rehearsal_note(view: &nika_display::state::RunView) -> core::option::Option<&'static str>
+pub fn nika_display::fruit::written_files(view: &nika_display::state::RunView) -> alloc::vec::Vec<nika_display::fruit::WroteFile>
 pub mod nika_display::render
 pub fn nika_display::render::frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::frame_with_outputs(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::stream_header(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::stream_settled_line(view: &nika_display::state::RunView, task: &str, theme: &nika_display::theme::Theme, outputs: bool) -> core::option::Option<alloc::string::String>
-pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, notes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::verdict_frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_display::shape
 pub const nika_display::shape::SHAPE_CELLS: usize

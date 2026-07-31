@@ -2,11 +2,12 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The run-comprehension surface — fold (`state`) · glyphs/colour (`theme`)
-//! · frames (`render`) · execution-flow reads (`flow`) · bounded output
-//! summaries (`shape`) · painted source spans (`snippet`) · the shared
-//! formatter + colour-capability seam (`format`) · the glyph/hint
-//! vocabulary (`vocab`) · structural chrome (`chrome` — rail · panel ·
-//! bar · banner) · deterministic demo streams (`demo`).
+//! · frames (`render`) · execution-flow reads (`flow`) · the run's fruit
+//! and form-sanity reads (`fruit`) · bounded output summaries (`shape`)
+//! · painted source spans (`snippet`) · the shared formatter and
+//! colour-capability seam (`format`) · the glyph/hint vocabulary
+//! (`vocab`) · structural chrome (`chrome` — rail · panel · bar ·
+//! banner) · deterministic demo streams (`demo`).
 //! One truth in, text out; no I/O lives here.
 //!
 //! Descended from `nika-cli/src/display` at the 15k prod-LOC wall
@@ -27,6 +28,7 @@ pub mod dag_art;
 pub mod demo;
 pub mod flow;
 pub mod format;
+pub mod fruit;
 pub mod render;
 pub mod shape;
 pub mod snippet;
