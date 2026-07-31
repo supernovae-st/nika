@@ -182,6 +182,128 @@ fn kit_ships_hooks(client: &str) -> bool {
     matches!(client, "claude" | "cursor")
 }
 
+/// The per-host runtime receipt (H5 · audit UX 2026-07-30: « aucun
+/// receipt runtime commun » — doctor rendered a flat finding pile and
+/// nothing said, per host, WHAT was verified versus assumed). One row
+/// per probed host: the earned level plus the canaries that PROVE it,
+/// the rails still missing for the rung above, and the exact repair
+/// command (printed, never run — the doctor law). The honesty law
+/// applies here too: `level_assumed` flags every level above the
+/// oracle floor, because the hooks half of the climb rests on the
+/// STATIC [`kit_ships_hooks`] table — a manifest find is observed,
+/// « the hooks landed with it » (or did not) is a lookup, and the
+/// receipt says so.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(crate) struct HostCapabilityReceipt {
+    /// The probed host id (`claude` · `cursor` · `hermes` …).
+    pub host: String,
+    /// The installed kit's declared version — `None` when no kit was
+    /// found (the binary's own version is the doctor line's, never the
+    /// host's).
+    pub version: Option<String>,
+    /// The deepest detected surface: `mcp` · `kit` · `hooks`
+    /// (`none` when the host is not wired at all).
+    pub surface: String,
+    /// The config root the probe inspected for this host.
+    pub root: Option<String>,
+    /// Every detected surface, in climb order (mcp → kit → hooks).
+    pub components: Vec<String>,
+    /// The earned capability rung, kebab-case — `unwired` below the
+    /// oracle floor (an unwired host never borrows a rung).
+    pub capability: String,
+    /// What was VERIFIED versus assumed: `config-parsed` is an
+    /// observation, `hooks-assumed-from-kit` is the static table
+    /// talking — the canary NAMES the difference.
+    pub canaries: Vec<String>,
+    /// The surfaces missing for the rung above (`mcp` · `kit` ·
+    /// `hooks` — empty at the guarded ceiling today).
+    pub missing_rails: Vec<String>,
+    /// The exact repair command (printed, never run) — `None` when no
+    /// rail is missing.
+    pub repair: Option<String>,
+    /// `true` when part of the level rests on the static
+    /// [`kit_ships_hooks`] table rather than a direct observation.
+    pub level_assumed: bool,
+}
+
+impl ClientProbe {
+    /// The H5 receipt for THIS host — derived from the SAME probe facts
+    /// [`ClientProbe::capability`] climbs (one truth, never recomputed),
+    /// plus the provenance the flat level token could not carry.
+    #[must_use]
+    pub(crate) fn capability_receipt(&self, kits: &[KitProbe]) -> HostCapabilityReceipt {
+        let kit = kits.iter().find(|k| k.client == self.id);
+        let mut components: Vec<String> = Vec::new();
+        let mut canaries: Vec<String> = Vec::new();
+        let mut missing_rails: Vec<String> = Vec::new();
+        if self.current {
+            components.push("mcp".to_owned());
+        } else {
+            missing_rails.push("mcp".to_owned());
+        }
+        canaries.push(
+            if self.present {
+                "config-parsed"
+            } else {
+                "config-absent"
+            }
+            .to_owned(),
+        );
+        if self.current && kit.is_some() {
+            components.push("kit".to_owned());
+            canaries.push("kit-manifest-found".to_owned());
+            if kit_ships_hooks(&self.id) {
+                components.push("hooks".to_owned());
+                // The static table speaks — the canary NAMES the
+                // assumption instead of laundering it as a detection.
+                canaries.push("hooks-assumed-from-kit".to_owned());
+            } else {
+                missing_rails.push("hooks".to_owned());
+            }
+        } else {
+            missing_rails.push("kit".to_owned());
+            missing_rails.push("hooks".to_owned());
+        }
+        HostCapabilityReceipt {
+            host: self.id.clone(),
+            version: kit.map(|k| k.version.clone()),
+            surface: components
+                .last()
+                .cloned()
+                .unwrap_or_else(|| "none".to_owned()),
+            root: Some(self.path.clone()),
+            components,
+            capability: if self.current {
+                self.capability(kits).as_str().to_owned()
+            } else {
+                "unwired".to_owned()
+            },
+            canaries,
+            repair: if missing_rails.is_empty() {
+                None
+            } else {
+                Some(format!("nika wire {}", self.id))
+            },
+            missing_rails,
+            // Any rung above the oracle floor consulted the static hook
+            // table — presence OR absence of hooks is a lookup there.
+            level_assumed: self.current && kit.is_some(),
+        }
+    }
+}
+
+/// One receipt per probed host — the `receipts` lane of
+/// `doctor --json` (H5 · additive against summary/findings/
+/// `adoption_state`, in probe order).
+#[must_use]
+pub(crate) fn capability_receipts(probe: &Probe) -> Vec<HostCapabilityReceipt> {
+    probe
+        .clients
+        .iter()
+        .map(|client| client.capability_receipt(&probe.kits))
+        .collect()
+}
+
 /// Build the real probe from the environment (PRESENCE-only key checks · the
 /// value is never bound) + the canonical provider catalog. The ONE builder
 /// both `doctor` and `welcome` consume — a second detector would be a
@@ -580,7 +702,16 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
     let clients: Vec<serde_json::Value> = probe
         .clients
         .iter()
-        .map(|c| serde_json::json!({ "id": c.id, "wired": c.current }))
+        .map(|c| {
+            serde_json::json!({
+                "id": c.id,
+                "wired": c.current,
+                // H5 — the earned rung rides next to the wire boolean
+                // (additive): « wired » alone rendered a host parity
+                // that does not exist.
+                "capability": c.capability(&probe.kits).as_str(),
+            })
+        })
         .collect();
     let kits: Vec<serde_json::Value> = probe
         .kits
@@ -1125,6 +1256,74 @@ mod tests {
             CapabilityLevel::FullyIntegrated.as_str(),
             "fully-integrated"
         );
+    }
+
+    // ── The per-host runtime receipt (H5 · audit UX 2026-07-30) ──
+
+    #[test]
+    fn receipt_separates_verified_canaries_from_the_assumed_level() {
+        // H5 — hermes wired MCP-only: the receipt says oracle-only,
+        // names the missing rails (kit · hooks), prints the repair,
+        // and NOTHING is assumed — the wire was parsed, not inferred.
+        let hermes = client("hermes", true);
+        let r = hermes.capability_receipt(&[]);
+        assert_eq!(r.host, "hermes");
+        assert_eq!(r.version, None);
+        assert_eq!(r.surface, "mcp");
+        assert_eq!(r.root.as_deref(), Some(hermes.path.as_str()));
+        assert_eq!(r.components, ["mcp"]);
+        assert_eq!(r.capability, "oracle-only");
+        assert_eq!(r.canaries, ["config-parsed"]);
+        assert!(
+            r.missing_rails.iter().any(|rail| rail == "hooks"),
+            "{:?}",
+            r.missing_rails
+        );
+        assert_eq!(r.repair.as_deref(), Some("nika wire hermes"));
+        assert!(!r.level_assumed);
+
+        // cursor wired + kit: the hooks component rides on the STATIC
+        // `kit_ships_hooks` table — the receipt must NAME the assumption
+        // (canary + level_assumed), never render it as observed.
+        let cursor = client("cursor", true);
+        let r = cursor.capability_receipt(&[versioned_kit("cursor")]);
+        assert_eq!(r.host, "cursor");
+        assert_eq!(r.version.as_deref(), Some("0.106.0"));
+        assert_eq!(r.surface, "hooks");
+        assert_eq!(r.components, ["mcp", "kit", "hooks"]);
+        assert_eq!(r.capability, "guarded");
+        assert!(
+            r.canaries
+                .iter()
+                .any(|canary| canary == "hooks-assumed-from-kit"),
+            "{:?}",
+            r.canaries
+        );
+        assert!(r.missing_rails.is_empty(), "{:?}", r.missing_rails);
+        assert_eq!(r.repair, None);
+        assert!(r.level_assumed, "the hooks claim is a table lookup");
+
+        // codex wired + kit without hooks: authoring is EARNED (the
+        // manifest is found), the missing guard rail is named, and the
+        // level still rests on the static table (hooks absence is a
+        // lookup, not an observation).
+        let codex = client("codex", true);
+        let r = codex.capability_receipt(&[versioned_kit("codex")]);
+        assert_eq!(r.components, ["mcp", "kit"]);
+        assert_eq!(r.capability, "authoring-enabled");
+        assert_eq!(r.missing_rails, ["hooks"]);
+        assert!(r.level_assumed);
+
+        // An unwired host is BELOW the floor: no component, every rail
+        // missing, the repair is the wire — and the receipt never lends
+        // it the « oracle-only » rung it did not earn.
+        let r = client("cursor", false).capability_receipt(&[]);
+        assert_eq!(r.components, Vec::<String>::new());
+        assert_eq!(r.surface, "none");
+        assert_eq!(r.capability, "unwired");
+        assert_eq!(r.missing_rails, ["mcp", "kit", "hooks"]);
+        assert_eq!(r.repair.as_deref(), Some("nika wire cursor"));
+        assert!(!r.level_assumed);
     }
 
     #[test]

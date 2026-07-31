@@ -26,8 +26,8 @@ use std::fmt::Write as _;
 // this module's tests (and historical importers) keep their names.
 use crate::display::theme::{Role, Theme};
 pub(crate) use crate::verbs::probe::{
-    AdoptionState, CapabilityLevel, ClientProbe, ImageProbe, KitProbe, ModelsProbe, PingState,
-    PricingProbe, Probe, ProviderProbe, TtsProbe,
+    AdoptionState, CapabilityLevel, ClientProbe, HostCapabilityReceipt, ImageProbe, KitProbe,
+    ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
 use crate::verbs::{VerbOutput, exit};
 use nika_providers::probe::ExecutionLocus;
@@ -515,8 +515,14 @@ pub(crate) fn exit_code(findings: &[Finding]) -> u8 {
 /// The machine lane (Q7): findings verbatim + a computed summary —
 /// agents/CI branch on `summary.fail` instead of parsing glyphs. P0-21:
 /// the adoption rung rides alongside (additive) — ONE state token the
-/// flat findings could never express.
-pub(crate) fn render_json(findings: &[Finding], state: AdoptionState) -> String {
+/// flat findings could never express. H5: the per-host runtime receipts
+/// ride alongside too (additive) — what each host earned, what was
+/// verified versus assumed, and the repair, per host.
+pub(crate) fn render_json(
+    findings: &[Finding],
+    state: AdoptionState,
+    receipts: &[HostCapabilityReceipt],
+) -> String {
     let count = |lvl: Level| findings.iter().filter(|f| f.level == lvl).count();
     let payload = serde_json::json!({
         "summary": {
@@ -526,6 +532,7 @@ pub(crate) fn render_json(findings: &[Finding], state: AdoptionState) -> String 
         },
         "adoption_state": state.as_str(),
         "findings": findings,
+        "receipts": receipts,
     });
     format!("{payload:#}")
 }
@@ -725,7 +732,11 @@ pub fn run(ping: bool, json: bool, theme: Theme) -> VerbOutput {
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            render_json(&findings, crate::verbs::probe::adoption_state(&probe))
+            render_json(
+                &findings,
+                crate::verbs::probe::adoption_state(&probe),
+                &crate::verbs::probe::capability_receipts(&probe),
+            )
         } else {
             render(&findings, theme)
         },
@@ -1051,7 +1062,7 @@ mod tests {
             },
         ];
         let json: serde_json::Value =
-            serde_json::from_str(&render_json(&findings, AdoptionState::KeyPresent))
+            serde_json::from_str(&render_json(&findings, AdoptionState::KeyPresent, &[]))
                 .expect("valid JSON");
         assert_eq!(json["summary"]["ok"], 1);
         assert_eq!(json["summary"]["fail"], 1);
@@ -1078,9 +1089,90 @@ mod tests {
             (AdoptionState::RealReady, "real_ready"),
         ] {
             let json: serde_json::Value =
-                serde_json::from_str(&render_json(&findings, state)).expect("valid JSON");
+                serde_json::from_str(&render_json(&findings, state, &[])).expect("valid JSON");
             assert_eq!(json["adoption_state"], token, "{state:?}");
         }
+    }
+
+    /// H5 — the machine lane gains the per-host runtime receipts
+    /// ADDITIVELY: summary · findings · `adoption_state` stay verbatim,
+    /// and each receipt carries the verified-vs-assumed provenance the
+    /// flat findings never could.
+    #[test]
+    fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
+        let probe = Probe {
+            models: ModelsProbe::default(),
+            version: "0.96.0".to_owned(),
+            config_path: None,
+            providers: vec![local("ollama")],
+            clients: vec![
+                ClientProbe {
+                    id: "hermes".to_owned(),
+                    path: "~/.hermes/config.yaml".to_owned(),
+                    present: true,
+                    current: true,
+                    stale: false,
+                },
+                ClientProbe {
+                    id: "cursor".to_owned(),
+                    path: "~/.cursor/mcp.json".to_owned(),
+                    present: true,
+                    current: true,
+                    stale: false,
+                },
+            ],
+            kits: vec![KitProbe {
+                client: "cursor".to_owned(),
+                version: "0.106.0".to_owned(),
+            }],
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
+            recorded_runs: 0,
+        };
+        let findings = diagnose(&probe);
+        let json: serde_json::Value = serde_json::from_str(&render_json(
+            &findings,
+            AdoptionState::KeyPresent,
+            &crate::verbs::probe::capability_receipts(&probe),
+        ))
+        .expect("valid JSON");
+        // The pre-H5 fields are untouched (additive means additive).
+        assert_eq!(
+            json["summary"]["ok"],
+            findings.iter().filter(|f| f.level == Level::Ok).count() as u64
+        );
+        assert_eq!(json["findings"][0]["label"], "binary");
+        assert_eq!(json["adoption_state"], "key_present");
+        // The receipts lane: one row per probed host, in probe order.
+        let receipts = json["receipts"].as_array().expect("receipts array");
+        assert_eq!(receipts.len(), 2);
+        assert_eq!(receipts[0]["host"], "hermes");
+        assert_eq!(receipts[0]["capability"], "oracle-only");
+        assert_eq!(receipts[0]["repair"], "nika wire hermes");
+        assert_eq!(receipts[0]["level_assumed"], false);
+        assert!(
+            receipts[0]["missing_rails"]
+                .as_array()
+                .expect("rails")
+                .iter()
+                .any(|rail| rail == "hooks"),
+            "{receipts:?}"
+        );
+        assert_eq!(receipts[1]["host"], "cursor");
+        assert_eq!(receipts[1]["capability"], "guarded");
+        assert_eq!(receipts[1]["version"], "0.106.0");
+        assert_eq!(receipts[1]["level_assumed"], true);
+        assert_eq!(
+            receipts[1]["components"]
+                .as_array()
+                .expect("components")
+                .len(),
+            3
+        );
     }
 
     // ── The pricing snapshot line (Cost Intelligence 2026-07-08) ──
