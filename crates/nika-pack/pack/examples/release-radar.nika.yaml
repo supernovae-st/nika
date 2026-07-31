@@ -7,17 +7,12 @@
 # own feeds. `mode: feed` parses RSS/Atom natively · the diff against last
 # run's state means you only hear about what is NEW.
 #
-# ⚠ THIS FILE IS THE CORPUS'S ONE DELIBERATE RED · `nika check` exits 2 with
-#   NIKA-SEC-009 (lethal trifecta · private read + untrusted ingress + external
-#   egress with no dominating human gate). The gate over-approximates here:
-#   the "egress" it names is `save_state`, a LOCAL write of the workflow's own
-#   state file. The decision to leave this red rather than silence it is
-#   recorded at the nika engine repo · docs/plans/2026-07-28-verdict-coverage.md
-#   (§DECIDED · SEC-009). Adding a `nika:prompt` just to turn it green would
-#   be ceremony bolted on to quiet a security message — on a file people copy.
-#   A red gate reporting something true is the honest state.
-#
 # Demonstrates ·
+#   - the root human gate over a real trifecta · this boundary permits all
+#     three legs (private state read · untrusted feed · state write), so a
+#     blocking `nika:prompt` sits at the ROOT and every effecting task rides
+#     its answer — measured: check is GREEN (TRIFECTA ✔) and a NO run exits 0
+#     with the state file untouched
 #   - `nika:fetch` `mode: feed` · RSS/Atom parsing built in
 #   - the state-file pattern · read last run → diff → write next state, one
 #     path on both sides
@@ -33,6 +28,9 @@
 #   with an empty previous state. The hint cannot see the recovery.
 #
 # Run · nika run examples/release-radar.nika.yaml
+#   It runs green but PAUSES at the `approve` gate (exit 4 · durable, not an
+#   error) — resume with `nika run <file> --resume <trace> --answer
+#   approve=true`, or answer in one pass: `--answer approve=true`.
 #   Run it twice: the first run reports everything as new and writes the
 #   state, the second reports only what shipped in between.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
@@ -49,6 +47,8 @@ const:
   state_path: "out/release-radar.json"
 permits:
   tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:prompt", "nika:read", "nika:write"]
+  net:
+    http: ["github.com"]   # the feed's host · net entries are exact names, never globs
   fs:
     # The state-file pattern touches exactly ONE path, on both sides: read
     # last run's state, write the next. `const.state_path` names it and a run
@@ -56,8 +56,6 @@ permits:
     # `create_dirs:` makes out/ underneath it on the first run.
     read: ["out/release-radar.json"]
     write: ["out/release-radar.json"]
-  net:
-    http: ["github.com"]   # the feed's host · net entries are exact names, never globs
 
 tasks:
   # The human gate first (NIKA-SEC-009 · NEP-0002, the Rule of Two as a
@@ -102,22 +100,40 @@ tasks:
         url: "${{ const.releases_feed }}"
         mode: feed
     output:
-      entries: "[.items[] | {title, url, published}]"
+      entries: "[.items[] | {title, link}]"
     on_error:
-      # No network → this sample stands in for the RAW feed response, so it
-      # carries `items:` exactly as `mode: feed` returns it and the `output:`
-      # jq above runs over it unchanged. Recovering the BINDING's shape
-      # instead makes the jq throw NIKA-VAR-004 — the recovery must mirror the
-      # response, never the binding.
+      # No network → this sample stands in for the RAW feed response: it
+      # carries `items:` under the keys `mode: feed` actually returns
+      # (probed live on this feed: title · link · id · author · content —
+      # there is no `published` field), so the `output:` jq above runs over
+      # it unchanged. Recovering the BINDING's shape instead makes the jq
+      # throw NIKA-VAR-004 — the recovery must mirror the response, never
+      # the binding.
       recover:
         items:
-          - { title: "tokio 1.48.0", url: "https://github.com/tokio-rs/tokio/releases/tag/tokio-1.48.0", published: "2026-07-21T09:14:00Z" }
-          - { title: "tokio 1.47.1", url: "https://github.com/tokio-rs/tokio/releases/tag/tokio-1.47.1", published: "2026-07-02T16:40:00Z" }
+          - { title: "tokio 1.48.0", link: "https://github.com/tokio-rs/tokio/releases/tag/tokio-1.48.0" }
+          - { title: "tokio 1.47.1", link: "https://github.com/tokio-rs/tokio/releases/tag/tokio-1.47.1" }
+
+  # `nika:read` hands back a STRING — a file is text until you parse it.
+  # Measured: diffing the unparsed read against the entries array emits ONE
+  # whole-document `replace` op at path "" on every run after the first,
+  # so everything is reported as new, forever. The first-run recovery is
+  # already an array; the guard keeps both shapes.
+  previous_parsed:
+    with:
+      previous: ${{ tasks.previous.output }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.previous }}"
+        expression: 'if type == "string" then fromjson else . end'
 
   fresh:
     with:
-      previous: ${{ tasks.previous.output }}
+      go: ${{ tasks.approve.output }}
+      previous: ${{ tasks.previous_parsed.output }}
       entries: ${{ tasks.feed.entries }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:json_diff"
       args:
@@ -126,9 +142,10 @@ tasks:
 
   digest:
     with:
+      go: ${{ tasks.approve.output }}
       fresh: ${{ tasks.fresh.output }}
       entries: ${{ tasks.feed.entries }}
-    when: ${{ size(with.fresh) > 0 }}
+    when: ${{ with.go == true && size(with.fresh) > 0 }}
     infer:
       max_tokens: 500
       prompt: |
@@ -141,7 +158,9 @@ tasks:
 
   save_state:
     with:
+      go: ${{ tasks.approve.output }}
       entries: ${{ tasks.feed.entries }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:write"
       args:

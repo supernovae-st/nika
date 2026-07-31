@@ -164,10 +164,13 @@ pub(crate) const REDACTED: &str = "***";
 const WIDE_SCRUB_MIN: usize = 8;
 
 /// The String fields that can carry a resolved secret's VALUE — the
-/// terminal frame's `outcome` payload (spec 13 · serialized task data)
-/// and the ADR-099 `output` rehydration text. Short needles scrub ONLY
-/// these; digests · ids · labels stay outside by construction.
-const PAYLOAD_FIELDS: [&str; 2] = ["outcome", crate::resume::fields::OUTPUT];
+/// terminal frame's `outcome` payload (spec 13 · serialized task data),
+/// the ADR-099 `output` rehydration text, and the failure frame's
+/// `detail` (`error.code · error.message` — the message embeds up to
+/// 1024 bytes of raw process stderr, the audit's 6-byte OTP leak).
+/// Short needles scrub ONLY these; digests · ids · labels stay outside
+/// by construction.
+const PAYLOAD_FIELDS: [&str; 3] = ["outcome", crate::resume::fields::OUTPUT, "detail"];
 
 /// The dynamic-flow backstop (S1). The static IFC sanctions every
 /// DECLARED secret flow; it cannot see a value that reaches a task's
@@ -378,6 +381,34 @@ mod tests {
         .with_field(KeyValue::new("tokens", FieldValue::Int(7)))
     }
 
+    /// One failure-shaped event whose `detail` field carries `payload`
+    /// verbatim — the settle.rs `error.code · error.message` frame,
+    /// where the message embeds up to 1024 bytes of raw process stderr
+    /// (the audit's 6-byte OTP leak).
+    fn detail_event(payload: &str) -> Event {
+        Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            EventKind::TaskFailed,
+        )
+        .with_field(KeyValue::new(
+            "detail",
+            FieldValue::String(payload.to_owned()),
+        ))
+    }
+
+    fn field_text<'e>(event: &'e Event, key: &str) -> &'e str {
+        event
+            .fields
+            .iter()
+            .find(|kv| kv.key == key)
+            .and_then(|kv| match &kv.value {
+                FieldValue::String(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("the {key} field rides"))
+    }
+
     fn resolved(secret: &str) -> BTreeMap<String, Value> {
         BTreeMap::from([("tok".to_owned(), Value::String(secret.to_owned()))])
     }
@@ -393,15 +424,7 @@ mod tests {
     }
 
     fn outcome_of(event: &Event) -> &str {
-        event
-            .fields
-            .iter()
-            .find(|kv| kv.key == "outcome")
-            .and_then(|kv| match &kv.value {
-                FieldValue::String(s) => Some(s.as_str()),
-                _ => None,
-            })
-            .expect("the outcome field rides")
+        field_text(event, "outcome")
     }
 
     /// The audit's leak: a resolved value surfaced inside a task output
@@ -481,19 +504,60 @@ mod tests {
         let events = scrubbed(secret, event);
         let outcome = outcome_of(&events[0]);
         assert!(outcome.contains(REDACTED), "payload scrubbed: {outcome}");
-        let integrity = events[0]
-            .fields
-            .iter()
-            .find(|kv| kv.key == "integrity")
-            .and_then(|kv| match &kv.value {
-                FieldValue::String(s) => Some(s.as_str()),
-                _ => None,
-            })
-            .expect("the integrity field rides");
+        let integrity = field_text(&events[0], "integrity");
         assert_eq!(
             integrity, "attested",
             "a short needle never touches non-payload fields"
         );
+    }
+
+    /// The audit's `detail` leak (2026-07-31): a failed exec journals
+    /// `error.code · error.message` as the `detail` field — and the
+    /// message embeds raw process stderr, so a 6-byte OTP rides the
+    /// trace in plaintext while the `outcome` copy is scrubbed.
+    /// `detail` is a value-payload field: the needle must not survive.
+    #[test]
+    fn short_secret_scrubs_the_detail_field() {
+        let secret = "827351"; // the 6-byte OTP — under WIDE_SCRUB_MIN
+        let events = scrubbed(
+            secret,
+            detail_event(&format!(
+                "NIKA-EXEC-001 · command exited with status 3: {secret}"
+            )),
+        );
+        let detail = field_text(&events[0], "detail");
+        assert!(
+            !detail.contains(secret),
+            "the detail copy carries no plaintext: {detail}"
+        );
+        assert!(
+            detail.contains(REDACTED),
+            "the marker stands in its place: {detail}"
+        );
+    }
+
+    proptest! {
+        /// The `detail` sibling of the length property above: a needle
+        /// of ANY length under the wide-scrub threshold is rewritten in
+        /// the failure frame's detail payload, never just in `outcome`.
+        #[test]
+        fn redacting_sink_redacts_a_short_secret_in_detail(
+            secret in "[a-zA-Z0-9]{1,7}",
+        ) {
+            let events = scrubbed(
+                &secret,
+                detail_event(&format!("NIKA-EXEC-001 · boom: {secret}")),
+            );
+            let detail = field_text(&events[0], "detail");
+            prop_assert!(
+                !detail.contains(&secret),
+                "the short value is gone from detail: {detail}"
+            );
+            prop_assert!(
+                detail.contains(REDACTED),
+                "the marker stands: {detail}"
+            );
+        }
     }
 
     /// An EMPTY resolved value never joins the scrub set — replacing

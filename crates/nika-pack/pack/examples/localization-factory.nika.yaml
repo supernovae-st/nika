@@ -22,8 +22,9 @@
 #     `./i18n/fr/guides/deploying.md`, not the source tree nested twice
 #
 # Run · nika run examples/localization-factory.nika.yaml
-#         (runs as-is from the repo root on the committed fixture ·
-#          add --model mock/echo for a zero-key rehearsal)
+#         (from the repo root on the committed fixture · the translate wave
+#          wants ollama serving qwen3.5:4b — add --model mock/echo for a
+#          zero-key rehearsal that needs nothing)
 #
 #       To translate YOUR docs, edit `const.source_root` AND the matching
 #       `permits.fs.read` entry TOGETHER: a permit is a literal you can

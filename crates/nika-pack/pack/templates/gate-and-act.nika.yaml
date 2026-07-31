@@ -26,7 +26,8 @@
 nika: v1
 workflow:
   id: gate-and-act-template     # SLOT: kebab-case workflow id
-  description: "watch a value · act only when the condition holds"   # SLOT
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "watch a value · act only when the condition holds"
 
 const:
   source_url: "https://api.example.com/v1/value"   # SLOT: what to watch

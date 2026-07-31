@@ -20,6 +20,9 @@
 #     the batch by VALUE, after the fact — it never aborts the fan-out
 #   - `when:` cascading by value · an empty shortlist writes no brief
 #
+# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
+#   No ollama? --model mock/echo rehearses the whole screen zero-key.
+#
 # Run · nika run examples/resume-screener.nika.yaml
 #         (runs as-is from the repo root on three committed fixture CVs ·
 #          add --model mock/echo for a zero-key rehearsal)
@@ -31,7 +34,7 @@
 nika: v1
 workflow:
   id: resume-screener
-  description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
+  description: "screen resumes · glob CVs → local-model rubric per candidate → deterministic hiring shortlist"
 
 model: ollama/qwen3.5:4b   # PII stays on the machine · the whole screen is offline
 

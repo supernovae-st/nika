@@ -27,7 +27,8 @@
 #
 # Run · nika run examples/ceo-monday-brief.nika.yaml
 #       · rehearse with no keys and no network · add --model mock/echo
-#       · arm the founders ping · add --var alert=true (see permits.net.http)
+#       · arm the founders ping · add --var alert=true — FOUNDERS_WEBHOOK_URL must be
+#         set or the armed run dies NIKA-VAR-001 at `alert` (see permits.net.http)
 
 nika: v1
 workflow:

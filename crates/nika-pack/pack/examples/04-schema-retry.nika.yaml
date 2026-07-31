@@ -36,7 +36,7 @@ inputs:
     # caller must type one. `--var text=…` overrides the default.
     default: "Ada Lovelace met Charles Babbage in London"
     required: true
-    description: "Free text to extract named entities from"
+    description: "Free text to extract named entities from — people, places, organizations, returned as schema-guaranteed structured JSON"
 
 tasks:
   extract:
@@ -62,8 +62,9 @@ tasks:
                 type: { type: string, enum: [person, place, organization] }
     retry:
       # For TRANSIENT failures — a provider 503, a dropped connection. A
-      # response that misses the schema is a different animal: it is a
-      # validation error, and the engine's own re-ask handles that.
+      # response that misses the schema is a different animal: a validation
+      # error (NIKA-INFER-002 · transient: false), which retry: never fires
+      # on — any re-ask is the engine's own, internal (02-verbs.md §infer).
       max_attempts: 3
       backoff_strategy: exponential   # 1s · 2s · 4s …
       jitter: true                    # anti-thundering-herd (the default)
