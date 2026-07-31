@@ -103,7 +103,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | branch           | `feat/f-p6-preview-commit`                                      |
 | HEAD             | `01cc64266` (`01cc64266925d7f57e72ea3df8dca9a2259efec9`)             |
-| workspace        | v0.106.1                                  |
+| workspace        | v0.107.0                                  |
 | crates (workspace)| 60                                              |
 | crates (admitted)| 56                                             |
 | crates (WIP)     | 4 — nika-chart nika-fx nika-proof nika-store                                  |

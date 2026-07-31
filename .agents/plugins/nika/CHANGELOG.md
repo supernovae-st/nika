@@ -15,6 +15,10 @@ command. A sixth slash command lands: `/nika:doctor` — the agent-side
 handshake (`nika doctor` now probes the three kit landings and prints
 the per-client refresh, both rungs named for Claude Code).
 
+## 0.107.0 — 2026-07-31
+
+Lockstep on the engine wave.
+
 ## 0.106.0 — 2026-07-27
 
 Lockstep on the engine wave.
