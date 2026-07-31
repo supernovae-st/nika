@@ -75,6 +75,25 @@ fn exit_code(session: &mut LoggedSession) -> i32 {
     }
 }
 
+/// Every trace journal the scenario wrote, as text. An ask leg writes
+/// its OWN trace (pause journal · then the resumed leg's) — two births
+/// in the same second differ only by the random name tail, so picking
+/// "the newest by name" elected the WRONG file (the first red run's
+/// lesson). Assertions scan ALL of them instead.
+fn trace_journals(dir: &std::path::Path) -> Vec<String> {
+    let traces = dir.join(".nika/traces");
+    let mut bodies: Vec<String> = std::fs::read_dir(&traces)
+        .expect("trace dir")
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
+        .map(|p| std::fs::read_to_string(&p).expect("trace read"))
+        .collect();
+    bodies.sort();
+    assert!(!bodies.is_empty(), "a trace was written");
+    bodies
+}
+
 #[test]
 fn the_gate_asks_on_a_terminal_and_the_answer_completes_the_run() {
     let dir = fresh_dir("answered");
@@ -95,23 +114,16 @@ fn the_gate_asks_on_a_terminal_and_the_answer_completes_the_run() {
     p.expect(Eof).expect("conversation ends");
     assert_eq!(exit_code(&mut p), 0, "answered gate completes the run");
 
-    // DEEP: the answer reached downstream (the trace journals `went true`).
-    let traces = dir.join(".nika/traces");
-    let newest = std::fs::read_dir(&traces)
-        .expect("trace dir")
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
-        .max()
-        .expect("a trace was written");
-    let journal = std::fs::read_to_string(&newest).expect("trace read");
+    // DEEP: the answered leg's journal exists — the bound answer reached
+    // downstream and the run completed (the pause leg's journal sits
+    // beside it; both are honest).
+    let journals = trace_journals(dir);
     assert!(
-        journal.contains("went true"),
-        "downstream observed the bound answer:\n{journal}"
-    );
-    assert!(
-        journal.contains("\"kind\":\"workflow_completed\""),
-        "{journal}"
+        journals
+            .iter()
+            .any(|j| j.contains("\"kind\":\"workflow_completed\"") && j.contains("went true")),
+        "one journal carries the completed run + the bound answer:\n{}",
+        journals.join("\n────\n")
     );
 }
 
@@ -127,22 +139,21 @@ fn walking_away_leaves_the_durable_pause() {
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 4, "run state paused · exit 4");
 
-    // DEEP: the trace journals the pause, not a failure — resumable later.
-    let traces = dir.join(".nika/traces");
-    let newest = std::fs::read_dir(&traces)
-        .expect("trace dir")
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
-        .max()
-        .expect("a trace was written");
-    let journal = std::fs::read_to_string(&newest).expect("trace read");
+    // DEEP: the journal carries the pause, and NO journal carries a
+    // failure — the walk-away is resumable later.
+    let journals = trace_journals(dir);
     assert!(
-        journal.contains("\"kind\":\"workflow_paused\""),
-        "{journal}"
+        journals
+            .iter()
+            .any(|j| j.contains("\"kind\":\"workflow_paused\"")),
+        "{}",
+        journals.join("\n────\n")
     );
     assert!(
-        !journal.contains("\"kind\":\"workflow_failed\""),
-        "a pause is never a failure:\n{journal}"
+        journals
+            .iter()
+            .all(|j| !j.contains("\"kind\":\"workflow_failed\"")),
+        "a pause is never a failure:\n{}",
+        journals.join("\n────\n")
     );
 }
