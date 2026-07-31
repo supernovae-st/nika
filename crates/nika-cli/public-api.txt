@@ -372,6 +372,8 @@ pub fn nika_cli::verbs::graph::GraphFormatArg::vzip(self) -> V
 pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::GraphFormat, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::graph::to_dot(doc: &nika_graph::GraphDoc) -> alloc::string::String
 pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_graph::GraphDoc) -> alloc::string::String
+pub mod nika_cli::verbs::guard
+pub fn nika_cli::verbs::guard::run(stdin: bool, command: core::option::Option<&str>, cwd: core::option::Option<&str>, human: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::init
 pub use nika_cli::verbs::init::RECIPE_NAMES
 pub use nika_cli::verbs::init::agents_md

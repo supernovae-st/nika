@@ -138,6 +138,11 @@ prints the build recipe).
   `env:` map. A variable the child needs must be named.
 - Secrets come from the environment (`${{ secrets.X }}`) — never inline.
 - `nika check` must be clean before `nika run` (audit-before-run is enforced).
+- The wired shell hook's judge is `nika guard` (the execution seatbelt):
+  before a `nika run` leaves the agent's shell it audits the exact file —
+  a red file or a priced model without `--max-cost-usd` is denied with the
+  findings; `guard_unavailable` means the judge could not see, never that
+  the check passed.
 ";
 
 /// `.cursor/rules/nika.mdc` — the agent-facing authoring floor for Cursor.

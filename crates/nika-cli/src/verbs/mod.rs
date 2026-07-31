@@ -21,6 +21,7 @@ pub mod explain_file;
 pub mod fix;
 pub(crate) mod forecast;
 pub mod graph;
+pub mod guard;
 pub mod init;
 pub mod inspect;
 pub mod key;

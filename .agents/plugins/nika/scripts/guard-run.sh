@@ -1,140 +1,48 @@
 #!/usr/bin/env bash
-# guard-run — the execution seatbelt: before the agent shells out a
-# `nika run`, audit the workflow. Check is the gate the language is
-# built on; an agent must not be able to skip it by accident.
+# guard-run — the execution seatbelt, THIN: the judgement now lives IN
+# the binary (`nika guard`). This shim only carries the host's payload
+# to it and its verdict back — the regex/split era is over (P0-15 ·
+# audit UX 2026-07-30: 21 documented bypasses, from the absolute-path
+# miss to the unquoted split that failed open on an empty file token).
 #
-# ONE script, TWO dialects, THREE surfaces (Codex emits the Claude Code
-# dialect verbatim — live-proven 2026-07-12). Sniffed from stdin — `hook_event_name` is
-# Claude Code's, absent from Cursor's):
+# ONE script, TWO dialects, sniffed from stdin (`hook_event_name` is
+# Claude Code's, absent from Cursor's; Codex emits the Claude Code
+# dialect verbatim — live-proven 2026-07-12):
 #   Cursor  (docs/agent/hooks · beforeShellExecution): in {command, cwd}
-#     → out {"permission":"allow"|"deny", agent_message/user_message}.
 #   Claude Code (hooks.md · PreToolUse · matcher Bash): in
-#     {hook_event_name, tool_name, tool_input:{command}, cwd} → deny is
-#     {"hookSpecificOutput":{"hookEventName":"PreToolUse",
-#     "permissionDecision":"deny","permissionDecisionReason":…}}; the
-#     no-opinion pass is `{}` — NEVER "allow", which would skip the
-#     user's own permission prompt (the hook teaches, it never widens).
+#     {hook_event_name, tool_name, tool_input:{command}, cwd}
 #
-# Deny is TEACHING, not punishment: the reason carries the findings so
-# the agent repairs and reruns — the check loop becomes structurally
-# unskippable. Everything else fails open: a missing binary, a file we
-# cannot find, a broken oracle (exit 3) must never block a terminal.
-set -euo pipefail
+# Loi 12 — the hooks are a seatbelt, never the airbag: a missing or
+# broken judge must be VISIBLE. The fallback below emits a
+# guard_unavailable DENIAL naming the degradation, never the silent
+# fail-open that made the old hook claim the check had passed.
+set -uo pipefail
 
 input="$(cat)"
 
-cc=""
-case "$input" in *hook_event_name*) cc=1 ;; esac
-
-allow() {
-  if [ -n "$cc" ]; then
-    printf '{}\n' # no opinion — the user's permission flow proceeds
-  else
-    printf '{"permission":"allow"}\n'
-  fi
+unavailable() {
+  # $1 = a one-line reason — fixed strings and an exit code only, never
+  # raw payload bytes (hand-interpolated JSON stays injection-free by
+  # construction, the same law the old fixed-message fallback obeyed).
+  case "$input" in
+    *hook_event_name*)
+      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"guard_unavailable: %s — the guard could not judge, and an unjudged run never gets its allow. Judge by hand: nika check <file> — or run outside the agent, where the run belongs to you."}}\n' "$1"
+      ;;
+    *)
+      printf '{"permission":"deny","agent_message":"guard_unavailable: %s — the guard could not judge, and an unjudged run never gets its allow. Judge by hand: nika check <file>.","user_message":"nika run blocked: the guard is unavailable (%s) — run nika check yourself."}\n' "$1" "$1"
+      ;;
+  esac
   exit 0
 }
 
-# command + cwd from the stdin JSON — python3 when present, sed fallback
-# (in a Bash PreToolUse payload the only "command" key is
-# tool_input.command, so the flat fallback matches both dialects).
-if command -v python3 >/dev/null 2>&1; then
-  cmd="$(printf '%s' "$input" | python3 -c 'import json,sys
-try:
-    d = json.load(sys.stdin)
-    print(d.get("command") or d.get("tool_input", {}).get("command", ""))
-except Exception:
-    print("")' 2>/dev/null || true)"
-  cwd="$(printf '%s' "$input" | python3 -c 'import json,sys
-try:
-    print(json.load(sys.stdin).get("cwd", ""))
-except Exception:
-    print("")' 2>/dev/null || true)"
-else
-  cmd="$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
-  cwd="$(printf '%s' "$input" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+command -v nika >/dev/null 2>&1 || unavailable "the nika binary is not on PATH"
+
+# 0 allow · 2 deny · 3 guard_unavailable all carry the verdict JSON on
+# stdout; anything else (a crash, silence) means the judge itself broke.
+out="$(printf '%s' "$input" | nika guard --stdin 2>/dev/null)" && rc=0 || rc=$?
+if [ -z "$out" ] || [ "$rc" -gt 3 ]; then
+  unavailable "nika guard failed (exit $rc)"
 fi
 
-# Only `nika run …` is gated — every other command flows.
-printf '%s' "$cmd" | grep -qE '(^|[;&|[:space:]])nika[[:space:]]+run([[:space:]]|$)' || allow
-
-# A resumed run replays an already-audited plan from its trace; the
-# gate is for fresh runs of the file as it stands now.
-case "$cmd" in *--resume*) allow ;; esac
-
-# The workflow file: first *.nika.yaml / *.nika.yml token in the command.
-file=""
-# set -f: the unquoted expansion must split into words WITHOUT
-# globbing (a literal `nika run *.nika.yaml` would otherwise expand
-# against the hook's own cwd).
-set -f
-for word in $cmd; do
-  case "$word" in
-    *.nika.yaml | *.nika.yml)
-      file="$word"
-      break
-      ;;
-  esac
-done
-set +f
-[ -n "$file" ] || allow
-
-# Resolve relative to the payload cwd; unfindable file fails open
-# (the run itself will name the real error better than we can).
-case "$file" in
-  /*) ;;
-  *) [ -n "$cwd" ] && file="$cwd/$file" ;;
-esac
-[ -f "$file" ] || allow
-command -v nika >/dev/null 2>&1 || allow
-
-# --native-strict: the gate before a run is the last place to catch a
-# workflow whose real work sits inside an `exec` of a helper script —
-# nothing there is bounded by permits, replayable from the trace, or
-# visible to check. Verified before wiring: only script wrappers fail;
-# `exec git` passes ledger or not, so no legitimate run is refused.
-set +e
-findings="$(nika check "$file" --native-strict --color never 2>&1)"
-rc=$?
-set -e
-
-# rc 0 = clean → run flows. rc 2 = findings → deny and teach.
-# Anything else (3 = broken oracle) fails open.
-if [ "$rc" -ne 2 ]; then
-  allow
-fi
-
-findings="$(printf '%s' "$findings" | head -c 2000)"
-
-if command -v python3 >/dev/null 2>&1; then
-  # env on the CONSUMER: `VAR=x cmd1 | cmd2` binds VAR to cmd1 only.
-  printf '%s' "$findings" | CC="$cc" python3 -c '
-import json, os, sys
-findings = sys.stdin.read()
-msg = ("nika check failed on this workflow - repair the findings, then "
-       "re-check with the SAME oracle this gate used:\n"
-       "  nika check --native-strict <file>\n"
-       "The bare form passes workflows this gate refuses, so a green "
-       "from it will not open the door.\n\n" + findings)
-if os.environ.get("CC"):
-    print(json.dumps({"hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
-        "permissionDecisionReason": msg,
-    }}))
-else:
-    print(json.dumps({
-        "permission": "deny",
-        "agent_message": msg,
-        "user_message": "nika run blocked: the workflow does not pass nika check yet.",
-    }))'
-else
-  # No python3: a fixed, pre-escaped message (never interpolate raw
-  # findings into JSON by hand).
-  if [ -n "$cc" ]; then
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"nika check failed on this workflow - run nika check on the file, repair the findings it names, then run again."}}\n'
-  else
-    printf '{"permission":"deny","agent_message":"nika check failed on this workflow - run nika check on the file, repair the findings it names, then run again.","user_message":"nika run blocked: the workflow does not pass nika check yet."}\n'
-  fi
-fi
+printf '%s\n' "$out"
 exit 0

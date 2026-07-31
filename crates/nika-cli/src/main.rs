@@ -331,6 +331,16 @@ enum Command {
         #[command(subcommand)]
         action: verbs::receipt::ReceiptAction,
     },
+    /// The hook's judge (hidden — the wired `guard-run.sh` shim calls it,
+    /// agents never type it): read a host hook payload (`--stdin`) or one
+    /// command line (`--command`), find every effective `nika run`, audit
+    /// the EXACT file in-process, and answer the hook protocol. P0-7 +
+    /// P0-15: a red file or a priced model without `--max-cost-usd` is
+    /// denied; an unjudgeable run is a VISIBLE `guard_unavailable`, never
+    /// a silent allow. The run belongs to the human — guard JUDGES, it
+    /// never executes.
+    #[command(hide = true)]
+    Guard(GuardArgs),
     /// Debug Adapter Protocol server (stdio) — time-travel a recorded
     /// run under a debugger UI: breakpoints on task lines · step forward
     /// AND back through settles · outputs in the variables pane. Replay
@@ -378,6 +388,28 @@ enum Command {
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
     },
+}
+
+/// The hidden `guard` arm's flags (the `RunArgs` tuple-variant precedent).
+#[derive(Args)]
+struct GuardArgs {
+    /// Read the host hook JSON payload from stdin (the shim's wire:
+    /// Cursor `{command, cwd}` · Claude Code `PreToolUse`
+    /// `{tool_input:{command}, cwd}` — sniffed by `hook_event_name`).
+    #[arg(long)]
+    stdin: bool,
+    /// Judge ONE shell command line instead of a hook payload.
+    #[arg(long, value_name = "LINE", conflicts_with = "stdin")]
+    command: Option<String>,
+    /// The directory the command runs in (with `--command`; the
+    /// payload's `cwd` wins on the stdin wire, the process cwd
+    /// otherwise).
+    #[arg(long, value_name = "DIR", requires = "command")]
+    cwd: Option<String>,
+    /// The human reading (allow · deny · `guard_unavailable` + why)
+    /// instead of the hook JSON protocol.
+    #[arg(long)]
+    human: bool,
 }
 
 #[derive(Args)]
@@ -648,6 +680,7 @@ fn main() -> std::process::ExitCode {
         Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
         Command::Evidence { args } => evidence_run(args),
         Command::Receipt { action } => emit(&verbs::receipt::run(action)),
+        Command::Guard(args) => guard_verb(&args, plain_theme),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -673,6 +706,25 @@ fn main() -> std::process::ExitCode {
         } => verbs::mcp_pins::mcp_verb(action, transport, port, &bind),
     };
     std::process::ExitCode::from(code)
+}
+
+/// The `guard` arm's routing — the hook wire OWNS stdout like lsp/mcp:
+/// the verdict JSON is the protocol on EVERY exit class (0 allow · 2
+/// deny · 3 `guard_unavailable`), so this bypasses `emit` (which routes
+/// exit 3 to stderr — the host would see nothing, the exact
+/// silent-degradation class the verb exists to kill).
+fn guard_verb(args: &GuardArgs, theme: Theme) -> u8 {
+    let out = verbs::guard::run(
+        args.stdin,
+        args.command.as_deref(),
+        args.cwd.as_deref(),
+        args.human,
+        theme,
+    );
+    if !out.text.is_empty() {
+        println!("{}", out.text.trim_end());
+    }
+    out.code
 }
 
 /// The `evidence` arm's routing: resolve the trace (store handle or
