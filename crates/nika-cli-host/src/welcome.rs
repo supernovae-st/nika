@@ -503,6 +503,15 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
             String::new()
         }
     );
+    local_provider_lines(s, probe, theme);
+    sovereign_and_keys_lines(s, probe, glance, ctx, theme);
+}
+
+/// The keyless rows: the local-provider summary line + the P0-20
+/// endpoint rows (an override moves « local » off the box — the engine
+/// is NAMED with endpoint + locus, never laundered under « no key
+/// needed »; loopback stays silent, the default render keeps its bytes).
+fn local_provider_lines(s: &mut String, probe: &Probe, theme: Theme) {
     let locals: Vec<&str> = probe
         .providers
         .iter()
@@ -522,10 +531,6 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
             theme.paint(Role::Dim, "· no key needed"),
         );
     }
-    // P0-20 · an endpoint override (NIKA_<ID>_BASE_URL · OLLAMA_HOST)
-    // moves « local » off this box: the engine is NAMED with endpoint +
-    // locus, never laundered under « no key needed ». Loopback stays
-    // silent — the default render keeps its exact bytes.
     for p in &probe.providers {
         if !p.requires_key
             && matches!(
@@ -542,6 +547,16 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
             );
         }
     }
+}
+
+/// The tail of the machine section (post-provider rows).
+fn sovereign_and_keys_lines(
+    s: &mut String,
+    probe: &Probe,
+    glance: Glance,
+    ctx: &ContextView,
+    theme: Theme,
+) {
     // The sovereign lane — ONLY when bytes are on disk (a mirror line
     // must carry information, never a lecture; zero models = silence).
     if probe.models.count > 0 {

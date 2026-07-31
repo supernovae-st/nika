@@ -127,10 +127,10 @@ pub(crate) enum Capability {
 
 impl Capability {
     /// The stable wire spelling (contract JSON · messages).
-    // dead_code-allow: the variant wire form ships with `to_json` (the
-    // contract's serializable surface, P0-1) — consumed crate-side today
-    // by the test ratchet, by the next wave's messages tomorrow.
-    #[allow(dead_code)]
+    // test-pinned: the variant wire form ships with `to_json` (the
+    // contract's serializable surface, P0-1) — pinned by the ratchet
+    // tests today, un-gated the day a prod display consumes it.
+    #[cfg(test)]
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::FsRead => "fs-read",
@@ -178,10 +178,10 @@ pub(crate) struct IntentContract {
 impl IntentContract {
     /// The contract as JSON (`serde_json` is already a crate dependency —
     /// serialization rides it instead of adding a serde-derive edge).
-    // dead_code-allow: the P0-1 deliverable (« a serializable
+    // test-pinned: the P0-1 deliverable (« a serializable
     // IntentContract ») — the surface the next wave's displays consume;
-    // pinned today by the serialization ratchet in this module's tests.
-    #[allow(dead_code)]
+    // pinned by the serialization ratchet, un-gated when they arrive.
+    #[cfg(test)]
     pub(crate) fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
             "goal": self.goal,
@@ -516,18 +516,16 @@ fn extract(intent: &str) -> IntentContract {
 /// clear [`TAU`] and outscore the runner-up by [`MARGIN`]. Anything else
 /// is a [`RoutingOutcome::NeedsClarification`] — routing below the
 /// evidence bar would be a guess (P0-1 · P0-10).
-pub(crate) fn route(intent: &str) -> RoutingOutcome {
-    let contract = extract(intent);
-    let names = nika_pack::template_names();
+/// Index the templates' MEANINGFUL vocabulary — verbs · tools ·
+/// structure — but STRIP `#` comments. The `# SLOT: kebab-case workflow
+/// id` scaffolding prose otherwise pollutes the index, so
+/// boilerplate/stopword queries ("slot" · "kebab" · "fill" · "the")
+/// spuriously route instead of listing the set. Real intent routes on
+/// the YAML verbs/tools + the ALIASES, not the comment prose.
+fn build_template_index(names: &[String]) -> BmIndex {
     let mut index = BmIndex::new(BmParams::default());
     for (i, name) in names.iter().enumerate() {
         let body = nika_pack::template(name).unwrap_or_default();
-        // Index the template's MEANINGFUL vocabulary — verbs · tools ·
-        // structure — but STRIP `#` comments. The `# SLOT: kebab-case
-        // workflow id` scaffolding prose otherwise pollutes the index, so
-        // boilerplate/stopword queries ("slot" · "kebab" · "fill" · "the")
-        // spuriously route instead of listing the set. Real intent routes
-        // on the YAML verbs/tools + the ALIASES, not the comment prose.
         let meaningful: String = body
             .lines()
             .filter(|l| !l.trim_start().starts_with('#'))
@@ -540,6 +538,13 @@ pub(crate) fn route(intent: &str) -> RoutingOutcome {
         index.add_document(doc_id, &format!("{name}\n{meaningful}"));
     }
     index.finalize();
+    index
+}
+
+pub(crate) fn route(intent: &str) -> RoutingOutcome {
+    let contract = extract(intent);
+    let names = nika_pack::template_names();
+    let index = build_template_index(&names);
 
     // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
     // an all-boilerplate query routes NOWHERE → the honest unknown · list.

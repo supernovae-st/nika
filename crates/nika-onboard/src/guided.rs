@@ -607,6 +607,34 @@ pub(crate) fn ask_model(
     Ok(Some(model))
 }
 
+/// Resolve the wizard's template from the intent — the fallback is
+/// SAID (P0-1): the human reads WHY chain and what almost matched
+/// before the file exists.
+fn routed_template(
+    intent: &str,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+) -> std::io::Result<(String, bool)> {
+    Ok(match resolve_template(intent) {
+        WizardRoute::Exact(name) => (name, false),
+        WizardRoute::Routed(name) => (name, true),
+        WizardRoute::Default => ("chain".to_owned(), false),
+        WizardRoute::Fallback { candidates } => {
+            let note = if candidates.is_empty() {
+                "no skeleton matches that intent — starting from `chain`, the generic spine"
+                    .to_owned()
+            } else {
+                format!(
+                    "no confident match (closest: {}) — starting from `chain`, the generic spine",
+                    candidates.join(" · ")
+                )
+            };
+            writeln!(out, "  {}", theme.paint(Role::Dim, &note))?;
+            ("chain".to_owned(), false)
+        }
+    })
+}
+
 fn read_wizard(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
@@ -636,26 +664,7 @@ fn read_wizard(
     else {
         return Ok(None);
     };
-    let (template, routed) = match resolve_template(&intent) {
-        WizardRoute::Exact(name) => (name, false),
-        WizardRoute::Routed(name) => (name, true),
-        WizardRoute::Default => ("chain".to_owned(), false),
-        WizardRoute::Fallback { candidates } => {
-            // The fallback is SAID (P0-1): the human reads WHY chain and
-            // what almost matched before the file exists.
-            let note = if candidates.is_empty() {
-                "no skeleton matches that intent — starting from `chain`, the generic spine"
-                    .to_owned()
-            } else {
-                format!(
-                    "no confident match (closest: {}) — starting from `chain`, the generic spine",
-                    candidates.join(" · ")
-                )
-            };
-            writeln!(out, "  {}", theme.paint(Role::Dim, &note))?;
-            ("chain".to_owned(), false)
-        }
-    };
+    let (template, routed) = routed_template(&intent, out, theme)?;
     let tag = nika_pack::template(&template).map_or_else(String::new, |b| tagline(&template, b));
     writeln!(
         out,

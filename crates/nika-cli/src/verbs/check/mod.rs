@@ -147,6 +147,73 @@ pub fn run(
     )
 }
 
+/// `--model m` previews the RUN override's static envelope (#342): the
+/// report is recomputed with `m` as the effective envelope default —
+/// the same substitution the run's budget preflight prices, so what
+/// check shows IS what run will refuse or allow.
+fn overridden(
+    wf: nika_schema::raw::RawWorkflow,
+    report: nika_check::CheckReport,
+    model_override: Option<&str>,
+) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
+    match model_override {
+        Some(m) => {
+            let wf = crate::verbs::with_model_override(&wf, m);
+            let report = nika_check::check(&wf);
+            (wf, report)
+        }
+        None => (wf, report),
+    }
+}
+
+/// The two red verdict footers (native-strict · operational profile),
+/// rendered only when their gate fired. The native wording is measured:
+/// a ledgered `.py` wrapper still fails that gate (it judges the SHAPE
+/// of the subprocess, not whether it was written down) — the ledger is
+/// for the reviewer; only replacing the call clears the line.
+fn strict_footers(
+    text: &mut String,
+    theme: Theme,
+    native_red: bool,
+    native_hints: usize,
+    operational_red: bool,
+    grade: nika_check::RiskGrade,
+) {
+    if native_red {
+        let hint_word = if native_hints == 1 { "hint" } else { "hints" };
+        let _ = writeln!(
+            text,
+            " {}",
+            theme.paint(
+                Role::Bad,
+                &format!(
+                    "✖ native-strict · {native_hints} native-first {hint_word} above — \
+                     replace each one with the builtin its hint names \
+                     (the exec ledger documents intent for a reviewer; \
+                     it does not clear this gate)"
+                ),
+            )
+        );
+    }
+    if operational_red {
+        let _ = writeln!(
+            text,
+            " {}",
+            theme.paint(
+                Role::Bad,
+                // The grade names WHY; the fix direction mirrors the
+                // COST/hint lanes (cap the spend · narrow the grant).
+                &format!(
+                    "✖ operational · risk {} — cap the spend or narrow the grant: \
+                     glob/wildcard authority and uncapped autonomy block readiness \
+                     under --profile operational (advisory by default)",
+                    grade.as_str()
+                )
+            )
+        );
+    }
+}
+
 /// [`run`] with the readiness posture explicit: `profile` gates on the
 /// [`nika_check::RiskGrade`] — `operational` folds a grade ≥ High (glob
 /// grants · true wildcards · uncapped spend) into the same exit-2
@@ -169,18 +236,7 @@ pub fn run_with_profile(
         Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
     };
-    // `--model m` previews the RUN override's static envelope (#342): the
-    // report is recomputed with `m` as the effective envelope default —
-    // the same substitution the run's budget preflight prices, so what
-    // check shows IS what run will refuse or allow.
-    let (wf, report) = match model_override {
-        Some(m) => {
-            let wf = crate::verbs::with_model_override(&wf, m);
-            let report = nika_check::check(&wf);
-            (wf, report)
-        }
-        None => (wf, report),
-    };
+    let (wf, report) = overridden(wf, report, model_override);
     // The declared-vs-used drift family (NIKA-DRIFT-001 · drift.rs) —
     // advisory in both projections, never an exit-code input.
     let drift_hints = drift::scan(&wf);
@@ -242,47 +298,14 @@ pub fn run_with_profile(
         // painted `✔ audited` under a `✖ MODELS` rung at exit 2).
         clean,
     );
-    if native_strict && report.is_clean() && native_hints > 0 {
-        let hint_word = if native_hints == 1 { "hint" } else { "hints" };
-        let _ = writeln!(
-            text,
-            " {}",
-            theme.paint(
-                Role::Bad,
-                // NOT "or record them in the exec ledger". Measured: a
-                // ledgered `.py` wrapper still fails this gate, because
-                // the gate judges the SHAPE of the subprocess, not
-                // whether it was written down. Offering the ledger as
-                // an alternative sends the reader to write one, re-run,
-                // and meet the identical red — a diagnostic that costs
-                // a cycle and buys nothing. The ledger is for the
-                // reviewer; only replacing the call clears this line.
-                &format!(
-                    "✖ native-strict · {native_hints} native-first {hint_word} above — \
-                     replace each one with the builtin its hint names \
-                     (the exec ledger documents intent for a reviewer; \
-                     it does not clear this gate)"
-                ),
-            )
-        );
-    }
-    if profile == Profile::Operational && clean && !profile_clean {
-        let _ = writeln!(
-            text,
-            " {}",
-            theme.paint(
-                Role::Bad,
-                // The grade names WHY; the fix direction mirrors the
-                // COST/hint lanes (cap the spend · narrow the grant).
-                &format!(
-                    "✖ operational · risk {} — cap the spend or narrow the grant: \
-                     glob/wildcard authority and uncapped autonomy block readiness \
-                     under --profile operational (advisory by default)",
-                    grade.as_str()
-                )
-            )
-        );
-    }
+    strict_footers(
+        &mut text,
+        theme,
+        native_strict && report.is_clean() && native_hints > 0,
+        native_hints,
+        profile == Profile::Operational && clean && !profile_clean,
+        grade,
+    );
     // The `--ascii` byte contract (P1 · audit UX 2026-07-30): the finished
     // report folds through the ONE enforcement seam — the glyph twins stay
     // the primary mechanism, this fold is what makes the emitted bytes

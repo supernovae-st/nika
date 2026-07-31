@@ -641,7 +641,52 @@ fn main() -> std::process::ExitCode {
     let Some(command) = cli.command else {
         return concierge(plain_theme);
     };
-    let code = match command {
+    let code = dispatch_verb(command, plain_theme, color, link_when, cli.plain, cli.ascii);
+    std::process::ExitCode::from(code)
+}
+
+/// The check arm's plumbing — folded out of the dispatch so the seam
+/// stays one line per verb.
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value
+)]
+fn check_arm(
+    files: Vec<String>,
+    json: bool,
+    infer_permits: bool,
+    native_strict: bool,
+    profile: verbs::check::Profile,
+    fix: bool,
+    model: Option<String>,
+    plain_theme: Theme,
+) -> u8 {
+    let flags = verbs::check::CheckFlags {
+        json,
+        infer_permits,
+        native_strict,
+        profile,
+    };
+    check_lazy(
+        files,
+        &flags,
+        fix,
+        model.as_deref(),
+        interactive_theme(plain_theme),
+    )
+}
+
+/// One arm per subcommand — the dispatch seam `main` hands to.
+fn dispatch_verb(
+    command: Command,
+    plain_theme: Theme,
+    color: ColorWhenArg,
+    link_when: LinkChoice,
+    plain: bool,
+    ascii: bool,
+) -> u8 {
+    match command {
         Command::Check {
             files,
             json,
@@ -650,19 +695,17 @@ fn main() -> std::process::ExitCode {
             native_strict,
             profile,
             model,
-        } => check_lazy(
+        } => check_arm(
             files,
-            &verbs::check::CheckFlags {
-                json,
-                infer_permits,
-                native_strict,
-                profile,
-            },
+            json,
+            infer_permits,
+            native_strict,
+            profile,
             fix,
-            model.as_deref(),
-            interactive_theme(plain_theme),
+            model,
+            plain_theme,
         ),
-        Command::Run(args) => run_lazy(args, color, link_when, cli.plain, cli.ascii),
+        Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
         Command::Test { file, update } => match resolve_lazy_target(file, "test") {
             Ok(file) => verbs::test::run(&file, update, plain_theme),
             Err(code) => code,
@@ -724,18 +767,16 @@ fn main() -> std::process::ExitCode {
                 1
             }
         },
-        // The MCP server OWNS stdout (JSON-RPC) — like `lsp`, it must not go
-        // through `emit`. Same server-process exit convention: 0 on a clean
-        // EOF shutdown, 1 on a transport failure. The CLIENT subcommands
-        // (verify · approve) are ordinary verbs and DO go through emit.
+        // The MCP server OWNS stdout (JSON-RPC · like `lsp` · never `emit`) —
+        // exit 0 on clean EOF, 1 on transport failure; verify/approve are
+        // ordinary verbs and DO go through emit.
         Command::Mcp {
             action,
             transport,
             port,
             bind,
         } => verbs::mcp_pins::mcp_verb(action, transport, port, &bind),
-    };
-    std::process::ExitCode::from(code)
+    }
 }
 
 /// The `guard` arm's routing — the hook wire OWNS stdout like lsp/mcp:

@@ -681,6 +681,32 @@ fn conformance_violation(e: &nika_schema::error::SchemaError) -> ConformanceViol
 }
 
 #[must_use]
+/// The DAG-gated finding lanes — policy reads graph ancestors, the
+/// trifecta lane (NEP-0002) and the affirmative-consent lane (NEP-0020
+/// · NIKA-SEC-014) share the same gating: a valid wave order or no
+/// claim (skipped, never wrong). The consent scan's PROVEN
+/// non-affirmative route refuses (the finding); the undecidable
+/// remainder keeps the advisory hint.
+fn gated_scans(
+    wf: &RawWorkflow,
+    conformance_clean: bool,
+    edges: &[analyzer::Edge],
+    topo_waves: &[Vec<usize>],
+) -> (
+    Vec<nika_cap::PolicyViolation>,
+    Vec<nika_cap::TrifectaViolation>,
+    consent::ConsentScan,
+) {
+    if !conformance_clean {
+        return (Vec::new(), Vec::new(), consent::ConsentScan::default());
+    }
+    (
+        policy::scan_policy(wf, edges),
+        trifecta::scan_trifecta(wf, edges, topo_waves),
+        consent::scan_consent(wf, edges),
+    )
+}
+
 pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
         Ok(AnalyzedWorkflow {
@@ -720,27 +746,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
-    // policy reads graph ancestors — valid order or no claim (IFC gating)
-    let policy_findings = if conformance.is_empty() {
-        policy::scan_policy(wf, &edges)
-    } else {
-        Vec::new()
-    };
-    // The trifecta lane shares the gating (NEP-0002 · valid DAG or no claim).
-    let trifecta_findings = if conformance.is_empty() {
-        trifecta::scan_trifecta(wf, &edges, &topo_waves)
-    } else {
-        Vec::new()
-    };
-    // P0-2 · the affirmative-consent lane (NEP-0020 · NIKA-SEC-014): the
-    // PROVEN non-affirmative route refuses (the finding), the undecidable
-    // remainder keeps the advisory hint — same DAG gating as policy.
-    let consent_scan = if conformance.is_empty() {
-        consent::scan_consent(wf, &edges)
-    } else {
-        consent::ConsentScan::default()
-    };
-    hints.extend(consent_scan.hints);
+    let (policy_findings, trifecta_findings, mut consent_scan) =
+        gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
+    hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);

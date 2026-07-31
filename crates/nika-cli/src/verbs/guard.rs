@@ -1293,9 +1293,9 @@ mod tests {
     fn infrastructure_failure_is_a_visible_guard_unavailable() {
         // Malformed JSON: the dialect is still sniffed from the raw
         // bytes (a Claude payload breaks into the Claude shape).
-        let input = parse_payload("{not json");
+        let input = parse_payload("{not json}");
         assert!(input.is_err(), "malformed refuses to parse");
-        let raw = r#"{"hook_event_name":"PreToolUse", BROKEN"#;
+        let raw = r#"{"hook_event_name":"PreToolUse", BROKEN}"#;
         let verdict = parse_payload(raw).expect_err("malformed refuses to parse");
         let out = finish(&verdict, Dialect::Claude, false, plain());
         assert_eq!(out.code, exit::ENV);

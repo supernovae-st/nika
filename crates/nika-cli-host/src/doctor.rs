@@ -77,6 +77,7 @@ pub struct Finding {
 
 /// Pure diagnosis → ordered findings (binary · config · cloud providers ·
 /// local summary · the inference-readiness gate).
+#[must_use]
 pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     let mut out = vec![
         Finding {
@@ -130,11 +131,17 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     // the ONE registry doctor actually sees, the not-probed NAMED.
     out.push(registry_finding(&probe.clients_registry));
 
-    // Display order practices the presentation lock (teaching surface ·
-    // the first screen after install): the sovereign keyless line leads,
-    // then the cloud rows with mistral (EU · open-weight) first. The
-    // registry's seed order is functional and stays untouched — this is
-    // a render sort only.
+    provider_findings(probe, &mut out);
+
+    out
+}
+
+/// The provider rows — display order practices the presentation lock
+/// (teaching surface · the first screen after install): the sovereign
+/// keyless line leads, then the cloud rows with mistral (EU ·
+/// open-weight) first. The registry's seed order is functional and
+/// stays untouched — this is a render sort only.
+fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
     let mut cloud_keys = 0_usize;
     let mut local_ids: Vec<&str> = Vec::new();
     let mut cloud_rows: Vec<&ProviderProbe> = Vec::new();
@@ -184,8 +191,6 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
             ),
         });
     }
-
-    out
 }
 
 /// The sovereign sidecar lane (ADR-091) — a row ONLY when this binary was

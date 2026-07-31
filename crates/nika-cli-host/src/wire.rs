@@ -300,21 +300,33 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
     }
 }
 
+/// The user-home `mcpServers` family — one shape, per-client paths
+/// (gemini: shared settings.json, server names must not contain `_`
+/// — upstream policy parser splits on it, `nika` is safe · qwen: the
+/// gemini-cli fork, same key, its own dotdir · antigravity: standalone
+/// `mcp_config.json` under `~/.gemini/config/` · kimi: two-level
+/// `mcp.json`, machine wiring writes the user file · kiro: the Amazon Q
+/// rebrand, `.kiro` wins over the legacy `~/.aws/amazonq/`).
+fn wire_home_family(target: WireTarget, dry_run: bool) -> Option<Result<WireAction, String>> {
+    let (segs, label): (&[&str], &str) = match target {
+        WireTarget::Cursor => (&[".cursor", "mcp.json"], "cursor"),
+        WireTarget::Claude => (&[".claude.json"], "claude"),
+        WireTarget::Windsurf => (&[".codeium", "windsurf", "mcp_config.json"], "windsurf"),
+        WireTarget::Gemini => (&[".gemini", "settings.json"], "gemini"),
+        WireTarget::Qwen => (&[".qwen", "settings.json"], "qwen"),
+        WireTarget::Antigravity => (&[".gemini", "config", "mcp_config.json"], "antigravity"),
+        WireTarget::Kimi => (&[".kimi-code", "mcp.json"], "kimi"),
+        WireTarget::Kiro => (&[".kiro", "settings", "mcp.json"], "kiro"),
+        _ => return None,
+    };
+    Some(patch_home_mcp(segs, label, dry_run))
+}
+
 fn wire_one(target: WireTarget, dir: &str, dry_run: bool) -> Result<WireAction, String> {
+    if let Some(done) = wire_home_family(target, dry_run) {
+        return done;
+    }
     match target {
-        // The user-home `mcpServers` family — one shape, per-client paths
-        // (gemini: shared settings.json, server names must not contain `_`
-        // — upstream policy parser splits on it, `nika` is safe · qwen: the
-        // gemini-cli fork, same key, its own dotdir).
-        WireTarget::Cursor => patch_home_mcp(&[".cursor", "mcp.json"], "cursor", dry_run),
-        WireTarget::Claude => patch_home_mcp(&[".claude.json"], "claude", dry_run),
-        WireTarget::Windsurf => patch_home_mcp(
-            &[".codeium", "windsurf", "mcp_config.json"],
-            "windsurf",
-            dry_run,
-        ),
-        WireTarget::Gemini => patch_home_mcp(&[".gemini", "settings.json"], "gemini", dry_run),
-        WireTarget::Qwen => patch_home_mcp(&[".qwen", "settings.json"], "qwen", dry_run),
         WireTarget::Vscode => {
             patch_vscode(&Path::new(dir).join(".vscode").join("mcp.json"), dry_run)
         }
@@ -380,20 +392,6 @@ fn wire_one(target: WireTarget, dir: &str, dry_run: bool) -> Result<WireAction, 
         // Grok Build: the Codex TOML shape at `~/.grok/config.toml` — the
         // native table survives a `[compat.claude] mcps = false` toggle.
         WireTarget::Grok => patch_toml_mcp(&home_path(&[".grok", "config.toml"])?, "grok", dry_run),
-        // Antigravity (`agy`): standalone mcp_config.json, global under
-        // `~/.gemini/config/` (workspace `.agents/` = `nika init` land ·
-        // the url→serverUrl rename touches remote servers only).
-        WireTarget::Antigravity => patch_home_mcp(
-            &[".gemini", "config", "mcp_config.json"],
-            "antigravity",
-            dry_run,
-        ),
-        // Kimi Code: two-level `mcp.json`; machine wiring writes the user
-        // file (the trust-scoped project level stays the operator's move).
-        WireTarget::Kimi => patch_home_mcp(&[".kimi-code", "mcp.json"], "kimi", dry_run),
-        // Kiro (the Amazon Q rebrand): `~/.kiro/settings/mcp.json` — the
-        // legacy `~/.aws/amazonq/` file is still read but `.kiro` wins.
-        WireTarget::Kiro => patch_home_mcp(&[".kiro", "settings", "mcp.json"], "kiro", dry_run),
         // Copilot CLI: the desired matches THEIR writer byte-shape (tools
         // + type local) so a copilot-added entry reads Current, no churn.
         WireTarget::Copilot => {
@@ -404,9 +402,18 @@ fn wire_one(target: WireTarget, dir: &str, dry_run: bool) -> Result<WireAction, 
         WireTarget::Amp => patch_amp(&home_path(&[".config", "amp", "settings.json"])?, dry_run),
         #[allow(
             clippy::unreachable,
-            reason = "doors are expanded to concrete targets before dispatch"
+            reason = "doors are expanded before dispatch · the home family early-returns"
         )]
-        WireTarget::All | WireTarget::Detected => {
+        WireTarget::All
+        | WireTarget::Detected
+        | WireTarget::Cursor
+        | WireTarget::Claude
+        | WireTarget::Windsurf
+        | WireTarget::Gemini
+        | WireTarget::Qwen
+        | WireTarget::Antigravity
+        | WireTarget::Kimi
+        | WireTarget::Kiro => {
             unreachable!("wire doors must be resolved before dispatch")
         }
     }

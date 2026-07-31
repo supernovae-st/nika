@@ -143,7 +143,6 @@ pub enum CapabilityLevel {
     Guarded,
     /// L5 — deep integration (the host drives runs natively). No host
     /// reaches it today: the ceiling is named, never claimed.
-    #[allow(dead_code)]
     FullyIntegrated,
 }
 
