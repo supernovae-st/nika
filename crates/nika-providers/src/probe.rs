@@ -354,6 +354,111 @@ pub fn collect_local_pings(
         .collect()
 }
 
+/// The B-5 liveness verdict (the 2026-07-31 gauntlet hang · Marta 2
+/// min, Dmitri 120s, Zoe at cutoff): the two ways a local endpoint
+/// hangs a run, told apart. `Silent` — nothing answered the connect
+/// (dead · blackholed · DNS stalled); `Mute` — the port ACCEPTED but
+/// never spoke HTTP (a stuck listener: connect-only probes pass it,
+/// the request then hangs forever); `Live` — the port answered AND
+/// spoke inside the caps (round-trip ms). A 404 speaks as loud as a
+/// 200: liveness is « the server answers », never « the route exists ».
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LocalLiveness {
+    /// Connect + a `GET /` byte, both inside the caps (RTT ms).
+    Live(u64),
+    /// The port accepted but never spoke (the mute-server hang).
+    Mute(String),
+    /// Nothing answered the connect (dead · blackholed · slow DNS).
+    Silent(String),
+}
+
+/// Connect-only? Not enough for the RUN gate: the gauntlet's mute
+/// server accepts and says nothing, and the request then hangs with
+/// zero timeout (`infer` defaults to `timeout: None`). This probe goes
+/// ONE step past [`spawn_ping`]'s sovereignty invariant — a bare
+/// `GET /` with no headers, no body, no path — against the endpoint the
+/// run is about to POST a whole prompt to anyway. Connect cap 300ms
+/// (the doctor sweep's own), speak cap 1s (a loaded local engine still
+/// answers its HTTP loop in ms — inference runs off the accept loop).
+/// DNS included, on the worker, exactly like [`spawn_ping`].
+#[must_use]
+pub fn spawn_local_liveness(addr: &str) -> std::sync::mpsc::Receiver<LocalLiveness> {
+    use std::io::{Read, Write};
+
+    const CONNECT_CAP: Duration = Duration::from_millis(300);
+    const SPEAK_CAP: Duration = Duration::from_millis(1000);
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let addr = addr.to_owned();
+    #[allow(clippy::disallowed_methods)]
+    std::thread::spawn(move || {
+        let started = Instant::now(); // seam-bypass-ok: diagnostic RTT · one-shot probe, not workflow time
+        let verdict = addr
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut candidates| candidates.next())
+            .map_or_else(
+                || LocalLiveness::Silent(addr.clone()),
+                |sock| {
+                    let dial = TcpStream::connect_timeout(&sock, CONNECT_CAP); // seam-bypass-ok: run-gate dial · the endpoint the run is about to call
+                    match dial {
+                        Err(_) => LocalLiveness::Silent(addr.clone()),
+                        Ok(mut stream) => {
+                            let rtt =
+                                u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+                            let _ = stream.set_write_timeout(Some(SPEAK_CAP));
+                            let _ = stream.set_read_timeout(Some(SPEAK_CAP));
+                            let spoke = stream
+                                .write_all(b"GET / HTTP/1.0\r\n\r\n")
+                                .and_then(|()| stream.read(&mut [0_u8; 1]));
+                            match spoke {
+                                Ok(_) => LocalLiveness::Live(rtt),
+                                Err(_) => LocalLiveness::Mute(addr.clone()),
+                            }
+                        }
+                    }
+                },
+            );
+        let _ = tx.send(verdict);
+    });
+    rx
+}
+
+/// The B-5 run gate: one liveness verdict on a local-protocol model's
+/// EFFECTIVE endpoint, consulted BEFORE the first call. A server-backed
+/// keyless engine (`ollama/…`) whose port stays silent — or mute —
+/// fails FAST here, the caller naming the cause and the exits, instead
+/// of heartbeat-spamming « still running » until the user kills the
+/// run. `None` = the gate does not apply (a keyed cloud provider owns
+/// its transport errors · `mock` is in-process, there is nothing to
+/// dial · an unknown provider is the resolver's word, not this gate's).
+#[must_use]
+pub fn local_run_gate<H>(registry: &ProviderRegistry<H>, model: &str) -> Option<LocalLiveness>
+where
+    H: nika_kernel::http::HttpPostDyn + Send + Sync + 'static,
+{
+    let (provider_id, _) = model.split_once('/')?;
+    let profile = registry.profiles().iter().find(|p| p.id == provider_id)?;
+    // The gate mirrors collect_local_pings' own filter: server-backed
+    // keyless engines only.
+    if profile.requires_key || profile.id == "mock" {
+        return None;
+    }
+    // Probe what the run would ACTUALLY hit (the anti-doctor law above):
+    // the operator's override when present, else the seed.
+    let url = registry
+        .effective_base_url(profile.id)
+        .unwrap_or(profile.base_url);
+    let addr = ping_addr(url)?;
+    // The caller's own cap is the recv_timeout: connect + speak phases
+    // inside the worker each carry theirs (300ms · 1s).
+    Some(
+        spawn_local_liveness(&addr)
+            .recv_timeout(Duration::from_millis(1500))
+            .unwrap_or(LocalLiveness::Silent(addr)),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -497,6 +602,100 @@ mod tests {
             lmstudio.readiness.execution_locus,
             ExecutionLocus::Loopback,
             "an override on one engine never moves another"
+        );
+    }
+
+    /// A port nothing listens on anymore (bound, then dropped — never
+    /// dialed, so no `TIME_WAIT` ghost): the deterministic « silent ».
+    #[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
+    fn dead_port() -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        drop(listener);
+        port
+    }
+
+    /// A one-shot loopback server: accepts and behaves per `speak`
+    /// (true = answers a bare 404, false = holds the socket mute).
+    #[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
+    fn spawn_stub_server(speak: bool) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            while let Ok((mut stream, _)) = listener.accept() {
+                std::thread::spawn(move || {
+                    if speak {
+                        use std::io::Write;
+                        let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
+                    } else {
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                        drop(stream);
+                    }
+                });
+            }
+        });
+        port
+    }
+
+    #[test]
+    fn local_run_gate_skips_cloud_mock_and_unknown() {
+        let reg = ProviderRegistry::without_http(crate::ProvidersConfig::new());
+        assert!(
+            local_run_gate(&reg, "anthropic/claude-sonnet-4-6").is_none(),
+            "a keyed cloud provider owns its transport errors"
+        );
+        assert!(
+            local_run_gate(&reg, "mock/echo").is_none(),
+            "in-process — there is nothing to dial"
+        );
+        assert!(
+            local_run_gate(&reg, "ghost/x").is_none(),
+            "an unknown provider is the resolver's word"
+        );
+        assert!(
+            local_run_gate(&reg, "bare-id").is_none(),
+            "no provider half"
+        );
+    }
+
+    #[test]
+    fn local_run_gate_reads_silence_muteness_and_liveness() {
+        // SILENT — the port answers nothing.
+        let dead = crate::ProvidersConfig::new()
+            .with_base_url("ollama", format!("http://127.0.0.1:{}", dead_port()));
+        let reg = ProviderRegistry::without_http(dead);
+        assert!(
+            matches!(
+                local_run_gate(&reg, "ollama/qwen3.5:4b"),
+                Some(LocalLiveness::Silent(_))
+            ),
+            "a dead port reads Silent"
+        );
+        // MUTE — the port accepts and never speaks (the gauntlet hang).
+        let mute = crate::ProvidersConfig::new().with_base_url(
+            "ollama",
+            format!("http://127.0.0.1:{}", spawn_stub_server(false)),
+        );
+        let reg = ProviderRegistry::without_http(mute);
+        assert!(
+            matches!(
+                local_run_gate(&reg, "ollama/qwen3.5:4b"),
+                Some(LocalLiveness::Mute(_))
+            ),
+            "a stuck listener reads Mute"
+        );
+        // LIVE — the port speaks (a 404 is as alive as a 200).
+        let live = crate::ProvidersConfig::new().with_base_url(
+            "ollama",
+            format!("http://127.0.0.1:{}", spawn_stub_server(true)),
+        );
+        let reg = ProviderRegistry::without_http(live);
+        assert!(
+            matches!(
+                local_run_gate(&reg, "ollama/qwen3.5:4b"),
+                Some(LocalLiveness::Live(_))
+            ),
+            "a speaking server reads Live"
         );
     }
 }

@@ -43,6 +43,43 @@ impl<T> core::convert::From<T> for nika_providers::probe::ExecutionLocus
 pub fn nika_providers::probe::ExecutionLocus::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ExecutionLocus where T: 'static
 pub fn nika_providers::probe::ExecutionLocus::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub enum nika_providers::probe::LocalLiveness
+pub nika_providers::probe::LocalLiveness::Live(u64)
+pub nika_providers::probe::LocalLiveness::Mute(alloc::string::String)
+pub nika_providers::probe::LocalLiveness::Silent(alloc::string::String)
+impl core::clone::Clone for nika_providers::probe::LocalLiveness
+pub fn nika_providers::probe::LocalLiveness::clone(&self) -> nika_providers::probe::LocalLiveness
+impl core::cmp::Eq for nika_providers::probe::LocalLiveness
+impl core::cmp::PartialEq for nika_providers::probe::LocalLiveness
+pub fn nika_providers::probe::LocalLiveness::eq(&self, other: &nika_providers::probe::LocalLiveness) -> bool
+impl core::fmt::Debug for nika_providers::probe::LocalLiveness
+pub fn nika_providers::probe::LocalLiveness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::probe::LocalLiveness
+impl<D> owo_colors::OwoColorize for nika_providers::probe::LocalLiveness
+impl<T, U> core::convert::Into<U> for nika_providers::probe::LocalLiveness where U: core::convert::From<T>
+pub fn nika_providers::probe::LocalLiveness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::LocalLiveness where U: core::convert::Into<T>
+pub type nika_providers::probe::LocalLiveness::Error = core::convert::Infallible
+pub fn nika_providers::probe::LocalLiveness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::LocalLiveness where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::LocalLiveness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::LocalLiveness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::LocalLiveness where T: core::clone::Clone
+pub type nika_providers::probe::LocalLiveness::Owned = T
+pub fn nika_providers::probe::LocalLiveness::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::LocalLiveness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::LocalLiveness where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::LocalLiveness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::LocalLiveness where T: ?core::marker::Sized
+pub fn nika_providers::probe::LocalLiveness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::LocalLiveness where T: ?core::marker::Sized
+pub fn nika_providers::probe::LocalLiveness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::LocalLiveness where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::LocalLiveness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::LocalLiveness
+pub fn nika_providers::probe::LocalLiveness::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::LocalLiveness where T: 'static
+pub fn nika_providers::probe::LocalLiveness::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub enum nika_providers::probe::PingState
 pub nika_providers::probe::PingState::Reachable(u64)
 pub nika_providers::probe::PingState::Unreachable
@@ -164,7 +201,9 @@ pub fn nika_providers::probe::ProviderReadiness::as_any(&self) -> &(dyn core::an
 pub fn nika_providers::probe::collect_local_pings(registry: &nika_providers::registry::ProviderRegistry, image_url: core::option::Option<&str>, tts_url: core::option::Option<&str>) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers::probe::PingState)>
 pub fn nika_providers::probe::collect_provider_probes(registry: &nika_providers::registry::ProviderRegistry) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_providers::probe::env_present(name: &str) -> bool
+pub fn nika_providers::probe::local_run_gate<H>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> core::option::Option<nika_providers::probe::LocalLiveness> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::probe::ping_addr(url: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::probe::spawn_local_liveness(addr: &str) -> std::sync::mpsc::Receiver<nika_providers::probe::LocalLiveness>
 pub fn nika_providers::probe::spawn_ping(addr: &str, timeout: core::time::Duration) -> std::sync::mpsc::Receiver<core::option::Option<u64>>
 pub mod nika_providers::profile
 #[non_exhaustive] pub enum nika_providers::profile::WireFormat
@@ -252,6 +291,7 @@ pub const nika_providers::profile::CANONICAL_IDS: [&str; 16]
 pub fn nika_providers::profile::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::profile::resolve_refusal(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::profile::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
+pub fn nika_providers::profile::server_backed_local(provider: &str) -> bool
 pub mod nika_providers::registry
 pub struct nika_providers::registry::NoHttp
 impl core::clone::Clone for nika_providers::registry::NoHttp
@@ -294,13 +334,13 @@ pub async fn nika_providers::registry::NoHttp::post(&self, request: nika_kernel_
 pub async fn nika_providers::registry::NoHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 pub struct nika_providers::registry::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
-pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
 impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
 pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
 pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
 impl<H> nika_providers::registry::ProviderRegistry<H>
+pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -520,13 +560,13 @@ impl<T> nika_error::traits::AsAny for nika_providers::profile::Profile where T: 
 pub fn nika_providers::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
-pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
 impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
 pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
 pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
 impl<H> nika_providers::registry::ProviderRegistry<H>
+pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -627,3 +667,4 @@ pub const nika_providers::CANONICAL_IDS: [&str; 16]
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
+pub fn nika_providers::server_backed_local(provider: &str) -> bool

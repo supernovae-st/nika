@@ -57,11 +57,13 @@ pub type nika_display::check_render::ModelFinding::Output = T
 #[non_exhaustive] pub struct nika_display::check_render::ModelsAudit
 pub nika_display::check_render::ModelsAudit::catalog_warnings: alloc::vec::Vec<nika_display::check_render::ModelFinding>
 pub nika_display::check_render::ModelsAudit::findings: alloc::vec::Vec<nika_display::check_render::ModelFinding>
+pub nika_display::check_render::ModelsAudit::local_server: usize
 pub nika_display::check_render::ModelsAudit::unjudged: usize
 pub nika_display::check_render::ModelsAudit::via_default: usize
 impl nika_display::check_render::ModelsAudit
 pub fn nika_display::check_render::ModelsAudit::new(findings: alloc::vec::Vec<nika_display::check_render::ModelFinding>, unjudged: usize, via_default: usize) -> Self
 pub fn nika_display::check_render::ModelsAudit::with_catalog_warnings(self, warnings: alloc::vec::Vec<nika_display::check_render::ModelFinding>) -> Self
+pub fn nika_display::check_render::ModelsAudit::with_local_server(self, count: usize) -> Self
 impl core::clone::Clone for nika_display::check_render::ModelsAudit
 pub fn nika_display::check_render::ModelsAudit::clone(&self) -> nika_display::check_render::ModelsAudit
 impl core::cmp::Eq for nika_display::check_render::ModelsAudit
