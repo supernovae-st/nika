@@ -23,6 +23,7 @@
 // the same sanctioned exemption `main.rs` carries for the terminal bin.
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
+mod ask;
 mod child_runner;
 mod inputs;
 mod sink;
@@ -130,6 +131,18 @@ struct RunVerdict {
     /// The first failed task's error record (record order — deterministic).
     /// `None` on success, pause, and every pre-run refusal.
     failure: Option<nika_runtime::TaskErrorRecord>,
+    /// A fold-lane pause (ADR-099): the gate's payload + the trace the
+    /// terminal ask resumes over. The machine lanes leave it `None` —
+    /// their teaching is the envelope + the stderr resume line.
+    paused: Option<PausedLeg>,
+}
+
+/// A paused fold-lane leg — what the terminal ask needs to continue the
+/// run in-process (the pause payload asks · the trace folds the plan +
+/// the F-P4 ticket, the same path a manual `--resume --answer` takes).
+struct PausedLeg {
+    pause: nika_runtime::WorkflowPause,
+    trace: std::path::PathBuf,
 }
 
 impl RunVerdict {
@@ -139,6 +152,7 @@ impl RunVerdict {
         Self {
             code,
             failure: None,
+            paused: None,
         }
     }
 }
@@ -267,7 +281,7 @@ fn run_verdict(
         inputs,
         setup,
         max_cost_usd,
-        skills,
+        skills.clone(),
         (no_trace_file, output_json),
     ) {
         Ok(rt) => rt,
@@ -279,7 +293,7 @@ fn run_verdict(
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
-    rt.block_on(execute(
+    let mut verdict = rt.block_on(execute(
         &runtime,
         (file, &wf),
         &report,
@@ -290,6 +304,103 @@ fn run_verdict(
         resume.is_some_and(|r| r.trace.is_some()),
         trace_sink(no_trace_file),
         !no_outputs,
+        model_override,
+    ));
+
+    // ── The terminal ask (ADR-099 · "interactively it asks") ────────
+    // A paused HUMAN run with a terminal present continues in-process:
+    // ask on stderr · bind the answer · resume over the just-written
+    // trace — the SAME plan-fold + F-P4 ticket path a manual `--resume
+    // --answer` takes (one behavior, attested the same way). Ctrl-D or
+    // three unparseable tries leaves the durable pause + its taught
+    // resume line. Bounded by the task count: a workflow cannot hold
+    // more gates than tasks.
+    let mut legs = 0usize;
+    while verdict.code == exit::PAUSED && !json && !output_json && legs <= wf.tasks.len() {
+        let Some(leg) = verdict.paused.take() else {
+            break;
+        };
+        if !ask::tty_present() {
+            break;
+        }
+        let ask::Asked::Answer(value) = ask::ask_on_tty(&leg.pause, theme) else {
+            break;
+        };
+        legs += 1;
+        let request = ResumeRequest {
+            trace: Some(leg.trace),
+            from: None,
+            answers: vec![format!("{}={value}", leg.pause.task)],
+            compat: None,
+        };
+        verdict = answered_leg(
+            (file, &source),
+            (&wf, &report),
+            &request,
+            vars,
+            model_override,
+            max_cost_usd,
+            &skills,
+            theme,
+            mode,
+            (json, output_json, no_trace_file, !no_outputs),
+            &rt,
+        );
+    }
+    verdict
+}
+
+/// One answered continuation of a paused run — re-validate the vars,
+/// fold the paused trace (plan + F-P4 ticket), recompose, re-drive.
+/// Exactly what a manual `--resume <trace> --answer <task>=<value>`
+/// invocation does, minus the process boundary: upstream work
+/// cache-hits visibly, the gate binds the attested answer.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+fn answered_leg(
+    (file, source): (&str, &str),
+    (wf, report): (&RawWorkflow, &CheckReport),
+    request: &ResumeRequest,
+    vars: &[String],
+    model_override: Option<&str>,
+    max_cost_usd: Option<f64>,
+    skills: &BTreeMap<String, String>,
+    theme: Theme,
+    mode: RenderMode,
+    (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
+    rt: &tokio::runtime::Runtime,
+) -> RunVerdict {
+    let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
+        Ok(map) => map,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    let setup = match resume_setup(Some(request), wf, output_json) {
+        Ok(setup) => setup,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    let runtime = match composed_runtime(
+        wf,
+        (file, source),
+        model_override,
+        inputs,
+        setup,
+        max_cost_usd,
+        skills.clone(),
+        (no_trace_file, output_json),
+    ) {
+        Ok(rt) => rt,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    rt.block_on(execute(
+        &runtime,
+        (file, wf),
+        report,
+        json,
+        output_json,
+        theme,
+        mode,
+        true,
+        trace_sink(no_trace_file),
+        outputs,
         model_override,
     ))
 }
@@ -766,6 +877,7 @@ async fn execute(
         RunVerdict {
             code,
             failure: first_failure(&outcome),
+            paused: None,
         }
     } else if json {
         execute_json_lane(
@@ -828,6 +940,7 @@ async fn execute_json_lane(
     RunVerdict {
         code,
         failure: first_failure(&outcome),
+        paused: None,
     }
 }
 
@@ -937,9 +1050,19 @@ async fn execute_fold_lane(
         eprintln!("nika run: render failed: {e}");
         return RunVerdict::bare(exit::ENV);
     }
+    // The fold lane hands the pause up: the terminal ask (run_verdict's
+    // loop) continues the run in-process over this trace.
+    let paused = match (&trace_path, &outcome.paused) {
+        (Some(p), Some(pause)) => Some(PausedLeg {
+            pause: pause.clone(),
+            trace: p.clone(),
+        }),
+        _ => None,
+    };
     RunVerdict {
         code,
         failure: first_failure(&outcome),
+        paused,
     }
 }
 
