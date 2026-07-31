@@ -43,7 +43,7 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace · evidence        # the living DAG · the flight recorder · the pack\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
+    after_help = "the map (the craft · 12 verbs):\n  begin     examples · new · init     # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -187,7 +187,7 @@ enum Command {
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
     /// machine surfaces · human stays the default).
-    #[command(display_order = 43)]
+    #[command(hide = true, display_order = 43)]
     Inspect {
         /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
@@ -215,13 +215,13 @@ enum Command {
         forecast: bool,
     },
     /// The run-signing key lifecycle (mint · TOFU fingerprint · rotate — old pubs stay verifiable).
-    #[command(display_order = 70)]
+    #[command(hide = true, display_order = 70)]
     Key {
         #[command(subcommand)]
         action: verbs::key::KeyAction,
     },
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
-    #[command(display_order = 71)]
+    #[command(hide = true, display_order = 71)]
     Sign(verbs::sign::SignArgs),
     /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
@@ -270,7 +270,7 @@ enum Command {
         action: model_args::ModelAction,
     },
     /// The embedded spec identity (`--canon` prints the SSOT).
-    #[command(display_order = 44)]
+    #[command(hide = true, display_order = 44)]
     Spec {
         /// Print the canon.yaml single source of truth.
         #[arg(long)]
@@ -281,7 +281,7 @@ enum Command {
         schema: bool,
     },
     /// The embedded provider/model catalog (models · capabilities · env vars).
-    #[command(display_order = 52)]
+    #[command(hide = true, display_order = 52)]
     Catalog {
         /// Emit the versioned machine projection (`catalog_version: 1`).
         #[arg(long)]
@@ -316,7 +316,7 @@ enum Command {
         force: bool,
     },
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
-    #[command(display_order = 63)]
+    #[command(hide = true, display_order = 63)]
     Completions {
         /// Target shell.
         #[arg(value_enum)]
@@ -329,14 +329,14 @@ enum Command {
         action: verbs::trace::TraceAction,
     },
     /// Export the evidence pack for one run (journal + manifest + receipt + VERIFY.md).
-    #[command(display_order = 32)]
+    #[command(hide = true, display_order = 32)]
     Evidence {
         #[command(flatten)]
         args: verbs::evidence::EvidenceArgs,
     },
     /// Read a run receipt — `explain` renders its readable projection
     /// (stable text · a READING, never a proof).
-    #[command(display_order = 33)]
+    #[command(hide = true, display_order = 33)]
     Receipt {
         #[command(subcommand)]
         action: verbs::receipt::ReceiptAction,
@@ -355,10 +355,10 @@ enum Command {
     /// run under a debugger UI: breakpoints on task lines · step forward
     /// AND back through settles · outputs in the variables pane. Replay
     /// re-renders, never re-executes.
-    #[command(display_order = 62)]
+    #[command(hide = true, display_order = 62)]
     Dap,
     /// Run the language server over stdio (drives the editor extension).
-    #[command(display_order = 61)]
+    #[command(hide = true, display_order = 61)]
     Lsp {
         /// LSP-host convention flag: vscode-languageclient, nvim and
         /// helix spawn `<server> --stdio` by habit. Stdio is this
@@ -381,7 +381,7 @@ enum Command {
     /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
     /// `approve` runs the CLIENT side: the MCP tool-pinning re-approval over
     /// the servers configured in `.nika/mcp_servers.json`.
-    #[command(display_order = 60)]
+    #[command(hide = true, display_order = 60)]
     Mcp {
         #[command(subcommand)]
         action: Option<verbs::mcp_pins::McpAction>,
@@ -631,6 +631,32 @@ fn concierge(plain_theme: Theme) -> std::process::ExitCode {
 }
 
 fn main() -> std::process::ExitCode {
+    // RAMS-13 · the full surface on demand: `--help --all` prints the
+    // SAME tree with nothing hidden (12 craft verbs lead the default
+    // help; protocols · trust cycle · plumbing stay one flag away —
+    // ranged, never removed). Judged before clap parses, and ONLY when
+    // the whole invocation is help words — a named verb keeps its own
+    // help untouched (`nika trace rm --all --help` is trace's business:
+    // `--all` is a REAL flag there, the adversarial pass caught the
+    // theft).
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    let help_words_only = !argv.is_empty()
+        && argv
+            .iter()
+            .all(|a| a == "--all" || a == "--help" || a == "-h" || a == "help");
+    if help_words_only
+        && argv.iter().any(|a| a == "--all")
+        && argv
+            .iter()
+            .any(|a| a == "--help" || a == "-h" || a == "help")
+    {
+        let mut cmd = <Cli as clap::CommandFactory>::command();
+        cmd = cmd.mut_subcommands(|sc| sc.hide(false));
+        // Rendering help to stdout is this binary's whole job here; a
+        // closed pipe is the caller's choice, never a crash.
+        let _ = cmd.print_long_help();
+        return std::process::ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
@@ -1375,5 +1401,55 @@ mod tests {
             "bash completes `nika`, never nika-cli: {bash}"
         );
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
+    }
+    /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
+    /// reached by <=1 user, yet all 23 hit 11 first-timers in the
+    /// face): the default help shows AT MOST the 12 craft verbs; the
+    /// full tree stays one flag away (`--help --all`) and NOTHING is
+    /// removed — visible + hidden is the whole enum, invariant. Ranged,
+    /// never deleted: `key`/`sign`/`mcp`/`lsp` serve — just not on day
+    /// one.
+    #[test]
+    fn the_default_help_shows_the_craft_and_hides_nothing_forever() {
+        let cmd = <Cli as clap::CommandFactory>::command();
+        let total = cmd
+            .get_subcommands()
+            .filter(|c| c.get_name() != "help")
+            .count();
+        let visible: Vec<&str> = cmd
+            .get_subcommands()
+            .filter(|c| !c.is_hide_set() && c.get_name() != "help")
+            .map(clap::Command::get_name)
+            .collect();
+        assert!(
+            visible.len() <= 12,
+            "the first screen is the craft, not a manifesto: {visible:?}"
+        );
+        for craft in [
+            "examples", "new", "init", "check", "run", "test", "trace", "welcome", "doctor",
+            "model", "wire", "explain",
+        ] {
+            assert!(
+                visible.contains(&craft),
+                "`{craft}` is the day-one craft and must stay visible: {visible:?}"
+            );
+        }
+        let hidden = cmd
+            .get_subcommands()
+            .filter(|c| c.is_hide_set() && c.get_name() != "help")
+            .count();
+        assert_eq!(
+            visible.len() + hidden,
+            total,
+            "visible + hidden is the WHOLE tree — ranged, never removed"
+        );
+        // The un-hide pass reaches every verb: the --all surface shows
+        // exactly the full enum (the sum stays invariant by law).
+        let all = <Cli as clap::CommandFactory>::command().mut_subcommands(|sc| sc.hide(false));
+        let unhidden = all
+            .get_subcommands()
+            .filter(|c| !c.is_hide_set() && c.get_name() != "help")
+            .count();
+        assert_eq!(unhidden, total, "--all shows the whole surface");
     }
 }
