@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4291
+  classified_files: 4292
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1373
+    authored: 1374
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 694
-  aggregate_sha256: a32a66f4fce6d800ba81a62f2e3aa82f62416fb483fc722a4aebac6f54571e2c
+  aggregate_sha256: aaf8827b0a8456eed555006d45f72867cd3b6fa13cf4d4ae4257deeb38ff8c97
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -187,8 +187,8 @@ patterns:
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
-  match_count: 20
-  aggregate_sha256: 06d77f698944814b4548b3bb00fc2477be824fb4a004918686f0d7c925cf1633
+  match_count: 21
+  aggregate_sha256: a937a2d54937bd3620d95b5c531dcfc229dc1fba22b0ee59f30feebf16783cbe
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
