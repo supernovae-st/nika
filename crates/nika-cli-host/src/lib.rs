@@ -17,11 +17,12 @@
     allow(clippy::unwrap_used, clippy::expect_used, clippy::unreachable)
 )]
 
-pub use display::theme::{Role, Theme};
+pub use display::theme::Theme;
 pub use nika_display as display;
 
 pub mod clients_registry;
-pub mod context_envelope;
+pub(crate) mod context_envelope;
+pub(crate) mod detect;
 pub mod doctor;
 pub mod machine_truth;
 pub mod metrics;

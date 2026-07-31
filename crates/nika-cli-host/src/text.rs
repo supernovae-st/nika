@@ -2,8 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Count-noun agreement — a thin delegate to the ONE vocabulary
-//! (`display::vocab::count`), kept so the crate's 13+ call sites read
-//! `crate::text::count` without a display path in every verb.
+//! (`display::vocab::count`), kept so this crate's 3 call sites read
+//! `crate::text::count` without a display path in every module (the cli
+//! member's own 13+ ride its re-export of the same seam).
 
 /// See [`crate::display::vocab::count`] — `1 task` · `3 tasks` ·
 /// `2 retries` (consonant+y → ies) · compound nouns at the tail.
