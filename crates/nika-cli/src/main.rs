@@ -1106,9 +1106,22 @@ fn trace_render(
     }
     // The trace surface owns the run overlays (replay = re-render, never
     // re-execute): the waterfall + the verdict card close the read, from
-    // any past trace — the same final frame a live TTY run ends on.
+    // any past trace — the same final frame a live TTY run ends on. The
+    // fruit rides in its PURE form (paths + the model's last word, no
+    // sizes: stat would read today's disk against a past run's claim).
     print_lines(&nika_cli::display::flow::waterfall(&view, &theme));
-    print_lines(&nika_cli::display::flow::verdict_card(&view, &theme, None));
+    let mut notes: Vec<String> = nika_cli::display::fruit::written_files(&view)
+        .iter()
+        .map(|f| format!("{} {}", f.verb, f.path))
+        .collect();
+    if let Some((_task, text)) = nika_cli::display::fruit::last_said(&view)
+        && let Some(quote) = nika_cli::display::shape::summarize(text, 46)
+    {
+        notes.push(format!("said {quote}"));
+    }
+    print_lines(&nika_cli::display::flow::verdict_card(
+        &view, &theme, &notes,
+    ));
     // The locked exit contract: 0 = run ok · 1 = workflow failed.
     u8::from(view.verdict != Some(true))
 }
