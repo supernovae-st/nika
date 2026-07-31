@@ -50,7 +50,9 @@ pub fn interval_of(row: &TaskRow, now_ms: Option<i64>) -> Option<Interval> {
                 .or(row.started_ms)?;
             Some(Interval { start, end })
         }
-        TaskState::Running | TaskState::Retrying => {
+        // A paused gate spans its start to the pause stamp — the open
+        // interval the waterfall can honestly draw.
+        TaskState::Running | TaskState::Retrying | TaskState::Paused => {
             let start = row.started_ms?;
             let end = now_ms.unwrap_or(start).max(start);
             Some(Interval { start, end })

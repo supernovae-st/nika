@@ -178,11 +178,15 @@ pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
 /// trace anchor — the pause sibling of the failure lane's `autopsy:`
 /// line (stateful gauntlet 2026-07-11: the pause had everything the
 /// command needs — file · trace · task · mode — and printed none of it).
-/// The `<value>` placeholder speaks the mode's own answer shape.
+/// The `<value>` placeholder speaks the mode's own answer shape; the
+/// run's own `--var`/`--model` carry rides verbatim — a workflow with
+/// REQUIRED inputs refuses a var-less resume, so a taught line without
+/// them was a copy-paste that failed (seo-live-review · 2026-07-31).
 pub(super) fn resume_hint_line(
     file: &str,
     trace: &std::path::Path,
     pause: &WorkflowPause,
+    carry: &str,
 ) -> String {
     let value = match pause.mode.as_str() {
         "confirm" => "true|false".to_owned(),
@@ -190,10 +194,40 @@ pub(super) fn resume_hint_line(
         _ => "\"<text>\"".to_owned(),
     };
     format!(
-        "resume: nika run {file} --resume {} --answer {}={value}",
+        "resume: nika run {file}{carry} --resume {} --answer {}={value}",
         trace.display(),
         pause.task,
     )
+}
+
+/// The run's re-invocation carry — every `--var` the operator passed +
+/// the `--model` override, shell-quoted for a paste-able line. Built
+/// once per run, threaded to every taught resume line.
+pub(super) fn resume_carry(vars: &[String], model_override: Option<&str>) -> String {
+    use std::fmt::Write as _;
+    let mut carry = String::new();
+    for var in vars {
+        // write! to a String is infallible.
+        let _ = write!(carry, " --var {}", sh_word(var));
+    }
+    if let Some(model) = model_override {
+        let _ = write!(carry, " --model {}", sh_word(model));
+    }
+    carry
+}
+
+/// Quote one shell word for the taught line: bare when it is already a
+/// safe word, single-quoted otherwise (embedded single quotes splice
+/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
+fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
+    let safe = !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_=./:@+-".contains(c));
+    if safe {
+        return std::borrow::Cow::Borrowed(word);
+    }
+    std::borrow::Cow::Owned(format!("'{}'", word.replace('\'', "'\\''")))
 }
 
 /// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
@@ -371,7 +405,7 @@ mod tests {
         let trace = std::path::Path::new(".nika/traces/t.ndjson");
         let confirm = WorkflowPause::new("approve".into(), "confirm".into(), None, vec![]);
         assert_eq!(
-            super::resume_hint_line("gate.nika.yaml", trace, &confirm),
+            super::resume_hint_line("gate.nika.yaml", trace, &confirm, ""),
             "resume: nika run gate.nika.yaml --resume .nika/traces/t.ndjson \
              --answer approve=true|false"
         );
@@ -382,13 +416,47 @@ mod tests {
             vec!["alpha".into(), "beta".into()],
         );
         assert_eq!(
-            super::resume_hint_line("w.yaml", trace, &choice),
+            super::resume_hint_line("w.yaml", trace, &choice, ""),
             "resume: nika run w.yaml --resume .nika/traces/t.ndjson \
              --answer pick=alpha|beta"
         );
         let input = WorkflowPause::new("name".into(), "input".into(), None, vec![]);
         assert!(
-            super::resume_hint_line("w.yaml", trace, &input).ends_with("--answer name=\"<text>\"")
+            super::resume_hint_line("w.yaml", trace, &input, "")
+                .ends_with("--answer name=\"<text>\"")
         );
+    }
+
+    /// The taught line carries the run's own `--var`/`--model` — a
+    /// workflow with REQUIRED inputs refuses a var-less resume, so the
+    /// copy-paste must re-supply them (seo-live-review · 2026-07-31).
+    #[test]
+    fn resume_hint_carries_the_runs_vars_and_model() {
+        use nika_runtime::WorkflowPause;
+        let carry = super::resume_carry(
+            &[
+                "page_type=wifi".to_owned(),
+                r#"locales=["fr-FR","ar-SA"]"#.to_owned(),
+            ],
+            Some("openai/gpt-5.2"),
+        );
+        assert_eq!(
+            carry,
+            r#" --var page_type=wifi --var 'locales=["fr-FR","ar-SA"]' --model openai/gpt-5.2"#
+        );
+        let trace = std::path::Path::new(".nika/traces/t.ndjson");
+        let confirm = WorkflowPause::new("access_gate".into(), "confirm".into(), None, vec![]);
+        let line = super::resume_hint_line("seo-live-review.nika.yaml", trace, &confirm, &carry);
+        assert_eq!(
+            line,
+            "resume: nika run seo-live-review.nika.yaml --var page_type=wifi \
+             --var 'locales=[\"fr-FR\",\"ar-SA\"]' --model openai/gpt-5.2 \
+             --resume .nika/traces/t.ndjson --answer access_gate=true|false"
+        );
+        // No vars, no override → no carry, byte-identical to before.
+        assert_eq!(super::resume_carry(&[], None), "");
+        // An embedded single quote splices through the POSIX idiom.
+        let quoted = super::resume_carry(&["msg=it's".to_owned()], None);
+        assert_eq!(quoted, r" --var 'msg=it'\''s'");
     }
 }

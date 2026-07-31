@@ -381,7 +381,18 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
 /// OSC-8 link on a TTY · plain text over MCP).
 #[must_use]
 pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
-    if let Some(name) = builtin_code_name(code) {
+    if let Some((name, num)) = builtin_code_name(code) {
+        // The codes an author actually MEETS on a first run deserve the
+        // full lesson: the run card says `fix: nika explain <code>` — an
+        // explain that answered "see spec stdlib" taught nothing at the
+        // exact moment it was obeyed (first-run gate · 2026-07-31).
+        if let Some(contract) = builtin_contract_help(&name, &num) {
+            return Some(format!(
+                "{code} · builtin · the `nika:{name}` contract\n\n{contract}\n  \
+                 Valid in `retry.on_codes:` and `on_error.on_codes:` — \
+                 see spec stdlib (builtins) · {docs}.\n"
+            ));
+        }
         return Some(format!(
             "{code} · builtin · runtime error from the `nika:{name}` builtin\n\n  \
              A per-builtin runtime diagnostic (each builtin owns \
@@ -404,12 +415,34 @@ pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
 }
 
 /// Recognize `NIKA-BUILTIN-<NAME>-<NNN>` and return the builtin's lowercase
-/// name (`NIKA-BUILTIN-FETCH-001` → `fetch`).
-fn builtin_code_name(code: &str) -> Option<String> {
+/// name + the number (`NIKA-BUILTIN-FETCH-001` → (`fetch`, `001`)).
+fn builtin_code_name(code: &str) -> Option<(String, String)> {
     let rest = code.strip_prefix("NIKA-BUILTIN-")?;
     let (name, num) = rest.rsplit_once('-')?;
     (num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()) && !name.is_empty())
-        .then(|| name.to_ascii_lowercase())
+        .then(|| (name.to_ascii_lowercase(), num.to_owned()))
+}
+
+/// The per-code contract lessons (kept beside the namespace voice so
+/// CLI and MCP explain teach identically). Only the codes whose cause
+/// and exits are STABLE spec surface earn an entry — everything else
+/// keeps the namespace teaching.
+fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
+    match (name, num) {
+        ("prompt", "001") => Some(
+            "  The gate asked a human (`confirm` · `input` · `choice`) where no \
+             human can answer and no `default:` is declared. The engine never \
+             hangs and never invents an answer (stdlib §prompt) — the reference \
+             CLI parks the run instead: a durable pause (exit 4), the exact \
+             resume line taught on the frame.\n\n  \
+             exits (pick one):\n    \
+             · answer it at launch:       nika run <file> --answer <task>=<value>\n    \
+             · resume the paused trace:   nika run <file> --resume <trace> --answer <task>=<value>\n    \
+             · declare the unattended answer:  args: { …, default: <value> }\n    \
+             · at a terminal, just run it — the gate asks you directly.\n",
+        ),
+        _ => None,
+    }
 }
 
 /// Recognize `NIKA-PROVIDER-<NNN>` (exactly three digits).
@@ -434,6 +467,31 @@ mod tests {
         assert!(namespace_help("NIKA-VAR-001", "docs").is_none());
         assert!(namespace_help("NIKA-BUILTIN-FETCH-1", "docs").is_none());
         assert!(namespace_help("NIKA-PROVIDER-1042", "docs").is_none());
+    }
+
+    /// The run card says `fix: nika explain NIKA-BUILTIN-PROMPT-001` —
+    /// obeying it must teach the CONTRACT and every working exit, not
+    /// the namespace boilerplate (the dead-end loop a real first run
+    /// followed · 2026-07-31). One voice: CLI and MCP read this text.
+    #[test]
+    fn prompt_001_explain_teaches_the_contract_and_its_exits() {
+        let help = namespace_help("NIKA-BUILTIN-PROMPT-001", "docs").expect("teaches");
+        for lesson in [
+            "no `default:` is declared",
+            "durable pause (exit 4)",
+            "--answer <task>=<value>",
+            "--resume <trace>",
+            "default: <value>",
+            "the gate asks you directly",
+        ] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+        // The config-error sibling keeps the namespace teaching.
+        let sibling = namespace_help("NIKA-BUILTIN-PROMPT-002", "docs").expect("namespace");
+        assert!(
+            sibling.contains("per-builtin runtime diagnostic"),
+            "{sibling}"
+        );
     }
 
     #[test]
