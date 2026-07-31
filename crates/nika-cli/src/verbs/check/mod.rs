@@ -22,6 +22,24 @@ pub struct CheckFlags {
     pub json: bool,
     pub infer_permits: bool,
     pub native_strict: bool,
+    pub profile: Profile,
+}
+
+/// The readiness posture (`--profile`). `advisory` (the default) DISPLAYS
+/// the [`nika_check::RiskGrade`] on the audited card without gating on
+/// it — the pre-P0-6 behavior, minus the green paint over unbounded
+/// rope. `operational` is the agent/CI readiness gate: a grade of High
+/// or Unbounded (glob grants · true wildcards · uncapped spend) folds
+/// into the exit-2 verdict, the same way `--native-strict` promotes its
+/// hints. The grade itself is a pure projection of the report — it adds
+/// no finding and no `NIKA-*` code.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum Profile {
+    /// Grade displayed, never gating (the default).
+    #[default]
+    Advisory,
+    /// Grade ≥ High fails the audit (exit 2).
+    Operational,
 }
 
 #[must_use]
@@ -36,6 +54,7 @@ pub fn dispatch(
         json,
         infer_permits,
         native_strict,
+        profile,
     } = *flags;
     if fix {
         // The repair loop rewrites a file: stdin has nothing to rewrite,
@@ -61,7 +80,7 @@ pub fn dispatch(
         if infer_permits {
             run_infer_permits(file, json)
         } else {
-            run(file, json, native_strict, model, theme)
+            run_with_profile(file, json, native_strict, profile, model, theme)
         }
     } else if json || infer_permits {
         VerbOutput {
@@ -79,7 +98,7 @@ pub fn dispatch(
             code: crate::verbs::exit::ENV,
         }
     } else {
-        run_many(files, native_strict, model, theme)
+        run_many(files, native_strict, profile, model, theme)
     }
 }
 
@@ -106,11 +125,38 @@ use nika_display::check_render::{permits, required_inputs};
 /// `native-first` hints to failures (exit 2) — the agent/CI posture:
 /// spec-validity is unchanged, but an `exec:` with a probable native
 /// path no longer sails through silently.
+///
+/// The pre-profile signature, KEPT byte-stable for the surfaces that
+/// ride it (welcome's mirror · the fix loop): the readiness posture is
+/// advisory here — gating is an explicit ask, via [`run_with_profile`].
 #[must_use]
 pub fn run(
     path: &str,
     json: bool,
     native_strict: bool,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    run_with_profile(
+        path,
+        json,
+        native_strict,
+        Profile::Advisory,
+        model_override,
+        theme,
+    )
+}
+
+/// [`run`] with the readiness posture explicit: `profile` gates on the
+/// [`nika_check::RiskGrade`] — `operational` folds a grade ≥ High (glob
+/// grants · true wildcards · uncapped spend) into the same exit-2
+/// verdict, where `advisory` only displays the grade.
+#[must_use]
+pub fn run_with_profile(
+    path: &str,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
@@ -150,7 +196,13 @@ pub fn run(
     // SKILLS rung (#473 · MODELS pattern): a bad SKILL.md is a FINDING.
     let skills = super::resolve_workflow_skills(&wf);
     let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
-    let strict_clean = clean && (!native_strict || native_hints == 0);
+    // The risk grade (P0-6): a pure projection of the report — uncapped
+    // spend or wildcard grants never turn the verdict green by silence.
+    // Advisory by default; the operational profile folds grade ≥ High
+    // into the exit-2 verdict (the readiness gate).
+    let grade = nika_check::risk_grade(&report);
+    let profile_clean = profile != Profile::Operational || grade < nika_check::RiskGrade::High;
+    let strict_clean = clean && profile_clean && (!native_strict || native_hints == 0);
 
     if json {
         return json_verdict(
@@ -161,6 +213,8 @@ pub fn run(
             clean,
             strict_clean,
             native_strict,
+            grade,
+            profile,
         );
     }
 
@@ -173,6 +227,11 @@ pub fn run(
         &models_audit,
         &skills,
         &drift_hints,
+        // THE verdict, computed once above — the footer shows it, the
+        // exit code rides it, `--json` serializes it (P0-11: the human
+        // surface used to re-decide on `report.is_clean()` alone and
+        // painted `✔ audited` under a `✖ MODELS` rung at exit 2).
+        clean,
     );
     if native_strict && report.is_clean() && native_hints > 0 {
         let hint_word = if native_hints == 1 { "hint" } else { "hints" };
@@ -195,6 +254,23 @@ pub fn run(
                      (the exec ledger documents intent for a reviewer; \
                      it does not clear this gate)"
                 ),
+            )
+        );
+    }
+    if profile == Profile::Operational && clean && !profile_clean {
+        let _ = writeln!(
+            text,
+            " {}",
+            theme.paint(
+                Role::Bad,
+                // The grade names WHY; the fix direction mirrors the
+                // COST/hint lanes (cap the spend · narrow the grant).
+                &format!(
+                    "✖ operational · risk {} — cap the spend or narrow the grant: \
+                     glob/wildcard authority and uncapped autonomy block readiness \
+                     under --profile operational (advisory by default)",
+                    grade.as_str()
+                )
             )
         );
     }
@@ -244,9 +320,11 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
 /// The `--json` verdict: the full report + the machine keys (`clean` ·
 /// `models_resolve` · `models_unjudged` (presence-gated) ·
 /// `model_findings[]` · `skills_resolve` · `skill_findings[]` ·
-/// `pricing` · the strict flag) — never coloured, the contract bytes are
-/// the contract. The drift rows (NIKA-DRIFT-001) append to `hints[]` in
-/// the report's row shape plus their `code`.
+/// `pricing` · `risk_grade` · the strict/posture flags) — never
+/// coloured, the contract bytes are the contract. The drift rows
+/// (NIKA-DRIFT-001) append to `hints[]` in the report's row shape plus
+/// their `code`.
+#[allow(clippy::too_many_arguments)] // the verdict's seams, one each — the render.rs:427 precedent
 fn json_verdict(
     report: &CheckReport,
     models_audit: &ModelsAudit,
@@ -255,6 +333,8 @@ fn json_verdict(
     clean: bool,
     strict_clean: bool,
     native_strict: bool,
+    grade: nika_check::RiskGrade,
+    profile: Profile,
 ) -> VerbOutput {
     let model_findings = &models_audit.findings;
     let mut payload = match serde_json::to_value(report) {
@@ -308,6 +388,18 @@ fn json_verdict(
             "pricing".to_owned(),
             pricing_section(report, model_findings),
         );
+        // The grade rides EVERY payload (advisory included) — text, JSON
+        // and the exit code render the one verdict (P0-11's law).
+        obj.insert(
+            "risk_grade".to_owned(),
+            serde_json::Value::String(grade.as_str().to_owned()),
+        );
+        if profile == Profile::Operational {
+            obj.insert(
+                "operational_clean".to_owned(),
+                serde_json::Value::Bool(strict_clean),
+            );
+        }
         if native_strict {
             obj.insert(
                 "native_strict_clean".to_owned(),
@@ -335,13 +427,14 @@ fn json_verdict(
 pub fn run_many(
     paths: &[String],
     native_strict: bool,
+    profile: Profile,
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
     let mut texts = Vec::with_capacity(paths.len());
     let mut worst = crate::verbs::exit::OK;
     for path in paths {
-        let out = run(path, false, native_strict, model_override, theme);
+        let out = run_with_profile(path, false, native_strict, profile, model_override, theme);
         texts.push(out.text);
         worst = worst.max(out.code);
     }
@@ -400,7 +493,13 @@ mod tests {
             .iter()
             .map(|p| p.to_str().expect("utf8 path").to_owned())
             .collect();
-        let out = run_many(&paths, false, None, Theme::new(false, true, false));
+        let out = run_many(
+            &paths,
+            false,
+            Profile::Advisory,
+            None,
+            Theme::new(false, true, false),
+        );
 
         assert_eq!(out.code, 2, "the broken middle file's exit survives");
         // The report header names its file by BASENAME (`nika check · f`).
@@ -438,7 +537,13 @@ mod tests {
             .iter()
             .map(|p| p.to_str().expect("utf8 path").to_owned())
             .collect();
-        let out = run_many(&paths, false, None, Theme::new(false, true, false));
+        let out = run_many(
+            &paths,
+            false,
+            Profile::Advisory,
+            None,
+            Theme::new(false, true, false),
+        );
         assert_eq!(out.code, 0, "{}", out.text);
     }
 
@@ -648,6 +753,17 @@ mod tests {
     /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
     /// the `--native-strict` posture tests read `.code`.
     fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
+        checked_output_profile(name, yaml, native_strict, Profile::Advisory)
+    }
+
+    /// The posture-parameterized twin of [`checked_output`] — the
+    /// `--profile operational` readiness-gate tests read `.code`.
+    fn checked_output_profile(
+        name: &str,
+        yaml: &str,
+        native_strict: bool,
+        profile: Profile,
+    ) -> VerbOutput {
         // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
         // matrix · a dev double-run) share the OS tmpdir, and a fixed
         // name let them stomp each other's fixtures mid-read (flaked
@@ -658,10 +774,11 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
         let theme = Theme::new(false, true, false);
-        run(
+        run_with_profile(
             path.to_str().expect("utf8 path"),
             false,
             native_strict,
+            profile,
             None,
             theme,
         )
@@ -686,6 +803,135 @@ mod tests {
             out.text.contains("MODELS") && out.text.contains("`azure`"),
             "the rung names the provider: {}",
             out.text
+        );
+    }
+
+    /// P0-11 (UX audit 2026-07-30): the human footer re-decided the
+    /// verdict on its own narrow criterion (`report.is_clean()` — MODELS
+    /// and SKILLS outside it), so one file printed `✖ MODELS …` THEN
+    /// `✔ audited · …` while the exit said 2 and `--json` said
+    /// `clean: false`. Three surfaces, two answers. The verdict is
+    /// computed ONCE (the `clean` fold at the top of `run`) and every
+    /// surface renders THAT — the footer's job is to show it, never to
+    /// re-derive it.
+    #[test]
+    fn the_footer_never_contradicts_the_exit_code() {
+        let out = checked_output(
+            "footer-verdict.nika.yaml",
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
+            false,
+        );
+        assert_eq!(out.code, 2, "the MODELS finding fails: {}", out.text);
+        assert!(out.text.contains("MODELS"), "the rung speaks: {}", out.text);
+        assert!(
+            !out.text.contains("audited"),
+            "no audited card over a failing verdict (exit 2 · clean: false): {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("findings above"),
+            "the footer renders THE verdict: {}",
+            out.text
+        );
+    }
+
+    /// P0-6 (UX audit 2026-07-30): unbounded autonomy must never wear
+    /// the green audited card — and under the operational profile it
+    /// BLOCKS readiness (exit 2). The fixture is the audit's own:
+    /// `tools: ["nika:*"]` + an agent loop at `max_turns: 100` with no
+    /// `max_tokens_total` — zero findings, zero escapes, and (before
+    /// this fix) `✔ audited · est unbounded` painted `Role::Good` at
+    /// exit 0.
+    #[test]
+    fn operational_profile_folds_unbounded_risk_into_the_verdict() {
+        let yaml = "nika: v1\nworkflow:\n  id: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
+        // Advisory (default): the exit stays 0 — but the card must tell
+        // the truth (no green audited line over unbounded rope).
+        let advisory = checked_output("risk-advisory.nika.yaml", yaml, false);
+        assert_eq!(
+            advisory.code, 0,
+            "the advisory posture does not gate: {}",
+            advisory.text
+        );
+        assert!(
+            !advisory.text.contains("ok audited"),
+            "no green audited card over unbounded autonomy: {}",
+            advisory.text
+        );
+        assert!(
+            advisory.text.contains("risk unbounded"),
+            "the card NAMES the grade: {}",
+            advisory.text
+        );
+        // Operational: the SAME file fails readiness — grade ≥ High
+        // folds into the exit-2 verdict, and the refusal line says why.
+        let operational = checked_output_profile(
+            "risk-operational.nika.yaml",
+            yaml,
+            false,
+            Profile::Operational,
+        );
+        assert_eq!(
+            operational.code, 2,
+            "the operational profile blocks grade ≥ High: {}",
+            operational.text
+        );
+        assert!(
+            !operational.text.contains("ok audited"),
+            "no green audited card under the gate: {}",
+            operational.text
+        );
+        assert!(
+            operational.text.contains("✖ operational · risk unbounded"),
+            "the refusal names the grade and the posture: {}",
+            operational.text
+        );
+        // The JSON twin agrees — the one verdict on every surface: exit
+        // 2 · `operational_clean: false` · the grade on the payload.
+        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
+        let path = dir.join("risk-operational.nika.yaml");
+        let out = run_with_profile(
+            path.to_str().expect("utf8 path"),
+            true,
+            false,
+            Profile::Operational,
+            None,
+            Theme::new(false, true, false),
+        );
+        assert_eq!(out.code, 2, "the machine surface agrees: {}", out.text);
+        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+        assert_eq!(payload["clean"], true, "spec-clean stays true: {payload:#}");
+        assert_eq!(payload["risk_grade"], "unbounded", "{payload:#}");
+        assert_eq!(payload["operational_clean"], false, "{payload:#}");
+    }
+
+    /// The advisory card over bounded-but-broad authority is honest too:
+    /// a glob grant (`tools: nika:*`) with every token capped is High —
+    /// not green, not blocking by default — and a narrow boundary keeps
+    /// the green card with the grade named.
+    #[test]
+    fn the_card_names_the_grade_on_every_rung() {
+        let high = checked_output(
+            "risk-high.nika.yaml",
+            "nika: v1\nworkflow:\n  id: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+            false,
+        );
+        assert_eq!(high.code, 0, "advisory: {}", high.text);
+        assert!(
+            !high.text.contains("ok audited") && high.text.contains("risk high"),
+            "broad-but-bounded is named, not greened: {}",
+            high.text
+        );
+        let low = checked_output(
+            "risk-low.nika.yaml",
+            "nika: v1\nworkflow:\n  id: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+            false,
+        );
+        assert_eq!(low.code, 0, "{}", low.text);
+        assert!(
+            low.text.contains("ok audited") && low.text.contains("risk low"),
+            "pure compute keeps the green card, grade named: {}",
+            low.text
         );
     }
 
@@ -1054,7 +1300,7 @@ mod tests {
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
             text.contains(
-                "✔ audited · 2 tasks · 2 waves · permits declared · est out ≤$0.0000 · 0 hints"
+                "✔ audited · 2 tasks · 2 waves · permits declared · est out ≤$0.0000 · 0 hints · risk supervised"
             ),
             "the audited card line: {text}"
         );

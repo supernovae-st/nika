@@ -159,6 +159,12 @@ enum Command {
         /// posture; hints stay advisory without it.
         #[arg(long)]
         native_strict: bool,
+        /// The readiness posture on the audit's risk grade (uncapped
+        /// spend · glob/wildcard grants): `advisory` displays the grade
+        /// on the verdict card, `operational` also fails (exit 2) when
+        /// the grade is high or unbounded — the agent/CI readiness gate.
+        #[arg(long, value_enum, default_value_t = verbs::check::Profile::Advisory)]
+        profile: verbs::check::Profile,
         /// Price the static envelope AS IF this `<provider>/<model>`
         /// replaced the envelope default — the preview of `nika run
         /// --model` (per-task `model:` still wins, like the runtime).
@@ -585,6 +591,7 @@ fn main() -> std::process::ExitCode {
             infer_permits,
             fix,
             native_strict,
+            profile,
             model,
         } => check_lazy(
             files,
@@ -592,6 +599,7 @@ fn main() -> std::process::ExitCode {
                 json,
                 infer_permits,
                 native_strict,
+                profile,
             },
             fix,
             model.as_deref(),

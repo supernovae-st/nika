@@ -110,7 +110,7 @@ impl<T> typenum::type_operators::Same for nika_display::check_render::ModelsAudi
 pub type nika_display::check_render::ModelsAudit::Output = T
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
-pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]
@@ -354,9 +354,6 @@ impl<T> tracing::instrument::Instrument for nika_display::format::ColorEnv
 impl<T> tracing::instrument::WithSubscriber for nika_display::format::ColorEnv
 impl<T> typenum::type_operators::Same for nika_display::format::ColorEnv
 pub type nika_display::format::ColorEnv::Output = T
-impl<T> zvariant::optional::NoneValue for nika_display::format::ColorEnv where T: core::default::Default
-pub type nika_display::format::ColorEnv::NoneType = T
-pub fn nika_display::format::ColorEnv::null_value() -> T
 pub fn nika_display::format::color_enabled(choice: nika_display::format::ColorChoice, env: nika_display::format::ColorEnv, tty: bool) -> bool
 pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::string::String
 pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
@@ -488,9 +485,6 @@ impl<T> tracing::instrument::Instrument for nika_display::state::RunView
 impl<T> tracing::instrument::WithSubscriber for nika_display::state::RunView
 impl<T> typenum::type_operators::Same for nika_display::state::RunView
 pub type nika_display::state::RunView::Output = T
-impl<T> zvariant::optional::NoneValue for nika_display::state::RunView where T: core::default::Default
-pub type nika_display::state::RunView::NoneType = T
-pub fn nika_display::state::RunView::null_value() -> T
 pub struct nika_display::state::TaskRow
 pub nika_display::state::TaskRow::cached: bool
 pub nika_display::state::TaskRow::cost_usd: core::option::Option<f64>

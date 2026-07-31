@@ -61,6 +61,15 @@ fn conformance_row(out: &mut String, c: &ConformanceViolation, source: &str, pat
 }
 
 /// Render the human report — every section present, grep-stable keywords.
+///
+/// `verdict` is THE verdict, computed once by the caller (the CLI folds
+/// `report.is_clean()` with the MODELS and SKILLS rungs — both live
+/// outside the report). The footer renders it verbatim: it never
+/// re-derives a verdict of its own (P0-11 · measured 2026-07-30: a
+/// `✖ MODELS` report closed on a green `✔ audited` card while the exit
+/// code said 2 and `--json` said `clean: false` — three surfaces, two
+/// answers).
+#[allow(clippy::too_many_arguments)] // the report's seams, one each — the render.rs:427 precedent
 #[must_use]
 pub fn render(
     report: &CheckReport,
@@ -71,6 +80,7 @@ pub fn render(
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
+    verdict: bool,
 ) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -137,7 +147,7 @@ pub fn render(
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
     run_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, t, drift_hints);
+    hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
     // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
@@ -427,12 +437,15 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
 }
 
 /// Advisory hints + the one-line verdict (the report's last words).
+/// `verdict` is the caller's ONE verdict (see [`render`]) — this footer
+/// shows it, it never re-decides it.
 fn hints_and_verdict(
     out: &mut String,
     report: &CheckReport,
     wf: &RawWorkflow,
     t: Theme,
     drift_hints: &[String],
+    verdict: bool,
 ) {
     let mut hint_count = report.hints.len() + drift_hints.len();
     for h in &report.hints {
@@ -490,8 +503,9 @@ fn hints_and_verdict(
             t.paint(Role::Strong, "HINT"),
         );
     }
-    if report.is_clean() {
-        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, t));
+    if verdict {
+        let grade = nika_check::risk_grade(report);
+        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, grade, t));
     } else {
         // Through `mark()`, not a hardcoded glyph: this line shipped a
         // literal `✖` and was the one verdict in the report that leaked
@@ -545,16 +559,38 @@ fn unbounded_census(report: &CheckReport) -> String {
 
 /// The clean verdict as ONE informative card line — what was proven,
 /// at a glance: `✔ audited · N tasks · M waves · permits <state> ·
-/// est ≥$X · K hints`. The hints themselves stay above; this line
-/// counts them so a scroll-past never misses advice silently.
-fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) -> String {
+/// est ≤$X · K hints · risk <grade>`. The hints themselves stay above;
+/// this line counts them so a scroll-past never misses advice silently.
+///
+/// The grade is the card's honesty gate (P0-6 · 2026-07-30): past
+/// [`RiskGrade::Supervised`] the line is NEVER green. `✔ audited · est
+/// unbounded` in `Role::Good` shipped exactly that lie — an agent loop
+/// at `max_turns: 100` with no token cap closed on a green card while
+/// the COST section named the uncapped task three lines up. High and
+/// Unbounded render the warn mark and name the grade; only Low and
+/// Supervised earn the green mark.
+fn audited_line(
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    hints: usize,
+    grade: nika_check::RiskGrade,
+    t: Theme,
+) -> String {
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
     let permits = if wf.permits.is_some() {
         "declared"
     } else {
         "none"
     };
-    let mark = if t.ascii { "ok" } else { "✔" };
+    // The green mark is EARNED, never defaulted: grade ≥ High (glob
+    // grants · true wildcards · uncapped spend) renders the warn mark
+    // and Role::Warn — the audit completed, the readiness did not.
+    let ready = grade < nika_check::RiskGrade::High;
+    let (mark, role) = if ready {
+        (if t.ascii { "ok" } else { "✔" }, Role::Good)
+    } else {
+        (if t.ascii { "!" } else { "⚠" }, Role::Warn)
+    };
     // The COST section speaks CEILING throughout — `≤N tk` per task, and
     // the range labelled "worst-case ceiling". This line used to speak
     // FLOOR (`est ≥$X`) over `min_path_total_usd`, and the two
@@ -588,12 +624,13 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
         )
     };
     t.paint(
-        Role::Good,
+        role,
         &format!(
-            "{mark} audited · {} · {} · permits {permits} · {est} · {}",
+            "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}",
             crate::vocab::count(tasks, "task"),
             crate::vocab::count(report.waves.len(), "wave"),
             crate::vocab::count(hints, "hint"),
+            grade.as_str(),
         ),
     )
 }
@@ -1358,6 +1395,9 @@ mod policy_rung_tests {
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
             &[],
+            // No MODELS/SKILLS findings in this harness — the one verdict
+            // reduces to the report's own cleanliness.
+            report.is_clean(),
         )
     }
 
