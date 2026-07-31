@@ -18,6 +18,7 @@ mod examples_args;
 mod init_args;
 mod lazy;
 mod model_args;
+mod pipe_hygiene;
 mod registry_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -631,6 +632,10 @@ fn concierge(plain_theme: Theme) -> std::process::ExitCode {
 }
 
 fn main() -> std::process::ExitCode {
+    pipe_hygiene::guard(real_main)
+}
+
+fn real_main() -> std::process::ExitCode {
     // RAMS-13 · the full surface on demand: `--help --all` prints the
     // SAME tree with nothing hidden (12 craft verbs lead the default
     // help; protocols · trust cycle · plumbing stay one flag away —
