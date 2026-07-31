@@ -288,7 +288,44 @@ fn run_verdict(
         Err(code) => return RunVerdict::bare(code),
     };
 
-    // ── Execute (block the async run on a current-thread executor) ──
+    // ── Execute + the terminal ask (extracted · the fn-length wall) ──
+    execute_and_ask(
+        &runtime,
+        (file, &source),
+        (&wf, &report),
+        resume.is_some_and(|r| r.trace.is_some()),
+        vars,
+        model_override,
+        max_cost_usd,
+        &skills,
+        theme,
+        mode,
+        (json, output_json, no_trace_file, no_outputs),
+    )
+}
+
+/// The first leg + the terminal ask (ADR-099 · "interactively it asks").
+/// A paused HUMAN run with a terminal present continues in-process:
+/// ask on stderr · bind the answer · resume over the just-written
+/// trace — the SAME plan-fold + F-P4 ticket path a manual `--resume
+/// --answer` takes (one behavior, attested the same way). Ctrl-D or
+/// three unparseable tries leaves the durable pause + its taught
+/// resume line. Bounded by the task count: a workflow cannot hold
+/// more gates than tasks. Machine lanes never ask.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+fn execute_and_ask(
+    runtime: &ProdRuntime,
+    (file, source): (&str, &str),
+    (wf, report): (&RawWorkflow, &CheckReport),
+    resumed: bool,
+    vars: &[String],
+    model_override: Option<&str>,
+    max_cost_usd: Option<f64>,
+    skills: &BTreeMap<String, String>,
+    theme: Theme,
+    mode: RenderMode,
+    (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
+) -> RunVerdict {
     let rt = match executor(output_json) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -298,28 +335,19 @@ fn run_verdict(
     // resume, so a taught line without them failed on paste.
     let carry = epilogue::resume_carry(vars, model_override);
     let mut verdict = rt.block_on(execute(
-        &runtime,
-        (file, &wf),
-        &report,
+        runtime,
+        (file, wf),
+        report,
         json,
         output_json,
         theme,
         mode,
-        resume.is_some_and(|r| r.trace.is_some()),
+        resumed,
         trace_sink(no_trace_file),
         !no_outputs,
         model_override,
         &carry,
     ));
-
-    // ── The terminal ask (ADR-099 · "interactively it asks") ────────
-    // A paused HUMAN run with a terminal present continues in-process:
-    // ask on stderr · bind the answer · resume over the just-written
-    // trace — the SAME plan-fold + F-P4 ticket path a manual `--resume
-    // --answer` takes (one behavior, attested the same way). Ctrl-D or
-    // three unparseable tries leaves the durable pause + its taught
-    // resume line. Bounded by the task count: a workflow cannot hold
-    // more gates than tasks.
     let mut legs = 0usize;
     while verdict.code == exit::PAUSED && !json && !output_json && legs <= wf.tasks.len() {
         let Some(leg) = verdict.paused.take() else {
@@ -339,13 +367,13 @@ fn run_verdict(
             compat: None,
         };
         verdict = answered_leg(
-            (file, &source),
-            (&wf, &report),
+            (file, source),
+            (wf, report),
             &request,
             vars,
             model_override,
             max_cost_usd,
-            &skills,
+            skills,
             theme,
             mode,
             (json, output_json, no_trace_file, !no_outputs),
@@ -830,66 +858,17 @@ async fn execute(
     // journals), ambient keeps the live `UUIDv7`+wall-clock stamper.
     let mut stamper = nika_runtime::RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
     if output_json {
-        // Machine-result mode (spec 01 §export · 08 §composition): the
-        // fold is a DIAGNOSTIC → stderr (Plain deliberately — a pipe,
-        // never the live redraw); the resolved `outputs:` object is the
-        // ONE JSON object on stdout, never interleaved.
-        let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
-        fold.set_plan(plan_waves(wf, report));
-        let mut tee = Tee::new(fold, trace);
-        let (code, outcome) = drive(runtime, wf, report, stamper.as_mut(), &mut tee).await;
-        let (mut sink, trace) = tee.into_parts();
-        sink.print_final();
-        // F-P14 · la dette du run: a FAILED run quarantines its semi-written
-        // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
-        let teardown = attended_facts(wf, report, &outcome, trace.path());
-        let trace_path = surface_trace(
+        execute_output_json_lane(
+            runtime,
+            (file, wf),
+            report,
+            stamper.as_mut(),
+            theme,
+            resumed,
             trace,
-            TraceNote::Stderr,
-            None,
-            seal_hash(wf).as_deref(),
-            Some(&teardown),
-        );
-        // A paused run teaches its exact resume command on stderr — the
-        // pause sibling of the failure lane's `autopsy:` line.
-        if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
-            eprintln!(
-                "nika run: {}",
-                epilogue::resume_hint_line(file, p, pause, carry)
-            );
-        }
-        epilogue::print_resume_summary(&outcome, resumed, true);
-        // Built BEFORE the sink is consumed — the failure envelope reads
-        // the folded view (the failed row's detail carries the wire code).
-        // A PAUSED run gets its own additive envelope (`{"paused":{…}}` ·
-        // ADR-099 rider · run state `paused` in the report vocabulary).
-        let verdict_line = if code == exit::PAUSED {
-            outcome.paused.as_ref().map(epilogue::paused_envelope_line)
-        } else if code != exit::OK {
-            Some(epilogue::run_failure_envelope(sink.view()))
-        } else {
-            None
-        };
-        if let Some(e) = sink.into_error() {
-            let message = format!("render failed: {e}");
-            eprintln!("nika run: {message}");
-            println!("{}", epilogue::error_envelope_line(&message));
-            return RunVerdict::bare(exit::ENV);
-        }
-        // stdout is ALWAYS one self-sufficient JSON object (F6): the
-        // resolved `outputs:` on success · the `{"error":{…}}` envelope on
-        // failure (it used to stay empty/`{}` — a machine consumer had to
-        // scrape stderr to learn WHY) · the `{"paused":{…}}` envelope on a
-        // human-gate pause.
-        match verdict_line {
-            Some(line) => println!("{line}"),
-            None => println!("{}", epilogue::outputs_json_line(&outcome.outputs)),
-        }
-        RunVerdict {
-            code,
-            failure: first_failure(&outcome),
-            paused: None,
-        }
+            carry,
+        )
+        .await
     } else if json {
         execute_json_lane(
             runtime,
@@ -915,6 +894,75 @@ async fn execute(
             carry,
         )
         .await
+    }
+}
+
+/// The machine-result lane (`--output json` · spec 01 §export · 08
+/// §composition) — extracted whole (the fold-lane precedent · the
+/// fn-length wall): the fold is a DIAGNOSTIC → stderr (Plain
+/// deliberately — a pipe, never the live redraw); stdout is ALWAYS one
+/// self-sufficient JSON object (F6): the resolved `outputs:` on
+/// success · the `{"error":{…}}` envelope on failure · the
+/// `{"paused":{…}}` envelope on a human-gate pause (ADR-099 rider).
+#[allow(clippy::too_many_arguments)] // the clap-surface idiom (execute's own)
+async fn execute_output_json_lane(
+    runtime: &ProdRuntime,
+    (file, wf): (&str, &RawWorkflow),
+    report: &CheckReport,
+    stamper: &mut dyn Stamper,
+    theme: Theme,
+    resumed: bool,
+    trace: TraceFileSink,
+    carry: &str,
+) -> RunVerdict {
+    let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
+    fold.set_plan(plan_waves(wf, report));
+    let mut tee = Tee::new(fold, trace);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
+    let (mut sink, trace) = tee.into_parts();
+    sink.print_final();
+    // F-P14 · la dette du run: a FAILED run quarantines its semi-written
+    // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
+    let teardown = attended_facts(wf, report, &outcome, trace.path());
+    let trace_path = surface_trace(
+        trace,
+        TraceNote::Stderr,
+        None,
+        seal_hash(wf).as_deref(),
+        Some(&teardown),
+    );
+    // A paused run teaches its exact resume command on stderr — the
+    // pause sibling of the failure lane's `autopsy:` line.
+    if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
+        eprintln!(
+            "nika run: {}",
+            epilogue::resume_hint_line(file, p, pause, carry)
+        );
+    }
+    epilogue::print_resume_summary(&outcome, resumed, true);
+    // Built BEFORE the sink is consumed — the failure envelope reads
+    // the folded view (the failed row's detail carries the wire code).
+    let verdict_line = if code == exit::PAUSED {
+        outcome.paused.as_ref().map(epilogue::paused_envelope_line)
+    } else if code != exit::OK {
+        Some(epilogue::run_failure_envelope(sink.view()))
+    } else {
+        None
+    };
+    if let Some(e) = sink.into_error() {
+        let message = format!("render failed: {e}");
+        eprintln!("nika run: {message}");
+        println!("{}", epilogue::error_envelope_line(&message));
+        return RunVerdict::bare(exit::ENV);
+    }
+    match verdict_line {
+        Some(line) => println!("{line}"),
+        None => println!("{}", epilogue::outputs_json_line(&outcome.outputs)),
+    }
+    RunVerdict {
+        code,
+        failure: first_failure(&outcome),
+        paused: None,
     }
 }
 
@@ -1035,6 +1083,33 @@ async fn execute_fold_lane(
     if mode == RenderMode::Live {
         epilogue::print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
     }
+    fold_lane_verdict(
+        &mut sink,
+        (wf, report),
+        &outcome,
+        trace,
+        mode,
+        (file, carry),
+        resumed,
+        code,
+    )
+}
+
+/// The fold lane's last words (extracted · the fn-length wall): the
+/// spec §3.3 `trace:` pointer, the paused teaching line, the resume
+/// summary, the render-error gate — and the verdict, carrying the
+/// pause up so the terminal ask can continue the run in-process.
+#[allow(clippy::too_many_arguments)] // the lane's own teardown facts
+fn fold_lane_verdict(
+    sink: &mut FoldSink<std::io::Stdout>,
+    (wf, report): (&RawWorkflow, &CheckReport),
+    outcome: &nika_runtime::RunOutcome,
+    trace: TraceFileSink,
+    mode: RenderMode,
+    (file, carry): (&str, &str),
+    resumed: bool,
+    code: u8,
+) -> RunVerdict {
     // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
     // on the storytelling surfaces.
     let failed_task = sink
@@ -1044,7 +1119,7 @@ async fn execute_fold_lane(
         .find(|r| r.state == crate::TaskState::Failed)
         .map(|r| r.id.clone());
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
-    let teardown = attended_facts(wf, report, &outcome, trace.path());
+    let teardown = attended_facts(wf, report, outcome, trace.path());
     let trace_path = surface_trace(
         trace,
         if mode == RenderMode::Quiet {
@@ -1064,13 +1139,13 @@ async fn execute_fold_lane(
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         println!("    {}", epilogue::resume_hint_line(file, p, pause, carry));
     }
-    epilogue::print_resume_summary(&outcome, resumed, false);
+    epilogue::print_resume_summary(outcome, resumed, false);
     if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
         return RunVerdict::bare(exit::ENV);
     }
-    // The fold lane hands the pause up: the terminal ask (run_verdict's
-    // loop) continues the run in-process over this trace.
+    // The fold lane hands the pause up: the terminal ask continues the
+    // run in-process over this trace.
     let paused = match (&trace_path, &outcome.paused) {
         (Some(p), Some(pause)) => Some(PausedLeg {
             pause: pause.clone(),
@@ -1080,7 +1155,7 @@ async fn execute_fold_lane(
     };
     RunVerdict {
         code,
-        failure: first_failure(&outcome),
+        failure: first_failure(outcome),
         paused,
     }
 }
