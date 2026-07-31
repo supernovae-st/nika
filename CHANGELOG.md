@@ -10,6 +10,33 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Fixed
+
+- **A human gate can no longer kill a first run.** A `nika:prompt` with no
+  `default:` used to die `NIKA-BUILTIN-PROMPT-001` in milliseconds on every
+  text-mode run — a pipe, CI, an agent, even a human at a terminal (the
+  ADR-099 durable pause was armed on the `--json` output flag, and the
+  promised TTY prompter had never shipped). The rider is now armed on every
+  lane: unattended runs **pause durably** (exit 4 · `workflow_paused`
+  journaled · never a failure frame), and at a terminal **the gate asks you
+  directly** (confirm `[y/N]` · choice by value or index · input verbatim),
+  binding the answer through the same attested resume path as a manual
+  `--resume --answer`. Walking away (Ctrl-D) leaves the paused trace and
+  its taught resume line.
+- **The paused run teaches its exact next move.** Every lane prints a
+  paste-able `resume: nika run <file> … --resume <trace> --answer
+  <task>=<value>` line that now **carries the run's own `--var`/`--model`**
+  (a required-input workflow refused the taught line without them). The
+  frame renders the pause honestly: the gate row turns `◇` amber and the
+  paused card names the awaiting task.
+- **Fallout counts beside the root cause.** One failed gate cancelling 22
+  downstream tasks used to read `23/23 done · 1 failed` — the meter now
+  says `1 failed · 22 blocked`.
+- **`nika explain NIKA-BUILTIN-PROMPT-001` teaches the contract**, not the
+  namespace boilerplate: the cause and all four exits (`--answer` at
+  launch · resume · `default:` · the terminal ask). The `nika check`
+  headless-prompt hint teaches the same working recipes.
+
 ### Added
 
 - **`nika wire copilot` + `nika wire amp` — the wave-3 doors, shapes taken
