@@ -430,27 +430,10 @@ pub fn copy(slug: &str, dest: Option<&str>, force: bool, theme: Theme) -> VerbOu
         theme.paint(Role::Dim, "— yours now · edit anything"),
     );
     match fixtures {
-        Ok((0, 0)) => {}
-        Ok((written, kept)) => {
-            let mut note = format!(
-                "{} {}",
-                theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
-                theme.paint(
-                    Role::Dim,
-                    &format!(
-                        "examples/fixtures · {} (the recipe's ingredients)",
-                        crate::text::count(written, "file")
-                    )
-                ),
-            );
-            if kept > 0 {
-                let _ = write!(
-                    note,
-                    " {}",
-                    theme.paint(Role::Dim, &format!("· {kept} already yours, kept"))
-                );
+        Ok(counts) => {
+            if let Some(note) = fixture_note(counts, theme) {
+                let _ = write!(text, "\n{note}");
             }
-            let _ = write!(text, "\n{note}");
         }
         Err(e) => {
             return VerbOutput {
@@ -481,6 +464,32 @@ pub fn copy(slug: &str, dest: Option<&str>, force: bool, theme: Theme) -> VerbOu
         );
     }
     VerbOutput::ok(text)
+}
+
+/// The ingredients line under a copy — silent when nothing applied.
+fn fixture_note((written, kept): (usize, usize), theme: Theme) -> Option<String> {
+    if written == 0 && kept == 0 {
+        return None;
+    }
+    let mut note = format!(
+        "{} {}",
+        theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
+        theme.paint(
+            Role::Dim,
+            &format!(
+                "examples/fixtures · {} (the recipe's ingredients)",
+                crate::text::count(written, "file")
+            )
+        ),
+    );
+    if kept > 0 {
+        let _ = write!(
+            note,
+            " {}",
+            theme.paint(Role::Dim, &format!("· {kept} already yours, kept"))
+        );
+    }
+    Some(note)
 }
 
 /// The `examples/fixtures/<tail>` references a body reads, each tail cut

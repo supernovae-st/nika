@@ -1483,19 +1483,12 @@ fn help_teaches_the_registry_form_on_check_and_run() {
     }
 }
 
-/// Gauntlet 2026-07-31: bare `nika` in a PIPE greeted with clap usage at
-/// exit 2 — but §4 reserves 2 for FILE findings, and an agent's first
-/// contact read as breakage. The concierge now answers both worlds: the
-/// welcome mirror, exit 0 (`--help` stays the reference card).
+/// Gauntlet 2026-07-31: bare `nika` piped = welcome mirror, exit 0
+/// (§4 reserves 2 for FILE findings · `--help` stays the reference).
 #[test]
 fn bare_nika_greets_and_exits_zero_in_a_pipe() {
     let out = bin().output().expect("binary runs");
-    assert_eq!(
-        out.status.code(),
-        Some(0),
-        "the front door is a greeting, not a finding · stderr: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert_eq!(out.status.code(), Some(0), "a greeting, not a finding");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("nika") && stdout.contains("start here"),
