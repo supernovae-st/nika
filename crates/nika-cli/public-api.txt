@@ -1312,17 +1312,21 @@ pub fn nika_cli::verbs::welcome::run(json: bool, theme: nika_display::theme::The
 pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All
+pub nika_cli::verbs::wire::WireTarget::Amp
 pub nika_cli::verbs::wire::WireTarget::Antigravity
 pub nika_cli::verbs::wire::WireTarget::Claude
 pub nika_cli::verbs::wire::WireTarget::ClaudeDesktop
 pub nika_cli::verbs::wire::WireTarget::Cline
 pub nika_cli::verbs::wire::WireTarget::Codex
 pub nika_cli::verbs::wire::WireTarget::Continue
+pub nika_cli::verbs::wire::WireTarget::Copilot
 pub nika_cli::verbs::wire::WireTarget::Cursor
 pub nika_cli::verbs::wire::WireTarget::Gemini
 pub nika_cli::verbs::wire::WireTarget::Grok
 pub nika_cli::verbs::wire::WireTarget::Hermes
 pub nika_cli::verbs::wire::WireTarget::Junie
+pub nika_cli::verbs::wire::WireTarget::Kimi
+pub nika_cli::verbs::wire::WireTarget::Kiro
 pub nika_cli::verbs::wire::WireTarget::Lmstudio
 pub nika_cli::verbs::wire::WireTarget::Opencode
 pub nika_cli::verbs::wire::WireTarget::Qwen
