@@ -1,1391 +1,1385 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "nika:design-pack-pre1:registries:1",
-  "title": "Registry DOCUMENT schema — R2R (PAA-004): the ROOT is a closed discriminated single-family document ({registry_document_format:1, <family>: [rows…]}); an unknown family, an empty document, a multi-family document, a wrong root form and a missing/wrong format marker are all schema-refused. The 13 family row defs stay SELF-CONTAINED closed schemas (additionalProperties:false at every depth, active rows require ≥1 law_id, ids format-checked per family).",
-  "$comment": "A registry document carries EXACTLY ONE family (one document = one canonical file per machine/registries-inventory.json — the oneOf below enforces exactly-one). Every family def is complete on its own (no allOf property-merging) so additionalProperties closure is exact. Shared field SHAPES live in $defs and are referenced as property VALUES only. Referential integrity of law_ids (the cited law EXISTS) is the validator harness's job (tests/validate_design_pack.py) — JSON Schema checks format, the harness checks existence.",
-  "$defs": {
-    "commentMeta": {
-      "type": "string",
-      "maxLength": 2000,
-      "description": "PAA-001 policy: $comment = declared documentary metadata, zero normative semantics"
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "nika:design-pack-pre1:registries:1",
+ "title": "Registry DOCUMENT schema — R2R (PAA-004): the ROOT is a closed discriminated single-family document ({registry_document_format:1, <family>: [rows…]}); an unknown family, an empty document, a multi-family document, a wrong root form and a missing/wrong format marker are all schema-refused. The 13 family row defs stay SELF-CONTAINED closed schemas (additionalProperties:false at every depth, active rows require ≥1 law_id, ids format-checked per family).",
+ "$comment": "A registry document carries EXACTLY ONE family (one document = one canonical file per machine/registries-inventory.json — the oneOf below enforces exactly-one). Every family def is complete on its own (no allOf property-merging) so additionalProperties closure is exact. Shared field SHAPES live in $defs and are referenced as property VALUES only. Referential integrity of law_ids (the cited law EXISTS) is the validator harness's job (tests/validate_design_pack.py) — JSON Schema checks format, the harness checks existence.",
+ "$defs": {
+  "commentMeta": {
+   "type": "string",
+   "maxLength": 2000,
+   "description": "PAA-001 policy: $comment = declared documentary metadata, zero normative semantics"
+  },
+  "lifecycle": {
+   "enum": [
+    "active",
+    "reserved",
+    "retired"
+   ]
+  },
+  "exposure": {
+   "enum": [
+    "authorable",
+    "internal"
+   ]
+  },
+  "ownerEnum": {
+   "enum": [
+    "spec",
+    "engine",
+    "conformance",
+    "release",
+    "tooling"
+   ]
+  },
+  "lawIds": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^LAW-[A-Z]+-[0-9]{4}$"
+   }
+  },
+  "machineId": {
+   "type": "string",
+   "pattern": "^[a-z][a-z0-9_.-]*$"
+  },
+  "introducedIn": {
+   "type": "string",
+   "pattern": "^[a-zA-Z0-9.-]+$"
+  },
+  "replacedBy": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^[a-zA-Z0-9:_.-]+$"
+  },
+  "notes": {
+   "$ref": "#/$defs/documentaryText"
+  },
+  "sha256": {
+   "type": "string",
+   "pattern": "^sha256:[0-9a-f]{64}$"
+  },
+  "pathLike": {
+   "type": "string",
+   "pattern": "^[a-zA-Z0-9_./*-]+$"
+  },
+  "activeNeedsLaw": {
+   "$comment": "attached to every family via allOf — an ACTIVE row without an executable law is refused (PAA-004)",
+   "if": {
+    "properties": {
+     "status": {
+      "const": "active"
+     }
     },
-    "lifecycle": {
-      "enum": [
-        "active",
-        "reserved",
-        "retired"
-      ]
+    "required": [
+     "status"
+    ]
+   },
+   "then": {
+    "properties": {
+     "law_ids": {
+      "minItems": 1
+     }
+    }
+   }
+  },
+  "surfaceRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "spelling",
+    "kind",
+    "family",
+    "exposure"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
     },
-    "exposure": {
-      "enum": [
-        "authorable",
-        "internal"
-      ]
+    "id": {
+     "$ref": "#/$defs/machineId"
     },
-    "ownerEnum": {
-      "enum": [
-        "spec",
-        "engine",
-        "conformance",
-        "release",
-        "tooling"
-      ]
+    "status": {
+     "$ref": "#/$defs/lifecycle"
     },
-    "lawIds": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^LAW-[A-Z]+-[0-9]{4}$"
-      }
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
     },
-    "machineId": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9_.-]*$"
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
     },
-    "introducedIn": {
-      "type": "string",
-      "pattern": "^[a-zA-Z0-9.-]+$"
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
     },
-    "replacedBy": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "pattern": "^[a-zA-Z0-9:_.-]+$"
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
     },
     "notes": {
-      "$ref": "#/$defs/documentaryText"
+     "$ref": "#/$defs/notes"
     },
-    "sha256": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
+    "spelling": {
+     "type": "string",
+     "pattern": "^[!-~]{1,64}$",
+     "$comment": "NORMATIVE surface spelling — printable ASCII, no whitespace (e.g. 'inputs', 'artifact<mime>', '<<')"
     },
-    "pathLike": {
-      "type": "string",
-      "pattern": "^[a-zA-Z0-9_./*-]+$"
+    "kind": {
+     "enum": [
+      "envelope-key",
+      "task-field",
+      "verb",
+      "verb-field",
+      "namespace",
+      "predicate",
+      "record-field",
+      "binding-path",
+      "cli-flag",
+      "evidence-level"
+     ]
     },
-    "activeNeedsLaw": {
-      "$comment": "attached to every family via allOf — an ACTIVE row without an executable law is refused (PAA-004)",
-      "if": {
-        "properties": {
-          "status": {
-            "const": "active"
-          }
-        },
-        "required": [
-          "status"
+    "family": {
+     "$ref": "#/$defs/machineId"
+    },
+    "exposure": {
+     "$ref": "#/$defs/exposure"
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "grammarRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "position",
+    "fields"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "position": {
+     "$ref": "#/$defs/machineId"
+    },
+    "fields": {
+     "type": "array",
+     "minItems": 1,
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "name",
+       "cardinality"
+      ],
+      "properties": {
+       "$comment": {
+        "$ref": "#/$defs/commentMeta"
+       },
+       "name": {
+        "$ref": "#/$defs/machineId"
+       },
+       "cardinality": {
+        "enum": [
+         "required",
+         "optional",
+         "forbidden"
         ]
-      },
-      "then": {
-        "properties": {
-          "law_ids": {
-            "minItems": 1
-          }
-        }
+       },
+       "value_shape": {
+        "$ref": "#/$defs/machineId"
+       }
       }
+     }
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "typeRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "production",
+    "spelling"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
     },
-    "surfaceRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "spelling",
-        "kind",
-        "family",
-        "exposure"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "spelling": {
-          "type": "string",
-          "pattern": "^[!-~]{1,64}$",
-          "$comment": "NORMATIVE surface spelling — printable ASCII, no whitespace (e.g. 'inputs', 'artifact<mime>', '<<')"
-        },
-        "kind": {
-          "enum": [
-            "envelope-key",
-            "task-field",
-            "verb",
-            "verb-field",
-            "namespace",
-            "predicate",
-            "record-field",
-            "binding-path",
-            "cli-flag",
-            "evidence-level"
-          ]
-        },
-        "family": {
-          "$ref": "#/$defs/machineId"
-        },
-        "exposure": {
-          "$ref": "#/$defs/exposure"
-        }
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "production": {
+     "enum": [
+      "primitive",
+      "named_ref",
+      "array",
+      "map",
+      "object",
+      "union",
+      "optional_field",
+      "enum",
+      "refinement",
+      "reserved_constructor"
+     ]
+    },
+    "spelling": {
+     "type": "string",
+     "pattern": "^[!-~]{1,64}$",
+     "$comment": "NORMATIVE surface spelling — printable ASCII, no whitespace (e.g. 'inputs', 'artifact<mime>', '<<')"
+    },
+    "reservation": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "future_gate"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
       },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
-    },
-    "grammarRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "position",
-        "fields"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "position": {
-          "$ref": "#/$defs/machineId"
-        },
-        "fields": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "cardinality"
-            ],
-            "properties": {
-              "$comment": {
-                "$ref": "#/$defs/commentMeta"
-              },
-              "name": {
-                "$ref": "#/$defs/machineId"
-              },
-              "cardinality": {
-                "enum": [
-                  "required",
-                  "optional",
-                  "forbidden"
-                ]
-              },
-              "value_shape": {
-                "$ref": "#/$defs/machineId"
-              }
-            }
-          }
-        }
+      "future_gate": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9-]*$"
       },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+      "minimal_definition": {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/machineId"
+       }
+      }
+     }
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "diagnosticRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "namespace",
+    "plane",
+    "condition",
+    "outcome_class",
+    "cause",
+    "retryable",
+    "terminal",
+    "payload_schema",
+    "span_required",
+    "teaching"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
     },
-    "typeRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "production",
-        "spelling"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "production": {
-          "enum": [
-            "primitive",
-            "named_ref",
-            "array",
-            "map",
-            "object",
-            "union",
-            "optional_field",
-            "enum",
-            "refinement",
-            "reserved_constructor"
-          ]
-        },
-        "spelling": {
-          "type": "string",
-          "pattern": "^[!-~]{1,64}$",
-          "$comment": "NORMATIVE surface spelling — printable ASCII, no whitespace (e.g. 'inputs', 'artifact<mime>', '<<')"
-        },
-        "reservation": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "future_gate"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "future_gate": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9-]*$"
-            },
-            "minimal_definition": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/machineId"
-              }
-            }
-          }
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+    "id": {
+     "type": "string",
+     "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
     },
-    "diagnosticRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "namespace",
-        "plane",
-        "condition",
-        "outcome_class",
-        "cause",
-        "retryable",
-        "terminal",
-        "payload_schema",
-        "span_required",
-        "teaching"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "namespace": {
-          "type": "string",
-          "pattern": "^[A-Z]{2,9}$"
-        },
-        "plane": {
-          "$ref": "#/$defs/machineId"
-        },
-        "condition": {
-          "$ref": "#/$defs/documentaryText",
-          "description": "DOCUMENTARY trigger phrasing — the NORMATIVE condition lives in the cited law(s)"
-        },
-        "outcome_class": {
-          "enum": [
-            "success",
-            "failure",
-            "skipped",
-            "cancelled"
-          ]
-        },
-        "cause": {
-          "$ref": "#/$defs/machineId"
-        },
-        "retryable": {
-          "type": "boolean"
-        },
-        "terminal": {
-          "type": "boolean"
-        },
-        "payload_schema": {
-          "$ref": "#/$defs/pathLike"
-        },
-        "span_required": {
-          "type": "boolean"
-        },
-        "teaching": {
-          "$ref": "#/$defs/documentaryText"
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+    "status": {
+     "$ref": "#/$defs/lifecycle"
     },
-    "builtinRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "category",
-        "capability_classification",
-        "args_schema",
-        "error_plane"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^nika:[a-z][a-z0-9_]*$"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "category": {
-          "enum": [
-            "core",
-            "file",
-            "data",
-            "network",
-            "introspection",
-            "media",
-            "decision"
-          ]
-        },
-        "capability_classification": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "class"
-              ],
-              "properties": {
-                "$comment": {
-                  "$ref": "#/$defs/commentMeta"
-                },
-                "class": {
-                  "const": "pure_internal"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "class",
-                "requires"
-              ],
-              "properties": {
-                "$comment": {
-                  "$ref": "#/$defs/commentMeta"
-                },
-                "class": {
-                  "const": "external"
-                },
-                "requires": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": {
-                    "enum": [
-                      "fs",
-                      "net",
-                      "exec",
-                      "tools"
-                    ]
-                  }
-                }
-              }
-            }
-          ]
-        },
-        "args_schema": {
-          "$ref": "#/$defs/pathLike"
-        },
-        "error_plane": {
-          "$ref": "#/$defs/pathLike"
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
     },
-    "featureRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "kind",
-        "detection_law",
-        "conformance_profile"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)*$"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "kind": {
-          "enum": [
-            "language_feature",
-            "runtime_capability",
-            "backend_capability"
-          ]
-        },
-        "detection_law": {
-          "type": "string",
-          "pattern": "^LAW-[A-Z]+-[0-9]{4}$",
-          "description": "the IR-derivation rule (R7) — a law id, never prose"
-        },
-        "conformance_profile": {
-          "$ref": "#/$defs/machineId"
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
     },
-    "templateRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "source_path",
-        "source_digest",
-        "category"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "source_path": {
-          "$ref": "#/$defs/pathLike"
-        },
-        "source_digest": {
-          "$ref": "#/$defs/sha256"
-        },
-        "category": {
-          "$ref": "#/$defs/machineId"
-        },
-        "tags": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/machineId"
-          }
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
     },
-    "snippetRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "selector",
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "namespace": {
+     "type": "string",
+     "pattern": "^[A-Z]{2,9}$"
+    },
+    "plane": {
+     "$ref": "#/$defs/machineId"
+    },
+    "condition": {
+     "$ref": "#/$defs/documentaryText",
+     "description": "DOCUMENTARY trigger phrasing — the NORMATIVE condition lives in the cited law(s)"
+    },
+    "outcome_class": {
+     "enum": [
+      "success",
+      "failure",
+      "skipped",
+      "cancelled"
+     ]
+    },
+    "cause": {
+     "$ref": "#/$defs/machineId"
+    },
+    "retryable": {
+     "type": "boolean"
+    },
+    "terminal": {
+     "type": "boolean"
+    },
+    "payload_schema": {
+     "$ref": "#/$defs/pathLike"
+    },
+    "span_required": {
+     "type": "boolean"
+    },
+    "teaching": {
+     "$ref": "#/$defs/documentaryText"
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "builtinRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "category",
+    "capability_classification",
+    "args_schema",
+    "error_plane"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "type": "string",
+     "pattern": "^nika:[a-z][a-z0-9_]*$"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "category": {
+     "enum": [
+      "core",
+      "file",
+      "data",
+      "network",
+      "introspection",
+      "media",
+      "decision"
+     ]
+    },
+    "capability_classification": {
+     "oneOf": [
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
         "class"
-      ],
-      "properties": {
+       ],
+       "properties": {
         "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "selector": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "source"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "kind": {
-              "enum": [
-                "whole_file",
-                "yaml_node",
-                "marked_region",
-                "command_receipt"
-              ]
-            },
-            "source": {
-              "$ref": "#/$defs/pathLike"
-            },
-            "anchor": {
-              "$ref": "#/$defs/machineId"
-            }
-          }
+         "$ref": "#/$defs/commentMeta"
         },
         "class": {
-          "enum": [
-            "canonical_example",
-            "canonical_template",
-            "starter",
-            "generated_projection",
-            "negative_fixture",
-            "historical",
-            "teaching"
-          ]
-        },
-        "validated_at_pin": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{7,40}$"
-        },
-        "consumers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/machineId"
-          }
+         "const": "pure_internal"
         }
+       }
       },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
-    },
-    "conformanceRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "path",
-        "polarity",
-        "expected",
-        "profile"
-      ],
-      "properties": {
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "class",
+        "requires"
+       ],
+       "properties": {
         "$comment": {
-          "$ref": "#/$defs/commentMeta"
+         "$ref": "#/$defs/commentMeta"
         },
-        "id": {
-          "$ref": "#/$defs/machineId"
+        "class": {
+         "const": "external"
         },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "path": {
-          "$ref": "#/$defs/pathLike"
-        },
-        "polarity": {
+        "requires": {
+         "type": "array",
+         "minItems": 1,
+         "items": {
           "enum": [
-            "positive",
-            "negative"
+           "fs",
+           "net",
+           "exec",
+           "tools"
           ]
-        },
-        "expected": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "surface",
-            "verdict"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "surface": {
-              "enum": [
-                "check",
-                "run",
-                "lsp"
-              ]
-            },
-            "verdict": {
-              "enum": [
-                "pass",
-                "refuse"
-              ]
-            },
-            "diagnostics": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
-              }
-            }
-          }
-        },
-        "profile": {
-          "enum": [
-            "core",
-            "deep",
-            "stdlib",
-            "runtime"
-          ]
+         }
         }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
-    },
-    "tombstoneRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "kind",
-        "retired_in",
-        "census_pattern"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "const": "retired"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "kind": {
-          "enum": [
-            "surface-word",
-            "diagnostic",
-            "law",
-            "constructor",
-            "file-form",
-            "field",
-            "phrase"
-          ]
-        },
-        "retired_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "census_pattern": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "tool",
-            "pattern"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "tool": {
-              "enum": [
-                "grep",
-                "ast",
-                "schema"
-              ]
-            },
-            "pattern": {
-              "type": "string",
-              "pattern": "^[ -~]{2,200}$",
-              "$comment": "NORMATIVE census matcher consumed by the declared tool — bounded printable ASCII"
-            },
-            "scope": {
-              "$ref": "#/$defs/pathLike"
-            }
-          }
-        },
-        "final_census": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "date",
-            "count"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "date": {
-              "type": "string",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-            },
-            "count": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        }
+       }
       }
+     ]
     },
-    "projectionRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "sources",
-        "generator",
-        "outputs",
-        "check_command",
-        "digest_home",
-        "channel_sensitivity"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "sources": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/machineId"
-          }
-        },
-        "generator": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "identity",
-            "version"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "identity": {
-              "$ref": "#/$defs/machineId"
-            },
-            "version": {
-              "type": "string",
-              "pattern": "^[0-9a-zA-Z.-]+$"
-            }
-          }
-        },
-        "outputs": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/pathLike"
-          }
-        },
-        "check_command": {
-          "type": "string",
-          "pattern": "^[ -~]{4,200}$",
-          "$comment": "NORMATIVE executable pointer — bounded printable ASCII command line"
-        },
-        "digest_home": {
-          "$ref": "#/$defs/pathLike"
-        },
-        "consumers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/machineId"
-          }
-        },
-        "channel_sensitivity": {
-          "enum": [
-            "stable-only",
-            "nightly-ok"
-          ]
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
+    "args_schema": {
+     "$ref": "#/$defs/pathLike"
     },
-    "migrationRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "ruling",
-        "wave",
-        "codemod",
-        "old_form",
-        "new_form",
-        "blast_radius",
-        "receipt_slot",
-        "state"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "ruling": {
-          "type": "string",
-          "pattern": "^(R[0-9]+[ab]?|A-16|B-17|SSOT-[1-4]|third-pass-[a-z0-9-]+|naming\\+contract)$"
-        },
-        "wave": {
-          "type": "string",
-          "pattern": "^(C[0-9]{1,2}(→C[0-9]{1,2})?|P-B(→C[0-9]{1,2}(/C[0-9]{1,2})?)?|Lens-L[0-9](-L[0-9])?)$"
-        },
-        "codemod": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "id",
-            "equivalence_or_stop"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "id": {
-              "$ref": "#/$defs/machineId"
-            },
-            "equivalence_or_stop": {
-              "const": true
-            }
-          }
-        },
-        "old_form": {
-          "$ref": "#/$defs/machineId"
-        },
-        "new_form": {
-          "$ref": "#/$defs/machineId"
-        },
-        "blast_radius": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "authored_files",
-            "spec_fences"
-          ],
-          "properties": {
-            "$comment": {
-              "$ref": "#/$defs/commentMeta"
-            },
-            "authored_files": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "spec_fences": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "consumers": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/machineId"
-              }
-            }
-          }
-        },
-        "receipt_slot": {
-          "$ref": "#/$defs/pathLike"
-        },
-        "state": {
-          "enum": [
-            "designed",
-            "ratified",
-            "executed"
-          ]
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
-    },
-    "providerRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "status",
-        "owner",
-        "law_ids",
-        "introduced_in",
-        "kind",
-        "env_var"
-      ],
-      "properties": {
-        "$comment": {
-          "$ref": "#/$defs/commentMeta"
-        },
-        "id": {
-          "$ref": "#/$defs/machineId"
-        },
-        "status": {
-          "$ref": "#/$defs/lifecycle"
-        },
-        "owner": {
-          "$ref": "#/$defs/ownerEnum"
-        },
-        "law_ids": {
-          "$ref": "#/$defs/lawIds"
-        },
-        "introduced_in": {
-          "$ref": "#/$defs/introducedIn"
-        },
-        "replaced_by": {
-          "$ref": "#/$defs/replacedBy"
-        },
-        "notes": {
-          "$ref": "#/$defs/notes"
-        },
-        "kind": {
-          "enum": [
-            "local",
-            "cloud",
-            "test"
-          ],
-          "$comment": "the local/cloud/test class · the model prefix IS this signal (stdlib/providers-v0.1.md) · MUST match the canon.yaml providers group (--check-canon gate)"
-        },
-        "env_var": {
-          "type": "string",
-          "pattern": "^([A-Z][A-Z0-9_]*)?$",
-          "$comment": "the auth env var name (cloud · e.g. MISTRAL_API_KEY) · empty string for local + test (localhost or fixture · no key)"
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/$defs/activeNeedsLaw"
-        }
-      ]
-    },
-    "documentaryText": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 4000,
-      "description": "PAA-002 documentary channel: DECLARED prose-for-humans — zero normative semantics, ignored by every evaluator, never parsed. Any inline string schema without enum/const/pattern outside this channel is refused by the runner's free-string walker"
+    "error_plane": {
+     "$ref": "#/$defs/pathLike"
     }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
   },
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "registry_document_format"
-  ],
-  "properties": {
-    "registry_document_format": {
-      "const": 1,
-      "$comment": "the document form marker — a document without it (or with any other value) is not a registry document"
-    },
+  "featureRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "kind",
+    "detection_law",
+    "conformance_profile"
+   ],
+   "properties": {
     "$comment": {
-      "$ref": "#/$defs/commentMeta"
+     "$ref": "#/$defs/commentMeta"
     },
-    "surface": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/surfaceRow"
-      }
+    "id": {
+     "type": "string",
+     "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)*$"
     },
-    "grammar": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/grammarRow"
-      }
+    "status": {
+     "$ref": "#/$defs/lifecycle"
     },
-    "types": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/typeRow"
-      }
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
     },
-    "diagnostics": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/diagnosticRow"
-      }
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
     },
-    "builtins": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/builtinRow"
-      }
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
     },
-    "features": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/featureRow"
-      }
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
     },
-    "templates": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/templateRow"
-      }
+    "notes": {
+     "$ref": "#/$defs/notes"
     },
-    "snippets": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/snippetRow"
-      }
+    "kind": {
+     "enum": [
+      "language_feature",
+      "runtime_capability",
+      "backend_capability"
+     ]
     },
-    "conformance": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/conformanceRow"
-      }
+    "detection_law": {
+     "type": "string",
+     "pattern": "^LAW-[A-Z]+-[0-9]{4}$",
+     "description": "the IR-derivation rule (R7) — a law id, never prose"
     },
-    "tombstones": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/tombstoneRow"
-      }
-    },
-    "projections": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/projectionRow"
-      }
-    },
-    "migrations": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/migrationRow"
-      }
-    },
-    "providers": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/providerRow"
-      }
+    "conformance_profile": {
+     "$ref": "#/$defs/machineId"
     }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
   },
-  "oneOf": [
-    {
-      "required": [
-        "surface"
-      ]
+  "templateRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "source_path",
+    "source_digest",
+    "category"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
     },
-    {
-      "required": [
-        "grammar"
-      ]
+    "id": {
+     "$ref": "#/$defs/machineId"
     },
-    {
-      "required": [
-        "types"
-      ]
+    "status": {
+     "$ref": "#/$defs/lifecycle"
     },
-    {
-      "required": [
-        "diagnostics"
-      ]
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
     },
-    {
-      "required": [
-        "builtins"
-      ]
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
     },
-    {
-      "required": [
-        "features"
-      ]
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
     },
-    {
-      "required": [
-        "templates"
-      ]
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
     },
-    {
-      "required": [
-        "snippets"
-      ]
+    "notes": {
+     "$ref": "#/$defs/notes"
     },
-    {
-      "required": [
-        "conformance"
-      ]
+    "source_path": {
+     "$ref": "#/$defs/pathLike"
     },
-    {
-      "required": [
-        "tombstones"
-      ]
+    "source_digest": {
+     "$ref": "#/$defs/sha256"
     },
-    {
-      "required": [
-        "projections"
-      ]
+    "category": {
+     "$ref": "#/$defs/machineId"
     },
-    {
-      "required": [
-        "migrations"
-      ]
-    },
-    {
-      "required": [
-        "providers"
-      ]
+    "tags": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/machineId"
+     }
     }
-  ]
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "snippetRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "selector",
+    "class"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "selector": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "source"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "kind": {
+       "enum": [
+        "whole_file",
+        "yaml_node",
+        "marked_region",
+        "command_receipt"
+       ]
+      },
+      "source": {
+       "$ref": "#/$defs/pathLike"
+      },
+      "anchor": {
+       "$ref": "#/$defs/machineId"
+      }
+     }
+    },
+    "class": {
+     "enum": [
+      "canonical_example",
+      "canonical_template",
+      "starter",
+      "generated_projection",
+      "negative_fixture",
+      "historical",
+      "teaching"
+     ]
+    },
+    "validated_at_pin": {
+     "type": "string",
+     "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "consumers": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/machineId"
+     }
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "conformanceRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "path",
+    "polarity",
+    "expected",
+    "profile"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "path": {
+     "$ref": "#/$defs/pathLike"
+    },
+    "polarity": {
+     "enum": [
+      "positive",
+      "negative"
+     ]
+    },
+    "expected": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "surface",
+      "verdict"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "surface": {
+       "enum": [
+        "check",
+        "run",
+        "lsp"
+       ]
+      },
+      "verdict": {
+       "enum": [
+        "pass",
+        "refuse"
+       ]
+      },
+      "diagnostics": {
+       "type": "array",
+       "items": {
+        "type": "string",
+        "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
+       }
+      }
+     }
+    },
+    "profile": {
+     "enum": [
+      "core",
+      "deep",
+      "stdlib",
+      "runtime"
+     ]
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "tombstoneRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "kind",
+    "retired_in",
+    "census_pattern"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "const": "retired"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "kind": {
+     "enum": [
+      "surface-word",
+      "diagnostic",
+      "law",
+      "constructor",
+      "file-form",
+      "field",
+      "phrase"
+     ]
+    },
+    "retired_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "census_pattern": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "tool",
+      "pattern"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "tool": {
+       "enum": [
+        "grep",
+        "ast",
+        "schema"
+       ]
+      },
+      "pattern": {
+       "type": "string",
+       "pattern": "^[ -~]{2,200}$",
+       "$comment": "NORMATIVE census matcher consumed by the declared tool — bounded printable ASCII"
+      },
+      "scope": {
+       "$ref": "#/$defs/pathLike"
+      }
+     }
+    },
+    "final_census": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "date",
+      "count"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "date": {
+       "type": "string",
+       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+      },
+      "count": {
+       "type": "integer",
+       "minimum": 0
+      }
+     }
+    }
+   }
+  },
+  "projectionRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "sources",
+    "generator",
+    "outputs",
+    "check_command",
+    "digest_home",
+    "channel_sensitivity"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "sources": {
+     "type": "array",
+     "minItems": 1,
+     "items": {
+      "$ref": "#/$defs/machineId"
+     }
+    },
+    "generator": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "identity",
+      "version"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "identity": {
+       "$ref": "#/$defs/machineId"
+      },
+      "version": {
+       "type": "string",
+       "pattern": "^[0-9a-zA-Z.-]+$"
+      }
+     }
+    },
+    "outputs": {
+     "type": "array",
+     "minItems": 1,
+     "items": {
+      "$ref": "#/$defs/pathLike"
+     }
+    },
+    "check_command": {
+     "type": "string",
+     "pattern": "^[ -~]{4,200}$",
+     "$comment": "NORMATIVE executable pointer — bounded printable ASCII command line"
+    },
+    "digest_home": {
+     "$ref": "#/$defs/pathLike"
+    },
+    "consumers": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/machineId"
+     }
+    },
+    "channel_sensitivity": {
+     "enum": [
+      "stable-only",
+      "nightly-ok"
+     ]
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "migrationRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "ruling",
+    "wave",
+    "codemod",
+    "old_form",
+    "new_form",
+    "blast_radius",
+    "receipt_slot",
+    "state"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "ruling": {
+     "type": "string",
+     "pattern": "^(R[0-9]+[ab]?|A-16|B-17|SSOT-[1-4]|third-pass-[a-z0-9-]+|naming\\+contract)$"
+    },
+    "wave": {
+     "type": "string",
+     "pattern": "^(C[0-9]{1,2}(→C[0-9]{1,2})?|P-B(→C[0-9]{1,2}(/C[0-9]{1,2})?)?|Lens-L[0-9](-L[0-9])?)$"
+    },
+    "codemod": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "id",
+      "equivalence_or_stop"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "id": {
+       "$ref": "#/$defs/machineId"
+      },
+      "equivalence_or_stop": {
+       "const": true
+      }
+     }
+    },
+    "old_form": {
+     "$ref": "#/$defs/machineId"
+    },
+    "new_form": {
+     "$ref": "#/$defs/machineId"
+    },
+    "blast_radius": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "authored_files",
+      "spec_fences"
+     ],
+     "properties": {
+      "$comment": {
+       "$ref": "#/$defs/commentMeta"
+      },
+      "authored_files": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "spec_fences": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "consumers": {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/machineId"
+       }
+      }
+     }
+    },
+    "receipt_slot": {
+     "$ref": "#/$defs/pathLike"
+    },
+    "state": {
+     "enum": [
+      "designed",
+      "ratified",
+      "executed"
+     ]
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "providerRow": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "status",
+    "owner",
+    "law_ids",
+    "introduced_in",
+    "kind"
+   ],
+   "properties": {
+    "$comment": {
+     "$ref": "#/$defs/commentMeta"
+    },
+    "id": {
+     "$ref": "#/$defs/machineId"
+    },
+    "status": {
+     "$ref": "#/$defs/lifecycle"
+    },
+    "owner": {
+     "$ref": "#/$defs/ownerEnum"
+    },
+    "law_ids": {
+     "$ref": "#/$defs/lawIds"
+    },
+    "introduced_in": {
+     "$ref": "#/$defs/introducedIn"
+    },
+    "replaced_by": {
+     "$ref": "#/$defs/replacedBy"
+    },
+    "notes": {
+     "$ref": "#/$defs/notes"
+    },
+    "kind": {
+     "enum": [
+      "local",
+      "cloud",
+      "test"
+     ],
+     "$comment": "the local/cloud/test class · the model prefix IS this signal (stdlib/providers-v0.1.md) · MUST match the canon.yaml providers group (--check-canon gate)"
+    }
+   },
+   "allOf": [
+    {
+     "$ref": "#/$defs/activeNeedsLaw"
+    }
+   ]
+  },
+  "documentaryText": {
+   "type": "string",
+   "minLength": 1,
+   "maxLength": 4000,
+   "description": "PAA-002 documentary channel: DECLARED prose-for-humans — zero normative semantics, ignored by every evaluator, never parsed. Any inline string schema without enum/const/pattern outside this channel is refused by the runner's free-string walker"
+  }
+ },
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "registry_document_format"
+ ],
+ "properties": {
+  "registry_document_format": {
+   "const": 1,
+   "$comment": "the document form marker — a document without it (or with any other value) is not a registry document"
+  },
+  "$comment": {
+   "$ref": "#/$defs/commentMeta"
+  },
+  "surface": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/surfaceRow"
+   }
+  },
+  "grammar": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/grammarRow"
+   }
+  },
+  "types": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/typeRow"
+   }
+  },
+  "diagnostics": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/diagnosticRow"
+   }
+  },
+  "builtins": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/builtinRow"
+   }
+  },
+  "features": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/featureRow"
+   }
+  },
+  "templates": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/templateRow"
+   }
+  },
+  "snippets": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/snippetRow"
+   }
+  },
+  "conformance": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/conformanceRow"
+   }
+  },
+  "tombstones": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/tombstoneRow"
+   }
+  },
+  "projections": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/projectionRow"
+   }
+  },
+  "migrations": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/migrationRow"
+   }
+  },
+  "providers": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/providerRow"
+   }
+  }
+ },
+ "oneOf": [
+  {
+   "required": [
+    "surface"
+   ]
+  },
+  {
+   "required": [
+    "grammar"
+   ]
+  },
+  {
+   "required": [
+    "types"
+   ]
+  },
+  {
+   "required": [
+    "diagnostics"
+   ]
+  },
+  {
+   "required": [
+    "builtins"
+   ]
+  },
+  {
+   "required": [
+    "features"
+   ]
+  },
+  {
+   "required": [
+    "templates"
+   ]
+  },
+  {
+   "required": [
+    "snippets"
+   ]
+  },
+  {
+   "required": [
+    "conformance"
+   ]
+  },
+  {
+   "required": [
+    "tombstones"
+   ]
+  },
+  {
+   "required": [
+    "projections"
+   ]
+  },
+  {
+   "required": [
+    "migrations"
+   ]
+  },
+  {
+   "required": [
+    "providers"
+   ]
+  }
+ ]
 }

@@ -132,8 +132,8 @@ showcase:
   - file: examples/pr-review-fanout.nika.yaml
     workflow: {'id': 'pr-review-fanout', 'description': 'changed files → one read-only review agent each → merged REVIEW.md'}
     description: ""
-    constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, with]
-    sha256_16: e56394e363bd26b7
+    constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
+    sha256_16: 9e6592fe20370c78
   - file: examples/price-watch.nika.yaml
     workflow: {'id': 'price-watch', 'description': 'Watch a product price, ping me when it drops below my target'}
     description: ""
@@ -143,12 +143,12 @@ showcase:
     workflow: {'id': 'release-notes', 'description': 'git log → typed release notes → CHANGELOG insert → team ping'}
     description: ""
     constructs: [local_model, on_error, outputs, schema, secrets, when, with]
-    sha256_16: 46362fb2ff1d9a6b
+    sha256_16: 112b54bf95805f8d
   - file: examples/release-radar.nika.yaml
     workflow: {'id': 'release-radar', 'description': 'dependency release feed → diff vs last run → only the NEW ships'}
     description: ""
     constructs: [local_model, on_error, output, outputs, when, with]
-    sha256_16: 5a45b476716f7374
+    sha256_16: 6ff598c6f62307ce
   - file: examples/release-train.nika.yaml
     workflow: {'id': 'release-train', 'description': 'parallel gates → one verdict → human GO → hold until the window → ship · verify · record'}
     description: ""
