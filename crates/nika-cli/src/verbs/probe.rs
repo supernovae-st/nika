@@ -453,7 +453,7 @@ fn client_probes() -> Vec<ClientProbe> {
 /// Presence + one version string per client — nothing else is read, an
 /// unreadable surface is silence. The LANDINGS derive from the vendored
 /// registry (H6): a kit is probed only while the matrix keeps the
-/// client's class-A wire row ([`clients_registry::KIT_MECHANISMS`]).
+/// client's class-A wire row (the `clients_registry::KIT_MECHANISMS` table).
 fn kit_probes() -> Vec<KitProbe> {
     let Some(home) = home_dir() else {
         return Vec::new();

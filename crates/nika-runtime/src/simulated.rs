@@ -11,16 +11,16 @@
 //! bytes and opened sockets under a verb documented « offline ». The
 //! simulated plane closes the gap at the composition root:
 //!
-//! - [`SimulatedShell`] — the exec verb's shell refuses EVERY command
+//! - [`crate::simulated::SimulatedShell`] — the exec verb's shell refuses EVERY command
 //!   (fail-closed · `ShellError::Blocked`).
-//! - [`SimulatedDispatcher`] — the tool plane delegates pure compute,
+//! - [`crate::simulated::SimulatedDispatcher`] — the tool plane delegates pure compute,
 //!   stderr observability, and fs READS inside the declared boundary to
 //!   the real [`BuiltinDispatcher`](nika_builtin::BuiltinDispatcher), and
 //!   REFUSES the effect set (writes · network · media · anything outside
 //!   the `nika:` namespace — fail-closed for the day an MCP plane joins
 //!   the dispatcher).
 //!
-//! Both speak ONE refusal sentence ([`EFFECTS_DISABLED`]) so the task
+//! Both speak ONE refusal sentence (the `EFFECTS_DISABLED` sentence) so the task
 //! failure the operator reads names the plane and the reason — an honest
 //! failure, never a silent skip: a workflow that NEEDS a real effect
 //! cannot pin a green golden under `nika test`.
@@ -83,7 +83,7 @@ impl ShellRunDyn for SimulatedShell {
 }
 
 /// The tool plane under the simulated plane: a thin gate over the real
-/// dispatcher. Effect tools refuse (see [`EFFECT_TOOLS`]); everything else
+/// dispatcher. Effect tools refuse (see the `EFFECT_TOOLS` table); everything else
 /// delegates VERBATIM — the declared `permits.fs` boundary, the check⇄run
 /// parity, and the tool-defs enumeration all keep their production
 /// behavior, so a golden exercises the same pure surface `nika run` would.

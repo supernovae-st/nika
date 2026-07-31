@@ -16,7 +16,7 @@
 //!
 //! - [`RiskGrade::Low`] — pure compute: no declared grant (or none at
 //!   all), every spend capped.
-//! - [`RiskGrade::Supervised`] — declared effects, all narrow: named
+//! - `RiskGrade::Supervised` — declared effects, all narrow: named
 //!   programs · named hosts · exact tools · concrete paths.
 //! - [`RiskGrade::High`] — broad-but-bounded authority: a glob grant
 //!   (`tools: ["nika:*"]` · an `fs` single-star · a net wildcard entry) —
@@ -25,7 +25,7 @@
 //!   success-with-false, so a rubber-stamp route is broad authority
 //!   wearing a seatbelt it never buckles).
 //! - [`RiskGrade::Unbounded`] — no ceiling exists at all: uncapped
-//!   inference spend ([`CostCeiling::has_unbounded`] — the `agent` loop
+//!   inference spend (`CostCeiling::has_unbounded` — the `agent` loop
 //!   without `max_tokens_total` rides here) or a TRUE wildcard grant
 //!   (`fs` `**` · `exec: true` / `exec: ["*"]` · `net.http: ["*"]`).
 //!

@@ -894,8 +894,8 @@ pub type SimRuntime = Runtime<
 /// the mock provider exactly as `run` would) but swaps the two effect
 /// seams for their simulated twins:
 ///
-/// - exec → [`SimulatedShell`] — every command refused before spawn.
-/// - the tool plane → [`SimulatedDispatcher`] over the real
+/// - exec → [`crate::simulated::SimulatedShell`] — every command refused before spawn.
+/// - the tool plane → [`crate::simulated::SimulatedDispatcher`] over the real
 ///   [`BuiltinDispatcher`] — pure compute, stderr observability, and fs
 ///   reads inside the declared boundary delegate VERBATIM; the effect set
 ///   (writes · network · media · any non-`nika:` namespace) refuses with
