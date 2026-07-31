@@ -72,6 +72,8 @@ const TOP_LEVEL_KEYS: &[&str] = &[
 /// Go-duration · exactly-one-verb · id formats), or — in
 /// [`ParseMode::Strict`] — carries an unknown field.
 pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow, SchemaError> {
+    // A leading UTF-8 BOM (U+FEFF · YAML 1.2 §5.2) parses — stripped at the ONE ingest seam.
+    let yaml = yaml.strip_prefix('\u{FEFF}').unwrap_or(yaml);
     // Pre-parse resource guards (the untrusted-input bounds — see the
     // security note on `CharToByte::new`). marked-yaml allocates the
     // whole node tree up-front and its block parser recurses per
@@ -916,6 +918,35 @@ tasks:
         );
         let span = span.expect("span lands on the modeline line, not the symptom");
         assert_eq!(span.start.0, 0, "starts at the offending line");
+    }
+
+    /// The BOM class (the 2026-07-31 edge-case sweep): a Windows-authored
+    /// file opens with U+FEFF, and the strict reader glued it to the first
+    // key — « unknown field `nika` — did you mean `nika`? », two
+    // visually identical words. YAML 1.2 §5.2 allows the mark; the ingest
+    // seam strips ONE so the file parses like its twin without one.
+    #[test]
+    fn a_utf8_bom_parses_like_the_bare_file() {
+        let bare =
+            "nika: v1\nworkflow:\n  id: hello\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
+        let bommed = format!("\u{FEFF}{bare}");
+        let wf = parse_strict(&bommed).expect("a leading BOM parses");
+        assert_eq!(
+            wf.workflow
+                .as_ref()
+                .expect("the workflow id")
+                .value
+                .as_str(),
+            "hello",
+            "the workflow survives"
+        );
+        // One BOM only: a second U+FEFF is content, not metadata — the
+        // strict reader still speaks for it.
+        let doubled = format!("\u{FEFF}{bommed}");
+        assert!(
+            parse_strict(&doubled).is_err(),
+            "a second BOM is not metadata"
+        );
     }
 
     /// The valid-YAML form of the same class: without its `#`, the
