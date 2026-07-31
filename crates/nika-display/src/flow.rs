@@ -285,10 +285,15 @@ pub fn dag_shape(view: &RunView, theme: &Theme) -> String {
 
 /// The shareable verdict card (design §2d) — the run's signature frame:
 /// the DAG-shape glyph, the totals (tasks · waves · retries · wall ·
-/// spend · models), and the caller's outputs note when one applies.
-/// Renders nothing before a verdict (a card mid-run would lie).
+/// spend · models), the caller's note rows (the FRUIT block — `wrote
+/// output.md (412B)` · `said "…"` · `outputs → …` — sizes are the
+/// caller's stat, no I/O here), then the rehearsal fact + the
+/// form-sanity cautions (derived HERE from the view, so a shared
+/// screenshot of the card alone can never hide a lying green — A-2 ·
+/// user gauntlet 2026-07-31). Renders nothing before a verdict (a card
+/// mid-run would lie).
 #[must_use]
-pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -> Vec<String> {
+pub fn verdict_card(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<String> {
     let Some(ok) = view.verdict else {
         return Vec::new();
     };
@@ -325,9 +330,14 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         let _ = write!(head, " · {cell}");
     }
     let mut rows = vec![head, totals_row(view)];
-    if let Some(note) = outputs_note {
+    rows.extend(notes.iter().cloned());
+    if let Some(note) = crate::fruit::rehearsal_note(view) {
         rows.push(note.to_owned());
     }
+    // The caution rows close the card — Warn-painted below, AFTER the
+    // width math (the same post-fit paint law the count cells follow).
+    let caution_start = rows.len();
+    rows.extend(crate::fruit::cautions(view, theme.ascii));
 
     let inner = rows
         .iter()
@@ -346,7 +356,7 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         theme.paint(Role::Strong, &view.workflow),
     );
     let mut lines = vec![format!("  {tl}{title}{fill}{tr}")];
-    for row in &rows {
+    for (i, row) in rows.iter().enumerate() {
         let fitted = fit_cells(row, inner.saturating_sub(4), ellipsis);
         let pad = inner
             .saturating_sub(4)
@@ -364,6 +374,10 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         // The repair count wears the same survived-incident yellow.
         if let Some(cell) = &recovered_cell {
             shown = shown.replace(cell.as_str(), &theme.paint(Role::Warn, cell));
+        }
+        // A caution row wears Warn WHOLE — the truth line is the point.
+        if i >= caution_start {
+            shown = theme.paint(Role::Warn, &shown);
         }
         lines.push(format!("  {v}  {shown}{}  {v}", " ".repeat(pad)));
     }
@@ -686,7 +700,7 @@ mod tests {
             vec!["write_md".into()],
             vec!["notify_slack".into()],
         ]);
-        let lines = verdict_card(&view, &PLAIN, Some("outputs → review (object)"));
+        let lines = verdict_card(&view, &PLAIN, &["outputs → review (object)".to_owned()]);
         assert_eq!(lines.len(), 5, "top + 3 rows + bottom: {lines:?}");
         assert!(
             lines[0].starts_with("  ╭─ nika ✓ veille-news ─"),
@@ -714,7 +728,7 @@ mod tests {
         );
 
         // ASCII parity: corners + mark + shape glyph, zero unicode leaks.
-        let ascii = verdict_card(&view, &ASCII, None);
+        let ascii = verdict_card(&view, &ASCII, &[]);
         assert!(
             ascii[0].starts_with("  +- nika OK veille-news -"),
             "{ascii:?}"
@@ -740,7 +754,7 @@ mod tests {
         for e in demo::success() {
             clean.apply(&e);
         }
-        let lines = verdict_card(&clean, &coloured, None);
+        let lines = verdict_card(&clean, &coloured, &[]);
         let totals = lines.iter().find(|l| l.contains("retries")).expect("row");
         assert!(
             totals.contains("0 retries") && !totals.contains("\x1b[33m"),
@@ -752,7 +766,7 @@ mod tests {
             retried.apply(&e);
         }
         retried.apply(&ev(EventKind::WorkflowCompleted, 9_000, &[]));
-        let lines = verdict_card(&retried, &coloured, None);
+        let lines = verdict_card(&retried, &coloured, &[]);
         let totals = lines.iter().find(|l| l.contains("retry")).expect("row");
         assert!(
             totals.contains("\x1b[33m1 retry\x1b[0m"),
@@ -797,7 +811,7 @@ mod tests {
         ));
         view.apply(&ev(EventKind::WorkflowCompleted, 20, &[]));
 
-        let lines = verdict_card(&view, &PLAIN, None);
+        let lines = verdict_card(&view, &PLAIN, &[]);
         let head = lines.iter().find(|l| l.contains("retries")).expect("row");
         assert!(
             head.contains("0 retries · 1 recovered"),
@@ -806,7 +820,7 @@ mod tests {
 
         // Colour on: the repair cell wears the survived-incident yellow
         // and the box alignment survives the escapes.
-        let coloured = verdict_card(&view, &Theme::new(true, false, false), None);
+        let coloured = verdict_card(&view, &Theme::new(true, false, false), &[]);
         let head = coloured
             .iter()
             .find(|l| l.contains("recovered"))
@@ -837,7 +851,7 @@ mod tests {
             clean.apply(&e);
         }
         assert!(
-            !verdict_card(&clean, &PLAIN, None)
+            !verdict_card(&clean, &PLAIN, &[])
                 .iter()
                 .any(|l| l.contains("recovered")),
             "no repair → no cell"
@@ -852,7 +866,7 @@ mod tests {
         for e in demo::failure() {
             view.apply(&e);
         }
-        let lines = verdict_card(&view, &PLAIN, None);
+        let lines = verdict_card(&view, &PLAIN, &[]);
         assert!(lines[0].contains("✖ veille-news"), "{lines:?}");
 
         let mut mid = RunView::new();
@@ -860,7 +874,7 @@ mod tests {
             mid.apply(&e);
         }
         assert!(mid.verdict.is_none());
-        assert!(verdict_card(&mid, &PLAIN, None).is_empty());
+        assert!(verdict_card(&mid, &PLAIN, &[]).is_empty());
     }
 
     #[test]
