@@ -153,7 +153,7 @@ fn golden_paused_frame_names_the_awaiting_gate() {
         "a pause earns no fix hint: {joined}"
     );
     // The streamed plain close speaks the same card (one voice).
-    let close = stream_summary(&fold(&demo::paused()), &UNICODE).join("\n");
+    let close = stream_summary(&fold(&demo::paused()), &UNICODE, &[]).join("\n");
     assert!(
         close.contains("paused · awaiting an answer for `summarize`"),
         "{close}"
@@ -213,7 +213,7 @@ fn obs_e_warning_renders_above_the_meter() {
     assert!(warn_at < meter_at, "warning speaks before the meter");
 
     // The streamed plain close carries the same block (stream lane).
-    let close = stream_summary(&view, &UNICODE);
+    let close = stream_summary(&view, &UNICODE, &[]);
     assert!(
         close[0].contains("⚠ summary"),
         "stream close leads with the warning: {close:?}"
@@ -821,5 +821,190 @@ fn accents_surface_gains_verb_chips_and_the_hud_bar() {
             .last()
             .is_some_and(|l| l.contains(&format!("{total}/{total}"))),
         "the bar line carries the count: {lines:?}"
+    );
+}
+
+// ═══ A-2 · the lying-green law (user gauntlet 2026-07-31) ═══════════
+
+/// One lying-green view per class the fruit module derives — a green
+/// verdict whose FORM contradicts it (Priya's ask-back · Carmen's
+/// all-fallback inputs · the empty answer).
+fn lying_green_views() -> Vec<(&'static str, RunView)> {
+    use nika_event::EventKind as K;
+    use nika_types::resource::{KeyValue, Value};
+    let ev = |kind, ms, fields: &[(&str, &str)]| {
+        let mut e = demo::bare_event(kind, ms);
+        for (k, v) in fields {
+            e = e.with_field(KeyValue::new(*k, Value::String((*v).to_owned())));
+        }
+        e
+    };
+
+    let mut ask_back = RunView::new();
+    ask_back.apply(&ev(
+        K::TaskStarted,
+        0,
+        &[("task", "summarize"), ("note", "infer · openai/gpt-5.2")],
+    ));
+    ask_back.apply(&ev(
+        K::TaskCompleted,
+        1,
+        &[
+            ("task", "summarize"),
+            (
+                "output",
+                "\"I don't see any transcripts provided. Could you please share them?\"",
+            ),
+        ],
+    ));
+    ask_back.apply(&ev(K::WorkflowCompleted, 2, &[]));
+
+    let mut all_recovered = RunView::new();
+    for t in ["f1", "f2", "f3"] {
+        all_recovered.apply(&ev(
+            K::TaskStarted,
+            0,
+            &[("task", t), ("note", "invoke · nika:fetch")],
+        ));
+        all_recovered.apply(&ev(K::TaskRecovered, 1, &[("task", t)]));
+        all_recovered.apply(&ev(K::TaskCompleted, 2, &[("task", t)]));
+    }
+    all_recovered.apply(&ev(
+        K::TaskStarted,
+        3,
+        &[("task", "score"), ("note", "infer · openai/gpt-5.2")],
+    ));
+    all_recovered.apply(&ev(
+        K::TaskCompleted,
+        4,
+        &[("task", "score"), ("output", "\"7/10 seo score\"")],
+    ));
+    all_recovered.apply(&ev(K::WorkflowCompleted, 5, &[]));
+
+    let mut empty = RunView::new();
+    empty.apply(&ev(
+        K::TaskStarted,
+        0,
+        &[("task", "think"), ("note", "infer · ollama/qwen3.5:4b")],
+    ));
+    empty.apply(&ev(
+        K::TaskCompleted,
+        1,
+        &[("task", "think"), ("output", "\"\"")],
+    ));
+    empty.apply(&ev(K::WorkflowCompleted, 2, &[]));
+
+    vec![
+        ("ask-back", ask_back),
+        ("all-recovered", all_recovered),
+        ("empty-answer", empty),
+    ]
+}
+
+/// THE LAW (A-2): a green closing surface never stays silent on a
+/// derived caution. EVERY caution `fruit::cautions` derives — including
+/// a class added AFTER this test was written — must land on EVERY human
+/// closing surface: the full frame · the plain streamed close · the
+/// compact `--quiet` card · the shareable verdict card. The assertion
+/// iterates the DERIVED set, never a hard-coded one (the paste-safety
+/// law's future-mode arm, applied to truth lines).
+#[test]
+fn every_lying_green_caution_reaches_every_closing_surface() {
+    for (class, view) in lying_green_views() {
+        let cautions = crate::fruit::cautions(&view, false);
+        assert!(!cautions.is_empty(), "{class}: the class must derive");
+        let surfaces = [
+            ("frame", frame(&view, &UNICODE, 0).join("\n")),
+            (
+                "stream_summary",
+                stream_summary(&view, &UNICODE, &[]).join("\n"),
+            ),
+            ("verdict_frame", verdict_frame(&view, &UNICODE).join("\n")),
+            (
+                "verdict_card",
+                crate::flow::verdict_card(&view, &UNICODE, &[]).join("\n"),
+            ),
+        ];
+        for caution in &cautions {
+            // The card fits rows to its inner width — the law holds on a
+            // distinctive head, ellipsis or not.
+            let head: String = caution.chars().take(40).collect();
+            for (name, text) in &surfaces {
+                assert!(
+                    text.contains(head.as_str()),
+                    "{class}: the {name} surface dropped `{caution}`:\n{text}"
+                );
+            }
+        }
+    }
+}
+
+/// The FRUIT block pass-through + the rehearsal fact: the caller's
+/// composed notes (`wrote …` — sizes are the caller's stat) land on the
+/// note-carrying closes, and an all-mock run announces the rehearsal on
+/// both — the audit's beat ⑤ miss ("the run wrote ./output.md — and
+/// never said so") pinned as law.
+#[test]
+fn fruit_notes_and_rehearsal_land_on_the_closing_surfaces() {
+    use nika_event::EventKind as K;
+    use nika_types::resource::{KeyValue, Value};
+    let ev = |kind, ms, fields: &[(&str, &str)]| {
+        let mut e = demo::bare_event(kind, ms);
+        for (k, v) in fields {
+            e = e.with_field(KeyValue::new(*k, Value::String((*v).to_owned())));
+        }
+        e
+    };
+    let mut view = RunView::new();
+    view.apply(&ev(
+        K::TaskStarted,
+        0,
+        &[("task", "think"), ("note", "infer · mock/echo")],
+    ));
+    view.apply(&ev(
+        K::TaskCompleted,
+        1,
+        &[("task", "think"), ("output", "\"mock(echo) · hi\"")],
+    ));
+    view.apply(&ev(
+        K::TaskStarted,
+        2,
+        &[("task", "persist"), ("note", "invoke · nika:write")],
+    ));
+    view.apply(&ev(
+        K::TaskCompleted,
+        3,
+        &[("task", "persist"), ("output", "\"output.md\"")],
+    ));
+    view.apply(&ev(K::WorkflowCompleted, 4, &[]));
+
+    let notes = vec!["wrote output.md (74B)".to_owned()];
+    let close = stream_summary(&view, &UNICODE, &notes).join("\n");
+    assert!(close.contains("wrote output.md (74B)"), "{close}");
+    assert!(
+        close.contains("rehearsal · a mock model echoed the prompt"),
+        "{close}"
+    );
+    let card = crate::flow::verdict_card(&view, &UNICODE, &notes).join("\n");
+    assert!(card.contains("wrote output.md (74B)"), "{card}");
+    assert!(card.contains("rehearsal · a mock model echoed"), "{card}");
+
+    // A real-model run announces NO rehearsal (the fact never spams).
+    let mut real = RunView::new();
+    real.apply(&ev(
+        K::TaskStarted,
+        0,
+        &[("task", "think"), ("note", "infer · openai/gpt-5.2")],
+    ));
+    real.apply(&ev(
+        K::TaskCompleted,
+        1,
+        &[("task", "think"), ("output", "\"a real answer\"")],
+    ));
+    real.apply(&ev(K::WorkflowCompleted, 2, &[]));
+    assert!(
+        !stream_summary(&real, &UNICODE, &[])
+            .join("\n")
+            .contains("rehearsal"),
     );
 }

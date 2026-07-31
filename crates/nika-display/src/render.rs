@@ -186,6 +186,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     }
 
     lines.extend(warning_lines(view, theme));
+    lines.extend(caution_lines(view, theme));
     lines.push(meter_line(view, theme));
     // The HUD bar under the meter — interactive surface only (the
     // sober registers keep the meter as their last line, byte-exact).
@@ -218,6 +219,22 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         append_paused_card(&mut lines, view, theme);
     }
     lines
+}
+
+/// The form-sanity caution block (user gauntlet 2026-07-31 · the
+/// green-run-that-lies class): the `fruit::cautions` reads — an answer
+/// that asks for its inputs back · every input recovered · an empty
+/// answer — painted Warn, above the meter beside the OBS-E warnings.
+/// The surface renders EVERY caution the read derives (never a
+/// hard-coded subset): a future lying-green class added to `fruit`
+/// reaches all closing frames without touching them.
+// `&Theme` to match the frame borrows that thread it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn caution_lines(view: &RunView, theme: &Theme) -> Vec<String> {
+    crate::fruit::cautions(view, theme.ascii)
+        .into_iter()
+        .map(|raw| format!("  {}", theme.paint(Role::Warn, &raw)))
+        .collect()
 }
 
 /// The OBS-E warning block (#410): one `⚠ <task> · <warning>` line per
@@ -337,16 +354,31 @@ pub fn stream_settled_line(
     ))
 }
 
-/// The streamed close (#321): the OBS-E warnings (#410) + the meter +
-/// the failure card. The rows already spoke at their settle — the plain
-/// final print never repeats them (a captured log reads the run ONCE,
-/// top to bottom).
+/// The streamed close (#321): the OBS-E warnings (#410) + the sanity
+/// cautions + the meter + the FRUIT block (A-2 · user gauntlet
+/// 2026-07-31) + the failure card. The rows already spoke at their
+/// settle — the plain final print never repeats them (a captured log
+/// reads the run ONCE, top to bottom).
+///
+/// `notes` = the caller's composed fruit lines (`wrote output.md
+/// (412B)` · `said "…"`) — byte sizes are the CALLER's stat (no I/O in
+/// this crate); the rehearsal fact folds here so no closing surface can
+/// forget it.
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
+pub fn stream_summary(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<String> {
     let mut lines = warning_lines(view, theme);
+    lines.extend(caution_lines(view, theme));
     lines.push(meter_line(view, theme));
+    lines.extend(
+        notes
+            .iter()
+            .map(|n| format!("    {}", theme.paint(Role::Dim, n))),
+    );
+    if let Some(note) = crate::fruit::rehearsal_note(view) {
+        lines.push(format!("    {}", theme.paint(Role::Dim, note)));
+    }
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
@@ -562,7 +594,9 @@ fn duration_cell(theme: &Theme, time: Option<&str>, time_w: usize) -> String {
 /// Render the COMPACT final card (spec §3.5 `--quiet` · "final card only ·
 /// errors always") — the one-line verdict + cost, plus the failure card when
 /// the run failed. NO per-task storyboard. A run with no verdict yet (called
-/// before the terminal frame) renders the header alone.
+/// before the terminal frame) renders the header alone. The form-sanity
+/// cautions ride even here: `--quiet` promised compactness, never a
+/// green verdict that lies (the same stance as "errors always").
 #[must_use]
 pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
     let mut lines = Vec::with_capacity(4);
@@ -580,6 +614,7 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
         theme.paint(Role::Strong, &view.workflow),
         crate::vocab::count(view.rows().len(), "task"),
     ));
+    lines.extend(caution_lines(view, theme));
 
     // Errors always (spec §3.5) — the same failure card the full frame emits,
     // appended so a quiet run still surfaces WHY it failed + the explain hint.

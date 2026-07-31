@@ -195,7 +195,7 @@ clients:
     class_gap: "closed-source Go binary agy · no third-party plugin loader documented · MCP + the AGENTS.md family carry the teaching"
     wire_pending: "WireTarget::Antigravity shipped engine-side (34bb14833) · the probe activates at the first release shipping it"
     docs: "pending · the page ships at proven (mission W2)"
-    notes: "recon 2026-07-30 [PRIMARY] + probe 2026-07-31: agy 1.1.8 installed from the inspected official script · headless demands Google OAuth before any run (browser · operator gesture) so the load proof waits at that wall · no agy mcp list — the proof is stream-json init.tools · skills read workspace .agents/skills/ · parity with gemini-cli not 1:1 at launch per Google's own post"
+    notes: "recon 2026-07-30 [PRIMARY] + probe 2026-07-31: agy 1.1.8 installed from the inspected official script · headless demands Google OAuth before any run (browser · operator gesture) so the load proof waits at that wall · no agy mcp list — the proof is stream-json init.tools · skills read workspace .agents/skills/ · parity with gemini-cli not 1:1 at launch per Google's own post · engine main e8b1930c4: nika init writes .agents/mcp_config.json — the workspace door opens by scaffold at the next release"
 
   - id: qwen-code
     name: Qwen Code
@@ -238,7 +238,7 @@ clients:
     components: {mcp: mcp-config, scaffold: init}
     class_gap: "the door is INTEROP by their design (docs.warp.dev capabilities/mcp) · native ~/.warp/.mcp.json exists (a wire target lands only on real demand) · AGENTS.md read natively (WARP.md compat) · project-scoped servers never auto-spawn · house doctrine: operator surface, interop yes, no fork no dependency"
     docs: "pending · a page ships at proven"
-    notes: "wave-2 recon 2026-07-31 [PRIMARY]: warp-cli deprecated, the CLI is oz (brew cask oz) · oz agent run --mcp takes a BARE map without the mcpServers wrapper · even local runs report progress to Warp's servers — named in any future page"
+    notes: "wave-2 recon 2026-07-31 [PRIMARY]: warp-cli deprecated, the CLI is oz (brew cask oz) · oz agent run --mcp takes a BARE map without the mcpServers wrapper · even local runs report progress to Warp's servers — named in any future page · engine main e8b1930c4: nika init writes the root .mcp.json warp reads natively — the project door opens by scaffold at the next release"
 
   - id: copilot-cli
     name: GitHub Copilot CLI (standalone)

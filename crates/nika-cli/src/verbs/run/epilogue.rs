@@ -59,8 +59,9 @@ pub(super) fn print_flow_epilogue(
     for line in crate::display::flow::waterfall(view, &theme) {
         println!("{line}");
     }
-    let note = outputs_note(outputs);
-    for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
+    let mut notes = fruit_notes(view);
+    notes.extend(outputs_note(outputs));
+    for line in crate::display::flow::verdict_card(view, &theme, &notes) {
         println!("{line}");
     }
     // The workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
@@ -74,6 +75,44 @@ pub(super) fn print_flow_epilogue(
         crate::display::vocab::hint(theme, "explore", &record)
     );
 }
+
+/// The FRUIT block (A-2 · user gauntlet 2026-07-31 · "the run wrote
+/// `output.md` — and never said so"): `wrote <path> (<size>)` per file
+/// the view's write rows materialized + the model's last word, bounded.
+/// Byte sizes are stat'd HERE — the one I/O the display crate refuses —
+/// and a path that stat fails (deleted since · sandbox) simply drops
+/// its size cell, never the line: the fruit is the run's claim, the
+/// size is today's disk.
+pub(super) fn fruit_notes(view: &crate::RunView) -> Vec<String> {
+    use crate::display::{fruit, shape};
+    let mut notes = Vec::new();
+    let files = fruit::written_files(view);
+    for f in files.iter().take(3) {
+        let size = std::fs::metadata(&f.path)
+            .ok()
+            .and_then(|m| usize::try_from(m.len()).ok());
+        notes.push(match size {
+            Some(n) => format!("{} {} ({})", f.verb, f.path, shape::fmt_bytes(n)),
+            None => format!("{} {}", f.verb, f.path),
+        });
+    }
+    if files.len() > 3 {
+        notes.push(format!("… +{} more files", files.len() - 3));
+    }
+    // The model's last word — the answer SEEN, not narrated (bounded by
+    // the shape law: head only, never a data dump; ADR-099 §1 already
+    // guarantees no secret can reach the stream this reads).
+    if let Some((_task, text)) = fruit::last_said(view)
+        && let Some(quote) = shape::summarize(text, SAID_CELLS)
+    {
+        notes.push(format!("said {quote}"));
+    }
+    notes
+}
+
+/// Widest the `said` quote grows (display cells) — fits the verdict
+/// card's inner width beside its `said ` label.
+const SAID_CELLS: usize = 46;
 
 /// The card's outputs note: `outputs → key (type) · key2 (type)` — the
 /// export contract's shape at a glance (types only, never a data dump).
@@ -178,26 +217,62 @@ pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
 /// trace anchor — the pause sibling of the failure lane's `autopsy:`
 /// line (stateful gauntlet 2026-07-11: the pause had everything the
 /// command needs — file · trace · task · mode — and printed none of it).
-/// The `<value>` placeholder speaks the mode's own answer shape; the
-/// run's own `--var`/`--model` carry rides verbatim — a workflow with
-/// REQUIRED inputs refuses a var-less resume, so a taught line without
-/// them was a copy-paste that failed (seo-live-review · 2026-07-31).
+/// The taught command carries ONE concrete answer and names the
+/// alternatives BESIDE it, never inside it: a `|` in the command is a
+/// shell PIPE, and the pasted `--answer ask=true|false` silently bound
+/// `true` (a human gate answered by the shell — `human said: true`
+/// with no human) while the piped-to `false` closed stdout and leaked
+/// a broken-pipe panic. A taught line must be paste-safe by
+/// construction — the run's own `--var`/`--model` carry rides verbatim
+/// for the same reason (a required-input workflow refuses a var-less
+/// resume · seo-live-review · 2026-07-31).
 pub(super) fn resume_hint_line(
     file: &str,
     trace: &std::path::Path,
     pause: &WorkflowPause,
     carry: &str,
 ) -> String {
-    let value = match pause.mode.as_str() {
-        "confirm" => "true|false".to_owned(),
-        "choice" if !pause.choices.is_empty() => pause.choices.join("|"),
-        _ => "\"<text>\"".to_owned(),
+    let (value, alternatives) = match pause.mode.as_str() {
+        "confirm" => ("true".to_owned(), " · or false".to_owned()),
+        "choice" if !pause.choices.is_empty() => {
+            let rest = &pause.choices[1..];
+            let alts = if rest.is_empty() {
+                String::new()
+            } else {
+                format!(" · or {}", rest.join(" · "))
+            };
+            (pause.choices[0].clone(), alts)
+        }
+        // `input` takes free text: the quotes make the placeholder
+        // paste-safe (a bare <text> would redirect).
+        _ => ("\"your answer\"".to_owned(), String::new()),
     };
     format!(
-        "resume: nika run {file}{carry} --resume {} --answer {}={value}",
+        "resume: nika run {file}{carry} --resume {} --answer {}={value}{alternatives}",
         trace.display(),
         pause.task,
     )
+}
+
+/// The shell metacharacters that make a taught command unsafe to paste
+/// (`|` pipes · `&` backgrounds · `;` chains · `<`/`>` redirect ·
+/// backtick/`$()` substitute). The taught-line tests assert their
+/// absence in the COMMAND part — a teaching surface that can be pasted
+/// wrong is a teaching surface that will be.
+#[cfg(test)]
+pub(super) fn unsafe_to_paste(command: &str) -> Option<char> {
+    // Everything after a ` · ` is prose beside the command, not part of it.
+    let command = command.split(" · ").next().unwrap_or(command);
+    let mut in_quotes = false;
+    for c in command.chars() {
+        if c == '"' || c == '\'' {
+            in_quotes = !in_quotes;
+        }
+        if !in_quotes && matches!(c, '|' | '&' | ';' | '<' | '>' | '`' | '(' | ')') {
+            return Some(c);
+        }
+    }
+    None
 }
 
 /// The run's re-invocation carry — every `--var` the operator passed +
@@ -400,30 +475,75 @@ mod tests {
     fn resume_hint_speaks_each_modes_answer_shape() {
         // The pause sibling of `autopsy:` (stateful gauntlet 2026-07-11):
         // the taught command must be paste-able — file · trace · task ·
-        // and a value placeholder in the MODE's own answer shape.
+        // ONE concrete answer, alternatives named BESIDE the command.
         use nika_runtime::WorkflowPause;
         let trace = std::path::Path::new(".nika/traces/t.ndjson");
         let confirm = WorkflowPause::new("approve".into(), "confirm".into(), None, vec![]);
         assert_eq!(
             super::resume_hint_line("gate.nika.yaml", trace, &confirm, ""),
             "resume: nika run gate.nika.yaml --resume .nika/traces/t.ndjson \
-             --answer approve=true|false"
+             --answer approve=true · or false"
         );
         let choice = WorkflowPause::new(
             "pick".into(),
             "choice".into(),
             None,
-            vec!["alpha".into(), "beta".into()],
+            vec!["alpha".into(), "beta".into(), "gamma".into()],
         );
         assert_eq!(
             super::resume_hint_line("w.yaml", trace, &choice, ""),
             "resume: nika run w.yaml --resume .nika/traces/t.ndjson \
-             --answer pick=alpha|beta"
+             --answer pick=alpha · or beta · gamma"
+        );
+        let single = WorkflowPause::new("pick".into(), "choice".into(), None, vec!["only".into()]);
+        assert!(
+            super::resume_hint_line("w.yaml", trace, &single, "").ends_with("--answer pick=only"),
+            "a lone choice names no alternatives"
         );
         let input = WorkflowPause::new("name".into(), "input".into(), None, vec![]);
         assert!(
             super::resume_hint_line("w.yaml", trace, &input, "")
-                .ends_with("--answer name=\"<text>\"")
+                .ends_with("--answer name=\"your answer\"")
+        );
+    }
+
+    /// THE paste-safety law (2026-07-31 · found by a first-run audit):
+    /// the taught `--answer ask=true|false` pasted as a shell PIPE — it
+    /// silently bound `true` (a human gate answered by the shell, zero
+    /// humans involved) and the piped-to `false` closed stdout, leaking
+    /// a broken-pipe panic. Every taught command must be free of shell
+    /// metacharacters outside quotes, in EVERY mode.
+    #[test]
+    fn every_taught_resume_command_is_paste_safe() {
+        use nika_runtime::WorkflowPause;
+        let trace = std::path::Path::new(".nika/traces/t.ndjson");
+        let carry = super::resume_carry(&["page=wifi".to_owned()], Some("openai/gpt-5.2"));
+        let modes = [
+            WorkflowPause::new("approve".into(), "confirm".into(), None, vec![]),
+            WorkflowPause::new(
+                "pick".into(),
+                "choice".into(),
+                None,
+                vec!["alpha".into(), "beta".into()],
+            ),
+            WorkflowPause::new("name".into(), "input".into(), None, vec![]),
+            // An unknown/future mode falls to the input shape — still safe.
+            WorkflowPause::new("mystery".into(), "someday".into(), None, vec![]),
+        ];
+        for pause in modes {
+            for c in ["", carry.as_str()] {
+                let line = super::resume_hint_line("w.yaml", trace, &pause, c);
+                assert_eq!(
+                    super::unsafe_to_paste(&line),
+                    None,
+                    "shell metacharacter in a taught command: {line}"
+                );
+            }
+        }
+        // The detector itself must catch the exact regression it exists for.
+        assert_eq!(
+            super::unsafe_to_paste("resume: nika run w.yaml --answer approve=true|false"),
+            Some('|')
         );
     }
 
@@ -451,7 +571,7 @@ mod tests {
             line,
             "resume: nika run seo-live-review.nika.yaml --var page_type=wifi \
              --var 'locales=[\"fr-FR\",\"ar-SA\"]' --model openai/gpt-5.2 \
-             --resume .nika/traces/t.ndjson --answer access_gate=true|false"
+             --resume .nika/traces/t.ndjson --answer access_gate=true · or false"
         );
         // No vars, no override → no carry, byte-identical to before.
         assert_eq!(super::resume_carry(&[], None), "");

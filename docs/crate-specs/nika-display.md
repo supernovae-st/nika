@@ -44,6 +44,7 @@ pub mod render   { frame · stream_header · stream_settled_line · stream_summa
 pub mod theme    { Theme · Role }
 pub mod format   { the ONE cost/duration/size formatter vocabulary }
 pub mod flow     { Interval · interval_of · lane_marks · heat_bucket }
+pub mod fruit    { written_files · last_said · cautions · rehearsal — the run's fruit + form-sanity reads }
 pub mod shape    { bounded type-aware output summaries }
 pub mod snippet  { paint_span — rustc-grade span frames }
 pub mod vocab    { hint · arrow · at_least — the glyph/hint vocabulary }

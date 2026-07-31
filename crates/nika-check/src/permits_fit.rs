@@ -559,14 +559,7 @@ fn check_builtin_effect(
             for (active, dir_writes, cat) in [(reads, false, "fs.read"), (writes, true, "fs.write")]
             {
                 if active && !permits.allows_path(&path, dir_writes) {
-                    out.push(CapabilityEscape {
-                        task: id.to_owned(),
-                        category: "fs",
-                        detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
-                        fix: Some(format!("add \"{path}\" to permits.{cat}")),
-                        floor: false,
-                        undeclared: false,
-                    });
+                    out.push(fs_escape(id, tool, &path, cat, permits, dir_writes));
                 }
             }
             // The chart vega sibling is a SECOND gated write — same
@@ -574,18 +567,92 @@ fn check_builtin_effect(
             if let Some(vl) = chart_vl_sibling(a)
                 && !permits.allows_path(&vl, true)
             {
-                out.push(CapabilityEscape {
-                    task: id.to_owned(),
-                    category: "fs",
-                    detail: format!("`{tool}` vega sibling `{vl}` is outside permits.fs.write"),
-                    fix: Some(format!("add \"{vl}\" to permits.fs.write")),
-                    floor: false,
-                    undeclared: false,
-                });
+                let mut esc = fs_escape(id, tool, &vl, "fs.write", permits, true);
+                esc.detail = format!("`{tool}` vega sibling `{vl}` is outside permits.fs.write");
+                out.push(esc);
             }
         }
         None => {}
     }
+}
+
+/// One fs boundary escape — and the shovel stays in the shed (user
+/// gauntlet 2026-07-31 · G-09: on a deliberate `../../pwned.md` probe
+/// the printed fix taught ADDING the escape path to `permits.fs.write`
+/// — "the checker hands the junior the shovel along with the hole").
+/// A path that ESCAPES the workspace (absolute · `..`-traversal out of
+/// the root) carries NO machine fix — the agent repair loop must never
+/// auto-widen a boundary toward an escape (the floor-escape precedent:
+/// no permits entry is the honest repair) — and the detail teaches the
+/// narrow way first, the widening named as the deliberate second.
+fn fs_escape(
+    id: &str,
+    tool: &str,
+    path: &str,
+    cat: &'static str,
+    permits: &Permits,
+    dir_writes: bool,
+) -> CapabilityEscape {
+    if !path_escapes_workspace(path) {
+        return CapabilityEscape {
+            task: id.to_owned(),
+            category: "fs",
+            detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
+            fix: Some(format!("add \"{path}\" to permits.{cat}")),
+            floor: false,
+            undeclared: false,
+        };
+    }
+    let declared = permits
+        .fs
+        .as_ref()
+        .map(|f| if dir_writes { &f.write } else { &f.read })
+        .filter(|list| !list.is_empty())
+        .map_or_else(
+            || format!("declare the {cat} boundary you mean"),
+            |list| {
+                format!(
+                    "keep the path inside the declared {cat} ({})",
+                    list.join(" · ")
+                )
+            },
+        );
+    CapabilityEscape {
+        task: id.to_owned(),
+        category: "fs",
+        detail: format!(
+            "`{tool}` path `{path}` escapes the workspace — {declared} · widening \
+             permits.{cat} to an escaping path is a deliberate operator choice, never \
+             the default repair"
+        ),
+        fix: None,
+        floor: false,
+        undeclared: false,
+    }
+}
+
+/// Lexically, does the path leave the workflow's root? Absolute paths
+/// and `..`-traversals that climb past the anchor do; `a/../b` does
+/// not. Purely textual (the check has no filesystem) — symlink escapes
+/// stay the runtime gate's, as the PERMITS verdict already states.
+fn path_escapes_workspace(path: &str) -> bool {
+    if path.starts_with('/') || path.starts_with('\\') {
+        return true;
+    }
+    let mut depth: i32 = 0;
+    for seg in path.split(['/', '\\']) {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                depth -= 1;
+                if depth < 0 {
+                    return true;
+                }
+            }
+            _ => depth += 1,
+        }
+    }
+    false
 }
 
 /// The net arm of [`check_builtin_effect`] — one boundary escape per
