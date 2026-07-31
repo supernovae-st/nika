@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 688
-  aggregate_sha256: dc395bd0101c5afd4492c26d526433ced5d36090557601c087ba2ed8819c1b31
+  aggregate_sha256: a2e17b9fb29cd9b132583a0643ae9164a19c9e94e6442f063789bb257ef285d8
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 120
-  aggregate_sha256: 4ca0e48706c0c5490f61eecae03a4297c3f44d392e9256c52a1fb3bc19f87b39
+  aggregate_sha256: f8637896db0dc95167bc9a5f4b1735c95571b735a557348613351d3122f1c4ba
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 130
-  aggregate_sha256: 650a865bc67c3f494104d7a218988572d8442d2f08e660dface532dcc4f11a5b
+  aggregate_sha256: 84cb668cc9549a0f9b8576e0eb10c97ea71ef2b9601d2f0fe017e667a3b5d93b
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: a382cb633db5fe6533e3b3f38abf6294b0b03d1d52a7520ee084a20b31a74039
+  aggregate_sha256: 311bc3e10d1542b30b72b9ebccca49e245173c896abfda971dd38867e2454849
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
