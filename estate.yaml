@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4283
+  classified_files: 4284
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1365
+    authored: 1366
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 690
-  aggregate_sha256: f751c40b827f204344dc3d91c7a7a35e69f8296e42a3d3284c4230044f365737
+  match_count: 691
+  aggregate_sha256: 9f75fd8a8dbdb6943a6c98fb2425d7f6db9b91823250c13908e1e8c6f145da7e
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 29
-  aggregate_sha256: 57b3ecfd43c005b1e7a24ae782c7be0eb969a9e8be9be12f647b1d2b48032893
+  aggregate_sha256: dd99cad627b0cc69bdce48ce7b00996ffb2ec5be371cee60a5d8b82687f43f89
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
