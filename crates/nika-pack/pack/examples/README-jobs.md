@@ -31,7 +31,7 @@ multi-agent swarm without ever leaving validated ground.
 | [`contract-guard`](contract-guard.nika.yaml) | legal / compliance | the contract **never leaves the machine** (local model) | `ollama/…` · `nika:validate` + `nika:assert` |
 | [`etl-quarantine`](etl-quarantine.nika.yaml) | data engineering | bad batches degrade to quarantine · the pipeline lives | `on_error: recover:` · `nika:validate` · jq group_by |
 | [`model-bench`](model-bench.nika.yaml) | engineering / model selection | the same question, three local models, one MEASURED table | per-task `infer.model:` · `duration_ms` as data · jq fan-in |
-| [`release-radar`](release-radar.nika.yaml) | devops / dependencies | only the NEW ships reach you — **the one deliberate red**, see below | `mode: feed` · state-file diff · RFC 6902 |
+| [`release-radar`](release-radar.nika.yaml) | devops / dependencies | only the NEW ships reach you — human-gated since it crosses the trifecta | `mode: feed` · state-file diff · RFC 6902 |
 | [`csv-chart-report`](csv-chart-report.nika.yaml) | data → picture | paste the spreadsheet, get the slide — offline, deterministic | `nika:convert` · jq group_by · `nika:chart` |
 | [`transcript-shownotes`](transcript-shownotes.nika.yaml) | podcasts / meetings | raw transcript → typed show-notes, ONE bounded infer | `infer.schema:` strict · typed→markdown |
 | [`bookmark-triage`](bookmark-triage.nika.yaml) | personal / research | the bookmark pile triaged — dead links survive the batch | `mode: metadata` · resilient `for_each` · recover |
@@ -74,14 +74,14 @@ rm -rf out                                                                    # 
   `on_error: recover:` sample so the run stays green with no network at all;
   a recovery stands in for the RAW response, so the `output:` jq bindings run
   over it unchanged.
-- **One deliberate red · `release-radar`.** `nika check` exits 2 there with
-  `NIKA-SEC-009`, and the run refuses to start with it. The finding
-  over-approximates (the "egress" it names is a local state-file write); the
-  decision to leave it red rather than bolt on a `nika:prompt` to silence it
-  is recorded in the engine repo at
-  `docs/plans/2026-07-28-verdict-coverage.md` (§DECIDED · SEC-009). A red gate
-  reporting something true is the honest state, and the file says so in its
-  own header.
+- **Every job checks green — including `release-radar`.** It crosses the
+  lethal trifecta (private read + feed ingress + state-file write), so it
+  carries the canonical human gate (`after: {approve: success}` at the head
+  of the flow · NEP-0002 v2.2) instead of shipping red. The always-red
+  SEC-009 witness the conformance lane still needs lives beside the other
+  conformance inputs at
+  `conformance/envelope/trifecta-realized-flow-ungated.nika.yaml` — an
+  attack shape stays an attack shape; a TEACHING page checks green.
 
 ## Conventions (same gate as the foundation set)
 

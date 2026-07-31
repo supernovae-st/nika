@@ -42,7 +42,12 @@ workflow:
   id: config-drift-sentinel
   description: "live config vs sanctioned baseline → typed drift → triaged, explained alert"
 
-model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (explain is cheap)
+# A NON-thinking seat, deliberately. Measured with qwen3.5:4b: `explain`'s
+# 600-token ceiling was spent entirely inside the think block, the run stayed
+# green, and the journal's `explanation` field recorded EMPTY — the engine
+# flags it (« a thinking model may have spent the budget inside its think
+# block »). llama3.2:3b answers the three bullets inside the same ceiling.
+model: ollama/llama3.2:3b   # local · zero key · swap for any catalog provider (explain is cheap)
 
 inputs:
   config_url:

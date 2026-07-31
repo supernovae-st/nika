@@ -24,7 +24,8 @@
 nika: v1
 workflow:
   id: chain-template            # SLOT: kebab-case workflow id
-  description: "gather → think → persist"   # SLOT: one honest sentence
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "gather → think → persist"
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`
 # answers this prompt in ~50s. `--model mock/echo` needs no seat at all and is
@@ -55,6 +56,9 @@ tasks:
       # recovers into a literal standing in for the real document. `on_codes:`
       # keeps that narrow: ONLY not-found is forgiven, a permission error
       # still fails loudly. Delete this block once the source really exists.
+      # In an EMPTY directory check prints one [inputs] hint that this read
+      # would fail — the run does not: this recover carries it (measured ·
+      # rc=0 · « 1 recovered »). The hint retires once your source exists.
       on_codes: [NIKA-BUILTIN-READ-001]
       recover: "REHEARSAL · no source document here yet."
 

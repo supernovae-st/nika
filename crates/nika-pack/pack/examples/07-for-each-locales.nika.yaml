@@ -40,7 +40,8 @@ tasks:
     on_error:
       # Without this, a failed element fails the task even under
       # fail_fast: false. `recover: null` keeps the array whole and puts a
-      # null at that index — so filter nulls at the fan-in below.
+      # null at that index — a fan-in over a batch that CAN fail must
+      # expect those nulls (this rehearsal's mock path never produces one).
       recover: null
     with:
       locale: ${{ item }}   # the current element

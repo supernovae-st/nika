@@ -21,7 +21,7 @@
 #     consume {brief, sources} as a contract
 #
 # Needs · nothing to rehearse — the whole file, agent loop included, runs
-# offline under `--model mock/echo` (measured: the loop completes in one turn
+# offline under `--model mock/echo` (measured: the loop settles in two turns
 # and honours its schema). Real research needs a tool-calling model and the
 # hosts named in `permits.net.http` to be reachable.
 #

@@ -23,7 +23,8 @@
 nika: v1
 workflow:
   id: media-asset-pack-template # SLOT: kebab-case workflow id
-  description: "brief → render → manifest"  # SLOT: one honest sentence
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "brief → generate image assets → manifest"
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/qwen2.5:14b`
 # holds the small schema below. `--model mock/echo` needs no seat at all.

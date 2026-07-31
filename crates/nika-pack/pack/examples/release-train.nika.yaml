@@ -284,7 +284,7 @@ tasks:
   # such a task can egress, NIKA-SEC-009 fires (measured: hanging a
   # `nika:notify` here turns this file RED, and moving the prompt to the root
   # does not save it). If you want the outcome on a webhook, put the send under
-  # the signature — `t4-ceo-monday-brief` shows that shape — and leave the
+  # the signature — `ceo-monday-brief` shows that shape — and leave the
   # unconditional record to `emit`.
   record:
     after:

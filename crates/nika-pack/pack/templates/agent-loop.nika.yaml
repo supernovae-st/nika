@@ -26,7 +26,8 @@
 nika: v1
 workflow:
   id: agent-loop-template       # SLOT: kebab-case workflow id
-  description: "plan → budgeted agent → typed result"   # SLOT
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "open-ended research / review / triage · plan → budgeted agent → typed result"
 
 # SLOT: a TOOL-CALLING model · local by default. This seat is measured, not
 # assumed: `ollama/qwen2.5:14b` completes the planning call in ~65s under the
