@@ -92,3 +92,8 @@ tasks:
         content: "deploy failed · rollback engaged · see the trace for the settle order\n"
         create_dirs: true
         overwrite: true
+
+outputs:
+  # The settle the two arms routed on. Measured on the green run:
+  # `--output json` hands back {"deploy_status":"success"}.
+  deploy_status: ${{ tasks.deploy.status }}

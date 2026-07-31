@@ -32,8 +32,8 @@ workflow:
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (a fast one-liner job)
 
 permits:
-  tools: ["nika:date", "nika:write"]
   exec: ["git"]              # the ONE program this workflow may run
+  tools: ["nika:date", "nika:write"]
   fs: { write: ["out/standup-note.md"] }
 
 tasks:

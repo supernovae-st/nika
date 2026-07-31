@@ -39,18 +39,19 @@
 nika: v1
 workflow:
   id: etl-state-template        # SLOT: kebab-case workflow id
-  description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "only what changed since last run · read state · fetch fresh · diff · process the delta · save state"
 
 const:
   source_url: "https://api.example.com/v1/records"   # SLOT: the data source
   state_path: "./state/etl-state.json"               # SLOT: the cursor file
 
 permits:                            # the blast radius · default-deny once present
-  tools: ["nika:read", "nika:write", "nika:fetch", "nika:jq", "nika:json_diff", "nika:prompt"]
+  tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:prompt", "nika:read", "nika:write"]
+  net: { http: ["api.example.com"] }    # SLOT: the source host from const.source_url
   fs:                               # the cursor file, read then rewritten — one path, both ways
     read: ["./state/etl-state.json"]    # SLOT: keep in step with const.state_path
     write: ["./state/etl-state.json"]   # SLOT: idem — the job writes nothing else
-  net: { http: ["api.example.com"] }    # SLOT: the source host from const.source_url
 policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
   endorsement: solo
 

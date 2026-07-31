@@ -116,6 +116,9 @@ tasks:
         create_dirs: true
 
 outputs:
+  # The gate's verdict rows · [] on a clean batch, the validator's error
+  # objects on a dirty one (measured both ways · never null).
+  rejected: ${{ tasks.check.output.errors }}
   # Deliberately untyped · on the quarantine path `good` is SKIPPED and
   # this is null — a declared `type: array` would refuse the branch the
   # file exists to demonstrate.

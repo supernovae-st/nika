@@ -25,7 +25,8 @@
 nika: v1
 workflow:
   id: fanout-template           # SLOT: kebab-case workflow id
-  description: "discover N items · process in parallel · merge"   # SLOT
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "do the same job for every item · discover the collection · process in parallel · merge"
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`.
 # `--model mock/echo` needs no seat and is the path this file guarantees.

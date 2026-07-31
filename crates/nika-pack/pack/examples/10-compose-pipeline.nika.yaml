@@ -22,6 +22,9 @@
 #     one-node cycle) and depth-capped at run (`NIKA-SEC-003` · 8 deep)
 #
 # Run · nika run examples/10-compose-pipeline.nika.yaml
+#   The child is an ingredient · ./10-compose-child.nika.yaml must sit beside
+#   this file. Taken alone, check refuses before anything runs — NIKA-COMP-001
+#   names the missing file (measured · a bare copy dies on exactly that).
 
 nika: v1
 workflow:
