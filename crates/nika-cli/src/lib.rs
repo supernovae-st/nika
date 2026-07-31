@@ -28,6 +28,7 @@ pub use nika_display as display;
 pub use nika_display::demo;
 pub mod anchor;
 pub(crate) mod context_envelope;
+pub mod metrics;
 pub mod registry;
 pub mod seal;
 pub(crate) mod text;

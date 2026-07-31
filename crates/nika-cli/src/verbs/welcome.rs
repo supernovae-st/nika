@@ -253,13 +253,18 @@ fn run_in(json: bool, theme: Theme, candidate: Option<&Path>) -> VerbOutput {
         if json {
             return VerbOutput::ok(render_chat_only_json(&probe, counts));
         }
-        return VerbOutput::ok(render_with_context(
-            &probe,
-            CHAT_ONLY_GLANCE,
-            None,
-            counts,
-            &ctx,
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::ContextResolved,
+            crate::metrics::Facts {
+                session: Some(crate::metrics::Session::ChatOnly),
+                ..crate::metrics::Facts::none()
+            },
+        );
+        let cmds: [String; 3] = chat_only_moves().map(|(cmd, _)| cmd);
+        record_impressions(&cmds);
+        return VerbOutput::ok(crate::display::vocab::sober(
             theme,
+            &render_with_context(&probe, CHAT_ONLY_GLANCE, None, counts, &ctx, theme),
         ));
     }
     // Workspace: the walk + the gate run on the VALIDATED candidate (the
@@ -276,14 +281,59 @@ fn run_in(json: bool, theme: Theme, candidate: Option<&Path>) -> VerbOutput {
     if json {
         return VerbOutput::ok(render_json(&probe, glance, gate.as_ref(), counts));
     }
-    VerbOutput::ok(render_with_context(
-        &probe,
-        glance,
-        gate.as_ref(),
-        counts,
-        &ctx,
+    crate::metrics::record_if_enabled(
+        crate::metrics::EventKind::ContextResolved,
+        crate::metrics::Facts {
+            session: Some(crate::metrics::Session::Workspace),
+            flag: Some(envelope.evidence.expanded_from.is_some()),
+            ..crate::metrics::Facts::none()
+        },
+    );
+    let moves = start_moves(glance, gate.as_ref());
+    let cmds: [String; 3] = [0, 1, 2].map(|i| moves[i].0.clone());
+    record_impressions(&cmds);
+    // The hand-off the audit measures: the concierge LEADS with a run
+    // line (only ever on an audited-clean file — P0-3) → the run is
+    // back in human hands.
+    if cmds.first().is_some_and(|cmd| cmd.starts_with("nika run")) {
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::HumanRunHandoff,
+            crate::metrics::Facts {
+                handoff: Some(crate::metrics::Handoff::WelcomeCta),
+                ..crate::metrics::Facts::none()
+            },
+        );
+    }
+    VerbOutput::ok(crate::display::vocab::sober(
         theme,
+        &render_with_context(&probe, glance, gate.as_ref(), counts, &ctx, theme),
     ))
+}
+
+/// The concierge's CTA classes (W8 metrics): found (`init` · `new`) ·
+/// go see (`examples` · `--deep`) · keep going (`run` · `check`).
+fn cta_class(cmd: &str) -> crate::metrics::Cta {
+    if cmd.starts_with("nika init") || cmd.starts_with("nika new") {
+        crate::metrics::Cta::Create
+    } else if cmd.starts_with("nika run") || cmd.starts_with("nika check") {
+        crate::metrics::Cta::Continue
+    } else {
+        crate::metrics::Cta::Discover
+    }
+}
+
+/// One `cta_impression` per move the mirror shows — the content-free
+/// half of the click-through the W8 audit wants measured.
+fn record_impressions<S: AsRef<str>>(moves: &[S]) {
+    for cmd in moves {
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::CtaImpression,
+            crate::metrics::Facts {
+                cta: Some(cta_class(cmd.as_ref())),
+                ..crate::metrics::Facts::none()
+            },
+        );
+    }
 }
 
 /// The workspace glance — a bounded, dot-dir-skipping walk (depth ≤ 4 ·
@@ -619,6 +669,24 @@ fn binary_section(
 
 /// The hand-off — the state's own three moves, then where to learn more.
 /// Chat-only keys on no workspace at all: the two doors the spec allows
+/// The chat-only doors (the spec's two: an isolated example · choosing a
+/// project) plus the corpus — ONE source: the render and the W8
+/// impression journal read the same moves (a drift between what is shown
+/// and what is measured would make the metric a lie).
+fn chat_only_moves() -> [(String, &'static str); 3] {
+    [
+        (
+            "nika examples run 01-hello --model mock/echo".to_owned(),
+            "isolated · zero keys",
+        ),
+        (
+            "cd <project> && nika welcome".to_owned(),
+            "choose a project first",
+        ),
+        ("nika examples".to_owned(), "the teaching corpus"),
+    ]
+}
+
 /// (an isolated example · choosing a project) plus the corpus.
 fn start_section(
     s: &mut String,
@@ -633,17 +701,7 @@ fn start_section(
         theme.paint(Role::Strong, "start here (offline · zero keys)")
     );
     let moves = if ctx.mode == ContextMode::ChatOnly {
-        [
-            (
-                "nika examples run 01-hello --model mock/echo".to_owned(),
-                "isolated · zero keys",
-            ),
-            (
-                "cd <project> && nika welcome".to_owned(),
-                "choose a project first",
-            ),
-            ("nika examples".to_owned(), "the teaching corpus"),
-        ]
+        chat_only_moves()
     } else {
         start_moves(glance, gate)
     };
@@ -754,6 +812,7 @@ fn render_chat_only_json(probe: &Probe, counts: EngineCounts) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::verbs::clients_registry::RegistryCoverage;
     use crate::verbs::exit;
     use crate::verbs::probe::{
         ClientProbe, ImageProbe, PingState, PricingProbe, ProviderProbe, TtsProbe,
@@ -824,6 +883,7 @@ mod tests {
                 },
             ],
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
@@ -1292,6 +1352,7 @@ mod tests {
                 .map(client)
                 .collect(),
             kits: vec![],
+            clients_registry: RegistryCoverage::default(),
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),

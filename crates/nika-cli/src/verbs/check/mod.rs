@@ -204,6 +204,15 @@ pub fn run_with_profile(
     let profile_clean = profile != Profile::Operational || grade < nika_check::RiskGrade::High;
     let strict_clean = clean && profile_clean && (!native_strict || native_hints == 0);
 
+    // W8 metrics (audit UX 2026-07-30): a green audit is the check_passed
+    // event — content-free by construction, off unless NIKA_METRICS=1.
+    if strict_clean {
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::CheckPassed,
+            crate::metrics::Facts::none(),
+        );
+    }
+
     if json {
         return json_verdict(
             &report,
@@ -274,10 +283,14 @@ pub fn run_with_profile(
             )
         );
     }
+    // The `--ascii` byte contract (P1 · audit UX 2026-07-30): the finished
+    // report folds through the ONE enforcement seam — the glyph twins stay
+    // the primary mechanism, this fold is what makes the emitted bytes
+    // ASCII by construction (a no-op on the unicode register).
     if strict_clean {
-        VerbOutput::ok(text)
+        VerbOutput::ok(nika_display::vocab::sober(theme, &text))
     } else {
-        VerbOutput::file(text)
+        VerbOutput::file(nika_display::vocab::sober(theme, &text))
     }
 }
 
@@ -736,6 +749,12 @@ mod tests {
     /// Write a fixture + run the human `check` render over it (ascii/no-colour
     /// so the assertions pin glyphs/text, not ANSI). The render path is what
     /// the operator reads — these tests pin its exact words.
+    ///
+    /// NOTE (W8 · P1 « --ascii réellement ASCII », audit 2026-07-30): the
+    /// ascii register now folds chrome punctuation to its ASCII twins at
+    /// the verb boundary (`vocab::sober`), so ascii-mode assertions pin
+    /// `-`/`--`/`X`, never `·`/`—`/`✖` — the unicode pins live in the
+    /// `checked_text(..., false)` calls, unchanged.
     fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
         // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
         // matrix · a dev double-run) share the OS tmpdir, and a fixed
@@ -882,7 +901,7 @@ mod tests {
             operational.text
         );
         assert!(
-            operational.text.contains("✖ operational · risk unbounded"),
+            operational.text.contains("X operational - risk unbounded"),
             "the refusal names the grade and the posture: {}",
             operational.text
         );
@@ -1187,7 +1206,7 @@ mod tests {
             strict.text
         );
         assert!(
-            strict.text.contains("native-strict · 1 native-first hint"),
+            strict.text.contains("native-strict - 1 native-first hint"),
             "{}",
             strict.text
         );
@@ -1367,11 +1386,11 @@ mod tests {
         );
         assert!(text.contains("wave 1"), "membership renders: {text}");
         assert!(
-            text.contains("think (infer · anthropic/claude-sonnet-5)"),
+            text.contains("think (infer - anthropic/claude-sonnet-5)"),
             "the envelope model resolves into the plan line: {text}"
         );
         assert!(
-            text.contains("after (exec · echo)"),
+            text.contains("after (exec - echo)"),
             "argv[0] names the exec: {text}"
         );
     }
@@ -1384,7 +1403,7 @@ mod tests {
             true,
         );
         assert!(
-            text.contains("(skipped — no valid DAG order while conformance fails)"),
+            text.contains("(skipped -- no valid DAG order while conformance fails)"),
             "{text}"
         );
     }
@@ -1467,7 +1486,7 @@ mod tests {
         );
         assert_eq!(out.code, 0, "a drift hint never fails: {}", out.text);
         assert!(
-            out.text.contains("[NIKA-DRIFT-001 · drift]"),
+            out.text.contains("[NIKA-DRIFT-001 - drift]"),
             "code-first bracket voice: {}",
             out.text
         );

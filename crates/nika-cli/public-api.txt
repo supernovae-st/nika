@@ -11,6 +11,367 @@ pub use nika_cli::frame_with_outputs
 pub use nika_cli::verdict_frame
 pub mod nika_cli::anchor
 pub use nika_cli::anchor::<<nika_dap::anchor::*>>
+pub mod nika_cli::metrics
+pub enum nika_cli::metrics::Cta
+pub nika_cli::metrics::Cta::Continue
+pub nika_cli::metrics::Cta::Create
+pub nika_cli::metrics::Cta::Discover
+impl core::clone::Clone for nika_cli::metrics::Cta
+pub fn nika_cli::metrics::Cta::clone(&self) -> nika_cli::metrics::Cta
+impl core::cmp::Eq for nika_cli::metrics::Cta
+impl core::cmp::PartialEq for nika_cli::metrics::Cta
+pub fn nika_cli::metrics::Cta::eq(&self, other: &nika_cli::metrics::Cta) -> bool
+impl core::fmt::Debug for nika_cli::metrics::Cta
+pub fn nika_cli::metrics::Cta::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::metrics::Cta
+impl core::marker::StructuralPartialEq for nika_cli::metrics::Cta
+impl serde_core::ser::Serialize for nika_cli::metrics::Cta
+pub fn nika_cli::metrics::Cta::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli::metrics::Cta
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::metrics::Cta where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Cta::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Cta where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Cta where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Cta::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::metrics::Cta::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::metrics::Cta where U: core::convert::From<T>
+pub fn nika_cli::metrics::Cta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::metrics::Cta where U: core::convert::Into<T>
+pub type nika_cli::metrics::Cta::Error = core::convert::Infallible
+pub fn nika_cli::metrics::Cta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::metrics::Cta where U: core::convert::TryFrom<T>
+pub type nika_cli::metrics::Cta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::metrics::Cta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::metrics::Cta where T: core::clone::Clone
+pub type nika_cli::metrics::Cta::Owned = T
+pub fn nika_cli::metrics::Cta::clone_into(&self, target: &mut T)
+pub fn nika_cli::metrics::Cta::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::metrics::Cta where T: 'static + ?core::marker::Sized
+pub fn nika_cli::metrics::Cta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::metrics::Cta where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Cta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::metrics::Cta where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Cta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::metrics::Cta where T: core::clone::Clone
+pub unsafe fn nika_cli::metrics::Cta::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::metrics::Cta
+pub fn nika_cli::metrics::Cta::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::metrics::Cta where T: core::clone::Clone
+pub fn nika_cli::metrics::Cta::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::metrics::Cta where T: 'static
+pub fn nika_cli::metrics::Cta::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::metrics::Cta where T: core::marker::Copy
+pub fn nika_cli::metrics::Cta::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::metrics::Cta where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Cta::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::metrics::Cta::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::metrics::Cta
+impl<T> tracing::instrument::WithSubscriber for nika_cli::metrics::Cta
+impl<T> typenum::type_operators::Same for nika_cli::metrics::Cta
+pub type nika_cli::metrics::Cta::Output = T
+pub enum nika_cli::metrics::DraftSource
+pub nika_cli::metrics::DraftSource::Guided
+pub nika_cli::metrics::DraftSource::New
+impl core::clone::Clone for nika_cli::metrics::DraftSource
+pub fn nika_cli::metrics::DraftSource::clone(&self) -> nika_cli::metrics::DraftSource
+impl core::cmp::Eq for nika_cli::metrics::DraftSource
+impl core::cmp::PartialEq for nika_cli::metrics::DraftSource
+pub fn nika_cli::metrics::DraftSource::eq(&self, other: &nika_cli::metrics::DraftSource) -> bool
+impl core::fmt::Debug for nika_cli::metrics::DraftSource
+pub fn nika_cli::metrics::DraftSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::metrics::DraftSource
+impl core::marker::StructuralPartialEq for nika_cli::metrics::DraftSource
+impl serde_core::ser::Serialize for nika_cli::metrics::DraftSource
+pub fn nika_cli::metrics::DraftSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli::metrics::DraftSource
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::metrics::DraftSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::DraftSource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::DraftSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::DraftSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::DraftSource::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::metrics::DraftSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::metrics::DraftSource where U: core::convert::From<T>
+pub fn nika_cli::metrics::DraftSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::metrics::DraftSource where U: core::convert::Into<T>
+pub type nika_cli::metrics::DraftSource::Error = core::convert::Infallible
+pub fn nika_cli::metrics::DraftSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::metrics::DraftSource where U: core::convert::TryFrom<T>
+pub type nika_cli::metrics::DraftSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::metrics::DraftSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::metrics::DraftSource where T: core::clone::Clone
+pub type nika_cli::metrics::DraftSource::Owned = T
+pub fn nika_cli::metrics::DraftSource::clone_into(&self, target: &mut T)
+pub fn nika_cli::metrics::DraftSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::metrics::DraftSource where T: 'static + ?core::marker::Sized
+pub fn nika_cli::metrics::DraftSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::metrics::DraftSource where T: ?core::marker::Sized
+pub fn nika_cli::metrics::DraftSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::metrics::DraftSource where T: ?core::marker::Sized
+pub fn nika_cli::metrics::DraftSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::metrics::DraftSource where T: core::clone::Clone
+pub unsafe fn nika_cli::metrics::DraftSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::metrics::DraftSource
+pub fn nika_cli::metrics::DraftSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::metrics::DraftSource where T: core::clone::Clone
+pub fn nika_cli::metrics::DraftSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::metrics::DraftSource where T: 'static
+pub fn nika_cli::metrics::DraftSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::metrics::DraftSource where T: core::marker::Copy
+pub fn nika_cli::metrics::DraftSource::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::metrics::DraftSource where T: ?core::marker::Sized
+pub fn nika_cli::metrics::DraftSource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::metrics::DraftSource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::metrics::DraftSource
+impl<T> tracing::instrument::WithSubscriber for nika_cli::metrics::DraftSource
+impl<T> typenum::type_operators::Same for nika_cli::metrics::DraftSource
+pub type nika_cli::metrics::DraftSource::Output = T
+pub enum nika_cli::metrics::EventKind
+pub nika_cli::metrics::EventKind::CheckPassed
+pub nika_cli::metrics::EventKind::ContextResolved
+pub nika_cli::metrics::EventKind::CtaImpression
+pub nika_cli::metrics::EventKind::CtaSelected
+pub nika_cli::metrics::EventKind::DraftCreated
+pub nika_cli::metrics::EventKind::FirstRealValue
+pub nika_cli::metrics::EventKind::HumanRunHandoff
+pub nika_cli::metrics::EventKind::IntentUnderstood
+pub nika_cli::metrics::EventKind::PreviewReached
+pub nika_cli::metrics::EventKind::RealReadinessProven
+pub nika_cli::metrics::EventKind::SecondSuccess
+pub nika_cli::metrics::EventKind::SuggestionSuppressed
+pub nika_cli::metrics::EventKind::UnexpectedEffectReport
+pub nika_cli::metrics::EventKind::UserBacktracked
+pub nika_cli::metrics::EventKind::UserDeclined
+impl core::clone::Clone for nika_cli::metrics::EventKind
+pub fn nika_cli::metrics::EventKind::clone(&self) -> nika_cli::metrics::EventKind
+impl core::cmp::Eq for nika_cli::metrics::EventKind
+impl core::cmp::PartialEq for nika_cli::metrics::EventKind
+pub fn nika_cli::metrics::EventKind::eq(&self, other: &nika_cli::metrics::EventKind) -> bool
+impl core::fmt::Debug for nika_cli::metrics::EventKind
+pub fn nika_cli::metrics::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::metrics::EventKind
+impl core::marker::StructuralPartialEq for nika_cli::metrics::EventKind
+impl serde_core::ser::Serialize for nika_cli::metrics::EventKind
+pub fn nika_cli::metrics::EventKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli::metrics::EventKind
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::metrics::EventKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::EventKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::EventKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::EventKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::EventKind::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::metrics::EventKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::metrics::EventKind where U: core::convert::From<T>
+pub fn nika_cli::metrics::EventKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::metrics::EventKind where U: core::convert::Into<T>
+pub type nika_cli::metrics::EventKind::Error = core::convert::Infallible
+pub fn nika_cli::metrics::EventKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::metrics::EventKind where U: core::convert::TryFrom<T>
+pub type nika_cli::metrics::EventKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::metrics::EventKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::metrics::EventKind where T: core::clone::Clone
+pub type nika_cli::metrics::EventKind::Owned = T
+pub fn nika_cli::metrics::EventKind::clone_into(&self, target: &mut T)
+pub fn nika_cli::metrics::EventKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::metrics::EventKind where T: 'static + ?core::marker::Sized
+pub fn nika_cli::metrics::EventKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::metrics::EventKind where T: ?core::marker::Sized
+pub fn nika_cli::metrics::EventKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::metrics::EventKind where T: ?core::marker::Sized
+pub fn nika_cli::metrics::EventKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::metrics::EventKind where T: core::clone::Clone
+pub unsafe fn nika_cli::metrics::EventKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::metrics::EventKind
+pub fn nika_cli::metrics::EventKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::metrics::EventKind where T: core::clone::Clone
+pub fn nika_cli::metrics::EventKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::metrics::EventKind where T: 'static
+pub fn nika_cli::metrics::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::metrics::EventKind where T: core::marker::Copy
+pub fn nika_cli::metrics::EventKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::metrics::EventKind where T: ?core::marker::Sized
+pub fn nika_cli::metrics::EventKind::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::metrics::EventKind::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::metrics::EventKind
+impl<T> tracing::instrument::WithSubscriber for nika_cli::metrics::EventKind
+impl<T> typenum::type_operators::Same for nika_cli::metrics::EventKind
+pub type nika_cli::metrics::EventKind::Output = T
+pub enum nika_cli::metrics::Handoff
+pub nika_cli::metrics::Handoff::GuardAllow
+pub nika_cli::metrics::Handoff::WelcomeCta
+impl core::clone::Clone for nika_cli::metrics::Handoff
+pub fn nika_cli::metrics::Handoff::clone(&self) -> nika_cli::metrics::Handoff
+impl core::cmp::Eq for nika_cli::metrics::Handoff
+impl core::cmp::PartialEq for nika_cli::metrics::Handoff
+pub fn nika_cli::metrics::Handoff::eq(&self, other: &nika_cli::metrics::Handoff) -> bool
+impl core::fmt::Debug for nika_cli::metrics::Handoff
+pub fn nika_cli::metrics::Handoff::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::metrics::Handoff
+impl core::marker::StructuralPartialEq for nika_cli::metrics::Handoff
+impl serde_core::ser::Serialize for nika_cli::metrics::Handoff
+pub fn nika_cli::metrics::Handoff::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli::metrics::Handoff
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::metrics::Handoff where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Handoff::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Handoff where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Handoff where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Handoff::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::metrics::Handoff::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::metrics::Handoff where U: core::convert::From<T>
+pub fn nika_cli::metrics::Handoff::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::metrics::Handoff where U: core::convert::Into<T>
+pub type nika_cli::metrics::Handoff::Error = core::convert::Infallible
+pub fn nika_cli::metrics::Handoff::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::metrics::Handoff where U: core::convert::TryFrom<T>
+pub type nika_cli::metrics::Handoff::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::metrics::Handoff::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::metrics::Handoff where T: core::clone::Clone
+pub type nika_cli::metrics::Handoff::Owned = T
+pub fn nika_cli::metrics::Handoff::clone_into(&self, target: &mut T)
+pub fn nika_cli::metrics::Handoff::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::metrics::Handoff where T: 'static + ?core::marker::Sized
+pub fn nika_cli::metrics::Handoff::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::metrics::Handoff where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Handoff::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::metrics::Handoff where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Handoff::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::metrics::Handoff where T: core::clone::Clone
+pub unsafe fn nika_cli::metrics::Handoff::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::metrics::Handoff
+pub fn nika_cli::metrics::Handoff::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::metrics::Handoff where T: core::clone::Clone
+pub fn nika_cli::metrics::Handoff::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::metrics::Handoff where T: 'static
+pub fn nika_cli::metrics::Handoff::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::metrics::Handoff where T: core::marker::Copy
+pub fn nika_cli::metrics::Handoff::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::metrics::Handoff where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Handoff::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::metrics::Handoff::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::metrics::Handoff
+impl<T> tracing::instrument::WithSubscriber for nika_cli::metrics::Handoff
+impl<T> typenum::type_operators::Same for nika_cli::metrics::Handoff
+pub type nika_cli::metrics::Handoff::Output = T
+pub enum nika_cli::metrics::Session
+pub nika_cli::metrics::Session::ChatOnly
+pub nika_cli::metrics::Session::Workspace
+impl core::clone::Clone for nika_cli::metrics::Session
+pub fn nika_cli::metrics::Session::clone(&self) -> nika_cli::metrics::Session
+impl core::cmp::Eq for nika_cli::metrics::Session
+impl core::cmp::PartialEq for nika_cli::metrics::Session
+pub fn nika_cli::metrics::Session::eq(&self, other: &nika_cli::metrics::Session) -> bool
+impl core::fmt::Debug for nika_cli::metrics::Session
+pub fn nika_cli::metrics::Session::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::metrics::Session
+impl core::marker::StructuralPartialEq for nika_cli::metrics::Session
+impl serde_core::ser::Serialize for nika_cli::metrics::Session
+pub fn nika_cli::metrics::Session::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli::metrics::Session
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::metrics::Session where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Session::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Session where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Session where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Session::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::metrics::Session::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::metrics::Session where U: core::convert::From<T>
+pub fn nika_cli::metrics::Session::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::metrics::Session where U: core::convert::Into<T>
+pub type nika_cli::metrics::Session::Error = core::convert::Infallible
+pub fn nika_cli::metrics::Session::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::metrics::Session where U: core::convert::TryFrom<T>
+pub type nika_cli::metrics::Session::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::metrics::Session::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::metrics::Session where T: core::clone::Clone
+pub type nika_cli::metrics::Session::Owned = T
+pub fn nika_cli::metrics::Session::clone_into(&self, target: &mut T)
+pub fn nika_cli::metrics::Session::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::metrics::Session where T: 'static + ?core::marker::Sized
+pub fn nika_cli::metrics::Session::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::metrics::Session where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Session::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::metrics::Session where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Session::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::metrics::Session where T: core::clone::Clone
+pub unsafe fn nika_cli::metrics::Session::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::metrics::Session
+pub fn nika_cli::metrics::Session::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::metrics::Session where T: core::clone::Clone
+pub fn nika_cli::metrics::Session::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::metrics::Session where T: 'static
+pub fn nika_cli::metrics::Session::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::metrics::Session where T: core::marker::Copy
+pub fn nika_cli::metrics::Session::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::metrics::Session where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Session::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::metrics::Session::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::metrics::Session
+impl<T> tracing::instrument::WithSubscriber for nika_cli::metrics::Session
+impl<T> typenum::type_operators::Same for nika_cli::metrics::Session
+pub type nika_cli::metrics::Session::Output = T
+pub struct nika_cli::metrics::Facts
+pub nika_cli::metrics::Facts::count: core::option::Option<u32>
+pub nika_cli::metrics::Facts::cta: core::option::Option<nika_cli::metrics::Cta>
+pub nika_cli::metrics::Facts::draft: core::option::Option<nika_cli::metrics::DraftSource>
+pub nika_cli::metrics::Facts::flag: core::option::Option<bool>
+pub nika_cli::metrics::Facts::handoff: core::option::Option<nika_cli::metrics::Handoff>
+pub nika_cli::metrics::Facts::session: core::option::Option<nika_cli::metrics::Session>
+impl nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::none() -> Self
+impl core::clone::Clone for nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::clone(&self) -> nika_cli::metrics::Facts
+impl core::cmp::Eq for nika_cli::metrics::Facts
+impl core::cmp::PartialEq for nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::eq(&self, other: &nika_cli::metrics::Facts) -> bool
+impl core::default::Default for nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::default() -> nika_cli::metrics::Facts
+impl core::fmt::Debug for nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::metrics::Facts
+impl core::marker::StructuralPartialEq for nika_cli::metrics::Facts
+impl serde_core::ser::Serialize for nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli::metrics::Facts
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::metrics::Facts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Facts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Facts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::metrics::Facts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::metrics::Facts::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::metrics::Facts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::metrics::Facts where U: core::convert::From<T>
+pub fn nika_cli::metrics::Facts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::metrics::Facts where U: core::convert::Into<T>
+pub type nika_cli::metrics::Facts::Error = core::convert::Infallible
+pub fn nika_cli::metrics::Facts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::metrics::Facts where U: core::convert::TryFrom<T>
+pub type nika_cli::metrics::Facts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::metrics::Facts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::metrics::Facts where T: core::clone::Clone
+pub type nika_cli::metrics::Facts::Owned = T
+pub fn nika_cli::metrics::Facts::clone_into(&self, target: &mut T)
+pub fn nika_cli::metrics::Facts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::metrics::Facts where T: 'static + ?core::marker::Sized
+pub fn nika_cli::metrics::Facts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::metrics::Facts where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Facts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::metrics::Facts where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Facts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::metrics::Facts where T: core::clone::Clone
+pub unsafe fn nika_cli::metrics::Facts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::metrics::Facts
+pub fn nika_cli::metrics::Facts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::metrics::Facts where T: core::clone::Clone
+pub fn nika_cli::metrics::Facts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::metrics::Facts where T: 'static
+pub fn nika_cli::metrics::Facts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::metrics::Facts where T: core::marker::Copy
+pub fn nika_cli::metrics::Facts::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::metrics::Facts where T: ?core::marker::Sized
+pub fn nika_cli::metrics::Facts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::metrics::Facts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::metrics::Facts
+impl<T> tracing::instrument::WithSubscriber for nika_cli::metrics::Facts
+impl<T> typenum::type_operators::Same for nika_cli::metrics::Facts
+pub type nika_cli::metrics::Facts::Output = T
+pub fn nika_cli::metrics::record(path: &std::path::Path, event: nika_cli::metrics::EventKind, facts: nika_cli::metrics::Facts) -> core::io::error::Result<()>
+pub fn nika_cli::metrics::record_if_enabled(event: nika_cli::metrics::EventKind, facts: nika_cli::metrics::Facts)
 pub mod nika_cli::registry
 pub use nika_cli::registry::RegistryError
 pub use nika_cli::registry::Resolved
@@ -69,20 +430,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::check::Profile where T: 
 pub unsafe fn nika_cli::verbs::check::Profile::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::check::Profile
 pub fn nika_cli::verbs::check::Profile::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::check::Profile
-pub type nika_cli::verbs::check::Profile::Init = T
-pub const nika_cli::verbs::check::Profile::ALIGN: usize
-pub unsafe fn nika_cli::verbs::check::Profile::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::check::Profile::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::check::Profile::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::check::Profile::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::check::Profile where T: core::clone::Clone
 pub fn nika_cli::verbs::check::Profile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::check::Profile
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::check::Profile where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::Profile where T: 'static
 pub fn nika_cli::verbs::check::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::check::Profile where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::check::Profile where T: core::marker::Copy
 pub fn nika_cli::verbs::check::Profile::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::Profile where T: ?core::marker::Sized
@@ -92,9 +443,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::Profile
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::Profile
 impl<T> typenum::type_operators::Same for nika_cli::verbs::check::Profile
 pub type nika_cli::verbs::check::Profile::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::check::Profile where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::check::Profile where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::check::Profile::vzip(self) -> V
 pub struct nika_cli::verbs::check::CheckFlags
 pub nika_cli::verbs::check::CheckFlags::infer_permits: bool
 pub nika_cli::verbs::check::CheckFlags::json: bool
@@ -117,17 +465,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::check::CheckFlags where 
 pub fn nika_cli::verbs::check::CheckFlags::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckFlags
 pub fn nika_cli::verbs::check::CheckFlags::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::check::CheckFlags
-pub type nika_cli::verbs::check::CheckFlags::Init = T
-pub const nika_cli::verbs::check::CheckFlags::ALIGN: usize
-pub unsafe fn nika_cli::verbs::check::CheckFlags::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::check::CheckFlags::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::check::CheckFlags::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::check::CheckFlags::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::check::CheckFlags
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckFlags where T: 'static
 pub fn nika_cli::verbs::check::CheckFlags::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::check::CheckFlags where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckFlags where T: ?core::marker::Sized
 pub fn nika_cli::verbs::check::CheckFlags::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::check::CheckFlags::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -135,9 +474,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::CheckFlags
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::CheckFlags
 impl<T> typenum::type_operators::Same for nika_cli::verbs::check::CheckFlags
 pub type nika_cli::verbs::check::CheckFlags::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::check::CheckFlags where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::check::CheckFlags where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::check::CheckFlags::vzip(self) -> V
 pub fn nika_cli::verbs::check::dispatch(files: &[alloc::string::String], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
@@ -179,17 +515,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::evidence::EvidenceArgs w
 pub fn nika_cli::verbs::evidence::EvidenceArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::evidence::EvidenceArgs
 pub fn nika_cli::verbs::evidence::EvidenceArgs::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::evidence::EvidenceArgs
-pub type nika_cli::verbs::evidence::EvidenceArgs::Init = T
-pub const nika_cli::verbs::evidence::EvidenceArgs::ALIGN: usize
-pub unsafe fn nika_cli::verbs::evidence::EvidenceArgs::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::evidence::EvidenceArgs::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::evidence::EvidenceArgs::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::evidence::EvidenceArgs::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::evidence::EvidenceArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::evidence::EvidenceArgs where T: 'static
 pub fn nika_cli::verbs::evidence::EvidenceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::evidence::EvidenceArgs where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::evidence::EvidenceArgs where T: ?core::marker::Sized
 pub fn nika_cli::verbs::evidence::EvidenceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::evidence::EvidenceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -197,9 +524,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::evidence::EvidenceA
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::evidence::EvidenceArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::evidence::EvidenceArgs
 pub type nika_cli::verbs::evidence::EvidenceArgs::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::evidence::EvidenceArgs where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::evidence::EvidenceArgs where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::evidence::EvidenceArgs::vzip(self) -> V
 pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
@@ -269,20 +593,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::graph::GraphFormat where
 pub unsafe fn nika_cli::verbs::graph::GraphFormat::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::graph::GraphFormat
 pub fn nika_cli::verbs::graph::GraphFormat::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::graph::GraphFormat
-pub type nika_cli::verbs::graph::GraphFormat::Init = T
-pub const nika_cli::verbs::graph::GraphFormat::ALIGN: usize
-pub unsafe fn nika_cli::verbs::graph::GraphFormat::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::graph::GraphFormat::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::graph::GraphFormat::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::graph::GraphFormat::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::graph::GraphFormat where T: core::clone::Clone
 pub fn nika_cli::verbs::graph::GraphFormat::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::graph::GraphFormat
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::graph::GraphFormat where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::GraphFormat where T: 'static
 pub fn nika_cli::verbs::graph::GraphFormat::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::graph::GraphFormat where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::graph::GraphFormat where T: core::marker::Copy
 pub fn nika_cli::verbs::graph::GraphFormat::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::GraphFormat where T: ?core::marker::Sized
@@ -292,9 +606,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::GraphFormat
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::GraphFormat
 impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::GraphFormat
 pub type nika_cli::verbs::graph::GraphFormat::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::graph::GraphFormat where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::graph::GraphFormat where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::graph::GraphFormat::vzip(self) -> V
 pub enum nika_cli::verbs::graph::GraphFormatArg
 pub nika_cli::verbs::graph::GraphFormatArg::Ascii
 pub nika_cli::verbs::graph::GraphFormatArg::Dot
@@ -343,20 +654,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::graph::GraphFormatArg wh
 pub unsafe fn nika_cli::verbs::graph::GraphFormatArg::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::graph::GraphFormatArg
 pub fn nika_cli::verbs::graph::GraphFormatArg::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::graph::GraphFormatArg
-pub type nika_cli::verbs::graph::GraphFormatArg::Init = T
-pub const nika_cli::verbs::graph::GraphFormatArg::ALIGN: usize
-pub unsafe fn nika_cli::verbs::graph::GraphFormatArg::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::graph::GraphFormatArg::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::graph::GraphFormatArg::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::graph::GraphFormatArg::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::graph::GraphFormatArg where T: core::clone::Clone
 pub fn nika_cli::verbs::graph::GraphFormatArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::graph::GraphFormatArg
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::graph::GraphFormatArg where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::GraphFormatArg where T: 'static
 pub fn nika_cli::verbs::graph::GraphFormatArg::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::graph::GraphFormatArg where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::graph::GraphFormatArg where T: core::marker::Copy
 pub fn nika_cli::verbs::graph::GraphFormatArg::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::GraphFormatArg where T: ?core::marker::Sized
@@ -366,9 +667,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::GraphFormatA
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::GraphFormatArg
 impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::GraphFormatArg
 pub type nika_cli::verbs::graph::GraphFormatArg::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::graph::GraphFormatArg where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::graph::GraphFormatArg where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::graph::GraphFormatArg::vzip(self) -> V
 pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::GraphFormat, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::graph::to_dot(doc: &nika_graph::GraphDoc) -> alloc::string::String
 pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_graph::GraphDoc) -> alloc::string::String
@@ -425,20 +723,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::init::CanvasTheme where 
 pub unsafe fn nika_cli::verbs::init::CanvasTheme::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::init::CanvasTheme
 pub fn nika_cli::verbs::init::CanvasTheme::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::init::CanvasTheme
-pub type nika_cli::verbs::init::CanvasTheme::Init = T
-pub const nika_cli::verbs::init::CanvasTheme::ALIGN: usize
-pub unsafe fn nika_cli::verbs::init::CanvasTheme::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::init::CanvasTheme::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::init::CanvasTheme::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::init::CanvasTheme::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::init::CanvasTheme where T: core::clone::Clone
 pub fn nika_cli::verbs::init::CanvasTheme::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::init::CanvasTheme
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::init::CanvasTheme where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::init::CanvasTheme where T: 'static
 pub fn nika_cli::verbs::init::CanvasTheme::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::init::CanvasTheme where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::init::CanvasTheme where T: core::marker::Copy
 pub fn nika_cli::verbs::init::CanvasTheme::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::init::CanvasTheme where T: ?core::marker::Sized
@@ -448,9 +736,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::init::CanvasTheme
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::init::CanvasTheme
 impl<T> typenum::type_operators::Same for nika_cli::verbs::init::CanvasTheme
 pub type nika_cli::verbs::init::CanvasTheme::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::init::CanvasTheme where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::init::CanvasTheme where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::init::CanvasTheme::vzip(self) -> V
 pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_cli::verbs::init::CanvasTheme>, wires: &[nika_cli::verbs::wire::WireTarget], theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
@@ -495,19 +780,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::key::KeyAction where T: 
 pub unsafe fn nika_cli::verbs::key::KeyAction::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::key::KeyAction
 pub fn nika_cli::verbs::key::KeyAction::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::key::KeyAction
-pub type nika_cli::verbs::key::KeyAction::Init = T
-pub const nika_cli::verbs::key::KeyAction::ALIGN: usize
-pub unsafe fn nika_cli::verbs::key::KeyAction::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::key::KeyAction::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::key::KeyAction::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::key::KeyAction::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::key::KeyAction where T: core::clone::Clone
 pub fn nika_cli::verbs::key::KeyAction::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::key::KeyAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::key::KeyAction where T: 'static
 pub fn nika_cli::verbs::key::KeyAction::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::key::KeyAction where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::key::KeyAction where T: core::marker::Copy
 pub fn nika_cli::verbs::key::KeyAction::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::key::KeyAction where T: ?core::marker::Sized
@@ -517,9 +793,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::key::KeyAction
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::key::KeyAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::key::KeyAction
 pub type nika_cli::verbs::key::KeyAction::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::key::KeyAction where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::key::KeyAction where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::key::KeyAction::vzip(self) -> V
 pub fn nika_cli::verbs::key::run(action: nika_cli::verbs::key::KeyAction) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::mcp_pins
 pub enum nika_cli::verbs::mcp_pins::McpAction
@@ -559,19 +832,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::mcp_pins::McpAction wher
 pub unsafe fn nika_cli::verbs::mcp_pins::McpAction::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::mcp_pins::McpAction
 pub fn nika_cli::verbs::mcp_pins::McpAction::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::mcp_pins::McpAction
-pub type nika_cli::verbs::mcp_pins::McpAction::Init = T
-pub const nika_cli::verbs::mcp_pins::McpAction::ALIGN: usize
-pub unsafe fn nika_cli::verbs::mcp_pins::McpAction::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::mcp_pins::McpAction::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::mcp_pins::McpAction::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::mcp_pins::McpAction::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::mcp_pins::McpAction where T: core::clone::Clone
 pub fn nika_cli::verbs::mcp_pins::McpAction::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::mcp_pins::McpAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::mcp_pins::McpAction where T: 'static
 pub fn nika_cli::verbs::mcp_pins::McpAction::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::mcp_pins::McpAction where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::mcp_pins::McpAction where T: ?core::marker::Sized
 pub fn nika_cli::verbs::mcp_pins::McpAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::mcp_pins::McpAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -579,9 +843,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::mcp_pins::McpAction
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::mcp_pins::McpAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::mcp_pins::McpAction
 pub type nika_cli::verbs::mcp_pins::McpAction::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::mcp_pins::McpAction where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::mcp_pins::McpAction where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::mcp_pins::McpAction::vzip(self) -> V
 pub enum nika_cli::verbs::mcp_pins::McpTransportArg
 pub nika_cli::verbs::mcp_pins::McpTransportArg::Http
 pub nika_cli::verbs::mcp_pins::McpTransportArg::Stdio
@@ -626,20 +887,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::mcp_pins::McpTransportAr
 pub unsafe fn nika_cli::verbs::mcp_pins::McpTransportArg::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::mcp_pins::McpTransportArg
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::mcp_pins::McpTransportArg
-pub type nika_cli::verbs::mcp_pins::McpTransportArg::Init = T
-pub const nika_cli::verbs::mcp_pins::McpTransportArg::ALIGN: usize
-pub unsafe fn nika_cli::verbs::mcp_pins::McpTransportArg::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::mcp_pins::McpTransportArg::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::mcp_pins::McpTransportArg::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::mcp_pins::McpTransportArg::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::clone::Clone
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::mcp_pins::McpTransportArg
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::mcp_pins::McpTransportArg where T: 'static
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::mcp_pins::McpTransportArg where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::marker::Copy
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::mcp_pins::McpTransportArg where T: ?core::marker::Sized
@@ -649,9 +900,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::mcp_pins::McpTransp
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::mcp_pins::McpTransportArg
 impl<T> typenum::type_operators::Same for nika_cli::verbs::mcp_pins::McpTransportArg
 pub type nika_cli::verbs::mcp_pins::McpTransportArg::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::mcp_pins::McpTransportArg where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::mcp_pins::McpTransportArg where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::mcp_pins::McpTransportArg::vzip(self) -> V
 pub fn nika_cli::verbs::mcp_pins::approve(server: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::mcp_pins::mcp_verb(action: core::option::Option<nika_cli::verbs::mcp_pins::McpAction>, transport: nika_cli::verbs::mcp_pins::McpTransportArg, port: u16, bind: &str) -> u8
 pub mod nika_cli::verbs::model
@@ -702,17 +950,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::receipt::ReceiptAction w
 pub fn nika_cli::verbs::receipt::ReceiptAction::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::receipt::ReceiptAction
 pub fn nika_cli::verbs::receipt::ReceiptAction::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::receipt::ReceiptAction
-pub type nika_cli::verbs::receipt::ReceiptAction::Init = T
-pub const nika_cli::verbs::receipt::ReceiptAction::ALIGN: usize
-pub unsafe fn nika_cli::verbs::receipt::ReceiptAction::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::receipt::ReceiptAction::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::receipt::ReceiptAction::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::receipt::ReceiptAction::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::receipt::ReceiptAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::receipt::ReceiptAction where T: 'static
 pub fn nika_cli::verbs::receipt::ReceiptAction::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::receipt::ReceiptAction where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::receipt::ReceiptAction where T: ?core::marker::Sized
 pub fn nika_cli::verbs::receipt::ReceiptAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::receipt::ReceiptAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -720,9 +959,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::receipt::ReceiptAct
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::receipt::ReceiptAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::receipt::ReceiptAction
 pub type nika_cli::verbs::receipt::ReceiptAction::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::receipt::ReceiptAction where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::receipt::ReceiptAction where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::receipt::ReceiptAction::vzip(self) -> V
 pub fn nika_cli::verbs::receipt::explain(file: &std::path::Path) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::receipt::run(action: nika_cli::verbs::receipt::ReceiptAction) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::run
@@ -770,20 +1006,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::run::RenderMode where T:
 pub unsafe fn nika_cli::verbs::run::RenderMode::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::run::RenderMode
 pub fn nika_cli::verbs::run::RenderMode::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::run::RenderMode
-pub type nika_cli::verbs::run::RenderMode::Init = T
-pub const nika_cli::verbs::run::RenderMode::ALIGN: usize
-pub unsafe fn nika_cli::verbs::run::RenderMode::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::run::RenderMode::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::run::RenderMode::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::run::RenderMode::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::run::RenderMode where T: core::clone::Clone
 pub fn nika_cli::verbs::run::RenderMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::run::RenderMode
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::run::RenderMode where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::RenderMode where T: 'static
 pub fn nika_cli::verbs::run::RenderMode::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::run::RenderMode where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::run::RenderMode where T: core::marker::Copy
 pub fn nika_cli::verbs::run::RenderMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::RenderMode where T: ?core::marker::Sized
@@ -793,9 +1019,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::RenderMode
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::RenderMode
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::RenderMode
 pub type nika_cli::verbs::run::RenderMode::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::run::RenderMode where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::run::RenderMode where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::run::RenderMode::vzip(self) -> V
 pub struct nika_cli::verbs::run::FoldSink<W: core::io::write::Write>
 impl<W: core::io::write::Write> nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
@@ -824,17 +1047,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::run::FoldSink<W> where T
 pub fn nika_cli::verbs::run::FoldSink<W>::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::run::FoldSink<W>
-pub type nika_cli::verbs::run::FoldSink<W>::Init = T
-pub const nika_cli::verbs::run::FoldSink<W>::ALIGN: usize
-pub unsafe fn nika_cli::verbs::run::FoldSink<W>::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::run::FoldSink<W>::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::run::FoldSink<W>::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::run::FoldSink<W>::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::run::FoldSink<W>
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::FoldSink<W> where T: 'static
 pub fn nika_cli::verbs::run::FoldSink<W>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::run::FoldSink<W> where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::FoldSink<W> where T: ?core::marker::Sized
 pub fn nika_cli::verbs::run::FoldSink<W>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::run::FoldSink<W>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -842,9 +1056,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::FoldSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::FoldSink<W>
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::FoldSink<W>
 pub type nika_cli::verbs::run::FoldSink<W>::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::run::FoldSink<W> where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::run::FoldSink<W> where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::run::FoldSink<W>::vzip(self) -> V
 pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_dap::resume::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool, require_signature: bool) -> u8
 pub mod nika_cli::verbs::sign
@@ -877,17 +1088,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::sign::SignArgs where T: 
 pub fn nika_cli::verbs::sign::SignArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::sign::SignArgs
 pub fn nika_cli::verbs::sign::SignArgs::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::sign::SignArgs
-pub type nika_cli::verbs::sign::SignArgs::Init = T
-pub const nika_cli::verbs::sign::SignArgs::ALIGN: usize
-pub unsafe fn nika_cli::verbs::sign::SignArgs::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::sign::SignArgs::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::sign::SignArgs::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::sign::SignArgs::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::sign::SignArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::sign::SignArgs where T: 'static
 pub fn nika_cli::verbs::sign::SignArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::sign::SignArgs where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::sign::SignArgs where T: ?core::marker::Sized
 pub fn nika_cli::verbs::sign::SignArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::sign::SignArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -895,9 +1097,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::sign::SignArgs
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::sign::SignArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::sign::SignArgs
 pub type nika_cli::verbs::sign::SignArgs::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::sign::SignArgs where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::sign::SignArgs where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::sign::SignArgs::vzip(self) -> V
 pub fn nika_cli::verbs::sign::run(args: &nika_cli::verbs::sign::SignArgs) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display::theme::Theme) -> u8
@@ -965,17 +1164,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceActi
 pub fn nika_cli::verbs::trace::action::TraceAction::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceAction
 pub fn nika_cli::verbs::trace::action::TraceAction::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::trace::action::TraceAction
-pub type nika_cli::verbs::trace::action::TraceAction::Init = T
-pub const nika_cli::verbs::trace::action::TraceAction::ALIGN: usize
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::trace::action::TraceAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceAction where T: 'static
 pub fn nika_cli::verbs::trace::action::TraceAction::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
 pub fn nika_cli::verbs::trace::action::TraceAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::trace::action::TraceAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -983,9 +1173,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::Trac
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceAction
 pub type nika_cli::verbs::trace::action::TraceAction::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::trace::action::TraceAction where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::trace::action::TraceAction where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::trace::action::TraceAction::vzip(self) -> V
 pub struct nika_cli::verbs::trace::action::TraceArgs
 pub nika_cli::verbs::trace::action::TraceArgs::demo: bool
 pub nika_cli::verbs::trace::action::TraceArgs::demo_fail: bool
@@ -1018,17 +1205,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceArgs
 pub fn nika_cli::verbs::trace::action::TraceArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceArgs
 pub fn nika_cli::verbs::trace::action::TraceArgs::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::trace::action::TraceArgs
-pub type nika_cli::verbs::trace::action::TraceArgs::Init = T
-pub const nika_cli::verbs::trace::action::TraceArgs::ALIGN: usize
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::trace::action::TraceArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceArgs where T: 'static
 pub fn nika_cli::verbs::trace::action::TraceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
 pub fn nika_cli::verbs::trace::action::TraceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::trace::action::TraceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -1036,9 +1214,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::Trac
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceArgs
 pub type nika_cli::verbs::trace::action::TraceArgs::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::trace::action::TraceArgs where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::trace::action::TraceArgs where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::trace::action::TraceArgs::vzip(self) -> V
 pub mod nika_cli::verbs::trace::manage
 pub use nika_cli::verbs::trace::manage::parse_older_than
 pub enum nika_cli::verbs::trace::manage::RmTarget
@@ -1072,19 +1247,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::trace::manage::RmTarget 
 pub unsafe fn nika_cli::verbs::trace::manage::RmTarget::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::trace::manage::RmTarget
 pub fn nika_cli::verbs::trace::manage::RmTarget::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::trace::manage::RmTarget
-pub type nika_cli::verbs::trace::manage::RmTarget::Init = T
-pub const nika_cli::verbs::trace::manage::RmTarget::ALIGN: usize
-pub unsafe fn nika_cli::verbs::trace::manage::RmTarget::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::trace::manage::RmTarget::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::trace::manage::RmTarget::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::trace::manage::RmTarget::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::trace::manage::RmTarget where T: core::clone::Clone
 pub fn nika_cli::verbs::trace::manage::RmTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::trace::manage::RmTarget
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::manage::RmTarget where T: 'static
 pub fn nika_cli::verbs::trace::manage::RmTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::trace::manage::RmTarget where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::manage::RmTarget where T: ?core::marker::Sized
 pub fn nika_cli::verbs::trace::manage::RmTarget::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::trace::manage::RmTarget::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -1092,9 +1258,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::manage::RmTa
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::manage::RmTarget
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::manage::RmTarget
 pub type nika_cli::verbs::trace::manage::RmTarget::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::trace::manage::RmTarget where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::trace::manage::RmTarget where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::trace::manage::RmTarget::vzip(self) -> V
 pub fn nika_cli::verbs::trace::manage::announce_latest(path: &std::path::Path)
 pub fn nika_cli::verbs::trace::manage::flow_verb(trace: core::option::Option<std::path::PathBuf>, workflow: core::option::Option<alloc::string::String>, theme: nika_display::theme::Theme) -> core::result::Result<nika_cli::verbs::VerbOutput, u8>
 pub fn nika_cli::verbs::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
@@ -1163,17 +1326,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceActi
 pub fn nika_cli::verbs::trace::action::TraceAction::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceAction
 pub fn nika_cli::verbs::trace::action::TraceAction::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::trace::action::TraceAction
-pub type nika_cli::verbs::trace::action::TraceAction::Init = T
-pub const nika_cli::verbs::trace::action::TraceAction::ALIGN: usize
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::trace::action::TraceAction::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::trace::action::TraceAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceAction where T: 'static
 pub fn nika_cli::verbs::trace::action::TraceAction::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceAction where T: ?core::marker::Sized
 pub fn nika_cli::verbs::trace::action::TraceAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::trace::action::TraceAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -1181,9 +1335,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::Trac
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceAction
 pub type nika_cli::verbs::trace::action::TraceAction::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::trace::action::TraceAction where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::trace::action::TraceAction where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::trace::action::TraceAction::vzip(self) -> V
 pub struct nika_cli::verbs::trace::TraceArgs
 pub nika_cli::verbs::trace::TraceArgs::demo: bool
 pub nika_cli::verbs::trace::TraceArgs::demo_fail: bool
@@ -1216,17 +1367,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::action::TraceArgs
 pub fn nika_cli::verbs::trace::action::TraceArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::trace::action::TraceArgs
 pub fn nika_cli::verbs::trace::action::TraceArgs::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::trace::action::TraceArgs
-pub type nika_cli::verbs::trace::action::TraceArgs::Init = T
-pub const nika_cli::verbs::trace::action::TraceArgs::ALIGN: usize
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::trace::action::TraceArgs::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::trace::action::TraceArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::action::TraceArgs where T: 'static
 pub fn nika_cli::verbs::trace::action::TraceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::action::TraceArgs where T: ?core::marker::Sized
 pub fn nika_cli::verbs::trace::action::TraceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::trace::action::TraceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -1234,9 +1376,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::action::Trac
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::action::TraceArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::action::TraceArgs
 pub type nika_cli::verbs::trace::action::TraceArgs::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::trace::action::TraceArgs where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::trace::action::TraceArgs where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::trace::action::TraceArgs::vzip(self) -> V
 pub fn nika_cli::verbs::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
@@ -1280,19 +1419,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::trace_verify::VerifyOpti
 pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::trace_verify::VerifyOptions
 pub fn nika_cli::verbs::trace_verify::VerifyOptions::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::trace_verify::VerifyOptions
-pub type nika_cli::verbs::trace_verify::VerifyOptions::Init = T
-pub const nika_cli::verbs::trace_verify::VerifyOptions::ALIGN: usize
-pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::trace_verify::VerifyOptions::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::trace_verify::VerifyOptions where T: core::clone::Clone
 pub fn nika_cli::verbs::trace_verify::VerifyOptions::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::trace_verify::VerifyOptions
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace_verify::VerifyOptions where T: 'static
 pub fn nika_cli::verbs::trace_verify::VerifyOptions::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace_verify::VerifyOptions where T: ?core::marker::Sized
 pub fn nika_cli::verbs::trace_verify::VerifyOptions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::trace_verify::VerifyOptions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -1300,9 +1430,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace_verify::Verif
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace_verify::VerifyOptions
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace_verify::VerifyOptions
 pub type nika_cli::verbs::trace_verify::VerifyOptions::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::trace_verify::VerifyOptions where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::trace_verify::VerifyOptions where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::trace_verify::VerifyOptions::vzip(self) -> V
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli::verbs::VerbOutput
@@ -1321,6 +1448,7 @@ pub nika_cli::verbs::wire::WireTarget::Codex
 pub nika_cli::verbs::wire::WireTarget::Continue
 pub nika_cli::verbs::wire::WireTarget::Copilot
 pub nika_cli::verbs::wire::WireTarget::Cursor
+pub nika_cli::verbs::wire::WireTarget::Detected
 pub nika_cli::verbs::wire::WireTarget::Gemini
 pub nika_cli::verbs::wire::WireTarget::Grok
 pub nika_cli::verbs::wire::WireTarget::Hermes
@@ -1374,20 +1502,10 @@ impl<T> core::clone::CloneToUninit for nika_cli::verbs::wire::WireTarget where T
 pub unsafe fn nika_cli::verbs::wire::WireTarget::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::wire::WireTarget
 pub fn nika_cli::verbs::wire::WireTarget::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::wire::WireTarget
-pub type nika_cli::verbs::wire::WireTarget::Init = T
-pub const nika_cli::verbs::wire::WireTarget::ALIGN: usize
-pub unsafe fn nika_cli::verbs::wire::WireTarget::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::wire::WireTarget::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::wire::WireTarget::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::wire::WireTarget::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> dyn_clone::DynClone for nika_cli::verbs::wire::WireTarget where T: core::clone::Clone
 pub fn nika_cli::verbs::wire::WireTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_cli::verbs::wire::WireTarget
-impl<T> gemm_common::simd::Boilerplate for nika_cli::verbs::wire::WireTarget where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::wire::WireTarget where T: 'static
 pub fn nika_cli::verbs::wire::WireTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::wire::WireTarget where T: ?core::marker::Sized
 impl<T> outref::AsOut<T> for nika_cli::verbs::wire::WireTarget where T: core::marker::Copy
 pub fn nika_cli::verbs::wire::WireTarget::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::wire::WireTarget where T: ?core::marker::Sized
@@ -1397,10 +1515,55 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::wire::WireTarget
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::wire::WireTarget
 impl<T> typenum::type_operators::Same for nika_cli::verbs::wire::WireTarget
 pub type nika_cli::verbs::wire::WireTarget::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::wire::WireTarget where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::wire::WireTarget where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::wire::WireTarget::vzip(self) -> V
+pub struct nika_cli::verbs::wire::WireOptions
+pub nika_cli::verbs::wire::WireOptions::dry_run: bool
+pub nika_cli::verbs::wire::WireOptions::interactive: bool
+pub nika_cli::verbs::wire::WireOptions::yes: bool
+impl core::clone::Clone for nika_cli::verbs::wire::WireOptions
+pub fn nika_cli::verbs::wire::WireOptions::clone(&self) -> nika_cli::verbs::wire::WireOptions
+impl core::default::Default for nika_cli::verbs::wire::WireOptions
+pub fn nika_cli::verbs::wire::WireOptions::default() -> nika_cli::verbs::wire::WireOptions
+impl core::fmt::Debug for nika_cli::verbs::wire::WireOptions
+pub fn nika_cli::verbs::wire::WireOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::verbs::wire::WireOptions
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::wire::WireOptions
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::wire::WireOptions where U: core::convert::From<T>
+pub fn nika_cli::verbs::wire::WireOptions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::wire::WireOptions where U: core::convert::Into<T>
+pub type nika_cli::verbs::wire::WireOptions::Error = core::convert::Infallible
+pub fn nika_cli::verbs::wire::WireOptions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::wire::WireOptions where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::wire::WireOptions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::wire::WireOptions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::wire::WireOptions where T: core::clone::Clone
+pub type nika_cli::verbs::wire::WireOptions::Owned = T
+pub fn nika_cli::verbs::wire::WireOptions::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::wire::WireOptions::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::wire::WireOptions where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::wire::WireOptions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::wire::WireOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::wire::WireOptions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::wire::WireOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::wire::WireOptions::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::wire::WireOptions where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::wire::WireOptions::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::wire::WireOptions
+pub fn nika_cli::verbs::wire::WireOptions::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::wire::WireOptions where T: core::clone::Clone
+pub fn nika_cli::verbs::wire::WireOptions::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::wire::WireOptions where T: 'static
+pub fn nika_cli::verbs::wire::WireOptions::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::verbs::wire::WireOptions where T: core::marker::Copy
+pub fn nika_cli::verbs::wire::WireOptions::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::wire::WireOptions where T: ?core::marker::Sized
+pub fn nika_cli::verbs::wire::WireOptions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::wire::WireOptions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::wire::WireOptions
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::wire::WireOptions
+impl<T> typenum::type_operators::Same for nika_cli::verbs::wire::WireOptions
+pub type nika_cli::verbs::wire::WireOptions::Output = T
 pub fn nika_cli::verbs::wire::run(target: nika_cli::verbs::wire::WireTarget, dir: &str) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::wire::run_with(target: nika_cli::verbs::wire::WireTarget, dir: &str, options: nika_cli::verbs::wire::WireOptions) -> nika_cli::verbs::VerbOutput
 pub struct nika_cli::verbs::VerbOutput
 pub nika_cli::verbs::VerbOutput::code: u8
 pub nika_cli::verbs::VerbOutput::text: alloc::string::String
@@ -1423,17 +1586,8 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::VerbOutput where T: ?cor
 pub fn nika_cli::verbs::VerbOutput::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::VerbOutput::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_cli::verbs::VerbOutput
-pub type nika_cli::verbs::VerbOutput::Init = T
-pub const nika_cli::verbs::VerbOutput::ALIGN: usize
-pub unsafe fn nika_cli::verbs::VerbOutput::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_cli::verbs::VerbOutput::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_cli::verbs::VerbOutput::drop(ptr: usize)
-pub unsafe fn nika_cli::verbs::VerbOutput::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_cli::verbs::VerbOutput
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::VerbOutput where T: 'static
 pub fn nika_cli::verbs::VerbOutput::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_cli::verbs::VerbOutput where T: ?core::marker::Sized
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::VerbOutput where T: ?core::marker::Sized
 pub fn nika_cli::verbs::VerbOutput::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 pub fn nika_cli::verbs::VerbOutput::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
@@ -1441,7 +1595,4 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::VerbOutput
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::VerbOutput
 impl<T> typenum::type_operators::Same for nika_cli::verbs::VerbOutput
 pub type nika_cli::verbs::VerbOutput::Output = T
-impl<T> yoke::erased::ErasedDestructor for nika_cli::verbs::VerbOutput where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_cli::verbs::VerbOutput where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_cli::verbs::VerbOutput::vzip(self) -> V
 pub mod nika_cli::wires

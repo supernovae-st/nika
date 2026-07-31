@@ -852,6 +852,18 @@ fn exit_of(verdict: &Verdict) -> u8 {
 
 /// Render + grade one verdict — the single fold every input path ends in.
 fn finish(verdict: &Verdict, dialect: Dialect, human: bool, theme: Theme) -> VerbOutput {
+    // W8 metrics (audit UX 2026-07-30): an ALLOW hands the run back to
+    // the human — the guard-side half of human_run_handoff (welcome's
+    // run CTA is the other). Content-free · off unless NIKA_METRICS=1.
+    if matches!(verdict, Verdict::Allow(_)) {
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::HumanRunHandoff,
+            crate::metrics::Facts {
+                handoff: Some(crate::metrics::Handoff::GuardAllow),
+                ..crate::metrics::Facts::none()
+            },
+        );
+    }
     let text = if human {
         render_human(verdict, theme)
     } else {

@@ -22,6 +22,26 @@ pub fn dispatch(from: Option<&str>, dest: Option<&str>, force: bool, theme: Them
         }
     };
     let out = nika_onboard::guided::dispatch(from, dest, force, theme, &audit);
+    // W8 metrics: success here means a draft landed on disk — `--from
+    // <template|example>` instantiates directly (the `?` discovery query
+    // is the one OK that writes nothing); a bare `nika new` reaches the
+    // wizard only interactively (a pipe exits before any write).
+    let drafted = match from {
+        Some(f) if f != "?" => Some(crate::metrics::DraftSource::New),
+        None => Some(crate::metrics::DraftSource::Guided),
+        _ => None,
+    };
+    if out.code == 0
+        && let Some(source) = drafted
+    {
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::DraftCreated,
+            crate::metrics::Facts {
+                draft: Some(source),
+                ..crate::metrics::Facts::none()
+            },
+        );
+    }
     VerbOutput {
         text: out.text,
         code: out.code,
@@ -33,6 +53,17 @@ pub fn dispatch(from: Option<&str>, dest: Option<&str>, force: bool, theme: Them
 #[must_use]
 pub fn run(template: &str, dest: Option<&str>, force: bool) -> VerbOutput {
     let out = nika_onboard::guided::run(template, dest, force);
+    // W8 metrics: success here means a file landed on disk (the `?`
+    // discovery query is the one OK that writes nothing).
+    if out.code == 0 && template != "?" {
+        crate::metrics::record_if_enabled(
+            crate::metrics::EventKind::DraftCreated,
+            crate::metrics::Facts {
+                draft: Some(crate::metrics::DraftSource::New),
+                ..crate::metrics::Facts::none()
+            },
+        );
+    }
     VerbOutput {
         text: out.text,
         code: out.code,

@@ -680,6 +680,7 @@ pub fn nika_display::vocab::at_least(ascii: bool) -> &'static str
 pub fn nika_display::vocab::at_most(ascii: bool) -> &'static str
 pub fn nika_display::vocab::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_display::vocab::hint(theme: nika_display::theme::Theme, label: &str, command: &str) -> alloc::string::String
+pub fn nika_display::vocab::sober(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
 pub fn nika_display::vocab::usd(amount: f64) -> alloc::string::String
 pub mod nika_display::wires
 pub struct nika_display::wires::WireGraph
