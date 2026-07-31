@@ -1330,6 +1330,11 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
         && report.permit_taints.is_empty()
         && report.sink_findings.is_empty()
     {
+        // The exec-grant clause (user gauntlet 2026-07-31 · G-10): a
+        // granted `exec:` lets sub-processes touch files the fs lists
+        // never admitted, so a green PERMITS must not read as a sealed
+        // fence — the same honesty the run banner speaks.
+        let exec_open = wf.permits.as_ref().is_some_and(|p| p.value.allows_exec());
         let _ = writeln!(
             out,
             " {} {}  {}",
@@ -1348,7 +1353,12 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
             // the line meaning more than it checked.
             t.paint(
                 Role::Dim,
-                "literal + const: args fit the boundary · computed + symlinks at run"
+                if exec_open {
+                    "literal + const: args fit the boundary · computed + symlinks at run · \
+                     exec outside the fs bounds"
+                } else {
+                    "literal + const: args fit the boundary · computed + symlinks at run"
+                }
             )
         );
         loopback_declassification_lines(out, wf, t);
