@@ -393,7 +393,7 @@ fn missing_refusal(what: &str, items: &[InstalledGguf]) -> String {
     if items.is_empty() {
         text.push_str(
             "  nothing pulled yet — nika model pull <owner/repo> (e.g. nika model pull \
-             Qwen/Qwen3-4B-Instruct-2507-GGUF)\n",
+             unsloth/Qwen3-4B-Instruct-2507-GGUF)\n",
         );
     } else {
         text.push_str("  installed:\n");
@@ -425,7 +425,7 @@ pub(crate) fn list_at(root: &Path) -> String {
     if items.is_empty() {
         text.push_str(
             "  none yet — nika model pull <owner/repo> (e.g. nika model pull \
-             Qwen/Qwen3-4B-Instruct-2507-GGUF)",
+             unsloth/Qwen3-4B-Instruct-2507-GGUF)",
         );
         return text;
     }
@@ -596,7 +596,7 @@ fn prune_owner_level(repo_dir: &Path) {
 fn refuse_ref(arg: &str, why: &str) -> String {
     format!(
         "model: `{arg}` is not a model reference ({why})\n  fix: the form is \
-         owner/repo[:QUANT] — e.g. Qwen/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M\n"
+         owner/repo[:QUANT] — e.g. unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M\n"
     )
 }
 
@@ -636,11 +636,11 @@ mod tests {
 
     #[test]
     fn parses_bare_and_quant_refs() {
-        let bare = parse_model_ref("Qwen/Qwen3-4B-Instruct-2507-GGUF").expect("bare parses");
-        assert_eq!(bare.owner, "Qwen");
+        let bare = parse_model_ref("unsloth/Qwen3-4B-Instruct-2507-GGUF").expect("bare parses");
+        assert_eq!(bare.owner, "unsloth");
         assert_eq!(bare.name, "Qwen3-4B-Instruct-2507-GGUF");
         assert_eq!(bare.quant, None);
-        assert_eq!(bare.repo_id(), "Qwen/Qwen3-4B-Instruct-2507-GGUF");
+        assert_eq!(bare.repo_id(), "unsloth/Qwen3-4B-Instruct-2507-GGUF");
 
         let tagged = parse_model_ref("unsloth/gpt-oss-20b-GGUF:Q4_K_M").expect("quant parses");
         assert_eq!(tagged.quant.as_deref(), Some("Q4_K_M"));

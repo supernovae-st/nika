@@ -74,6 +74,20 @@ impl Whitelist {
     pub fn is_empty(&self) -> bool {
         self.rules.is_empty()
     }
+
+    /// The index of the FIRST (non-negated) rule that matches — the
+    /// author's `tools:` position. The request's tool order follows it
+    /// (the offline mock rehearsal invokes the first granted tool, so
+    /// the author's order is semantics there · gauntlet 2026-07-31); a
+    /// tool no positive rule names sorts last.
+    #[must_use]
+    pub fn author_rank(&self, tool: &str) -> usize {
+        let candidate: Vec<char> = tool.chars().collect();
+        self.rules
+            .iter()
+            .position(|rule| !rule.negated && glob_match(&rule.tokens, &candidate))
+            .unwrap_or(usize::MAX)
+    }
 }
 
 /// Pattern token: literal char, `*` (bounded), or `**` (unbounded).
@@ -299,5 +313,29 @@ mod tests {
             let candidate = format!("{prefix}{ext}");
             prop_assert!(list.admits(&candidate));
         }
+    }
+}
+
+#[cfg(test)]
+mod author_rank_tests {
+    use super::*;
+
+    /// The author's `tools:` position ranks the request order — done
+    /// listed first ranks first (the offline-rehearsal door), read
+    /// listed first ranks first, and an unnamed tool sorts last.
+    #[test]
+    fn author_rank_follows_the_tools_list_order() {
+        let done_first = Whitelist::new(&["nika:done".into(), "nika:read".into()]);
+        assert!(done_first.author_rank("nika:done") < done_first.author_rank("nika:read"));
+
+        let read_first = Whitelist::new(&["nika:read".into(), "nika:done".into()]);
+        assert!(read_first.author_rank("nika:read") < read_first.author_rank("nika:done"));
+        assert_eq!(read_first.author_rank("nika:write"), usize::MAX);
+
+        // A glob ranks at ITS position for everything it admits; a later
+        // negation removes admission but never mints a rank.
+        let globbed = Whitelist::new(&["nika:*".into(), "!nika:write".into()]);
+        assert_eq!(globbed.author_rank("nika:read"), 0);
+        assert!(!globbed.admits("nika:write"));
     }
 }

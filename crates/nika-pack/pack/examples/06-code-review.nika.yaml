@@ -56,8 +56,13 @@ tasks:
       # here does not exist as far as the loop is concerned — there is no
       # ambient toolbox to opt out of.
       tools:
-        - "nika:read"   # open the file under review
+        # `nika:done` first is deliberate: the whitelist order means nothing
+        # to a real model, but the OFFLINE rehearsal (`--model mock/echo`)
+        # invokes the first granted tool — done-first lets the mock close the
+        # loop cleanly at turn one, where a synthesized `nika:read` path
+        # would be refused by the fs boundary and kill the rehearsal.
         - "nika:done"   # say "finished" and end the loop cleanly
+        - "nika:read"   # open the file under review
       # Two independent stops, because they fail differently: a model that
       # ping-pongs forever hits `max_turns`, a model that reads something huge
       # hits `max_tokens_total`. The loop also just ends when the model
