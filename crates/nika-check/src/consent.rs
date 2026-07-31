@@ -118,7 +118,11 @@ fn never_runs(task: &RawTask) -> bool {
 /// the gate consumes the output (a `with:` binding carrying exactly
 /// `${{ tasks.<prompt>.output }}`, or the direct reference) and the
 /// whole expression evaluates to [`K3::False`] under output = false.
-fn affirmative(task: &RawTask, prompt: &str) -> bool {
+/// Shared with the policy lane (`check/policy.rs`) — the ONE evaluator
+/// both the advisory hint and the hard `require.human_gate_before`
+/// judge read (the juge pur in nika-cap cannot parse expressions; the
+/// projection carries its verdict).
+pub(crate) fn affirmative(task: &RawTask, prompt: &str) -> bool {
     let Some(when) = task.when.as_ref() else {
         return false;
     };

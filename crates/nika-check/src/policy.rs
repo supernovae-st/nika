@@ -3,10 +3,13 @@
 
 //! The `policy:` lane (spec `10-authority.md` · `NIKA-POLICY-001`) —
 //! needle-thin BY DESIGN: this module only PROJECTS the workflow (id ·
-//! verb · tool · provider pin · direct parents from the ONE edge
-//! derivation); the pure judge lives in `nika-cap`
+//! verb · tool · provider pin · direct parents + the affirmative-gate
+//! edges from the ONE edge derivation and the consent lane's Kleene
+//! evaluator); the pure judge lives in `nika-cap`
 //! ([`nika_cap::policy_violations`] · rule-for-rule mirror of the spec
-//! reference evaluator `deep_static.py::policy_errors`). Soft families
+//! reference evaluator `deep_static.py::policy_errors`, hardened on
+//! `require.human_gate_before`: mere ancestry is not consent — the
+//! route must consume the answer affirmatively). Soft families
 //! are recorded by a hint (`check/hints.rs`), never judged.
 
 use nika_cap::{PolicySubject, PolicyViolation, ProviderPin};
@@ -65,6 +68,26 @@ pub(super) fn scan_policy(wf: &RawWorkflow, edges: &[Edge]) -> Vec<PolicyViolati
     for e in edges {
         if let Some(s) = subjects.get_mut(e.to) {
             s.parents.push(e.from);
+        }
+    }
+    // The affirmative-gate edges (the require.human_gate_before
+    // hardening): which nika:prompt answers each task's `when:` consumes
+    // affirmatively — the consent lane's ONE Kleene evaluator projects
+    // its verdict onto the subject rows the pure judge reads.
+    let prompt_gates: Vec<(usize, String)> = subjects
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.tool.as_deref() == Some(nika_cap::HUMAN_GATE_TOOL))
+        .map(|(i, s)| (i, s.id.clone()))
+        .collect();
+    for (idx, task) in wf.tasks.iter().enumerate() {
+        let Some(s) = subjects.get_mut(idx) else {
+            continue;
+        };
+        for (g, gate_id) in &prompt_gates {
+            if *g != idx && crate::consent::affirmative(&task.value, gate_id) {
+                s.affirmative_gates.push(*g);
+            }
         }
     }
     let mut violations = nika_cap::policy_violations(&policy.value, &subjects);
@@ -160,6 +183,78 @@ mod tests {
             "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(gated.is_clean(), "{:?}", gated.policy_findings);
+    }
+
+    /// The affirmative half of the gate law (P0-13 mirror · require
+    /// side): an ancestor prompt whose ANSWER no route consumes is not
+    /// consent — a refused confirm settles success-with-false and a
+    /// bare `after: { ask: success }` lets the exec through. The
+    /// violation names the gate and teaches the `when:` pattern.
+    #[test]
+    fn a_bare_after_route_to_the_gate_is_refused() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+        );
+        let gated: Vec<_> = r
+            .policy_findings
+            .iter()
+            .filter(|f| f.rule == "require.human_gate_before")
+            .collect();
+        assert_eq!(gated.len(), 1, "{:?}", r.policy_findings);
+        assert_eq!(gated[0].task.as_deref(), Some("push"));
+        assert!(
+            gated[0].detail.contains("ask") && gated[0].detail.contains("affirmatively"),
+            "the non-affirmative gate is named + the law taught: {}",
+            gated[0].detail
+        );
+        assert!(
+            gated[0].detail.contains("when:"),
+            "the fix is taught: {}",
+            gated[0].detail
+        );
+    }
+
+    /// The affirmative cut is transitive: an intermediate task whose
+    /// `when:` consumes the answer protects everything downstream of
+    /// it, and the gated task's OWN affirmative `when:` protects it
+    /// even over a bare intermediate.
+    #[test]
+    fn the_affirmative_cut_protects_transitively() {
+        // prompt → mid (affirmative gate) → exec (bare after:)
+        let via_mid = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  mid:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    infer: { prompt: \"x\", max_tokens: 9 }\n  act:\n    after: { mid: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
+        );
+        assert!(
+            via_mid.is_clean(),
+            "the mid gate owns the route: {:?}",
+            via_mid.policy_findings
+        );
+        // prompt → mid (bare) → exec (its OWN affirmative when:)
+        let via_self = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  mid:\n    after: { ask: success }\n    infer: { prompt: \"x\", max_tokens: 9 }\n  act:\n    after: { mid: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"x\"] }\n",
+        );
+        assert!(
+            via_self.is_clean(),
+            "the task's own gate owns the route: {:?}",
+            via_self.policy_findings
+        );
+    }
+
+    /// ONE affirmative route does not discharge the OTHER: the bypassed
+    /// exec is refused, the gated one stays clean (the consent lane's
+    /// bypass case, judged hard here because the lane is declared).
+    #[test]
+    fn a_bypass_route_is_refused_even_with_a_gated_sibling() {
+        let r = report(
+            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  act:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  ship:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"b\"] }\n",
+        );
+        let gated: Vec<_> = r
+            .policy_findings
+            .iter()
+            .filter(|f| f.rule == "require.human_gate_before")
+            .collect();
+        assert_eq!(gated.len(), 1, "{:?}", r.policy_findings);
+        assert_eq!(gated[0].task.as_deref(), Some("ship"));
     }
 
     /// Mirror of core/policy/003+004: order law over `E_d` — the witness

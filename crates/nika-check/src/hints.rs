@@ -49,6 +49,11 @@
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
+//! - **exec the run will refuse** (`exec-floor`) — emitted by the
+//!   `check/exec_floor.rs` mirror (P0-13): an argv-form command whose
+//!   interpreter inline-eval flag or subcommand the runtime's exec
+//!   floor refuses positionally — the check predicts the refusal the
+//!   run would apply (script file or `pre_validated` instead).
 //! - **non-affirmative human gate** (`consent`) — emitted by the
 //!   `check/consent.rs` lane (P0-2): an egress-capable descendant of a
 //!   confirm-mode `nika:prompt` is reachable over a route that never
@@ -93,7 +98,8 @@ pub struct Hint {
     /// `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
-    /// `secrets-store` · `native-first` · `exec-json-capture` ·
+    /// `secrets-store` · `native-first` · `exec-floor` ·
+    /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` (additive · agents route on it; the
     /// module doc describes each).

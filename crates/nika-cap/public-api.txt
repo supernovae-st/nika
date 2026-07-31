@@ -640,6 +640,7 @@ impl<T> core::convert::From<T> for nika_cap::Policy
 pub fn nika_cap::Policy::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::Policy where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_cap::PolicySubject
+pub nika_cap::PolicySubject::affirmative_gates: alloc::vec::Vec<usize>
 pub nika_cap::PolicySubject::id: alloc::string::String
 pub nika_cap::PolicySubject::parents: alloc::vec::Vec<usize>
 pub nika_cap::PolicySubject::provider: nika_cap::ProviderPin

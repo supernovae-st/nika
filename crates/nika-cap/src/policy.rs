@@ -15,10 +15,15 @@
 //!
 //! The judge ([`policy_violations`]) is pure L0: it reads projected
 //! [`PolicySubject`] rows (id · verb · tool · provider pin · direct
-//! parents from the ONE derived graph — the caller projects them, this
-//! crate never re-walks an AST). Semantics are a rule-for-rule mirror of
-//! the spec reference evaluator `conformance/deep_static.py::policy_errors`
-//! (proven on the `conformance/tests/core/policy/**` fixtures).
+//! parents + affirmative-gate edges from the ONE derived graph — the
+//! caller projects them, this crate never re-walks an AST). Semantics
+//! are a rule-for-rule mirror of the spec reference evaluator
+//! `conformance/deep_static.py::policy_errors` (proven on the
+//! `conformance/tests/core/policy/**` fixtures) with ONE deliberate
+//! hardening: `require.human_gate_before` credits a gate only when the
+//! route consumes the answer AFFIRMATIVELY (the consent lane's law —
+//! a bare `after: success` is not consent; the core/policy/001 fixture
+//! itself gates on `when: ${{ with.go == true }}`).
 
 use std::collections::BTreeSet;
 
@@ -123,13 +128,14 @@ impl Policy {
 }
 
 /// `require:` — every task carrying a listed effect class sits behind a
-/// human gate.
+/// human gate whose answer the route consumes affirmatively.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct Require {
     /// `human_gate_before: [<effect-class>…]` — an ancestor `invoke:` of
-    /// [`HUMAN_GATE_TOOL`] is the consent.
+    /// [`HUMAN_GATE_TOOL`] whose answer gates the route through a
+    /// `when:` is the consent (mere ancestry is not).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub human_gate_before: Option<Vec<EffectClass>>,
 }
@@ -335,10 +341,20 @@ pub struct PolicySubject {
     /// DIRECT upstream subject indices (`E_d ∪ E_c` — the one derived
     /// graph); the transitive closure is computed here.
     pub parents: Vec<usize>,
+    /// The [`HUMAN_GATE_TOOL`] subject indices whose ANSWER this task's
+    /// `when:` consumes AFFIRMATIVELY (the gate proves `false` when the
+    /// answer is `false` — the consent lane's Kleene evaluation,
+    /// projected by the caller which owns the expression parser; this
+    /// crate never re-walks an AST). `require.human_gate_before`
+    /// credits a gate only when every route from it to the gated task
+    /// is cut by such a node — a bare `after: success` is not consent
+    /// (a refused confirm settles success-with-false).
+    pub affirmative_gates: Vec<usize>,
 }
 
 impl PolicySubject {
-    /// Project one task (parents attach after construction).
+    /// Project one task (parents + affirmative gates attach after
+    /// construction).
     #[must_use]
     pub fn new(id: String, verb: &str, tool: Option<String>, provider: ProviderPin) -> Self {
         Self {
@@ -347,6 +363,7 @@ impl PolicySubject {
             tool,
             provider,
             parents: Vec::new(),
+            affirmative_gates: Vec::new(),
         }
     }
 }
@@ -410,7 +427,14 @@ fn sorted_class_names<'c>(classes: impl Iterator<Item = &'c EffectClass>) -> Vec
 }
 
 /// `require.human_gate_before: [C…]` — every task carrying a listed
-/// class has an ancestor [`HUMAN_GATE_TOOL`] invoke.
+/// class has an ancestor [`HUMAN_GATE_TOOL`] invoke whose ANSWER gates
+/// the route affirmatively: mere ancestry is not consent (a refused
+/// confirm settles success-with-false, so a bare `after: success` lets
+/// the effect through — the consent lane's defect, judged HARD here
+/// because the author declared the gate contract). A gate credits the
+/// task only when EVERY route from it is cut by a node whose `when:`
+/// consumes the answer affirmatively (the projected
+/// [`PolicySubject::affirmative_gates`]).
 fn require_human_gate(
     policy: &Policy,
     tasks: &[PolicySubject],
@@ -431,9 +455,24 @@ fn require_human_gate(
         .filter(|(_, t)| t.tool.as_deref() == Some(HUMAN_GATE_TOOL))
         .map(|(i, _)| i)
         .collect();
+    // children[p] = the direct downstreams of p (the parents map
+    // reversed) — the route walk reads the graph downstream.
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); tasks.len()];
+    for (i, t) in tasks.iter().enumerate() {
+        for &p in &t.parents {
+            if let Some(list) = children.get_mut(p) {
+                list.push(i);
+            }
+        }
+    }
     for (i, t) in tasks.iter().enumerate() {
         let hit = sorted_class_names(classes[i].intersection(&gated));
-        if !hit.is_empty() && ancestors(tasks, i).intersection(&gate_ids).next().is_none() {
+        if hit.is_empty() {
+            continue;
+        }
+        let anc = ancestors(tasks, i);
+        let mut gate_hits: Vec<usize> = anc.intersection(&gate_ids).copied().collect();
+        if gate_hits.is_empty() {
             out.push(PolicyViolation {
                 rule: "require.human_gate_before",
                 task: Some(t.id.clone()),
@@ -444,8 +483,61 @@ fn require_human_gate(
                     hit.join(" · ")
                 ),
             });
+            continue;
         }
+        if gate_hits
+            .iter()
+            .any(|&g| gate_protects(tasks, &children, g, i))
+        {
+            continue;
+        }
+        gate_hits.sort_unstable_by(|&a, &b| tasks[a].id.cmp(&tasks[b].id));
+        let names: Vec<&str> = gate_hits.iter().map(|&g| tasks[g].id.as_str()).collect();
+        out.push(PolicyViolation {
+            rule: "require.human_gate_before",
+            task: Some(t.id.clone()),
+            detail: format!(
+                "task '{}' · require.human_gate_before: [{}] — the {HUMAN_GATE_TOOL} \
+                 ancestor(s) {} never gate the route affirmatively (a REFUSED confirm \
+                 settles success with value false, so a bare `after: success` lets the \
+                 effect through): bind the answer and gate the route on it — \
+                 `with: {{ go: \"${{{{ tasks.<gate>.output }}}}\" }}` + \
+                 `when: ${{{{ with.go == true }}}}` \
+                 (the pause IS the consent · 10 §policy)",
+                t.id,
+                hit.join(" · "),
+                names.join(" · ")
+            ),
+        });
     }
+}
+
+/// Whether gate `g` protects subject `i` — every route from `g` to `i`
+/// passes through a node whose `when:` consumes `g`'s answer
+/// affirmatively (`i` itself included). A downstream walk from `g`
+/// that never traverses THROUGH an affirmative node: reaching `i`
+/// means a bare route exists and the gate does not protect the task.
+/// Total on any input (bounds-safe · cycle-safe — the caller's graph is
+/// the analyzer's acyclic derivation, but pure code stays total).
+fn gate_protects(tasks: &[PolicySubject], children: &[Vec<usize>], g: usize, i: usize) -> bool {
+    let mut seen: BTreeSet<usize> = BTreeSet::from([g]);
+    let mut stack: Vec<usize> = children.get(g).cloned().unwrap_or_default();
+    while let Some(n) = stack.pop() {
+        if !seen.insert(n) {
+            continue;
+        }
+        let Some(t) = tasks.get(n) else {
+            continue;
+        };
+        if t.affirmative_gates.contains(&g) {
+            continue; // the route is cut here — the answer gates what follows
+        }
+        if n == i {
+            return false; // reached uncut — a bare route exists
+        }
+        stack.extend(children.get(n).into_iter().flatten().copied());
+    }
+    true
 }
 
 /// `forbid.exec_after: [C…]` — no `exec:` task descends from a task
@@ -882,12 +974,70 @@ mod tests {
             "{}",
             v[0].detail
         );
-        // fixture 001: exec behind an ancestor nika:prompt
-        let mut human = subject("human", "invoke", Some("nika:prompt"));
-        human.parents = vec![];
+        // fixture 001: exec behind an ancestor nika:prompt whose answer
+        // the exec's `when:` consumes affirmatively (the projection
+        // carries the affirmative edge — bare ancestry alone is NOT
+        // consent since the affirmative-consumption hardening).
+        let human = subject("human", "invoke", Some("nika:prompt"));
         let mut act = subject("act", "exec", None);
         act.parents = vec![0];
+        act.affirmative_gates = vec![0];
         assert!(policy_violations(&policy, &[human, act]).is_empty());
+    }
+
+    /// The affirmative-consumption law (the require-side mirror of the
+    /// consent lane): an ancestor prompt whose answer NO route consumes
+    /// is not consent — a refused confirm settles success-with-false
+    /// and a bare `after: success` lets the effect through.
+    #[test]
+    fn the_gate_answer_must_be_consumed_affirmatively() {
+        let policy = Policy::from_value(json!({
+            "require": { "human_gate_before": ["exec"] }
+        }))
+        .unwrap();
+        // bare ancestry (no when: anywhere) → refused, naming the gate
+        let human = subject("human", "invoke", Some("nika:prompt"));
+        let mut act = subject("act", "exec", None);
+        act.parents = vec![0];
+        let v = policy_violations(&policy, &[human, act]);
+        assert_eq!(v.len(), 1, "presence is not consent — consumption is");
+        assert_eq!(v[0].rule, "require.human_gate_before");
+        assert!(
+            v[0].detail.contains("human") && v[0].detail.contains("affirmatively"),
+            "the non-affirmative gate is named: {}",
+            v[0].detail
+        );
+        // an affirmative INTERMEDIATE cuts the route for everything
+        // downstream of it
+        let human = subject("human", "invoke", Some("nika:prompt"));
+        let mut mid = subject("mid", "infer", None);
+        mid.parents = vec![0];
+        mid.affirmative_gates = vec![0];
+        let mut act = subject("act", "exec", None);
+        act.parents = vec![1];
+        assert!(
+            policy_violations(&policy, &[human, mid, act]).is_empty(),
+            "the intermediate gate owns the route"
+        );
+    }
+
+    /// ONE affirmative route does not discharge the OTHER — a bypass
+    /// branch reached bare is refused even with a gated sibling.
+    #[test]
+    fn a_bypass_route_is_not_discharged_by_a_gated_sibling() {
+        let policy = Policy::from_value(json!({
+            "require": { "human_gate_before": ["exec"] }
+        }))
+        .unwrap();
+        let human = subject("ask", "invoke", Some("nika:prompt"));
+        let mut act = subject("act", "exec", None);
+        act.parents = vec![0];
+        act.affirmative_gates = vec![0];
+        let mut ship = subject("ship", "exec", None);
+        ship.parents = vec![0];
+        let v = policy_violations(&policy, &[human, act, ship]);
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].task.as_deref(), Some("ship"));
     }
 
     #[test]

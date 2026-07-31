@@ -123,6 +123,7 @@ mod data_sink;
 mod declass;
 mod effective;
 mod energy;
+mod exec_floor;
 mod findings;
 mod flow;
 mod hints;
@@ -673,6 +674,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
+    // P0-13 check-side · the exec-floor mirror predicts the refusal the
+    // run's eval floor would apply (advisory — argv form, literal only).
+    hints.extend(exec_floor::scan(wf));
     // H6 · the width-capped DAG read STATES its miss (the
     // verdict-coverage law: a law that did not judge says so, in the
     // report's own surface — the JSON `hints[]` and the console HINTS
