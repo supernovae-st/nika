@@ -25,7 +25,7 @@ use std::path::Path;
 use nika_providers::probe::ExecutionLocus;
 
 use crate::display::theme::{Role, Theme};
-use crate::verbs::probe::{Probe, ProviderProbe};
+use crate::verbs::probe::Probe;
 use crate::verbs::{VerbOutput, probe};
 
 /// The next moves, keyed on where this workspace actually IS — the
@@ -382,11 +382,15 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) 
             theme.paint(Role::Dim, "· nika model list"),
         );
     }
-    let (present, total) = cloud_key_counts(&probe.providers);
+    // P0-21 — the adoption rung replaces the raw key ratio: ONE state,
+    // its own metric, its own CTA (the same classifier doctor --json
+    // serializes — one truth, two voices).
+    let state = probe::adoption_state(probe);
     let _ = writeln!(
         s,
-        "  keys       {present}/{total} cloud keys present {}",
-        theme.paint(Role::Dim, "· details + fixes → nika doctor"),
+        "  state      {} {}",
+        state.metric(probe),
+        theme.paint(Role::Dim, &format!("— {}", state.cta())),
     );
     // The plugin-kit lane — ONLY on train drift (an aligned or absent
     // kit is silence; the same carry-information-never-lecture law as
@@ -503,14 +507,6 @@ fn start_section(s: &mut String, theme: Theme, glance: Glance, gate: Option<&Run
     );
 }
 
-/// Cloud keys: how many of the key-requiring providers have one PRESENT
-/// (presence is a bool the probe observed — no value exists to leak).
-fn cloud_key_counts(providers: &[ProviderProbe]) -> (usize, usize) {
-    let clouds: Vec<&ProviderProbe> = providers.iter().filter(|p| p.requires_key).collect();
-    let present = clouds.iter().filter(|p| p.key_present).count();
-    (present, clouds.len())
-}
-
 /// The versioned machine mirror — additive-only (`welcome_version: 1`).
 /// Names and booleans and counts, by construction: nothing in the probe
 /// carries a value a secret could ride.
@@ -551,7 +547,9 @@ fn render_json(
 mod tests {
     use super::*;
     use crate::verbs::exit;
-    use crate::verbs::probe::{ClientProbe, ImageProbe, PricingProbe, TtsProbe};
+    use crate::verbs::probe::{
+        ClientProbe, ImageProbe, PingState, PricingProbe, ProviderProbe, TtsProbe,
+    };
     use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
 
     /// The default synthetic readiness — recognized · loopback · the
@@ -624,6 +622,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         }
     }
 
@@ -886,6 +885,88 @@ mod tests {
         assert!(shown.contains("fixes → nika doctor"), "{shown}");
     }
 
+    /// P0-21 (audit UX 2026-07-30) — the mirror greets with the adoption
+    /// rung: each state carries its OWN metric and its OWN CTA, and the
+    /// line never claims more than the probe measured.
+    #[test]
+    fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
+        let glance = Glance {
+            git: true,
+            workflows: 2,
+            agents_md: true,
+            complete: true,
+        };
+        // KeyPresent — the stock synthetic machine (anthropic keyed).
+        let keyed = render_human(&synthetic_probe(), glance, None, counts(), plain());
+        assert!(
+            keyed.contains(
+                "state      key present · 1 of 2 clouds configured — ready for a real run"
+            ),
+            "KeyPresent renders its own line:\n{keyed}"
+        );
+
+        // Installed — strip every engagement fact: no key, no ping, no
+        // pulled model, no journal. The catalog's keyless seeds do NOT
+        // count as detection.
+        let mut bare = synthetic_probe();
+        bare.providers[2].key_present = false;
+        bare.providers[2].readiness.configured = false;
+        let installed = render_human(&bare, glance, None, counts(), plain());
+        assert!(
+            installed.contains(
+                "state      installed · no inference path — proof → nika examples run 01-hello"
+            ),
+            "Installed routes to the offline proof:\n{installed}"
+        );
+
+        // LocalDetected — an override moves ollama off its loopback seed.
+        let mut lan = bare.clone();
+        lan.providers[0].endpoint = "http://gpu.lan:11434".to_owned();
+        lan.providers[0].readiness.execution_locus = ExecutionLocus::Lan;
+        let detected = render_human(&lan, glance, None, counts(), plain());
+        assert!(
+            detected.contains(
+                "state      ollama detected · unproven — start it, then nika doctor --ping"
+            ),
+            "LocalDetected names the engine and the ping hand-off:\n{detected}"
+        );
+
+        // LocalReachable — ONLY a --ping measurement earns « reachable ».
+        let mut pinged = bare.clone();
+        pinged.local_pings = vec![(
+            "ollama".to_owned(),
+            "127.0.0.1:11434".to_owned(),
+            PingState::Reachable(3),
+        )];
+        let reachable = render_human(&pinged, glance, None, counts(), plain());
+        assert!(
+            reachable.contains("state      local reachable · ollama (3ms) — point a run at it"),
+            "LocalReachable carries the measured round-trip:\n{reachable}"
+        );
+
+        // RealReady — a live path AND runs on record. The wording says
+        // « path configured »: the journal proves runs, never the model.
+        let mut real = synthetic_probe();
+        real.recorded_runs = 2;
+        let ready = render_human(&real, glance, None, counts(), plain());
+        assert!(
+            ready.contains("state      real-ready · 2 runs on record · path configured — nika run"),
+            "RealReady claims the record, never « a real model answered »:\n{ready}"
+        );
+        // Every rung's line is its own — the five renders differ.
+        let lines: std::collections::BTreeSet<String> =
+            [keyed, installed, detected, reachable, ready]
+                .iter()
+                .map(|t| {
+                    t.lines()
+                        .find(|l| l.contains("  state"))
+                        .expect("a state line")
+                        .to_owned()
+                })
+                .collect();
+        assert_eq!(lines.len(), 5, "five rungs, five distinct lines");
+    }
+
     #[test]
     fn human_mirror_carries_the_four_sections_and_no_key_names() {
         let text = render_human(
@@ -909,7 +990,11 @@ mod tests {
             "cursor ✓",
             "vscode ✗",
             "nika wire",
-            "1/2 cloud keys present",
+            // P0-21: the raw key ratio is REPLACED by the adoption rung —
+            // this synthetic machine sits at KeyPresent (anthropic keyed,
+            // 1 of 2 clouds), with that rung's own metric and CTA.
+            "state      key present · 1 of 2 clouds configured",
+            "ready for a real run",
             "not briefed → nika init",
             // 2 workflows + unbriefed → the ONE key is the founding wizard
             // (adds only); the stranger's mock/echo line belongs to the
@@ -925,6 +1010,12 @@ mod tests {
         assert!(
             !text.contains("API_KEY"),
             "welcome must not name key variables:\n{text}"
+        );
+        // P0-21: the raw ratio row is gone — the state line carries the
+        // counts inside its own metric now.
+        assert!(
+            !text.contains("cloud keys present"),
+            "the raw key ratio is replaced by the adoption rung:\n{text}"
         );
         // A workspace that already HAS workflows skips the language taste
         // (progressive disclosure — the sample is the stranger's moment).
@@ -999,6 +1090,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         }
     }
 

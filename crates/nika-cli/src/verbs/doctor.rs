@@ -26,8 +26,8 @@ use std::fmt::Write as _;
 // this module's tests (and historical importers) keep their names.
 use crate::display::theme::{Role, Theme};
 pub(crate) use crate::verbs::probe::{
-    ClientProbe, ImageProbe, KitProbe, ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe,
-    TtsProbe,
+    AdoptionState, ClientProbe, ImageProbe, KitProbe, ModelsProbe, PingState, PricingProbe, Probe,
+    ProviderProbe, TtsProbe,
 };
 use crate::verbs::{VerbOutput, exit};
 use nika_providers::probe::ExecutionLocus;
@@ -494,8 +494,10 @@ pub(crate) fn exit_code(findings: &[Finding]) -> u8 {
 /// ONE verdict line (`✔ 6 ok · 4 warn · 0 fail`) so the state of the
 /// environment reads before the sections do. Sections stay unchanged.
 /// The machine lane (Q7): findings verbatim + a computed summary —
-/// agents/CI branch on `summary.fail` instead of parsing glyphs.
-pub(crate) fn render_json(findings: &[Finding]) -> String {
+/// agents/CI branch on `summary.fail` instead of parsing glyphs. P0-21:
+/// the adoption rung rides alongside (additive) — ONE state token the
+/// flat findings could never express.
+pub(crate) fn render_json(findings: &[Finding], state: AdoptionState) -> String {
     let count = |lvl: Level| findings.iter().filter(|f| f.level == lvl).count();
     let payload = serde_json::json!({
         "summary": {
@@ -503,6 +505,7 @@ pub(crate) fn render_json(findings: &[Finding]) -> String {
             "warn": count(Level::Warn),
             "fail": count(Level::Fail),
         },
+        "adoption_state": state.as_str(),
         "findings": findings,
     });
     format!("{payload:#}")
@@ -703,7 +706,7 @@ pub fn run(ping: bool, json: bool, theme: Theme) -> VerbOutput {
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            render_json(&findings)
+            render_json(&findings, crate::verbs::probe::adoption_state(&probe))
         } else {
             render(&findings, theme)
         },
@@ -831,6 +834,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let findings = diagnose(&probe);
         let rows: Vec<_> = findings.iter().filter(|f| f.label == "local").collect();
@@ -884,6 +888,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let f = diagnose(&probe);
         let prov = f
@@ -915,6 +920,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let f = diagnose(&probe);
         let prov = f
@@ -951,6 +957,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let text = render(&diagnose(&probe), PLAIN);
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -977,6 +984,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -998,6 +1006,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -1023,11 +1032,36 @@ mod tests {
             },
         ];
         let json: serde_json::Value =
-            serde_json::from_str(&render_json(&findings)).expect("valid JSON");
+            serde_json::from_str(&render_json(&findings, AdoptionState::KeyPresent))
+                .expect("valid JSON");
         assert_eq!(json["summary"]["ok"], 1);
         assert_eq!(json["summary"]["fail"], 1);
         assert_eq!(json["findings"][0]["level"], "ok");
         assert_eq!(json["findings"][1]["fix"], "nika wire claude");
+    }
+
+    /// P0-21 — the machine lane carries the adoption rung next to the
+    /// findings: agents/CI branch on ONE state token, not on a parse of
+    /// the flat finding rows.
+    #[test]
+    fn doctor_json_serializes_the_adoption_state() {
+        let findings = vec![Finding {
+            level: Level::Ok,
+            label: "binary".to_owned(),
+            detail: "v0".to_owned(),
+            fix: None,
+        }];
+        for (state, token) in [
+            (AdoptionState::Installed, "installed"),
+            (AdoptionState::LocalDetected, "local_detected"),
+            (AdoptionState::LocalReachable, "local_reachable"),
+            (AdoptionState::KeyPresent, "key_present"),
+            (AdoptionState::RealReady, "real_ready"),
+        ] {
+            let json: serde_json::Value =
+                serde_json::from_str(&render_json(&findings, state)).expect("valid JSON");
+            assert_eq!(json["adoption_state"], token, "{state:?}");
+        }
     }
 
     // ── The pricing snapshot line (Cost Intelligence 2026-07-08) ──
@@ -1100,6 +1134,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let sidecar = diagnose(&probe).into_iter().find(|f| f.label == "sidecar");
         if cfg!(feature = "local-infer") {
@@ -1185,6 +1220,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let text = render(&diagnose(&probe), PLAIN);
         assert!(text.contains("stale MCP args"), "{text}");
@@ -1282,6 +1318,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let findings = diagnose(&probe);
         let kits: Vec<_> = findings.iter().filter(|f| f.label == "kit").collect();
@@ -1504,6 +1541,7 @@ mod tests {
             pricing: PricingProbe::default(),
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
+            recorded_runs: 0,
         };
         let findings = diagnose(&base);
         let local = findings

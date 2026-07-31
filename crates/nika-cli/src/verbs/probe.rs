@@ -15,6 +15,7 @@
 use std::path::{Path, PathBuf};
 
 use nika_providers::ProviderRegistry;
+use nika_providers::probe::ExecutionLocus;
 pub(crate) use nika_providers::probe::{PingState, ProviderProbe, env_present};
 
 use crate::verbs::trace::retention::RetentionConfig;
@@ -51,6 +52,11 @@ pub(crate) struct Probe {
     /// The ONE models dir (`~/.nika/models` · issue #146) — presence facts
     /// only, observed once here so `diagnose` stays pure.
     pub models: ModelsProbe,
+    /// Run journals under `.nika/traces` (CWD-relative — the dir the
+    /// trace writer appends to), counted by dir-listing ONLY (a greeting
+    /// stays instant: no parsing, and a torn journal still proves a run
+    /// happened). The adoption ladder's record rung (P0-21).
+    pub recorded_runs: usize,
 }
 
 // The models-dir facts live with their store (the descended member) —
@@ -157,6 +163,7 @@ pub(crate) fn collect(ping: bool) -> Probe {
         retention,
         retention_notes,
         models: nika_models::models_probe(),
+        recorded_runs: recorded_run_count(),
     };
     if ping {
         let local_pings = nika_providers::probe::collect_local_pings(
@@ -519,6 +526,191 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
     })
 }
 
+/// The adoption ladder's journal fact: `.ndjson` files under
+/// `.nika/traces`, dir-listing only (no parsing — a torn journal still
+/// proves a run happened, and welcome stays instant on a huge store).
+fn recorded_run_count() -> usize {
+    std::fs::read_dir(Path::new(nika_dap::store::TRACE_DIR)).map_or(0, |entries| {
+        entries
+            .flatten()
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("ndjson"))
+            .count()
+    })
+}
+
+/// Where this machine sits between « installed » and « running for
+/// real » (P0-21 · audit UX 2026-07-30: installed, simulated and
+/// real-ready were three flat signals — welcome rendered a raw key
+/// ratio, doctor a finding pile, and nothing said WHICH rung you are
+/// on). ONE classifier computes it from the probe facts; welcome greets
+/// with it, `doctor --json` serializes it — no surface recomputes its
+/// own truth.
+///
+/// Two rungs of the audited scale are deliberately ABSENT, and the
+/// absence is the honesty law applied:
+/// - `NotInstalled` — unreachable: the observing surface IS the running
+///   binary; `welcome`/`doctor` existing proves the install.
+/// - `MockProven` — unknowable: the trace journal records the workflow
+///   and its verdict but NEVER the serving model (verified against
+///   `.nika/traces/*.ndjson`, 2026-07-31), so « a simulated run
+///   happened » cannot be told from a real one. The rung is not
+///   invented; runs without a live path today read `Installed`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AdoptionState {
+    /// The floor: no cloud key, no local engagement, no recorded run.
+    /// The keyless engines in the catalog are SEED facts — present on
+    /// every machine, so they can never count as detection.
+    Installed,
+    /// The local lane shows an operator signal — an endpoint override
+    /// (locus `lan`/`remote`), pulled GGUF bytes, or an explicit ping —
+    /// but reachability is UNPROVEN (welcome never pings).
+    LocalDetected,
+    /// An explicit `doctor --ping` measured a local port answering.
+    /// Only the opt-in probe earns « reachable » — no ping, no claim.
+    LocalReachable,
+    /// At least one cloud provider is CONFIGURED (key present). Never
+    /// « verified »: cloud endpoints are never pinged, by design.
+    KeyPresent,
+    /// A live path today (verified local OR configured cloud) AND ≥1
+    /// run journal on record. The claim is « path live + runs on
+    /// record » — the journal proves the engine ran, never which model
+    /// answered, so this rung never says « a real model answered ».
+    RealReady,
+}
+
+impl AdoptionState {
+    /// The machine token (`doctor --json` · `snake_case`, additive).
+    #[must_use]
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Installed => "installed",
+            Self::LocalDetected => "local_detected",
+            Self::LocalReachable => "local_reachable",
+            Self::KeyPresent => "key_present",
+            Self::RealReady => "real_ready",
+        }
+    }
+
+    /// The rung's OWN metric, derived from the probe at render time
+    /// (the born-stale law — counts are never typed by hand). Budget:
+    /// `metric + " — " + cta` must fit the 67 columns welcome's
+    /// `  state      ` row leaves inside 80.
+    #[must_use]
+    pub(crate) fn metric(self, probe: &Probe) -> String {
+        match self {
+            Self::Installed => "installed · no inference path".to_owned(),
+            Self::LocalDetected => {
+                let overridden = probe.providers.iter().find(|p| {
+                    !p.requires_key
+                        && matches!(
+                            p.readiness.execution_locus,
+                            ExecutionLocus::Lan | ExecutionLocus::Remote
+                        )
+                });
+                if let Some(p) = overridden {
+                    format!("{} detected · unproven", p.id)
+                } else if probe.models.count > 0 {
+                    format!(
+                        "{} pulled · unproven",
+                        crate::text::count(probe.models.count, "model")
+                    )
+                } else {
+                    // The only remaining signal: a ping that found nothing.
+                    "local probed · nothing listening".to_owned()
+                }
+            }
+            Self::LocalReachable => {
+                let hit = probe
+                    .local_pings
+                    .iter()
+                    .find_map(|(id, _, state)| match state {
+                        PingState::Reachable(ms) => {
+                            Some(format!("local reachable · {id} ({ms}ms)"))
+                        }
+                        PingState::Unreachable => None,
+                    });
+                hit.unwrap_or_else(|| "local reachable".to_owned())
+            }
+            Self::KeyPresent => {
+                let total = probe.providers.iter().filter(|p| p.requires_key).count();
+                let present = probe
+                    .providers
+                    .iter()
+                    .filter(|p| p.requires_key && p.key_present)
+                    .count();
+                format!("key present · {present} of {total} clouds configured")
+            }
+            Self::RealReady => {
+                let path = if probe
+                    .local_pings
+                    .iter()
+                    .any(|(_, _, s)| matches!(s, PingState::Reachable(_)))
+                {
+                    "endpoint verified"
+                } else {
+                    "path configured"
+                };
+                format!(
+                    "real-ready · {} on record · {path}",
+                    crate::text::count(probe.recorded_runs, "run")
+                )
+            }
+        }
+    }
+
+    /// The rung's OWN next move — one CTA per state, never a shared
+    /// « see doctor » (the audit's closure proof: distinct CTA per
+    /// distinct state).
+    #[must_use]
+    pub(crate) const fn cta(self) -> &'static str {
+        match self {
+            Self::Installed => "proof → nika examples run 01-hello",
+            Self::LocalDetected => "start it, then nika doctor --ping",
+            Self::LocalReachable => "point a run at it",
+            Self::KeyPresent => "ready for a real run",
+            Self::RealReady => "nika run",
+        }
+    }
+}
+
+/// THE one classifier (P0-21) — pure over the probe facts, so welcome,
+/// doctor and the tests all climb the SAME ladder. Highest earned rung
+/// wins; a rung is only ever earned by a fact the probe actually
+/// measured.
+#[must_use]
+pub(crate) fn adoption_state(probe: &Probe) -> AdoptionState {
+    let cloud_configured = probe
+        .providers
+        .iter()
+        .any(|p| p.requires_key && p.key_present);
+    let local_reachable = probe
+        .local_pings
+        .iter()
+        .any(|(_, _, state)| matches!(state, PingState::Reachable(_)));
+    if (cloud_configured || local_reachable) && probe.recorded_runs > 0 {
+        return AdoptionState::RealReady;
+    }
+    if local_reachable {
+        return AdoptionState::LocalReachable;
+    }
+    if cloud_configured {
+        return AdoptionState::KeyPresent;
+    }
+    let local_engaged = !probe.local_pings.is_empty()
+        || probe.models.count > 0
+        || probe.providers.iter().any(|p| {
+            !p.requires_key
+                && matches!(
+                    p.readiness.execution_locus,
+                    ExecutionLocus::Lan | ExecutionLocus::Remote
+                )
+        });
+    if local_engaged {
+        return AdoptionState::LocalDetected;
+    }
+    AdoptionState::Installed
+}
+
 /// `~/.nika/config.toml` when it exists (presence only · never read). `HOME` is
 /// a path, not a secret — the scoped allow mirrors `env_present`'s.
 #[allow(clippy::disallowed_methods)]
@@ -650,6 +842,136 @@ mod tests {
         assert!(p.providers >= 5, "got {}", p.providers);
         assert_eq!(p.as_of, nika_catalog::pricing_snapshot().as_of);
         assert_eq!(p.sha, nika_catalog::pricing_snapshot().source_sha256_16);
+    }
+
+    // ── The adoption ladder (P0-21 · audit UX 2026-07-30) ──
+
+    use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
+
+    /// One synthetic machine, rung ZERO: the registry's keyless engines
+    /// are CATALOG facts (always present, always "configured" — a keyless
+    /// seed needs nothing), never adoption. Detection needs an operator
+    /// signal: an override, bytes on disk, or an explicit `--ping`.
+    fn ladder_probe() -> Probe {
+        let readiness = |configured, locus| ProviderReadiness {
+            recognized: true,
+            configured,
+            reachable: None,
+            model_available: None,
+            priced: false,
+            execution_locus: locus,
+        };
+        Probe {
+            version: "0.0.0-test".to_owned(),
+            config_path: None,
+            providers: vec![
+                ProviderProbe {
+                    id: "ollama".to_owned(),
+                    requires_key: false,
+                    key_present: false,
+                    fix_var: String::new(),
+                    structured_native: true,
+                    readiness: readiness(true, ExecutionLocus::Loopback),
+                    endpoint: "http://127.0.0.1:11434".to_owned(),
+                },
+                ProviderProbe {
+                    id: "mistral".to_owned(),
+                    requires_key: true,
+                    key_present: false,
+                    fix_var: "MISTRAL_API_KEY".to_owned(),
+                    structured_native: true,
+                    readiness: readiness(false, ExecutionLocus::Cloud),
+                    endpoint: "https://api.mistral.ai/v1/chat/completions".to_owned(),
+                },
+            ],
+            clients: vec![],
+            kits: vec![],
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: vec![],
+            pricing: PricingProbe::default(),
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
+            models: ModelsProbe::default(),
+            recorded_runs: 0,
+        }
+    }
+
+    /// One rung per fact — each transition is earned by exactly ONE new
+    /// observation, and no fact is ever claimed beyond its measurement.
+    #[test]
+    fn adoption_ladder_climbs_one_rung_per_fact() {
+        let base = ladder_probe();
+        // Installed — the catalog's keyless seed is NOT detection.
+        assert_eq!(adoption_state(&base), AdoptionState::Installed);
+
+        // KeyPresent — a cloud key is CONFIGURED, never « verified ».
+        let mut keyed = base.clone();
+        keyed.providers[1].key_present = true;
+        keyed.providers[1].readiness.configured = true;
+        assert_eq!(adoption_state(&keyed), AdoptionState::KeyPresent);
+
+        // LocalDetected — an override moves the engine off its seed…
+        let mut override_lan = base.clone();
+        override_lan.providers[0].endpoint = "http://gpu.lan:11434".to_owned();
+        override_lan.providers[0].readiness.execution_locus = ExecutionLocus::Lan;
+        assert_eq!(adoption_state(&override_lan), AdoptionState::LocalDetected);
+        // …or bytes on disk (a pulled GGUF)…
+        let mut pulled = base.clone();
+        pulled.models.count = 1;
+        assert_eq!(adoption_state(&pulled), AdoptionState::LocalDetected);
+        // …or a ping that found NOTHING (engaged, honestly unproven).
+        let mut dead_ping = base.clone();
+        dead_ping.local_pings = vec![(
+            "ollama".to_owned(),
+            "127.0.0.1:11434".to_owned(),
+            PingState::Unreachable,
+        )];
+        assert_eq!(adoption_state(&dead_ping), AdoptionState::LocalDetected);
+
+        // LocalReachable — ONLY an explicit --ping measurement proves it.
+        let mut reachable = base.clone();
+        reachable.local_pings = vec![(
+            "ollama".to_owned(),
+            "127.0.0.1:11434".to_owned(),
+            PingState::Reachable(3),
+        )];
+        assert_eq!(adoption_state(&reachable), AdoptionState::LocalReachable);
+
+        // RealReady — a live path AND runs on record (either lane earns
+        // the path: a verified local endpoint or a configured cloud key).
+        let mut real_local = reachable.clone();
+        real_local.recorded_runs = 2;
+        assert_eq!(adoption_state(&real_local), AdoptionState::RealReady);
+        let mut real_cloud = keyed.clone();
+        real_cloud.recorded_runs = 1;
+        assert_eq!(adoption_state(&real_cloud), AdoptionState::RealReady);
+        // Runs ALONE prove nothing about today's path (the journal never
+        // records the serving model — mock-vs-real is unknowable, so the
+        // rung is not invented: no path today = the honest floor).
+        let mut ran_once = base.clone();
+        ran_once.recorded_runs = 3;
+        assert_eq!(adoption_state(&ran_once), AdoptionState::Installed);
+    }
+
+    /// The enum is exhaustive over the ladder and every rung owns its
+    /// own label, metric and CTA — no two states render the same line.
+    #[test]
+    fn every_adoption_rung_renders_its_own_line() {
+        let probe = ladder_probe();
+        let mut lines = std::collections::BTreeSet::new();
+        for state in [
+            AdoptionState::Installed,
+            AdoptionState::LocalDetected,
+            AdoptionState::LocalReachable,
+            AdoptionState::KeyPresent,
+            AdoptionState::RealReady,
+        ] {
+            assert!(!state.metric(&probe).is_empty(), "{state:?}");
+            assert!(!state.cta().is_empty(), "{state:?}");
+            assert!(lines.insert(state.as_str()), "labels are unique");
+            assert!(lines.insert(state.cta()), "every rung owns its CTA");
+        }
     }
 
     #[test]
