@@ -146,6 +146,7 @@ pub fn render(
     permits(&mut out, report, wf, t);
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
+    consent_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
     // The MAP beside the verdict — the same themed wire art `graph
@@ -279,6 +280,26 @@ fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Th
                 .collect(),
         );
     }
+}
+
+/// CONSENT rung (NEP-0020 · P0-2) · silent when no confirm guards an
+/// effect — a proven non-affirmative route is NIKA-SEC-014, the same
+/// code the `--json` findings[] lane stamps (one voice, one verdict).
+fn consent_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    if report.consent_findings.is_empty() {
+        return;
+    }
+    section_list(
+        out,
+        t,
+        "CONSENT",
+        "every effect behind a confirm crosses an affirmative gate",
+        report
+            .consent_findings
+            .iter()
+            .map(|f| format!("[{}] {}", nika_check::ConsentFinding::WIRE_CODE, f.detail))
+            .collect(),
+    );
 }
 
 /// RUN rung (F-P3) · only when the envelope declares `run:` — an absent
