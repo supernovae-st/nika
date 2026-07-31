@@ -119,6 +119,7 @@ mod composition;
 mod consent;
 mod content_flow;
 mod cost;
+mod data_journey;
 mod data_sink;
 mod declass;
 mod effective;
@@ -151,6 +152,10 @@ pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
 pub use consent::ConsentFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
+pub use data_journey::{
+    DataClassification, DataJourney, EndpointLocus, JourneyConsent, JourneyEndpoint, ModelEndpoint,
+    RetentionFact, SecretUse,
+};
 pub use data_sink::SinkFinding;
 pub use declass::LeakReason;
 pub use effective::{EffectivePermits, PermitsSource};
@@ -317,6 +322,15 @@ pub struct CheckReport {
     /// never depends on who runs it). Additive: `report_version`
     /// stays 1.
     pub requirements: Requirements,
+    /// The DATA JOURNEY (P0-18) — where this workflow's data goes,
+    /// projected from the facts above: sources · destinations · model
+    /// endpoints · the secrets in play (NAMES, never values — law 13) ·
+    /// the declared clearances · the derived classification. Advisory by
+    /// design: the blocking refusals stay in their own lanes (`secret_*`
+    /// · `consent_findings`); the journey makes every cloud flow VISIBLE
+    /// so no sensitive sink ever rides without a receipt the operator
+    /// has seen. Additive: `report_version` stays 1.
+    pub data_journey: DataJourney,
     /// Every `secrets.X` that escapes the masking boundary into an
     /// `exec`/`invoke` effect (directly, via a `with:` alias, or
     /// transitively through a tainted upstream output · IFC · ADR-092).
@@ -740,6 +754,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         certificate: certificate::certify(wf),
         requirements: requirements::collect(wf),
         permits: effective::collect(wf),
+        data_journey: data_journey::collect(wf, &flow),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes,

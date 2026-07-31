@@ -147,6 +147,7 @@ pub fn render(
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
     consent_rung(&mut out, report, t);
+    journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
     // The MAP beside the verdict — the same themed wire art `graph
@@ -300,6 +301,64 @@ fn consent_rung(out: &mut String, report: &CheckReport, t: Theme) {
             .map(|f| format!("[{}] {}", nika_check::ConsentFinding::WIRE_CODE, f.detail))
             .collect(),
     );
+}
+
+/// JOURNEY rung (P0-18 · audit UX 2026-07-30) — the data voyage made
+/// visible BEFORE the run: the derived class and the counts, then one ⚠
+/// row per secret reaching a cloud destination, NAMED. Advisory by
+/// design — the blocking refusal of an UNSANCTIONED flow lives in the
+/// SECRETS lane (the IFC leak finding); a sanctioned flow still has to
+/// be SEEN, which is the receipt law the row carries (« read it before
+/// the run »). Names and classes only — never a value (law 13).
+fn journey_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    let j = &report.data_journey;
+    let flows: Vec<(&str, &str)> = j
+        .secrets_used
+        .iter()
+        .flat_map(|s| {
+            s.flows_to
+                .iter()
+                .map(move |d| (s.name.as_str(), d.as_str()))
+        })
+        .collect();
+    let summary = format!(
+        "{} · {} · {} · {}",
+        j.classification.as_str(),
+        crate::vocab::count(j.sources.len(), "source"),
+        crate::vocab::count(j.destinations.len(), "destination"),
+        crate::vocab::count(j.model_endpoints.len(), "model endpoint"),
+    );
+    if flows.is_empty() {
+        let _ = writeln!(
+            out,
+            " {} {} {}",
+            mark(t, true),
+            t.paint(Role::Strong, "JOURNEY"),
+            t.paint(
+                Role::Dim,
+                &format!("{summary} · no secret reaches a cloud destination")
+            )
+        );
+        return;
+    }
+    // A flow exists: the headline takes the warn posture (the audit
+    // completed, the voyage carries a receipt obligation), and every
+    // (secret, destination) pair gets its own named row.
+    let _ = writeln!(
+        out,
+        " {} {} {}",
+        t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+        t.paint(Role::Strong, "JOURNEY"),
+        t.paint(Role::Dim, &summary)
+    );
+    for (name, dest) in flows {
+        let _ = writeln!(
+            out,
+            " {} {} secret `{name}` flows to {dest} · the receipt names this flow — read it before the run",
+            t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+            t.paint(Role::Strong, "JOURNEY"),
+        );
+    }
 }
 
 /// RUN rung (F-P3) · only when the envelope declares `run:` — an absent
@@ -1457,6 +1516,96 @@ mod policy_rung_tests {
             .find(|l| l.contains("POLICY") && l.contains('['))
             .expect("the POLICY finding row");
         assert!(row.contains("[NIKA-POLICY-001]"), "the lane code: {row}");
+    }
+}
+
+#[cfg(test)]
+mod journey_rung_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use super::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    /// The trivial voyage, stated honestly: a pure mock-compute workflow
+    /// renders the JOURNEY line with its class and counts — never a
+    /// dressed-up claim.
+    #[test]
+    fn a_pure_mock_workflow_states_its_trivial_journey() {
+        let out = console(
+            "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        let line = out
+            .lines()
+            .find(|l| l.contains("JOURNEY"))
+            .expect("the JOURNEY rung renders");
+        assert!(line.contains("internal"), "the class: {line}");
+        assert!(
+            line.contains("no secret reaches a cloud destination"),
+            "the honest closure: {line}"
+        );
+    }
+
+    /// A secret flowing to a cloud endpoint is NAMED on an explicit ⚠
+    /// row — advisory (the sanctioned egress stays clean; the SECRETS
+    /// lane owns the unsanctioned refusal), with the receipt law riding.
+    #[test]
+    fn a_secret_reaching_a_cloud_endpoint_is_named_with_the_receipt_law() {
+        let out = console(
+            r#"
+nika: v1
+workflow:
+  id: t
+model: openai/gpt-4o-mini
+secrets:
+  openai_key:
+    source: env
+    key: OPENAI_API_KEY
+    egress: [{ to: infer }]
+permits: {}
+tasks:
+  send:
+    infer:
+      prompt: "auth ${{ secrets.openai_key }}"
+      max_tokens: 10
+"#,
+        );
+        let row = out
+            .lines()
+            .find(|l| l.contains("JOURNEY") && l.contains("flows to"))
+            .expect("the ⚠ flow row");
+        assert!(
+            row.contains("secret `openai_key` flows to openai"),
+            "the flow is NAMED: {row}"
+        );
+        assert!(row.contains('⚠'), "advisory warn mark: {row}");
+        assert!(
+            row.contains("read it before the run"),
+            "the receipt law rides: {row}"
+        );
+        // Advisory, never a finding: the sanctioned workflow's verdict
+        // stays green and no ✖ rides the JOURNEY rung.
+        assert!(
+            !out.lines()
+                .any(|l| l.contains("JOURNEY") && l.contains('✖')),
+            "no blocking row on the rung:\n{out}"
+        );
+        assert!(out.contains("audited"), "the verdict stays clean:\n{out}");
     }
 }
 
