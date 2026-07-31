@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 689
-  aggregate_sha256: 36855581c5172601eb9fea33555534c952dce1d6ee5468b163dacfda86ad0d3c
+  aggregate_sha256: e66e924c4cdf9b68573046c03b7e56cb1024b0caaeaba97234c0c882f85359cb
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 130
-  aggregate_sha256: 84cb668cc9549a0f9b8576e0eb10c97ea71ef2b9601d2f0fe017e667a3b5d93b
+  aggregate_sha256: 84b2cb6b18bdda653a2505093c353f6ef3d7aa0f32600eb04df06a4a50ac7713
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
