@@ -26,8 +26,8 @@ use std::fmt::Write as _;
 // this module's tests (and historical importers) keep their names.
 use crate::display::theme::{Role, Theme};
 pub(crate) use crate::verbs::probe::{
-    AdoptionState, ClientProbe, ImageProbe, KitProbe, ModelsProbe, PingState, PricingProbe, Probe,
-    ProviderProbe, TtsProbe,
+    AdoptionState, CapabilityLevel, ClientProbe, ImageProbe, KitProbe, ModelsProbe, PingState,
+    PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
 use crate::verbs::{VerbOutput, exit};
 use nika_providers::probe::ExecutionLocus;
@@ -118,7 +118,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     out.extend(models_finding(&probe.models));
 
     for client in &probe.clients {
-        out.push(client_finding(client));
+        out.push(client_finding(client, &probe.kits));
     }
 
     for kit in &probe.kits {
@@ -444,12 +444,19 @@ fn kit_finding(kit: &KitProbe, bin_version: &str) -> Finding {
     }
 }
 
-fn client_finding(client: &ClientProbe) -> Finding {
+fn client_finding(client: &ClientProbe, kits: &[KitProbe]) -> Finding {
     if client.current {
+        let level = client.capability(kits);
         return Finding {
             level: Level::Ok,
             label: "agent".to_owned(),
-            detail: format!("{} wired at {}", client.id, client.path),
+            detail: format!(
+                "{} wired · {} ({}) at {}",
+                client.id,
+                level.as_str(),
+                capability_surfaces(level),
+                client.path
+            ),
             fix: None,
         };
     }
@@ -477,6 +484,18 @@ fn client_finding(client: &ClientProbe) -> Finding {
         label: "agent".to_owned(),
         detail: format!("{} not wired", client.id),
         fix: Some(format!("nika wire {}", client.id)),
+    }
+}
+
+/// The surfaces that earned a rung — the parenthetical that keeps the
+/// level auditable at a glance (P0-9: oracle-only ≠ guarded, and the
+/// line must SHOW why).
+const fn capability_surfaces(level: CapabilityLevel) -> &'static str {
+    match level {
+        CapabilityLevel::OracleOnly => "mcp · no hooks",
+        CapabilityLevel::AuthoringEnabled => "mcp + kit · no hooks",
+        CapabilityLevel::Guarded => "kit + hooks",
+        CapabilityLevel::FullyIntegrated => "kit + hooks + runtime",
     }
 }
 
@@ -1197,6 +1216,47 @@ mod tests {
         assert_eq!(Level::Ok.glyph(), '✔');
         assert_eq!(Level::Warn.glyph(), '⚠');
         assert_eq!(Level::Fail.glyph(), '✖');
+    }
+
+    #[test]
+    fn doctor_names_each_host_capability_level() {
+        // P0-9 — the flat « wired at … » line claimed a host parity
+        // that does not exist: an oracle-only host and a guarded one
+        // now read as the two DIFFERENT rungs they are.
+        let wired = |id: &str| ClientProbe {
+            id: id.to_owned(),
+            path: format!("~/.{id}/cfg"),
+            present: true,
+            current: true,
+            stale: false,
+        };
+        let probe = Probe {
+            models: ModelsProbe::default(),
+            version: "0.106.0".to_owned(),
+            config_path: None,
+            providers: vec![],
+            clients: vec![wired("hermes"), wired("cursor")],
+            kits: vec![KitProbe {
+                client: "cursor".to_owned(),
+                version: "0.106.0".to_owned(),
+            }],
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
+            recorded_runs: 0,
+        };
+        let text = render(&diagnose(&probe), PLAIN);
+        assert!(
+            text.contains("hermes wired · oracle-only (mcp · no hooks)"),
+            "{text}"
+        );
+        assert!(
+            text.contains("cursor wired · guarded (kit + hooks)"),
+            "{text}"
+        );
     }
 
     #[test]

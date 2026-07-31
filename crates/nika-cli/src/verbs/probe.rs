@@ -121,6 +121,67 @@ pub(crate) struct ClientProbe {
     pub stale: bool,
 }
 
+/// How far a wired host actually climbs (P0-9 · audit UX 2026-07-30:
+/// doctor rendered « wired » uniformly — a host parity that does not
+/// exist). The scale is honest: every rung is EARNED by a detected
+/// surface, and MCP alone is never « guarded ».
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CapabilityLevel {
+    /// L1 — the oracle MCP only: the host can ASK (`nika_check` …),
+    /// nothing guards the edit or the run.
+    OracleOnly,
+    /// L2 — the kit's skills/commands/rules guide the authoring; no
+    /// hook fires (the codex kit ships none today).
+    AuthoringEnabled,
+    /// L3+L4 — the kit's hooks are on disk with it: check after edit,
+    /// guard before run.
+    Guarded,
+    /// L5 — deep integration (the host drives runs natively). No host
+    /// reaches it today: the ceiling is named, never claimed.
+    #[allow(dead_code)]
+    FullyIntegrated,
+}
+
+impl CapabilityLevel {
+    /// The machine token rendered on the doctor line (kebab-case).
+    #[must_use]
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::OracleOnly => "oracle-only",
+            Self::AuthoringEnabled => "authoring-enabled",
+            Self::Guarded => "guarded",
+            Self::FullyIntegrated => "fully-integrated",
+        }
+    }
+}
+
+impl ClientProbe {
+    /// The host's earned rung — computed from the surfaces the probe
+    /// actually DETECTED (this row's wire · the kit rows), never from
+    /// the client's name alone. MCP-only ⇒ `OracleOnly`, JAMAIS
+    /// `Guarded` (P0-9).
+    #[must_use]
+    pub(crate) fn capability(&self, kits: &[KitProbe]) -> CapabilityLevel {
+        if !self.current || !kits.iter().any(|k| k.client == self.id) {
+            return CapabilityLevel::OracleOnly;
+        }
+        if kit_ships_hooks(&self.id) {
+            CapabilityLevel::Guarded
+        } else {
+            CapabilityLevel::AuthoringEnabled
+        }
+    }
+}
+
+/// The nika-agents kit ships its hook definitions INSIDE the same drop
+/// as the manifest (`hooks/<client>-hooks.json` next to
+/// `.claude-plugin/plugin.json` — verified against the bundle
+/// 2026-07-31): finding the manifest proves the hooks landed with it.
+/// claude + cursor ship hooks; the codex kit carries none today.
+fn kit_ships_hooks(client: &str) -> bool {
+    matches!(client, "claude" | "cursor")
+}
+
 /// Build the real probe from the environment (PRESENCE-only key checks · the
 /// value is never bound) + the canonical provider catalog. The ONE builder
 /// both `doctor` and `welcome` consume — a second detector would be a
@@ -213,6 +274,9 @@ fn client_probes() -> Vec<ClientProbe> {
             &home.join(".config").join("zed").join("settings.json"),
             &["context_servers", "nika"],
         ));
+        // Hermes: YAML, the JSON probe cannot see it (H2 — wireable
+        // since `nika wire hermes`, invisible in doctor until now).
+        probes.push(hermes_probe(&home.join(".hermes").join("config.yaml")));
     } else {
         probes.push(client_probe(
             "cursor",
@@ -387,6 +451,26 @@ fn client_probe(id: &str, path: &Path, server_path: &[&str; 2]) -> ClientProbe {
         present,
         current,
         stale,
+    }
+}
+
+/// Hermes reads `~/.hermes/config.yaml` — YAML, so the JSON probe above
+/// cannot see it. Recognition mirrors `wire`'s `patch_hermes` contract
+/// verbatim: a `nika:` server whose command line names the binary
+/// (substring match — user YAML carries comments and anchors no parser
+/// round-trips; presence-only, never a guess). There is no stale arg
+/// form to detect: Hermes has only ever taken `args: [mcp]`.
+fn hermes_probe(path: &Path) -> ClientProbe {
+    let present = path.exists();
+    let current = present
+        && std::fs::read_to_string(path)
+            .is_ok_and(|body| body.contains("nika:") && body.contains("command: nika"));
+    ClientProbe {
+        id: "hermes".to_owned(),
+        path: path.display().to_string(),
+        present,
+        current,
+        stale: false,
     }
 }
 
@@ -972,6 +1056,105 @@ mod tests {
             assert!(lines.insert(state.as_str()), "labels are unique");
             assert!(lines.insert(state.cta()), "every rung owns its CTA");
         }
+    }
+
+    // ── Capability levels (P0-9 · audit UX 2026-07-30) + Hermes (H2) ──
+
+    /// One synthetic client row (wired or not).
+    fn client(id: &str, current: bool) -> ClientProbe {
+        ClientProbe {
+            id: id.to_owned(),
+            path: format!("~/.{id}/config"),
+            present: true,
+            current,
+            stale: false,
+        }
+    }
+
+    fn versioned_kit(client: &str) -> KitProbe {
+        KitProbe {
+            client: client.to_owned(),
+            version: "0.106.0".to_owned(),
+        }
+    }
+
+    #[test]
+    fn capability_ladder_never_calls_mcp_only_guarded() {
+        // The audit's lie: every wired host read as one flat « wired ».
+        // MCP alone is the oracle rung — the guard is EARNED by hooks,
+        // never implied by the wire.
+        let hermes = client("hermes", true);
+        assert_eq!(hermes.capability(&[]), CapabilityLevel::OracleOnly);
+        // A kit for ANOTHER host does not raise this one.
+        assert_eq!(
+            hermes.capability(&[versioned_kit("cursor")]),
+            CapabilityLevel::OracleOnly
+        );
+        // Unwired is the floor, kit or no kit.
+        assert_eq!(
+            client("cursor", false).capability(&[versioned_kit("cursor")]),
+            CapabilityLevel::OracleOnly
+        );
+        // A kit without hooks (the codex kit ships none) = authoring,
+        // never guard.
+        let codex = client("codex", true);
+        assert_eq!(
+            codex.capability(&[versioned_kit("codex")]),
+            CapabilityLevel::AuthoringEnabled
+        );
+        // A kit WITH hooks (claude · cursor ship them in the same drop
+        // as the manifest) earns the guard.
+        let cursor = client("cursor", true);
+        assert_eq!(
+            cursor.capability(&[versioned_kit("cursor")]),
+            CapabilityLevel::Guarded
+        );
+        let claude = client("claude", true);
+        assert_eq!(
+            claude.capability(&[versioned_kit("claude")]),
+            CapabilityLevel::Guarded
+        );
+        // Every rung owns a machine token.
+        assert_eq!(CapabilityLevel::OracleOnly.as_str(), "oracle-only");
+        assert_eq!(
+            CapabilityLevel::AuthoringEnabled.as_str(),
+            "authoring-enabled"
+        );
+        assert_eq!(CapabilityLevel::Guarded.as_str(), "guarded");
+        assert_eq!(
+            CapabilityLevel::FullyIntegrated.as_str(),
+            "fully-integrated"
+        );
+    }
+
+    #[test]
+    fn hermes_yaml_probe_recognizes_the_wire_contract() {
+        // H2 — Hermes is wireable (`nika wire hermes`) and proven, but
+        // its config is YAML: the JSON probe cannot see it. Recognition
+        // mirrors patch_hermes: a `nika:` server whose command line
+        // names the binary.
+        let dir = temp_dir("hermes");
+        let path = dir.join("config.yaml");
+        std::fs::write(
+            &path,
+            "mcp_servers:\n  nika:\n    command: nika\n    args: [mcp]\n    timeout: 120\n",
+        )
+        .expect("fixture");
+        let p = hermes_probe(&path);
+        assert!(p.present && p.current && !p.stale, "{p:?}");
+        assert_eq!(p.id, "hermes");
+        // A foreign config is present but NOT wired — never a guess.
+        std::fs::write(
+            &path,
+            "# my hermes\nmodel: hermes-4\nmcp_servers:\n  other: { command: x }\n",
+        )
+        .expect("fixture");
+        let p = hermes_probe(&path);
+        assert!(p.present && !p.current, "{p:?}");
+        // Absent is silence.
+        let p = hermes_probe(&dir.join("absent.yaml"));
+        assert!(!p.present && !p.current, "{p:?}");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
