@@ -2,10 +2,10 @@
 # funnel-e2e · the stranger's first path, played against a BUILT binary.
 #
 # Release-gate version of the V-arc deep e2e (2026-07-09): structural
-# asserts only — sections exist · promised commands exist in the clap
-# tree · JSON envelope versions · stable semantic needles (FLOOR ·
-# unpriced) · exit codes. Never whole transcripts (those live in docs,
-# re-captured by hand per the RELEASED law).
+# asserts only — sections exist · promised commands exist · JSON envelope
+# versions · stable semantic needles (bounded portion · unpriced) · exit
+# codes. Never whole transcripts (those live in docs, re-captured by hand
+# per the RELEASED law).
 #
 # Runs OFFLINE in a throwaway HOME (no keys · no configs · TERM=dumb).
 # Usage: funnel-e2e.sh <nika-binary>
@@ -39,8 +39,10 @@ run() { # run <name> <expected-exit> -- cmd...
 }
 need() { printf '%s' "$OUT" | grep -qF "$2" || fail "[$1] missing: $2"; }
 
-HELP=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" --help 2>&1)
-has_cmd() { printf '%s' "$HELP" | grep -Eq "^[[:space:]]+$1([[:space:]]|$)"; }
+# A taught/promised verb must EXIST — listed in the tree OR deliberately
+# hidden (the hook verbs: `guard` rides the wired shims, hidden from the
+# listing by design): ask the verb itself rather than the listing.
+has_cmd() { env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" "$1" --help >/dev/null 2>&1; }
 
 say "── funnel e2e · $("$BIN" --version)"
 
@@ -77,7 +79,7 @@ TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
 if has_cmd explain; then
   run explain-file 0 -- "$BIN" explain first.nika.yaml
-  need explain-file "FLOOR"
+  need explain-file "bounded portion"
   need explain-file "unpriced"
   need explain-file "flight recorder"
   need explain-file "$(basename "$TRACE")"

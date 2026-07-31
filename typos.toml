@@ -46,6 +46,7 @@ BUIL       = "BUIL"
 markdwon   = "markdwon"  # extract-mode typo rung fixture (nika-types suggest/extract tests)
 buidl      = "buidl"     # dep/ref rename fixture (rename_repair docs + --fix convergence tests)
 promt      = "promt"     # field rename fixture (--fix docs + CHANGELOG cite the healed typo)
+childs     = "childs"    # the v0.107.0 CHANGELOG cites the healed typo (childs → child · #759)
 topik      = "topik"     # vars-ref rename fixture (--fix convergence test)
 # French (the studio writes franglais — these are real French words, not typos)
 raison     = "raison"

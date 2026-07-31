@@ -59,8 +59,9 @@ pub(super) fn print_flow_epilogue(
     for line in crate::display::flow::waterfall(view, &theme) {
         println!("{line}");
     }
-    let note = outputs_note(outputs);
-    for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
+    let mut notes = fruit_notes(view);
+    notes.extend(outputs_note(outputs));
+    for line in crate::display::flow::verdict_card(view, &theme, &notes) {
         println!("{line}");
     }
     // The workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
@@ -74,6 +75,44 @@ pub(super) fn print_flow_epilogue(
         crate::display::vocab::hint(theme, "explore", &record)
     );
 }
+
+/// The FRUIT block (A-2 · user gauntlet 2026-07-31 · "the run wrote
+/// `output.md` — and never said so"): `wrote <path> (<size>)` per file
+/// the view's write rows materialized + the model's last word, bounded.
+/// Byte sizes are stat'd HERE — the one I/O the display crate refuses —
+/// and a path that stat fails (deleted since · sandbox) simply drops
+/// its size cell, never the line: the fruit is the run's claim, the
+/// size is today's disk.
+pub(super) fn fruit_notes(view: &crate::RunView) -> Vec<String> {
+    use crate::display::{fruit, shape};
+    let mut notes = Vec::new();
+    let files = fruit::written_files(view);
+    for f in files.iter().take(3) {
+        let size = std::fs::metadata(&f.path)
+            .ok()
+            .and_then(|m| usize::try_from(m.len()).ok());
+        notes.push(match size {
+            Some(n) => format!("{} {} ({})", f.verb, f.path, shape::fmt_bytes(n)),
+            None => format!("{} {}", f.verb, f.path),
+        });
+    }
+    if files.len() > 3 {
+        notes.push(format!("… +{} more files", files.len() - 3));
+    }
+    // The model's last word — the answer SEEN, not narrated (bounded by
+    // the shape law: head only, never a data dump; ADR-099 §1 already
+    // guarantees no secret can reach the stream this reads).
+    if let Some((_task, text)) = fruit::last_said(view)
+        && let Some(quote) = shape::summarize(text, SAID_CELLS)
+    {
+        notes.push(format!("said {quote}"));
+    }
+    notes
+}
+
+/// Widest the `said` quote grows (display cells) — fits the verdict
+/// card's inner width beside its `said ` label.
+const SAID_CELLS: usize = 46;
 
 /// The card's outputs note: `outputs → key (type) · key2 (type)` — the
 /// export contract's shape at a glance (types only, never a data dump).
