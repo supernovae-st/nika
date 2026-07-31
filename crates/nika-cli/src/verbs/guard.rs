@@ -34,8 +34,9 @@ enum Verdict {
     Unavailable(String),
 }
 
-/// The hook dialect, sniffed from the raw payload: `hook_event_name` is
-/// Claude Code's (Codex emits it verbatim), absent from Cursor's.
+/// The hook dialect, sniffed from the payload: a top-level
+/// `hook_event_name` string is Claude Code's (Codex emits it
+/// verbatim), absent from Cursor's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Dialect {
     Claude,
@@ -85,6 +86,32 @@ struct Seg {
 
 /// The deny reason's size budget (the old shim's 2000-byte protocol law).
 const PROTOCOL_BUDGET: usize = 2000;
+
+/// The hook payload's size budget (audit 2026-07-31): `guard --stdin`
+/// reads at most this many bytes — a hostile or broken host cannot
+/// hang or OOM the judge; over the cap the answer is a deterministic
+/// `guard_unavailable`, deny-shaped in both dialects.
+const MAX_PAYLOAD: u64 = 4 * 1024 * 1024;
+
+/// Read the hook payload from `reader`, capped at [`MAX_PAYLOAD`].
+/// `Err` carries the partial bytes (the dialect sniff still reads
+/// them) plus the reason — the io failure and the oversize both
+/// degrade to the same visible `guard_unavailable`.
+fn read_payload(reader: &mut impl std::io::Read) -> Result<String, (String, String)> {
+    use std::io::Read as _;
+    let mut raw = String::new();
+    let mut limited = reader.take(MAX_PAYLOAD + 1);
+    if let Err(e) = limited.read_to_string(&mut raw) {
+        return Err((raw, format!("cannot read the hook payload from stdin: {e}")));
+    }
+    if raw.len() as u64 > MAX_PAYLOAD {
+        return Err((
+            raw,
+            "payload over 4 MiB — the guard refuses to judge what it cannot hold".to_owned(),
+        ));
+    }
+    Ok(raw)
+}
 
 /// The shell tokenizer — quotes honoured, expansions MARKED never
 /// performed (the exact class the regex hook's whitespace split got
@@ -371,38 +398,101 @@ fn fold(verdicts: Vec<Verdict>) -> Verdict {
     unavailable.or(allow).unwrap_or(Verdict::NotOurs)
 }
 
+/// What joins a segment to its neighbours — the facts the dispatch
+/// needs beyond the words: a pipe ANYWHERE (the `cd` subshell law), a
+/// pipe INTO the segment (the shell's stdin is another command's
+/// output), a heredoc redirect (the shell's commands ride bytes the
+/// line does not show).
+#[derive(Debug, Clone, Copy)]
+struct SegCtx {
+    piped: bool,
+    fed_by_pipe: bool,
+    heredoc: bool,
+}
+
 /// One simple command: strip redirects and leading assignments, then
 /// dispatch on the basename. Returns `None` when the segment is no
 /// affair of the guard's (a non-nika command is never judged — the
 /// echo/comment false-denial class, P0-15).
 fn analyze_segment(seg: &Seg, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    let ctx = SegCtx {
+        piped: seg.before == Some(Op::Pipe) || seg.after == Some(Op::Pipe),
+        fed_by_pipe: seg.before == Some(Op::Pipe),
+        heredoc: seg
+            .toks
+            .iter()
+            .any(|t| t.op == Some(Op::Redirect) && t.text.starts_with("<<")),
+    };
     let words = strip_redirects(&seg.toks);
-    let piped = seg.before == Some(Op::Pipe) || seg.after == Some(Op::Pipe);
-    analyze_command(&words, piped, cwd)
+    analyze_command(&words, ctx, cwd)
 }
 
 /// The command dispatch, wrappers unwound: `env` prefixes, `sh -c` /
 /// `bash -lc` script strings (judged recursively), `cd` (tracked, never
-/// judged), `nika` (the gate).
-fn analyze_command(words: &[&Tok], piped: bool, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+/// judged), `nika` (the gate). The fail-closed posture (audit
+/// 2026-07-31): a dynamic command word, a shell control-flow body, and
+/// the stdin/expression executors are UNJUDGEABLE — they degrade to
+/// `Unavailable`, never to the silent `NotOurs`.
+fn analyze_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
     let mut idx = 0;
     while idx < words.len() && is_assignment(&words[idx].text) {
         idx += 1;
     }
     let words = &words[idx..];
     let first = words.first()?;
-    match basename(&first.text) {
+    // A dynamic command word (`$(echo nika) run x` · `$N run x`) is
+    // UNKNOWABLE — the guard never guesses an expansion into an allow.
+    if first.dynamic {
+        return Some(Verdict::Unavailable(format!(
+            "the command word rides an expansion (`{}`) — the guard judges the command a line names, it never guesses an expansion",
+            first.text
+        )));
+    }
+    // The basename compare is case-insensitive: APFS runs `NIKA` as
+    // nika, so the match must see it (a literal `NIKA` binary on a
+    // case-sensitive fs is a negligible false positive — it fails
+    // toward judgement).
+    let name = basename(&first.text).to_ascii_lowercase();
+    // Group/body openers (`( nika run x )` · `then …` · `! …`) carry no
+    // command of their own — strip and re-dispatch the rest.
+    if matches!(
+        name.as_str(),
+        "(" | "{" | "then" | "do" | "else" | "elif" | "!"
+    ) {
+        return analyze_command(&words[1..], ctx, cwd);
+    }
+    match name.as_str() {
         "cd" => {
             // A cd inside a pipeline runs in a subshell — the parent's
             // cwd (what later segments see) never changes.
-            if !piped {
+            if !ctx.piped {
                 apply_cd(words.get(1).copied(), cwd);
             }
             None
         }
-        "sh" | "bash" | "zsh" | "dash" => shell_script(words, cwd),
-        "env" => env_command(words, piped, cwd),
+        "sh" | "bash" | "zsh" | "dash" => shell_script(words, ctx, cwd),
+        "env" => env_command(words, ctx, cwd),
         "nika" => nika_command(words, cwd),
+        // The value-free wrappers — the first non-option word is the
+        // real command (the `env` unwrap's sibling).
+        "nice" | "nohup" | "sudo" | "time" | "command" | "exec" | "stdbuf" | "setsid" => {
+            wrapper_command(words, ctx, cwd)
+        }
+        "eval" => eval_command(words, cwd),
+        // Shell keywords with bodies — the guard judges commands, it
+        // cannot see inside control flow: VISIBLE, never NotOurs.
+        "if" | "while" | "for" | "until" | "case" | "select" => {
+            Some(Verdict::Unavailable(format!(
+                "the `{name}` body is shell control flow — the guard judges commands, it cannot see inside it"
+            )))
+        }
+        // Executors whose argv rides stdin or a find expression.
+        "xargs" => Some(Verdict::Unavailable(
+            "xargs builds the argv from stdin — the run's file is unknowable".to_owned(),
+        )),
+        "find" => Some(Verdict::Unavailable(
+            "`find -exec` can carry a run — the guard cannot parse a find expression".to_owned(),
+        )),
         _ => None,
     }
 }
@@ -427,16 +517,39 @@ fn apply_cd(target: Option<&Tok>, cwd: &mut Option<PathBuf>) {
 
 /// A shell wrapper: only the `-c` script string is judgeable (`bash
 /// foo.sh` hides its commands in a file the guard cannot see — no
-/// verdict, like any non-nika command).
-fn shell_script(words: &[&Tok], cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+/// verdict, like any non-nika command). A heredoc or pipe-fed script is
+/// bytes the line does not show — VISIBLE degradation, never the
+/// silent pass (audit 2026-07-31).
+fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    // The heredoc has no lexer model — its body words ride the segment
+    // like argv (a crafted body could even fake a `-c`), so a shell
+    // segment carrying `<<` is unjudgeable, full stop.
+    if ctx.heredoc {
+        return Some(Verdict::Unavailable(
+            "a heredoc script feeds the shell — the guard cannot see the bytes it would run"
+                .to_owned(),
+        ));
+    }
     let mut k = 1;
     while k < words.len() {
         let text = words[k].text.as_str();
-        let is_c = text == "-c"
-            || (text.starts_with('-') && !text.starts_with("--") && text[1..].contains('c'));
-        if is_c {
+        if text == "-c" {
             let script = words.get(k + 1)?;
             return Some(judge_line(&script.text, cwd.as_deref()));
+        }
+        if text.starts_with('-') && !text.starts_with("--") {
+            let cluster = &text[1..];
+            if let Some(pos) = cluster.find('c') {
+                let attached = &cluster[pos + 1..];
+                if !attached.is_empty() {
+                    // The attached form — `-cSCRIPT` · `bash -xcSCRIPT`
+                    // (real getopt semantics: the rest of the cluster
+                    // after `c` IS the script).
+                    return Some(judge_line(attached, cwd.as_deref()));
+                }
+                let script = words.get(k + 1)?;
+                return Some(judge_line(&script.text, cwd.as_deref()));
+            }
         }
         // The two long options that swallow the NEXT word as their file.
         k += if matches!(text, "--rcfile" | "--init-file") {
@@ -445,24 +558,111 @@ fn shell_script(words: &[&Tok], cwd: &mut Option<PathBuf>) -> Option<Verdict> {
             1
         };
     }
+    // No `-c` script: a shell whose stdin rides a pipe reads its
+    // commands from those bytes — unseeable, so VISIBLE.
+    if ctx.fed_by_pipe {
+        return Some(Verdict::Unavailable(
+            "a script rides the pipe into the shell — the guard cannot see the bytes it would run"
+                .to_owned(),
+        ));
+    }
     None
 }
 
 /// `env [opts] [VAR=x …] cmd …` — the real command sits after the
-/// environment prefix.
-fn env_command(words: &[&Tok], piped: bool, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+/// environment prefix. `-S`/`--split-string` splits its argument into
+/// the argv itself, so that word's content is judged recursively
+/// (macOS ships BSD env — the split is real).
+fn env_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
     let mut k = 1;
     while k < words.len() {
         let t = words[k].text.as_str();
         if t == "-u" || t == "--unset" {
             k += 2;
+        } else if t == "-S" || t == "--split-string" {
+            // The NEXT word is the split string — judge its content.
+            let script = words.get(k + 1)?;
+            return Some(judge_line(&script.text, cwd.as_deref()));
+        } else if t.starts_with("-S") && !t.starts_with("--") && t.len() > 2 {
+            // The attached form — the lexer already merged any quotes:
+            // `-S'FOO=1 nika run x'` arrives as one word.
+            return Some(judge_line(&t[2..], cwd.as_deref()));
+        } else if let Some(split) = t.strip_prefix("--split-string=") {
+            return Some(judge_line(split, cwd.as_deref()));
         } else if t.starts_with('-') || is_assignment(t) {
             k += 1;
         } else {
             break;
         }
     }
-    analyze_command(&words[k..], piped, cwd)
+    analyze_command(&words[k..], ctx, cwd)
+}
+
+/// The wrapper options that swallow the NEXT word as their value
+/// (`sudo -u root …` · `nice -n 10 …` · `stdbuf -o L …`). Attached and
+/// `--long=value` forms need no table: the value rides the flag's own
+/// word and is skipped with it.
+const WRAPPER_VALUE_FLAGS: &[&str] = &[
+    "-n",           // nice (adjustment)
+    "--adjustment", // nice
+    "-u",
+    "--user", // sudo
+    "-g",
+    "--group", // sudo
+    "-h",
+    "--host", // sudo
+    "-p",
+    "--prompt", // sudo
+    "-C",
+    "-T",
+    "-t",
+    "-r", // sudo (close-from · timeout · SELinux)
+    "-o",
+    "-e",
+    "-i", // stdbuf
+    "-a", // exec -a NAME
+    "-f", // GNU time --format (short)
+    "--output",
+    "--format", // GNU time
+];
+
+/// The value-free wrappers (`sudo` · `nice` · `time` · `command` …):
+/// the first non-option word is the real command — re-dispatch from
+/// there, mirroring the `env` unwrap.
+fn wrapper_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    let mut k = 1;
+    while k < words.len() {
+        let t = words[k].text.as_str();
+        if WRAPPER_VALUE_FLAGS.contains(&t) {
+            k += 2; // the flag swallows the next word (`sudo -u root`)
+        } else if t.starts_with('-') {
+            k += 1; // boolean and attached forms ride one word (`-n10` · `--user=root`)
+        } else {
+            break;
+        }
+    }
+    analyze_command(&words[k..], ctx, cwd)
+}
+
+/// `eval` with static text judges the text itself — the same bytes the
+/// shell would re-parse (the arguments join on spaces, as eval does). A
+/// dynamic or missing string is unknowable, VISIBLE.
+fn eval_command(words: &[&Tok], cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    let rest = &words[1..];
+    if rest.is_empty() {
+        return None; // a bare `eval` runs nothing
+    }
+    if rest.iter().any(|w| w.dynamic) {
+        return Some(Verdict::Unavailable(
+            "eval rides an expansion — the guard judges static text, it never guesses".to_owned(),
+        ));
+    }
+    let joined = rest
+        .iter()
+        .map(|w| w.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(judge_line(&joined, cwd.as_deref()))
 }
 
 /// A `nika …` invocation: skip the global flags (`--plain` · `--color
@@ -746,13 +946,25 @@ fn red_reason(display: &str, report: &nika_check::CheckReport) -> String {
     reason
 }
 
-/// The dialect sniff — raw bytes, never the parsed JSON: a MALFORMED
-/// Claude payload still degrades into the Claude shape.
+/// The dialect sniff: the PARSED JSON decides — a top-level
+/// `hook_event_name` string is Claude Code's (Codex emits it
+/// verbatim), absent from Cursor's. The raw substring is only the
+/// fallback for a payload that is not JSON at all (a MALFORMED Claude
+/// payload still degrades into the Claude shape). Sniffing the raw
+/// bytes first would let the COMMAND text spoof the envelope (audit
+/// 2026-07-31): a Cursor payload whose command embeds the literal
+/// marker would answer in a shape the host cannot parse.
 fn payload_dialect(raw: &str) -> Dialect {
-    if raw.contains("hook_event_name") {
-        Dialect::Claude
-    } else {
-        Dialect::Generic
+    match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(v) => {
+            if v.get("hook_event_name").and_then(|h| h.as_str()).is_some() {
+                Dialect::Claude
+            } else {
+                Dialect::Generic
+            }
+        }
+        Err(_) if raw.contains("hook_event_name") => Dialect::Claude,
+        Err(_) => Dialect::Generic,
     }
 }
 
@@ -895,12 +1107,13 @@ pub fn run(
     theme: Theme,
 ) -> VerbOutput {
     if stdin {
-        use std::io::Read as _;
-        let mut raw = String::new();
-        if let Err(e) = std::io::stdin().read_to_string(&mut raw) {
-            let v = Verdict::Unavailable(format!("cannot read the hook payload from stdin: {e}"));
-            return finish(&v, Dialect::Generic, human, theme);
-        }
+        let raw = match read_payload(&mut std::io::stdin()) {
+            Ok(raw) => raw,
+            Err((raw, why)) => {
+                let v = Verdict::Unavailable(why);
+                return finish(&v, payload_dialect(&raw), human, theme);
+            }
+        };
         return match parse_payload(&raw) {
             Ok(input) => evaluate(&input, human, theme),
             Err(v) => finish(&v, payload_dialect(&raw), human, theme),
@@ -1092,6 +1305,167 @@ mod tests {
         ]
     }
 
+    /// The fail-open cohort, first half (audit 2026-07-31): the
+    /// DISPATCH shapes that silently folded to `NotOurs` — attached
+    /// `-c` scripts, control-flow openers, value-free wrappers, `eval`,
+    /// a dynamic command word, the stdin/expression executors. Every
+    /// one must JUDGE or degrade VISIBLY — never the silent `{}`.
+    fn failopen_cases(d: &str) -> Vec<Row> {
+        vec![
+            // Finding 1 · the attached `-c` forms (real getopt semantics).
+            (
+                format!("sh -c'nika run {d}/bad.nika.yaml'"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("bash -xc'nika run {d}/bad.nika.yaml'"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            // Finding 2 · group/body openers strip and re-dispatch.
+            (
+                format!("( nika run {d}/bad.nika.yaml )"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("if true; then nika run {d}/bad.nika.yaml; fi"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("! nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            // Finding 2 · the value-free wrappers unwrap to the command.
+            (
+                format!("time nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("command nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("sudo nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("sudo -u root nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("nice -n 10 nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("nohup nika run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            // Finding 2 · `eval` with a static string judges the string.
+            (
+                format!("eval \"nika run {d}/bad.nika.yaml\""),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            // Finding 2 · a dynamic command word is unknowable, VISIBLE.
+            (
+                format!("$(echo nika) run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Unavailable("expansion"),
+            ),
+            (
+                format!("$N run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Unavailable("expansion"),
+            ),
+            // Finding 2 · stdin/expression-driven executors: unjudgeable.
+            (
+                format!("echo {d}/bad.nika.yaml | xargs nika run"),
+                "empty",
+                Want::Unavailable("xargs"),
+            ),
+            (
+                format!("find {d} -exec nika run {{}} \\;"),
+                "empty",
+                Want::Unavailable("find"),
+            ),
+            (
+                "while read l; do nika run $l; done".to_owned(),
+                "empty",
+                Want::Unavailable("while"),
+            ),
+        ]
+    }
+
+    /// The fail-open cohort, second half (audit 2026-07-31): the FEED
+    /// shapes — `env -S` splitting its argument into argv, a script
+    /// riding a pipe or a heredoc, the case-insensitive binary name —
+    /// plus the audit-clean twins (a wrapper must AUDIT a good run,
+    /// never deny it).
+    fn failopen_feed_cases(d: &str) -> Vec<Row> {
+        vec![
+            // Finding 3 · `env -S` splits its argument into argv.
+            (
+                format!("env -S 'FOO=1 nika run {d}/bad.nika.yaml'"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("env -S'FOO=1 nika run {d}/bad.nika.yaml'"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("env --split-string 'FOO=1 nika run {d}/bad.nika.yaml'"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            (
+                format!("env --split-string='FOO=1 nika run {d}/bad.nika.yaml'"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            // Finding 4 · a script rides the pipe / the heredoc — the
+            // guard cannot see those bytes, so it says so VISIBLY.
+            (
+                format!("printf 'nika run {d}/bad.nika.yaml' | sh"),
+                "empty",
+                Want::Unavailable("pipe"),
+            ),
+            (
+                format!("sh <<EOF\nnika run {d}/bad.nika.yaml\nEOF"),
+                "empty",
+                Want::Unavailable("heredoc"),
+            ),
+            // Finding 7 · APFS is case-insensitive: `NIKA` executes nika.
+            (
+                format!("NIKA run {d}/bad.nika.yaml"),
+                "empty",
+                Want::Deny("nika check"),
+            ),
+            // …and the wrappers AUDIT a clean run instead of denying it.
+            (
+                format!("command nika run {d}/good.nika.yaml"),
+                "empty",
+                Want::Allow,
+            ),
+            (
+                format!("! nika run {d}/good.nika.yaml"),
+                "empty",
+                Want::Allow,
+            ),
+        ]
+    }
+
     /// The forms that must FLOW or stay untouched: the two false
     /// denials (echo · comment), non-nika commands, other nika verbs,
     /// the clean runs — and P0-7, the priced model without the cap.
@@ -1175,7 +1549,8 @@ mod tests {
 
     /// The journey-guard command matrix (ux-fixtures 2026-07-30): every
     /// bypass the regex hook allowed now denies or degrades VISIBLY, and
-    /// the two false denials (echo · comment) stay untouched.
+    /// the two false denials (echo · comment) stay untouched. The
+    /// fail-open cohort (audit 2026-07-31) rides the two `failopen_*`.
     #[test]
     fn the_command_matrix() {
         let dir = fixtures();
@@ -1183,8 +1558,10 @@ mod tests {
         let sb = dir.path().join("sole_bad").display().to_string();
         let mut cases: Vec<Row> = bypass_cases(&d);
         cases.extend(indirection_cases(&sb));
+        cases.extend(failopen_cases(&d));
+        cases.extend(failopen_feed_cases(&d));
         cases.extend(flow_cases(&d));
-        assert!(cases.len() >= 29, "the matrix covers 29+ forms");
+        assert!(cases.len() >= 60, "the matrix covers 60+ forms");
         for (line, sub, want) in &cases {
             let cwd = dir.path().join(sub);
             let got = judge_line(line, Some(&cwd));
@@ -1284,6 +1661,41 @@ mod tests {
         let out = evaluate(&input, false, plain());
         assert_eq!(out.code, exit::FILE, "{}", out.text);
         assert!(out.text.contains("--max-cost-usd"), "{}", out.text);
+    }
+
+    /// The dialect sniff reads the PARSED JSON (audit 2026-07-31): a
+    /// Cursor payload whose COMMAND text embeds the literal
+    /// `hook_event_name` must still answer the Cursor envelope — the
+    /// raw-substring sniff flipped it into the Claude shape the host
+    /// cannot parse (undefined, possibly fail-open).
+    #[test]
+    fn dialect_sniff_ignores_the_marker_inside_the_command_text() {
+        let dir = fixtures();
+        let d = dir.path().display().to_string();
+        let payload =
+            format!(r#"{{"command":"nika run {d}/bad.nika.yaml # hook_event_name","cwd":"{d}"}}"#);
+        let input = parse_payload(&payload).expect("payload parses");
+        assert!(
+            input.dialect == Dialect::Generic,
+            "a command-text marker never makes the payload Claude"
+        );
+        let out = evaluate(&input, false, plain());
+        assert_eq!(out.code, exit::FILE, "{}", out.text);
+        let v: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+        assert_eq!(
+            v["permission"], "deny",
+            "the Cursor envelope stands: {}",
+            out.text
+        );
+        assert!(
+            v.get("hookSpecificOutput").is_none(),
+            "no Claude shape leaks into a Cursor answer: {}",
+            out.text
+        );
+        // …and a REAL top-level field still selects the Claude dialect.
+        let payload = r#"{"hook_event_name":"PreToolUse","tool_input":{"command":"echo hook_event_name"},"cwd":"/tmp"}"#;
+        let input = parse_payload(payload).expect("payload parses");
+        assert!(input.dialect == Dialect::Claude);
     }
 
     /// Infrastructure failure is VISIBLE: malformed payload, a payload
@@ -1469,6 +1881,44 @@ mod tests {
             .as_str()
             .expect("reason");
         assert!(reason.contains("guard_unavailable"), "{stdout}");
+    }
+
+    /// A hostile or broken host cannot hang or OOM the judge (audit
+    /// 2026-07-31): the payload read is capped at 4 MiB — over it, the
+    /// answer is a deterministic `guard_unavailable`, deny-shaped in
+    /// BOTH dialects.
+    #[test]
+    fn oversized_payload_is_a_deterministic_deny() {
+        let cap = usize::try_from(MAX_PAYLOAD).expect("4 MiB fits a usize");
+        // Exactly at the cap: reads fine.
+        let exact = vec![b'x'; cap];
+        let read = read_payload(&mut std::io::Cursor::new(&exact));
+        assert!(read.is_ok(), "exactly 4 MiB is readable");
+
+        // One byte over: the deterministic refusal, with the partial
+        // bytes kept for the dialect sniff.
+        let over = vec![b'x'; cap + 1];
+        let (partial, why) =
+            read_payload(&mut std::io::Cursor::new(&over)).expect_err("over the cap refuses");
+        assert!(why.contains("payload over 4 MiB"), "{why}");
+        assert!(!partial.is_empty(), "the partial bytes ride the sniff");
+
+        // Deny-shaped in both dialects.
+        let verdict = Verdict::Unavailable(why.clone());
+        let claude = render_hook(&verdict, Dialect::Claude);
+        let v: serde_json::Value = serde_json::from_str(&claude).expect("json");
+        assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
+        assert!(claude.contains("payload over 4 MiB"), "{claude}");
+        let generic = render_hook(&verdict, Dialect::Generic);
+        let v: serde_json::Value = serde_json::from_str(&generic).expect("json");
+        assert_eq!(v["permission"], "deny");
+        assert!(generic.contains("payload over 4 MiB"), "{generic}");
+
+        // …and the oversize reason renders through the full finish
+        // path (the exit class is the environment failure).
+        let out = finish(&Verdict::Unavailable(why), Dialect::Generic, false, plain());
+        assert_eq!(out.code, exit::ENV, "{}", out.text);
+        assert!(out.text.contains(r#""permission":"deny""#), "{}", out.text);
     }
 
     /// A broken judge (exit 1, silence) degrades the same visible way.
