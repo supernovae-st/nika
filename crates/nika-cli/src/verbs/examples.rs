@@ -492,55 +492,20 @@ fn fixture_note((written, kept): (usize, usize), theme: Theme) -> Option<String>
     Some(note)
 }
 
-/// The `examples/fixtures/<tail>` references a body reads, each tail cut
-/// at its first glob star (a `photos/**` read pulls the whole `photos/`
-/// dir) and stripped of a trailing `/`.
+/// The `examples/fixtures/<tail>` references a body reads — the shared
+/// door machinery (`nika_onboard::fixtures`): the guided door takes the
+/// same ingredients, so the repair lives ONCE (the sequence law — a
+/// better router must never multiply a broken take).
+#[cfg(test)]
 fn fixture_prefixes(body: &str) -> Vec<String> {
-    const MARK: &str = "examples/fixtures/";
-    let mut out: Vec<String> = Vec::new();
-    for (i, _) in body.match_indices(MARK) {
-        let tail: String = body[i + MARK.len()..]
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/' | '*'))
-            .collect();
-        let cut = tail.split('*').next().unwrap_or("");
-        let cut = cut.trim_end_matches('/');
-        if !cut.is_empty() && !out.iter().any(|p| p == cut) {
-            out.push(cut.to_owned());
-        }
-    }
-    out
+    nika_onboard::fixtures::fixture_prefixes(body)
 }
 
 /// Write the pack fixtures a body reads beside the copied recipe —
-/// under `<dest dir>/examples/fixtures/…`, the exact relative path the
-/// yaml names. Returns (written, kept-because-existing).
+/// the ONE shared implementation (`nika_onboard::fixtures::materialize`
+/// · both taking doors deliver the same ingredients).
 fn materialize_fixtures(body: &str, dest: &std::path::Path) -> std::io::Result<(usize, usize)> {
-    let prefixes = fixture_prefixes(body);
-    if prefixes.is_empty() {
-        return Ok((0, 0));
-    }
-    let base = dest.parent().unwrap_or_else(|| std::path::Path::new(""));
-    let (mut written, mut kept) = (0, 0);
-    for (tail, bytes) in nika_pack::example_fixture_files() {
-        let wanted = prefixes
-            .iter()
-            .any(|p| tail == p || tail.starts_with(&format!("{p}/")));
-        if !wanted {
-            continue;
-        }
-        let target = base.join("examples").join("fixtures").join(tail);
-        if target.exists() {
-            kept += 1;
-            continue;
-        }
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(&target, bytes)?;
-        written += 1;
-    }
-    Ok((written, kept))
+    nika_onboard::fixtures::materialize(body, dest)
 }
 
 #[cfg(test)]

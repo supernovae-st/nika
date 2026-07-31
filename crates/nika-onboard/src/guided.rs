@@ -257,7 +257,11 @@ fn description_of(name: &str) -> Option<String> {
 /// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
 /// the receipt says the check-then-run road. The default destination is
 /// the slug's basename (a nested slug flattens — the tiering belongs to
-/// the pack, your workspace is flat).
+/// the pack, your workspace is flat). The INGREDIENTS ride along
+/// (`fixtures::materialize` — the one shared door machinery): a taken
+/// file that reads `examples/fixtures/…` runs first try in an empty
+/// directory, or this door would route people straight into the
+/// rage-quit socket the copy door already repaired (the sequence law).
 fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
     let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);
@@ -275,9 +279,29 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
             code: codes::ENV,
         };
     }
+    let ingredients = match crate::fixtures::materialize(body, Path::new(dest)) {
+        Ok((0, 0)) => String::new(),
+        Ok((written, kept)) => {
+            let kept_note = if kept > 0 {
+                format!(" · {kept} already yours, kept")
+            } else {
+                String::new()
+            };
+            format!(
+                "\n  examples/fixtures · {written} file{} (the recipe's ingredients){kept_note}",
+                if written == 1 { "" } else { "s" },
+            )
+        }
+        Err(e) => {
+            return Outcome {
+                text: format!("cannot write a fixture beside {dest}: {e}"),
+                code: codes::ENV,
+            };
+        }
+    };
     Outcome {
         text: format!(
-            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`",
+            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`{ingredients}",
             q = shell_quote(dest)
         ),
         code: codes::OK,

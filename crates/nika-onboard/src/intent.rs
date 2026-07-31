@@ -875,8 +875,13 @@ mod tests {
                         case.id,
                         out.text
                     );
+                    // The WORD « ready » (the readiness over-promise) —
+                    // never the substring: « already yours, kept » is
+                    // the ingredients note, not a claim.
                     assert!(
-                        !lower.contains("ready"),
+                        !lower
+                            .split(|c: char| !c.is_alphanumeric())
+                            .any(|w| w == "ready"),
                         "{}: never « ready »: {}",
                         case.id,
                         out.text
