@@ -593,7 +593,7 @@ const LABEL_COL: usize = 10;
 /// Render the findings through the ONE colour seam (`Theme` · semantic
 /// never decorative — the same law welcome/run obey). Doctor rows carry NO
 /// durations, so the nextest discipline reduces to the status/label
-/// columns — a fixed 1-cell status glyph + the fixed [`LABEL_COL`] label
+/// columns — a fixed 1-cell status glyph + the fixed `LABEL_COL` label
 /// cell, both laid out on RAW text and painted AFTER (ANSI escapes never
 /// enter width arithmetic — the same law as `Theme::glyph`). The sober
 /// register (colour off · links off · every pipe) is byte-identical to the

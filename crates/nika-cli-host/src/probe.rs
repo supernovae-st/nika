@@ -195,7 +195,7 @@ fn kit_ships_hooks(client: &str) -> bool {
 /// command (printed, never run — the doctor law). The honesty law
 /// applies here too: `level_assumed` flags every level above the
 /// oracle floor, because the hooks half of the climb rests on the
-/// STATIC [`kit_ships_hooks`] table — a manifest find is observed,
+/// STATIC `kit_ships_hooks` table — a manifest find is observed,
 /// « the hooks landed with it » (or did not) is a lookup, and the
 /// receipt says so.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -227,7 +227,7 @@ pub struct HostCapabilityReceipt {
     /// rail is missing.
     pub repair: Option<String>,
     /// `true` when part of the level rests on the static
-    /// [`kit_ships_hooks`] table rather than a direct observation.
+    /// `kit_ships_hooks` table rather than a direct observation.
     pub level_assumed: bool,
 }
 
