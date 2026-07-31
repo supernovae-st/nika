@@ -72,15 +72,17 @@ impl RiskGrade {
 
 /// Grade one report — reads ONLY what the audit already computed (the
 /// cost ceiling · the declared half of the affirmative permits
-/// statement · the consent lane's hints). Never a scan, never a
-/// finding: the grade is a projection, so it carries no `NIKA-*` code
-/// and fails nothing on its own.
+/// statement · the consent lane's findings and hints). Never a scan,
+/// never a finding: the grade is a projection, so it carries no
+/// `NIKA-*` code and fails nothing on its own.
 #[must_use]
 pub fn risk_grade(report: &CheckReport) -> RiskGrade {
     let base = authority_grade(report);
     // P0-2 — a human gate no route consumes affirmatively is a rubber
-    // stamp: the consent hint lifts the grade to at least High.
-    if report.hints.iter().any(|h| h.kind == "consent") {
+    // stamp: the consent refusal (NEP-0020 · the proven route) and the
+    // advisory hint (the unproven one) both lift the grade to at least
+    // High.
+    if !report.consent_findings.is_empty() || report.hints.iter().any(|h| h.kind == "consent") {
         base.max(RiskGrade::High)
     } else {
         base

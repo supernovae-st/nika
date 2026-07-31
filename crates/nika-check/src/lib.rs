@@ -149,6 +149,7 @@ use nika_schema::raw::RawWorkflow;
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
+pub use consent::ConsentFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
 pub use data_sink::SinkFinding;
 pub use declass::LeakReason;
@@ -348,6 +349,15 @@ pub struct CheckReport {
     /// `NIKA-SEC-013` — judged on the derived graph, so empty when
     /// `conformance` has entries). Additive: `report_version` stays 1.
     pub policy_findings: Vec<nika_cap::PolicyViolation>,
+    /// Every affirmative-consent refusal (NEP-0020 · `NIKA-SEC-014`): an
+    /// egress-capable task reached from a confirm-mode human gate over a
+    /// route no affirmative gate closes — false triggers exactly zero
+    /// effects. Judged on the derived graph — empty when `conformance`
+    /// has entries. The UNDECIDABLE remainder (a nested binding · a
+    /// non-fragment gate) stays advisory in `hints` — the blocking row
+    /// fires only on the PROVEN route (sound, never a false red).
+    /// Additive: `report_version` stays 1.
+    pub consent_findings: Vec<ConsentFinding>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
     /// `nika:prompt` gate dominates. Judged on the derived graph and the
@@ -447,9 +457,10 @@ pub struct CheckReport {
 
 impl CheckReport {
     /// Whether the workflow is clean — conformant, no leaks, no
-    /// egresses, no capability escapes, no schema-type findings, no
-    /// unknown tools, no schema-lint defects. (Cost-ceiling unknowns
-    /// and hints are informational, not failures.)
+    /// egresses, no capability escapes, no policy or consent refusals,
+    /// no schema-type findings, no unknown tools, no schema-lint
+    /// defects. (Cost-ceiling unknowns and hints are informational, not
+    /// failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.conformance.is_empty()
@@ -459,6 +470,7 @@ impl CheckReport {
             && self.permit_taints.is_empty()
             && self.sink_findings.is_empty()
             && self.policy_findings.is_empty()
+            && self.consent_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
@@ -532,6 +544,12 @@ impl CheckReport {
         // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
         let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
         codes.extend(self.trifecta_findings.iter().map(|_| trifecta_code));
+        // The affirmative-consent law (NEP-0020) → NIKA-SEC-014.
+        codes.extend(
+            self.consent_findings
+                .iter()
+                .map(|_| SpecCode::new("SEC", 14, SpecCategory::SecurityError)),
+        );
         codes.extend(self.unknown_tools.iter().map(|_| builtin));
         codes.extend(self.unknown_args.iter().map(|_| builtin));
         codes.extend(self.missing_args.iter().map(|_| builtin));
@@ -700,11 +718,15 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     } else {
         Vec::new()
     };
-    // P0-2 · the affirmative-consent lane: advisory hints over the same
-    // derived edges (valid DAG or no claim — the policy/trifecta gating).
-    if conformance.is_empty() {
-        hints.extend(consent::scan_consent(wf, &edges));
-    }
+    // P0-2 · the affirmative-consent lane (NEP-0020 · NIKA-SEC-014): the
+    // PROVEN non-affirmative route refuses (the finding), the undecidable
+    // remainder keeps the advisory hint — same DAG gating as policy.
+    let consent_scan = if conformance.is_empty() {
+        consent::scan_consent(wf, &edges)
+    } else {
+        consent::ConsentScan::default()
+    };
+    hints.extend(consent_scan.hints);
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);
@@ -724,6 +746,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         permit_taints: permit_taint::scan_permit_taint(wf),
         sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,
+        consent_findings: consent_scan.findings,
         trifecta_findings,
         schema_findings,
         unverifiable_output_refs,

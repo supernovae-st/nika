@@ -153,7 +153,7 @@ fn model_override_replaces_the_resolved_model() {
 fn answer_without_resume_preseeds_the_gate() {
     let wf = stage(
         "answer-fresh.nika.yaml",
-        "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
     );
     let req = nika_dap::resume::ResumeRequest {
         trace: None, // the answers-only form — no plan, no paused ticket

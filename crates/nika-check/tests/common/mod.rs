@@ -182,6 +182,12 @@ pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<S
                     // (core/authority/026) — a fetch-side SEC-005 emitted
                     // at run stays the deep/runtime ground as before.
                     || (c.namespace == "SEC" && c.num == 5)
+                    // NEP-0020 · the affirmative-consent law (NIKA-SEC-014)
+                    // is Core-visible for the same reason: the reference
+                    // oracle judges it on every tier (deep_static.py
+                    // consent_errors) and its fixtures live in
+                    // core/policy/ — the human-gate family's home tier.
+                    || (c.namespace == "SEC" && c.num == 14)
             })
             .collect()
         }

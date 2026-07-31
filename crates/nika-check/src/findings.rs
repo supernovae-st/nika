@@ -31,7 +31,7 @@ use super::{CheckReport, FindingSeverity};
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
     /// `capability_escape` · `permit_taint` · `data_sink` · `policy` ·
-    /// `trifecta` · `schema_type` · `gate` · `run_decl` ·
+    /// `consent` · `trifecta` · `schema_type` · `gate` · `run_decl` ·
     /// `write_conflict` · `composition` · `unknown_tool` ·
     /// `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
@@ -215,6 +215,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     fold_permit_taints(report, &mut out);
     fold_sink_findings(report, &mut out);
     fold_policy_findings(report, &mut out);
+    fold_consent(report, &mut out);
     fold_trifecta(report, &mut out);
     for s in &report.schema_findings {
         out.push(UnifiedFinding::new(
@@ -307,6 +308,24 @@ fn fold_sink_findings(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(s.task.clone());
+        out.push(f);
+    }
+}
+
+/// The affirmative-consent class (NEP-0020 · NIKA-SEC-014) — the detail
+/// names the gate AND the sink and teaches the affirmative pattern; the
+/// code is the finding's own const (one voice with the
+/// extra-conformance list).
+fn fold_consent(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for c in &report.consent_findings {
+        let mut f = UnifiedFinding::new("consent", "CONSENT", c.detail.clone());
+        f.code = Some(crate::ConsentFinding::WIRE_CODE.to_owned());
+        f.docs_url = Some(format!(
+            "{}/{}",
+            super::ERROR_DOCS_BASE,
+            crate::ConsentFinding::WIRE_CODE
+        ));
+        f.task = Some(c.sink.clone());
         out.push(f);
     }
 }

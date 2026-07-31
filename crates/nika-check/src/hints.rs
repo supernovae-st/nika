@@ -54,13 +54,14 @@
 //!   interpreter inline-eval flag or subcommand the runtime's exec
 //!   floor refuses positionally — the check predicts the refusal the
 //!   run would apply (script file or `pre_validated` instead).
-//! - **non-affirmative human gate** (`consent`) — emitted by the
-//!   `check/consent.rs` lane (P0-2): an egress-capable descendant of a
-//!   confirm-mode `nika:prompt` is reachable over a route that never
-//!   consumes the answer affirmatively (a refused confirm settles
-//!   success-with-false, so a bare `after: success` lets the effect
-//!   through); the advice teaches the `with: go` + `when:` pattern and
-//!   the risk grade reads the hint as a High signal.
+//! - **unproven human-gate route** (`consent`) — emitted by the
+//!   `check/consent.rs` lane (P0-2 · NEP-0020): an egress-capable
+//!   descendant of a confirm-mode `nika:prompt` sits behind a gate the
+//!   checker cannot PROVE consumes the answer (a nested binding · a
+//!   non-fragment expression) — the PROVEN non-affirmative route is the
+//!   `NIKA-SEC-014` refusal, this hint is the undecidable remainder
+//!   (sound, never a false red); the advice teaches the `with: go` +
+//!   `when:` pattern and the risk grade reads it as a High signal.
 //! - **exec JSON stdout capture** (`exec-json-capture`) — an `exec:` task
 //!   declares `capture: structured`, a binding parses `.stdout | fromjson`,
 //!   and NO binding reads `exit_code`/`stderr`; use `capture: stdout` for
