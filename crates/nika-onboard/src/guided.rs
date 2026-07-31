@@ -369,6 +369,35 @@ pub(crate) fn ask(
     Ok(Some(line.trim().to_owned()))
 }
 
+/// One prompt, re-asked until the answer RESOLVES (P0-8): Enter takes
+/// the announced default (unchanged behavior) · a NON-EMPTY answer the
+/// parser refuses is SAID (« unrecognized ») and asked again — a typo
+/// must never become a silent default · EOF cancels, honestly (`None`,
+/// never a loop). The parser sees only non-empty answers.
+pub(crate) fn ask_validated<T>(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+    prompt: &str,
+    hint: &str,
+    parse: impl Fn(&str) -> Option<T>,
+    default: impl Fn() -> T,
+) -> std::io::Result<Option<T>> {
+    loop {
+        let Some(raw) = ask(input, out, theme, prompt)? else {
+            return Ok(None);
+        };
+        if raw.is_empty() {
+            return Ok(Some(default()));
+        }
+        if let Some(value) = parse(&raw) {
+            return Ok(Some(value));
+        }
+        let said = format!("unrecognized `{raw}` — {hint}");
+        writeln!(out, "  {}", theme.paint(Role::Bad, &said))?;
+    }
+}
+
 /// The wizard's template rung: exact name first, confident intent route
 /// second, the announced Enter default third — and the SAID fallback
 /// last (P0-1: the chain fallback used to be SILENT; a below-the-bar
@@ -457,26 +486,29 @@ pub(crate) fn model_menu() -> Vec<(String, &'static str)> {
     .collect()
 }
 
-/// A menu number, a full `provider/model`, or Enter → the offline mock
-/// (the one answer that succeeds with zero keys and zero network — the
-/// first run must not be able to fail).
-pub(crate) fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> String {
-    let fallback = || {
-        menu.get(1)
-            .map_or_else(|| "mock/echo".to_owned(), |(m, _)| m.clone())
-    };
-    if pick.is_empty() {
-        return fallback();
-    }
-    if let Ok(n) = pick.parse::<usize>()
-        && let Some((m, _)) = n.checked_sub(1).and_then(|i| menu.get(i))
-    {
-        return m.clone();
+/// A menu number or a full `provider/model` → the model. `None` = the
+/// answer is NEITHER (a bare word like « gpt » · a number off the menu)
+/// — the caller re-asks instead of inheriting a silent mock (P0-8).
+/// Enter never reaches here: the ask loop maps it to [`default_model`].
+pub(crate) fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> Option<String> {
+    if let Ok(n) = pick.parse::<usize>() {
+        return n
+            .checked_sub(1)
+            .and_then(|i| menu.get(i))
+            .map(|(m, _)| m.clone());
     }
     if pick.contains('/') {
-        return pick.to_owned();
+        return Some(pick.to_owned());
     }
-    fallback()
+    None
+}
+
+/// The Enter default — the offline mock (the one answer that succeeds
+/// with zero keys and zero network — the first run must not be able to
+/// fail).
+pub(crate) fn default_model(menu: &[(String, &'static str)]) -> String {
+    menu.get(1)
+        .map_or_else(|| "mock/echo".to_owned(), |(m, _)| m.clone())
 }
 
 /// A kebab workflow id out of the destination file name.
@@ -556,7 +588,7 @@ pub(crate) fn ask_model(
             theme.paint(Role::Dim, note),
         )?;
     }
-    let Some(pick) = ask(
+    let Some(model) = ask_validated(
         input,
         out,
         theme,
@@ -564,11 +596,13 @@ pub(crate) fn ask_model(
             "a number, or any provider/model {}",
             theme.paint(Role::Dim, "[2]")
         ),
+        &format!("choose 1-{} or a provider/model", menu.len()),
+        |raw| resolve_model(raw, &menu),
+        || default_model(&menu),
     )?
     else {
         return Ok(None);
     };
-    let model = resolve_model(&pick, &menu);
     writeln!(out, "  → model `{}`", theme.paint(Role::Accent, &model))?;
     Ok(Some(model))
 }
@@ -1027,22 +1061,52 @@ mod tests {
         assert!(menu.iter().all(|(m, _)| m.contains('/')), "{menu:?}");
     }
 
+    /// P0-8 · a non-empty pick that is neither a menu number nor a
+    /// `provider/model` is SAID and re-asked — it used to become the
+    /// offline mock SILENTLY (« gpt » → mock/echo without a word).
     #[test]
-    fn resolve_model_defaults_to_the_offline_mock() {
-        let menu = model_menu();
-        let default = resolve_model("", &menu);
+    fn ask_model_reasks_an_unrecognized_pick() {
+        let mut input = std::io::Cursor::new(b"gpt\n\n".to_vec());
+        let mut out = Vec::new();
+        let model = ask_model(&mut input, &mut out, PLAIN)
+            .expect("io ok")
+            .expect("not cancelled");
         assert!(
-            default.starts_with("mock/"),
-            "Enter must never fail: {default}"
+            model.starts_with("mock/"),
+            "Enter after the re-ask: {model}"
         );
-        assert_eq!(resolve_model("1", &menu), menu[0].0);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("unrecognized"), "the typo is said: {shown}");
+    }
+
+    #[test]
+    fn resolve_model_accepts_only_a_menu_number_or_a_wire_id() {
+        // FLIP (P0-8 · 2026-07-31): resolve_model is now honest — Option,
+        // with the ASK LOOP owning the Enter default (default_model) and
+        // the re-ask. « 99 » and « gpt » used to pin the SILENT mock
+        // fallback.
+        let menu = model_menu();
+        assert!(
+            default_model(&menu).starts_with("mock/"),
+            "Enter must never fail"
+        );
         assert_eq!(
-            resolve_model("ollama/llama3.2:3b", &menu),
-            "ollama/llama3.2:3b"
+            resolve_model("1", &menu).as_deref(),
+            Some(menu[0].0.as_str())
         );
-        // A number off the menu or a word without `/` falls back safe.
-        assert!(resolve_model("99", &menu).starts_with("mock/"));
-        assert!(resolve_model("gpt", &menu).starts_with("mock/"));
+        assert_eq!(
+            resolve_model("ollama/llama3.2:3b", &menu).as_deref(),
+            Some("ollama/llama3.2:3b")
+        );
+        // A number off the menu or a word without `/` is unrecognized —
+        // said + re-asked by the loop, never a silent mock.
+        assert_eq!(resolve_model("99", &menu), None);
+        assert_eq!(resolve_model("gpt", &menu), None);
+        assert_eq!(
+            resolve_model("", &menu),
+            None,
+            "Enter is the loop's default"
+        );
     }
 
     #[test]

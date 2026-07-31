@@ -177,7 +177,7 @@ fn ask_canvas(
     for (i, (c, note)) in CANVAS_MENU.iter().enumerate() {
         writeln!(out, "{}", chrome::rail_pick(theme, i + 1, c.as_str(), note))?;
     }
-    let Some(pick) = guided::ask(
+    let Some(canvas) = guided::ask_validated(
         input,
         out,
         theme,
@@ -185,11 +185,14 @@ fn ask_canvas(
             "a number, or Enter to skip {}",
             theme.paint(Role::Dim, "[skip]")
         ),
+        &format!("choose 1-{}", CANVAS_MENU.len()),
+        |raw| resolve_canvas(raw).map(Some),
+        || None,
     )?
     else {
         return Ok(None);
     };
-    Ok(Some(resolve_canvas(&pick)))
+    Ok(Some(canvas))
 }
 
 /// The agents beat — wire the MCP oracle into the picked clients.
@@ -211,7 +214,7 @@ fn ask_wires(
         "{}",
         chrome::rail_pick(theme, WIRE_MENU.len() + 1, "all", "every supported client")
     )?;
-    let Some(pick) = guided::ask(
+    let Some(wires) = guided::ask_validated(
         input,
         out,
         theme,
@@ -219,11 +222,21 @@ fn ask_wires(
             "numbers (`1 3`), `all`, or Enter to skip {}",
             theme.paint(Role::Dim, "[skip]")
         ),
+        &format!("choose numbers in 1-{} or `all`", WIRE_MENU.len() + 1),
+        |raw| {
+            let targets = resolve_wires(raw);
+            if targets.is_empty() {
+                None
+            } else {
+                Some(targets)
+            }
+        },
+        Vec::new,
     )?
     else {
         return Ok(None);
     };
-    Ok(Some(resolve_wires(&pick)))
+    Ok(Some(wires))
 }
 
 /// The write phase — briefs · workflows · wires · proof · panel.
@@ -412,33 +425,51 @@ fn relative(dir: &str, path: &str) -> String {
         .map_or_else(|_| path.to_owned(), |p| p.to_string_lossy().into_owned())
 }
 
-/// A menu answer → the recipe (Enter = the agentic curriculum · a name
-/// works too · anything else falls back to the default, never a dead
-/// end after the human answered).
+/// What the blueprint answer resolves to — a recipe, or the example
+/// lane (whose slug follow-up runs after the pick).
+enum BlueprintPick {
+    Recipe(&'static Recipe),
+    ExampleLane,
+}
+
 /// The blueprint beat — the pick answer, the example-slug follow-up
 /// when lane 6 is chosen, and the confirmation rail line. `None` = EOF.
+/// Enter = the agentic curriculum (the announced default) · a NON-EMPTY
+/// answer that is neither a menu number nor a recipe name is SAID and
+/// re-asked (P0-8 — « débutant » or « 99 » must never become agentic
+/// silently).
 #[allow(clippy::type_complexity)] // (recipe, example) IS the harvest shape
 fn ask_blueprint(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     theme: Theme,
 ) -> std::io::Result<Option<(&'static Recipe, Option<String>)>> {
-    let Some(pick) = guided::ask(
+    let Some(pick) = guided::ask_validated(
         input,
         out,
         theme,
         &format!("a number {}", theme.paint(Role::Dim, "[1 agentic]")),
+        &format!("choose 1-{} or a recipe name", RECIPES.len() + 1),
+        |raw| {
+            if is_example_pick(raw) {
+                Some(BlueprintPick::ExampleLane)
+            } else {
+                resolve_recipe(raw).map(BlueprintPick::Recipe)
+            }
+        },
+        || BlueprintPick::Recipe(&RECIPES[0]),
     )?
     else {
         return Ok(None);
     };
-    let (recipe, example) = if is_example_pick(&pick) {
-        let Some(slug) = ask_example_slug(input, out, theme)? else {
-            return Ok(None);
-        };
-        (&RECIPES[0], Some(slug))
-    } else {
-        (resolve_recipe(&pick), None)
+    let (recipe, example) = match pick {
+        BlueprintPick::Recipe(recipe) => (recipe, None),
+        BlueprintPick::ExampleLane => {
+            let Some(slug) = ask_example_slug(input, out, theme)? else {
+                return Ok(None);
+            };
+            (&RECIPES[0], Some(slug))
+        }
     };
     let picked_line = example.as_ref().map_or_else(
         || {
@@ -467,54 +498,45 @@ fn is_example_pick(pick: &str) -> bool {
 }
 
 /// The example-slug beat — free entry, `01-hello` as the Enter default,
-/// validated against the embedded set (a typo re-asks nothing: the
-/// honest refusal names the fix and falls back to the default).
+/// validated against the embedded set (P0-8: an unknown slug is SAID and
+/// re-asked — it used to fall back to 01-hello after one note, still
+/// overriding the human's choice).
 fn ask_example_slug(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     theme: Theme,
 ) -> std::io::Result<Option<String>> {
-    let Some(raw) = guided::ask(
+    guided::ask_validated(
         input,
         out,
         theme,
         &format!("example slug {}", theme.paint(Role::Dim, "[01-hello]")),
-    )?
-    else {
-        return Ok(None);
-    };
-    let slug = if raw.trim().is_empty() {
-        "01-hello".to_owned()
-    } else {
-        raw.trim().to_owned()
-    };
-    if nika_pack::example(&slug).is_none() {
-        writeln!(
-            out,
-            "{}",
-            chrome::rail_line(
-                theme,
-                &format!(
-                    "→ unknown `{slug}` — `nika examples list` names the set · using 01-hello"
-                )
-            )
-        )?;
-        return Ok(Some("01-hello".to_owned()));
-    }
-    Ok(Some(slug))
+        "any slug from `nika examples list`",
+        |raw| {
+            let slug = raw.trim();
+            if nika_pack::example(slug).is_some() {
+                Some(slug.to_owned())
+            } else {
+                None
+            }
+        },
+        || "01-hello".to_owned(),
+    )
 }
 
-fn resolve_recipe(pick: &str) -> &'static Recipe {
-    if let Ok(n) = pick.parse::<usize>()
-        && let Some(r) = n.checked_sub(1).and_then(|i| RECIPES.get(i))
-    {
-        return r;
+/// A menu answer → the recipe. `None` = neither a menu number nor a
+/// known recipe name — the ask loop says so and re-asks (Enter never
+/// reaches here: the loop maps it to the announced agentic default).
+fn resolve_recipe(pick: &str) -> Option<&'static Recipe> {
+    if let Ok(n) = pick.parse::<usize>() {
+        return n.checked_sub(1).and_then(|i| RECIPES.get(i));
     }
-    super::recipes::recipe(pick).unwrap_or(&RECIPES[0])
+    super::recipes::recipe(pick)
 }
 
-/// A menu answer → the canvas theme (Enter or anything unrecognized =
-/// skip — a theme is an offer, never a toll).
+/// A menu answer → the canvas theme. `None` = unrecognized (the ask
+/// loop says so and re-asks · Enter = skip, mapped by the loop — a
+/// theme is an offer, never a toll).
 fn resolve_canvas(pick: &str) -> Option<CanvasTheme> {
     if let Ok(n) = pick.parse::<usize>() {
         return n
@@ -528,7 +550,9 @@ fn resolve_canvas(pick: &str) -> Option<CanvasTheme> {
         .map(|(c, _)| *c)
 }
 
-/// A menu answer → wire targets (`1 3` · `all` · Enter/other = none).
+/// A menu answer → wire targets (`1 3` · `all`). An EMPTY result on a
+/// non-empty answer = unrecognized (the ask loop says so and re-asks ·
+/// Enter = skip, mapped by the loop).
 fn resolve_wires(pick: &str) -> Vec<&'static str> {
     if pick.eq_ignore_ascii_case("all") {
         return vec!["all"];
@@ -617,6 +641,121 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// P0-8 · a NON-EMPTY answer the menu doesn't carry is SAID and
+    /// RE-ASKED — never a silent default. « débutant » must not found an
+    /// agentic project by accident: the wizard says « unrecognized »,
+    /// poses the recipe question again, and only the explicit `1` lands
+    /// the agentic pick.
+    #[test]
+    fn an_invalid_recipe_answer_is_said_and_reasked() {
+        let dir = fresh_dir("reask");
+        let d = dir.to_str().expect("utf8");
+        // recipe « débutant » (invalid → re-asked) · 1 (agentic,
+        // explicit) · model Enter · canvas Enter · agents Enter
+        let mut input = std::io::Cursor::new("débutant\n1\n\n\n\n".as_bytes().to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("unrecognized"), "the typo is said: {shown}");
+        let after = &shown[shown.find("unrecognized").expect("said")..];
+        assert!(
+            after.contains("[1 agentic]"),
+            "the recipe question is re-posed: {shown}"
+        );
+        let reask = &after[after.find("[1 agentic]").expect("re-posed")..];
+        assert!(
+            reask.contains("→ agentic"),
+            "agentic lands only AFTER the explicit pick: {shown}"
+        );
+        assert!(
+            dir.join("workflows/01-hello-chain.nika.yaml").exists(),
+            "the explicit agentic pick founded the project"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// P0-8 · the loop discipline covers EVERY menu beat: a canvas prose
+    /// answer and a wires prose answer are each said + re-asked, Enter
+    /// still skips.
+    #[test]
+    fn invalid_canvas_and_wires_answers_are_said_and_reasked() {
+        let dir = fresh_dir("reask2");
+        let d = dir.to_str().expect("utf8");
+        // recipe 5 (minimal · no model question) · canvas « thème sombre »
+        // (invalid → re-asked) · 2 (editor) · agents « aucun » (invalid →
+        // re-asked) · Enter (skip)
+        let mut input = std::io::Cursor::new("5\nthème sombre\n2\naucun\n\n".as_bytes().to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert_eq!(
+            shown.matches("unrecognized").count(),
+            2,
+            "both typos are said: {shown}"
+        );
+        let settings = std::fs::read_to_string(dir.join(".vscode/settings.json")).expect("written");
+        let parsed: serde_json::Value = serde_json::from_str(&settings).expect("valid json");
+        assert_eq!(
+            parsed.get("nika.dag.theme").and_then(|v| v.as_str()),
+            Some("editor"),
+            "the re-asked canvas pick lands"
+        );
+        assert!(
+            !v.text.contains("wired to the oracle"),
+            "the skipped wires stay skipped: {}",
+            v.text
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// P0-8 · an unknown example slug is said + re-asked too (it used to
+    /// fall back to 01-hello after one note — the human's choice was
+    /// still overridden).
+    #[test]
+    fn an_unknown_example_slug_is_said_and_reasked() {
+        let dir = fresh_dir("reask3");
+        let d = dir.to_str().expect("utf8");
+        // recipe lane « example » · slug « hello » (unknown → re-asked) ·
+        // « 01-hello » · canvas Enter · agents Enter
+        let mut input = std::io::Cursor::new(b"example\nhello\n01-hello\n\n\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("unrecognized"), "the typo is said: {shown}");
+        assert!(
+            shown.contains("→ example `01-hello`"),
+            "the re-asked slug lands: {shown}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// EOF before the first write = nothing on disk, the honest cancel.
     #[test]
     fn cancel_before_write_leaves_nothing() {
@@ -673,10 +812,25 @@ mod tests {
 
     #[test]
     fn resolvers_cover_the_menus() {
-        assert_eq!(resolve_recipe("").name, "agentic", "Enter = the default");
-        assert_eq!(resolve_recipe("3").name, "ship");
-        assert_eq!(resolve_recipe("ship").name, "ship", "names work too");
-        assert_eq!(resolve_recipe("99").name, "agentic", "off-menu falls back");
+        // FLIP (P0-8 · 2026-07-31): resolve_recipe is now honest — it
+        // returns Option and the ASK LOOP owns the Enter default and the
+        // re-ask. The « 99 » line used to PIN the silent agentic
+        // fallback (a typo founding the wrong project without a word).
+        assert_eq!(resolve_recipe("3").map(|r| r.name), Some("ship"));
+        assert_eq!(
+            resolve_recipe("ship").map(|r| r.name),
+            Some("ship"),
+            "names work too"
+        );
+        assert!(resolve_recipe("").is_none(), "Enter is the loop's default");
+        assert!(
+            resolve_recipe("99").is_none(),
+            "off-menu is said + re-asked, never a silent default"
+        );
+        assert!(
+            resolve_recipe("débutant").is_none(),
+            "prose is not a recipe"
+        );
 
         assert_eq!(resolve_canvas(""), None, "Enter skips");
         assert_eq!(resolve_canvas("1"), Some(CanvasTheme::Nika));
