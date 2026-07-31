@@ -11,15 +11,15 @@ foundation:
   - file: examples/02-parallel-fanout.nika.yaml
     sha256_16: 0c3b9b7c2d5f4c8a
   - file: examples/03-exec-pipeline.nika.yaml
-    sha256_16: f1e5fb6665852202
+    sha256_16: f355d62df8cdf673
   - file: examples/04-schema-retry.nika.yaml
-    sha256_16: bf31cd858ecec6bb
+    sha256_16: 2bc4f2156d20d243
   - file: examples/05-fetch-chain.nika.yaml
     sha256_16: b2aff8eaca44bba3
   - file: examples/06-code-review.nika.yaml
     sha256_16: 1f6b785901dff464
   - file: examples/07-for-each-locales.nika.yaml
-    sha256_16: 396c1cc81c62d259
+    sha256_16: a1669393cee0ee22
   - file: examples/08-config-values.nika.yaml
     sha256_16: 552f45823a8cdae6
   - file: examples/09-returns-typed-door.nika.yaml
@@ -31,59 +31,59 @@ foundation:
   - file: examples/11-declassify-the-door.nika.yaml
     sha256_16: 1f8bf7fe26a01c9b
   - file: examples/12-failure-routing.nika.yaml
-    sha256_16: 362581f1ec7c44c4
+    sha256_16: 9049c1132ab0c545
 templates:
   - file: templates/agent-loop.nika.yaml
-    sha256_16: fba1d9e2c3c6c05d
+    sha256_16: 381227785a13b3a1
   - file: templates/api-upload-and-create.nika.yaml
-    sha256_16: 6a66f28263c1cb0d
+    sha256_16: 7e27c1b460940bfe
   - file: templates/chain.nika.yaml
-    sha256_16: db5460bf09b58462
+    sha256_16: d754834bf3bcfa1c
   - file: templates/docker-report.nika.yaml
-    sha256_16: d038441485332a70
+    sha256_16: aa0bdafc1d8c4a68
   - file: templates/etl-state.nika.yaml
-    sha256_16: 2ddc8e379f32352d
+    sha256_16: 2a7b3145104abc43
   - file: templates/fanout.nika.yaml
-    sha256_16: 1b480f5fe640f8e2
+    sha256_16: a6620ae22da1887d
   - file: templates/gate-and-act.nika.yaml
-    sha256_16: edfd4419aafaa80a
+    sha256_16: 3bc291b44971559a
   - file: templates/human-gated-ship.nika.yaml
-    sha256_16: a399503dc5c9d6b7
+    sha256_16: 28f87fb5070ce7ec
   - file: templates/media-asset-pack.nika.yaml
-    sha256_16: 7fb6f21d24b378d5
+    sha256_16: 7e00bb6ba7124a03
   - file: templates/website-brief.nika.yaml
-    sha256_16: edb84a9e2d0e47ac
+    sha256_16: 7c861d48f78e3333
 showcase:
   - file: examples/bookmark-triage.nika.yaml
     workflow: {'id': 'bookmark-triage', 'description': 'URL list → per-page metadata fan-out (dead links survive) → one markdown triage table'}
     description: ""
     constructs: [fail_fast, for_each, max_parallel, on_error, outputs, retry, with]
-    sha256_16: e195fe4cf99b4dd6
+    sha256_16: 182f71e5f4882531
   - file: examples/ceo-monday-brief.nika.yaml
     workflow: {'id': 'ceo-monday-brief', 'description': 'news + repo pulse + KPIs → one synthesis → dated brief → a ping on every outcome'}
     description: ""
     constructs: [local_model, on_error, output, outputs, secrets, thinking, when, with]
     sha256_16: 53ef64c1ff5f4114
   - file: examples/competitor-radar.nika.yaml
-    workflow: {'id': 'competitor-radar', 'description': 'sitemap → what changed this window → parallel page reads → one brief'}
+    workflow: {'id': 'competitor-radar', 'description': 'competitor watch · their sitemap says what shipped or changed this week → parallel page reads → one Monday brief'}
     description: ""
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, retry, timeout, when, with]
-    sha256_16: b64b0a3df8112b7d
+    sha256_16: d9f7e15dc81b2f2d
   - file: examples/config-drift-sentinel.nika.yaml
     workflow: {'id': 'config-drift-sentinel', 'description': 'live config vs sanctioned baseline → typed drift → triaged, explained alert'}
     description: ""
     constructs: [local_model, on_error, outputs, retry, secrets, when, with]
-    sha256_16: ac6f4ee3f3cde356
+    sha256_16: 5e8f0b6e11edc9cf
   - file: examples/contract-guard.nika.yaml
     workflow: {'id': 'contract-guard', 'description': 'Local-model clause extraction → schema gate → risk memo'}
     description: ""
     constructs: [local_model, outputs, schema, with]
     sha256_16: f56ca394e1414583
   - file: examples/csv-chart-report.nika.yaml
-    workflow: {'id': 'csv-chart-report', 'description': 'CSV → aggregate → rendered bar chart + markdown report · offline · deterministic'}
+    workflow: {'id': 'csv-chart-report', 'description': 'CSV / spreadsheet → aggregate → rendered bar chart + markdown report · offline · deterministic'}
     description: ""
     constructs: [outputs, with]
-    sha256_16: 5a68d810f6ba1c04
+    sha256_16: c24354a21ade10c4
   - file: examples/deep-research-brief.nika.yaml
     workflow: {'id': 'deep-research-brief', 'description': 'plan → budgeted research agent → thinking synthesis → brief on disk'}
     description: ""
@@ -93,7 +93,7 @@ showcase:
     workflow: {'id': 'etl-quarantine', 'description': 'CSV batch → schema gate → quarantine the bad · aggregate the good'}
     description: ""
     constructs: [on_error, outputs, when, with]
-    sha256_16: f786b1183675c74b
+    sha256_16: 495a5148bd073eeb
   - file: examples/image-fx-batch.nika.yaml
     workflow: {'id': 'image-fx-batch', 'description': 'Folder of PNG files → deterministic art (grayscale · dither · pixelate) · offline batch'}
     description: ""
@@ -118,22 +118,22 @@ showcase:
     workflow: {'id': 'meeting-actions', 'description': 'Transcript → typed action items {owner, task, due}'}
     description: ""
     constructs: [local_model, outputs, schema, with]
-    sha256_16: 6f2e77025d8fb5f4
+    sha256_16: 9958994e785950b5
   - file: examples/model-bench.nika.yaml
-    workflow: {'id': 'model-bench', 'description': 'One question → three local models → a measured comparison table'}
+    workflow: {'id': 'model-bench', 'description': 'benchmark and compare three local models — the same question to every seat → one measured table (latency · length)'}
     description: ""
     constructs: [local_model, outputs, with]
-    sha256_16: 22f769bcdac1194a
+    sha256_16: d24bac5bcd4a29b5
   - file: examples/og-images.nika.yaml
     workflow: {'id': 'og-images', 'description': 'Generate the launch OG hero image set into out/og'}
     description: ""
     constructs: [outputs]
     sha256_16: 7e866cc41a9b27f2
   - file: examples/pr-review-fanout.nika.yaml
-    workflow: {'id': 'pr-review-fanout', 'description': 'changed files → one read-only review agent each → merged REVIEW.md'}
+    workflow: {'id': 'pr-review-fanout', 'description': 'review a pull request · changed files → one read-only review agent per file → merged REVIEW.md'}
     description: ""
     constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: 9e6592fe20370c78
+    sha256_16: 92656d406f7c2291
   - file: examples/price-watch.nika.yaml
     workflow: {'id': 'price-watch', 'description': 'Watch a product price, ping me when it drops below my target'}
     description: ""
@@ -143,27 +143,27 @@ showcase:
     workflow: {'id': 'release-notes', 'description': 'git log → typed release notes → CHANGELOG insert → team ping'}
     description: ""
     constructs: [local_model, on_error, outputs, schema, secrets, when, with]
-    sha256_16: 112b54bf95805f8d
+    sha256_16: 308ee424455d9568
   - file: examples/release-radar.nika.yaml
     workflow: {'id': 'release-radar', 'description': 'dependency release feed → diff vs last run → only the NEW ships'}
     description: ""
     constructs: [local_model, on_error, output, outputs, when, with]
-    sha256_16: 6ff598c6f62307ce
+    sha256_16: 6bc70926b373c3b6
   - file: examples/release-train.nika.yaml
     workflow: {'id': 'release-train', 'description': 'parallel gates → one verdict → human GO → hold until the window → ship · verify · record'}
     description: ""
     constructs: [outputs, retry, timeout, when, with]
-    sha256_16: 52a48b3df7442ad6
+    sha256_16: e9128287aaa42582
   - file: examples/resume-screener.nika.yaml
-    workflow: {'id': 'resume-screener', 'description': 'glob CVs → local-model rubric per candidate → deterministic shortlist'}
+    workflow: {'id': 'resume-screener', 'description': 'screen resumes · glob CVs → local-model rubric per candidate → deterministic hiring shortlist'}
     description: ""
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: ad75a11643112122
+    sha256_16: 5f8b0a36361b4f7c
   - file: examples/seo-content-brief.nika.yaml
     workflow: {'id': 'seo-content-brief', 'description': 'Competitor sitemap → top page → gap analysis → typed brief'}
     description: ""
     constructs: [local_model, on_error, output, outputs, schema, with]
-    sha256_16: 48bb065075c3c3fc
+    sha256_16: af89cab80ab3dbfc
   - file: examples/social-repurpose.nika.yaml
     workflow: {'id': 'social-repurpose', 'description': 'One post → thread + LinkedIn + newsletter, in parallel'}
     description: ""
@@ -173,12 +173,12 @@ showcase:
     workflow: {'id': 'standup-digest', 'description': "Read yesterday's commits, write today's standup note"}
     description: ""
     constructs: [local_model, outputs, with]
-    sha256_16: b8ccf8c32c54b53b
+    sha256_16: f98750b181359fd8
   - file: examples/support-triage.nika.yaml
     workflow: {'id': 'support-triage', 'description': 'Ticket queue → typed triage → urgent escalation → triage board'}
     description: ""
     constructs: [local_model, outputs, schema, secrets, when, with]
-    sha256_16: c59999e73d4c8cf9
+    sha256_16: 39b5d99526851f43
   - file: examples/transcript-shownotes.nika.yaml
     workflow: {'id': 'transcript-shownotes', 'description': 'Raw transcript → typed show-notes (chapters · quotes · summary) · one bounded infer'}
     description: ""

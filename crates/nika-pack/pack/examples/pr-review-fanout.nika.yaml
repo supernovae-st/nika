@@ -33,6 +33,10 @@
 #   is the one-liner. Granting the path instead means granting its EFFECTIVE
 #   path — a grant naming a symlink is refused, not followed (NEP-0009).
 #
+# It runs green but PAUSES at `approve` (exit 4, not a failure) —
+#   nika run <file> --resume <trace> --answer approve=true
+#   (or answer it in one pass: add --answer approve=true to the Run line)
+#
 # Run · nika run examples/pr-review-fanout.nika.yaml
 #         (from the root of the repo under review · add --model mock/echo
 #          to rehearse the wiring without a model)
@@ -40,7 +44,7 @@
 nika: v1
 workflow:
   id: pr-review-fanout
-  description: "changed files → one read-only review agent each → merged REVIEW.md"
+  description: "review a pull request · changed files → one read-only review agent per file → merged REVIEW.md"
 
 model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
 
@@ -49,7 +53,6 @@ const:
   review_root: "src/"      # the swarm's territory · keep in step with permits.fs.read
 
 permits:
-  tools: ["nika:done", "nika:grep", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
   # The argv form (`exec.command:`) runs one named program with its arguments
   # and no shell between them, which is what makes a program allowlist mean
   # something. A `exec.shell:` task is refused against a list — measured:
@@ -62,6 +65,7 @@ permits:
   # `fs:` boundary below, which is why the header's second `Needs ·` line is
   # about git's global config rather than about git.
   exec: ["git"]
+  tools: ["nika:done", "nika:grep", "nika:jq", "nika:prompt", "nika:read", "nika:write"]
   fs:
     # `./src/**` covers the directory AND every descendant at any depth, which
     # is what both consumers need: `nika:grep` opens `./src` itself, and the
@@ -85,6 +89,7 @@ tasks:
   # it), and each root CONSUMES the answer affirmatively (NEP-0020 — a
   # bare `after:` admits the refusal: it settles success with value
   # false). Under `--answer approve=true` the CI one-pass answers it here.
+  # The one [headless-prompt] hint is the price of a real gate — pay it here.
   approve:
     invoke:
       tool: "nika:prompt"

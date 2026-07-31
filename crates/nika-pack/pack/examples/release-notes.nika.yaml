@@ -18,8 +18,13 @@
 #   - `nika:notify` gated on an input · `--var announce=true` to really send
 #   - `egress:` + `permits.net.http` · the two halves of a webhook send
 #
+# ONE HONEST HINT · [headless-prompt] the gate declares no `default:` on
+#   purpose — a `default:` would disarm the human decision this file exists
+#   to gate (templates/etl-state measures what that flips).
+#
 # Run · nika run examples/release-notes.nika.yaml
-#   Runs green anywhere: outside a repo carrying that tag the `recover:`
+#   Runs green anywhere ollama serves llama3.2:3b (or with `--model
+#   mock/echo` · zero key): outside a repo carrying that tag the `recover:`
 #   sample log takes over, and the changelog it edits is the copy it made
 #   under out/ from the sample that ships with the repo.
 #   Asks once before it starts · the NEP-0002 human gate. Non-interactive ·
@@ -56,8 +61,14 @@ secrets:
       - to: "nika:notify"
         host_from_self: true
 permits:
-  tools: ["nika:edit", "nika:notify", "nika:prompt", "nika:read", "nika:write"]
   exec: ["git"]                   # the ONE program this workflow may run
+  tools: ["nika:edit", "nika:notify", "nika:prompt", "nika:read", "nika:write"]
+  net:
+    # `host_from_self:` above sanctions the FLOW (the secret may be the URL) —
+    # it does not grant the capability. The host stays unknown at check, so it
+    # is judged at RUN against this bound: name the announce host here or the
+    # send is refused mid-run, after the tokens are already spent.
+    http: ["hooks.slack.com"]
   fs:
     # The workflow never edits your changelog in place — it copies it and
     # edits the copy, so you move the result when the diff looks right.
@@ -68,12 +79,6 @@ permits:
     # builtin owes both halves.
     read: ["examples/fixtures/CHANGELOG.md", "out/CHANGELOG.md"]
     write: ["out/CHANGELOG.md"]
-  net:
-    # `host_from_self:` above sanctions the FLOW (the secret may be the URL) —
-    # it does not grant the capability. The host stays unknown at check, so it
-    # is judged at RUN against this bound: name the announce host here or the
-    # send is refused mid-run, after the tokens are already spent.
-    http: ["hooks.slack.com"]
 
 tasks:
   # The human gate (NEP-0002 · v2.2). `git log` output is UNTRUSTED content —

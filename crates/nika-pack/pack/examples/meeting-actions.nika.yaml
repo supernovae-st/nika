@@ -92,7 +92,7 @@ tasks:
 
   trace:
     after:
-      extract: success
+      save: success
     invoke:
       tool: "nika:log"
       args:

@@ -51,18 +51,18 @@ const:
   competitor_sitemap: "https://competitor.example.com/sitemap.xml"
 permits:
   tools: ["nika:fetch", "nika:write"]
-  fs:
-    # One brief per topic, written DIRECTLY in out/briefs/. `*` matches a
-    # single path segment and never crosses `/`, so a topic carrying a slash
-    # is refused instead of steering the write into a subtree — which is
-    # exactly why this is `out/briefs/*.json` and not `out/briefs/**`.
-    write: ["out/briefs/*.json"]
   net:
     # Both fetches stay on the competitor's own host: the sitemap, then a URL
     # that same sitemap listed. Net entries are exact host names, never globs —
     # add YOUR competitor's host here when you point the const at it, or the
     # fetch is refused at run and the recover path quietly takes over.
     http: ["competitor.example.com"]
+  fs:
+    # One brief per topic, written DIRECTLY in out/briefs/. `*` matches a
+    # single path segment and never crosses `/`, so a topic carrying a slash
+    # is refused instead of steering the write into a subtree — which is
+    # exactly why this is `out/briefs/*.json` and not `out/briefs/**`.
+    write: ["out/briefs/*.json"]
 
 tasks:
   map:

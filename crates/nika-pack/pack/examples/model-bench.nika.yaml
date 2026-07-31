@@ -38,7 +38,7 @@
 nika: v1
 workflow:
   id: model-bench
-  description: "One question → three local models → a measured comparison table"
+  description: "benchmark and compare three local models — the same question to every seat → one measured table (latency · length)"
 
 model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
 

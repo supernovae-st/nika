@@ -21,8 +21,9 @@
 #   - `nika:emit` · the « it is ready » signal as a LOCAL event · no webhook,
 #     no secret, nothing leaves the machine
 #
-# Needs · network reachability for the site you point it at. The default
-#   points at our own sitemap so the file runs as-is; there is no key and
+# Needs · network reachability for the site you point it at, and ollama
+#   serving qwen3.5:4b for the digest — `--model mock/echo` swaps the model
+#   seat out, zero key (the sitemap fetch stays real). There is no key and
 #   no secret anywhere in it.
 #
 # Run · nika run examples/competitor-radar.nika.yaml
@@ -35,7 +36,7 @@
 nika: v1
 workflow:
   id: competitor-radar
-  description: "sitemap → what changed this window → parallel page reads → one brief"
+  description: "competitor watch · their sitemap says what shipped or changed this week → parallel page reads → one Monday brief"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-sonnet-4-6 for a sharper read
 

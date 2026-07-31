@@ -27,7 +27,8 @@
 nika: v1
 workflow:
   id: docker-report-template    # SLOT: kebab-case workflow id
-  description: "read the daemon's state · explain it · keep the report"   # SLOT
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "read the daemon's state · explain it · keep the report"
 
 # SLOT: local-first · `--model mock/echo` for the offline rehearsal. Measured
 # seat — `ollama/llama3.2:3b` answers this prose prompt in well under a minute.
@@ -93,4 +94,6 @@ tasks:
         content: "${{ with.diagnose }}"
 
 outputs:
-  report: ${{ tasks.keep.output }}
+  report:
+    value: ${{ tasks.keep.output }}
+    description: "Where the report landed — nika:write hands back the path it wrote"
