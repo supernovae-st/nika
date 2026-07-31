@@ -401,13 +401,22 @@ fn fold(verdicts: Vec<Verdict>) -> Verdict {
 /// What joins a segment to its neighbours — the facts the dispatch
 /// needs beyond the words: a pipe ANYWHERE (the `cd` subshell law), a
 /// pipe INTO the segment (the shell's stdin is another command's
-/// output), a heredoc redirect (the shell's commands ride bytes the
+/// output), and a script FEED (the shell's commands ride bytes the
 /// line does not show).
 #[derive(Debug, Clone, Copy)]
 struct SegCtx {
     piped: bool,
     fed_by_pipe: bool,
-    heredoc: bool,
+    feed: Option<Feed>,
+}
+
+/// The unseeable-bytes feed a segment carries, if any: a heredoc body
+/// or an input redirect (`<`, fd-prefixed forms included) — the two
+/// shapes whose script content never appears in the line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Feed {
+    Heredoc,
+    Redirect,
 }
 
 /// One simple command: strip redirects and leading assignments, then
@@ -415,13 +424,25 @@ struct SegCtx {
 /// affair of the guard's (a non-nika command is never judged — the
 /// echo/comment false-denial class, P0-15).
 fn analyze_segment(seg: &Seg, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    let is_redirect = |t: &Tok| t.op == Some(Op::Redirect);
     let ctx = SegCtx {
         piped: seg.before == Some(Op::Pipe) || seg.after == Some(Op::Pipe),
         fed_by_pipe: seg.before == Some(Op::Pipe),
-        heredoc: seg
+        feed: if seg
             .toks
             .iter()
-            .any(|t| t.op == Some(Op::Redirect) && t.text.starts_with("<<")),
+            .any(|t| is_redirect(t) && t.text.starts_with("<<"))
+        {
+            Some(Feed::Heredoc)
+        } else if seg
+            .toks
+            .iter()
+            .any(|t| is_redirect(t) && t.text.contains('<') && !t.text.contains("<<"))
+        {
+            Some(Feed::Redirect)
+        } else {
+            None
+        },
     };
     let words = strip_redirects(&seg.toks);
     analyze_command(&words, ctx, cwd)
@@ -517,14 +538,14 @@ fn apply_cd(target: Option<&Tok>, cwd: &mut Option<PathBuf>) {
 
 /// A shell wrapper: only the `-c` script string is judgeable (`bash
 /// foo.sh` hides its commands in a file the guard cannot see — no
-/// verdict, like any non-nika command). A heredoc or pipe-fed script is
-/// bytes the line does not show — VISIBLE degradation, never the
-/// silent pass (audit 2026-07-31).
+/// verdict, like any non-nika command). A heredoc, pipe- or
+/// redirect-fed script is bytes the line does not show — VISIBLE
+/// degradation, never the silent pass (audit 2026-07-31).
 fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
     // The heredoc has no lexer model — its body words ride the segment
     // like argv (a crafted body could even fake a `-c`), so a shell
     // segment carrying `<<` is unjudgeable, full stop.
-    if ctx.heredoc {
+    if matches!(ctx.feed, Some(Feed::Heredoc)) {
         return Some(Verdict::Unavailable(
             "a heredoc script feeds the shell — the guard cannot see the bytes it would run"
                 .to_owned(),
@@ -558,11 +579,20 @@ fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Optio
             1
         };
     }
-    // No `-c` script: a shell whose stdin rides a pipe reads its
-    // commands from those bytes — unseeable, so VISIBLE.
+    // No `-c` script: a shell whose stdin rides a pipe or an input
+    // redirect (`sh < run.sh`) reads its commands from bytes the line
+    // does not show — unseeable, so VISIBLE. (A NAMED script file —
+    // `bash foo.sh` — at least declares its intent; the redirect shows
+    // nothing.)
     if ctx.fed_by_pipe {
         return Some(Verdict::Unavailable(
             "a script rides the pipe into the shell — the guard cannot see the bytes it would run"
+                .to_owned(),
+        ));
+    }
+    if matches!(ctx.feed, Some(Feed::Redirect)) {
+        return Some(Verdict::Unavailable(
+            "a script rides the redirect into the shell — the guard cannot see the bytes it would run"
                 .to_owned(),
         ));
     }
@@ -572,7 +602,9 @@ fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Optio
 /// `env [opts] [VAR=x …] cmd …` — the real command sits after the
 /// environment prefix. `-S`/`--split-string` splits its argument into
 /// the argv itself, so that word's content is judged recursively
-/// (macOS ships BSD env — the split is real).
+/// (macOS ships BSD env — the split is real). A short-flag CLUSTER
+/// (`-iS'cmd'`) hides the same split: real getopt rides the letters in
+/// one word, so `S` anywhere in the cluster opens it.
 fn env_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
     let mut k = 1;
     while k < words.len() {
@@ -583,12 +615,23 @@ fn env_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option
             // The NEXT word is the split string — judge its content.
             let script = words.get(k + 1)?;
             return Some(judge_line(&script.text, cwd.as_deref()));
-        } else if t.starts_with("-S") && !t.starts_with("--") && t.len() > 2 {
-            // The attached form — the lexer already merged any quotes:
-            // `-S'FOO=1 nika run x'` arrives as one word.
-            return Some(judge_line(&t[2..], cwd.as_deref()));
         } else if let Some(split) = t.strip_prefix("--split-string=") {
             return Some(judge_line(split, cwd.as_deref()));
+        } else if t.starts_with('-')
+            && !t.starts_with("--")
+            && let Some(pos) = t[1..].find('S')
+        {
+            // A short-flag cluster hiding `S` (real getopt semantics:
+            // the letters ride one word) — the rest of the cluster
+            // after `S` IS the split string (`-iS'cmd'` · the lexer
+            // already merged any quotes), or the NEXT word when `S`
+            // closes the cluster (`-iS 'cmd'`).
+            let attached = &t[1..][pos + 1..];
+            if !attached.is_empty() {
+                return Some(judge_line(attached, cwd.as_deref()));
+            }
+            let script = words.get(k + 1)?;
+            return Some(judge_line(&script.text, cwd.as_deref()));
         } else if t.starts_with('-') || is_assignment(t) {
             k += 1;
         } else {

@@ -316,6 +316,38 @@ fn failopen_feed_cases(d: &str) -> Vec<Row> {
             "empty",
             Want::Unavailable("heredoc"),
         ),
+        // Finding 5 · `S` hiding in an env short-flag cluster (real
+        // getopt semantics: the letters ride one word — everything
+        // after `S` IS the split string, or the next word when `S`
+        // closes the cluster).
+        (
+            format!("env -iS'nika run {d}/bad.nika.yaml'"),
+            "empty",
+            Want::Deny("nika check"),
+        ),
+        (
+            format!("env -iS 'nika run {d}/bad.nika.yaml'"),
+            "empty",
+            Want::Deny("nika check"),
+        ),
+        (
+            format!("env -iS'nika run {d}/good.nika.yaml'"),
+            "empty",
+            Want::Allow,
+        ),
+        // Finding 6 · a bare shell fed by an input redirect (no `-c`):
+        // the commands ride bytes the line does not show — VISIBLE,
+        // never the silent pass a NAMED script file gets.
+        (
+            "sh < run.sh".to_owned(),
+            "empty",
+            Want::Unavailable("redirect"),
+        ),
+        (
+            "bash 0< run.sh".to_owned(),
+            "empty",
+            Want::Unavailable("redirect"),
+        ),
         // Finding 7 · APFS is case-insensitive: `NIKA` executes nika.
         (
             format!("NIKA run {d}/bad.nika.yaml"),

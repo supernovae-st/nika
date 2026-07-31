@@ -1,0 +1,52 @@
+name: clients-resync
+
+# The vendored client matrix follows the agents SSOT without blocking
+# unrelated pushes: the snapshot at
+# crates/nika-cli-host/data/clients.registry.yaml is a byte-copy of
+# nika-agents/clients.yaml, and drift used to be judged by a unit test
+# reading the LIVE sibling checkout on the developer's machine — the
+# wrong-judge class (one test binary, two verdicts, whichever repos
+# happen to sit beside the checkout; it blocked two unrelated engine
+# pushes 2026-07-31). The assertion is gone from cargo test; the drift
+# surfaces here instead. Daily: clone nika-agents@main, re-vendor, open
+# ONE idempotent PR on drift — Diamond CI (the vendored-bytes tests
+# included) judges the new snapshot, never a direct push.
+# SECURITY: no github.event data reaches the shell.
+
+on:
+  schedule:
+    - cron: '19 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read # least privilege at the top — the job elevates (Scorecard Token-Permissions)
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the heal branch
+      pull-requests: write # open the heal PR
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The vendored matrix follows the agents SSOT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/supernovae-st/nika-agents ../agents
+          cp ../agents/clients.yaml crates/nika-cli-host/data/clients.registry.yaml
+          git add crates/nika-cli-host/data/clients.registry.yaml
+          if git diff --cached --quiet; then echo "matrix current — nothing to resync"; exit 0; fi
+          python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
+          git add estate.yaml
+          git config user.name "nika-release[bot]"
+          git config user.email "nika@supernovae.studio"
+          git checkout -B bot/clients-resync
+          git commit -m "chore(matrix): the vendored snapshot follows the agents SSOT — $(git -C ../agents rev-parse --short HEAD) (clients-resync)"
+          git push -f origin bot/clients-resync
+          gh pr create --head bot/clients-resync \
+            --title "chore(matrix): the vendored snapshot follows the agents SSOT" \
+            --body "Automated re-vendoring (clients-resync lane · the pack-resync precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && python3 scripts/estate.py --write. Merge on green." \
+            2>/dev/null || echo "PR already open — refreshed"
