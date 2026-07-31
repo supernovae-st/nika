@@ -409,6 +409,79 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
     );
 }
 
+// ─── the TEXT lane pauses too (the first-run gate · 2026-07-31) ─────────
+
+/// A headless TEXT run (no `--json`/`--output json` — a pipe · CI · an
+/// agent) hits the default-less prompt: the run PAUSES durably (exit 4 ·
+/// never a NIKA-BUILTIN-PROMPT-001 red card) and teaches its exact
+/// resume command on the frame. The taught line, replayed verbatim with
+/// the answer, completes the run. (The seo-live-review first-run killer,
+/// 2026-07-31: the rider was armed on the output FLAG, not the surface —
+/// a text pipe died at its own gate in 13ms with 22 cancelled rows.)
+#[test]
+fn a_headless_text_run_pauses_at_the_gate_and_teaches_the_resume() {
+    let wf = fixture("gated-text.nika.yaml", GATED);
+    let dir = std::env::temp_dir().join("nika-resume-e2e");
+    let run = bin()
+        .current_dir(&dir)
+        .args(["run", &wf.to_string_lossy(), "--color", "never"])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(run.stdout).expect("utf8");
+    let stderr = String::from_utf8(run.stderr).expect("utf8");
+    assert_eq!(
+        run.status.code(),
+        Some(4),
+        "paused, never failed:\n{stdout}\n{stderr}"
+    );
+    assert!(
+        !stdout.contains("NIKA-BUILTIN-PROMPT-001") && !stderr.contains("NIKA-BUILTIN-PROMPT-001"),
+        "a pause is a state, not an error:\n{stdout}"
+    );
+    // The teaching line: file · trace · task · the mode's answer shape.
+    let hint = stdout
+        .lines()
+        .find(|l| l.trim_start().starts_with("resume:"))
+        .unwrap_or_else(|| panic!("the pause teaches its resume line:\n{stdout}"));
+    assert!(
+        hint.contains("--resume") && hint.contains("--answer approve="),
+        "{hint}"
+    );
+    // The trace the hint names exists and journals the pause, not a failure.
+    let trace_rel = hint
+        .split_whitespace()
+        .skip_while(|w| *w != "--resume")
+        .nth(1)
+        .expect("the hint names its trace");
+    let trace = dir.join(trace_rel);
+    let journal = std::fs::read_to_string(&trace).expect("trace file exists");
+    assert!(
+        journal.contains("\"kind\":\"workflow_paused\""),
+        "{journal}"
+    );
+    assert!(
+        !journal.contains("\"kind\":\"workflow_failed\""),
+        "a pause is never a failure:\n{journal}"
+    );
+    // The taught command, replayed with the answer → the run completes.
+    let answered = bin()
+        .current_dir(&dir)
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--answer",
+            "approve=yes",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8(answered.stderr).expect("utf8");
+    assert_eq!(answered.status.code(), Some(0), "stderr: {stderr}");
+}
+
 /// The answered-prompt path is UNCHANGED (ADR-099 rider: the pause
 /// occupies only the PROMPT-001 branch): a prompt WITH `default:` under
 /// `--json` completes — no pause, no exit 4.

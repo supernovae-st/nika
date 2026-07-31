@@ -266,7 +266,6 @@ fn run_verdict(
         model_override,
         inputs,
         setup,
-        json || output_json, // ADR-099 pause rider: NON-INTERACTIVE surfaces only
         max_cost_usd,
         skills,
         (no_trace_file, output_json),
@@ -471,7 +470,6 @@ fn composed_runtime(
     model_override: Option<&str>,
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
-    pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
     skills: BTreeMap<String, String>,
     (no_trace_file, output_json): (bool, bool),
@@ -504,7 +502,14 @@ fn composed_runtime(
                 // manifest journals where every bound input came from.
                 .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
-                .with_prompt_pause(pause_on_prompt)
+                // ADR-099 rider — ALWAYS armed: a blocked `nika:prompt`
+                // pauses durably on EVERY lane; the epilogue speaks the
+                // pause per surface (json envelope · headless resume line
+                // · TTY ask). The old `json || output_json` proxy left a
+                // headless TEXT run dying NIKA-BUILTIN-PROMPT-001 at its
+                // own gate — the ADR's own words ("under a non-interactive
+                // surface") never meant "only when an output flag says so".
+                .with_prompt_pause(true)
                 .with_prompt_answers(answers)
                 // F-P4 · the folded resume authority (NEP-0013) — the
                 // `--answer` validates against the shown ticket.
@@ -908,7 +913,7 @@ async fn execute_fold_lane(
         .map(|r| r.id.clone());
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, &outcome, trace.path());
-    let _ = surface_trace(
+    let trace_path = surface_trace(
         trace,
         if mode == RenderMode::Quiet {
             TraceNote::Silent
@@ -919,6 +924,14 @@ async fn execute_fold_lane(
         seal_hash(wf).as_deref(),
         Some(&teardown),
     );
+    // A paused HUMAN run teaches its exact resume command too (the same
+    // line the machine lanes print on stderr — a text-mode pause with no
+    // next move taught was the first-run killer, 2026-07-31). Quiet keeps
+    // the one teaching line: a pause without it is a dead end, not
+    // compactness.
+    if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
+        println!("    {}", epilogue::resume_hint_line(file, p, pause));
+    }
     epilogue::print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
