@@ -26,6 +26,10 @@
 // every `crate::display::…` / `crate::demo` call site stays untouched.
 pub use nika_display as display;
 pub use nika_display::demo;
+// The agent-run contract, pinned against the in-repo kit source
+// (RAMS-17 · the prose must match the structure guard already judges).
+#[cfg(test)]
+mod agent_kit_tests;
 pub mod anchor;
 pub use nika_cli_host::metrics;
 pub mod registry;

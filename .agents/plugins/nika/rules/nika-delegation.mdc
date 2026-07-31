@@ -42,8 +42,12 @@ or pure code edits.
 
 - `nika check <file>` must pass before ANY run is proposed — never
   hand over a file that does not check clean.
-- Running is the human's move: propose the `nika run` line (with
-  `--max-cost-usd` when spend matters), never execute it unasked.
+- Running: the human asks, you run — with `--max-cost-usd` and the
+  ceiling announced first. `nika guard` judges at the hook. Never a
+  spontaneous run.
+- The human gate is theirs alone: never pre-fill `--answer`. A paused
+  run's question goes back to the conversation, verbatim; you resume
+  only with the answer they gave.
 - Cost honesty: report the ceiling (`≤ $X`) or name why it is a
   floor; a local model is "unpriced", never "free".
 - Every effect needs a `permits:` block: absent means ZERO authority

@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4281
+  classified_files: 4282
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1363
+    authored: 1364
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 689
-  aggregate_sha256: 36855581c5172601eb9fea33555534c952dce1d6ee5468b163dacfda86ad0d3c
+  match_count: 690
+  aggregate_sha256: e30a2d333a075306ccb795af6772842c2ba1213dda18eabfab3f0c4e8d3a549e
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 130
-  aggregate_sha256: 84cb668cc9549a0f9b8576e0eb10c97ea71ef2b9601d2f0fe017e667a3b5d93b
+  aggregate_sha256: 84b2cb6b18bdda653a2505093c353f6ef3d7aa0f32600eb04df06a4a50ac7713
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 29
-  aggregate_sha256: 57b3ecfd43c005b1e7a24ae782c7be0eb969a9e8be9be12f647b1d2b48032893
+  aggregate_sha256: dd99cad627b0cc69bdce48ce7b00996ffb2ec5be371cee60a5d8b82687f43f89
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
