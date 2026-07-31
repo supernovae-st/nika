@@ -245,7 +245,7 @@ fn never_prints_a_secret_value() {
         retention_notes: vec![],
         recorded_runs: 0,
     };
-    let text = render(&diagnose(&probe), PLAIN);
+    let text = render(&diagnose(&probe), true, PLAIN);
     assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
     assert!(
         !text.contains("sk-"),
@@ -601,7 +601,7 @@ fn doctor_names_each_host_capability_level() {
         retention_notes: vec![],
         recorded_runs: 0,
     };
-    let text = render(&diagnose(&probe), PLAIN);
+    let text = render(&diagnose(&probe), true, PLAIN);
     assert!(
         text.contains("hermes wired · oracle-only (mcp · no hooks)"),
         "{text}"
@@ -636,7 +636,7 @@ fn client_probe_reports_stale_wiring_with_a_wire_fix() {
         retention_notes: vec![],
         recorded_runs: 0,
     };
-    let text = render(&diagnose(&probe), PLAIN);
+    let text = render(&diagnose(&probe), true, PLAIN);
     assert!(text.contains("stale MCP args"), "{text}");
     assert!(text.contains("fix: nika wire cursor"), "{text}");
 }
@@ -789,7 +789,7 @@ fn the_real_catalog_has_no_fail_and_renders() {
     // The wired run() over the canonical catalog: local providers exist, so
     // there is never a hard Fail (exit 0) even with no keys in the test env.
     // ping=false — the default run stays fully offline, in tests too.
-    let out = run(false, false, PLAIN);
+    let out = run(false, false, true, PLAIN);
     assert_eq!(out.code, exit::OK, "the catalog always offers a path");
     assert!(out.text.contains("binary"), "renders the binary line");
     // The LLM test backend stays hidden (no `mock — key` provider row);
@@ -820,7 +820,7 @@ fn render_opens_with_the_verdict_count_line() {
         detail: "x — KEY unset".to_owned(),
         fix: Some("export KEY=…".to_owned()),
     };
-    let text = render(&[ok.clone(), ok.clone(), warn.clone()], PLAIN);
+    let text = render(&[ok.clone(), ok.clone(), warn.clone()], true, PLAIN);
     let first = text.lines().next().expect("verdict line");
     assert_eq!(first, "✔ 2 ok · 1 warn · 0 fail");
     assert!(text.contains("binary"), "sections unchanged: {text}");
@@ -831,7 +831,7 @@ fn render_opens_with_the_verdict_count_line() {
         detail: "no path".to_owned(),
         fix: None,
     };
-    let red = render(&[ok, warn, fail], PLAIN);
+    let red = render(&[ok, warn, fail], true, PLAIN);
     assert!(
         red.starts_with("✖ 1 ok · 1 warn · 1 fail"),
         "a fail flips the verdict glyph: {red}"
@@ -1040,14 +1040,14 @@ fn linked_register_wraps_https_targets_and_sober_stays_frozen() {
         detail: "snapshot · see https://docs.nika.sh/errors for codes".to_owned(),
         fix: None,
     }];
-    let sober = render(&f, PLAIN);
+    let sober = render(&f, true, PLAIN);
     assert!(
         !sober.contains('\x1b'),
         "sober register is escape-free: {sober:?}"
     );
     let mut linked = PLAIN;
     linked.links = true;
-    let out = render(&f, linked);
+    let out = render(&f, true, linked);
     assert!(
         out.contains(
             "\x1b]8;;https://docs.nika.sh/errors\x1b\\https://docs.nika.sh/errors\x1b]8;;\x1b\\"
@@ -1136,4 +1136,93 @@ fn diagnose_emits_one_registry_coverage_row() {
     let rows: Vec<_> = findings.iter().filter(|f| f.label == "registry").collect();
     assert_eq!(rows.len(), 1, "one coverage row: {findings:?}");
     assert!(rows[0].detail.contains("31 declared"), "{}", rows[0].detail);
+}
+
+/// B-8b (the 2026-07-31 gauntlet): a healthy keyless machine printed
+/// 13+ ⚠ rows and the alarm glyph taught the user to ignore it. The
+/// calm default folds the three advisory classes into ONE line that
+/// names the counts and the unfolding flag — the verdict line keeps
+/// counting the truth, and any OTHER warn keeps its row.
+#[test]
+fn the_calm_default_folds_the_healthy_machines_notes_into_one_line() {
+    let ok = Finding {
+        level: Level::Ok,
+        label: "binary".to_owned(),
+        detail: "v0.107.0 · self-contained".to_owned(),
+        fix: None,
+    };
+    let agent = |id: &str| Finding {
+        level: Level::Warn,
+        label: "agent".to_owned(),
+        detail: format!("{id} not wired"),
+        fix: Some(format!("nika wire {id}")),
+    };
+    let provider = |id: &str, var: &str| Finding {
+        level: Level::Warn,
+        label: "provider".to_owned(),
+        detail: format!("{id} — recognized · not configured ({var} unset)"),
+        fix: Some(format!("export {var}=…")),
+    };
+    let config = Finding {
+        level: Level::Warn,
+        label: "config".to_owned(),
+        detail: "none — built-in defaults".to_owned(),
+        fix: None,
+    };
+    let findings = vec![
+        ok,
+        config,
+        agent("cursor"),
+        agent("vscode"),
+        provider("mistral", "MISTRAL_API_KEY"),
+        provider("openai", "OPENAI_API_KEY"),
+    ];
+    let calm = render(&findings, false, PLAIN);
+    let first = calm.lines().next().expect("verdict line");
+    assert_eq!(first, "✔ 1 ok · 5 warn · 0 fail", "the truth still counts");
+    assert!(
+        !calm.lines().any(|l| l.contains("⚠")),
+        "no alarm glyph on a healthy machine: {calm}"
+    );
+    let fold = calm
+        .lines()
+        .find(|l| l.contains("advisory"))
+        .expect("the ONE calm line");
+    assert!(
+        fold.contains("2 agents unwired")
+            && fold.contains("2 providers unconfigured")
+            && fold.contains("config defaults")
+            && fold.contains("--verbose"),
+        "the fold names every class and the door: {fold}"
+    );
+    // The verbose lane unfolds each note — nothing is lost.
+    let loud = render(&findings, true, PLAIN);
+    assert!(loud.contains("cursor not wired"), "{loud}");
+    assert!(loud.contains("MISTRAL_API_KEY unset"), "{loud}");
+    assert!(loud.contains("built-in defaults"), "{loud}");
+    assert!(
+        !loud.lines().any(|l| l.contains("advisory")),
+        "no fold line under --verbose: {loud}"
+    );
+}
+
+/// A Warn OUTSIDE the three healthy classes never folds — a dead ping
+/// earned its row.
+#[test]
+fn an_unlisted_warn_never_folds() {
+    let ping = Finding {
+        level: Level::Warn,
+        label: "ping".to_owned(),
+        detail: "ollama — nothing listening on 127.0.0.1:11434".to_owned(),
+        fix: None,
+    };
+    let calm = render(&[ping], false, PLAIN);
+    assert!(
+        calm.contains("nothing listening on 127.0.0.1:11434"),
+        "{calm}"
+    );
+    assert!(
+        !calm.lines().any(|l| l.contains("advisory")),
+        "no fold line without a foldable class: {calm}"
+    );
 }
