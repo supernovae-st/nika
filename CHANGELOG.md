@@ -10,6 +10,26 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.107.0](https://github.com/supernovae-st/nika/compare/v0.106.1..v0.107.0) - 2026-07-31
+
+**The trust release.** An outside audit measured the experience instead of
+the feature list — five waves, seventy-two receipts, twenty-two P0s — and
+the arc closed every one: welcome gates its run CTA on the exact file's
+verdict, a non-affirmative consent fires zero effects (NIKA-SEC-014, minted
+spec-first with its conformance fixtures), the hooks' judge moved into the
+binary (`nika guard`, fail-visible, bypass matrix in test), autonomy is
+graded before it is colored (the risk rung never renders green past High),
+the data journey names sources, destinations and secrets before the run,
+and redaction works by provenance — a one-byte secret dies the same death
+as a long one. Around the core the doors multiplied honestly: one client
+matrix asserts the coverage of thirty-one hosts, `nika wire` previews and
+never rewrites unasked, and every probed host gets a capability receipt
+that separates oracle-only from integrated. The discipline held on the
+inside too: the host plane descended to `nika-cli-host` at the 15k wall
+(ADR-110 — one unit, two members, zero call-site churn), and the wall
+itself grew a descent window, the crate-size vector warning at eighty
+percent instead of ambushing the push.
+
 ### Added
 
 - **`nika init` writes the two project MCP doors.** The root `.mcp.json`
@@ -20,6 +40,37 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   `.agents/` convention). One shared body, seventeen scaffold targets —
   a repo equipped by `nika init` now hands the read-only oracle to six
   clients with zero machine wiring.
+- **`nika wire copilot` + `nika wire amp` — the wave-3 doors, shapes taken
+  from the clients' own writers.** Copilot CLI gets `~/.copilot/
+  mcp-config.json` with the exact `{tools: ["*"], type: "local"}` entry its
+  own `copilot mcp add` writes (a copilot-added entry reads `· current`,
+  never churns); Amp gets the literal dotted key `"amp.mcpServers"` in
+  `~/.config/amp/settings.json` — JSONC settings get the snippet,
+  byte-identical (the Zed contract). `wire all` covers twenty-one targets.
+- **`nika wire` grows four client doors: grok · antigravity · kimi · kiro.**
+  Grok Build gets the Codex-shaped `[mcp_servers.nika]` table in
+  `~/.grok/config.toml` (comments preserved · idempotent — its Claude
+  compat already merges the project `.mcp.json`, the native table survives
+  a `[compat.claude]` toggle); Antigravity CLI (`agy`, the gemini-cli
+  successor) gets the standalone `mcpServers` entry in
+  `~/.gemini/config/mcp_config.json` per Google's migration contract;
+  Kimi Code CLI gets `~/.kimi-code/mcp.json` per its two-level contract;
+  Kiro CLI (the Amazon Q rebrand) gets `~/.kiro/settings/mcp.json`.
+  `wire all` covers all four.
+
+- **`nika doctor` speaks the kit↔binary handshake.** Installed plugin kits
+  get one row each, probed at the rung their sessions actually load
+  (Cursor local drop · Claude Code install of record · Codex per-version
+  cache — marketplace clones as fallback): green on the binary's release
+  train, ⚠ with the
+  exact per-client refresh command when a kit lags (Claude Code names BOTH
+  rungs — the half-climbed ladder is the proven trap), ⚠ with `brew upgrade
+  nika` when a kit rides ahead. Patch drift is not a finding (kits are cut
+  per train). The session-context hook grows the same two probes client-side:
+  a missing binary teaches the install line, a train divergence names the
+  direction-aware align command. `nika welcome`'s machine mirror names
+  train drift in one line and routes to doctor — aligned or absent kits
+  stay silent (carry information, never a lecture).
 
 ### Fixed
 
@@ -83,39 +134,163 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   launch · resume · `default:` · the terminal ask). The `nika check`
   headless-prompt hint teaches the same working recipes.
 
-### Added
+### ✨ Features
+- **catalog** — Pricing carries upstream truth with provenance ([95af0984a](https://github.com/supernovae-st/nika/commit/95af0984ac88577f5dc949e2bf57e39b29832fbe))
+- **catalog** — The schema learns energy · data policy · effect hints ([814df726c](https://github.com/supernovae-st/nika/commit/814df726c4fa3e5f70ce060cf4e05d34b96c2ca8))
+- **catalog** — The sourced facts enter and the refresh learns to keep them ([b4f5df37f](https://github.com/supernovae-st/nika/commit/b4f5df37f6846109c17931ab2ed532dc42c322bb))
+- **catalog** — Two price catalogs face each other and nobody wins ([88f98fc39](https://github.com/supernovae-st/nika/commit/88f98fc396e57e229df3948546c25a86ba347f04))
+- **catalog** — The one door opens ([03ab16f5b](https://github.com/supernovae-st/nika/commit/03ab16f5b437309dfc060af693069054039755e3))
+- **catalog** — Sixteen measured energy rows from the public leaderboard ([2e2813368](https://github.com/supernovae-st/nika/commit/2e2813368e741d86c07fdbc1941d248b467f0dff))
+- **check** — The energy reading joins the report (NEP-0018 · the 15k descent) ([136e3ed93](https://github.com/supernovae-st/nika/commit/136e3ed93257d9138c3807a2fdf53fe28965ce96))
+- **check** — The judge-night lane lands — judged defaults, energy aggregate, adversarial greens ([b176a344d](https://github.com/supernovae-st/nika/commit/b176a344da7c3d4d322d53f6deba3cbcf4e195d6)) ([#768](https://github.com/supernovae-st/nika/pull/768))
+- **check** — One verdict everywhere · a risk grade names the unbounded ([631940a45](https://github.com/supernovae-st/nika/commit/631940a45c088b4fddd652fe1dea9319eb8c87a7))
+- **check** — The consent lane grades the gate, never the position ([6d1f68243](https://github.com/supernovae-st/nika/commit/6d1f68243ce3d1f67598b2fcd7e31c6f3a61b672))
+- **check** — The exec floor is predicted · the gate must be affirmative ([1511b2be2](https://github.com/supernovae-st/nika/commit/1511b2be2b5eaacd8dc29cb1dbd1b3c3f3cb8649))
+- **check** — False fires exactly zero effects — NIKA-SEC-014 ([1c0f708c5](https://github.com/supernovae-st/nika/commit/1c0f708c5b782757659fadeb34a0f9971b38fba3))
+- **check** — The data journey names every flow before the run ([5cc366dd8](https://github.com/supernovae-st/nika/commit/5cc366dd829ae63db15fbf529757e64490e2975a))
+- **cli** — Welcome gates the run cta on the exact file's verdict ([1a7053554](https://github.com/supernovae-st/nika/commit/1a70535548b9402dc93107f86280f98291d0f675))
+- **cli** — Nika guard — the hook's judge lives in the binary ([50ce7a452](https://github.com/supernovae-st/nika/commit/50ce7a45256269379db7607ddeceabf80b5dff0a))
+- **cli** — The context envelope resolves the workspace once ([fd143d214](https://github.com/supernovae-st/nika/commit/fd143d2146a690b92433f9dc6e3afb49cb438fb3))
+- **cli** — The adoption ladder greets each rung with its own line ([72e892e42](https://github.com/supernovae-st/nika/commit/72e892e42e3adfbd3611354048796abe5226986d))
+- **cli** — A failed latest run opens on the repair, never the re-run ([44847b275](https://github.com/supernovae-st/nika/commit/44847b275d5ee87cbdb6d375a22f7f11785bf8e7))
+- **cli** — Doctor names each host's honest capability level ([c21ef94c8](https://github.com/supernovae-st/nika/commit/c21ef94c893fc0499721768cd78a034bff95cbb1))
+- **cli** — Welcome resolves its context through the envelope ([202395c66](https://github.com/supernovae-st/nika/commit/202395c66531da5e56cab210c3aa13c60b4a8b37))
+- **cli** — Doctor hands every host a capability receipt ([8c66e48a5](https://github.com/supernovae-st/nika/commit/8c66e48a539167c1cfc83ec0ced74c32f3cfb35a))
+- **cli** — Wire previews, detects, and never rewrites unasked ([7ffe07e68](https://github.com/supernovae-st/nika/commit/7ffe07e68bb39c3399504f859767e95db7a5ebeb))
+- **cli** — The binary reads the one client matrix ([a59df6a32](https://github.com/supernovae-st/nika/commit/a59df6a321391e7f05b108de87112953405d3b00))
+- **cli** — Ascii means ascii · metrics stay local and content-free ([b81060688](https://github.com/supernovae-st/nika/commit/b81060688776e41dd9deee795dfa4446083175b5))
+- **cli** — The host plane descends to its own member · nika-cli rejoins the 15k wall ([bb231b8bc](https://github.com/supernovae-st/nika/commit/bb231b8bc6c5b21f5f819b778a424155578abb48))
+- **display** — The consent refusal prints its rung ([779d3d7f1](https://github.com/supernovae-st/nika/commit/779d3d7f19fafe135ddd9d102635d414d914e129))
+- **estate** — The mirror stops being a convention and becomes a gate ([fc3f7aa8e](https://github.com/supernovae-st/nika/commit/fc3f7aa8e564168bd99a4cb0f277b704d21bb4bf))
+- **hooks** — The session seed probes the binary and names version drift ([dd377a268](https://github.com/supernovae-st/nika/commit/dd377a268c5aac545e646ca0451a09f932ec41ae))
+- **hygiene** — The crate-size wall gains its descent window ([83ca64a44](https://github.com/supernovae-st/nika/commit/83ca64a449774baaea34f2ae64e0e667e5bd0295))
+- **init** — The project grows two MCP doors · one stanza, six clients ([e8b1930c4](https://github.com/supernovae-st/nika/commit/e8b1930c42317acaaa0d4e87b599083013440315))
+- **kit** — The doctor command makes coherence a one-slash gesture ([23c22463a](https://github.com/supernovae-st/nika/commit/23c22463ad7e35847780afb28b2de9796e28ab96))
+- **kit** — The codex page opens with three doors, not three verbs ([24e9335f6](https://github.com/supernovae-st/nika/commit/24e9335f6d217da47a999e53a135b4027bf62456))
+- **lot-3** — The thin laws (F-P13..F-P23 · NEP-0014) ([#753](https://github.com/supernovae-st/nika/issues/753)) ([472c704b4](https://github.com/supernovae-st/nika/commit/472c704b4d4935d352c8fd91c325808ae7c19c18)) ([#753](https://github.com/supernovae-st/nika/pull/753))
+- **media** — The hero gains the window chrome · the dead slug class dies ([bd915b85f](https://github.com/supernovae-st/nika/commit/bd915b85fa5eb25ec03053e4c855d34d9dce6e11))
+- **nika-cli** — Doctor probes the installed kits and names their drift ([b20e9b338](https://github.com/supernovae-st/nika/commit/b20e9b3388eff6e1f8731bceb145d7ff39f7867d))
+- **nika-cli** — Welcome names kit train drift and routes to doctor ([c38ce446a](https://github.com/supernovae-st/nika/commit/c38ce446ae22db72544f67b0c980df9bb7d11999))
+- **nika-cli** — The energy rung — cost honesty in watt-hours (NEP-0018) ([e92570786](https://github.com/supernovae-st/nika/commit/e9257078654c781dd6741d32f53235c426e0a956))
+- **nika-store** — The signed-memory substrate (F-P8 · lot 2) ([#755](https://github.com/supernovae-st/nika/issues/755)) ([62728587b](https://github.com/supernovae-st/nika/commit/62728587b2f80f921c9f1804cd81cab70b5fb452)) ([#755](https://github.com/supernovae-st/nika/pull/755))
+- **onboard** — The intent shapes the workflow before the template ([1ea784404](https://github.com/supernovae-st/nika/commit/1ea7844045afb469ec9dd162aab23e59c8cbb7da))
+- **providers** — Readiness is a ladder · local is a place ([96da9aeb9](https://github.com/supernovae-st/nika/commit/96da9aeb955bfc9a8e90603d385a9fd9237a5fe2))
+- **registry** — The provenance ladder + the operator admission floor (F-P27 · NEP-0016) ([#751](https://github.com/supernovae-st/nika/issues/751)) ([51f170bb5](https://github.com/supernovae-st/nika/commit/51f170bb5907053da3a2c347e6fc5fe5374827f1)) ([#751](https://github.com/supernovae-st/nika/pull/751))
+- **runtime** — Preview-commit · the judged request is the fired request (F-P6) ([#749](https://github.com/supernovae-st/nika/issues/749)) ([d5b411b36](https://github.com/supernovae-st/nika/commit/d5b411b36fa0cdf7d69218cea3ef8397394940f4)) ([#749](https://github.com/supernovae-st/nika/pull/749))
+- **runtime** — Nika test runs on a simulated effects plane ([871460cbd](https://github.com/supernovae-st/nika/commit/871460cbd726eca6ab017b23531aa2ef800d6d4b))
+- **runtime,check** — Human approval is a bounded, attested ticket (F-P4 · NEP-0013) ([#744](https://github.com/supernovae-st/nika/issues/744)) ([bee82f9b1](https://github.com/supernovae-st/nika/commit/bee82f9b166ed4a15e54172393b83f8ab52ae467)) ([#744](https://github.com/supernovae-st/nika/pull/744))
+- **runtime,check** — The thin-laws lot 3a (F-P13 · F-P15 · F-P16 · F-P21 · NEP-0014) ([#752](https://github.com/supernovae-st/nika/issues/752)) ([5ed027cb1](https://github.com/supernovae-st/nika/commit/5ed027cb106b2ec21b6ac3505105f9ee361bc73e)) ([#752](https://github.com/supernovae-st/nika/pull/752))
+- **wire** — Grok and antigravity become wire targets · the toml family is born ([34bb14833](https://github.com/supernovae-st/nika/commit/34bb14833fda59b1f6ce8833a059b0157666b87a))
+- **wire** — Kimi and kiro join the doors · the estate learns the index lesson ([155bd53b6](https://github.com/supernovae-st/nika/commit/155bd53b6ea36b152ec237b12c62c5f77caa351c))
+- **wire** — Copilot and amp complete the wave · shapes from the clients' own writers ([837671c86](https://github.com/supernovae-st/nika/commit/837671c86150550748afc6811b8164837f9c6292))
+- **workspace** — The corpus is indexed by what it teaches, not by an invented tier ([6988af52f](https://github.com/supernovae-st/nika/commit/6988af52f71217c63900e4657a9172a8892638c0))
 
-- **`nika wire copilot` + `nika wire amp` — the wave-3 doors, shapes taken
-  from the clients' own writers.** Copilot CLI gets `~/.copilot/
-  mcp-config.json` with the exact `{tools: ["*"], type: "local"}` entry its
-  own `copilot mcp add` writes (a copilot-added entry reads `· current`,
-  never churns); Amp gets the literal dotted key `"amp.mcpServers"` in
-  `~/.config/amp/settings.json` — JSONC settings get the snippet,
-  byte-identical (the Zed contract). `wire all` covers twenty-one targets.
-- **`nika wire` grows four client doors: grok · antigravity · kimi · kiro.**
-  Grok Build gets the Codex-shaped `[mcp_servers.nika]` table in
-  `~/.grok/config.toml` (comments preserved · idempotent — its Claude
-  compat already merges the project `.mcp.json`, the native table survives
-  a `[compat.claude]` toggle); Antigravity CLI (`agy`, the gemini-cli
-  successor) gets the standalone `mcpServers` entry in
-  `~/.gemini/config/mcp_config.json` per Google's migration contract;
-  Kimi Code CLI gets `~/.kimi-code/mcp.json` per its two-level contract;
-  Kiro CLI (the Amazon Q rebrand) gets `~/.kiro/settings/mcp.json`.
-  `wire all` covers all four.
+### 🐛 Bug Fixes
+- **agent,infer** — Fail closed when a priced backend omits token usage (R3-F1) ([aa669fd2e](https://github.com/supernovae-st/nika/commit/aa669fd2e351fe5deeca57d7d3fa85ac78737d74))
+- **audit** — Wave A — the general adversarial audit's law+security findings ([#764](https://github.com/supernovae-st/nika/issues/764)) ([a12deff69](https://github.com/supernovae-st/nika/commit/a12deff696f0d51185174f0d3906490692737151)) ([#764](https://github.com/supernovae-st/nika/pull/764))
+- **builtin** — Shadow jaq's scan to the jq-global semantics ([7fa3e535c](https://github.com/supernovae-st/nika/commit/7fa3e535c92970b02989731f9b50f74626962227))
+- **check** — Two verdict lines stop claiming more than they cover ([7fc837571](https://github.com/supernovae-st/nika/commit/7fc83757169f6c63d47ee5af847a09cf176d2a77))
+- **check** — --infer-permits stops contradicting the check that reads it ([e624bc452](https://github.com/supernovae-st/nika/commit/e624bc452f665306d1ed799839f279d544e3f4d1))
+- **check** — Recover the decidable conjunct the dynamic argument was taking with it ([d8ae2d933](https://github.com/supernovae-st/nika/commit/d8ae2d933f7a55dce2e298e60f64aca95eabb418))
+- **check** — The hint and the cost line narrow to what they cover ([c3fc10256](https://github.com/supernovae-st/nika/commit/c3fc10256ecaf31429548bf67e3d7d4d844ac00a))
+- **check** — Price composed children into the cost ceiling with call multipliers ([b8eba5125](https://github.com/supernovae-st/nika/commit/b8eba5125ccd1d80950af75f90de7d03d2cfb3a5))
+- **check** — The secrets fix ladder names the layer that failed (R4-F1) ([4b8e815a2](https://github.com/supernovae-st/nika/commit/4b8e815a24905532d85400c5bf7ee44605864111))
+- **check** — The exec net-fit judges literal argv URLs like an invoke (D1) ([f318566d5](https://github.com/supernovae-st/nika/commit/f318566d5b75a937a52db197556c6cc8af0a6b92))
+- **check** — The types verdict names its unshaped-output blind spot, aliases included (F3) ([f8f2326e5](https://github.com/supernovae-st/nika/commit/f8f2326e5c170064e425b74c79545d34c874df36))
+- **check** — The coded VAR-003 walk adopts the locked strict-binding law ([bde2ae3cc](https://github.com/supernovae-st/nika/commit/bde2ae3cc0ab9e4cea5b1f4c82a4a097bd6e98be))
+- **check** — Retried non-idempotent builtins earn the retry-effects hint ([4861589ad](https://github.com/supernovae-st/nika/commit/4861589adcba3f44f20f431033aa3edac90dca96))
+- **ci** — The two lanes meet · the gate fixture obeys the law it crossed ([549719e18](https://github.com/supernovae-st/nika/commit/549719e18eaa966ccb64b396273c7002e208746d))
+- **cli** — Claim neither bound in unbounded cost renders ([de4c459ca](https://github.com/supernovae-st/nika/commit/de4c459ca4bf1e3849148a7bad46d1d7f068487c))
+- **dap** — Refuse a required anchor on an unsealed journal ([73e3af6d3](https://github.com/supernovae-st/nika/commit/73e3af6d303eebd7b7fb1d718aad240cde9dc564))
+- **dap** — A seal with lines after it is tampering, and an absent key is not forgery ([9a16ecd70](https://github.com/supernovae-st/nika/commit/9a16ecd70796a46dc9acefafe67fa86da0061018))
+- **dap** — A truncated inventory never renders as zero ([a5592f07c](https://github.com/supernovae-st/nika/commit/a5592f07c177625e81cd234801a5a6bd3dde95dd))
+- **dap,cli** — The lot-1 review's fixpack (terminal hygiene · fuzz ci · journal bound · otel class) ([#740](https://github.com/supernovae-st/nika/issues/740)) ([9118b1f99](https://github.com/supernovae-st/nika/commit/9118b1f9987151dd7205b6c0bc6fb689e28e3670)) ([#740](https://github.com/supernovae-st/nika/pull/740))
+- **dco** — Exempt bot-authored commits by author name too ([770b8d412](https://github.com/supernovae-st/nika/commit/770b8d41206e29a282db1498de0a4d7fa098527c))
+- **docs,tests** — The spell gate passes (childs → child · ATTACH-ed) ([#759](https://github.com/supernovae-st/nika/issues/759)) ([f19e9c928](https://github.com/supernovae-st/nika/commit/f19e9c9286117f02f32ff26726f3361c38ca533e)) ([#759](https://github.com/supernovae-st/nika/pull/759))
+- **drift** — Model glob walk roots and multipart parts as reads; exec poisons fs sets ([34f248180](https://github.com/supernovae-st/nika/commit/34f24818010d734463ccc22f7c9fdd30808c7d55))
+- **drift** — The drift pass counts exec argv urls like the net-fit (D1 coherence) ([3f56c5f19](https://github.com/supernovae-st/nika/commit/3f56c5f19ea9d30b6990437ce311418037bbdee9))
+- **estate** — The mirror gate watches pushes, not only pull requests ([2f1f2e277](https://github.com/supernovae-st/nika/commit/2f1f2e277f4db1a75b749fe8f2edc250510a7eaa))
+- **estate** — The mirror carries the mode, and the rules stop tripping the linter ([c7fdcd71c](https://github.com/supernovae-st/nika/commit/c7fdcd71c7094403faa96446e2c96f587e46d194))
+- **estate** — The noqa actually ships ([93b503b73](https://github.com/supernovae-st/nika/commit/93b503b738013ef80c47c64f16dea3138f8f83ff))
+- **exec** — The eval floor parses per interpreter, never per prefix ([b54e95a17](https://github.com/supernovae-st/nika/commit/b54e95a176572a8f5d364b295f3c1b310a37ebd0))
+- **hooks** — The edit hook names the oracle that answered ([778664fea](https://github.com/supernovae-st/nika/commit/778664feaa12ab430fb96620fb0c1d8ddc9102e7))
+- **hooks** — The path is the oracle identity, the version is only a tag ([ce6ab031a](https://github.com/supernovae-st/nika/commit/ce6ab031a4146f02cb6c65c7ed8adb35956a0834))
+- **hooks** — Derive commit scopes from the crate list, and stop citing a file that does not exist ([b3f50713b](https://github.com/supernovae-st/nika/commit/b3f50713b7a0c8f383d39c91caa04175c739e42c))
+- **hooks** — Check-on-edit judges with the tree build by default, not the PATH (F14) ([50bd19f5d](https://github.com/supernovae-st/nika/commit/50bd19f5d333fda070370030e120ff1f31af3cfc))
+- **hooks** — Derive the script surfaces too, since the gate named its own gap ([48a90712d](https://github.com/supernovae-st/nika/commit/48a90712d76d4cc72a86a60a53a38af3503c9ff6))
+- **hygiene** — Vector 9 tracks the living city, not a frozen snapshot of it ([23113342b](https://github.com/supernovae-st/nika/commit/23113342b06366b23233188b8119e236b39ff131))
+- **hygiene** — The lan seam declares its bypass · rustdoc links qualify ([5e6d26e45](https://github.com/supernovae-st/nika/commit/5e6d26e4555f22bd31f93d003fce1dc2f742799a))
+- **kit** — Session-context never inherits the process cwd ([4405ba678](https://github.com/supernovae-st/nika/commit/4405ba67829797d6765f2c0a72c0517ec4e373e7))
+- **media** — The fanout capture pointed at a path the pack flattened away ([b406174e1](https://github.com/supernovae-st/nika/commit/b406174e1d5f447b255af6fbc5bb704d64925897))
+- **nika-cli** — The energy rung stops inventing an iteration, and scopes get subtotals ([419488b4d](https://github.com/supernovae-st/nika/commit/419488b4dac76a751650710269d438222a64cd42))
+- **nika-cli** — The MODELS rung stops reading a template as a model id ([69c402333](https://github.com/supernovae-st/nika/commit/69c40233318d5ad35c62de2b8f8213845e62adc7))
+- **nika-cli** — A human gate can no longer kill a first run ([#771](https://github.com/supernovae-st/nika/issues/771)) ([c6a2ac0cc](https://github.com/supernovae-st/nika/commit/c6a2ac0cc4b91d2451d63b0927b0a29c78510652)) ([#771](https://github.com/supernovae-st/nika/pull/771))
+- **nika-runtime** — The floor fixture gains its NEP-0002 gate — the e2e twin moved, the copy did not ([2a2efcc0b](https://github.com/supernovae-st/nika/commit/2a2efcc0b2d5a3a87cc09659c7d39b1ccd316cb7))
+- **onboard** — An invalid answer is said and re-asked, never defaulted ([4542a616f](https://github.com/supernovae-st/nika/commit/4542a616f145146da9fe133f6978934ea3942096))
+- **pack** — The fold doubled two permits blocks in the mirror ([d8b8ef18f](https://github.com/supernovae-st/nika/commit/d8b8ef18f48a8c3e9724048d865160e5aff3b42e))
+- **pack** — The canon counts and the manifest hashes tell the truth ([#758](https://github.com/supernovae-st/nika/issues/758)) ([5176f03ce](https://github.com/supernovae-st/nika/commit/5176f03ce1f5620f38058fe8b7621740982ebfc5)) ([#758](https://github.com/supernovae-st/nika/pull/758))
+- **permits** — A declared fs boundary stops granting more than it declares ([0e73adc28](https://github.com/supernovae-st/nika/commit/0e73adc28206c8f2e167e8fb3afa0bbe054f427f))
+- **release** — The immutable-sha checkout learns its one tag ([79bcf6e66](https://github.com/supernovae-st/nika/commit/79bcf6e66a5273c704a90a756fbd2a4253f5c5e2)) ([#738](https://github.com/supernovae-st/nika/pull/738))
+- **run** — --answer pre-seeds the gates of a fresh run, no --resume needed (F4) ([ed873e3b2](https://github.com/supernovae-st/nika/commit/ed873e3b27f0d67da73bd7ab79a12589b587d055))
+- **runtime** — Refuse a floor-above-budget launch at admission (NIKA-1709) ([c6c52ae0f](https://github.com/supernovae-st/nika/commit/c6c52ae0ff8f7df51f30f59c2432e6f74c96d0c2))
+- **runtime** — An edited child no longer cache-hits its caller ([f86fbde07](https://github.com/supernovae-st/nika/commit/f86fbde07b38a929d9d5713b244ac8751e5065e0))
+- **runtime** — The scrub redacts secrets of any length by provenance ([37f6c1716](https://github.com/supernovae-st/nika/commit/37f6c17163d62ac562fac50a3b6c9e6268e02cb3))
+- **sandbox** — Admit sqlite journal sidecars and cwd/parent listings on exact-file grants ([3c767ca20](https://github.com/supernovae-st/nika/commit/3c767ca2005c6285fdb3d548a15734581770168b))
+- **store,dap,event** — The memory substrate carries its own bounds (audit wave B) ([#765](https://github.com/supernovae-st/nika/issues/765)) ([4d0a9bee1](https://github.com/supernovae-st/nika/commit/4d0a9bee1405b3e966182d1348ba5e51e6e170a0)) ([#765](https://github.com/supernovae-st/nika/pull/765))
+- **trifecta** — The exec verb is born-ingress, and notify's default channel is net (F2) ([b9901cad5](https://github.com/supernovae-st/nika/commit/b9901cad50c3ee4d1052e271cc1eebaa6658dfc0))
+- **trifecta** — The file channel arms on arrived taint, never on born output ([fc0b69c15](https://github.com/supernovae-st/nika/commit/fc0b69c15cc1c17014105ab578dc94ad75c1782b))
+- **ux** — The gauntlet's six wounds close · the taught chain runs green end to end ([ab9b5978c](https://github.com/supernovae-st/nika/commit/ab9b5978c0830322f2d8d73c14fbbac4770a21c9))
 
-- **`nika doctor` speaks the kit↔binary handshake.** Installed plugin kits
-  get one row each, probed at the rung their sessions actually load
-  (Cursor local drop · Claude Code install of record · Codex per-version
-  cache — marketplace clones as fallback): green on the binary's release
-  train, ⚠ with the
-  exact per-client refresh command when a kit lags (Claude Code names BOTH
-  rungs — the half-climbed ladder is the proven trap), ⚠ with `brew upgrade
-  nika` when a kit rides ahead. Patch drift is not a finding (kits are cut
-  per train). The session-context hook grows the same two probes client-side:
-  a missing binary teaches the install line, a train divergence names the
-  direction-aware align command. `nika welcome`'s machine mirror names
-  train drift in one line and routes to doctor — aligned or absent kits
-  stay silent (carry information, never a lecture).
+### 🔨 Refactors
+- **catalog** — The entry validator splits at its facts seam ([34b17a825](https://github.com/supernovae-st/nika/commit/34b17a825e723309eccd26e7bb3509246d44b735))
+- **check** — The permit-fit batteries move beside their module ([7ae63c0a5](https://github.com/supernovae-st/nika/commit/7ae63c0a552a1dc4e1939f76e42d4992b35923b4))
+- **check** — The two over-limit judges split at their seams ([b02b8c3f2](https://github.com/supernovae-st/nika/commit/b02b8c3f2ba16a61392bad016a21528c6bca349f))
+- **check** — The one-voice filter gets a name and its own function ([6209d6ca9](https://github.com/supernovae-st/nika/commit/6209d6ca96f4c70640cc8c311ed0178f7d84ec33))
+- **cli** — The run verb's tests move to their own file ([0ce6cbdfa](https://github.com/supernovae-st/nika/commit/0ce6cbdfaacd7fc9023e8fab0e5aa0272c7a6bd2))
+- **cli** — The resume surface descends to its own module, the loc cap holds ([1057859fd](https://github.com/supernovae-st/nika/commit/1057859fd93523d37b2fdf4a4920dece594100e6))
+- **display** — Descend the check render and the dag art to nika-display ([e11558493](https://github.com/supernovae-st/nika/commit/e11558493c5a279d1985fd18234b96232864fdc3))
+- **display** — The rung claims descend to their own module, the loc cap holds ([85a0adad5](https://github.com/supernovae-st/nika/commit/85a0adad5e0c5e69d46c51a7b4a0af95bfcc916a))
+- **runtime** — Bring run and the verify tier under the 100-line cap ([7208a21f3](https://github.com/supernovae-st/nika/commit/7208a21f31802ac91d61dadf32e39b0fffd90a50))
+- **runtime,dap** — Split two fns at the 100-line law (fn-length ratchet) ([fcddd872e](https://github.com/supernovae-st/nika/commit/fcddd872e3fe14227a67a4064630e4cf4eb24ef9))
+
+### 📚 Documentation
+- **adr** — Adr-109 — the composition receipt, condition by condition ([1c4064156](https://github.com/supernovae-st/nika/commit/1c4064156bca57dcdee2a235cf195fbe29d2f1be))
+- **adr** — Re-issue the composition receipt — 9 rows, two at a named lower tier ([66be812c9](https://github.com/supernovae-st/nika/commit/66be812c98d158add8da6cab9f7e093d91da77ba))
+- **audit** — Run 5's four regressions fixed after the operator's decisions ([616a4d77a](https://github.com/supernovae-st/nika/commit/616a4d77a425c08523c8b0a9b99ce92fc16eb70d))
+- **audit** — The next session's checkpoint — run 5 domain, traps, and the queue ([d6f8b863a](https://github.com/supernovae-st/nika/commit/d6f8b863a08c81cd08fac318bf9ef234ea892fd1))
+- **catalog** — The deepseek three-way resolves at the rendered page ([0a8fbf746](https://github.com/supernovae-st/nika/commit/0a8fbf746869bc7a702b014f2928022b0f535179))
+- **check** — The two laws move to where a check is written and reviewed ([d9e4d43e6](https://github.com/supernovae-st/nika/commit/d9e4d43e666a3a029435961883c0a30cc7830d35))
+- **honesty** — The surfaces catch up with the proven behavior ([f671f1cf7](https://github.com/supernovae-st/nika/commit/f671f1cf7efd49e443fdf26f1754b0e459543843))
+- **host** — Three links to private items become plain code text ([8cd4bc729](https://github.com/supernovae-st/nika/commit/8cd4bc72942aba955a6d3f258e8363e588c7431c))
+- **kit** — The delegation rule routes health to the doctor ([3d05ce215](https://github.com/supernovae-st/nika/commit/3d05ce215ed0c8e954667990aa23dbd90b07289d))
+- **media** — Every drawn frame speaks the released grammar ([2a273cc32](https://github.com/supernovae-st/nika/commit/2a273cc325e2673872b52e59b86c176731aaf1fd))
+- **media** — The last two stale paintings catch up with their scenes ([bdc7d3117](https://github.com/supernovae-st/nika/commit/bdc7d31175ab15eb4e8c2d84b4d5095af064ac50))
+- **media** — The readme's taught slugs face the same executioner ([c16d4e891](https://github.com/supernovae-st/nika/commit/c16d4e891eee1f9dcbd484714034ff4c7de880c5))
+- **media** — The renderer refuses to paint outside the frame ([8be8cc8db](https://github.com/supernovae-st/nika/commit/8be8cc8dbfaae12314d80bc5c2828b11ee25c184))
+- **nika-cli** — The fixture doc catches up with its gated shape ([763439161](https://github.com/supernovae-st/nika/commit/763439161c6a3943e2860c7541ba2c8e6d19e638))
+- **plans** — The cost ceiling covers half the bill, and four forks get their reasons ([27f3f4ec8](https://github.com/supernovae-st/nika/commit/27f3f4ec83e564dc7bf33318f00441ba4d60786f))
+- **plans** — The contradictory-advice pair closed with the matcher ([1513d2f48](https://github.com/supernovae-st/nika/commit/1513d2f48583a0faaa9d2b62db574de7ccef7d96))
+- **plans** — Sec-009 keeps its semantics, its message stops hiding the approximation ([ace795ae9](https://github.com/supernovae-st/nika/commit/ace795ae9aa25aa9da8319912c56efb96da33b8f))
+- **plans** — The resume wedge does not reproduce, and that is worth recording ([c3c293852](https://github.com/supernovae-st/nika/commit/c3c2938526bfdab7cb7a22193c2f3725bd8e81c6))
+- **plans** — The arc record separates shipped from written ([0e1b9bee0](https://github.com/supernovae-st/nika/commit/0e1b9bee0cb47da9375fe32aee3d0ace112c20ea))
+- **plans** — The adversarial audit run 2 and the handoff closure ([eb2342054](https://github.com/supernovae-st/nika/commit/eb2342054fd6b3a220c3599b3fa309638445a422))
+- **plans** — The adversarial audit run 3 — agent-loop budget + MCP pricing ([00e81c55b](https://github.com/supernovae-st/nika/commit/00e81c55b9e2eb298edf208e542984836cb17e6e))
+- **readme** — The repo names its place in the city ([5fb78af4c](https://github.com/supernovae-st/nika/commit/5fb78af4c2cde55aecb1c381b570022d6fd7668f))
+- **readme** — The island links every building ([56032f47d](https://github.com/supernovae-st/nika/commit/56032f47dd8fb7c6a72a783d2575dbb372836ea3))
+- **readme** — The city island names which root this building carries ([45fe0d31a](https://github.com/supernovae-st/nika/commit/45fe0d31afdcb1a9c1320ee6598ccd7e3596ff34))
+- **readme** — The city gains its ci district and loses its witness ([f53df4c42](https://github.com/supernovae-st/nika/commit/f53df4c425ddcd96abb20bdf79c83210aba9e850))
+- **roadmap** — The skill row points at the living repo, not a dead link ([e5382e231](https://github.com/supernovae-st/nika/commit/e5382e2318ebeb405d536780f6f541bbf9e60947))
+- **trace** — The verify help promised a taxonomy the verb had outgrown ([5488d2f3c](https://github.com/supernovae-st/nika/commit/5488d2f3c18ea180dbc4c41630aa7d403cc62b14))
+
+### 🧪 Tests
+- **check** — The integration twin follows the lock, and typos stops reading French ([be8ccad00](https://github.com/supernovae-st/nika/commit/be8ccad008aadcf13027f1a0c907ccd50c39b43d))
+- **cli** — The check-run oracle rides the corpus ([fa08fce9b](https://github.com/supernovae-st/nika/commit/fa08fce9b84fd048b6d4aab3d1c25ca534be64e9))
+- **cli** — The corpus coverage ratchet holds both axes ([92c9fef2e](https://github.com/supernovae-st/nika/commit/92c9fef2e868410f0b78d2d132ffdb523c76e593))
+- **cli** — The two builtin roots meet their consumer-side gate ([97b6e435e](https://github.com/supernovae-st/nika/commit/97b6e435efe6eee460edf471dd6b7a202fde2384))
+- **cli** — The ratchets absorb the reviewer's mutations ([8d3d1179d](https://github.com/supernovae-st/nika/commit/8d3d1179d5d6140af5cc94e2150bd01120132a12))
+- **dap** — The rust-python differential renders one verdict (nep-0012 law 4) ([#741](https://github.com/supernovae-st/nika/issues/741)) ([40be14609](https://github.com/supernovae-st/nika/commit/40be1460946a70fbfd8f51dbaa203d6a2afa9af0)) ([#741](https://github.com/supernovae-st/nika/pull/741))
+- **nika-cli** — The child's floor bounds the parent budget — adr-109 condition 4 closes ([01e45f580](https://github.com/supernovae-st/nika/commit/01e45f58095a66491838835a79807590e06e1c80))
+- **pack** — The vendored canon's 17 must resolve in the shipped catalog ([3e32fd4e0](https://github.com/supernovae-st/nika/commit/3e32fd4e0efaa7807b8bc6cdbf3e8bd6577e536b))
 
 ## [0.106.1](https://github.com/supernovae-st/nika/compare/v0.106.0..v0.106.1) - 2026-07-28
 
@@ -537,7 +712,6 @@ to sail through.
 
 ### 🧹 Chore
 - **workspace** — The tag was not fmt-clean under the current rustfmt ([793f11431](https://github.com/supernovae-st/nika/commit/793f11431eec5508e25af8c3cbc300f47dce556b))
-
 
 ## [0.103.0](https://github.com/supernovae-st/nika/compare/v0.102.0..v0.103.0) - 2026-07-13
 
@@ -1119,7 +1293,6 @@ to sail through.
   and tts's recursive `output_dir` write (the image_generate shape).
   Escape scanning, boundary inference and the per-task graph `permits`
   attribution all speak them now.
-
 
 - **`graph --format json` fills the per-task `permits` attribution** —
   the field the projection declared as its contract (empty since #367)

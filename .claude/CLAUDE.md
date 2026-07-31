@@ -131,7 +131,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 |------------------|------------------------------------------------|
 | branch           | `feat/f-p8-signed-memory`                                      |
 | HEAD             | `1fc344a2f` (`1fc344a2f649a32365694beb4a07dddb8be03267`)             |
-| workspace        | v0.106.1                                  |
+| workspace        | v0.107.0                                  |
 | crates (workspace)| 60                                              |
 | crates (admitted)| 56                                             |
 | crates (WIP)     | 4 — nika-chart nika-fx nika-proof nika-store                                  |
