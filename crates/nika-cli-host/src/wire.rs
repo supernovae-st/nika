@@ -699,12 +699,7 @@ fn patch_toml_mcp(path: &Path, label: &str, dry_run: bool) -> Result<WireAction,
     servers.insert("nika", toml_edit::Item::Table(entry));
 
     if !dry_run {
-        if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
-        }
-        std::fs::write(path, doc.to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
+        write_atomic(path, &doc.to_string())?;
     }
 
     if migrated {
@@ -795,11 +790,7 @@ const HERMES_SNIPPET: &str =
 fn patch_hermes(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     if !path.exists() {
         if !dry_run {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("{}: {e}", parent.display()))?;
-            }
-            std::fs::write(path, HERMES_SNIPPET).map_err(|e| format!("{}: {e}", path.display()))?;
+            write_atomic(path, HERMES_SNIPPET)?;
         }
         return Ok(WireAction::Created(format!("hermes: {}", path.display())));
     }
@@ -967,15 +958,50 @@ fn read_json(path: &Path) -> Result<Value, String> {
     serde_json::from_str(&body).map_err(|e| format!("{}: malformed JSON: {e}", path.display()))
 }
 
-fn write_json(path: &Path, value: &Value) -> Result<(), String> {
+/// The ONE write path for host configs (audit 2026-07-31): the body
+/// lands in a same-dir temp file, is fsynced, then RENAMED over the
+/// target — a crash mid-write can no longer truncate the user's whole
+/// `~/.claude.json` in place. A NEW file gets 0600 (these configs grow
+/// API keys); an existing file's mode is carried onto the temp file
+/// BEFORE the rename so the swap preserves it.
+fn write_atomic(path: &Path, body: &str) -> Result<(), String> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
     {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
     }
+    let tmp = path.with_file_name(format!(".nika-tmp-{}", std::process::id()));
+    let result = write_atomic_via(&tmp, path, body);
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp); // never litter the user's dir
+    }
+    result
+}
+
+/// The tmp-file half of [`write_atomic`], split so every error path
+/// funnels through the litter sweep (the 100-line fn ratchet).
+fn write_atomic_via(tmp: &Path, path: &Path, body: &str) -> Result<(), String> {
+    use std::io::Write as _;
+    use std::os::unix::fs::PermissionsExt as _;
+    let mut file = std::fs::File::create(tmp).map_err(|e| format!("{}: {e}", tmp.display()))?;
+    file.write_all(body.as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(|e| format!("{}: {e}", tmp.display()))?;
+    drop(file);
+    // An existing file keeps its mode; a new one is owner-only (0600).
+    let mode = match std::fs::metadata(path) {
+        Ok(meta) => meta.permissions().mode() & 0o777,
+        Err(_) => 0o600,
+    };
+    std::fs::set_permissions(tmp, std::fs::Permissions::from_mode(mode))
+        .map_err(|e| format!("{}: {e}", tmp.display()))?;
+    std::fs::rename(tmp, path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     let body = serde_json::to_string_pretty(value)
         .map_err(|e| format!("{}: cannot encode JSON: {e}", path.display()))?;
-    std::fs::write(path, format!("{body}\n")).map_err(|e| format!("{}: {e}", path.display()))
+    write_atomic(path, &format!("{body}\n"))
 }
 
 #[allow(clippy::disallowed_methods)]
