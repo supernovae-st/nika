@@ -456,6 +456,44 @@ tasks:
     );
 }
 
+/// The third sibling (user gauntlet 2026-07-31 · G-10 · Nina): with
+/// `exec:` granted, `default-deny` would over-state — her sub-process
+/// `grep` read files no `fs.read` admitted UNDER that very banner. The
+/// banner names the opening instead; the fence claim returns only when
+/// the engine binds sub-process I/O to the fs boundary (operator Q2 ·
+/// spec-first).
+#[tokio::test]
+async fn run_banner_names_the_exec_opening_when_exec_granted() {
+    let yaml = r#"
+nika: v1
+workflow:
+  id: exec-banner
+permits:
+  exec: true
+  tools: ["nika:jq"]
+tasks:
+  t:
+    invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
+"#;
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("t", "1").with_structured(serde_json::json!(1)));
+    let (_outcome, events) =
+        run_to_events(yaml, MockShell::new(), tools, MockProvider::new("mock")).await;
+    let started = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .expect("a workflow_started frame");
+    let permits = str_field(started, "permits").expect("a permits field on the frame");
+    assert!(
+        permits.contains("exec outside the fs bounds"),
+        "an exec grant is named as the opening it is · got: {permits}"
+    );
+    assert!(
+        !permits.contains("default-deny"),
+        "MUST NOT claim default-deny while exec escapes the fs boundary · got: {permits}"
+    );
+}
+
 /// The companion: with NO `permits:` block, the banner truthfully reports the
 /// engine floor (the run is bounded by the engine's own default ceilings, not
 /// a workflow-declared boundary) — the other half of the same display truth.

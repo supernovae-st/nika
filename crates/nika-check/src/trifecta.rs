@@ -253,6 +253,69 @@ mod tests {
         assert_eq!(r.trifecta_findings[0].task, "leak");
     }
 
+    /// THE LAW (A-1b · user gauntlet 2026-07-31 · G-07 · Nina): when a
+    /// blocking gate EXISTS but fails to dominate, the finding names the
+    /// gate, names the edge that reaches the sink without crossing it,
+    /// and teaches the placement that works — upstream of the ingress.
+    /// Nina applied the printed fix verbatim (a gate parked between the
+    /// judge and the sink) and got a byte-identical finding with the
+    /// rule never explained; this pins the explanation.
+    #[test]
+    fn undominated_gate_names_itself_the_bypass_and_the_upstream_placement() {
+        // The gauntlet shape: ingress → judge → gate → sink, where the
+        // sink ALSO reads the judge's output (`with:` data edge) — the
+        // exact placement the old fix taught, and the exact edge that
+        // defeats it.
+        let y = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  approve:\n    after: { fetch_page: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n  leak:\n    after: { approve: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n";
+        let r = report(y);
+        assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
+        let d = &r.trifecta_findings[0].detail;
+        assert!(
+            d.contains("the blocking gate `approve` does not dominate it"),
+            "the existing gate is NAMED: {d}"
+        );
+        assert!(
+            d.contains("the edge from `fetch_page` reaches `leak` without crossing the gate"),
+            "the bypassing edge is named: {d}"
+        );
+        assert!(
+            d.contains("a `with:` data edge is a path too"),
+            "the rule itself is spoken: {d}"
+        );
+        assert!(
+            d.contains("fix: place the blocking `invoke: nika:prompt` upstream of `fetch_page`"),
+            "the placement that works is taught — upstream of the ingress: {d}"
+        );
+        // And the gate placed THERE goes clean (the taught fix, applied,
+        // actually changes the verdict — the zero-delta trap dies).
+        let upstream = "nika: v1\nworkflow:\n  id: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"scan and ship?\" }\n  fetch_page:\n    after: { approve: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/data\" }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n";
+        assert!(
+            report(upstream).trifecta_findings.is_empty(),
+            "the taught placement, applied, goes clean"
+        );
+    }
+
+    /// The no-gate arm keeps the generic clause AND teaches the same
+    /// upstream placement (the old fix said « gate the egress path » —
+    /// the one position the data edges defeat).
+    #[test]
+    fn no_gate_finding_teaches_the_upstream_placement() {
+        let r = report(TRIFECTA);
+        let d = &r.trifecta_findings[0].detail;
+        assert!(
+            d.contains("no blocking `invoke: nika:prompt` dominates every path to it"),
+            "{d}"
+        );
+        assert!(
+            d.contains("upstream of `fetch_page`"),
+            "the fix points at the ingress end, never the egress end: {d}"
+        );
+        assert!(
+            !d.contains("gate the egress path"),
+            "the defeated placement is no longer taught: {d}"
+        );
+    }
+
     /// A `default:`-carrying prompt is NOT a gate (the run proceeds
     /// unattended — the NEP wants the human decision, not the fallback).
     #[test]

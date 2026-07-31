@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 104
-  aggregate_sha256: 2bf677ee916d007751c7ba4d59bc0c917afe9cfe4a07a3c7ddd7574c31ca8b0a
+  aggregate_sha256: bf1806b463ffe9258be984fdae63805c19bc295a14fa5fb2aebc12ac39b9cab5
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 690
-  aggregate_sha256: e30a2d333a075306ccb795af6772842c2ba1213dda18eabfab3f0c4e8d3a549e
+  aggregate_sha256: 659226a5e2f13f88518584e2ffb9b4b6a3fa5e55c15e509036bad82cfc83d5b7
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 120
-  aggregate_sha256: 0291e19f3dc71f9848d37966d2105775461ff29d5443b3b7a92cf1e0b3871343
+  aggregate_sha256: b931c50804efb82d556ce333a00a30de42678121232dc6567ade8d44d93d1b2e
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
