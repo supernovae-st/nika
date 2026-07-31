@@ -49,6 +49,7 @@ layers.nika-proof = "L0"
 # nika-cli · the operator surface (D-2026-06-10-N6 first-15-min suite) · seeded
 # 2026-06-11 with the display fold + trace verbs per docs/crate-specs/nika-cli.md.
 layers.nika-cli = "L4"
+layers.nika-cli-host = "L4"
 # nika-dap · the DAP replay server + the shared forensic seams (recover ·
 # chain) · split from nika-cli's verbs/dap 2026-07-09 (the
 # crate-size cap · the nika-cap precedent) · source_id re-homed to

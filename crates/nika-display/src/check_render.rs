@@ -1456,8 +1456,4 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
     }
 }
 #[cfg(test)]
-mod energy_tests;
-#[cfg(test)]
-mod journey_rung_tests;
-#[cfg(test)]
-mod policy_rung_tests;
+mod tests;

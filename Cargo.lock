@@ -4128,11 +4128,9 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
- "serde_yaml_bw",
  "sha2",
  "tempfile",
  "tokio",
- "toml_edit",
  "uuid",
 ]
 

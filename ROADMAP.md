@@ -104,8 +104,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `feat/f-p6-preview-commit`                                      |
 | HEAD             | `01cc64266` (`01cc64266925d7f57e72ea3df8dca9a2259efec9`)             |
 | workspace        | v0.106.1                                  |
-| crates (workspace)| 59                                              |
-| crates (admitted)| 55                                             |
+| crates (workspace)| 60                                              |
+| crates (admitted)| 56                                             |
 | crates (WIP)     | 4 — nika-chart nika-fx nika-proof nika-store                                  |
 | L0               | 19                                              |
 | L0.5             | 6                                              |
@@ -113,7 +113,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
-| L4               | 9                                              |
+| L4               | 10                                              |
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |
 
