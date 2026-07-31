@@ -627,6 +627,21 @@ pub(crate) fn route_skeletons(intent: &str) -> RoutingOutcome {
     route_impl(intent, &nika_pack::template_names(), TAU)
 }
 
+/// The winner's best SAME-FACET rival — the score the margin judges
+/// against. Scans the whole ranked tail, never just position 1 (found
+/// by the adversarial pass 2026-07-31: a same-facet peer hiding at
+/// position 2 behind a cross-facet runner-up made the router
+/// overconfident — it routed a coin-flip it should have clarified).
+fn best_same_facet_runner(qualified: &[(String, f64)]) -> f64 {
+    let Some((winner, _)) = qualified.first() else {
+        return 0.0;
+    };
+    qualified[1..]
+        .iter()
+        .find(|(n, _)| facet_of(n) == facet_of(winner))
+        .map_or(0.0, |(_, s)| *s)
+}
+
 fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
     let contract = extract(intent);
     let index = build_template_index(names);
@@ -698,10 +713,7 @@ fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
     // neighbours surface (entry-doors redesign R1 · G-16). On the
     // skeleton-only corpus every pair is same-facet, so the wizard's
     // shipped behavior is byte-identical.
-    let same_facet_runner = qualified
-        .get(1)
-        .filter(|(n, _)| facet_of(n) == facet_of(winner))
-        .map_or(0.0, |(_, s)| *s);
+    let same_facet_runner = best_same_facet_runner(&qualified);
     if *s1 >= tau && (same_facet_runner <= 0.0 || *s1 >= MARGIN * same_facet_runner) {
         RoutingOutcome::Routed {
             template: winner.clone(),
@@ -1229,5 +1241,36 @@ mod catalog_routing_laws {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod adversarial_pass_2026_07_31 {
+    use super::*;
+
+    /// THE LAW (found adversarially): the margin's rival is the best
+    /// SAME-FACET entry anywhere in the ranked tail — never merely
+    /// position 1. A job coin-flip hiding at position 2 behind a
+    /// cross-facet skeleton must still clarify. Synthetic names lean on
+    /// the derivation itself: `chain` IS a pack template (Skeleton);
+    /// unknown non-digit names read as Jobs.
+    #[test]
+    fn the_margin_rival_is_the_best_same_facet_anywhere() {
+        let q = vec![
+            ("alpha-job".to_owned(), 10.0),
+            ("chain".to_owned(), 9.0),
+            ("beta-job".to_owned(), 8.5),
+        ];
+        assert!(
+            (best_same_facet_runner(&q) - 8.5).abs() < f64::EPSILON,
+            "the job peer at position 2 is the rival, not the skeleton at 1"
+        );
+        // No same-facet rival anywhere → 0.0 (the top routes freely).
+        let lone = vec![("alpha-job".to_owned(), 10.0), ("chain".to_owned(), 9.0)];
+        assert!(best_same_facet_runner(&lone).abs() < f64::EPSILON);
+        assert!(
+            best_same_facet_runner(&[]).abs() < f64::EPSILON,
+            "empty is calm"
+        );
     }
 }
