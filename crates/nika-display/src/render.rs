@@ -214,6 +214,8 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // the SAME card the compact `--quiet` surface renders (shared helper).
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
+    } else if view.paused_task.is_some() {
+        append_paused_card(&mut lines, view, theme);
     }
     lines
 }
@@ -258,6 +260,13 @@ fn meter_line(view: &RunView, theme: &Theme) -> String {
         0 => String::new(),
         n => format!("{n} failed · "),
     };
+    // Fallout beside the root cause: ONE failed gate cancelling 22
+    // downstream rows used to read `23/23 done · 1 failed` — the wall
+    // of `⊘` had no summary voice and the meter read near-clean.
+    let blocked = match view.cancelled_count() {
+        0 => String::new(),
+        n => format!("{n} blocked · "),
+    };
     let repaired = match view.recovered_count() {
         0 => String::new(),
         n => format!("{n} recovered · "),
@@ -265,7 +274,7 @@ fn meter_line(view: &RunView, theme: &Theme) -> String {
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
     let meter = format!(
-        "── {}/{} done · {failed}{repaired}{cost} · elapsed {secs:.1}s ",
+        "── {}/{} done · {failed}{blocked}{repaired}{cost} · elapsed {secs:.1}s ",
         view.done_count(),
         view.rows().len(),
     );
@@ -340,6 +349,8 @@ pub fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
     lines.push(meter_line(view, theme));
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
+    } else if view.paused_task.is_some() {
+        append_paused_card(&mut lines, view, theme);
     }
     lines
 }
@@ -351,7 +362,9 @@ pub fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
 fn row_wall(row: &TaskRow, view: &RunView) -> Option<String> {
     match row.state {
         TaskState::Ok | TaskState::Failed => row.wall_ms().map(fmt_wall_ms),
-        TaskState::Running | TaskState::Retrying => {
+        // A paused gate reads like a running row frozen at the pause
+        // stamp: the time it stood open before the run parked.
+        TaskState::Running | TaskState::Retrying | TaskState::Paused => {
             let start = row.started_ms?;
             let now = view.last_ts_ms()?;
             Some(fmt_wall_ms(u64::try_from(now.saturating_sub(start)).ok()?))
@@ -572,6 +585,8 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
     // appended so a quiet run still surfaces WHY it failed + the explain hint.
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
+    } else if view.paused_task.is_some() {
+        append_paused_card(&mut lines, view, theme);
     }
     lines
 }
@@ -601,6 +616,27 @@ fn dedup_code_line(detail: &str) -> String {
         }
         None => detail.to_owned(),
     }
+}
+
+/// The paused card (ADR-099 rider) — the frame's own voice for a run
+/// that parked at a human gate: the `◇` amber mark + the awaiting task.
+/// A pause carries no wire code and earns no `fix:` hint — the lane
+/// beside the frame teaches the exact resume command (epilogue seam).
+// `&Theme` — the same one-calling-convention rationale as the failure card.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn append_paused_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
+    let Some(task) = &view.paused_task else {
+        return;
+    };
+    lines.push(String::new());
+    lines.push(format!(
+        "  {}{}",
+        theme.glyph(TaskState::Paused, 0),
+        theme.paint(
+            Role::Strong,
+            &format!("paused · awaiting an answer for `{task}`")
+        ),
+    ));
 }
 
 // `&Theme` (not by-value) to match the `frame`/`verdict_frame` borrow that
@@ -795,6 +831,54 @@ mod tests {
                 .any(|l| l.starts_with("  x  write_md") && l.contains("blocked · summarize failed")),
             "ascii blocked row (err X ≠ blocked x): {ascii:?}"
         );
+    }
+
+    /// ADR-099 — a paused run's frame speaks the pause: the gate row
+    /// turns `◇` amber, the paused card names the awaiting task, and
+    /// neither a red glyph nor an explain hint appears (a pause is a
+    /// state, never a defect). The frame used to stay MUTE — a paused
+    /// run looked merely unfinished (first-run gate · 2026-07-31).
+    #[test]
+    fn golden_paused_frame_names_the_awaiting_gate() {
+        let lines = frame(&fold(&demo::paused()), &UNICODE, 0);
+        let joined = lines.join("\n");
+        assert!(
+            lines.iter().any(|l| l.starts_with("  ◇  summarize")),
+            "the gate row wears the paused mark: {joined}"
+        );
+        assert!(
+            joined.contains("paused · awaiting an answer for `summarize`"),
+            "the paused card names the gate: {joined}"
+        );
+        assert!(!joined.contains('✖'), "never red: {joined}");
+        assert!(
+            !joined.contains("nika explain"),
+            "a pause earns no fix hint: {joined}"
+        );
+        // The streamed plain close speaks the same card (one voice).
+        let close = stream_summary(&fold(&demo::paused()), &UNICODE).join("\n");
+        assert!(
+            close.contains("paused · awaiting an answer for `summarize`"),
+            "{close}"
+        );
+    }
+
+    /// #393 sibling — fallout beside the root cause: cancelled rows earn
+    /// a `N blocked` meter segment. One failed gate cancelling its whole
+    /// downstream used to read `23/23 done · 1 failed` — the wall of `⊘`
+    /// had no summary voice (seo-live-review first-run · 2026-07-31).
+    #[test]
+    fn meter_counts_the_blocked_fallout() {
+        let lines = frame(&fold(&demo::failure()), &UNICODE, 0);
+        let meter = lines.iter().find(|l| l.contains("done")).expect("meter");
+        assert!(
+            meter.contains("1 failed · 2 blocked · "),
+            "root cause + fallout, side by side: {meter}"
+        );
+        // A clean run never grows the segment.
+        let clean = frame(&fold(&demo::success()), &UNICODE, 0);
+        let meter = clean.iter().find(|l| l.contains("done")).expect("meter");
+        assert!(!meter.contains("blocked"), "{meter}");
     }
 
     /// #410 · the OBS-E warning reaches the CONSOLE: a green run whose

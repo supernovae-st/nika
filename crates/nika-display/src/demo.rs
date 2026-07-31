@@ -162,6 +162,18 @@ pub fn failure() -> Vec<Event> {
     events
 }
 
+/// The paused storyboard (ADR-099 rider · ends `workflow_paused`): the
+/// run parked at a human gate — no verdict, the gate row left awaiting.
+#[must_use]
+pub fn paused() -> Vec<Event> {
+    let mut events = opening();
+    events.extend([at(30, 4400, EventKind::WorkflowPaused)
+        .with_field(s("task", "summarize"))
+        .with_field(s("mode", "confirm"))
+        .with_field(s("message", "send the digest?"))]);
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,6 +182,7 @@ mod tests {
     fn demo_streams_are_deterministic() {
         assert_eq!(success(), success());
         assert_eq!(failure(), failure());
+        assert_eq!(paused(), paused());
         assert_ne!(success(), failure());
     }
 

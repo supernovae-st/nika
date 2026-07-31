@@ -35,6 +35,9 @@ pub enum TaskState {
     /// Cancelled (upstream failure · operator stop · `⊘ blocked` · dim
     /// · the path died upstream — never red, the defect is elsewhere).
     Cancelled,
+    /// Awaiting a human answer (ADR-099 rider · `◇` · amber · the run
+    /// paused durably at this gate — a state, never a defect).
+    Paused,
 }
 
 /// One render row (insertion order = first-seen order = stable layout).
@@ -135,6 +138,10 @@ pub struct RunView {
     pub token_samples: Vec<u64>,
     /// Terminal verdict: `Some(true)` completed · `Some(false)` failed.
     pub verdict: Option<bool>,
+    /// The task a `workflow_paused` frame named (ADR-099 rider) — the
+    /// run ended AWAITING, neither verdict applies (the paused card's
+    /// key · `None` on every other run).
+    pub paused_task: Option<String>,
     /// A WORKFLOW-level failure reason carried on `workflow_failed` (e.g. a
     /// run-end NIKA-VAR-009 typed-output breach) — not tied to a task row.
     pub workflow_detail: Option<String>,
@@ -215,6 +222,18 @@ impl RunView {
         self.rows
             .iter()
             .filter(|r| r.state == TaskState::Failed)
+            .count()
+    }
+
+    /// CANCELLED rows · rides the final meter beside `failed` (the same
+    /// #393 honesty style): one root failure cancelling 22 downstream
+    /// tasks used to read `23/23 done · 1 failed` — the fallout count
+    /// stayed invisible and the wall of `⊘` rows had no summary voice.
+    #[must_use]
+    pub fn cancelled_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| r.state == TaskState::Cancelled)
             .count()
     }
 
@@ -303,11 +322,15 @@ impl RunView {
                 self.absorb_terminal_cost(event);
             }
             // ADR-099 rider — the run paused on a human gate: no verdict
-            // (neither success nor failure) · the detail names the
-            // awaiting task so a replayed trace reads honestly.
+            // (neither success nor failure) · the gate's row turns `◇`
+            // and the paused card names the awaiting task, so a live
+            // frame AND a replayed trace both read honestly (the frame
+            // used to stay mute — a paused run looked merely unfinished).
             EventKind::WorkflowPaused => {
-                let task = str_field(event, "task").unwrap_or("a prompt");
+                let task = str_field(event, "task").unwrap_or("a prompt").to_owned();
                 self.workflow_detail = Some(format!("paused · awaiting an answer for `{task}`"));
+                self.touch(event, TaskState::Paused);
+                self.paused_task = Some(task);
             }
             // Dispatch + checkpoint + cost/stream/permit kinds carry no
             // row state today. `#[non_exhaustive]` future kinds render
@@ -521,6 +544,33 @@ mod tests {
                 TaskState::Ok,
                 TaskState::Skipped
             ]
+        );
+    }
+
+    /// ADR-099 — `workflow_paused` folds to an AWAITING view: the gate
+    /// row turns `Paused`, `paused_task` names it, and neither verdict
+    /// applies (a pause is a state, never a defect).
+    #[test]
+    fn demo_paused_folds_to_an_awaiting_view() {
+        let mut view = RunView::new();
+        for ev in demo::paused() {
+            view.apply(&ev);
+        }
+        assert_eq!(view.verdict, None, "neither success nor failure");
+        assert_eq!(view.paused_task.as_deref(), Some("summarize"));
+        let gate = view
+            .rows()
+            .iter()
+            .find(|r| r.id == "summarize")
+            .expect("the gate row exists");
+        assert_eq!(gate.state, TaskState::Paused);
+        assert_eq!(view.failed_count(), 0);
+        assert!(
+            view.workflow_detail
+                .as_deref()
+                .is_some_and(|d| d.contains("awaiting an answer")),
+            "{:?}",
+            view.workflow_detail
         );
     }
 

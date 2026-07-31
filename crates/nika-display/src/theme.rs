@@ -190,6 +190,7 @@ impl Theme {
                 TaskState::Retrying => "r ",
                 TaskState::Skipped => "~>",
                 TaskState::Cancelled => "x ",
+                TaskState::Paused => "? ",
             }
         } else {
             match state {
@@ -200,13 +201,16 @@ impl Theme {
                 TaskState::Retrying => "↻ ",
                 TaskState::Skipped => "↷ ",
                 TaskState::Cancelled => "⊘ ",
+                TaskState::Paused => "◇ ",
             }
         };
         let role = match state {
             TaskState::Running => Role::Accent,
             TaskState::Ok => Role::Good,
             TaskState::Failed => Role::Bad,
-            TaskState::Retrying => Role::Warn,
+            // Paused rides amber beside Retrying: both say "a human's
+            // attention moves this forward" — never red, never dim.
+            TaskState::Retrying | TaskState::Paused => Role::Warn,
             TaskState::Pending | TaskState::Skipped | TaskState::Cancelled => Role::Dim,
         };
         self.paint(role, raw)
