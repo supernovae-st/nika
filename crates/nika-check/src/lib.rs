@@ -116,6 +116,7 @@ pub mod analyzer;
 mod analysis;
 mod certificate;
 mod composition;
+mod consent;
 mod content_flow;
 mod cost;
 mod data_sink;
@@ -695,6 +696,11 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     } else {
         Vec::new()
     };
+    // P0-2 · the affirmative-consent lane: advisory hints over the same
+    // derived edges (valid DAG or no claim — the policy/trifecta gating).
+    if conformance.is_empty() {
+        hints.extend(consent::scan_consent(wf, &edges));
+    }
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);

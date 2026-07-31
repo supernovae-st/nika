@@ -19,7 +19,11 @@
 //! - [`RiskGrade::Supervised`] — declared effects, all narrow: named
 //!   programs · named hosts · exact tools · concrete paths.
 //! - [`RiskGrade::High`] — broad-but-bounded authority: a glob grant
-//!   (`tools: ["nika:*"]` · an `fs` single-star · a net wildcard entry).
+//!   (`tools: ["nika:*"]` · an `fs` single-star · a net wildcard entry) —
+//!   or a HUMAN GATE no effect-route consumes affirmatively (P0-2: the
+//!   `consent` hint of `check/consent.rs` — a refused confirm settles
+//!   success-with-false, so a rubber-stamp route is broad authority
+//!   wearing a seatbelt it never buckles).
 //! - [`RiskGrade::Unbounded`] — no ceiling exists at all: uncapped
 //!   inference spend ([`CostCeiling::has_unbounded`] — the `agent` loop
 //!   without `max_tokens_total` rides here) or a TRUE wildcard grant
@@ -68,10 +72,24 @@ impl RiskGrade {
 
 /// Grade one report — reads ONLY what the audit already computed (the
 /// cost ceiling · the declared half of the affirmative permits
-/// statement). Never a scan, never a finding: the grade is a projection,
-/// so it carries no `NIKA-*` code and fails nothing on its own.
+/// statement · the consent lane's hints). Never a scan, never a
+/// finding: the grade is a projection, so it carries no `NIKA-*` code
+/// and fails nothing on its own.
 #[must_use]
 pub fn risk_grade(report: &CheckReport) -> RiskGrade {
+    let base = authority_grade(report);
+    // P0-2 — a human gate no route consumes affirmatively is a rubber
+    // stamp: the consent hint lifts the grade to at least High.
+    if report.hints.iter().any(|h| h.kind == "consent") {
+        base.max(RiskGrade::High)
+    } else {
+        base
+    }
+}
+
+/// The authority ladder alone — cost ceiling + declared boundary (the
+/// pre-P0-2 read; the consent signal folds in at [`risk_grade`]).
+fn authority_grade(report: &CheckReport) -> RiskGrade {
     use nika_schema::types::ExecPermit;
 
     let declared = report.permits.declared.as_ref();

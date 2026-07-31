@@ -49,6 +49,13 @@
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
+//! - **non-affirmative human gate** (`consent`) — emitted by the
+//!   `check/consent.rs` lane (P0-2): an egress-capable descendant of a
+//!   confirm-mode `nika:prompt` is reachable over a route that never
+//!   consumes the answer affirmatively (a refused confirm settles
+//!   success-with-false, so a bare `after: success` lets the effect
+//!   through); the advice teaches the `with: go` + `when:` pattern and
+//!   the risk grade reads the hint as a High signal.
 //! - **exec JSON stdout capture** (`exec-json-capture`) — an `exec:` task
 //!   declares `capture: structured`, a binding parses `.stdout | fromjson`,
 //!   and NO binding reads `exit_code`/`stderr`; use `capture: stdout` for
@@ -88,8 +95,8 @@ pub struct Hint {
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` · `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
-    /// · `analysis` (additive · agents route on it; the module doc
-    /// describes each).
+    /// · `analysis` · `consent` (additive · agents route on it; the
+    /// module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     pub kind: &'static str,

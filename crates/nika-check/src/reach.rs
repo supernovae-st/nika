@@ -110,28 +110,28 @@ pub struct GateFinding {
 
 /// Kleene three-valued logic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum K3 {
+pub(crate) enum K3 {
     True,
     False,
     Unknown,
 }
 
 impl K3 {
-    fn negate(self) -> Self {
+    pub(crate) fn negate(self) -> Self {
         match self {
             Self::True => Self::False,
             Self::False => Self::True,
             Self::Unknown => Self::Unknown,
         }
     }
-    fn and(self, rhs: Self) -> Self {
+    pub(crate) fn and(self, rhs: Self) -> Self {
         match (self, rhs) {
             (Self::False, _) | (_, Self::False) => Self::False,
             (Self::True, Self::True) => Self::True,
             _ => Self::Unknown,
         }
     }
-    fn or(self, rhs: Self) -> Self {
+    pub(crate) fn or(self, rhs: Self) -> Self {
         match (self, rhs) {
             (Self::True, _) | (_, Self::True) => Self::True,
             (Self::False, Self::False) => Self::False,
@@ -716,7 +716,7 @@ fn dead_detail<'e>(expr: &'e Expr, possible: &BTreeMap<&str, u8>, b: &'e StatusB
 }
 
 /// Parse the single boolean island of a `when:` gate.
-fn parse_gate(src: &str) -> Option<Expr> {
+pub(crate) fn parse_gate(src: &str) -> Option<Expr> {
     let islands = scan_templates(src).ok()?;
     let island = islands.into_iter().next()?;
     Some(island.expr)

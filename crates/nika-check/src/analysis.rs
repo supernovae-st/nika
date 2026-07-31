@@ -151,7 +151,7 @@ impl DagRead {
 /// ~60 MB · milliseconds typical — far above any real workflow. The cap
 /// also bounds the augmenting DFS recursion (≤ n frames · see
 /// [`hk_dfs`]).
-const ANALYSIS_TASK_CAP: usize = 2_000;
+pub(crate) const ANALYSIS_TASK_CAP: usize = 2_000;
 
 /// Run the engineering read over a conformant workflow.
 pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {

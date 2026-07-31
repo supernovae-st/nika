@@ -59,7 +59,7 @@ pub fn scan_trifecta(
 }
 
 /// The task's egress capability (see the module doc for the table).
-fn egress_capable(action: &RawAction) -> bool {
+pub(crate) fn egress_capable(action: &RawAction) -> bool {
     match action {
         RawAction::Exec(_) => true,
         RawAction::Agent(a) => agent_egress(&a.tools),
