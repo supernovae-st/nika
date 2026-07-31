@@ -183,14 +183,23 @@ What is populated TODAY vs what lands with the reference engine ·
 | **Deep-static fixtures** (`tests/deep/`) | ✅ populated · runner-executable | the expression layer the schema cannot see · the normative CEL EBNF parsed for real · jq compile · duration grammar · schema-meta · `when:` shape · binding purity |
 | **Stdlib static surface** (`tests/stdlib/`) | ✅ populated · runner-executable | the stdlib **names + shapes** layer · provider prefixes · the closed `nika:*` builtin set · extract modes · checkable with zero execution (lists derive from [`canon.yaml`](../canon.yaml)) |
 | **Examples as conformance inputs** (`examples/`) | ✅ executed by the runner `all` gate | every shipped example MUST validate at the full static level |
-| **Runtime behavioral fixtures** (`tests/runtime/`) | ⏳ **post-announce** | verb execution · task fields · events · they require an executing engine · they land with the reference engine's vertical slice (1.0.0) |
-| **Stdlib behavioral fixtures** (`tests/stdlib/` · execution half) | ⏳ **post-announce** | provider/builtin/extract-mode *behavior* under the `mock` provider + HTTP mocks |
+| **Runtime behavioral fixtures** (`tests/runtime/`) | ✅ **measured by command** (2026-07-30) | verb execution · task statuses/outputs · events · the trace chain — driven through the PUBLIC doors (`nika run --json` · `nika trace verify`) by [`scripts/runtime-differential.py`](../scripts/runtime-differential.py) · every fixture agrees with the released engine |
+| **Stdlib behavioral fixtures** (`tests/stdlib/behavioral/`) | 🌗 **no-network half measured** (2026-07-30) | builtin *behavior* through the run door — `nika:jq` executes for real (typed result) · the `nika:write`→`nika:read` pair roundtrips under a declared `permits.fs` · `nika:convert` converts (from:/to: required) — same differential, same sweep as the runtime tier. The network half (fetch under HTTP mocks · provider behavior beyond `mock/echo`) stays post-announce |
+
+(The provider prefix list is a **registry, not grammar** — the freeze
+holds the form, the membership grows additively under the registration
+policy in [providers-v0.1.md §Registration
+policy](../stdlib/providers-v0.1.md) · no NEP for a membership row, a
+NEP for any change to the form.)
 
 Run the static gate yourself · `python conformance/runner.py all`: the
 runner output is the live count (counts in prose drift · the suite is the
-source). A « Core v0.1-compliant » claim is FULLY testable today. « Runtime »
-and « Stdlib v0.1 » claims are testable on their static halves today · their
-behavioral halves when the behavioral fixtures publish.
+source). Run the behavioral tier yourself ·
+`NIKA_BIN=<engine> python3 scripts/runtime-differential.py` — same law,
+the differential's summary is the live count. A « Core v0.1-compliant »
+claim is FULLY testable today; « Runtime » claims are testable on both
+halves (static fixtures + the behavioral differential) · « Stdlib v0.1 »
+on its static half, its behavioral half when those fixtures publish.
 
 ---
 

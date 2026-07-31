@@ -1023,6 +1023,14 @@ where
             })
             .collect();
         defs.extend(intrinsic::synthesized_defs(whitelist));
+        // The AUTHOR's `tools:` order is the request's order (stable sort ·
+        // catalog order breaks ties). The order is inert to a real model —
+        // a whitelist has no ranking semantics — but the offline rehearsal
+        // (mock M1) invokes the FIRST granted tool, so done-first is how an
+        // author makes an fs-scoped loop mock-drivable; the catalog-order
+        // list this replaces pinned the intrinsics last, which made that
+        // authoring choice unreachable (gauntlet 2026-07-31 · turn-1 kill).
+        defs.sort_by_key(|def| whitelist.author_rank(&def.name));
         Ok(defs)
     }
 

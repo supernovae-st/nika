@@ -1482,3 +1482,16 @@ fn help_teaches_the_registry_form_on_check_and_run() {
         );
     }
 }
+
+/// Gauntlet 2026-07-31: bare `nika` piped = welcome mirror, exit 0
+/// (§4 reserves 2 for FILE findings · `--help` stays the reference).
+#[test]
+fn bare_nika_greets_and_exits_zero_in_a_pipe() {
+    let out = bin().output().expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "a greeting, not a finding");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("nika") && stdout.contains("start here"),
+        "the mirror names the product and the start-here door:\n{stdout}"
+    );
+}

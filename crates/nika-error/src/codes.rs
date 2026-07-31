@@ -429,6 +429,17 @@ fn builtin_code_name(code: &str) -> Option<(String, String)> {
 /// keeps the namespace teaching.
 fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
     match (name, num) {
+        ("read", "001") => Some(
+            "  `nika:read` found no file at the path it was given. Paths resolve \
+             from the RUN's working directory (never the workflow file's own \
+             dir) — the usual causes are a missing ingredient or a run \
+             launched from the wrong directory.\n\n  \
+             exits (pick one):\n    \
+             · see what IS there:          ls <the path's parent>\n    \
+             · run beside the file:        cd <the workflow's dir> && nika run <file>\n    \
+             · an example's ingredients:   `nika examples copy <slug>` lands its \
+             `examples/fixtures/` files beside the recipe.\n",
+        ),
         ("prompt", "001") => Some(
             "  The gate asked a human (`confirm` · `input` · `choice`) where no \
              human can answer and no `default:` is declared. The engine never \
@@ -475,6 +486,11 @@ mod tests {
     /// followed · 2026-07-31). One voice: CLI and MCP read this text.
     #[test]
     fn prompt_001_explain_teaches_the_contract_and_its_exits() {
+        let read = namespace_help("NIKA-BUILTIN-READ-001", "docs").expect("teaches");
+        assert!(
+            read.contains("RUN's working directory") && read.contains("examples copy"),
+            "READ-001 carries the contract lesson (gauntlet 2026-07-31): {read}"
+        );
         let help = namespace_help("NIKA-BUILTIN-PROMPT-001", "docs").expect("teaches");
         for lesson in [
             "no `default:` is declared",

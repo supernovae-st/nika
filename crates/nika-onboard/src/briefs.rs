@@ -157,11 +157,20 @@ const CURSOR_RULES: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/rules/nika-workflow-language.mdc"
 ));
 
-/// `.cursor/mcp.json` — the project-scoped MCP wiring for Cursor: the
-/// read-only oracle (9 tools) reaches the agent without any manual setup.
-/// Project-scoped (not global) so the config travels with the repo and
-/// never touches the user's other projects.
-const CURSOR_MCP: &str =
+/// The standard `mcpServers` stanza — ONE body, three project files: the
+/// read-only oracle (9 tools) reaches the agent without any manual setup,
+/// project-scoped so the config travels with the repo and never touches
+/// the user's other projects.
+///   · `.cursor/mcp.json` — Cursor's project scope
+///   · `.mcp.json` — the root file FOUR surfaces read natively: Claude
+///     Code (project scope) · Grok Build (its Claude compat) · GitHub
+///     Copilot CLI (cwd → repo root) · Warp (third-party interop)
+///   · `.agents/mcp_config.json` — Antigravity CLI's workspace file
+///     (`agy` · a stdio command entry is the standard shape; the
+///     url→serverUrl rename touches remote servers only), living under
+///     `.agents/` beside the skill — the cross-vendor convention Warp ·
+///     Antigravity · Kimi · Amp share
+const MCP_SERVERS: &str =
     "{ \"mcpServers\": { \"nika\": { \"command\": \"nika\", \"args\": [\"mcp\"] } } }\n";
 
 /// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
@@ -307,13 +316,15 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 15] {
+pub(super) fn targets() -> [(&'static str, &'static str); 17] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
         (".cursor/rules/nika-delegation.mdc", CURSOR_DELEGATION),
-        (".cursor/mcp.json", CURSOR_MCP),
+        (".cursor/mcp.json", MCP_SERVERS),
+        (".mcp.json", MCP_SERVERS),
+        (".agents/mcp_config.json", MCP_SERVERS),
         (".cursor/agents/nika-author.md", CURSOR_AGENT_AUTHOR),
         (".cursor/agents/nika-debugger.md", CURSOR_AGENT_DEBUGGER),
         (".cursor/agents/nika-migrator.md", CURSOR_AGENT_MIGRATOR),
@@ -653,7 +664,7 @@ mod tests {
     #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 15);
+        assert_eq!(t.len(), 17);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",
@@ -661,6 +672,8 @@ mod tests {
             ".cursor/rules/nika.mdc",
             ".cursor/rules/nika-delegation.mdc",
             ".cursor/mcp.json",
+            ".mcp.json",
+            ".agents/mcp_config.json",
             ".cursor/agents/nika-author.md",
             ".cursor/agents/nika-debugger.md",
             ".cursor/agents/nika-migrator.md",

@@ -622,12 +622,12 @@ fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: boo
 }
 
 fn concierge(plain_theme: Theme) -> std::process::ExitCode {
-    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
-        return emit(&verbs::welcome::run(false, plain_theme)).into();
-    }
-    let mut cmd = <Cli as CommandFactory>::command();
-    let _ = cmd.print_help();
-    std::process::ExitCode::from(2)
+    // TTY or pipe, the front door answers with the mirror (gauntlet
+    // 2026-07-31: the taught « a terminal greets you » card exited 2 in
+    // a pipe — an agent's first contact read as breakage, and spec §4
+    // reserves 2 for FILE findings). Welcome is offline and always 0;
+    // `--help` stays the reference card.
+    emit(&verbs::welcome::run(false, plain_theme)).into()
 }
 
 fn main() -> std::process::ExitCode {

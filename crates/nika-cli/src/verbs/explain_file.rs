@@ -724,10 +724,21 @@ fn run_section(s: &mut String, path: &str, report: &CheckReport) {
         .iter()
         .all(|m| m.model.starts_with("mock/"));
     if !report.requirements.models.is_empty() && !all_mock {
-        let _ = writeln!(
-            s,
-            "  nika run {path} --model mock/echo   # offline rehearsal · zero keys"
-        );
+        if report.data_journey.writes.is_empty() {
+            let _ = writeln!(
+                s,
+                "  nika run {path} --model mock/echo   # offline rehearsal · zero keys"
+            );
+        } else {
+            // The mock swaps the MODEL, not the effects — a mock re-run
+            // after a real one overwrites the real artifacts (gauntlet
+            // 2026-07-31: a taught rehearsal destroyed a user's real
+            // CHANGELOG). A writing workflow's rehearsal line says so.
+            let _ = writeln!(
+                s,
+                "  nika run {path} --model mock/echo   # mock model · file writes STILL land — rehearse before the real run, not after"
+            );
+        }
     }
 }
 

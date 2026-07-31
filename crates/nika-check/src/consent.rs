@@ -104,7 +104,7 @@ enum Gate {
 
 /// Judge the affirmative-consent lane over the derived graph. Empty
 /// unless a confirm-mode prompt reaches an egress-capable descendant
-/// over a route that never consumes the answer affirmatively.
+/// over a route that never gates on the answer.
 pub(crate) fn scan_consent(wf: &RawWorkflow, edges: &[Edge]) -> ConsentScan {
     let mut scan = ConsentScan::default();
     if wf.tasks.len() > crate::analysis::ANALYSIS_TASK_CAP {
@@ -465,7 +465,7 @@ fn consent_finding(prompt: &str, sink: &str) -> ConsentFinding {
         sink: sink.to_owned(),
         detail: format!(
             "task `{sink}` runs on a route from confirm gate `{prompt}` that provably never \
-             consumes the answer — a REFUSED confirm settles success with value false (the \
+             gates on the answer — a REFUSED confirm settles success with value false (the \
              Deny lives in the approval attestation only), so the effect fires on 'no' \
              (NEP-0020 · false triggers exactly zero effects) — fix: bind the answer and \
              gate on it: `with: {{ go: \"${{{{ tasks.{prompt}.output }}}}\" }}` + \

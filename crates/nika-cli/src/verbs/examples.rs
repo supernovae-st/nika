@@ -418,12 +418,30 @@ pub fn copy(slug: &str, dest: Option<&str>, force: bool, theme: Theme) -> VerbOu
             code: exit::ENV,
         };
     }
+    // The ingredients ride with the recipe (gauntlet 2026-07-31 · the one
+    // rage-quit): every `examples/fixtures/…` path the body reads is
+    // materialized beside the copy, at the exact relative path the yaml
+    // names. Files already yours are never clobbered.
+    let fixtures = materialize_fixtures(body, path);
     let mut text = format!(
         "{} {} {}",
         theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
         theme.paint(Role::Strong, &dest),
         theme.paint(Role::Dim, "— yours now · edit anything"),
     );
+    match fixtures {
+        Ok(counts) => {
+            if let Some(note) = fixture_note(counts, theme) {
+                let _ = write!(text, "\n{note}");
+            }
+        }
+        Err(e) => {
+            return VerbOutput {
+                text: format!("nika examples copy: cannot write a fixture: {e}"),
+                code: exit::ENV,
+            };
+        }
+    }
     let _ = write!(
         text,
         "\n{}",
@@ -448,11 +466,137 @@ pub fn copy(slug: &str, dest: Option<&str>, force: bool, theme: Theme) -> VerbOu
     VerbOutput::ok(text)
 }
 
+/// The ingredients line under a copy — silent when nothing applied.
+fn fixture_note((written, kept): (usize, usize), theme: Theme) -> Option<String> {
+    if written == 0 && kept == 0 {
+        return None;
+    }
+    let mut note = format!(
+        "{} {}",
+        theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
+        theme.paint(
+            Role::Dim,
+            &format!(
+                "examples/fixtures · {} (the recipe's ingredients)",
+                crate::text::count(written, "file")
+            )
+        ),
+    );
+    if kept > 0 {
+        let _ = write!(
+            note,
+            " {}",
+            theme.paint(Role::Dim, &format!("· {kept} already yours, kept"))
+        );
+    }
+    Some(note)
+}
+
+/// The `examples/fixtures/<tail>` references a body reads, each tail cut
+/// at its first glob star (a `photos/**` read pulls the whole `photos/`
+/// dir) and stripped of a trailing `/`.
+fn fixture_prefixes(body: &str) -> Vec<String> {
+    const MARK: &str = "examples/fixtures/";
+    let mut out: Vec<String> = Vec::new();
+    for (i, _) in body.match_indices(MARK) {
+        let tail: String = body[i + MARK.len()..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/' | '*'))
+            .collect();
+        let cut = tail.split('*').next().unwrap_or("");
+        let cut = cut.trim_end_matches('/');
+        if !cut.is_empty() && !out.iter().any(|p| p == cut) {
+            out.push(cut.to_owned());
+        }
+    }
+    out
+}
+
+/// Write the pack fixtures a body reads beside the copied recipe —
+/// under `<dest dir>/examples/fixtures/…`, the exact relative path the
+/// yaml names. Returns (written, kept-because-existing).
+fn materialize_fixtures(body: &str, dest: &std::path::Path) -> std::io::Result<(usize, usize)> {
+    let prefixes = fixture_prefixes(body);
+    if prefixes.is_empty() {
+        return Ok((0, 0));
+    }
+    let base = dest.parent().unwrap_or_else(|| std::path::Path::new(""));
+    let (mut written, mut kept) = (0, 0);
+    for (tail, bytes) in nika_pack::example_fixture_files() {
+        let wanted = prefixes
+            .iter()
+            .any(|p| tail == p || tail.starts_with(&format!("{p}/")));
+        if !wanted {
+            continue;
+        }
+        let target = base.join("examples").join("fixtures").join(tail);
+        if target.exists() {
+            kept += 1;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&target, bytes)?;
+        written += 1;
+    }
+    Ok((written, kept))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    /// Gauntlet 2026-07-31 (the one rage-quit): a copied recipe brings
+    /// its ingredients — the fixtures its body reads land beside it at
+    /// the exact relative paths the yaml names, and a file already
+    /// yours is kept, never clobbered.
+    #[test]
+    fn copy_brings_the_fixtures_the_body_reads() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let dest = dir.path().join("review.nika.yaml");
+        let out = copy(
+            "06-code-review",
+            Some(dest.to_str().expect("utf8")),
+            false,
+            PLAIN,
+        );
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        let fixture = dir.path().join("examples/fixtures/review-me.rs");
+        assert!(fixture.exists(), "the ingredient landed: {}", out.text);
+        assert!(
+            out.text.contains("examples/fixtures"),
+            "the note names the ingredients: {}",
+            out.text
+        );
+
+        // Second copy over the same dir: the fixture is YOURS now — kept.
+        std::fs::write(&fixture, "mine").expect("user edit");
+        let again = copy(
+            "06-code-review",
+            Some(dir.path().join("review2.nika.yaml").to_str().expect("utf8")),
+            false,
+            PLAIN,
+        );
+        assert_eq!(again.code, exit::OK, "{}", again.text);
+        assert_eq!(
+            std::fs::read_to_string(&fixture).expect("read"),
+            "mine",
+            "an existing fixture is never clobbered"
+        );
+        assert!(again.text.contains("already yours"), "{}", again.text);
+    }
+
+    /// A dir-glob read (`photos/**`) pulls the whole dir; plain files
+    /// come one by one; a starless body brings nothing.
+    #[test]
+    fn fixture_prefixes_cut_globs_and_dedup() {
+        let body = "a: examples/fixtures/sales.csv\nb: \"./examples/fixtures/photos/**\"\nc: examples/fixtures/sales.csv\n";
+        assert_eq!(fixture_prefixes(body), vec!["sales.csv", "photos"]);
+        assert!(fixture_prefixes("no refs here").is_empty());
+    }
 
     /// Every listing row speaks the FULL filename — what you see is
     /// what you type (and the resolver tolerates it back).

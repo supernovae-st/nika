@@ -48,7 +48,7 @@ const:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"
   state_path: "out/release-radar.json"
 permits:
-  tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:read", "nika:write"]
+  tools: ["nika:fetch", "nika:jq", "nika:json_diff", "nika:prompt", "nika:read", "nika:write"]
   fs:
     # The state-file pattern touches exactly ONE path, on both sides: read
     # last run's state, write the next. `const.state_path` names it and a run
@@ -60,13 +60,31 @@ permits:
     http: ["github.com"]   # the feed's host · net entries are exact names, never globs
 
 tasks:
+  # The human gate first (NIKA-SEC-009 · NEP-0002, the Rule of Two as a
+  # static check). This boundary permits all three legs — private read
+  # (the state file) + untrusted ingress (the release feed) + egress
+  # (the state write) — so a blocking prompt (no default:) dominates the
+  # flow before a byte moves. Headless surfaces pause durably and resume
+  # with `--resume <trace> --answer approve=true`.
+  approve:
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: "This run fetches ${{ const.releases_feed }}, diffs against ${{ const.state_path }}, and rewrites that state file. Proceed?"
+
   # First run has no state file · recover to an empty list.
   no_state:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:jq"
       args: { input: [], expression: "." }
 
   previous:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.state_path }}" }
@@ -75,6 +93,9 @@ tasks:
       recover: ${{ tasks.no_state.output }}
 
   feed:
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:fetch"
       args:

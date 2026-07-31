@@ -144,6 +144,48 @@ satisfy **both**. (`allow.providers` deliberately covers the one
 authority `permits:` does not — the provider surface; capability stays
 permits' ground, and no policy rule re-spells a permits grant.)
 
+## The affirmative-consent law · *normative · NEP-0020*
+
+A REFUSED confirm-mode `nika:prompt` settles the task **success with
+value `false`** — the Deny lives in the approval attestation
+(NEP-0013), never in the task status. So a gate that nothing consumes
+is a rubber stamp: a bare `after: { ask: success }` edge admits the
+refusal, a `when:` that never reads the answer lets it through, and a
+`when:` provably true on `false`
+(`with.go == true || with.go == false`) blocks nothing. The law: for
+every confirm-mode gate (`mode:` absent or the literal `confirm`) and
+every egress-capable task (`exec:` · a net or fs-**write** builtin ·
+`mcp:*` · an `agent:` whose whitelist admits an egress tool), judged on
+the derived graph, **every route from the gate to the task must be
+closed** — by an affirmative gate, by `when: false`, or by a closer
+confirm gate (the nearest gate owns its closure). **`false` triggers
+exactly zero effects.**
+
+**The affirmative gate (normative · the decidable fragment).** A `when:`
+is affirmative when it evaluates to FALSE under the **refusal
+substitution**: `tasks.<gate>.output` → `false` · `tasks.<gate>.status`
+→ `"success"` (a refusal settles success — a status read is NOT
+consent, and it is decidable exactly), the exact single-island `with:`
+binding carrying its target's value, Kleene-3 over the fragment
+(boolean literals · `==`/`!=`/`in` on resolved literals · `!`/`&&`/`||`
+/ternary). Three verdicts, three fates —
+
+- **FALSE** — the route is closed (the human-gated-ship pattern:
+  `with: { go: "${{ tasks.ask.output }}" }` + `when: ${{ with.go == true }}`).
+- **TRUE** — the gate is PROVEN open under the refusal; the route stands.
+- **Unknown** — the gate cannot be decided statically (a nested template
+  binding · an expression beyond the fragment): the defect is unproven,
+  and an unproven defect is the advisory hint's ground, **never** a
+  refusal (sound — no false red).
+
+A violation is **`NIKA-SEC-014`** (`security_error` · check-time ·
+before any token) — the diagnostic names the gate AND the sink and
+teaches the affirmative pattern. The law binds with or without a
+`policy:` block (it is not a declared-rule violation, so it does not
+speak `NIKA-POLICY-001`), and `mode: choice` is out of scope — its
+answer is a string and the lane claims nothing there (silence, never
+wrong).
+
 ## Secret flow refusals carry their codes (normative)
 
 The flow rules themselves live in
@@ -270,7 +312,9 @@ projection: the judge is the check ladder, never the JSON.
 
 `NIKA-SEC-006` / `NIKA-SEC-007` join the existing `NIKA-SEC` namespace
 ([05](./05-errors.md)); `NIKA-AUTH-007` / `NIKA-AUTH-008` join the
-`NIKA-AUTH` namespace opened by NEP-0003's `NIKA-AUTH-006`.
+`NIKA-AUTH` namespace opened by NEP-0003's `NIKA-AUTH-006`;
+`NIKA-SEC-013` (the endorsement mode) and `NIKA-SEC-014` (the
+affirmative-consent law) join the same `NIKA-SEC` namespace.
 
 ## One obvious way (normative for linters)
 

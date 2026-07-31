@@ -243,12 +243,12 @@ clients:
   - id: copilot-cli
     name: GitHub Copilot CLI (standalone)
     class: B
-    status: wired
+    status: proven
     install: "copilot mcp add nika -- nika mcp  (writes ~/.copilot/mcp-config.json) · the project .mcp.json shipped by the kit is read natively (cwd up to repo root) and AGENTS.md too"
     components: {mcp: mcp-config, scaffold: init}
     class_gap: "in-IDE Copilot stays covered by the VS Code page · known wart upstream: CLI says mcpServers, VS Code says servers"
     wire_pending: "WireTarget::Copilot shipped engine-side (37f95f0de · desired matches their writer: tools ['*'] + type local) · the probe activates at the first release shipping it"
-    proof_partial: "verified live 2026-07-31 · copilot 1.0.76 · nika 0.106.1 · copilot mcp add ran, copilot mcp get nika answers Status: Enabled · Type: local · Source: User (their own manager reads it back) · a session-level tool call stays owed (Copilot auth = operator gesture)"
+    proof: "verified live 2026-07-31 · copilot 1.0.76 · nika 0.106.1 (the digest-verified release asset) · copilot mcp get nika answers Enabled/local/User · AND the session-level receipt: a headless copilot -p run calls the oracle and its transcript names the server — `The spec canon (MCP: nika)` — returning the 37.5KB canon"
     docs: "pending · a page ships at proven"
     notes: "wave-2/3 recon+probe [PRIMARY + on-machine]: brew cask copilot-cli · the gh-copilot extension died 2025-10-25 · their mcp --help names the workspace sources .mcp.json and .github/mcp.json — the kit interop confirmed by the binary itself"
 

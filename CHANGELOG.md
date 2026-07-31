@@ -10,7 +10,53 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika init` writes the two project MCP doors.** The root `.mcp.json`
+  (the standard `mcpServers` stanza FOUR agent surfaces read natively:
+  Claude Code project scope · Grok Build via its Claude compat · GitHub
+  Copilot CLI · Warp) and `.agents/mcp_config.json` (Antigravity CLI's
+  workspace file, beside the authoring skill under the cross-vendor
+  `.agents/` convention). One shared body, seventeen scaffold targets —
+  a repo equipped by `nika init` now hands the read-only oracle to six
+  clients with zero machine wiring.
+
 ### Fixed
+
+- **`nika examples copy` brings the recipe's ingredients.** Every
+  `examples/fixtures/…` file the copied body reads now lands beside it at
+  the exact relative path the yaml names (existing files are kept, never
+  clobbered) — the copied recipe's own taught offline run used to die
+  `NIKA-BUILTIN-READ-001` on the missing fixture (the one rage-quit of the
+  19-persona gauntlet, 2026-07-31).
+- **Bare `nika` greets in a pipe too, exit 0.** The pipe used to get clap
+  usage at exit 2 — an agent's first contact read as breakage, and spec §4
+  reserves 2 for file findings. Both worlds now get the welcome mirror;
+  `--help` stays the reference card.
+- **The agent's request order is the author's `tools:` order.** The tool
+  list used to ride catalog order with loop-owned intrinsics appended last,
+  so `nika:done` could never come first — and the offline rehearsal
+  (mock M1 invokes the first granted tool) died at turn 1 on any fs-scoped
+  loop, refused by the boundary it could not satisfy. Listing `nika:done`
+  first now closes the loop cleanly offline; real models are unaffected (a
+  whitelist has no ranking semantics).
+- **`nika explain NIKA-BUILTIN-READ-001` teaches the contract** — paths
+  resolve from the RUN's working directory, with the three exits (look ·
+  cd-and-run · `examples copy` lands the ingredients) — instead of the
+  namespace boilerplate.
+- **The taught mock rehearsal says its limit on writing workflows.** The
+  mock swaps the model, not the effects: a mock re-run after a real one
+  overwrites the real artifacts (a gauntlet persona lost a real
+  CHANGELOG.md that way). The `explain <file>` rehearsal line on a
+  writing workflow now says `file writes STILL land — rehearse before the
+  real run, not after`.
+- **`nika model` teaches an ungated starter id.** The suggested
+  `Qwen/…-GGUF` repo answers 401 without a token; the taught id is now the
+  public `unsloth/Qwen3-4B-Instruct-2507-GGUF` mirror (verified 200).
+- **NIKA-SEC-014 names the real defect.** The finding said the route
+  « never consumes the answer » — a route that binds the answer but never
+  gates on it read that as false; it now says « never gates on the
+  answer ».
 
 - **A human gate can no longer kill a first run.** A `nika:prompt` with no
   `default:` used to die `NIKA-BUILTIN-PROMPT-001` in milliseconds on every
