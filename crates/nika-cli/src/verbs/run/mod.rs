@@ -293,6 +293,10 @@ fn run_verdict(
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
+    // The re-invocation carry (`--var`/`--model`) every taught resume
+    // line re-supplies — a required-input workflow refuses a var-less
+    // resume, so a taught line without them failed on paste.
+    let carry = epilogue::resume_carry(vars, model_override);
     let mut verdict = rt.block_on(execute(
         &runtime,
         (file, &wf),
@@ -305,6 +309,7 @@ fn run_verdict(
         trace_sink(no_trace_file),
         !no_outputs,
         model_override,
+        &carry,
     ));
 
     // ── The terminal ask (ADR-099 · "interactively it asks") ────────
@@ -390,6 +395,7 @@ fn answered_leg(
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
+    let carry = epilogue::resume_carry(vars, model_override);
     rt.block_on(execute(
         &runtime,
         (file, wf),
@@ -402,6 +408,7 @@ fn answered_leg(
         trace_sink(no_trace_file),
         outputs,
         model_override,
+        &carry,
     ))
 }
 
@@ -816,6 +823,7 @@ async fn execute(
     trace: TraceFileSink,
     outputs: bool,
     model_override: Option<&str>,
+    carry: &str,
 ) -> RunVerdict {
     // F-P3 · the run: declaration picks the event-identity seam:
     // `entropy: none | seeded(N)` mints deterministic stamps (replayable
@@ -845,7 +853,10 @@ async fn execute(
         // A paused run teaches its exact resume command on stderr — the
         // pause sibling of the failure lane's `autopsy:` line.
         if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
-            eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
+            eprintln!(
+                "nika run: {}",
+                epilogue::resume_hint_line(file, p, pause, carry)
+            );
         }
         epilogue::print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
@@ -887,6 +898,7 @@ async fn execute(
             stamper.as_mut(),
             resumed,
             trace,
+            carry,
         )
         .await
     } else {
@@ -900,6 +912,7 @@ async fn execute(
             (mode, resumed, outputs),
             trace,
             model_override,
+            carry,
         )
         .await
     }
@@ -909,6 +922,7 @@ async fn execute(
 /// precedent · the fn-length wall): stdout stays NDJSON verbatim
 /// (byte-identical with or without the journal), the trace note rides
 /// stderr.
+#[allow(clippy::too_many_arguments)] // the clap-surface idiom (execute's own)
 async fn execute_json_lane(
     runtime: &ProdRuntime,
     (file, wf): (&str, &RawWorkflow),
@@ -916,6 +930,7 @@ async fn execute_json_lane(
     stamper: &mut dyn Stamper,
     resumed: bool,
     trace: TraceFileSink,
+    carry: &str,
 ) -> RunVerdict {
     let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
@@ -930,7 +945,10 @@ async fn execute_json_lane(
         Some(&teardown),
     );
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
-        eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
+        eprintln!(
+            "nika run: {}",
+            epilogue::resume_hint_line(file, p, pause, carry)
+        );
     }
     if let Some(e) = sink.into_error() {
         eprintln!("nika run: stream write failed: {e}");
@@ -962,6 +980,7 @@ async fn execute_fold_lane(
     (mode, resumed, outputs): (RenderMode, bool, bool),
     trace: TraceFileSink,
     model_override: Option<&str>,
+    carry: &str,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
     // The living map's topology — the SAME checked projection graph/
@@ -1043,7 +1062,7 @@ async fn execute_fold_lane(
     // the one teaching line: a pause without it is a dead end, not
     // compactness.
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
-        println!("    {}", epilogue::resume_hint_line(file, p, pause));
+        println!("    {}", epilogue::resume_hint_line(file, p, pause, carry));
     }
     epilogue::print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.take_error() {
