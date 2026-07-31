@@ -1691,6 +1691,7 @@ pub nika_dap::inventory::Workspace::root: alloc::string::String
 pub nika_dap::inventory::Workspace::runs: alloc::vec::Vec<nika_event::fold::RunFact>
 pub nika_dap::inventory::Workspace::runs_capped: bool
 pub nika_dap::inventory::Workspace::runs_total_found: usize
+pub nika_dap::inventory::Workspace::walk_truncated: bool
 pub nika_dap::inventory::Workspace::workflows: alloc::vec::Vec<nika_dap::inventory::WorkflowFact>
 pub nika_dap::inventory::Workspace::workflows_capped: bool
 pub nika_dap::inventory::Workspace::workflows_total_found: usize
@@ -1727,8 +1728,8 @@ pub type nika_dap::inventory::Workspace::Output = T
 pub const nika_dap::inventory::MAX_WORKFLOWS: usize
 pub const nika_dap::inventory::SKIP_DIRS: [&str; 8]
 pub const nika_dap::inventory::WALK_BUDGET: usize
-pub fn nika_dap::inventory::collect_workflow_paths(root: &std::path::Path, dir: &std::path::Path, depth: u8, budget: &mut usize, out: &mut alloc::vec::Vec<std::path::PathBuf>)
-pub fn nika_dap::inventory::collect_workflows(root: &std::path::Path) -> (alloc::vec::Vec<nika_dap::inventory::WorkflowFact>, bool, usize)
+pub fn nika_dap::inventory::collect_workflow_paths(root: &std::path::Path, dir: &std::path::Path, depth: u8, budget: &mut usize, out: &mut alloc::vec::Vec<std::path::PathBuf>) -> bool
+pub fn nika_dap::inventory::collect_workflows(root: &std::path::Path) -> (alloc::vec::Vec<nika_dap::inventory::WorkflowFact>, bool, usize, bool)
 pub fn nika_dap::inventory::rollups(facts: &[nika_dap::inventory::WorkflowFact], runs: &[nika_event::fold::RunFact]) -> nika_dap::inventory::Rollups
 pub mod nika_dap::journal
 pub struct nika_dap::journal::JsonSink<W: core::io::write::Write>

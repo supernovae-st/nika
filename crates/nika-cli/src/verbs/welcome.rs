@@ -38,7 +38,16 @@ use crate::verbs::{VerbOutput, probe};
 /// whole row must live inside 80 columns.
 fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str); 3] {
     match (glance.workflows, glance.agents_md) {
+        // P0-4: a TRUNCATED scan that saw zero is unknown, never the
+        // stranger's zero — the concierge leads with the full truth, not
+        // with founding CTAs that presume an empty workspace.
+        (0, _) if !glance.complete => [
+            ("nika welcome --deep".to_owned(), "scan partial · the truth"),
+            ("nika init".to_owned(), "found this repo (wizard)"),
+            ("nika examples".to_owned(), "the teaching corpus"),
+        ],
         // The stranger's moment: nothing here yet — see one run, then found.
+        // Only ever reached behind a COMPLETE scan (the arm above).
         (0, _) => [
             (
                 "nika examples run 01-hello --model mock/echo".to_owned(),
@@ -112,6 +121,11 @@ struct Glance {
     workflows: usize,
     /// An `AGENTS.md` sits at the root — the repo's agents are briefed.
     agents_md: bool,
+    /// The walk finished (P0-4): `false` = the count above is a LOWER
+    /// BOUND (budget died · unreadable dir), and zero is UNKNOWN — the
+    /// stranger's claims (« no workflows yet » · the sample) are gated
+    /// on this flag.
+    complete: bool,
 }
 
 /// The one-file verdict behind the run CTA (P0-3 · LOI-3) — computed
@@ -148,7 +162,7 @@ struct EngineCounts {
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let probe = probe::collect(false);
     let root = Path::new(".");
-    let (glance, sole) = glance(root);
+    let (glance, sole) = glance(root, 4000);
     // P0-3: the ONE file is audited before any run line may name it.
     let gate = sole.as_deref().map(|rel| run_gate(root, rel));
     let counts = EngineCounts {
@@ -165,26 +179,30 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
 }
 
 /// The workspace glance — a bounded, dot-dir-skipping walk (depth ≤ 4 ·
-/// ≤ 4000 entries): a greeting must stay instant on a monorepo and must
-/// never wander into `node_modules`/`target`. Returns the sole file's
-/// root-relative path alongside, exactly when `workflows == 1` (the run
-/// CTA's audit target).
-fn glance(dir: &Path) -> (Glance, Option<std::path::PathBuf>) {
+/// budget-capped, 4000 entries in production): a greeting must stay
+/// instant on a monorepo and must never wander into
+/// `node_modules`/`target`. Returns the sole file's root-relative path
+/// alongside, exactly when `workflows == 1` (the run CTA's audit target).
+/// The walk's truncation flag lands in `Glance::complete` (P0-4) — the
+/// budget is a parameter so tests can kill it without staging 4000 files.
+fn glance(dir: &Path, walk_budget: usize) -> (Glance, Option<std::path::PathBuf>) {
     let git = dir
         .canonicalize()
         .unwrap_or_else(|_| dir.to_path_buf())
         .ancestors()
         .any(|a| a.join(".git").exists());
-    let mut budget = 4000usize;
+    let mut budget = walk_budget;
     let mut paths = Vec::new();
-    probe::collect_workflow_paths(dir, dir, 4, &mut budget, &mut paths);
+    let truncated = probe::collect_workflow_paths(dir, dir, 4, &mut budget, &mut paths);
+    paths.sort(); // the walk orders stably; the full-path sort pins it
     let workflows = paths.len();
-    let sole = (workflows == 1).then(|| paths.swap_remove(0));
+    let sole = (workflows == 1 && !truncated).then(|| paths.swap_remove(0));
     (
         Glance {
             git,
             workflows,
             agents_md: dir.join("AGENTS.md").exists(),
+            complete: !truncated,
         },
         sole,
     )
@@ -370,10 +388,14 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) 
         s,
         "  workspace  git {} · {} · agents {}",
         mark(theme, glance.git),
-        match glance.workflows {
-            0 => "no workflows yet".to_owned(),
-            1 => "1 workflow".to_owned(),
-            n => format!("{n} workflows"),
+        match (glance.workflows, glance.complete) {
+            // P0-4: « no workflows yet » is a claim only a COMPLETE scan
+            // may make; a truncated walk renders the honest lower bound.
+            (0, true) => "no workflows yet".to_owned(),
+            (0, false) => "0 found · scan partial".to_owned(),
+            (1, true) => "1 workflow".to_owned(),
+            (n, true) => format!("{n} workflows"),
+            (n, false) => format!("{n}+ found · scan partial"),
         },
         if glance.agents_md {
             format!("briefed {} (AGENTS.md)", mark(theme, true))
@@ -397,7 +419,9 @@ fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: T
         counts.templates
     );
     let _ = writeln!(s);
-    if glance.workflows == 0 {
+    // The stranger's moment is gated on a COMPLETE zero (P0-4) — a
+    // partial scan cannot know the workspace is empty.
+    if glance.workflows == 0 && glance.complete {
         let _ = writeln!(
             s,
             "{}",
@@ -486,6 +510,7 @@ fn render_json(
             "git": glance.git,
             "workflows": glance.workflows,
             "agents_md": glance.agents_md,
+            "inventory_complete": glance.complete,
         },
         "engine": {
             "verbs": 4,
@@ -584,6 +609,7 @@ mod tests {
             git: true,
             workflows,
             agents_md,
+            complete: true,
         };
         let clean = RunGate {
             path: "a.nika.yaml".to_owned(),
@@ -627,7 +653,7 @@ mod tests {
     #[test]
     fn one_red_workflow_gets_check_never_run() {
         let dir = scratch(&[("AGENTS.md", "x"), ("bad.nika.yaml", RED_WORKFLOW)]);
-        let (g, sole) = glance(dir.path());
+        let (g, sole) = glance(dir.path(), 4000);
         assert_eq!(g.workflows, 1, "the scratch holds exactly one file");
         assert!(g.agents_md);
         let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
@@ -668,7 +694,7 @@ mod tests {
                 "nika: v1\nworkflow:\n  id: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
             ),
         ]);
-        let (g, sole) = glance(dir.path());
+        let (g, sole) = glance(dir.path(), 4000);
         assert_eq!(g.workflows, 1);
         let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
         let gate = gate.expect("a gate for the sole file");
@@ -706,7 +732,7 @@ mod tests {
                 "nika: v1\nworkflow:\n  id: priced\nmodel: openai/gpt-4o-mini\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
             ),
         ]);
-        let (g, sole) = glance(dir.path());
+        let (g, sole) = glance(dir.path(), 4000);
         assert_eq!(g.workflows, 1);
         let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
         let gate = gate.expect("a gate for the sole file");
@@ -732,6 +758,7 @@ mod tests {
             git: true,
             workflows: 0,
             agents_md: false,
+            complete: true,
         };
         let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
         assert!(
@@ -759,6 +786,7 @@ mod tests {
             git: true,
             workflows: 0,
             agents_md: false,
+            complete: true,
         };
         let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
         assert!(!silent.contains("  kits"), "no kits = no line:\n{silent}");
@@ -791,6 +819,7 @@ mod tests {
                 git: true,
                 workflows: 2,
                 agents_md: false,
+                complete: true,
             },
             None,
             counts(),
@@ -907,6 +936,7 @@ mod tests {
                 git: false,
                 workflows: 0,
                 agents_md: false,
+                complete: true,
             },
             None,
             EngineCounts {
@@ -944,6 +974,7 @@ mod tests {
                 git: true,
                 workflows: 1,
                 agents_md: true,
+                complete: true,
             },
             None,
             counts(),
@@ -993,6 +1024,7 @@ mod tests {
                 git: false,
                 workflows: 0,
                 agents_md: true,
+                complete: true,
             },
             None,
             counts(),
@@ -1003,12 +1035,67 @@ mod tests {
         assert_eq!(v["machine"]["cloud_keys_total"], 2);
         assert_eq!(v["machine"]["clients"][0]["wired"], true);
         assert_eq!(v["workspace"]["workflows"], 0);
+        assert_eq!(v["workspace"]["inventory_complete"], true);
         assert_eq!(v["engine"]["verbs"], 4);
         assert_eq!(v["start"].as_array().map(Vec::len), Some(3));
         assert!(
             !raw.contains("API_KEY") && !raw.contains("key_present"),
             "the JSON mirror carries counts, never per-key facts: {raw}"
         );
+    }
+
+    /// P0-4 (audit UX 2026-07-30): a TRUNCATED inventory that found zero
+    /// files is an UNKNOWN, never « no workflows yet » — the stranger's
+    /// claims (the zero line · the language sample · the JSON mirror) are
+    /// all gated on a COMPLETE scan, and a partial scan says so instead.
+    #[test]
+    fn a_partial_scan_never_renders_the_strangers_zero() {
+        let g = Glance {
+            git: true,
+            workflows: 0,
+            agents_md: false,
+            complete: false,
+        };
+        let text = render_human(&synthetic_probe(), g, None, counts(), plain());
+        assert!(
+            !text.contains("no workflows yet"),
+            "a partial scan is unknown, never « zero »:\n{text}"
+        );
+        assert!(
+            text.contains("scan partial"),
+            "the partial scan says so:\n{text}"
+        );
+        assert!(
+            !text.contains("a whole workflow is one file"),
+            "the sample is the COMPLETE stranger's moment only:\n{text}"
+        );
+        let raw = render_json(&synthetic_probe(), g, None, counts());
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
+        assert_eq!(
+            v["workspace"]["inventory_complete"], false,
+            "the machine mirror carries the scan's completeness: {raw}"
+        );
+    }
+
+    /// The glance itself propagates the walk's truncation: an injected
+    /// tiny budget that dies before the workflow's directory yields
+    /// `workflows: 0` WITH `complete: false` — the finding's exact
+    /// reproduction, now indistinguishable-proof.
+    #[test]
+    fn glance_marks_a_budget_killed_scan_incomplete() {
+        let dir = tempfile::tempdir().expect("scratch");
+        for i in 0..8 {
+            std::fs::write(dir.path().join(format!("noise-{i}.txt")), "x").expect("write");
+        }
+        std::fs::create_dir(dir.path().join("z")).expect("mkdir");
+        std::fs::write(dir.path().join("z/flow.nika.yaml"), "x").expect("write");
+        let (g, sole) = glance(dir.path(), 3); // dies in the noise
+        assert_eq!(g.workflows, 0, "the workflow was never reached");
+        assert!(!g.complete, "a killed scan is partial, never « zero »");
+        assert!(sole.is_none());
+        let (g, _) = glance(dir.path(), 4000);
+        assert_eq!(g.workflows, 1);
+        assert!(g.complete, "a full scan is complete");
     }
 
     #[test]
@@ -1023,7 +1110,7 @@ mod tests {
         std::fs::write(nested.join("b.nika.yml"), "x").expect("write");
         std::fs::write(heavy.join("c.nika.yaml"), "x").expect("write");
         std::fs::write(tmp.join("AGENTS.md"), "x").expect("write");
-        let (g, sole) = glance(&tmp);
+        let (g, sole) = glance(&tmp, 4000);
         std::fs::remove_dir_all(&tmp).ok();
         assert!(g.git, "sees the .git ancestor");
         assert_eq!(g.workflows, 2, "counts a.nika.yaml + flows/b.nika.yml only");

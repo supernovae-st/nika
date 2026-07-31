@@ -41,22 +41,42 @@ pub const MAX_WORKFLOWS: usize = 100;
 /// Bounded workspace walk: collect root-relative `*.nika.yaml` paths
 /// (depth- and budget-capped · dot/dep dirs skipped). The ONE walk the
 /// mirror family shares — welcome counts it, context audits it.
+///
+/// Entries are visited in a STABLE order (sorted per directory), so the
+/// filesystem's iteration order never leaks into a render. The return is
+/// the honesty flag (P0-4 · audit UX 2026-07-30): `true` = TRUNCATED —
+/// the budget died with work unvisited, an entry errored, or a directory
+/// could not be read. A truncated walk's empty `out` is UNKNOWN, never
+/// « zero workflows »; only `false` certifies the list is complete. The
+/// depth cap is a design boundary, not truncation: reaching it is `false`.
 pub fn collect_workflow_paths(
     root: &Path,
     dir: &Path,
     depth: u8,
     budget: &mut usize,
     out: &mut Vec<PathBuf>,
-) {
-    if depth == 0 || *budget == 0 {
-        return;
+) -> bool {
+    if depth == 0 {
+        return false;
+    }
+    if *budget == 0 {
+        return true; // called with work to do and nothing left to spend
     }
     let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
+        return true; // an unreadable dir may hide workflows — never « zero »
     };
-    for entry in entries.flatten() {
+    let mut sorted = Vec::new();
+    let mut truncated = false;
+    for entry in entries {
+        match entry {
+            Ok(entry) => sorted.push(entry),
+            Err(_) => truncated = true, // an entry we could not stat is unknown
+        }
+    }
+    sorted.sort_by_key(std::fs::DirEntry::file_name);
+    for entry in sorted {
         if *budget == 0 {
-            return;
+            return true; // died with entries still unvisited
         }
         *budget -= 1;
         let path = entry.path();
@@ -66,11 +86,12 @@ pub fn collect_workflow_paths(
             if name.starts_with('.') || SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
-            collect_workflow_paths(root, &path, depth - 1, budget, out);
+            truncated |= collect_workflow_paths(root, &path, depth - 1, budget, out);
         } else if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
             out.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
         }
     }
+    truncated
 }
 
 /// One workflow file's audited facts — verdicts, never contents.
@@ -107,6 +128,9 @@ pub struct WorkflowFact {
 }
 
 /// The workspace half of the aggregate (pure over collected facts).
+// Independent report FLAGS on a wire struct, not a state machine — the
+// same flags-are-flags exemption WorkflowFact above carries.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize)]
 pub struct Workspace {
     /// The walked root (always relative).
@@ -119,6 +143,11 @@ pub struct Workspace {
     pub workflows_capped: bool,
     /// How many the walk FOUND (≥ the emitted list when capped).
     pub workflows_total_found: usize,
+    /// `true` when the WALK itself gave up (budget died · unreadable
+    /// directory) — the counts above are a lower bound, never « zero »
+    /// (P0-4 · audit UX 2026-07-30). Reported exactly like
+    /// [`Workspace::workflows_capped`], never silent.
+    pub walk_truncated: bool,
     /// Most recent run journals folded (newest first).
     pub runs: Vec<RunFact>,
     /// `true` when the run fold was capped.
@@ -150,12 +179,15 @@ pub struct Rollups {
 }
 
 /// Walk the root (bounded · dot/dep dirs skipped) and audit every
-/// `*.nika.yaml` through the in-process check ladder.
+/// `*.nika.yaml` through the in-process check ladder. Returns the facts,
+/// the `MAX_WORKFLOWS` cap flag, the total found, and the walk's own
+/// truncation flag (P0-4: a budget-killed or unreadable tree is reported
+/// exactly like the cap, never read as « zero »).
 #[must_use]
-pub fn collect_workflows(root: &Path) -> (Vec<WorkflowFact>, bool, usize) {
+pub fn collect_workflows(root: &Path) -> (Vec<WorkflowFact>, bool, usize, bool) {
     let mut paths = Vec::new();
     let mut budget = WALK_BUDGET;
-    collect_workflow_paths(root, root, 6, &mut budget, &mut paths);
+    let walk_truncated = collect_workflow_paths(root, root, 6, &mut budget, &mut paths);
     paths.sort();
     let found = paths.len();
     let capped = found > MAX_WORKFLOWS;
@@ -164,6 +196,7 @@ pub fn collect_workflows(root: &Path) -> (Vec<WorkflowFact>, bool, usize) {
         paths.iter().map(|p| audit(root, p)).collect(),
         capped,
         found,
+        walk_truncated,
     )
 }
 
@@ -244,5 +277,87 @@ pub fn rollups(facts: &[WorkflowFact], runs: &[RunFact]) -> Rollups {
         permits_declared: facts.iter().filter(|f| f.permits_declared).count(),
         runs_cost_usd: runs.iter().filter_map(|r| r.cost_usd).sum(),
         runs_unpriced_calls: runs.iter().filter_map(|r| r.unpriced_calls).sum(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// P0-4 (audit UX 2026-07-30): an injected tiny budget dies before the
+    /// walk ever reaches the workflow's directory — the return MUST carry
+    /// `truncated: true`, so no caller can read the short list as « zero ».
+    /// The noise sorts BEFORE `z/` by the walk's own stable order, so the
+    /// budget provably dies upstream of the workflow.
+    #[test]
+    fn an_exhausted_budget_reports_truncated_never_a_silent_short_list() {
+        let dir = tempfile::tempdir().expect("scratch");
+        for i in 0..8 {
+            std::fs::write(dir.path().join(format!("noise-{i}.txt")), "x").expect("write");
+        }
+        std::fs::create_dir(dir.path().join("z")).expect("mkdir");
+        std::fs::write(dir.path().join("z/flow.nika.yaml"), "x").expect("write");
+
+        let mut out = Vec::new();
+        let mut budget = 3; // dies inside the noise — z/ is never entered
+        let truncated = collect_workflow_paths(dir.path(), dir.path(), 4, &mut budget, &mut out);
+        assert!(truncated, "a budget that died mid-walk IS truncation");
+        assert!(out.is_empty(), "the workflow was never reached: {out:?}");
+
+        // The SAME tree with a living budget: complete, the file seen.
+        let mut out = Vec::new();
+        let mut budget = WALK_BUDGET;
+        let truncated = collect_workflow_paths(dir.path(), dir.path(), 4, &mut budget, &mut out);
+        assert!(!truncated, "a full walk is complete");
+        assert_eq!(out, vec![PathBuf::from("z/flow.nika.yaml")]);
+    }
+
+    /// A directory the walk cannot READ may hide workflows — silence here
+    /// is the exact « an FS error renders as zero » lie the finding names.
+    #[test]
+    fn an_unreadable_dir_reports_truncated_never_zero() {
+        let dir = tempfile::tempdir().expect("scratch");
+        let ghost = dir.path().join("does-not-exist");
+        let mut out = Vec::new();
+        let mut budget = WALK_BUDGET;
+        let truncated = collect_workflow_paths(dir.path(), &ghost, 4, &mut budget, &mut out);
+        assert!(truncated, "an unreadable dir is unknown, never zero");
+        assert!(out.is_empty());
+    }
+
+    /// FS order is not an input: the SAME file set created in two
+    /// different orders walks to the SAME sequence (the mirror family
+    /// prints what the walk returns — the stable sort lives here, once).
+    #[test]
+    fn the_walk_order_is_fs_invariant() {
+        let names = [
+            "b.nika.yaml",
+            "a.nika.yaml",
+            "sub/c.nika.yaml",
+            "sub/a.nika.yaml",
+        ];
+        let layout = |order: &[usize]| {
+            let dir = tempfile::tempdir().expect("scratch");
+            std::fs::create_dir(dir.path().join("sub")).expect("mkdir");
+            for &i in order {
+                std::fs::write(dir.path().join(names[i]), "x").expect("write");
+            }
+            dir
+        };
+        let walk = |dir: &Path| {
+            let mut out = Vec::new();
+            let mut budget = WALK_BUDGET;
+            let truncated = collect_workflow_paths(dir, dir, 4, &mut budget, &mut out);
+            assert!(!truncated);
+            out
+        };
+        let one = layout(&[0, 1, 2, 3]);
+        let two = layout(&[3, 2, 1, 0]);
+        let a = walk(one.path());
+        let b = walk(two.path());
+        assert_eq!(a, b, "creation order must not leak into the render");
+        let mut sorted = a.clone();
+        sorted.sort();
+        assert_eq!(a, sorted, "the walk emits the canonical sorted order");
     }
 }

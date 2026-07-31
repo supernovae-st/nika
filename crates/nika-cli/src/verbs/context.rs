@@ -27,7 +27,7 @@ const MAX_RUNS: usize = 20;
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let root = std::path::Path::new(".");
-    let (facts, capped, found) = collect_workflows(root);
+    let (facts, capped, found, walk_truncated) = collect_workflows(root);
     let (runs, runs_capped, runs_found) =
         fold::fold_traces(&root.join(".nika").join("traces"), MAX_RUNS);
     let probe = probe::collect(false);
@@ -41,6 +41,7 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
         workflows: facts,
         workflows_capped: capped,
         workflows_total_found: found,
+        walk_truncated,
         runs,
         runs_capped,
         runs_total_found: runs_found,
@@ -83,7 +84,16 @@ fn render_human(
     );
     let _ = writeln!(s);
     if workspace.workflows.is_empty() {
-        let _ = writeln!(s, "no workflows here yet — nika new scaffolds one");
+        // P0-4: an empty list behind a TRUNCATED walk is unknown, never
+        // « nothing here » — the zero claim is the complete walk's alone.
+        if workspace.walk_truncated {
+            let _ = writeln!(
+                s,
+                "scan partial — the walk gave up before covering the tree"
+            );
+        } else {
+            let _ = writeln!(s, "no workflows here yet — nika new scaffolds one");
+        }
         return s;
     }
     let width = workspace
@@ -124,6 +134,15 @@ fn render_human(
             s,
             "  {}",
             theme.paint(Role::Dim, "… inventory capped — scope by directory")
+        );
+    }
+    if workspace.walk_truncated {
+        // The WALK's own honesty flag (P0-4) — reported exactly like the
+        // MAX_WORKFLOWS cap above, never silent.
+        let _ = writeln!(
+            s,
+            "  {}",
+            theme.paint(Role::Dim, "… scan partial — scope by directory")
         );
     }
     let _ = writeln!(s);
@@ -213,9 +232,10 @@ mod tests {
     #[test]
     fn the_inventory_audits_and_the_paths_stay_relative() {
         let dir = scratch();
-        let (facts, capped, found) = collect_workflows(&dir);
+        let (facts, capped, found, walk_truncated) = collect_workflows(&dir);
         std::fs::remove_dir_all(&dir).ok();
         assert!(!capped);
+        assert!(!walk_truncated, "a small scratch tree walks complete");
         assert_eq!(found, 2);
         assert_eq!(facts.len(), 2, "{facts:?}");
         // Relative, sorted, dependency trees skipped.
@@ -308,7 +328,7 @@ mod tests {
         // Run in a scratch cwd via the pure pieces (the verb reads `.`;
         // the wire shape is what we pin here).
         let dir = scratch();
-        let (facts, capped, found) = collect_workflows(&dir);
+        let (facts, capped, found, walk_truncated) = collect_workflows(&dir);
         let (runs, runs_capped, runs_found) =
             fold::fold_traces(&dir.join(".nika/traces"), MAX_RUNS);
         std::fs::remove_dir_all(&dir).ok();
@@ -318,6 +338,7 @@ mod tests {
             workflows: facts,
             workflows_capped: capped,
             workflows_total_found: found,
+            walk_truncated,
             runs,
             runs_capped,
             runs_total_found: runs_found,
@@ -332,6 +353,10 @@ mod tests {
             Some(2)
         );
         assert_eq!(v["rollups"]["workflows_clean"], 1);
+        assert_eq!(
+            v["workspace"]["walk_truncated"], false,
+            "the wire reports the walk's own honesty flag (P0-4)"
+        );
         assert!(v["identity"]["version"].is_string());
         assert!(v["identity"]["pack_version"].is_string());
         assert!(
