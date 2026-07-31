@@ -372,71 +372,23 @@ pub fn collect(ping: bool) -> Probe {
 
 /// The probe LIST derives from the vendored client registry (H6): a
 /// client is probed only while the matrix claims its wire target — the
-/// hard-coded set is gone, the per-target MECHANISM (which file, which
-/// key) stays engine-side knowledge. Row order is the historical one
+/// hard-coded set is gone, and the per-target MECHANISM (which file,
+/// which key) rides the shared [`crate::detect`] table `wire` derives
+/// from too (one truth). Row order is the historical one
 /// ([`clients_registry::PROBE_MECHANISMS`] mirrors it): findings and
 /// receipts ride probe order.
 fn client_probes() -> Vec<ClientProbe> {
-    let mut probes = Vec::new();
-    let cursor_workspace_path = PathBuf::from(".").join(".cursor").join("mcp.json");
-    if let Some(home) = home_dir() {
-        if clients_registry::registry_wires("cursor") {
-            let cursor_paths = vec![home.join(".cursor").join("mcp.json"), cursor_workspace_path];
-            probes.push(client_probe_any(
-                "cursor",
-                &cursor_paths,
-                &["mcpServers", "nika"],
-            ));
-        }
-        if clients_registry::registry_wires("windsurf") {
-            probes.push(client_probe(
-                "windsurf",
-                &home
-                    .join(".codeium")
-                    .join("windsurf")
-                    .join("mcp_config.json"),
-                &["mcpServers", "nika"],
-            ));
-        }
-        if clients_registry::registry_wires("claude") {
-            probes.push(client_probe(
-                "claude",
-                &home.join(".claude.json"),
-                &["mcpServers", "nika"],
-            ));
-        }
-        // Zed: ~/.config on EVERY platform (upstream choice) · the MCP
-        // entry lives under `context_servers` (zed.dev/docs/ai/mcp). The
-        // JSON probe is best-effort on Zed's JSONC settings: a commented
-        // file parses as not-wired → the fix line says `nika wire zed`,
-        // which itself degrades to the ✋ manual snippet. Honest chain.
-        if clients_registry::registry_wires("zed") {
-            probes.push(client_probe(
-                "zed",
-                &home.join(".config").join("zed").join("settings.json"),
-                &["context_servers", "nika"],
-            ));
-        }
-        // Hermes: YAML, the JSON probe cannot see it (H2 — wireable
-        // since `nika wire hermes`, invisible in doctor until now).
-        if clients_registry::registry_wires("hermes") {
-            probes.push(hermes_probe(&home.join(".hermes").join("config.yaml")));
-        }
-    } else if clients_registry::registry_wires("cursor") {
-        probes.push(client_probe(
-            "cursor",
-            &cursor_workspace_path,
-            &["mcpServers", "nika"],
-        ));
-    }
-    if clients_registry::registry_wires("vscode") {
-        probes.push(client_probe(
-            "vscode",
-            &PathBuf::from(".").join(".vscode").join("mcp.json"),
-            &["servers", "nika"],
-        ));
-    }
-    probes
+    crate::detect::sights(home_dir().as_deref(), Path::new("."))
+        .iter()
+        .filter_map(|sight| match sight.kind {
+            crate::detect::ConfigKind::Json => {
+                Some(client_probe_any(sight.id, &sight.paths, &sight.server_path))
+            }
+            // Hermes is YAML — the JSON probe cannot see it (H2): the
+            // substring predicate carries recognition.
+            crate::detect::ConfigKind::Yaml => sight.paths.first().map(|path| hermes_probe(path)),
+        })
+        .collect()
 }
 
 /// The known kit landings (`update-mirrors.sh` in nika-agents climbs the
@@ -571,8 +523,14 @@ fn version_key(v: &str) -> Option<(u64, u64, u64)> {
     Some((maj, min, patch))
 }
 
+/// Probe one client at every path its config may live (home · workspace):
+/// the most-wired sighting wins (current > stale > present > first).
 #[must_use]
-pub fn client_probe_any(id: &str, paths: &[PathBuf], server_path: &[&str; 2]) -> ClientProbe {
+pub(crate) fn client_probe_any(
+    id: &str,
+    paths: &[PathBuf],
+    server_path: &[&str; 2],
+) -> ClientProbe {
     let mut probes: Vec<ClientProbe> = paths
         .iter()
         .map(|path| client_probe(id, path, server_path))
@@ -597,7 +555,9 @@ fn client_probe(id: &str, path: &Path, server_path: &[&str; 2]) -> ClientProbe {
         None
     };
     let current = server.as_ref().is_some_and(is_current_mcp_server);
-    let stale = server.as_ref().is_some_and(is_stale_mcp_server);
+    let stale = server
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     ClientProbe {
         id: id.to_owned(),
         path: path.display().to_string(),
@@ -608,16 +568,14 @@ fn client_probe(id: &str, path: &Path, server_path: &[&str; 2]) -> ClientProbe {
 }
 
 /// Hermes reads `~/.hermes/config.yaml` — YAML, so the JSON probe above
-/// cannot see it. Recognition mirrors `wire`'s `patch_hermes` contract
-/// verbatim: a `nika:` server whose command line names the binary
-/// (substring match — user YAML carries comments and anchors no parser
-/// round-trips; presence-only, never a guess). There is no stale arg
-/// form to detect: Hermes has only ever taken `args: [mcp]`.
+/// cannot see it. Recognition IS [`crate::detect::hermes_recognized`] —
+/// the ONE predicate `wire`'s `patch_hermes` Current arm reads too.
+/// There is no stale arg form to detect: Hermes has only ever taken
+/// `args: [mcp]`.
 fn hermes_probe(path: &Path) -> ClientProbe {
     let present = path.exists();
     let current = present
-        && std::fs::read_to_string(path)
-            .is_ok_and(|body| body.contains("nika:") && body.contains("command: nika"));
+        && std::fs::read_to_string(path).is_ok_and(|body| crate::detect::hermes_recognized(&body));
     ClientProbe {
         id: "hermes".to_owned(),
         path: path.display().to_string(),
@@ -636,16 +594,6 @@ fn is_current_mcp_server(value: &Value) -> bool {
         return false;
     };
     args.len() == 1 && args[0].as_str() == Some("mcp")
-}
-
-fn is_stale_mcp_server(value: &Value) -> bool {
-    let Some(args) = value.get("args").and_then(Value::as_array) else {
-        return false;
-    };
-    args.len() == 3
-        && args[0].as_str() == Some("mcp")
-        && args[1].as_str() == Some("serve")
-        && args[2].as_str() == Some("--stdio")
 }
 
 fn read_json(path: &Path) -> Option<Value> {
@@ -723,7 +671,7 @@ fn iso_to_epoch_days(iso: &str) -> Option<i64> {
 /// (`nika_dap::inventory` · 2026-07-21 · the 15k wall); re-exported at
 /// the old path so every `probe::collect_workflow_paths` consumer
 /// reads unchanged.
-pub use nika_dap::inventory::{SKIP_DIRS, collect_workflow_paths};
+pub use nika_dap::inventory::collect_workflow_paths;
 
 /// The environment fragment both machine mirrors emit (welcome ·
 /// context): client wiring booleans · local provider ids · cloud key
