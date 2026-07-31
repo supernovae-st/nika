@@ -713,6 +713,8 @@ mod tests {
     /// One voice with the CLI (gauntlet 2026-07-12): a failed run's
     /// per-builtin / per-provider code must TEACH over MCP too — the
     /// agent debugging a trace calls this tool, not the terminal.
+    /// PROMPT-001 carries the full contract lesson (first-run gate ·
+    /// 2026-07-31): the agent reads the same exits the CLI teaches.
     #[test]
     fn explain_teaches_the_runtime_namespaces_like_the_cli() {
         let b = execute(
@@ -720,7 +722,18 @@ mod tests {
             &json!({ "code": "NIKA-BUILTIN-PROMPT-001" }),
         )
         .expect("builtin namespace teaches");
-        assert!(b.contains("`nika:prompt` builtin") && b.contains("on_codes"));
+        assert!(b.contains("the `nika:prompt` contract") && b.contains("on_codes"));
+        assert!(
+            b.contains("--answer <task>=<value>") && b.contains("`default:`"),
+            "the contract lesson rides MCP too: {b}"
+        );
+        // A builtin WITHOUT a contract entry keeps the namespace voice.
+        let generic = execute("nika_explain", &json!({ "code": "NIKA-BUILTIN-JQ-001" }))
+            .expect("namespace teaches");
+        assert!(
+            generic.contains("per-builtin runtime diagnostic"),
+            "{generic}"
+        );
         let p = execute("nika_explain", &json!({ "code": "NIKA-PROVIDER-007" }))
             .expect("provider namespace teaches");
         assert!(p.contains("provider-adapter"));
