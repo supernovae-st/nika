@@ -13,6 +13,12 @@
 //! holds. Deterministic, offline, zero LLM — a narration derived from
 //! facts the checker proved, never a summary something imagined.
 //!
+//! One trace-first law sits above all of it (P0-12 · the 2026-07-30 UX
+//! audit): when the LATEST run of THIS workflow failed, the render OPENS
+//! on the recovery rail — task · cause · `trace show` pointer · the
+//! targeted `--resume` route (ADR-099) — and the naked re-run CTA steps
+//! aside until the failure is audited.
+//!
 //! `--json` emits the versioned machine twin (`explain_version: 1`),
 //! reusing the check report's own serialized vocabulary (cost ·
 //! requirements · hints · analysis) so agents read ONE dialect across
@@ -22,9 +28,11 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use nika_check::{CheckReport, UnboundedReason};
+use nika_event::{Event, EventKind};
 
 use crate::verbs::graph::{GraphDoc, Node, project};
-use crate::verbs::run::{lf_normal_form, sha256_hex};
+use crate::verbs::run::{lf_normal_form, recover_events, sha256_hex};
+use crate::verbs::trace::store::{TraceState, fold_facts};
 use crate::verbs::{VerbOutput, load_checked_with_source};
 
 /// Route `explain`'s positional: an existing path or a path-shaped string
@@ -104,6 +112,11 @@ pub(crate) fn run_with_traces(
     }
     let doc = project(&wf, &report);
     let traces = traces_glance(traces_dir);
+    // P0-12 · the trace-first law: the newest run of THIS workflow
+    // failed → the render opens on the recovery rail and the naked
+    // re-run CTA steps aside. The human surface only — the JSON twin
+    // stays the check report's dialect, unchanged.
+    let failure = last_failure(traces_dir, &doc.workflow);
     // Learned truth rides beside the static story: gather is bounded +
     // fail-open, and skipped entirely when nothing was ever recorded
     // (the glance already knows) unless the flag asks explicitly.
@@ -140,6 +153,7 @@ pub(crate) fn run_with_traces(
         permits_declared,
         traces.as_ref(),
         fc_view,
+        failure.as_ref(),
     ))
 }
 
@@ -260,9 +274,124 @@ fn traces_glance(dir: &Path) -> Option<(usize, String)> {
     Some((names.len(), format!("{}/{latest}", dir.display())))
 }
 
+/// The tamper-evidence verdict the rail prints — `Intact` is the only
+/// CLAIMED state; everything else the walk returns is honest unverified
+/// (a broken chain warns, never reassures).
+enum ChainNote {
+    /// Every line chained and the run's lifecycle closed.
+    Intact,
+    /// A recorded `chain` field contradicts the recomputation.
+    Broken,
+    /// Pre-chain, unreadable, torn or incomplete — nothing to claim.
+    Unverified,
+}
+
+/// What the recovery rail needs from the failed newest run (P0-12).
+struct FailedRun {
+    /// `dir/name` — the path `trace show` and `--resume` both name.
+    trace: String,
+    /// The task whose terminal frame carried the failure (`None` when
+    /// the run died at the workflow level — e.g. the budget abort).
+    task: Option<String>,
+    /// The coded detail (`NIKA-1234 · message`) off that frame, else the
+    /// workflow-level detail the terminal frame carried.
+    cause: Option<String>,
+    /// The trace carries ADR-099 resume keys — a skip plan could fold.
+    resumable: bool,
+    /// The tamper-evidence verdict over the raw journal.
+    chain: ChainNote,
+}
+
+impl FailedRun {
+    /// Fold the failed run's facts through the SAME seams every reader
+    /// uses — the resume plan fold (ADR-099) and the chain walk — never
+    /// a parallel parser.
+    fn fold(dir: &Path, name: &str, raw: &str, events: &[Event]) -> Self {
+        let failed = events
+            .iter()
+            .rev()
+            .find(|e| e.kind == EventKind::TaskFailed);
+        let task = failed.and_then(|e| str_field(e, "task")).map(str::to_owned);
+        let cause = failed
+            .and_then(|e| str_field(e, "detail"))
+            .or_else(|| {
+                events
+                    .iter()
+                    .rev()
+                    .find(|e| e.kind == EventKind::WorkflowFailed)
+                    .and_then(|e| str_field(e, "detail"))
+            })
+            .map(str::to_owned);
+        let resumable = !nika_dap::resume::fold_plan(events).plan.is_empty();
+        let chain = match nika_dap::chain::walk(raw) {
+            nika_dap::chain::Verdict::Intact { .. } => ChainNote::Intact,
+            nika_dap::chain::Verdict::Broken { .. } => ChainNote::Broken,
+            _ => ChainNote::Unverified,
+        };
+        Self {
+            trace: format!("{}/{name}", dir.display()),
+            task,
+            cause,
+            resumable,
+            chain,
+        }
+    }
+}
+
+/// The trace-first recovery fold (P0-12): the newest run OF THIS
+/// WORKFLOW failed → the rail's facts; anything else → `None` and the
+/// render stays untouched. Newest-first lexicographic order is the
+/// glance's own law; the FIRST matching trace decides — a clean newest
+/// run keeps the naked CTA, and a newer trace of ANOTHER workflow never
+/// masks this workflow's failure. Fail-open like the forecast reader: an
+/// unreadable file is skipped, never an error.
+fn last_failure(dir: &Path, workflow: &str) -> Option<FailedRun> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_str()?.to_owned();
+            name.ends_with(".ndjson").then_some(name)
+        })
+        .collect();
+    names.sort_unstable();
+    names.reverse();
+    for name in names {
+        // Retention GC can race the scan — a vanished file is skipped.
+        let Ok(raw) = std::fs::read_to_string(dir.join(&name)) else {
+            continue;
+        };
+        let Ok(recovered) = recover_events(&raw, &name) else {
+            continue;
+        };
+        let (run_workflow, state, _paused_task) = fold_facts(&recovered.events);
+        if run_workflow != workflow {
+            continue;
+        }
+        if state != TraceState::Failed {
+            return None;
+        }
+        return Some(FailedRun::fold(dir, &name, &raw, &recovered.events));
+    }
+    None
+}
+
+/// One string field off an event (the journal's additive KV vocabulary
+/// — the same ~6-line twin the forecast reader carries by design).
+fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
+    event.fields.iter().find(|kv| kv.key == key).and_then(|kv| {
+        if let nika_types::resource::Value::String(s) = &kv.value {
+            Some(s.as_str())
+        } else {
+            None
+        }
+    })
+}
+
 /// The human narration — one section helper per beat, composed here (the
 /// 100-line fn cap forced this shape and the shape is better: each beat
 /// is independently testable prose).
+#[allow(clippy::too_many_arguments)] // one render context per beat — the compose seam
 fn render_human(
     path: &str,
     description: Option<&str>,
@@ -271,8 +400,15 @@ fn render_human(
     permits_declared: bool,
     traces: Option<&(usize, String)>,
     forecast: Option<&super::forecast::ForecastReport>,
+    failure: Option<&FailedRun>,
 ) -> String {
     let mut s = String::new();
+    if let Some(f) = failure {
+        // The rail OPENS the render — the repair is the story until the
+        // failure is audited; the naked re-run CTA steps aside below.
+        recovery_section(&mut s, path, f);
+        let _ = writeln!(s);
+    }
     let _ = writeln!(
         s,
         "{} — {}",
@@ -293,9 +429,62 @@ fn render_human(
     if let Some(fc) = forecast {
         super::forecast::render::forecast_section(&mut s, fc);
     }
-    run_section(&mut s, path, report);
+    if failure.is_none() {
+        run_section(&mut s, path, report);
+    }
     recorder_section(&mut s, traces);
     s
+}
+
+/// The recovery rail (P0-12 · the 2026-07-30 UX audit): when the newest
+/// run of THIS workflow failed, explain OPENS on the repair — the faulty
+/// task and its coded cause, the `trace show` pointer, the chain verdict
+/// (claimed only when the walk proved it), and the ONE route forward:
+/// the targeted `--resume` when the trace carries ADR-099 keys, a
+/// re-check when it does not. The naked `run it` never competes with it.
+fn recovery_section(s: &mut String, path: &str, failure: &FailedRun) {
+    let _ = writeln!(s, "last run failed");
+    match (&failure.task, &failure.cause) {
+        (Some(task), Some(cause)) => {
+            let _ = writeln!(s, "  {task} — {cause}");
+        }
+        (Some(task), None) => {
+            let _ = writeln!(s, "  {task} failed (the frame carries no detail)");
+        }
+        (None, Some(cause)) => {
+            let _ = writeln!(s, "  {cause}");
+        }
+        (None, None) => {
+            let _ = writeln!(s, "  the terminal frame carries no detail");
+        }
+    }
+    let _ = writeln!(s, "  see it   nika trace show {}", failure.trace);
+    match failure.chain {
+        ChainNote::Intact => {
+            let _ = writeln!(s, "  chain intact · tamper-evidence verified");
+        }
+        ChainNote::Broken => {
+            let _ = writeln!(
+                s,
+                "  chain BROKEN — the journal was edited after the fact: trust nothing, re-run fresh"
+            );
+        }
+        ChainNote::Unverified => {
+            let _ = writeln!(s, "  chain unverified (pre-chain or unreadable journal)");
+        }
+    }
+    if failure.resumable {
+        let _ = writeln!(
+            s,
+            "  resume   nika run {path} --resume {}   # attested successes replay · the rest re-runs",
+            failure.trace
+        );
+    } else {
+        let _ = writeln!(
+            s,
+            "  repair   nika check {path}   # no resume keys in this trace — re-check, then re-run fresh"
+        );
+    }
 }
 
 /// The story, wave by wave — projection order IS wave order.
@@ -1066,5 +1255,170 @@ mod tests {
         );
         assert_eq!(out.code, exit::FILE);
         assert!(out.text.contains("--forecast"), "{}", out.text);
+    }
+
+    // ─── the recovery rail · P0-12 trace-first ─────────────────────────
+    // The 2026-07-30 UX audit: the forecast reduced a failure to a stat
+    // and NO surface named `--resume` (ADR-099). A workflow whose LATEST
+    // run failed must open on the repair — task · cause · trace pointer
+    // · targeted resume — never on the naked re-run CTA.
+
+    /// One FAILED fc-fix run: fetch completed (optionally WITH the
+    /// ADR-099 resume keys), think failed with a coded detail, terminal
+    /// `workflow_failed`.
+    fn failed_run(sha: Option<&str>, at: u64, resume_keys: bool) -> String {
+        let mut fetch_fields = vec![
+            ("task", Value::string("fetch")),
+            ("duration_ms", Value::Int(20)),
+        ];
+        if resume_keys {
+            fetch_fields.push(("def_hash", Value::string("d".repeat(64))));
+            fetch_fields.push(("input_hash", Value::string("i".repeat(64))));
+            fetch_fields.push(("output", Value::string("\"ok\"")));
+        }
+        let fetch = fx::ev(EventKind::TaskCompleted, at + 10, &fetch_fields);
+        let think = fx::ev(
+            EventKind::TaskFailed,
+            at + 40,
+            &[
+                ("task", Value::string("think")),
+                ("note", Value::string("infer")),
+                ("detail", Value::string("NIKA-TEST-1 · the model refused")),
+            ],
+        );
+        let terminal = fx::ev(
+            EventKind::WorkflowFailed,
+            at + 50,
+            &[("workflow", Value::string("fc-fix"))],
+        );
+        fx::run_body("fc-fix", sha, at, &[fetch, think], Some(terminal))
+    }
+
+    /// Re-write a staged body behind the tamper-evidence chain (the
+    /// sink's own genesis + per-line hashes — the same construction the
+    /// chain.rs tests use) so the rail can CLAIM the chain intact.
+    fn chain_wrap(body: &str) -> String {
+        let mut chain = crate::verbs::run::sha256_hex(nika_dap::chain::CHAIN_GENESIS);
+        let mut out = String::new();
+        for line in body.lines().filter(|l| !l.trim().is_empty()) {
+            let mut v: serde_json::Value = serde_json::from_str(line).expect("staged line parses");
+            v["chain"] = serde_json::Value::String(chain);
+            let line = serde_json::to_string(&v).expect("re-serializes");
+            chain = crate::verbs::run::sha256_hex(line.as_bytes());
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn a_failed_latest_run_opens_on_the_recovery_rail() {
+        let dir = temp_store("explain-rail");
+        let path = tmp("rail", FC);
+        let p = path.to_str().expect("utf8");
+        let sha = crate::verbs::run::sha256_hex(FC.as_bytes());
+        // Older clean run, then the NEWEST fc-fix run failed (chain
+        // wrapped) — and a still-newer trace of ANOTHER workflow: the
+        // rail folds the latest run of THIS workflow, never the global
+        // latest.
+        stage_trace(
+            &dir,
+            "2026-07-08T01-00-00Z-0001.ndjson",
+            &fc_run(Some(&sha), 1_000, 100, &[]),
+            Duration::from_secs(90),
+        );
+        stage_trace(
+            &dir,
+            "2026-07-08T02-00-00Z-0002.ndjson",
+            &chain_wrap(&failed_run(Some(&sha), 2_000, true)),
+            Duration::from_secs(60),
+        );
+        let other = fx::run_body("other", None, 3_000, &[], Some(fx::done(3_010, None)));
+        stage_trace(
+            &dir,
+            "2026-07-08T03-00-00Z-0003.ndjson",
+            &other,
+            Duration::from_secs(30),
+        );
+        let out = run_with_traces(p, false, false, &dir);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        // The rail OPENS the render — before the header, before any CTA.
+        let rail = out
+            .text
+            .find("last run failed")
+            .expect("the rail opens the render");
+        let header = out.text.find("fc-fix —").expect("the header renders");
+        assert!(rail < header, "the rail opens:\n{}", out.text);
+        // Task + cause + the trace pointer + the chain claim, and the
+        // RESUME names THIS workflow's failed trace (never the other
+        // workflow's newer one).
+        for needle in [
+            "think",
+            "NIKA-TEST-1",
+            "nika trace show",
+            "chain intact",
+            "2026-07-08T02-00-00Z-0002.ndjson",
+        ] {
+            assert!(
+                out.text.contains(needle),
+                "missing `{needle}`:\n{}",
+                out.text
+            );
+        }
+        // The naked CTA is REPLACED by the targeted resume while the
+        // failure stands unaudited.
+        assert!(!out.text.contains("\nrun it\n"), "{}", out.text);
+        assert!(
+            out.text.contains(&format!("nika run {p} --resume")),
+            "{}",
+            out.text
+        );
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_keyless_unverified_failure_routes_to_recheck_never_resume() {
+        let dir = temp_store("explain-rail-keyless");
+        let path = tmp("rail-keyless", FC);
+        let p = path.to_str().expect("utf8");
+        stage_trace(
+            &dir,
+            "2026-07-08T02-00-00Z-0002.ndjson",
+            &failed_run(None, 2_000, false),
+            Duration::from_secs(30),
+        );
+        let out = run_with_traces(p, false, false, &dir);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("last run failed"), "{}", out.text);
+        // No resume keys → the rail never suggests --resume; the route is
+        // re-check, and the chain absence is said out loud.
+        assert!(!out.text.contains("--resume"), "{}", out.text);
+        assert!(out.text.contains("nika check"), "{}", out.text);
+        assert!(out.text.contains("unverified"), "{}", out.text);
+        assert!(!out.text.contains("\nrun it\n"), "{}", out.text);
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_clean_latest_run_keeps_the_naked_cta_and_no_rail() {
+        let dir = temp_store("explain-rail-clean");
+        let path = tmp("rail-clean", FC);
+        let p = path.to_str().expect("utf8");
+        let sha = crate::verbs::run::sha256_hex(FC.as_bytes());
+        stage_trace(
+            &dir,
+            "2026-07-08T01-00-00Z-0001.ndjson",
+            &fc_run(Some(&sha), 1_000, 100, &[]),
+            Duration::from_secs(30),
+        );
+        let out = run_with_traces(p, false, false, &dir);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        // A clean newest trace → the current render is UNTOUCHED.
+        assert!(!out.text.contains("last run failed"), "{}", out.text);
+        assert!(out.text.contains("\nrun it\n"), "{}", out.text);
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
