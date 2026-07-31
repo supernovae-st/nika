@@ -9,24 +9,31 @@
 //!
 //! `--from` resolves in two rungs:
 //! 1. **exact template name** — instant, unchanged;
-//! 2. **intent routing** — anything else is BM25-ranked (the admitted
-//!    `nika-bm25` crate · Robertson-Zaragoza Okapi) against the
-//!    template names + bodies, with a small everyday-word → Nika-vocab
-//!    alias bridge on the QUERY side (« scrape » → fetch · « summarize »
-//!    → infer · « parallel » → fan-out). The top match instantiates and
-//!    the routing is SAID (`routed intent → template …`); a zero-score
-//!    query gets the honest unknown-template error. Deterministic,
-//!    zero-LLM — the floor of « the binary generates the best workflow
-//!    for the intent » (editor LLM loops build ON this rung).
+//! 2. **intent routing** — anything else is read into an `IntentContract`
+//!    FIRST (crates/nika-onboard/src/intent.rs · deterministic lexicon,
+//!    zero LLM), then BM25-ranked (the admitted `nika-bm25` crate ·
+//!    Robertson-Zaragoza Okapi) against the template names + bodies, with
+//!    a small everyday-word → Nika-vocab alias bridge on the QUERY side
+//!    (« scrape » → fetch · « summarize » → infer · « parallel » →
+//!    fan-out). A candidate must carry every capability the contract
+//!    requires, the winner must clear an absolute score floor AND a 1.3×
+//!    margin over the runner-up: below that bar the answer is an honest
+//!    clarification naming the closest skeletons (P0-1 · P0-10) — never
+//!    a silent guess, and NOTHING is written. A confident route
+//!    instantiates as a DRAFT (the message says so) and hands over to
+//!    `nika check`; a zero-evidence query gets the honest
+//!    unknown-template error. The routing is SAID
+//!    (`routed intent → template …`). Deterministic, zero-LLM — the floor
+//!    of « the binary generates the best workflow for the intent »
+//!    (editor LLM loops build ON this rung).
 
 use std::fmt::Write as _;
 use std::io::{BufRead, IsTerminal};
 use std::path::Path;
 
-use nika_bm25::{BmIndex, BmParams};
-
 use nika_display::theme::{Role, Theme};
 
+use crate::intent::RoutingOutcome;
 use crate::{Audit, Outcome, codes};
 
 /// Emit a value as a SAFE YAML scalar. A plain token (`provider/model`,
@@ -115,17 +122,16 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // ONE resolution ladder for ONE intention («a file of mine») with two
     // sources: template skeletons (SLOTs to fill) and complete examples
     // (lessons, verbatim). Exact names first — templates, then examples
-    // (slug or filename · `showcase/` browsable) — then plain-words
-    // intent. `nika examples copy` stays the showroom-side handle of the
-    // same gesture.
+    // (slug or filename) — then plain-words intent. `nika examples copy`
+    // stays the showroom-side handle of the same gesture.
     if let Some(body) = nika_pack::example(template) {
         return write_example(template, body, dest, force);
     }
     let (name, body, routed) = match nika_pack::template(template) {
         Some(body) => (template.to_owned(), body, false),
-        None => match route_intent(template) {
-            Some(name) => {
-                // route_intent only returns names from template_names() —
+        None => match crate::intent::route(template) {
+            RoutingOutcome::Routed { template: name, .. } => {
+                // route only returns names from template_names() —
                 // the lookup is total; an empty body would be a pack bug
                 // surfaced as the honest unknown error, never a panic.
                 let Some(body) = nika_pack::template(&name) else {
@@ -133,7 +139,9 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
                 };
                 (name, body, true)
             }
-            None => return unknown(template),
+            RoutingOutcome::NeedsClarification { candidates, .. } => {
+                return clarify(template, &candidates);
+            }
         },
     };
     // A known template needs a destination to instantiate into. The
@@ -162,20 +170,50 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         };
     }
     let routing = if routed { "routed intent → " } else { "" };
+    // A ROUTED file is a draft by construction (P0-10): the intent was
+    // interpreted, not understood — the message says « draft », never
+    // « ready », and hands over to `nika check` before any run.
+    let text = if routed {
+        format!(
+            "{dest} ← {routing}template `{name}` — a DRAFT scaffold · fill the `# SLOT:` lines, then `nika check {q}` before any run",
+            q = shell_quote(dest)
+        )
+    } else {
+        format!(
+            "{dest} ← template `{name}` · fill the `# SLOT:` lines then `nika check {q}`",
+            q = shell_quote(dest)
+        )
+    };
+    Outcome {
+        text,
+        code: codes::OK,
+    }
+}
+
+/// The below-the-bar finding (P0-10): a weak or ambiguous route writes
+/// NOTHING — the honest error names the 2-3 closest skeletons so the
+/// human picks one explicitly (or rephrases). Zero candidates = zero
+/// evidence → the unknown-template wire contract (editor probes parse
+/// its `embedded set:` line). Same exit family as the unknown finding
+/// (`codes::FILE`): the file the human asked for does not exist yet.
+fn clarify(intent: &str, candidates: &[String]) -> Outcome {
+    if candidates.is_empty() {
+        return unknown(intent);
+    }
     Outcome {
         text: format!(
-            "{dest} ← {routing}template `{name}` · fill the `# SLOT:` lines then `nika check {q}`",
-            q = shell_quote(dest)
+            "`{intent}` doesn't route confidently — closest skeletons: {}\n  hint: name one explicitly (`nika new --from {} <dest>.nika.yaml`) or rephrase with the job's verbs (fetch · summarize · parallel · approve…)",
+            candidates.join(" · "),
+            candidates.first().map_or("chain", String::as_str),
         ),
-        code: codes::OK,
+        code: codes::FILE,
     }
 }
 
 /// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
 /// the receipt says the check-then-run road. The default destination is
-/// the slug's basename (`showcase/t1-price-watch` → `t1-price-watch
-/// .nika.yaml` — the tiering belongs to the pack, your workspace is
-/// flat).
+/// the slug's basename (a nested slug flattens — the tiering belongs to
+/// the pack, your workspace is flat).
 fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
     let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);
@@ -331,18 +369,38 @@ pub(crate) fn ask(
     Ok(Some(line.trim().to_owned()))
 }
 
-/// Intent → template: exact name first, BM25 routing second, the
-/// `chain` default third (empty answer = the golden path).
-fn resolve_template(intent: &str) -> (String, bool) {
+/// The wizard's template rung: exact name first, confident intent route
+/// second, the announced Enter default third — and the SAID fallback
+/// last (P0-1: the chain fallback used to be SILENT; a below-the-bar
+/// intent now names its closest candidates before starting from the
+/// generic spine, so the human sees the guess instead of inheriting it).
+enum WizardRoute {
+    /// The answer IS a template name.
+    Exact(String),
+    /// The intent cleared the confidence bar.
+    Routed(String),
+    /// Empty answer — the golden path the prompt announces (`[chain]`).
+    Default,
+    /// Below the bar: `chain`, but SAID, with the closest candidates.
+    Fallback {
+        /// The 2-3 closest skeletons (empty on zero evidence).
+        candidates: Vec<String>,
+    },
+}
+
+/// Intent → template rung, per [`WizardRoute`].
+fn resolve_template(intent: &str) -> WizardRoute {
     if intent.is_empty() {
-        return ("chain".to_owned(), false);
+        return WizardRoute::Default;
     }
     if nika_pack::template(intent).is_some() {
-        return (intent.to_owned(), false);
+        return WizardRoute::Exact(intent.to_owned());
     }
-    match route_intent(intent) {
-        Some(name) => (name, true),
-        None => ("chain".to_owned(), false),
+    match crate::intent::route(intent) {
+        RoutingOutcome::Routed { template, .. } => WizardRoute::Routed(template),
+        RoutingOutcome::NeedsClarification { candidates, .. } => {
+            WizardRoute::Fallback { candidates }
+        }
     }
 }
 
@@ -544,7 +602,26 @@ fn read_wizard(
     else {
         return Ok(None);
     };
-    let (template, routed) = resolve_template(&intent);
+    let (template, routed) = match resolve_template(&intent) {
+        WizardRoute::Exact(name) => (name, false),
+        WizardRoute::Routed(name) => (name, true),
+        WizardRoute::Default => ("chain".to_owned(), false),
+        WizardRoute::Fallback { candidates } => {
+            // The fallback is SAID (P0-1): the human reads WHY chain and
+            // what almost matched before the file exists.
+            let note = if candidates.is_empty() {
+                "no skeleton matches that intent — starting from `chain`, the generic spine"
+                    .to_owned()
+            } else {
+                format!(
+                    "no confident match (closest: {}) — starting from `chain`, the generic spine",
+                    candidates.join(" · ")
+                )
+            };
+            writeln!(out, "  {}", theme.paint(Role::Dim, &note))?;
+            ("chain".to_owned(), false)
+        }
+    };
     let tag = nika_pack::template(&template).map_or_else(String::new, |b| tagline(&template, b));
     writeln!(
         out,
@@ -683,120 +760,6 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme, audit: &Audit<
     }
 }
 
-/// Everyday intent words → the Nika vocabulary the template bodies
-/// actually carry. Query-side only (documents are never expanded) — the
-/// evidenced cheap recall upgrade at tiny corpus scale, in place of
-/// embeddings (BM25 stays the ranker).
-const ALIASES: &[(&str, &[&str])] = &[
-    ("scrape", &["fetch", "read"]),
-    ("crawl", &["fetch"]),
-    ("download", &["fetch"]),
-    ("http", &["fetch"]),
-    ("url", &["fetch"]),
-    ("website", &["fetch"]),
-    ("page", &["fetch"]),
-    ("api", &["fetch", "invoke"]),
-    ("llm", &["infer"]),
-    ("ai", &["infer"]),
-    ("model", &["infer"]),
-    ("prompt", &["infer"]),
-    ("summarize", &["infer", "think"]),
-    ("classify", &["infer"]),
-    ("generate", &["infer"]),
-    ("save", &["write", "persist", "state"]),
-    ("shell", &["exec"]),
-    ("command", &["exec"]),
-    ("script", &["exec"]),
-    ("build", &["exec"]),
-    ("test", &["exec", "verify"]),
-    ("deploy", &["ship", "act", "exec"]),
-    ("release", &["ship", "act"]),
-    ("parallel", &["for_each", "fan", "merge"]),
-    ("concurrent", &["for_each", "fan"]),
-    ("batch", &["for_each", "items"]),
-    ("each", &["for_each", "items"]),
-    ("every", &["for_each", "items"]),
-    ("loop", &["agent", "for_each"]),
-    ("iterate", &["agent", "for_each"]),
-    ("agentic", &["agent"]),
-    ("autonomous", &["agent", "budgeted"]),
-    ("review", &["gate", "verify"]),
-    ("approve", &["gate", "human"]),
-    ("approval", &["gate", "human"]),
-    ("confirm", &["gate", "human"]),
-    ("pipeline", &["chain", "gather", "think"]),
-    ("sequence", &["chain"]),
-    ("transform", &["jq", "process"]),
-    ("json", &["jq"]),
-    ("state", &["state", "diff", "delta"]),
-    ("incremental", &["state", "diff", "delta"]),
-];
-
-/// Function words + Nika envelope keywords that carry zero routing signal —
-/// stripped from the query so an all-boilerplate `--from` (`the` · `workflow`
-/// · `template`) lists the set instead of spuriously routing (every template
-/// shares `workflow:`/`tasks:`/… so those terms separate nothing).
-const STOPWORDS: &[&str] = &[
-    "a", "an", "and", "the", "to", "of", "in", "on", "for", "with", "that", "this", "then", "than",
-    "into", "from", "by", "as", "at", "is", "are", "be", "it", "its", "or", "i", "me", "my", "we",
-    "you", "no", "such", "nika", "workflow", "model", "vars", "tasks", "id", "template", "slot",
-    "kebab", "case",
-];
-
-/// BM25-route a free-form intent to the best embedded template.
-/// `None` when no template shares a single term with the (alias-
-/// expanded) query — routing on zero evidence would be a guess.
-fn route_intent(intent: &str) -> Option<String> {
-    let names = nika_pack::template_names();
-    let mut index = BmIndex::new(BmParams::default());
-    for (i, name) in names.iter().enumerate() {
-        let body = nika_pack::template(name).unwrap_or_default();
-        // Index the template's MEANINGFUL vocabulary — verbs · tools ·
-        // structure — but STRIP `#` comments. The `# SLOT: kebab-case
-        // workflow id` scaffolding prose otherwise pollutes the index, so
-        // boilerplate/stopword queries ("slot" · "kebab" · "fill" · "the")
-        // spuriously route instead of listing the set. Real intent routes
-        // on the YAML verbs/tools + the ALIASES, not the comment prose.
-        let meaningful: String = body
-            .lines()
-            .filter(|l| !l.trim_start().starts_with('#'))
-            .map(|l| l.split_once(" #").map_or(l, |(before, _)| before))
-            .collect::<Vec<_>>()
-            .join("\n");
-        index.add_document(u32::try_from(i).ok()?, &format!("{name}\n{meaningful}"));
-    }
-    index.finalize();
-
-    // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
-    // an all-boilerplate query routes NOWHERE → the honest unknown · list.
-    let tokens: Vec<String> = intent
-        .split(|c: char| !c.is_ascii_alphanumeric())
-        .map(str::to_ascii_lowercase)
-        .filter(|t| !t.is_empty() && !STOPWORDS.contains(&t.as_str()))
-        .collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let mut query = tokens.join(" ");
-    for token in &tokens {
-        for (word, expansions) in ALIASES {
-            if token == *word {
-                for e in *expansions {
-                    query.push(' ');
-                    query.push_str(e);
-                }
-            }
-        }
-    }
-
-    let ranked = index.top_k(&query, 1);
-    let (doc, score) = ranked.first()?;
-    if *score <= 0.0 {
-        return None;
-    }
-    names.get(*doc as usize).cloned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -852,9 +815,9 @@ mod tests {
         std::fs::remove_file(&d).ok();
     }
 
-    /// The ladder's second rung: an example slug (or filename · or
-    /// showcase path) lands VERBATIM at dest — and the default dest
-    /// flattens the tiering to the basename.
+    /// The ladder's second rung: an example slug (or filename) lands
+    /// VERBATIM at dest — and the default dest flattens any tiering to
+    /// the basename.
     #[test]
     fn example_sources_land_verbatim_through_new() {
         let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
@@ -872,14 +835,25 @@ mod tests {
             nika_pack::example("01-hello").expect("embedded"),
             "verbatim — a lesson has no SLOTs"
         );
-        // Filename form + showcase tiering resolve too; overwrite refuses.
+        // Filename form resolves too; overwrite refuses. FLIP
+        // (2026-07-31): this used to probe `showcase/t1-price-watch` —
+        // the pack dropped the invented showcase tier (re-vendored flat,
+        // "indexed by what it teaches") and the assert only stayed green
+        // because the OLD router silently mis-routed the dead slug to a
+        // template (exit 0 — the P0-1 bug class). It now probes a slug
+        // that EXISTS and asserts the verbatim landing, like 01-hello.
         assert_eq!(
             run("01-hello.nika.yaml", Some(&dest_s), true).code,
             codes::OK
         );
         assert_eq!(run("01-hello", Some(&dest_s), false).code, codes::ENV);
-        let show = run("showcase/t1-price-watch", Some(&dest_s), true);
+        let show = run("price-watch", Some(&dest_s), true);
         assert_eq!(show.code, codes::OK, "{}", show.text);
+        assert_eq!(
+            std::fs::read_to_string(&dest).expect("written"),
+            nika_pack::example("price-watch").expect("embedded"),
+            "verbatim — a flat-corpus example"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -993,14 +967,36 @@ mod tests {
     // ─── The wizard's pure parts ─────────────────────────────────────
 
     #[test]
-    fn resolve_template_covers_the_three_rungs() {
-        assert_eq!(resolve_template(""), ("chain".to_owned(), false));
-        assert_eq!(resolve_template("fanout"), ("fanout".to_owned(), false));
-        let (name, routed) = resolve_template("summarize every item in parallel");
-        assert_eq!(name, "fanout");
-        assert!(routed);
-        // Zero evidence → the chain default, never a dead end.
-        assert_eq!(resolve_template("zzzz qqqq"), ("chain".to_owned(), false));
+    fn resolve_template_covers_the_four_rungs() {
+        // FLIP (P0-1 · 2026-07-31): was `resolve_template_covers_the_three_rungs`
+        // — the third rung asserted a SILENT `chain` fallback on zero-evidence
+        // intent (`("chain", false)` indistinguishable from the announced Enter
+        // default). The fallback is now a distinct, SAID rung carrying the
+        // closest candidates; only the empty answer defaults quietly.
+        assert!(matches!(resolve_template(""), WizardRoute::Default));
+        assert!(matches!(resolve_template("fanout"), WizardRoute::Exact(ref n) if n == "fanout"));
+        assert!(
+            matches!(resolve_template("summarize every item in parallel"), WizardRoute::Routed(ref n) if n == "fanout")
+        );
+        // Zero evidence → the SAID fallback with nobody to name.
+        let candidates = match resolve_template("zzzz qqqq") {
+            WizardRoute::Fallback { candidates } => Some(candidates),
+            _ => None,
+        }
+        .expect("zero evidence is the said fallback, not a silent chain");
+        assert!(candidates.is_empty(), "{candidates:?}");
+        // Below the margin → the fallback NAMES the coin-flip pair.
+        let candidates = match resolve_template(
+            "Chaque lundi compare three competitors and write a French brief",
+        ) {
+            WizardRoute::Fallback { candidates } => Some(candidates),
+            _ => None,
+        }
+        .expect("a coin-flip falls back, said");
+        assert!(
+            candidates.contains(&"media-asset-pack".to_owned()),
+            "{candidates:?}"
+        );
     }
 
     #[test]
@@ -1379,9 +1375,9 @@ mod tests {
 
     #[test]
     fn boilerplate_and_stopwords_do_not_route() {
-        // Regression: route_intent indexed the `# SLOT:` scaffolding prose +
+        // Regression: the router indexed the `# SLOT:` scaffolding prose +
         // accepted any score > 0, so envelope/stopword queries spuriously
-        // routed to a scaffold. They carry no SIGNAL → unknown · list.
+        // routed to a scaffold. They carry no SIGNAL → clarify, never route.
         for garbage in [
             "the",
             "workflow",
@@ -1391,13 +1387,49 @@ mod tests {
             "a workflow",
         ] {
             assert!(
-                route_intent(garbage).is_none(),
+                !matches!(crate::intent::route(garbage), RoutingOutcome::Routed { .. }),
                 "`{garbage}` must not route · got {:?}",
-                route_intent(garbage)
+                crate::intent::route(garbage)
             );
         }
         // …but a real intent still routes on its signal terms.
-        assert!(route_intent("scrape a website and summarize").is_some());
-        assert!(route_intent("review and approve before deploy").is_some());
+        assert!(matches!(
+            crate::intent::route("scrape a website and summarize"),
+            RoutingOutcome::Routed { .. }
+        ));
+        assert!(matches!(
+            crate::intent::route("review and approve before deploy"),
+            RoutingOutcome::Routed { .. }
+        ));
+    }
+
+    /// P0-10 · the non-interactive door: below the confidence bar,
+    /// `run` writes NOTHING and the honest error names the candidates.
+    #[test]
+    fn a_below_the_bar_intent_writes_nothing_and_names_the_candidates() {
+        let d = dest("clarify");
+        let out = run(
+            "Chaque lundi compare three competitors and write a French brief",
+            Some(&d),
+            true,
+        );
+        assert_eq!(out.code, codes::FILE, "{}", out.text);
+        assert!(!Path::new(&d).exists(), "below the bar = no write");
+        assert!(out.text.contains("media-asset-pack"), "{}", out.text);
+        assert!(out.text.contains("website-brief"), "{}", out.text);
+    }
+
+    /// P0-10 · the routed file is a DRAFT: the message says so, never
+    /// « ready », and hands over to `nika check` before any run.
+    #[test]
+    fn a_confident_route_lands_a_draft_that_hands_over_to_check() {
+        let d = dest("draft");
+        let out = run("summarize every item in parallel", Some(&d), true);
+        assert_eq!(out.code, codes::OK, "{}", out.text);
+        let lower = out.text.to_ascii_lowercase();
+        assert!(lower.contains("draft"), "{}", out.text);
+        assert!(!lower.contains("ready"), "{}", out.text);
+        assert!(out.text.contains("nika check"), "{}", out.text);
+        std::fs::remove_file(&d).ok();
     }
 }

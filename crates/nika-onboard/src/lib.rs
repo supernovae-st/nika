@@ -24,6 +24,7 @@
 pub mod briefs;
 pub mod founding;
 pub mod guided;
+mod intent;
 pub mod recipes;
 pub mod wizard;
 
