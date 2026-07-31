@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 104
-  aggregate_sha256: b051f376bd308beb721d0811dcba58bb813e74ca4e308b325568db352303fd74
+  aggregate_sha256: 2bf677ee916d007751c7ba4d59bc0c917afe9cfe4a07a3c7ddd7574c31ca8b0a
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -157,12 +157,12 @@ patterns:
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 120
-  aggregate_sha256: f8637896db0dc95167bc9a5f4b1735c95571b735a557348613351d3122f1c4ba
+  aggregate_sha256: 0291e19f3dc71f9848d37966d2105775461ff29d5443b3b7a92cf1e0b3871343
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 126
-  aggregate_sha256: 011a072010a72cd75a2b7dd51dbc0cb8b5e5053a4aa1cebd50393f6cae8e868d
+  aggregate_sha256: f381e7a2fa0e6af9e71c3a34826ba66eaf1106cd50b934a5d76235692d0de0d6
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
