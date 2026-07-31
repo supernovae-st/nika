@@ -634,10 +634,18 @@ fn main() -> std::process::ExitCode {
     // RAMS-13 · the full surface on demand: `--help --all` prints the
     // SAME tree with nothing hidden (12 craft verbs lead the default
     // help; protocols · trust cycle · plumbing stay one flag away —
-    // ranged, never removed). Judged before clap parses so `--all`
-    // never becomes a real flag on any verb.
-    let argv: Vec<std::ffi::OsString> = std::env::args_os().collect();
-    if argv.iter().any(|a| a == "--all")
+    // ranged, never removed). Judged before clap parses, and ONLY when
+    // the whole invocation is help words — a named verb keeps its own
+    // help untouched (`nika trace rm --all --help` is trace's business:
+    // `--all` is a REAL flag there, the adversarial pass caught the
+    // theft).
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    let help_words_only = !argv.is_empty()
+        && argv
+            .iter()
+            .all(|a| a == "--all" || a == "--help" || a == "-h" || a == "help");
+    if help_words_only
+        && argv.iter().any(|a| a == "--all")
         && argv
             .iter()
             .any(|a| a == "--help" || a == "-h" || a == "help")
