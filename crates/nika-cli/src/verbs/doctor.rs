@@ -30,6 +30,7 @@ pub(crate) use crate::verbs::probe::{
     TtsProbe,
 };
 use crate::verbs::{VerbOutput, exit};
+use nika_providers::probe::ExecutionLocus;
 
 /// Severity of one diagnosis line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -143,6 +144,15 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
 
     if !local_ids.is_empty() {
         out.push(local_finding(&local_ids, !probe.local_pings.is_empty()));
+        // P0-20 · one extra row per override-pointed engine (LAN/remote),
+        // loopback stays the one summary line above.
+        out.extend(
+            probe
+                .providers
+                .iter()
+                .filter(|p| !p.requires_key)
+                .filter_map(local_locus_finding),
+        );
     }
     out.extend(probe.local_pings.iter().map(ping_finding));
 
@@ -559,19 +569,36 @@ fn link_targets(theme: Theme, text: &str) -> String {
     linked.join(" ")
 }
 
-/// One cloud-provider row (✔ key present · ⚠ unset, with the export fix).
+/// One cloud-provider row — readiness is a LADDER (P0-5): the line
+/// separates RECOGNIZED (the name resolves) from CONFIGURED (the key is
+/// present) and never claims reachability — only the opt-in `--ping`
+/// lane may say that, and cloud endpoints are never pinged.
 fn provider_finding(p: &ProviderProbe) -> Finding {
-    if p.key_present {
+    // An override endpoint off the vendor default is the exception that
+    // gets the ink (P0-20): a proxy/LAN front is NAMED with its locus,
+    // never read as « the vendor's cloud ».
+    let locus_note = match p.readiness.execution_locus {
+        ExecutionLocus::Lan | ExecutionLocus::Remote => format!(
+            " · endpoint {} ({} — not the vendor default)",
+            redact_userinfo(&p.endpoint),
+            p.readiness.execution_locus.label()
+        ),
+        ExecutionLocus::Loopback | ExecutionLocus::Cloud | ExecutionLocus::Unknown => String::new(),
+    };
+    if p.readiness.configured {
         // The exception gets the ink, not the norm: every provider is
         // schema-native except the instruction-fallback clouds (deepseek —
         // no json_schema in its API), and an operator picking a model for
         // a structured workflow wants that fact on the health surface.
         let detail = if p.structured_native {
-            format!("{} — key present", p.id)
+            format!(
+                "{} — recognized · configured (key present){locus_note}",
+                p.id
+            )
         } else {
             format!(
-                "{} — key present · structured output via instruction + local validation \
-                 (no native json_schema)",
+                "{} — recognized · configured (key present) · structured output via instruction + local validation \
+                 (no native json_schema){locus_note}",
                 p.id
             )
         };
@@ -585,9 +612,33 @@ fn provider_finding(p: &ProviderProbe) -> Finding {
         Finding {
             level: Level::Warn,
             label: "provider".to_owned(),
-            detail: format!("{} — {} unset", p.id, p.fix_var),
+            detail: format!(
+                "{} — recognized · not configured ({} unset){locus_note}",
+                p.id, p.fix_var
+            ),
             fix: Some(format!("export {}=…", p.fix_var)),
         }
+    }
+}
+
+/// One row per local engine whose EFFECTIVE endpoint is off-loopback
+/// (P0-20): the operator override (`NIKA_<ID>_BASE_URL` · `OLLAMA_HOST`)
+/// is NAMED with its locus — a LAN GPU box never launders as « local ».
+/// `None` on loopback: the summary line already tells that truth.
+fn local_locus_finding(p: &ProviderProbe) -> Option<Finding> {
+    match p.readiness.execution_locus {
+        ExecutionLocus::Lan | ExecutionLocus::Remote => Some(Finding {
+            level: Level::Ok,
+            label: "local".to_owned(),
+            detail: format!(
+                "{} — configured · endpoint {} ({} — not loopback)",
+                p.id,
+                redact_userinfo(&p.endpoint),
+                p.readiness.execution_locus.label()
+            ),
+            fix: None,
+        }),
+        ExecutionLocus::Loopback | ExecutionLocus::Cloud | ExecutionLocus::Unknown => None,
     }
 }
 
@@ -627,8 +678,9 @@ fn ping_finding((id, addr, state): &(String, String, PingState)) -> Finding {
 /// Strip `user:pass@` from a URL for DISPLAY — a local media URL is
 /// config, not a credential, but `http://user:s3cret@tts.lan` in a CI
 /// log leaks the embedded secret (the rust-pro review's F5). The
-/// userinfo is replaced, never echoed.
-fn redact_userinfo(url: &str) -> String {
+/// userinfo is replaced, never echoed. `pub(crate)`: the endpoint rows
+/// (catalog · welcome) redact through the SAME seam.
+pub(crate) fn redact_userinfo(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return url.to_owned();
     };
@@ -668,10 +720,23 @@ mod tests {
 
     use super::*;
     use crate::verbs::probe::client_probe_any;
-    use nika_providers::probe::{env_present, ping_addr, spawn_ping};
+    use nika_providers::probe::{
+        ExecutionLocus, ProviderReadiness, env_present, ping_addr, spawn_ping,
+    };
 
     /// The sober register — the byte-frozen baseline every pipe reads.
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
+        ProviderReadiness {
+            recognized: true,
+            configured,
+            reachable: None,
+            model_available: None,
+            priced: false,
+            execution_locus: locus,
+        }
+    }
 
     fn cloud(id: &str, var: &str, present: bool) -> ProviderProbe {
         ProviderProbe {
@@ -680,6 +745,8 @@ mod tests {
             key_present: present,
             fix_var: var.to_owned(),
             structured_native: id != "deepseek",
+            readiness: readiness(present, ExecutionLocus::Cloud),
+            endpoint: format!("https://api.{id}.example/v1"),
         }
     }
     fn local(id: &str) -> ProviderProbe {
@@ -689,7 +756,101 @@ mod tests {
             key_present: false,
             fix_var: String::new(),
             structured_native: true,
+            readiness: readiness(true, ExecutionLocus::Loopback),
+            endpoint: "http://127.0.0.1:11434".to_owned(),
         }
+    }
+
+    #[test]
+    fn provider_row_separates_recognized_from_configured() {
+        // P0-5: « recognized » is never « ready » — the row names the
+        // two rungs separately, and reachability stays the opt-in
+        // `--ping` lane's word (never implied by a present key).
+        let present = provider_finding(&cloud("anthropic", "ANTHROPIC_API_KEY", true));
+        assert!(
+            present
+                .detail
+                .contains("recognized · configured (key present)"),
+            "{}",
+            present.detail
+        );
+        assert!(
+            !present.detail.contains("reachable"),
+            "no ping ran — the word must not appear: {}",
+            present.detail
+        );
+        let unset = provider_finding(&cloud("anthropic", "ANTHROPIC_API_KEY", false));
+        assert_eq!(unset.level, Level::Warn);
+        assert!(
+            unset
+                .detail
+                .contains("recognized · not configured (ANTHROPIC_API_KEY unset)"),
+            "{}",
+            unset.detail
+        );
+        assert_eq!(unset.fix.as_deref(), Some("export ANTHROPIC_API_KEY=…"));
+    }
+
+    #[test]
+    fn a_cloud_proxy_override_is_never_laundered_as_cloud() {
+        // P0-20 on the keyed lane: an operator proxy in front of mistral
+        // is NAMED with its locus — never read as « the vendor default ».
+        let mut p = cloud("mistral", "MISTRAL_API_KEY", true);
+        p.endpoint = "https://proxy.corp.example/v1".to_owned();
+        p.readiness.execution_locus = ExecutionLocus::Remote;
+        let f = provider_finding(&p);
+        assert!(
+            f.detail.contains("https://proxy.corp.example/v1"),
+            "{}",
+            f.detail
+        );
+        assert!(
+            f.detail.contains("(remote — not the vendor default)"),
+            "{}",
+            f.detail
+        );
+    }
+
+    #[test]
+    fn a_lan_override_is_named_on_the_local_lane() {
+        // P0-20: ollama pointed at the GPU box must not render « local »
+        // — the endpoint and its locus get their own row.
+        let mut ollama = local("ollama");
+        ollama.endpoint = "http://gpu.lan:11434".to_owned();
+        ollama.readiness.execution_locus = ExecutionLocus::Lan;
+        let probe = Probe {
+            models: ModelsProbe::default(),
+            version: "0.0.0".to_owned(),
+            config_path: None,
+            providers: vec![ollama],
+            clients: Vec::new(),
+            kits: Vec::new(),
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
+        };
+        let findings = diagnose(&probe);
+        let rows: Vec<_> = findings.iter().filter(|f| f.label == "local").collect();
+        assert!(
+            rows.iter()
+                .any(|f| f.detail.contains("http://gpu.lan:11434")
+                    && f.detail.contains("(lan — not loopback)")),
+            "the override is named: {rows:?}"
+        );
+        // A loopback ollama earns NO extra row — the exception gets the ink.
+        let quiet = Probe {
+            providers: vec![local("ollama")],
+            ..probe
+        };
+        let findings = diagnose(&quiet);
+        assert_eq!(
+            findings.iter().filter(|f| f.label == "local").count(),
+            1,
+            "loopback stays the one summary line: {findings:?}"
+        );
     }
 
     #[test]
@@ -1334,13 +1495,7 @@ mod tests {
             models: ModelsProbe::default(),
             version: "0.0.0".to_owned(),
             config_path: None,
-            providers: vec![ProviderProbe {
-                id: "ollama".to_owned(),
-                requires_key: false,
-                key_present: false,
-                fix_var: String::new(),
-                structured_native: true,
-            }],
+            providers: vec![local("ollama")],
             clients: Vec::new(),
             kits: Vec::new(),
             image: ImageProbe::default(),

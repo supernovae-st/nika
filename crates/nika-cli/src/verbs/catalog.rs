@@ -11,16 +11,52 @@
 //! listing.
 //!
 //! Teaching-surface ordering (the operator lock): LOCAL providers first
-//! (sovereign · zero key · zero network), then cloud with the doctrine
-//! head order (mistral · anthropic · openai), then the rest by id. The
+//! (sovereign · zero key), then cloud with the doctrine head order
+//! (mistral · anthropic · openai), then the rest by id. The `zero
+//! network` claim is EARNED per run (P0-20): printed only when every
+//! local engine's EFFECTIVE endpoint resolves to loopback — an operator
+//! override (`NIKA_<ID>_BASE_URL` · `OLLAMA_HOST`) pointing at a LAN box
+//! drops the claim and gets its endpoint + locus NAMED on its row. The
 //! `--json` machine payload keeps catalog order — functional surface,
 //! exempt by design.
 
 use nika_catalog::export::{CatalogExport, ProviderExport, catalog_export};
+use nika_providers::ProviderRegistry;
+use nika_providers::probe::ExecutionLocus;
 
 use crate::display::chrome;
 use crate::display::theme::{Role, Theme};
 use crate::verbs::VerbOutput;
+
+/// One local engine's EFFECTIVE execution facts (P0-20) — the endpoint a
+/// run would hit and where that endpoint executes. « local » is a
+/// protocol, never a topology: an operator override (`NIKA_<ID>_BASE_URL`
+/// · `OLLAMA_HOST`) pointing at the LAN box must be NAMED here, not
+/// laundered under « zero network ».
+struct LocalLocus {
+    id: String,
+    endpoint: String,
+    locus: ExecutionLocus,
+}
+
+/// The local engines' loci, derived from the SAME env composition a run
+/// uses (overrides included) — injected into [`human_listing`] so the
+/// render stays pure and testable.
+fn local_loci(registry: &ProviderRegistry) -> Vec<LocalLocus> {
+    registry
+        .profiles()
+        .iter()
+        .filter(|p| !p.requires_key && p.id != "mock")
+        .map(|p| {
+            let endpoint = registry.effective_base_url(p.id).unwrap_or(p.base_url);
+            LocalLocus {
+                id: p.id.to_owned(),
+                endpoint: endpoint.to_owned(),
+                locus: ExecutionLocus::classify(Some(endpoint), p.base_url),
+            }
+        })
+        .collect()
+}
 
 /// `nika catalog` — human listing, or the `--json` machine projection.
 #[must_use]
@@ -32,11 +68,14 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
             Err(e) => VerbOutput::env(format!("catalog projection failed: {e}")),
         };
     }
-    VerbOutput::ok(human_listing(&export, theme))
+    // The same env composition a run uses — the listing classifies the
+    // endpoints the runtime would ACTUALLY hit, overrides included.
+    let registry = ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
+    VerbOutput::ok(human_listing(&export, theme, &local_loci(&registry)))
 }
 
 /// The human teaching listing — sections LOCAL then CLOUD, doctrine order.
-fn human_listing(export: &CatalogExport, theme: Theme) -> String {
+fn human_listing(export: &CatalogExport, theme: Theme, loci: &[LocalLocus]) -> String {
     let providers = export.providers.len();
     let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
 
@@ -48,19 +87,39 @@ fn human_listing(export: &CatalogExport, theme: Theme) -> String {
     let mut out =
         format!("nika catalog — {providers} providers · {models} models (embedded · offline)\n");
     out.push('\n');
-    out.push_str(&chrome::rail_head(theme, "LOCAL (zero key · zero network)"));
+    // « zero network » is EARNED: only when every local engine resolves
+    // to loopback. One override off-loopback and the claim falls.
+    let zero_network = loci.iter().all(|l| l.locus == ExecutionLocus::Loopback);
+    out.push_str(&chrome::rail_head(
+        theme,
+        if zero_network {
+            "LOCAL (zero key · zero network)"
+        } else {
+            "LOCAL (zero key)"
+        },
+    ));
     out.push('\n');
     for p in local {
-        out.push_str(&provider_line(p, theme));
+        out.push_str(&provider_line(p, theme, loci.iter().find(|l| l.id == p.id)));
     }
     // The runtime-resolvable engines the catalog DATA does not carry yet
     // (the local five today) — taught in the LOCAL block so the sovereign
     // path leads, derived LIVE from the provider profiles (zero drift).
     let catalog_ids: std::collections::BTreeSet<&str> =
         export.providers.iter().map(|p| p.id).collect();
-    let runtime_only: Vec<&str> = nika_providers::CANONICAL_IDS
+    let runtime_only: Vec<String> = nika_providers::CANONICAL_IDS
         .into_iter()
         .filter(|id| !catalog_ids.contains(id))
+        .map(|id| match loci.iter().find(|l| l.id == id) {
+            // An override-pointed engine is NAMED with its endpoint and
+            // locus — the ink the honest header saved goes here.
+            Some(l) if l.locus != ExecutionLocus::Loopback => format!(
+                "{id} → {} ({})",
+                crate::verbs::doctor::redact_userinfo(&l.endpoint),
+                l.locus.label()
+            ),
+            _ => (*id).to_owned(),
+        })
         .collect();
     if !runtime_only.is_empty() {
         use std::fmt::Write as _;
@@ -77,7 +136,7 @@ fn human_listing(export: &CatalogExport, theme: Theme) -> String {
     ));
     out.push('\n');
     for p in cloud {
-        out.push_str(&provider_line(p, theme));
+        out.push_str(&provider_line(p, theme, None));
     }
     out.push_str(
         "\nnika catalog --json → the machine projection (models · capabilities · context windows)",
@@ -97,17 +156,28 @@ fn cloud_rank(id: &str) -> (u8, &str) {
     (head, id)
 }
 
-/// One provider line of the human listing.
-fn provider_line(p: &ProviderExport, theme: Theme) -> String {
+/// One provider line of the human listing. A local engine whose
+/// EFFECTIVE endpoint sits off-loopback (an operator override) is NAMED
+/// with endpoint + locus — the ink the honest header saved (P0-20).
+fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -> String {
     let key = if p.requires_key { p.env_var } else { "no key" };
+    let locus_note = match locus {
+        Some(l) if l.locus != ExecutionLocus::Loopback => format!(
+            " → {} ({})",
+            crate::verbs::doctor::redact_userinfo(&l.endpoint),
+            l.locus.label()
+        ),
+        _ => String::new(),
+    };
     format!(
         "{}\n",
         chrome::rail_line(
             theme,
             &format!(
-                " {}{}",
+                " {}{}{}",
                 theme.paint(Role::Strong, &format!("{:<14}", p.id)),
                 theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len())),
+                theme.paint(Role::Dim, &locus_note),
             ),
         )
     )
@@ -171,7 +241,7 @@ mod tests {
     #[test]
     fn human_listing_counts_agree_with_the_projection() {
         let export = catalog_export();
-        let text = human_listing(&export, PLAIN);
+        let text = human_listing(&export, PLAIN, &loopback_loci());
         let providers = export.providers.len();
         let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
         assert!(
@@ -182,5 +252,51 @@ mod tests {
             text.contains(&format!("{models} models")),
             "the header states the model count",
         );
+    }
+
+    /// Every local engine on its loopback seed — the shape the real
+    /// registry yields with zero operator override.
+    fn loopback_loci() -> Vec<LocalLocus> {
+        ["ollama", "lmstudio", "llamacpp", "localai", "vllm"]
+            .into_iter()
+            .map(|id| LocalLocus {
+                id: id.to_owned(),
+                endpoint: "http://127.0.0.1:1".to_owned(),
+                locus: ExecutionLocus::Loopback,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn zero_network_is_earned_by_loopback_only() {
+        let export = catalog_export();
+        // All locals on loopback → the sovereign claim holds.
+        let text = human_listing(&export, PLAIN, &loopback_loci());
+        assert!(
+            text.contains("LOCAL (zero key · zero network)"),
+            "loopback keeps the claim:\n{text}"
+        );
+        // What `NIKA_OLLAMA_BASE_URL=http://192.168.1.50:11434` becomes
+        // through the compose ladder — INJECTED as locus facts (the
+        // house hermetic pattern: no `set_var` race). The claim must
+        // fall, and the endpoint + locus must be NAMED (P0-20).
+        let mut loci = loopback_loci();
+        loci[0] = LocalLocus {
+            id: "ollama".to_owned(),
+            endpoint: "http://192.168.1.50:11434".to_owned(),
+            locus: ExecutionLocus::Lan,
+        };
+        let text = human_listing(&export, PLAIN, &loci);
+        assert!(
+            !text.contains("zero network"),
+            "a LAN engine never launders as « zero network »:\n{text}"
+        );
+        assert!(
+            text.contains("192.168.1.50:11434"),
+            "the effective endpoint is named:\n{text}"
+        );
+        assert!(text.contains("(lan)"), "the locus is named:\n{text}");
+        // …while the un-overridden engines keep their bare ids.
+        assert!(text.contains("lmstudio"), "{text}");
     }
 }

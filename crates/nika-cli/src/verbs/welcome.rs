@@ -22,6 +22,8 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
+use nika_providers::probe::ExecutionLocus;
+
 use crate::display::theme::{Role, Theme};
 use crate::verbs::probe::{Probe, ProviderProbe};
 use crate::verbs::{VerbOutput, probe};
@@ -349,6 +351,26 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) 
             theme.paint(Role::Dim, "· no key needed"),
         );
     }
+    // P0-20 · an endpoint override (NIKA_<ID>_BASE_URL · OLLAMA_HOST)
+    // moves « local » off this box: the engine is NAMED with endpoint +
+    // locus, never laundered under « no key needed ». Loopback stays
+    // silent — the default render keeps its exact bytes.
+    for p in &probe.providers {
+        if !p.requires_key
+            && matches!(
+                p.readiness.execution_locus,
+                ExecutionLocus::Lan | ExecutionLocus::Remote
+            )
+        {
+            let _ = writeln!(
+                s,
+                "  endpoint   {} → {} ({})",
+                p.id,
+                crate::verbs::doctor::redact_userinfo(&p.endpoint),
+                p.readiness.execution_locus.label()
+            );
+        }
+    }
     // The sovereign lane — ONLY when bytes are on disk (a mirror line
     // must carry information, never a lecture; zero models = silence).
     if probe.models.count > 0 {
@@ -530,6 +552,20 @@ mod tests {
     use super::*;
     use crate::verbs::exit;
     use crate::verbs::probe::{ClientProbe, ImageProbe, PricingProbe, TtsProbe};
+    use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
+
+    /// The default synthetic readiness — recognized · loopback · the
+    /// opt-in rungs unmeasured (mirrors `collect_provider_probes`).
+    fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
+        ProviderReadiness {
+            recognized: true,
+            configured,
+            reachable: None,
+            model_available: None,
+            priced: false,
+            execution_locus: locus,
+        }
+    }
 
     fn synthetic_probe() -> Probe {
         Probe {
@@ -543,6 +579,8 @@ mod tests {
                     key_present: false,
                     fix_var: "NIKA_OLLAMA_API_KEY".to_owned(),
                     structured_native: true,
+                    readiness: readiness(true, ExecutionLocus::Loopback),
+                    endpoint: "http://127.0.0.1:11434".to_owned(),
                 },
                 ProviderProbe {
                     id: "mistral".to_owned(),
@@ -550,6 +588,8 @@ mod tests {
                     key_present: false,
                     fix_var: "MISTRAL_API_KEY".to_owned(),
                     structured_native: true,
+                    readiness: readiness(false, ExecutionLocus::Cloud),
+                    endpoint: "https://api.mistral.ai/v1/chat/completions".to_owned(),
                 },
                 ProviderProbe {
                     id: "anthropic".to_owned(),
@@ -557,6 +597,8 @@ mod tests {
                     key_present: true,
                     fix_var: "ANTHROPIC_API_KEY".to_owned(),
                     structured_native: true,
+                    readiness: readiness(true, ExecutionLocus::Cloud),
+                    endpoint: "https://api.anthropic.com/v1/messages".to_owned(),
                 },
             ],
             clients: vec![
@@ -777,6 +819,39 @@ mod tests {
         assert!(shown.contains("nika model list"), "{shown}");
     }
 
+    /// The endpoint lane obeys the same law as the kit lane: loopback
+    /// everywhere is silence (the byte-identical default) — only an
+    /// override-pointed engine (`NIKA_OLLAMA_BASE_URL` · `OLLAMA_HOST`) earns
+    /// a line, NAMED with its endpoint and locus (P0-20: « local » is a
+    /// protocol, never a topology).
+    #[test]
+    fn mirror_names_an_endpoint_override_and_stays_silent_on_loopback() {
+        let glance = Glance {
+            git: true,
+            workflows: 0,
+            agents_md: false,
+            complete: true,
+        };
+        let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
+        assert!(
+            !silent.contains("  endpoint"),
+            "loopback = no endpoint line:\n{silent}"
+        );
+
+        let mut probe = synthetic_probe();
+        probe.providers[0].endpoint = "http://gpu.lan:11434".to_owned();
+        probe.providers[0].readiness.execution_locus = ExecutionLocus::Lan;
+        let shown = render_human(&probe, glance, None, counts(), plain());
+        assert!(
+            shown.contains("ollama → http://gpu.lan:11434 (lan)"),
+            "the override is NAMED next to the local row:\n{shown}"
+        );
+        assert!(
+            shown.contains("· no key needed"),
+            "the keyless truth stays — only the topology claim is fixed:\n{shown}"
+        );
+    }
+
     /// The kit lane obeys the same law: an aligned (or absent) plugin
     /// kit is silence — only TRAIN drift earns a line, and the line
     /// routes to doctor (the per-client fix lives there, not here).
@@ -870,6 +945,8 @@ mod tests {
             key_present: false,
             fix_var: String::new(),
             structured_native: true,
+            readiness: readiness(true, ExecutionLocus::Loopback),
+            endpoint: "http://127.0.0.1:1".to_owned(),
         };
         let cloud = |id: &str| ProviderProbe {
             id: id.to_owned(),
@@ -877,6 +954,8 @@ mod tests {
             key_present: false,
             fix_var: String::new(),
             structured_native: true,
+            readiness: readiness(false, ExecutionLocus::Cloud),
+            endpoint: format!("https://api.{id}.example/v1"),
         };
         let client = |id: &str| ClientProbe {
             id: id.to_owned(),

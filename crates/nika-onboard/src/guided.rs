@@ -346,13 +346,37 @@ fn resolve_template(intent: &str) -> (String, bool) {
     }
 }
 
+/// The ollama menu note. « local » is a TOPOLOGY claim (P0-20): with an
+/// endpoint override active (`NIKA_OLLAMA_BASE_URL` · `OLLAMA_HOST`) the
+/// engine may be a LAN box, so the note drops « local » and says what is
+/// actually known — the sovereign protocol · zero key · a custom
+/// endpoint. The env probe stays out of this pure pick (testable, no
+/// `set_var` race).
+const fn ollama_note_for(override_active: bool) -> &'static str {
+    if override_active {
+        "sovereign · zero key · custom endpoint"
+    } else {
+        "local · sovereign · zero key"
+    }
+}
+
+/// Presence-only read of the ollama endpoint-override family — the value
+/// is connection config and is never bound (the probe layer's
+/// PRESENT-NOT-PRINTED discipline).
+#[allow(clippy::disallowed_methods)] // presence-only · an endpoint override is config, not a secret
+fn ollama_endpoint_overridden() -> bool {
+    ["NIKA_OLLAMA_BASE_URL", "OLLAMA_HOST"]
+        .iter()
+        .any(|v| std::env::var_os(v).is_some_and(|val| !val.is_empty()))
+}
+
 /// The provider menu, DERIVED from the embedded catalog (no hardcoded
 /// model names to drift) in the doctrine presentation order · local
 /// first · offline mock · EU open-weight · then the US clouds.
 pub(crate) fn model_menu() -> Vec<(String, &'static str)> {
     let export = nika_catalog::export::catalog_export();
     [
-        ("ollama", "local · sovereign · zero key"),
+        ("ollama", ollama_note_for(ollama_endpoint_overridden())),
         ("mock", "offline preview · zero key · always works"),
         ("mistral", "EU · open-weight"),
         ("anthropic", ""),
@@ -977,6 +1001,21 @@ mod tests {
         assert!(routed);
         // Zero evidence → the chain default, never a dead end.
         assert_eq!(resolve_template("zzzz qqqq"), ("chain".to_owned(), false));
+    }
+
+    #[test]
+    fn the_ollama_note_drops_local_under_an_endpoint_override() {
+        // P0-20 · « local » is a TOPOLOGY claim the menu cannot make
+        // when an override (NIKA_OLLAMA_BASE_URL · OLLAMA_HOST) may
+        // point the engine at a LAN box.
+        assert!(ollama_note_for(false).contains("local"));
+        let overridden = ollama_note_for(true);
+        assert!(!overridden.contains("local"), "{overridden}");
+        assert!(overridden.contains("custom endpoint"), "{overridden}");
+        assert!(
+            overridden.contains("zero key"),
+            "the protocol truth stays: {overridden}"
+        );
     }
 
     #[test]

@@ -1,5 +1,48 @@
 pub mod nika_providers
 pub mod nika_providers::probe
+pub enum nika_providers::probe::ExecutionLocus
+pub nika_providers::probe::ExecutionLocus::Cloud
+pub nika_providers::probe::ExecutionLocus::Lan
+pub nika_providers::probe::ExecutionLocus::Loopback
+pub nika_providers::probe::ExecutionLocus::Remote
+pub nika_providers::probe::ExecutionLocus::Unknown
+impl nika_providers::probe::ExecutionLocus
+pub fn nika_providers::probe::ExecutionLocus::classify(effective: core::option::Option<&str>, default: &str) -> Self
+pub const fn nika_providers::probe::ExecutionLocus::label(self) -> &'static str
+impl core::clone::Clone for nika_providers::probe::ExecutionLocus
+pub fn nika_providers::probe::ExecutionLocus::clone(&self) -> nika_providers::probe::ExecutionLocus
+impl core::cmp::Eq for nika_providers::probe::ExecutionLocus
+impl core::cmp::PartialEq for nika_providers::probe::ExecutionLocus
+pub fn nika_providers::probe::ExecutionLocus::eq(&self, other: &nika_providers::probe::ExecutionLocus) -> bool
+impl core::fmt::Debug for nika_providers::probe::ExecutionLocus
+pub fn nika_providers::probe::ExecutionLocus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::probe::ExecutionLocus
+impl core::marker::StructuralPartialEq for nika_providers::probe::ExecutionLocus
+impl<D> owo_colors::OwoColorize for nika_providers::probe::ExecutionLocus
+impl<T, U> core::convert::Into<U> for nika_providers::probe::ExecutionLocus where U: core::convert::From<T>
+pub fn nika_providers::probe::ExecutionLocus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::ExecutionLocus where U: core::convert::Into<T>
+pub type nika_providers::probe::ExecutionLocus::Error = core::convert::Infallible
+pub fn nika_providers::probe::ExecutionLocus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::ExecutionLocus where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::ExecutionLocus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::ExecutionLocus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::ExecutionLocus where T: core::clone::Clone
+pub type nika_providers::probe::ExecutionLocus::Owned = T
+pub fn nika_providers::probe::ExecutionLocus::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::ExecutionLocus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::ExecutionLocus where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::ExecutionLocus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::ExecutionLocus where T: ?core::marker::Sized
+pub fn nika_providers::probe::ExecutionLocus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::ExecutionLocus where T: ?core::marker::Sized
+pub fn nika_providers::probe::ExecutionLocus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::ExecutionLocus where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::ExecutionLocus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::ExecutionLocus
+pub fn nika_providers::probe::ExecutionLocus::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::ExecutionLocus where T: 'static
+pub fn nika_providers::probe::ExecutionLocus::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub enum nika_providers::probe::PingState
 pub nika_providers::probe::PingState::Reachable(u64)
 pub nika_providers::probe::PingState::Unreachable
@@ -38,9 +81,11 @@ pub fn nika_providers::probe::PingState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::PingState where T: 'static
 pub fn nika_providers::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::probe::ProviderProbe
+pub nika_providers::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers::probe::ProviderProbe::fix_var: alloc::string::String
 pub nika_providers::probe::ProviderProbe::id: alloc::string::String
 pub nika_providers::probe::ProviderProbe::key_present: bool
+pub nika_providers::probe::ProviderProbe::readiness: nika_providers::probe::ProviderReadiness
 pub nika_providers::probe::ProviderProbe::requires_key: bool
 pub nika_providers::probe::ProviderProbe::structured_native: bool
 impl core::clone::Clone for nika_providers::probe::ProviderProbe
@@ -76,6 +121,46 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::ProviderProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderProbe where T: 'static
 pub fn nika_providers::probe::ProviderProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_providers::probe::ProviderReadiness
+pub nika_providers::probe::ProviderReadiness::configured: bool
+pub nika_providers::probe::ProviderReadiness::execution_locus: nika_providers::probe::ExecutionLocus
+pub nika_providers::probe::ProviderReadiness::model_available: core::option::Option<bool>
+pub nika_providers::probe::ProviderReadiness::priced: bool
+pub nika_providers::probe::ProviderReadiness::reachable: core::option::Option<bool>
+pub nika_providers::probe::ProviderReadiness::recognized: bool
+impl core::clone::Clone for nika_providers::probe::ProviderReadiness
+pub fn nika_providers::probe::ProviderReadiness::clone(&self) -> nika_providers::probe::ProviderReadiness
+impl core::cmp::Eq for nika_providers::probe::ProviderReadiness
+impl core::cmp::PartialEq for nika_providers::probe::ProviderReadiness
+pub fn nika_providers::probe::ProviderReadiness::eq(&self, other: &nika_providers::probe::ProviderReadiness) -> bool
+impl core::fmt::Debug for nika_providers::probe::ProviderReadiness
+pub fn nika_providers::probe::ProviderReadiness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::probe::ProviderReadiness
+impl<D> owo_colors::OwoColorize for nika_providers::probe::ProviderReadiness
+impl<T, U> core::convert::Into<U> for nika_providers::probe::ProviderReadiness where U: core::convert::From<T>
+pub fn nika_providers::probe::ProviderReadiness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::ProviderReadiness where U: core::convert::Into<T>
+pub type nika_providers::probe::ProviderReadiness::Error = core::convert::Infallible
+pub fn nika_providers::probe::ProviderReadiness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::ProviderReadiness where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::ProviderReadiness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::ProviderReadiness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::ProviderReadiness where T: core::clone::Clone
+pub type nika_providers::probe::ProviderReadiness::Owned = T
+pub fn nika_providers::probe::ProviderReadiness::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::ProviderReadiness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::ProviderReadiness where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::ProviderReadiness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::ProviderReadiness where T: ?core::marker::Sized
+pub fn nika_providers::probe::ProviderReadiness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::ProviderReadiness where T: ?core::marker::Sized
+pub fn nika_providers::probe::ProviderReadiness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::ProviderReadiness where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::ProviderReadiness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::ProviderReadiness
+pub fn nika_providers::probe::ProviderReadiness::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderReadiness where T: 'static
+pub fn nika_providers::probe::ProviderReadiness::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_providers::probe::collect_local_pings(registry: &nika_providers::registry::ProviderRegistry, image_url: core::option::Option<&str>, tts_url: core::option::Option<&str>) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers::probe::PingState)>
 pub fn nika_providers::probe::collect_provider_probes(registry: &nika_providers::registry::ProviderRegistry) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_providers::probe::env_present(name: &str) -> bool

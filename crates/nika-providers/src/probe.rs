@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Provider environment probing — key PRESENCE and local-port
+//! Provider environment probing — key PRESENCE, endpoint CLASSIFICATION
+//! (the readiness ladder · the execution locus) and local-port
 //! reachability, owned by the crate that owns the providers.
 //!
 //! Lifted from the CLI's probe layer when the mirror family (doctor ·
@@ -33,6 +34,133 @@ pub enum PingState {
     Unreachable,
 }
 
+/// Where an EFFECTIVE endpoint executes the inference — the P0-20 fact:
+/// « local » is a PROTOCOL (no key · an OpenAI-compat wire), never a
+/// topology. Derived from the URL a run would ACTUALLY hit (the operator
+/// override when present, else the profile seed) — never from
+/// `requires_key`, so a LAN-pointed ollama can no longer render as
+/// « zero network ».
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionLocus {
+    /// A loopback literal (`localhost` · 127/8 · `::1`) — zero network.
+    Loopback,
+    /// RFC1918 / link-local / a local hostname (`gpu.lan` · a bare
+    /// name) — the operator's own network, off-box.
+    Lan,
+    /// An off-box endpoint that is NOT the provider's declared default
+    /// (an override pointing at a public address).
+    Remote,
+    /// The provider's declared vendor endpoint (the catalog default).
+    Cloud,
+    /// Unparseable — never guessed.
+    Unknown,
+}
+
+impl ExecutionLocus {
+    /// The render token every surface shares (`lan` · `remote` …).
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Loopback => "loopback",
+            Self::Lan => "lan",
+            Self::Remote => "remote",
+            Self::Cloud => "cloud",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// Classify the EFFECTIVE endpoint against the provider's declared
+    /// default. `None` (no override) classifies the default itself — a
+    /// local seed reads `Loopback`, a vendor seed reads `Cloud`.
+    #[must_use]
+    pub fn classify(effective: Option<&str>, default: &str) -> Self {
+        let url = effective.unwrap_or(default);
+        let Some(host) = endpoint_host(url) else {
+            return Self::Unknown;
+        };
+        if nika_types::net::is_exact_loopback_literal(host) {
+            return Self::Loopback;
+        }
+        if is_lan_host(host) {
+            return Self::Lan;
+        }
+        // The vendor's own declared endpoint is the cloud; any OTHER
+        // off-box address is an operator-pointed remote.
+        match endpoint_host(default) {
+            Some(declared) if declared.eq_ignore_ascii_case(host) => Self::Cloud,
+            _ => Self::Remote,
+        }
+    }
+}
+
+/// The HOST of a base URL (no port · v6 keeps its brackets) — the same
+/// scheme-strip / authority / userinfo grammar as [`ping_addr`], minus
+/// the port. `None` = unparseable (classifies [`ExecutionLocus::Unknown`]).
+fn endpoint_host(url: &str) -> Option<&str> {
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+    let authority = rest.split('/').next().unwrap_or_default();
+    let authority = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
+    if authority.is_empty() {
+        return None;
+    }
+    if authority.starts_with('[') {
+        let end = authority.find(']')?;
+        return authority.get(..=end);
+    }
+    authority.split(':').next().filter(|h| !h.is_empty())
+}
+
+/// RFC1918 / link-local / ULA literal, or a hostname that can only name
+/// the operator's own network (a bare name · `.lan` · `.local` ·
+/// `.internal`). Public DNS names are NOT Lan — the loopback call is
+/// [`nika_types::net::is_exact_loopback_literal`]'s, upstream of this.
+fn is_lan_host(host: &str) -> bool {
+    let literal = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(ip) = literal.parse::<std::net::IpAddr>() {
+        return match ip {
+            std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
+            std::net::IpAddr::V6(v6) => {
+                let s = v6.segments();
+                // fc00::/7 (unique local) · fe80::/10 (link-local).
+                (s[0] & 0xfe00) == 0xfc00 || (s[0] & 0xffc0) == 0xfe80
+            }
+        };
+    }
+    let name = host.trim_end_matches('.');
+    !name.contains('.')
+        || [".lan", ".local", ".internal"]
+            .iter()
+            .any(|tld| name.ends_with(tld))
+}
+
+/// Readiness as a LADDER, never a boolean — the P0-5 audit: « modèle
+/// reconnu » was rendered as « prêt ». Every rung is its own fact, so no
+/// surface ever has to conflate them again; the rungs a probe did not
+/// measure stay `None`, never a hopeful default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderReadiness {
+    /// The id resolves in the canonical registry (a NAME fact).
+    pub recognized: bool,
+    /// Key present when the provider requires one (keyless: always) —
+    /// CONFIGURED, never « reachable », never « the model is pulled ».
+    pub configured: bool,
+    /// Filled ONLY by an explicit opt-in probe (`doctor --ping`) —
+    /// `None` without one: no implicit network, ever.
+    pub reachable: Option<bool>,
+    /// A model-listing probe against the live endpoint — NOT WIRED yet;
+    /// the rung exists so « configured » is never sold as « the model is
+    /// there ».
+    pub model_available: Option<bool>,
+    /// The vendored pricing snapshot carries list rates for this provider.
+    pub priced: bool,
+    /// Where the EFFECTIVE endpoint executes (override-aware · P0-20).
+    pub execution_locus: ExecutionLocus,
+}
+
 /// A provider's environment facts — key PRESENCE only, never the value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderProbe {
@@ -46,6 +174,12 @@ pub struct ProviderProbe {
     /// `json_schema` mode (`Profile::supports_response_format` — a
     /// PROVIDER fact).
     pub structured_native: bool,
+    /// The readiness ladder (P0-5) — presence/classification facts only;
+    /// `reachable` / `model_available` stay `None` until an opt-in probe.
+    pub readiness: ProviderReadiness,
+    /// The EFFECTIVE base URL a run would hit (override-aware) — config,
+    /// not a credential; renderers redact userinfo before printing.
+    pub endpoint: String,
 }
 
 /// Probe every operator-facing provider in `registry` (the `mock` test
@@ -58,12 +192,16 @@ pub fn collect_provider_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe
         .filter(|p| p.id != "mock")
         .map(|p| {
             let candidates = p.env_candidates();
+            // PRESENT-NOT-PRINTED: only presence is observed · the
+            // value is never bound.
+            let key_present = candidates.iter().any(|v| env_present(v));
+            // The URL a run would ACTUALLY hit — the operator override
+            // when present, else the seed (the registry already folds).
+            let endpoint = registry.effective_base_url(p.id).unwrap_or(p.base_url);
             ProviderProbe {
                 id: p.id.to_owned(),
                 requires_key: p.requires_key,
-                // PRESENT-NOT-PRINTED: only presence is observed · the
-                // value is never bound.
-                key_present: candidates.iter().any(|v| env_present(v)),
+                key_present,
                 structured_native: p.supports_response_format(),
                 // The conventional var (last candidate) is the
                 // friendliest fix; `NIKA_<ID>_API_KEY` always works too
@@ -72,6 +210,17 @@ pub fn collect_provider_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe
                     .last()
                     .cloned()
                     .unwrap_or_else(|| format!("NIKA_{}_API_KEY", p.id.to_uppercase())),
+                readiness: ProviderReadiness {
+                    recognized: true,
+                    configured: !p.requires_key || key_present,
+                    reachable: None,
+                    model_available: None,
+                    priced: nika_catalog::all_pricing()
+                        .iter()
+                        .any(|r| r.provider.eq_ignore_ascii_case(p.id)),
+                    execution_locus: ExecutionLocus::classify(Some(endpoint), p.base_url),
+                },
+                endpoint: endpoint.to_owned(),
             }
         })
         .collect()
@@ -229,5 +378,122 @@ mod tests {
     fn env_present_observes_without_binding() {
         assert!(env_present("PATH"), "PATH is set + non-empty");
         assert!(!env_present("NIKA_PROVIDERS_DEFINITELY_UNSET_XYZZY"));
+    }
+
+    #[test]
+    fn locus_classifies_loopback_lan_remote_and_cloud() {
+        use ExecutionLocus as L;
+        let ollama_seed = "http://127.0.0.1:11434";
+        // Loopback literals — the sovereign default (v4 · name · v6).
+        assert_eq!(
+            L::classify(Some("http://127.0.0.1:11434"), ollama_seed),
+            L::Loopback
+        );
+        assert_eq!(
+            L::classify(Some("http://localhost:11434/v1"), ollama_seed),
+            L::Loopback
+        );
+        assert_eq!(
+            L::classify(Some("http://[::1]:11434"), ollama_seed),
+            L::Loopback
+        );
+        // RFC1918 literals + local hostnames — the operator's own
+        // network, off-box: « local » is a PROTOCOL, not a topology.
+        assert_eq!(
+            L::classify(Some("http://192.168.1.20:11434"), ollama_seed),
+            L::Lan
+        );
+        assert_eq!(
+            L::classify(Some("http://10.0.0.5:11434"), ollama_seed),
+            L::Lan
+        );
+        assert_eq!(
+            L::classify(Some("http://172.16.0.9:11434"), ollama_seed),
+            L::Lan
+        );
+        assert_eq!(
+            L::classify(Some("http://gpu.lan:11434"), ollama_seed),
+            L::Lan
+        );
+        assert_eq!(
+            L::classify(Some("http://gpu-box:11434"), ollama_seed),
+            L::Lan,
+            "a bare hostname names the operator's own network"
+        );
+        // A public address off-box is REMOTE (not the vendor default).
+        assert_eq!(
+            L::classify(Some("http://8.8.8.8:11434"), ollama_seed),
+            L::Remote
+        );
+        // The declared vendor endpoint is the cloud — absent override
+        // classifies the DEFAULT.
+        let mistral_seed = "https://api.mistral.ai/v1/chat/completions";
+        assert_eq!(L::classify(None, mistral_seed), L::Cloud);
+        assert_eq!(L::classify(Some(mistral_seed), mistral_seed), L::Cloud);
+        // A keyed provider overridden to a proxy is never laundered « cloud ».
+        assert_eq!(
+            L::classify(Some("https://proxy.corp.example/v1"), mistral_seed),
+            L::Remote
+        );
+        assert_eq!(
+            L::classify(Some("http://10.1.2.3:8080/v1"), mistral_seed),
+            L::Lan
+        );
+        // Absent override → the declared default (a local seed is loopback).
+        assert_eq!(L::classify(None, ollama_seed), L::Loopback);
+        // Unparseable — never guessed.
+        assert_eq!(L::classify(Some("nope"), ollama_seed), L::Unknown);
+        // Userinfo never reaches the classification.
+        assert_eq!(
+            L::classify(Some("http://user:pass@192.168.1.20:11434"), ollama_seed),
+            L::Lan
+        );
+    }
+
+    #[test]
+    fn readiness_is_a_ladder_not_a_boolean() {
+        let reg = ProviderRegistry::without_http(crate::ProvidersConfig::new());
+        let probes = collect_provider_probes(&reg);
+        let ollama = probes.iter().find(|p| p.id == "ollama").expect("seeded");
+        // RECOGNIZED (the name resolves) · CONFIGURED (keyless) — and the
+        // endpoint defaults to loopback…
+        assert!(ollama.readiness.recognized);
+        assert!(ollama.readiness.configured);
+        assert_eq!(ollama.readiness.execution_locus, ExecutionLocus::Loopback);
+        // …but REACHABILITY and MODEL availability are NOT claimed: no
+        // ping ran, no model listing was fetched — `None` is the honest
+        // state, « recognized » is never rendered as « ready » (P0-5).
+        assert_eq!(ollama.readiness.reachable, None);
+        assert_eq!(ollama.readiness.model_available, None);
+        assert!(!ollama.readiness.priced, "a local engine has no list rates");
+        let anthropic = probes.iter().find(|p| p.id == "anthropic").expect("seeded");
+        assert!(anthropic.readiness.recognized);
+        assert_eq!(
+            anthropic.readiness.configured, anthropic.key_present,
+            "a keyed provider is configured exactly when its key is present"
+        );
+        assert_eq!(anthropic.readiness.execution_locus, ExecutionLocus::Cloud);
+        assert!(
+            anthropic.readiness.priced,
+            "the vendored snapshot prices anthropic"
+        );
+    }
+
+    #[test]
+    fn an_endpoint_override_moves_the_locus_off_loopback() {
+        // What `NIKA_OLLAMA_BASE_URL=http://gpu.lan:11434` becomes through
+        // the compose ladder — injected as config (no `set_var` race).
+        let config = crate::ProvidersConfig::new().with_base_url("ollama", "http://gpu.lan:11434");
+        let reg = ProviderRegistry::without_http(config);
+        let probes = collect_provider_probes(&reg);
+        let ollama = probes.iter().find(|p| p.id == "ollama").expect("seeded");
+        assert_eq!(ollama.readiness.execution_locus, ExecutionLocus::Lan);
+        assert_eq!(ollama.endpoint, "http://gpu.lan:11434");
+        let lmstudio = probes.iter().find(|p| p.id == "lmstudio").expect("seeded");
+        assert_eq!(
+            lmstudio.readiness.execution_locus,
+            ExecutionLocus::Loopback,
+            "an override on one engine never moves another"
+        );
     }
 }
