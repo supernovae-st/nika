@@ -61,7 +61,10 @@ command -v nika >/dev/null 2>&1 && bin_ok=1
 
 install_teach='Nika kit note: the nika binary is not on PATH. Every surface of this kit (MCP oracle · /nika: commands · hooks · subagents) invokes it and stays dead until it lands. Install: brew install supernovae-st/tap/nika (other paths: nika.sh) · then restart the session.'
 
-# The payload's cwd, when the envelope carries one.
+# The payload's cwd, when the envelope carries one. The value is then
+# stripped of control characters (POSIX allows a newline in a path):
+# a control byte would break the JSON envelope we later emit, and a
+# stripped path that resolves nowhere simply stays chat_only (P0-14).
 if command -v python3 >/dev/null 2>&1; then
   cwd="$(printf '%s' "$input" | python3 -c 'import json,sys
 try:
@@ -69,8 +72,12 @@ try:
 except Exception:
     print("")' 2>/dev/null || true)"
 else
-  cwd="$(printf '%s' "$input" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  # No JSON parser: the FIRST "cwd" key wins — a later field echoing the
+  # text "cwd" (a note, a nested doc) must not hijack the workspace root
+  # (the greedy last-match sed used to hand it exactly that).
+  cwd="$(printf '%s' "$input" | grep -o '"cwd"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')"
 fi
+cwd="$(printf '%s' "$cwd" | tr -d '\000-\037')"
 
 # Workspace root: the payload cwd, and ONLY the payload cwd. A chat
 # without a reliable folder stays chat_only — the hook's own process
@@ -126,9 +133,10 @@ map='This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml 
 # A claim names its proof: the resolved root and the evidence source
 # (P0-14 — an unnamed "this workspace" taught the agent to trust a
 # path it could not see). The root is the one interpolated token
-# besides the sanitized versions; JSON-escape \ and " so a hostile
-# or accented path cannot break the envelope.
-root_json="$(printf '%s' "$root" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+# besides the sanitized versions: control characters are stripped (a
+# POSIX-legal newline would otherwise break the envelope), then \ and "
+# are JSON-escaped so a hostile or accented path cannot break it either.
+root_json="$(printf '%s' "$root" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
 origin="Workspace root: $root_json (evidence: $evidence). "
 
 if [ -z "$bin_ok" ]; then
