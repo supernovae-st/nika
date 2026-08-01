@@ -658,9 +658,13 @@ fn audited_line(
             .iter()
             .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
         if unpriced_only {
-            " — no dollar meter for a local/unknown model · cap a cloud seat with --max-cost-usd"
+            // The handle names its VERB. Pasted onto `check` the bare
+            // flag exits 2 — `--max-cost-usd` lives on `run`, and a
+            // handle that breaks where it is printed is the class this
+            // whole wave hunts (gauntlet 08-01, Sofia).
+            " — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
         } else {
-            " — declare max_tokens/ceilings, or cap the run with --max-cost-usd"
+            " — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
         }
     } else {
         ""
