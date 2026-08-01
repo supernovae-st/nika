@@ -57,6 +57,12 @@ pub struct FoldSink<W: Write> {
     /// The interactive-TTY comprehension surface — the run verb enables it
     /// for `Live` only (pipes · CI · `--no-outputs` stay byte-unchanged).
     outputs: bool,
+    /// Whether this run records a trace journal — gates the taught
+    /// `see it whole: nika trace outputs` door (a door taught toward a
+    /// disabled journal fails in the exact context where it is taught ·
+    /// Elliot · wave 3). `true` by default: only the deliberate opt-out
+    /// (`examples run` temp staging · `--no-trace-file`) turns it off.
+    trace_recorded: bool,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     /// The spinner phase — advanced by the timer rider, read by every
@@ -123,6 +129,7 @@ impl<W: Write> FoldSink<W> {
             view: RunView::new(),
             mode,
             outputs: false,
+            trace_recorded: true,
             last_lines: 0,
             tick: 0,
             map: None,
@@ -158,6 +165,14 @@ impl<W: Write> FoldSink<W> {
         self.outputs = on;
     }
 
+    /// Declare whether this run records a trace journal (default true) —
+    /// the disabled-journal lanes (`examples run` · `--no-trace-file`)
+    /// turn it off so the close never teaches a door to a file that was
+    /// deliberately never written.
+    pub fn set_trace_recorded(&mut self, on: bool) {
+        self.trace_recorded = on;
+    }
+
     /// The folded view (the caller renders the FINAL frame + the failure
     /// card from it after the run · the verdict lives here).
     pub fn view(&self) -> &RunView {
@@ -188,7 +203,7 @@ impl<W: Write> FoldSink<W> {
             RenderMode::Plain => stream_summary(
                 &self.view,
                 &self.theme,
-                &super::epilogue::fruit_notes(&self.view),
+                &super::epilogue::fruit_notes(&self.view, self.trace_recorded),
             ),
             _ if self.outputs => frame_with_outputs(&self.view, &self.theme, 0),
             _ => frame(&self.view, &self.theme, 0),

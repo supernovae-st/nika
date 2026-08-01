@@ -739,7 +739,14 @@ fn receipt(
              point your local runner at the file above (ollama · llama.cpp · lmstudio)",
             crate::SERVE_FAMILY
         ),
-        _ => format!("serve it: nika model serve --model {arg}"),
+        _ if crate::SERVES => format!("serve it: nika model serve --model {arg}"),
+        // B-6c — the default build cannot serve: the receipt names the
+        // build that can, never the verb this binary lacks.
+        _ => format!(
+            "serve it: this binary has no local inference — cargo build -p nika-cli \
+             --features local-infer (Apple GPU: --features metal), then \
+             nika model serve --model {arg}"
+        ),
     };
     format!(
         "{verb} {}\n  {}\n  {serve_line}\n  manage:   nika \
@@ -939,10 +946,17 @@ mod tests {
         // Unsniffable (not a GGUF) → advisory keeps the promise.
         std::fs::write(&dest, b"not a gguf").expect("overwrite");
         let text = receipt("u/m", &mr, &dest, false, 0, "");
-        assert!(
-            text.contains("serve it: nika model serve --model u/m"),
-            "promise kept on unknown: {text}"
-        );
+        if crate::SERVES {
+            assert!(
+                text.contains("serve it: nika model serve --model u/m"),
+                "promise kept on unknown: {text}"
+            );
+        } else {
+            assert!(
+                text.contains("no local inference") && text.contains("--features local-infer"),
+                "a serve-less binary names the build, never the verb: {text}"
+            );
+        }
         let _ = std::fs::remove_dir_all(root);
     }
 

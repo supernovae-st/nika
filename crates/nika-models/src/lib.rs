@@ -31,6 +31,13 @@ pub mod store;
 /// own `SUPPORTED_ARCH` validation in `nika-infer-local`).
 pub const SERVE_FAMILY: &str = "qwen3";
 
+/// Whether THIS binary serves local inference (the `local-infer` build
+/// fact) — every teaching surface forks on it (B-6c · the gauntlet law
+/// « never teach what this binary cannot do »: the default build links
+/// zero inference dependencies, so the receipt and the list footer name
+/// the build that serves, never the verb this one lacks).
+pub(crate) const SERVES: bool = cfg!(feature = "local-infer");
+
 /// The canonical models dir's presence facts — what `nika doctor`'s
 /// models row reads (observed once, so the diagnosis stays pure).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

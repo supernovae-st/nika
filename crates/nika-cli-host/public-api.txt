@@ -295,9 +295,9 @@ pub type nika_cli_host::doctor::Finding::Output = T
 pub fn nika_cli_host::doctor::diagnose(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::doctor::Finding>
 pub fn nika_cli_host::doctor::exit_code(findings: &[nika_cli_host::doctor::Finding]) -> u8
 pub fn nika_cli_host::doctor::redact_userinfo(url: &str) -> alloc::string::String
-pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], verbose: bool, theme: nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt]) -> alloc::string::String
-pub fn nika_cli_host::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::doctor::run(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::machine_truth
 pub struct nika_cli_host::machine_truth::MachineTruth
 pub nika_cli_host::machine_truth::MachineTruth::catalog_entries: usize

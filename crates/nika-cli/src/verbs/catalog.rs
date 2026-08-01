@@ -188,7 +188,17 @@ fn cloud_rank(id: &str) -> (u8, &str) {
 /// EFFECTIVE endpoint sits off-loopback (an operator override) is NAMED
 /// with endpoint + locus — the ink the honest header saved (P0-20).
 fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -> String {
-    let key = if p.requires_key { p.env_var } else { "no key" };
+    // B-6b (the gauntlet's Marta): `native` sits under the « zero key ·
+    // zero network » banner, but in-process GGUF inference needs the
+    // file ON DISK first — the row names the prerequisite and its door,
+    // never a bare « no key » that dead-ends at run.
+    let key = if p.requires_key {
+        p.env_var
+    } else if p.id == "native" {
+        "no key · needs a local .gguf (nika model pull)"
+    } else {
+        "no key"
+    };
     let locus_note = match locus {
         Some(l) if l.locus != ExecutionLocus::Loopback => format!(
             " → {} ({})",

@@ -455,7 +455,20 @@ pub(crate) fn list_at(root: &Path) -> String {
         );
     }
     if any_servable {
-        text.push_str("\nserve one: nika model serve --model <id>  ·  reclaim: nika model rm <id>");
+        if crate::SERVES {
+            text.push_str(
+                "\nserve one: nika model serve --model <id>  ·  reclaim: nika model rm <id>",
+            );
+        } else {
+            // B-6c — a serve-less binary names the build that serves,
+            // never the verb this one lacks (the gauntlet law « never
+            // teach what THIS binary cannot do »).
+            text.push_str(
+                "\nserve: this binary has no local inference — cargo build -p nika-cli \
+                 --features local-infer (Apple GPU: --features metal)  ·  \
+                 reclaim: nika model rm <id>",
+            );
+        }
     } else {
         // Every row positively sniffs another family — `serve one:`
         // would be the false-receipt class. Point at the runners.
@@ -841,7 +854,14 @@ mod tests {
         assert!(out.contains("u/m"), "{out}");
         assert!(out.contains("Q4_K_M"), "{out}");
         assert!(out.contains("2.0 KiB"), "{out}");
-        assert!(out.contains("nika model serve"), "{out}");
+        if crate::SERVES {
+            assert!(out.contains("nika model serve"), "{out}");
+        } else {
+            assert!(
+                out.contains("no local inference"),
+                "a serve-less binary names the build, never the verb: {out}"
+            );
+        }
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -886,7 +906,14 @@ mod tests {
             !out.contains("qwen3 — runner-only"),
             "the servable row stays bare: {out}"
         );
-        assert!(out.contains("serve one: nika model serve"), "{out}");
+        if crate::SERVES {
+            assert!(out.contains("serve one: nika model serve"), "{out}");
+        } else {
+            assert!(
+                out.contains("no local inference"),
+                "a serve-less binary names the build, never the verb: {out}"
+            );
+        }
 
         // Only the llama left → the serve promise would be false.
         std::fs::remove_dir_all(root.join("q")).expect("rm qwen dir");
