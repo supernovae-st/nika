@@ -105,7 +105,7 @@ re-executes). A journal that never reached a lifecycle-terminal frame
 verifies **INCOMPLETE**: the verifier's finding about a run that died
 mid-flight — not a pass, and not a tamper claim. Say which one you
 have. Cite the trace in any report — a verified chain is proof, prose
-is not; `nika evidence <trace>` exports the pack an auditor reads
+is not; `nika trace evidence <trace>` exports the pack an auditor reads
 without trusting you.
 
 ## Honesty lines

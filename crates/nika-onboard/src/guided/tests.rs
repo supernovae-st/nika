@@ -94,7 +94,7 @@ fn example_sources_land_verbatim_through_new() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// The wire contract: `nika new --from '?'` (NO dest) names the set —
+/// The wire contract: `nika new '?'` (NO dest) names the set —
 /// and a discovery query answered is a SUCCESS (exit 0 · it used to
 /// reuse the unknown-template error, so the documented command read
 /// as a failure). The `embedded set:` line survives verbatim (the

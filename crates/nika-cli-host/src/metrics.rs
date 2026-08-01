@@ -97,7 +97,7 @@ pub enum Handoff {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DraftSource {
-    /// `nika new --from <template|example>` — direct instantiation.
+    /// `nika new <template|example>` — direct instantiation.
     New,
     /// The guided conversation materialized its wizard.
     Guided,

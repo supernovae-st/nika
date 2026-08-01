@@ -81,7 +81,7 @@ impl<W: Write> EventSink for JsonSink<W> {
 /// The run-journal state: which disk lane, if any, this sink drives.
 enum Lane {
     /// `--no-trace-file` / `NIKA_NO_TRACE_FILE` / a non-workspace run
-    /// (`examples run` stages a temp file) — emit is a no-op by design,
+    /// (`try` stages a temp file) — emit is a no-op by design,
     /// so the caller keeps ONE code path whether journaling or not.
     Disabled,
     /// Enabled but not yet on disk — the file is NAMED from the first

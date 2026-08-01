@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 59
-  aggregate_sha256: 46632797739edc287fc3b46cbedf675c6d189d4cd4c0a0f1ce1947533bd2ea9f
+  aggregate_sha256: ad3392f03fb106b213fca04060f2cfdde6e19cdd0cbe22891e0fcc5203b98d46
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 694
-  aggregate_sha256: bf15aacc0b4d42cacaf20fc33ba965b0f94e8f519051e326eb57b0980e4e38fd
+  aggregate_sha256: 707c34555b2da1eea2558a65b98e8e618897fe5bff5a5bed77583b8b65ec7d64
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 126
-  aggregate_sha256: cc6280a32d26d504b31772c1291c13911602d5bc18f5cff087895e479d5f3ffa
+  aggregate_sha256: bacdef25ea7ad9a43465f4c52c81509e504f44998acd36502a51a8fbb0c207a2
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,12 +178,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 99
-  aggregate_sha256: 5df4baffb4a104d77d0511de0028dbbf65818868c2384440a0afcf620c062bc7
+  aggregate_sha256: cb3509d8dd47d0165c12929d70b0bc11bfe14079853c8a0ed13e4099111c5afc
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 130
-  aggregate_sha256: dd50ac327878186bd4cdd8d8afe1d31b41852e109c2ee774af6a90953f52e1f8
+  aggregate_sha256: 8cfbfb858eb2ac21399ff16d5aafabc131636bebed6f36cac6c1ee4a1ac97479
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 29
-  aggregate_sha256: 66cf24c505c0cebe6f252da344e3b5c61a771a29f2daca1518281a58ae5e46f4
+  aggregate_sha256: d5c876f26b640e44def1ffa7e5138852afaea22b20721b92e2bb54661af5d4b8
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 14b786867f543ccaba731e9c1aceff7392fc2076731618b67ee27855f27c744f
+  aggregate_sha256: 90affcec61ede0330268a3a982c12ee286bc5e5c5ef0df790eb527f664d1e664
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
