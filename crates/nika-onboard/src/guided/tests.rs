@@ -52,8 +52,9 @@ fn exact_template_name_stays_the_fast_path() {
 }
 
 /// The ladder's second rung: an example slug (or filename) lands
-/// VERBATIM at dest — and the default dest flattens any tiering to
-/// the basename.
+/// VERBATIM at dest (minus the one self-referential pack path, which
+/// re-points to the owned file) — and the default dest flattens any
+/// tiering to the basename.
 #[test]
 fn example_sources_land_verbatim_through_new() {
     let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
@@ -66,10 +67,20 @@ fn example_sources_land_verbatim_through_new() {
     assert_eq!(out.code, codes::OK, "{}", out.text);
     assert!(out.text.contains("example `01-hello`"), "{}", out.text);
     assert!(out.text.contains("nika check"), "{}", out.text);
+    // Verbatim MINUS the pack's self-referential path: the `# Run ·`
+    // comment inside the OWNED copy must name the owned file — pasting
+    // the pack path exited 3 in the user's workspace (gauntlet 08-01).
+    let landed = std::fs::read_to_string(&dest).expect("written");
     assert_eq!(
-        std::fs::read_to_string(&dest).expect("written"),
-        nika_pack::example("01-hello").expect("embedded"),
-        "verbatim — a lesson has no SLOTs"
+        landed,
+        nika_pack::example("01-hello")
+            .expect("embedded")
+            .replace("examples/01-hello.nika.yaml", &dest_s),
+        "verbatim, self-reference re-pointed to the owned dest"
+    );
+    assert!(
+        !landed.contains("examples/01-hello.nika.yaml"),
+        "no taught command may name the pack-only path: {landed}"
     );
     // Filename form resolves too; overwrite refuses. FLIP
     // (2026-07-31): this used to probe `showcase/t1-price-watch` —
@@ -87,9 +98,54 @@ fn example_sources_land_verbatim_through_new() {
     assert_eq!(show.code, codes::OK, "{}", show.text);
     assert_eq!(
         std::fs::read_to_string(&dest).expect("written"),
-        nika_pack::example("price-watch").expect("embedded"),
-        "verbatim — a flat-corpus example"
+        nika_pack::example("price-watch")
+            .expect("embedded")
+            .replace("examples/price-watch.nika.yaml", &dest_s),
+        "verbatim, self-reference re-pointed — a flat-corpus example"
     );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A cadence clause in a routed intent gets the schedule note — half
+/// of « Chaque lundi, analyser… » used to vanish silently (gauntlet
+/// 08-01, Camille): the file owns the WORK, cron/CI owns WHEN, and
+/// the dropped half is NAMED. A cadence-free intent stays untouched,
+/// and a non-OK outcome never grows a note.
+#[test]
+fn a_routed_cadence_intent_carries_the_schedule_note() {
+    let dir = std::env::temp_dir().join(format!("nika-cadence-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let dest = dir.join("lundi.nika.yaml");
+    let dest_s = dest.to_string_lossy().into_owned();
+
+    let out = run(
+        "Chaque lundi, analyser les tickets support et produire les priorités",
+        Some(&dest_s),
+        false,
+    );
+    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert!(
+        out.text.contains("is a schedule") && out.text.contains("chaque lundi"),
+        "the dropped cadence half is named: {}",
+        out.text
+    );
+    assert!(
+        out.text.contains("cron"),
+        "the note points at the trigger owner: {}",
+        out.text
+    );
+
+    // No cadence — no note (the note never becomes noise).
+    let dest2 = dir.join("plain.nika.yaml");
+    let out = run(
+        "analyser les tickets support et produire les priorités",
+        Some(&dest2.to_string_lossy()),
+        false,
+    );
+    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert!(!out.text.contains("is a schedule"), "{}", out.text);
 
     let _ = std::fs::remove_dir_all(&dir);
 }

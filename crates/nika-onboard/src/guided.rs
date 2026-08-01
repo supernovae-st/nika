@@ -166,7 +166,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
                 // the shared materializer), a routed skeleton
                 // instantiates.
                 if let Some(body) = nika_pack::example(&name) {
-                    return write_example(&name, body, dest, force);
+                    return with_cadence_note(write_example(&name, body, dest, force), template);
                 }
                 // A skeleton name — the lookup is total for the template
                 // set; an empty body would be a pack bug surfaced as the
@@ -226,10 +226,57 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             q = shell_quote(dest)
         )
     };
-    Outcome {
+    let out = Outcome {
         text,
         code: codes::OK,
+    };
+    if routed {
+        with_cadence_note(out, template)
+    } else {
+        out
     }
+}
+
+/// A cadence clause in a routed intent gets its honest note: the file
+/// owns the WORK, a scheduler owns WHEN (the trigger/workflow split —
+/// a deployed schedule is cron/CI territory, never a YAML side
+/// effect). Half of « Chaque lundi, analyser les tickets » used to
+/// vanish without a word (gauntlet 08-01, Camille) — routing keeps
+/// its focus on the work, and the dropped half is now NAMED. Lexicon
+/// over parsing: a bounded FR/EN keyword sweep, no date grammar.
+fn with_cadence_note(mut out: Outcome, intent: &str) -> Outcome {
+    if out.code != codes::OK {
+        return out;
+    }
+    let lower = intent.to_lowercase();
+    let hit = [
+        "chaque ",
+        "tous les ",
+        "toutes les ",
+        "every ",
+        "each ",
+        "daily",
+        "weekly",
+        "monthly",
+        "hebdomadaire",
+        "quotidien",
+    ]
+    .into_iter()
+    .find(|k| lower.contains(k));
+    if let Some(keyword) = hit {
+        // Quote from the lowercased copy: `to_lowercase` may shift
+        // byte offsets (Unicode), so indexing the original with a
+        // `lower` offset could split a char boundary — the workspace
+        // forbids that panic class.
+        let start = lower.find(keyword).unwrap_or(0);
+        let clause: String = lower[start..].chars().take(24).collect();
+        let clause = clause.trim_end();
+        let _ = write!(
+            out.text,
+            "\n  note · \u{ab}{clause}\u{2026}\u{bb} is a schedule — this file owns the WORK; a scheduler (cron · CI) owns WHEN it runs"
+        );
+    }
+    out
 }
 
 /// The below-the-bar finding (P0-10): a weak or ambiguous route writes
@@ -311,12 +358,19 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
             code: codes::ENV,
         };
     }
-    if let Err(e) = std::fs::write(dest, body) {
+    // The pack's self-referential path (`# Run · nika run
+    // examples/<slug>.nika.yaml`) becomes the OWNED destination: a
+    // taught command inside the user's own file must work in the
+    // user's own workspace (gauntlet 08-01: pasting the copied
+    // comment exited 3 — the example path exists only in the pack).
+    let body = body.replace(&format!("examples/{clean}.nika.yaml"), dest);
+    if let Err(e) = std::fs::write(dest, &body) {
         return Outcome {
             text: format!("cannot write {dest}: {e}"),
             code: codes::ENV,
         };
     }
+    let body = body.as_str();
     let ingredients = match crate::fixtures::materialize(body, Path::new(dest)) {
         Ok((0, 0)) => String::new(),
         Ok((written, kept)) => {
@@ -899,8 +953,20 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme, audit: &Audit<
     // but a fresh scaffold checks clean by the templates' own-corpus law).
     let audit = audit(&dest);
     let q = shell_quote(&dest);
+    // The run hint's parenthetical follows the CHOSEN seat — the old
+    // literal « (mock is offline · $0.00) » rode every handoff, even
+    // an Ollama pick (checkpoint fixture journey-fr-posthog-local),
+    // and « $0.00 » is the banned free-shaped claim: a rehearsal is a
+    // rehearsal, local compute is unpriced, neither is a price.
+    let run_note = match w.model.as_deref() {
+        Some(m) if m.starts_with("mock/") => {
+            "mock rehearsal · offline, not a real answer".to_owned()
+        }
+        Some(m) => format!("model `{m}` · cost per its catalog seat"),
+        None => "models per-task".to_owned(),
+    };
     let next = format!(
-        "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render (mock is offline · $0.00)\n\n{}",
+        "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render ({run_note})\n\n{}",
         theme.paint(
             Role::Dim,
             &format!("scriptable form · nika new {} {q}", w.template)
