@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4292
+  classified_files: 4293
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1374
+    authored: 1375
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 694
-  aggregate_sha256: c5ee8166027b6a023f896498760105d89b1dcb40c03fc3eb94dcad1b2b88b445
+  aggregate_sha256: d2b5bf683c3c5f0e37f91f9791ba6506b30b52f2268675ff007eb35b77354fcc
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 125
-  aggregate_sha256: 85ecc4ef566c82ac7bb1846dd8df3bc4e29ff06236bfb8324075eed8f5981dfe
+  match_count: 126
+  aggregate_sha256: cc6280a32d26d504b31772c1291c13911602d5bc18f5cff087895e479d5f3ffa
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 29
-  aggregate_sha256: dd99cad627b0cc69bdce48ce7b00996ffb2ec5be371cee60a5d8b82687f43f89
+  aggregate_sha256: 66cf24c505c0cebe6f252da344e3b5c61a771a29f2daca1518281a58ae5e46f4
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
