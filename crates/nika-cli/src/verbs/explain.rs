@@ -118,6 +118,16 @@ fn closer_line(code: &str) -> &'static str {
              computed path (a glob result · an interpolated binding) is \
              judged at RUN — a green PERMITS is not its promise."
         }
+        // The wire refusals: check resolves the MODEL ID in this binary
+        // but never dials the server — measured (gauntlet wave-4,
+        // founder-fr): a green check printed « local servers not probed »
+        // itself, then the run died INFER-001 on a mute endpoint. The
+        // closer must not promise the dial it never made.
+        "NIKA-INFER-001" | "NIKA-INFER-003" => {
+            "`nika check` resolves the model in this binary; the wire \
+             itself — a live server, a valid key, a priced usage block — \
+             is the RUN's verdict (`nika doctor --ping` dials ahead)."
+        }
         _ => "`nika check` catches this before a run ever starts.",
     }
 }
@@ -324,6 +334,21 @@ mod tests {
             dag.text.contains("catches this before a run ever starts"),
             "a statically-caught class keeps its strong closer:\n{}",
             dag.text
+        );
+        // Wave-4 founder-fr: the wire class must not promise the dial
+        // check never made — the closer names the RUN's verdict and the
+        // door that DOES dial ahead.
+        let infer = run("NIKA-INFER-001");
+        assert_eq!(infer.code, exit::OK);
+        assert!(
+            !infer.text.contains("catches this before a run ever starts"),
+            "the over-claim is gone from the wire class:\n{}",
+            infer.text
+        );
+        assert!(
+            infer.text.contains("doctor --ping") && infer.text.contains("RUN's verdict"),
+            "the honest wire split is taught:\n{}",
+            infer.text
         );
     }
 
