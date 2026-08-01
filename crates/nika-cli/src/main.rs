@@ -1247,23 +1247,9 @@ mod tests {
     fn the_budget_guard_holds_on_both_doors() {
         for argv in [
             vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "nan"],
-            vec![
-                "nika",
-                "examples",
-                "run",
-                "01-hello",
-                "--max-cost-usd",
-                "nan",
-            ],
+            vec!["nika", "try", "01-hello", "--max-cost-usd", "nan"],
             vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "inf"],
-            vec![
-                "nika",
-                "examples",
-                "run",
-                "01-hello",
-                "--max-cost-usd",
-                "-1",
-            ],
+            vec!["nika", "try", "01-hello", "--max-cost-usd", "-1"],
         ] {
             assert!(
                 Cli::try_parse_from(&argv).is_err(),
@@ -1389,6 +1375,37 @@ mod tests {
         }
         // The dossier doors live under trace now (RAMS-15).
         assert!(Cli::try_parse_from(["nika", "trace", "receipt", "explain", "r.json"]).is_ok());
+    }
+
+    /// The concierge parse ratchet: every command `nika` (welcome)
+    /// can ever teach — across every workspace state and chat-only —
+    /// must parse on the live clap tree. The 0.107 train renamed the
+    /// showroom door (`examples` → `try`) while welcome kept teaching
+    /// the dead verb in five states plus the JSON mirror; only a human
+    /// paste could catch it. Placeholders are filled with plausible
+    /// operator values, and a `cd x && nika …` teaching line is parsed
+    /// from its `nika` tail.
+    #[test]
+    fn every_taught_welcome_command_parses_on_the_live_tree() {
+        let taught = nika_cli_host::welcome::taught_start_commands();
+        assert!(
+            taught.len() >= 6,
+            "the ratchet surface enumerates the concierge's states: {taught:?}"
+        );
+        for command in taught {
+            let filled = command
+                .replace("<file>", "wf.nika.yaml")
+                .replace("<usd>", "0.05")
+                .replace("<project>", "proj");
+            let tail = filled
+                .rfind("nika ")
+                .map_or(filled.as_str(), |i| &filled[i..]);
+            let argv: Vec<&str> = tail.split_whitespace().collect();
+            assert!(
+                Cli::try_parse_from(&argv).is_ok(),
+                "taught command must parse: {command:?} (argv {argv:?})"
+            );
+        }
     }
 
     /// The public name is `nika` EVERYWHERE clap speaks (found live

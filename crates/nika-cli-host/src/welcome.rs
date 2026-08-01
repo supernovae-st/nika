@@ -31,6 +31,7 @@ use nika_providers::probe::ExecutionLocus;
 
 use crate::context_envelope::{self, ContextEnvelope, ContextMode, EnvFacts, EvidenceSource};
 use crate::display::theme::{Role, Theme};
+use crate::door::DoorId;
 use crate::probe::Probe;
 use crate::{output::VerbOutput, probe};
 
@@ -52,7 +53,7 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
         (0, _) if !glance.complete => [
             ("nika welcome --deep".to_owned(), "scan partial · the truth"),
             ("nika init".to_owned(), "found this repo (wizard)"),
-            ("nika examples".to_owned(), "the teaching corpus"),
+            DoorId::Discover.row(),
         ],
         // The stranger's moment: nothing here yet — see one run, then found.
         // Only ever reached behind a COMPLETE scan (the arm above).
@@ -69,7 +70,7 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
         (_, false) => [
             ("nika init".to_owned(), "brief agents · adds only"),
             gate.map_or_else(|| ("nika run".to_owned(), "your workflow, found"), run_line),
-            ("nika examples".to_owned(), "the teaching corpus"),
+            DoorId::Discover.row(),
         ],
         // One workflow, fully founded AND clean: run it (bare — the
         // lazy door resolves the only workflow and says so).
@@ -77,7 +78,7 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
             Some(g) if g.proposable => [
                 run_line(g),
                 ("nika check".to_owned(), "audit before running"),
-                ("nika examples".to_owned(), "the teaching corpus"),
+                DoorId::Discover.row(),
             ],
             // Red — or no verdict at all: the exact file is audited
             // FIRST (a run CTA here is precisely what P0-3 forbids).
@@ -86,7 +87,7 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
                     || ("nika check".to_owned(), "audit before running"),
                     run_line,
                 ),
-                ("nika examples".to_owned(), "the teaching corpus"),
+                DoorId::Discover.row(),
                 ("nika welcome --deep".to_owned(), "the workspace truth"),
             ],
         },
@@ -94,7 +95,7 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
         (_, true) => [
             ("nika welcome --deep".to_owned(), "the workspace truth"),
             ("nika run <file>".to_owned(), "pick one · check twin"),
-            ("nika examples".to_owned(), "the teaching corpus"),
+            DoorId::Discover.row(),
         ],
     }
 }
@@ -690,8 +691,62 @@ fn chat_only_moves() -> [(String, &'static str); 3] {
             "cd <project> && nika welcome".to_owned(),
             "choose a project first",
         ),
-        ("nika examples".to_owned(), "the teaching corpus"),
+        DoorId::Discover.row(),
     ]
+}
+
+/// Every command the concierge can ever teach, across every workspace
+/// state — the parse-ratchet surface. The `nika-cli` unit replays each
+/// one against the live clap tree, so a door rename (the 0.107
+/// `examples` → `try` move that welcome kept teaching) breaks a test
+/// before it can break a paste. Placeholders (`<file>` · `<usd>` ·
+/// `<project>`) are the operator's slots; the ratchet fills them.
+#[must_use]
+pub fn taught_start_commands() -> Vec<String> {
+    let gates = [
+        None,
+        Some(RunGate {
+            path: "wf.nika.yaml".to_owned(),
+            proposable: false,
+            priced: false,
+        }),
+        Some(RunGate {
+            path: "wf.nika.yaml".to_owned(),
+            proposable: true,
+            priced: false,
+        }),
+        Some(RunGate {
+            path: "wf.nika.yaml".to_owned(),
+            proposable: true,
+            priced: true,
+        }),
+    ];
+    let mut commands: Vec<String> = Vec::new();
+    for workflows in [0usize, 1, 3] {
+        for agents_md in [false, true] {
+            for complete in [false, true] {
+                let glance = Glance {
+                    git: true,
+                    workflows,
+                    agents_md,
+                    complete,
+                };
+                for gate in &gates {
+                    for (command, _) in start_moves(glance, gate.as_ref()) {
+                        if !commands.contains(&command) {
+                            commands.push(command);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (command, _) in chat_only_moves() {
+        if !commands.contains(&command) {
+            commands.push(command);
+        }
+    }
+    commands
 }
 
 /// The hand-off — the state's own three moves, then where to learn more.
@@ -809,11 +864,14 @@ fn render_chat_only_json(probe: &Probe, counts: EngineCounts) -> String {
             "examples": counts.examples,
             "templates": counts.templates,
         },
-        "start": [
-            "nika try 01-hello",
-            "cd <project> && nika welcome",
-            "nika examples",
-        ],
+        // ONE source with the rendered text (the W8 law): the JSON
+        // mirror derives from `chat_only_moves()` — a hand-maintained
+        // twin array drifted once (the dead `nika examples` survived
+        // here) and never gets the chance again.
+        "start": chat_only_moves()
+            .iter()
+            .map(|(cmd, _)| cmd.clone())
+            .collect::<Vec<String>>(),
     })
     .to_string()
 }

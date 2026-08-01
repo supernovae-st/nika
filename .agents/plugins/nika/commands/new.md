@@ -1,7 +1,7 @@
 ---
 description: Scaffold a workflow from an embedded template, then audit it clean
 argument-hint: "[template] [file.nika.yaml]"
-allowed-tools: Bash(nika new:*), Bash(nika examples:*), Bash(nika check:*), Read, Edit
+allowed-tools: Bash(nika new:*), Bash(nika try:*), Bash(nika check:*), Read, Edit
 ---
 
 Scaffold from a template, never from scratch — then audit until clean.

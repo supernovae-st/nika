@@ -24,6 +24,7 @@ pub mod clients_registry;
 pub(crate) mod context_envelope;
 pub(crate) mod detect;
 pub mod doctor;
+pub mod door;
 pub mod machine_truth;
 pub mod metrics;
 pub mod output;
