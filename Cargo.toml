@@ -330,7 +330,7 @@ enigo    = "0.6"    # nika-input L1 (M2.4 · ADR-083 cross-platform) — synthet
 chromiumoxide = { version = "0.9", default-features = false, features = ["bytes"] }   # nika-browser L1 (M2.5 · ADR-083) — CDP browser automation (tokio-native · kill_on_drop child per INV-011) · fetcher EXPLICITLY out (default-features=false pins the sovereign surface · a future default-flip is caught by cargo, not silently activating a browser download) · API tarball-verified 0.9.1
 png      = "0.18"   # nika-browser L1 — Page.captureScreenshot PNG → RGBA8 kernel Frame decode (pure · headless-testable)
 futures-util  = { version = "0.3", default-features = false, features = ["std"] }   # nika-browser L1 — StreamExt::next to drain the CDP Handler stream (one owned task per session)
-jsonschema = { version = "0.33", default-features = false }   # nika-verb-infer L2 — structured-output schema validation (draft 2020-12 · no network resolver per sovereignty floor)
+jsonschema = { version = "0.49", default-features = false }   # nika-verb-infer L2 — structured-output schema validation (draft 2020-12 · no network resolver per sovereignty floor)
 jaq-core = "3.1"        # nika-builtin L1.5 — nika:jq · THE data language (jq parser+compiler+interpreter · MIT · API source-verified 2026-06-11)
 jaq-std  = "3.0"        # nika-builtin L1.5 — jq stdlib filters (map · select · group_by …)
 jaq-json = { version = "2.0", features = ["serde"] }   # nika-builtin L1.5 — jq Val type + serde bridge to serde_json::Value
@@ -358,7 +358,7 @@ lsp-types  = "0.97"     # nika-lsp L4 — LSP 3.17 protocol types (Diagnostic ·
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
 # Dev / test deps
-criterion   = { version = "0.5", features = ["html_reports"] }
+criterion   = { version = "0.8", features = ["html_reports"] }
 proptest    = "1.6"
 insta       = { version = "1.42", features = ["yaml"] }
 tempfile    = "3"   # nika-ocr dev — model-load error-path fixtures (with_models headless tests)

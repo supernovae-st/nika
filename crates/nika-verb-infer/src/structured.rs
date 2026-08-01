@@ -66,7 +66,7 @@ pub(crate) fn extract_and_validate(
         .iter_errors(&candidate)
         .take(5)
         .map(|e| {
-            let path = e.instance_path.to_string();
+            let path = e.instance_path().to_string();
             if path.is_empty() {
                 e.to_string()
             } else {

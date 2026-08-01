@@ -264,8 +264,8 @@ pub(crate) fn validate(args: &Args) -> BuiltinOutcome {
         .iter_errors(&data)
         .map(|e| {
             serde_json::json!({
-                "path": e.instance_path.to_string(),
-                "schema_path": e.schema_path.to_string(),
+                "path": e.instance_path().to_string(),
+                "schema_path": e.schema_path().to_string(),
                 "message": e.to_string(),
             })
         })
