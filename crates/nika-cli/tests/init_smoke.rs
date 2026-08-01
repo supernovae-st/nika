@@ -26,7 +26,7 @@ fn workspace_tmp_dir(tag: &str) -> PathBuf {
 
 /// The first hour, end to end against the real binary: copy a lesson
 /// home → the bare lazy door finds it → run it offline → found the
-/// repo around an example via the scriptable twin — and `new --from`
+/// repo around an example via the scriptable twin — and `new <slug>`
 /// resolves the SAME slug (one resolution, two handles).
 /// 30S-W8 seed — THE JOURNEY: the exact path a stranger walks in their
 /// first minutes (welcome → init → new → check → run offline → prove →
@@ -73,7 +73,7 @@ fn the_thirty_second_journey_holds_end_to_end() {
     assert!(text.contains("AGENTS.md"), "{text}");
 
     // 3 · new — a checked skeleton lands.
-    let (code, text) = step(&["new", "--from", "chain", "first.nika.yaml"]);
+    let (code, text) = step(&["new", "chain", "first.nika.yaml"]);
     assert_eq!(code, Some(0), "{text}");
 
     // 4 · check — the audit passes before any token.
@@ -123,7 +123,7 @@ fn the_first_hour_walks_end_to_end() {
 
     // 1 · the adoption gesture — the showroom file becomes yours.
     let copy = bin()
-        .args(["examples", "copy", "01-hello"])
+        .args(["new", "01-hello"])
         .current_dir(&dir)
         .output()
         .expect("copy runs");
@@ -146,9 +146,9 @@ fn the_first_hour_walks_end_to_end() {
         "the announce names the pick: {err}"
     );
 
-    // 3 · `new --from <example slug>` = the same source, the other handle.
+    // 3 · `new <example slug>` = the same source, the other handle.
     let new = bin()
-        .args(["new", "twin.nika.yaml", "--from", "01-hello"])
+        .args(["new", "01-hello", "twin.nika.yaml"])
         .current_dir(&dir)
         .output()
         .expect("new runs");
@@ -244,7 +244,7 @@ fn init_plain_yes_keeps_the_historical_bytes() {
     let stdout = String::from_utf8(out.stdout).expect("utf8");
     assert!(stdout.contains("✔ created"), "{stdout}");
     assert!(
-        stdout.contains("nika examples run 01-hello --model mock/echo"),
+        stdout.contains("nika try 01-hello"),
         "the classic hand-off survives: {stdout}"
     );
     assert!(

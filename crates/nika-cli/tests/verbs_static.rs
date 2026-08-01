@@ -420,7 +420,7 @@ fn pack_surface_round_trips_the_embedded_pack() {
     let _: serde_json::Value =
         serde_json::from_str(&schema.text).expect("embedded schema is valid JSON");
 
-    // `examples list|show` graduated to the organized surface
+    // the showroom listing graduated to the organized surface
     // (verbs::examples — tiers · titles · chips · full filenames); the
     // corpus pins live in its own unit tests. Here: the machine truth
     // (the pack) still resolves everything the listing names.
@@ -435,19 +435,7 @@ fn pack_surface_round_trips_the_embedded_pack() {
         );
     }
 
-    let shown = nika_cli::verbs::examples::show(&slugs[0], PLAIN);
-    assert_eq!(shown.code, exit::OK);
-    assert!(
-        shown
-            .text
-            .contains(nika_pack::example(&slugs[0]).expect("exists"))
-    );
-
-    assert_eq!(
-        nika_cli::verbs::examples::show("no-such-slug", PLAIN).code,
-        exit::FILE
-    );
-    // `examples run` no longer refuses — it EXECUTES (the L3 run verb
+    // `try <slug>` EXECUTES (the L3 run verb
     // shipped). Its behavior is pinned at the binary plane in
     // tests/run_verb.rs (the static suite can't drive a real run).
 }

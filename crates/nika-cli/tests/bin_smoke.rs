@@ -603,17 +603,19 @@ fn bare_new_in_a_pipe_fails_fast_naming_the_flag() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(text.contains("--from"), "names the flag: {text}");
+    assert!(
+        text.contains("nika new '?'"),
+        "names the discovery form: {text}"
+    );
     assert!(text.contains("embedded set:"), "hands over the set: {text}");
 }
 
 #[test]
 fn discovery_query_is_a_success_at_the_binary_plane() {
-    // `nika new --from '?'` is the documented discovery command — exit 0
+    // `nika new '?'` is the documented discovery command — exit 0
     // (a question answered is a success), the wire-contract line intact.
     let out = bin()
         .arg("new")
-        .arg("--from")
         .arg("?")
         .stdin(std::process::Stdio::null())
         .output()

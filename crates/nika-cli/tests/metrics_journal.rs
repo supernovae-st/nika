@@ -16,7 +16,7 @@
 //! - **the wired events land** — `check` green → `check_passed` ·
 //!   `welcome` → `context_resolved` + one `cta_impression` per move
 //!   (+ `human_run_handoff` when the run CTA leads) · `guard` allow →
-//!   `human_run_handoff/guard_allow` · `new --from` → `draft_created`;
+//!   `human_run_handoff/guard_allow` · `new <source>` → `draft_created`;
 //! - **content-free by construction** — no journal line carries the
 //!   scratch path, the workflow id, or anything but the whitelisted
 //!   enums/bools/counters.
@@ -197,7 +197,7 @@ fn guard_allow_journals_the_handoff() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
-/// `nika new --from <example> <dest>` writes the draft and journals it.
+/// `nika new <example> <dest>` writes the draft and journals it.
 #[test]
 fn new_journals_the_draft() {
     let home = workspace_tmp_dir("nika-metrics-new");
@@ -206,7 +206,6 @@ fn new_journals_the_draft() {
 
     let out = bin()
         .arg("new")
-        .arg("--from")
         .arg("01-hello")
         .arg("draft.nika.yaml")
         .current_dir(&proj)
