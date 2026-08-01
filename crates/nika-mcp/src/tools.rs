@@ -456,8 +456,14 @@ fn explain(args: &Value) -> Result<String, String> {
         .into_iter()
         .find(|r| r.code == normalized)
     {
+        // The contract lesson rides here too (one voice with the CLI's
+        // canon row · gauntlet 2026-07-31: the CLI taught the SEC-004
+        // grant grammar while this tool answered a category and a URL).
+        let lesson = nika_error::codes::spec_contract_help(&normalized)
+            .map(|l| format!("\n\n{l}"))
+            .unwrap_or_default();
         return Ok(format!(
-            "{normalized} · {} · transient: {}\n\n  {}",
+            "{normalized} · {} · transient: {}\n\n  {}{lesson}",
             row.category, row.transient, row.failure
         ));
     }

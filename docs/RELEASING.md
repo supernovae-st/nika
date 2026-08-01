@@ -23,9 +23,17 @@ git push origin v0.90.0
 That tag fires **`.github/workflows/release.yml`**, which:
 
 1. builds `nika` for **macOS arm64/x64** and **Linux arm64/x64** (release · `--locked`),
-2. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
-3. creates the GitHub release with those tarballs + a `SHA256SUMS` file,
-4. **bumps the Homebrew tap** formula (version + the 4 sha256s) — *if* the
+2. **gates the upload through `scripts/ci/funnel-e2e.sh`** against the staged
+   binary — the stranger's first path played end to end; if the funnel fails,
+   nothing uploads. Its needles judge the CURRENT binary, never a remembered
+   one: after any render-wording change, re-derive them by running the funnel
+   locally (`bash scripts/ci/funnel-e2e.sh target/release/nika`) BEFORE
+   pushing the tag (the v0.107.0 lesson — a wording fix removed `FLOOR`, and
+   the hidden `guard` verb is asked of the verb itself, not the `--help`
+   listing),
+3. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
+4. creates the GitHub release with those tarballs + a `SHA256SUMS` file,
+5. **bumps the Homebrew tap** formula (version + the 4 sha256s) — *if* the
    `HOMEBREW_TAP_TOKEN` secret is set (see §3); otherwise it logs a notice and you
    bump the formula by hand (§2).
 

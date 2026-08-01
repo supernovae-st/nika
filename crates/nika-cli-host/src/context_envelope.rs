@@ -23,7 +23,7 @@
 //! [`resolve`] is pure: the impure half (env vars, host facts) arrives
 //! as [`EnvFacts`], collected by the caller (or [`EnvFacts::detect`]).
 //!
-//! WIRED (W2): `verbs::welcome` is the first consumer. The items the
+//! WIRED (W2): [`crate::welcome`] is the first consumer. The items the
 //! doctor + hook waves will eat next carry their own scoped allowances
 //! below — the module-level blanket is gone.
 
@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 /// The session's mode — the ONE decision every consumer branches on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ContextMode {
+pub(crate) enum ContextMode {
     /// No reliable folder evidence: chat only, zero workspace claim.
     ChatOnly,
     /// A validated folder binds the session.
@@ -44,7 +44,7 @@ pub enum ContextMode {
 /// Where the folder evidence came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EvidenceSource {
+pub(crate) enum EvidenceSource {
     /// The host's session-open folder selection.
     HostSelection,
     /// The directory of the host's active file.
@@ -59,34 +59,34 @@ pub enum EvidenceSource {
 /// The evidence record: the source PLUS any subdir→root expansion (an
 /// expansion is always displayed, never silent).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Evidence {
+pub(crate) struct Evidence {
     /// How the candidate cwd reached us.
-    pub source: EvidenceSource,
+    pub(crate) source: EvidenceSource,
     /// Set when the candidate sat in a SUBDIR of the resolved root —
     /// carries the original subdir so the expansion stays traceable.
-    pub expanded_from: Option<PathBuf>,
+    pub(crate) expanded_from: Option<PathBuf>,
 }
 
 /// Host environment facts — the impure half, collected once by the
 /// caller so [`resolve`] stays pure + testable.
 #[derive(Debug, Clone, Default)]
-pub struct EnvFacts {
+pub(crate) struct EnvFacts {
     /// How the candidate cwd was obtained.
-    pub evidence: EvidenceSource,
+    pub(crate) evidence: EvidenceSource,
     /// Every root the host opened (0/1 = single-root · >1 = multi-root,
     /// where NO root is ever chosen implicitly).
-    pub workspace_roots: Vec<PathBuf>,
+    pub(crate) workspace_roots: Vec<PathBuf>,
     /// SSH/remote session identity (a label, e.g. `"ssh"` — never the
     /// raw connection string, which leaks into transcripts).
-    pub remote_identity: Option<String>,
+    pub(crate) remote_identity: Option<String>,
     /// Container identity (e.g. `"docker"`).
-    pub container_identity: Option<String>,
+    pub(crate) container_identity: Option<String>,
     /// Writability override (known-read-only mounts · the test seam) —
     /// `None` = probe the root's permission bits.
-    pub writable: Option<bool>,
+    pub(crate) writable: Option<bool>,
     /// Whether the workspace inventory scan completed (a truncated walk
     /// is never « complete » — P0-4's law rides here too).
-    pub inventory_complete: bool,
+    pub(crate) inventory_complete: bool,
 }
 
 impl EnvFacts {
@@ -95,7 +95,7 @@ impl EnvFacts {
     /// the host knows how it named the folder.
     #[allow(clippy::disallowed_methods)] // presence-only reads of NON-secret session vars
     #[must_use]
-    pub fn detect() -> Self {
+    pub(crate) fn detect() -> Self {
         let remote = std::env::var_os("SSH_CONNECTION")
             .or_else(|| std::env::var_os("SSH_TTY"))
             .map(|_| "ssh".to_owned());
@@ -114,45 +114,45 @@ impl EnvFacts {
 
 /// The resolved context — serializable (the hook/envelope wire surface).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ContextEnvelope {
+pub(crate) struct ContextEnvelope {
     /// Chat-only vs workspace — the one branch.
-    pub mode: ContextMode,
+    pub(crate) mode: ContextMode,
     /// The candidate as the host named it (render form · empty in
     /// chat-only-without-candidate).
-    pub display_path: String,
+    pub(crate) display_path: String,
     /// The resolved root, canonicalized — `None` in chat-only AND in
     /// multi-root before [`Self::select_root`] names one explicitly.
-    pub canonical_root: Option<PathBuf>,
+    pub(crate) canonical_root: Option<PathBuf>,
     /// The evidence record (source + expansion trace).
-    pub evidence: Evidence,
+    pub(crate) evidence: Evidence,
     /// The folder the host named, validated + canonicalized (may be a
     /// subdir of the repo — distinct from the git root BY DESIGN).
     /// Empty in chat-only.
-    pub project_root: PathBuf,
+    pub(crate) project_root: PathBuf,
     /// The git toplevel when the candidate sits inside a repo.
-    pub git_root: Option<PathBuf>,
+    pub(crate) git_root: Option<PathBuf>,
     /// The nearest ancestor carrying a `.nika/` store (bounded at the
     /// git root), when one exists.
-    pub workflow_root: Option<PathBuf>,
+    pub(crate) workflow_root: Option<PathBuf>,
     /// The dir executions run in — the validated candidate, NEVER the
     /// process cwd (`None` in chat-only).
-    pub execution_cwd: Option<PathBuf>,
+    pub(crate) execution_cwd: Option<PathBuf>,
     /// Every root the host opened, canonicalized (len > 1 = multi-root).
-    pub workspace_roots: Vec<PathBuf>,
+    pub(crate) workspace_roots: Vec<PathBuf>,
     /// SSH/remote session identity, when detected.
-    pub remote_identity: Option<String>,
+    pub(crate) remote_identity: Option<String>,
     /// Container identity, when detected.
-    pub container_identity: Option<String>,
+    pub(crate) container_identity: Option<String>,
     /// The gitdir target when `.git` is a FILE (worktree · submodule).
-    pub worktree_identity: Option<String>,
+    pub(crate) worktree_identity: Option<String>,
     /// Whether the resolved root is writable (read-only mounts say no).
-    pub writable: bool,
+    pub(crate) writable: bool,
     /// Whether the workspace inventory completed — void the moment the
     /// nonce changes.
-    pub inventory_complete: bool,
+    pub(crate) inventory_complete: bool,
     /// Stable hash of the root — consent + inventory granted under one
     /// nonce are VOID under another (root change = re-consent).
-    pub nonce: String,
+    pub(crate) nonce: String,
 }
 
 impl ContextEnvelope {
@@ -162,7 +162,7 @@ impl ContextEnvelope {
     /// the consumer MUST ask (root 0 is never the silent pick).
     #[must_use]
     #[cfg_attr(not(test), allow(dead_code))]
-    pub fn requires_explicit_root(&self) -> bool {
+    pub(crate) fn requires_explicit_root(&self) -> bool {
         self.mode == ContextMode::Workspace
             && self.workspace_roots.len() > 1
             && self.canonical_root.is_none()
@@ -171,7 +171,7 @@ impl ContextEnvelope {
     /// Name the root explicitly (the multi-root door). Refuses a root
     /// the host never opened; on accept, re-binds the nonce.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub fn select_root(&mut self, root: &Path) -> bool {
+    pub(crate) fn select_root(&mut self, root: &Path) -> bool {
         let Ok(canon) = root.canonicalize() else {
             return false;
         };
@@ -187,7 +187,7 @@ impl ContextEnvelope {
 /// Resolve the session context from the candidate cwd + host facts.
 /// Pure: every impure input arrives as a parameter.
 #[must_use]
-pub fn resolve(candidate: Option<&Path>, facts: &EnvFacts) -> ContextEnvelope {
+pub(crate) fn resolve(candidate: Option<&Path>, facts: &EnvFacts) -> ContextEnvelope {
     // The chat-only law (P0-14 · handoff §6.2): absent · invalid ·
     // unreachable → chat_only. The process cwd is NEVER consulted.
     let Some(candidate) = candidate else {

@@ -66,15 +66,18 @@ $ nika check brief.nika.yaml
  ✔ MODELS   1 model resolves in this binary
  ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
    brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
+ ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)
  ✔ SECRETS  no declared secret reaches an effect · model echo untracked
  ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
  ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
  ✔ ARGS     every builtin invoke arg key is declared + required args present
  ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
  ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
  ✔ PERMITS  literal + const: args fit the boundary · computed + symlinks at run
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
- ✔ audited · 2 tasks · 2 waves · permits declared · est unbounded · 1 uncapped task · 0 hints
+ ✔ JOURNEY  internal · 1 source · 0 destinations · 2 model endpoints · no secret reaches a cloud destination
+ ⚠ audited · 2 tasks · 2 waves · permits declared · est unbounded · 1 uncapped task · 0 hints · risk unbounded
 
 $ nika run brief.nika.yaml
   🦋 nika · daily-brief · 2 tasks

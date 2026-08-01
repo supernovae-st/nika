@@ -83,11 +83,16 @@ fn canon_row(code: &str) -> Option<String> {
     let row = nika_pack::error_codes()
         .into_iter()
         .find(|r| r.code == code)?;
+    // The contract lesson, when the code earned one (one voice: the MCP
+    // explain appends the same text — `nika_error::codes::spec_contract_help`).
+    let lesson = nika_error::codes::spec_contract_help(code)
+        .map(|l| format!("\n{l}"))
+        .unwrap_or_default();
     let fix = cli_fix_hint(code)
         .map(|h| format!("  fix: {h}\n\n"))
         .unwrap_or_default();
     Some(format!(
-        "{code} · {category} · transient: {transient}\n\n  {failure}\n\n{fix}\
+        "{code} · {category} · transient: {transient}\n\n  {failure}\n{lesson}\n{fix}\
          full docs: https://nika.sh/errors/{code} — `nika check` catches \
          this before a run ever starts.\n",
         category = row.category,
