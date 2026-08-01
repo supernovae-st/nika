@@ -156,6 +156,20 @@ fn index() -> Vec<(&'static str, &'static str, Vec<String>)> {
 /// concierge still teaches `01-hello` directly — the path never hides.
 const STOREFRONT: [&str; 3] = ["support-triage", "meeting-actions", "release-notes"];
 
+/// The slugless-`try` choice: the storefront is a TTY rendering — a
+/// pipe gets the full parsable corpus unchanged (the vscode extension
+/// runs bare `try` and anchors on `.nika.yaml` rows, a wire contract;
+/// the same TTY law every interactive surface here follows), and
+/// `--all` forces the shelf on a terminal.
+#[must_use]
+pub fn shelf_or_front(all: bool, theme: Theme) -> VerbOutput {
+    if all || !std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        list(theme)
+    } else {
+        storefront(theme)
+    }
+}
+
 /// Bare `nika try` — the storefront: three familiar jobs, whole rows
 /// (file · what goes in → what comes out · verbs), then the doors to
 /// the rest. Derived from the pack at call time; `--all` renders the

@@ -273,21 +273,7 @@ pub fn route(state: &ExperienceStateV1) -> NextActionV1 {
         .alt("discover_example");
     }
     if state.context_mode == ContextModeV1::ChatOnly {
-        return match state.intent {
-            IntentClassV1::Create => NextActionV1::new(
-                "choose_project",
-                "Choose a project",
-                "A repeated task wants a home — connect the folder Nika should work in (nothing is scanned before that).",
-            )
-            .alt("discover_example")
-            .alt("preview_in_chat"),
-            _ => NextActionV1::new(
-                "discover_example",
-                "Discover Nika with a safe example",
-                "No project is attached — explore an isolated example without touching any file.",
-            )
-            .alt("choose_project"),
-        };
+        return route_chat_only(state.intent);
     }
     match state.workflow {
         // Consent-gated: the reply IS what resumes execution of the
@@ -358,6 +344,27 @@ pub fn route(state: &ExperienceStateV1) -> NextActionV1 {
             )
             .alt("preview_draft"),
         },
+    }
+}
+
+/// The chat-only arm of the table (split under the 100-line fn law):
+/// no proven root means no scan, no write, no handoff — a repeated
+/// task chooses a project first, everything else discovers isolated.
+fn route_chat_only(intent: IntentClassV1) -> NextActionV1 {
+    match intent {
+        IntentClassV1::Create => NextActionV1::new(
+            "choose_project",
+            "Choose a project",
+            "A repeated task wants a home — connect the folder Nika should work in (nothing is scanned before that).",
+        )
+        .alt("discover_example")
+        .alt("preview_in_chat"),
+        _ => NextActionV1::new(
+            "discover_example",
+            "Discover Nika with a safe example",
+            "No project is attached — explore an isolated example without touching any file.",
+        )
+        .alt("choose_project"),
     }
 }
 

@@ -19,6 +19,7 @@ mod lazy;
 mod model_args;
 mod pipe_hygiene;
 mod registry_args;
+mod try_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
@@ -248,33 +249,7 @@ enum Command {
     /// rehearsal · zero keys · zero flags), nothing written, nothing
     /// owned. Bare `nika try` lists what there is to see.
     #[command(display_order = 10)]
-    Try {
-        /// Example slug (bare `nika try` shows the storefront).
-        slug: Option<String>,
-        /// The whole shelf — the 13-step path plus every job (bare
-        /// `nika try` shows three familiar jobs first).
-        #[arg(long)]
-        all: bool,
-        /// Run on a REAL seat instead of the default mock rehearsal
-        /// (`<provider>/<name>` — the example's own `model:` via `self`).
-        #[arg(long, value_name = "PROVIDER/NAME")]
-        model: Option<String>,
-        /// Set a workflow `inputs:` value (repeatable).
-        #[arg(long, value_name = "KEY=VALUE")]
-        var: Vec<String>,
-        /// Verdict line only (suppress the storyboard).
-        #[arg(long)]
-        quiet: bool,
-        /// One final storyboard frame (no live repaints) — pipes/CI
-        /// get this automatically.
-        #[arg(long)]
-        no_progress: bool,
-        /// Refuse to start if the static cost floor exceeds this (USD);
-        /// metered spend aborts past it mid-run. Same guard, same
-        /// parser as `nika run`.
-        #[arg(long, value_name = "USD", value_parser = crate::parse_budget_usd)]
-        max_cost_usd: Option<f64>,
-    },
+    Try(try_args::TryArgs),
     /// The ONE creation door: describe the job in plain words (routes),
     /// or name a slug/skeleton (takes it, ingredients included) — the
     /// destination derives from the slug. Bare `nika new` on a terminal
@@ -592,6 +567,18 @@ fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
     ))
 }
 
+/// Print a verb's text on the right stream and return its exit code.
+/// Findings + successes go to stdout (they ARE the product); only
+/// environment errors go to stderr.
+fn emit(out: &VerbOutput) -> u8 {
+    if out.code == verbs::exit::ENV {
+        eprintln!("nika: {}", out.text);
+    } else if !out.text.is_empty() {
+        println!("{}", out.text.trim_end());
+    }
+    out.code
+}
+
 fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: bool) -> u8 {
     let interactive = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
     emit(&verbs::wire::run_with(
@@ -739,33 +726,8 @@ fn dispatch_verb(
                 emit(&verbs::catalog::run(json, plain_theme))
             }
         }
-        Command::Try {
-            slug,
-            all,
-            model,
-            var,
-            quiet,
-            no_progress,
-            max_cost_usd,
-        } => match slug {
-            // The storefront is a TTY rendering: a pipe gets the full
-            // parsable corpus unchanged (the vscode extension runs
-            // bare `try` and anchors on `.nika.yaml` rows — a wire
-            // contract; the same TTY law every interactive surface
-            // here follows). `--all` forces the shelf on a terminal.
-            None if all || !std::io::stdout().is_terminal() => {
-                emit(&verbs::examples::list(plain_theme))
-            }
-            None => emit(&verbs::examples::storefront(plain_theme)),
-            Some(slug) => verbs::run::example(
-                &slug,
-                model.as_deref(),
-                &var,
-                (quiet, no_progress),
-                max_cost_usd,
-                plain_theme,
-            ),
-        },
+        Command::Try(a) => try_args::listing(&a, plain_theme)
+            .map_or_else(|| try_args::rehearse(&a, plain_theme), |o| emit(&o)),
         Command::New {
             intent,
             dest,
@@ -838,18 +800,6 @@ fn evidence_run(args: verbs::evidence::EvidenceArgs) -> u8 {
         )),
         Err(code) => code,
     }
-}
-
-/// Print a verb's text on the right stream and return its exit code.
-/// Findings + successes go to stdout (they ARE the product); only
-/// environment errors go to stderr.
-fn emit(out: &VerbOutput) -> u8 {
-    if out.code == verbs::exit::ENV {
-        eprintln!("nika: {}", out.text);
-    } else if !out.text.is_empty() {
-        println!("{}", out.text.trim_end());
-    }
-    out.code
 }
 
 /// `nika mcp` — serve the read-only MCP surface. stdio owns stdout
@@ -1361,9 +1311,11 @@ mod tests {
     #[test]
     fn the_three_doors_parse_and_the_dead_verbs_refuse() {
         let cli = Cli::try_parse_from(["nika", "try"]).expect("parses");
-        assert!(matches!(cli.command, Some(Command::Try { slug: None, .. })));
+        assert!(matches!(cli.command, Some(Command::Try(ref a)) if a.slug.is_none()));
         let cli = Cli::try_parse_from(["nika", "try", "01-hello"]).expect("parses");
-        assert!(matches!(cli.command, Some(Command::Try { slug: Some(s), .. }) if s == "01-hello"));
+        assert!(
+            matches!(cli.command, Some(Command::Try(ref a)) if a.slug.as_deref() == Some("01-hello"))
+        );
         let cli = Cli::try_parse_from(["nika", "new", "chase unpaid invoices", "mine.nika.yaml"])
             .expect("parses");
         assert!(matches!(
