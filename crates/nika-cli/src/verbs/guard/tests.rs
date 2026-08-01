@@ -72,6 +72,19 @@ fn bypass_cases(d: &str) -> Vec<Row> {
             "empty",
             Want::Deny("nika check"),
         ),
+        // The cargo target name IS the same binary: a dev-shop agent
+        // invoking the debug build rode past the guard as no-opinion
+        // (gauntlet 08-01 — the uncapped-priced-run deny never fired).
+        (
+            format!("nika-cli run {d}/bad.nika.yaml"),
+            "empty",
+            Want::Deny("nika check"),
+        ),
+        (
+            format!("/tmp/target/debug/nika-cli run {d}/bad.nika.yaml"),
+            "empty",
+            Want::Deny("nika check"),
+        ),
         (
             format!("nika --plain run {d}/bad.nika.yaml"),
             "empty",

@@ -493,7 +493,12 @@ fn analyze_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Op
         }
         "sh" | "bash" | "zsh" | "dash" => shell_script(words, ctx, cwd),
         "env" => env_command(words, ctx, cwd),
-        "nika" => nika_command(words, cwd),
+        // `nika-cli` is the same binary under its cargo target name —
+        // a dev-shop agent invoking the debug build rode straight past
+        // the guard as `{}` no-opinion (gauntlet 08-01, Marc: P0-15's
+        // uncapped-priced-run deny never fired, and nothing engine-side
+        // caps an advisory-profile run). Same judge, both spellings.
+        "nika" | "nika-cli" => nika_command(words, cwd),
         // The value-free wrappers — the first non-option word is the
         // real command (the `env` unwrap's sibling).
         "nice" | "nohup" | "sudo" | "time" | "command" | "exec" | "stdbuf" | "setsid" => {
