@@ -121,7 +121,13 @@ fn validate_no_duplicates<'a>(
 #[cfg(all(feature = "providers", feature = "pricing"))]
 #[cfg_attr(
     not(all(feature = "mcp", feature = "builtins-transforms")),
-    allow(dead_code)
+    allow(
+        dead_code,
+        reason = "its only caller is `validate_catalog_integrity`, which needs \
+                  mcp + builtins-transforms to compile; this fn's own gate is \
+                  all(providers, pricing), a strictly wider set, so the two \
+                  gates leave a band where it is live but unreachable"
+    )
 )]
 fn validate_provider_models(errors: &mut Vec<CatalogError>) {
     use crate::data::{ALL_PROVIDERS, models};
