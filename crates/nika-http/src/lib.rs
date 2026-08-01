@@ -559,26 +559,25 @@ impl HttpPostDyn for ReqwestHttp {
     }
 }
 
-/// Request headers dropped when a redirect crosses to a different
-/// origin — they carry caller credentials that must not leak to a host
-/// the caller did not address. Mirrors reqwest's own
-/// `remove_sensitive_headers` set. Comparison is case-insensitive.
-const SENSITIVE_HEADERS: &[&str] = &[
-    "authorization",
-    "cookie",
-    "cookie2",
-    "proxy-authorization",
-    "www-authenticate",
-];
+// The credential-header list is the KERNEL's — one list, shared with the
+// Debug-redaction duty, because both answer « does this header's value
+// carry a credential? ».
+//
+// This crate used to keep its own, mirroring reqwest's set, and the two
+// diverged: reqwest has never heard of `x-api-key`, which is exactly
+// what our Anthropic wire sends and what `nika:fetch` documents to
+// workflow authors. A cross-origin 302 forwarded the live key.
+use nika_kernel::io::http::is_credential_header;
 
 /// Body-describing headers dropped when a redirect demotes a
 /// body-bearing method to a bodyless GET — they must not ride along on
 /// the now-empty request. Comparison is case-insensitive.
 const BODY_HEADERS: &[&str] = &["content-type", "content-length", "transfer-encoding"];
 
-/// Remove every [`SENSITIVE_HEADERS`] entry (case-insensitive) in place.
+/// Drop every credential-bearing header in place (case-insensitive),
+/// per the kernel's one list.
 fn strip_sensitive_headers(headers: &mut std::collections::BTreeMap<String, String>) {
-    retain_without(headers, SENSITIVE_HEADERS);
+    headers.retain(|key, _| !is_credential_header(key));
 }
 
 /// Remove every [`BODY_HEADERS`] entry (case-insensitive) in place.

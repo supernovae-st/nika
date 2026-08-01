@@ -1324,6 +1324,7 @@ impl<T> core::convert::From<T> for nika_kernel_core::io::http::HttpStreamRespons
 pub fn nika_kernel_core::io::http::HttpStreamResponse::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_core::io::http::HttpStreamResponse where T: 'static
 pub fn nika_kernel_core::io::http::HttpStreamResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_kernel_core::io::http::SENSITIVE_HEADERS: [&str; 12]
 pub trait nika_kernel_core::io::http::HttpClient: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
 impl<T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost> nika_kernel_core::io::http::HttpClient for T
 pub trait nika_kernel_core::io::http::HttpGet: core::marker::Send + core::marker::Sync
@@ -1341,6 +1342,7 @@ pub async fn TraitVariantBlanketType::send_streaming(&self, request: nika_kernel
 pub trait nika_kernel_core::io::http::HttpPostDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel_core::io::http::HttpPostDyn::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
 pub fn nika_kernel_core::io::http::HttpPostDyn::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
+pub fn nika_kernel_core::io::http::is_credential_header(name: &str) -> bool
 pub mod nika_kernel_core::io::input
 #[non_exhaustive] pub enum nika_kernel_core::io::input::InputError
 pub nika_kernel_core::io::input::InputError::BackendUnavailable

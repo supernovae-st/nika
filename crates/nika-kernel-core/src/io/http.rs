@@ -174,25 +174,59 @@ impl HttpStreamResponse {
     }
 }
 
-/// Header names whose VALUES are redacted in `Debug` output (compared
-/// case-insensitively). Names stay visible — presence is diagnostic signal,
-/// values are credentials.
-const SENSITIVE_HEADERS: [&str; 8] = [
+/// Header names whose VALUE is a credential (compared case-insensitively).
+///
+/// ONE list, two duties, because they ask the same question:
+///
+/// 1. **Redaction** — the value is `***` in `Debug` output. Names stay
+///    visible: presence is diagnostic signal, values are credentials.
+/// 2. **Cross-origin redirect** — the header is DROPPED when a redirect
+///    leaves the origin the caller addressed ([`is_credential_header`],
+///    consumed by `nika-http`).
+///
+/// The two duties used to own separate lists with the same name, in two
+/// crates, and they diverged (2026-08-02). The redaction list knew
+/// `x-api-key` was a credential; the redirect list — copied from a
+/// general-purpose HTTP client that has never heard of it — did not. So
+/// a 302 from a provider endpoint forwarded a live API key to the
+/// redirect target, and `nika:fetch` teaches authors to put their
+/// secret in exactly that header.
+///
+/// Whatever this engine SENDS as auth belongs here. `check-credential-
+/// headers.sh` fails the build when a source inserts an auth header this
+/// list does not name — the list cannot silently fall behind the wires
+/// again.
+///
+/// Response-only names (`set-cookie`, `www-authenticate`) are harmless
+/// in the request-strip duty: they are never present to drop.
+pub const SENSITIVE_HEADERS: [&str; 12] = [
     "authorization",
     "proxy-authorization",
+    "www-authenticate",
+    "cookie",
+    "cookie2",
+    "set-cookie",
     "x-api-key",
     "x-goog-api-key",
+    "xi-api-key",
     "api-key",
+    "apikey",
     "x-auth-token",
-    "cookie",
-    "set-cookie",
 ];
+
+/// True when `name` is a [`SENSITIVE_HEADERS`] entry (case-insensitive).
+#[must_use]
+pub fn is_credential_header(name: &str) -> bool {
+    SENSITIVE_HEADERS
+        .iter()
+        .any(|s| name.eq_ignore_ascii_case(s))
+}
 
 fn redacted_headers(headers: &BTreeMap<String, String>) -> BTreeMap<&str, &str> {
     headers
         .iter()
         .map(|(k, v)| {
-            if SENSITIVE_HEADERS.iter().any(|s| k.eq_ignore_ascii_case(s)) {
+            if is_credential_header(k) {
                 (k.as_str(), "***")
             } else {
                 (k.as_str(), v.as_str())

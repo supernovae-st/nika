@@ -30,6 +30,7 @@ readonly RATCHETS=(
   'dead-code'
   'no-default-features'
   'adr-coverage'
+  'credential-headers'
 )
 
 # Four of the ratchets above (unwrap · expect · dead-code, plus hygiene's

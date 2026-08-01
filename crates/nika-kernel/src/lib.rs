@@ -90,7 +90,7 @@ pub use fs::{FileMetadata, Fs, FsList, FsMeta, FsRead, FsWrite};
 pub use genai::{GenAiAttrs, GenAiOperation, GenAiSystem};
 pub use http::{
     HttpClient, HttpError, HttpGet, HttpMethod, HttpPost, HttpRequest, HttpResponse,
-    HttpStreamResponse,
+    HttpStreamResponse, SENSITIVE_HEADERS, is_credential_header,
 };
 pub use id_gen::IdGenerator;
 pub use memory::{

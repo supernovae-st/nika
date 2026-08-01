@@ -246,6 +246,36 @@ fn strip_sensitive_removes_credentials_case_insensitive() {
 }
 
 #[test]
+fn strip_sensitive_covers_the_headers_this_engine_actually_sends() {
+    // The regression of 2026-08-02: the strip list was copied from a
+    // general-purpose HTTP client, which has never heard of `x-api-key`
+    // — the header our Anthropic wire sends, and the one `nika:fetch`
+    // documents to workflow authors. The sibling test above passed
+    // throughout, because it only ever tried `authorization`, the one
+    // name both lists happened to share. A mechanism test is not a
+    // coverage test.
+    for name in [
+        "x-api-key",      // anthropic wire
+        "X-Goog-Api-Key", // gemini wire, and case must not matter
+        "xi-api-key",     // elevenlabs
+        "api-key",
+        "apikey",
+        "x-auth-token",
+        "proxy-authorization",
+    ] {
+        let mut h = std::collections::BTreeMap::new();
+        h.insert(name.to_string(), "sk-LEAK".to_string());
+        h.insert("X-Keep".to_string(), "ok".to_string());
+        strip_sensitive_headers(&mut h);
+        assert!(
+            !h.contains_key(name),
+            "{name} carries a credential and must not survive a cross-origin hop"
+        );
+        assert!(h.contains_key("X-Keep"), "neutral header kept for {name}");
+    }
+}
+
+#[test]
 fn strip_body_removes_content_descriptors() {
     let mut h = std::collections::BTreeMap::new();
     h.insert("Content-Type".to_string(), "application/json".to_string());
@@ -594,6 +624,15 @@ mod e2e {
         request
             .headers
             .insert("authorization".to_owned(), "Bearer sk-LEAK".to_owned());
+        // The provider headers, on the wire, for real (2026-08-02): these
+        // are what the Anthropic and Gemini wires send, and until this
+        // line existed a 302 carried them to the redirect target.
+        request
+            .headers
+            .insert("x-api-key".to_owned(), "sk-ant-LEAK".to_owned());
+        request
+            .headers
+            .insert("x-goog-api-key".to_owned(), "goog-LEAK".to_owned());
         request
             .headers
             .insert("x-trace".to_owned(), "keep-me".to_owned());
@@ -606,6 +645,14 @@ mod e2e {
         assert!(!wire.contains("payload"), "body dropped on demote: {wire}");
         // Cross-origin: credentials stripped, neutral headers ride on.
         assert!(!wire.contains("sk-LEAK"), "credential stripped: {wire}");
+        assert!(
+            !wire.contains("sk-ant-LEAK"),
+            "the provider API key must not cross an origin: {wire}"
+        );
+        assert!(
+            !wire.contains("goog-LEAK"),
+            "the provider API key must not cross an origin: {wire}"
+        );
         assert!(wire.contains("keep-me"), "neutral header kept: {wire}");
     }
 

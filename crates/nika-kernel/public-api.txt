@@ -75,6 +75,7 @@ pub use nika_kernel::RecallQuery
 pub use nika_kernel::ReflectionConfig
 pub use nika_kernel::ResponseFormat
 pub use nika_kernel::Role
+pub use nika_kernel::SENSITIVE_HEADERS
 pub use nika_kernel::Sandbox
 pub use nika_kernel::SandboxError
 pub use nika_kernel::Secret
@@ -125,6 +126,7 @@ pub use nika_kernel::http
 pub use nika_kernel::id_gen
 pub use nika_kernel::infra
 pub use nika_kernel::io
+pub use nika_kernel::is_credential_header
 pub use nika_kernel::memory
 pub use nika_kernel::metrics
 pub use nika_kernel::plugin
