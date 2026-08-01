@@ -10,7 +10,7 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
-## [0.107.0](https://github.com/supernovae-st/nika/compare/v0.106.1..v0.107.0) - 2026-07-31
+## [0.107.0](https://github.com/supernovae-st/nika/compare/v0.106.1..v0.107.0) - 2026-08-01
 
 **The trust release.** An outside audit measured the experience instead of
 the feature list — five waves, seventy-two receipts, twenty-two P0s — and
@@ -31,6 +31,73 @@ inside too: the host plane descended to `nika-cli-host` at the 15k wall
 itself grew a descent window, the crate-size vector warning at eighty
 percent instead of ambushing the push.
 
+**The night train (Jul 31 → Aug 1).** The teaching grammar collapsed to
+three doors and the whole surface followed: `nika try` is the showroom
+(bare lists · a slug runs the mock rehearsal offline by default — no
+`--model mock/echo` incantation left to teach · `--model self` keeps
+the example's own seat), `nika new` takes ONE positional gesture
+(an example slug lands verbatim WITH its ingredients · plain words
+BM25-route across the whole catalog · a lone `<name>.nika.yaml` names
+a destination and gets the wizard), `nika init` founds. The `examples`
+verb tree died; `evidence` and `receipt` moved under the run's dossier
+as `nika trace evidence` / `nika trace receipt explain`. The same
+night, four replayable persona waves judged the result end-to-end and
+the last taught-line breaks fell before morning.
+
+### The three doors (V5)
+
+- **`nika try [slug]` — see it work, own nothing** (#796). Offline by
+  default: the rehearsal seat law lives in one place and is pinned;
+  the shelf, the take and the founding read as one grammar. Every
+  teaching surface (welcome START block · lazy door · rescue tips ·
+  recipes · briefs/AGENTS scaffold · kit skills · README · funnel e2e)
+  speaks the new forms in the same release.
+- **`nika new` routes the WHOLE catalog** (#778): the 26 human-worded
+  jobs are visible to the one surface that takes human words — a routed
+  example lands verbatim with its fixtures beside it (one shared
+  materializer for every taking door), a routed skeleton instantiates,
+  and below the confidence bar the clarify names facets + each entry's
+  own description line.
+- **The MCP oracle walks the same door** (#797 · RAMS-11): a
+  plain-words miss on `nika_examples`/`nika_template` routes through
+  the CLI's router — the interpretation is SAID in a leading
+  `# routed:` comment, single tokens keep the unknown-key contract,
+  and the adversarial-keys pin holds verbatim.
+- **Every taught line survives the paste-back** (#798): the clarify
+  hint is facet-aware (a skeleton carries its `<dest>.nika.yaml`, an
+  example lands bare) and a spaced intent is re-echoed shell-quoted —
+  the gauntlet's teach-a-command-that-breaks class, closed the night
+  it was measured.
+
+### The honest machine (the tier-B wave)
+
+- **A dead local server stops the run in seconds, named** (#786): the
+  B-5 liveness gate dials the local endpoint BEFORE any wire call —
+  silent (nothing listens) and mute (accepts, never speaks) refuse
+  fast with the exact repair (`ollama serve`, or rehearse with
+  `mock/echo`); a keyed cloud seat, mock, or a failed probe never
+  block.
+- **The models rung consults the catalog before saying `resolves`**
+  (#784) · **the local route stops teaching what this binary cannot
+  do** (#788) · **a healthy machine reads calm** — doctor's advisory
+  noise folds (#789).
+- **One machine-truth** (#781): every provider count names its facet
+  (`38 catalog entries · 15 wired in this build · 10 take a key`) from
+  a single projection, pinned end-to-end on the rendered surfaces.
+- **mock is a proven zero** (#785): the check's floor and the run card
+  say the same $0.00, and the exec-floor hint drops its phantom route.
+- **The fan says its tally** (#793 · V7-1): a `for_each` with
+  recovered items renders `N/M ok · K recovered` — the silent fan
+  class dies at ITEM level.
+- **The closer never promises more than the judge checked** (#795):
+  `explain`'s canon-row closer is per-class — SEC-004 teaches the
+  literal/computed split (a green PERMITS is not the RUN's promise) —
+  and the C-9 lessons (#787) speak one voice across CLI and MCP.
+- **A closed pipe dies clean** (#783): `nika run | head` ends with the
+  screen silent and the honest 141, never a Rust panic dump.
+- **A UTF-8 BOM parses** (#791) · **`examples run`/`copy` history**:
+  the pack resyncs landed the fanout-trap fix, the write carve-out and
+  the measured-truth corpus (#782 · #790).
 ### Added
 
 - **`nika init` writes the two project MCP doors.** The root `.mcp.json`
