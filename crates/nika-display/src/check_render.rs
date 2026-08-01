@@ -328,6 +328,26 @@ fn journey_rung(out: &mut String, report: &CheckReport, t: Theme) {
         crate::vocab::count(j.destinations.len(), "destination"),
         crate::vocab::count(j.model_endpoints.len(), "model endpoint"),
     );
+    // The local→cloud flip must be READABLE, not a JSON-only fact
+    // (gauntlet 08-01, Aïcha: the --plain line was byte-identical for
+    // mock and mistral while the machine lane knew locus, retention
+    // and training). One dim row per distinct CLOUD provider, its
+    // sourced facts beside it — an unknown stays the word `unknown`.
+    let mut cloud_rows: Vec<String> = Vec::new();
+    for e in &j.model_endpoints {
+        if e.locus != nika_check::EndpointLocus::Cloud {
+            continue;
+        }
+        let retention = e.retention.as_deref().unwrap_or("unknown");
+        let trains = e.trains.as_deref().unwrap_or("unknown");
+        let row = format!(
+            "cloud endpoint {} · task data leaves this machine · retention {retention} · training {trains}",
+            e.provider
+        );
+        if !cloud_rows.contains(&row) {
+            cloud_rows.push(row);
+        }
+    }
     if flows.is_empty() {
         let _ = writeln!(
             out,
@@ -339,6 +359,15 @@ fn journey_rung(out: &mut String, report: &CheckReport, t: Theme) {
                 &format!("{summary} · no secret reaches a cloud destination")
             )
         );
+        for row in &cloud_rows {
+            let _ = writeln!(
+                out,
+                " {} {} {}",
+                mark(t, true),
+                t.paint(Role::Strong, "JOURNEY"),
+                t.paint(Role::Dim, row)
+            );
+        }
         return;
     }
     // A flow exists: the headline takes the warn posture (the audit
@@ -357,6 +386,15 @@ fn journey_rung(out: &mut String, report: &CheckReport, t: Theme) {
             " {} {} secret `{name}` flows to {dest} · the receipt names this flow — read it before the run",
             t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
             t.paint(Role::Strong, "JOURNEY"),
+        );
+    }
+    for row in &cloud_rows {
+        let _ = writeln!(
+            out,
+            " {} {} {}",
+            mark(t, true),
+            t.paint(Role::Strong, "JOURNEY"),
+            t.paint(Role::Dim, row)
         );
     }
 }

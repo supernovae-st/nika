@@ -147,6 +147,39 @@ mod journey_rung_tests {
         );
         assert!(out.contains("audited"), "the verdict stays clean:\n{out}");
     }
+
+    /// The local→cloud flip is READABLE on the human surface (gauntlet
+    /// 08-01, Aïcha: the --plain JOURNEY line was byte-identical for
+    /// mock and a cloud model while --json knew locus/retention/
+    /// training). A cloud endpoint earns its own dim row naming the
+    /// provider, the egress fact and the sourced policy words; a pure
+    /// mock voyage keeps its single line — the row never becomes noise.
+    #[test]
+    fn a_cloud_endpoint_earns_its_readable_disclosure_row() {
+        let cloud = console(
+            "nika: v1\nworkflow:\n  id: t\nmodel: openai/gpt-4o-mini\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        let row = cloud
+            .lines()
+            .find(|l| l.contains("cloud endpoint openai"))
+            .expect("the cloud disclosure row renders");
+        assert!(
+            row.contains("task data leaves this machine"),
+            "the egress fact is plain: {row}"
+        );
+        assert!(
+            row.contains("retention") && row.contains("training"),
+            "the sourced policy words ride the row: {row}"
+        );
+
+        let mock = console(
+            "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        assert!(
+            !mock.contains("cloud endpoint"),
+            "a local voyage never grows the row:\n{mock}"
+        );
+    }
 }
 
 mod energy_tests {
