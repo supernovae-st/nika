@@ -4474,6 +4474,7 @@ dependencies = [
  "nika-error",
  "nika-graph",
  "nika-kernel",
+ "nika-onboard",
  "nika-pack",
  "nika-providers",
  "nika-sandbox-landlock",

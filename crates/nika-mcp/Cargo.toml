@@ -21,6 +21,7 @@ nika-pack   = { path = "../nika-pack", version = "0.107.0" }    # embedded canon
 # versioned projections `nika catalog|tools --json` emit (one builder per
 # owning crate · zero duplication). L4→L0 / L4→L1.5, strictly downward.
 nika-catalog = { path = "../nika-catalog", version = "0.107.0", default-features = false, features = ["serde", "capabilities"] }
+nika-onboard = { path = "../nika-onboard", version = "0.107.0" }  # the ONE routing door (RAMS-11 · MCP follows the CLI's router)
 nika-builtin = { path = "../nika-builtin", version = "0.107.0" }
 # The exec verb's OS sandbox (ADR-095 Layer 6) — a spawned MCP server rides
 # the SAME confinement (never a bespoke second sandbox). L4→L0.5/L1, strictly

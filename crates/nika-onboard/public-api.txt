@@ -75,6 +75,51 @@ pub fn nika_onboard::guided::dispatch(from: core::option::Option<&str>, dest: co
 pub fn nika_onboard::guided::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_onboard::Outcome
 pub fn nika_onboard::guided::wizard_io(base: &str, dest_hint: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
 pub mod nika_onboard::recipes
+pub mod nika_onboard::routing
+pub enum nika_onboard::routing::RoutedEntry
+pub nika_onboard::routing::RoutedEntry::Clarify(alloc::vec::Vec<alloc::string::String>)
+pub nika_onboard::routing::RoutedEntry::Example(alloc::string::String)
+pub nika_onboard::routing::RoutedEntry::Skeleton(alloc::string::String)
+impl core::cmp::Eq for nika_onboard::routing::RoutedEntry
+impl core::cmp::PartialEq for nika_onboard::routing::RoutedEntry
+pub fn nika_onboard::routing::RoutedEntry::eq(&self, other: &nika_onboard::routing::RoutedEntry) -> bool
+impl core::fmt::Debug for nika_onboard::routing::RoutedEntry
+pub fn nika_onboard::routing::RoutedEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::routing::RoutedEntry
+impl<D> owo_colors::OwoColorize for nika_onboard::routing::RoutedEntry
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::routing::RoutedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::routing::RoutedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::routing::RoutedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
+pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::routing::RoutedEntry where U: core::convert::From<T>
+pub fn nika_onboard::routing::RoutedEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::routing::RoutedEntry where U: core::convert::Into<T>
+pub type nika_onboard::routing::RoutedEntry::Error = core::convert::Infallible
+pub fn nika_onboard::routing::RoutedEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::routing::RoutedEntry where U: core::convert::TryFrom<T>
+pub type nika_onboard::routing::RoutedEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::routing::RoutedEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::routing::RoutedEntry where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::routing::RoutedEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::routing::RoutedEntry where T: ?core::marker::Sized
+pub fn nika_onboard::routing::RoutedEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::routing::RoutedEntry where T: ?core::marker::Sized
+pub fn nika_onboard::routing::RoutedEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::routing::RoutedEntry
+pub fn nika_onboard::routing::RoutedEntry::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::routing::RoutedEntry where T: 'static
+pub fn nika_onboard::routing::RoutedEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::routing::RoutedEntry where T: ?core::marker::Sized
+pub fn nika_onboard::routing::RoutedEntry::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::routing::RoutedEntry::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::routing::RoutedEntry
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::routing::RoutedEntry
+impl<T> typenum::type_operators::Same for nika_onboard::routing::RoutedEntry
+pub type nika_onboard::routing::RoutedEntry::Output = T
+pub fn nika_onboard::routing::route_query(query: &str) -> nika_onboard::routing::RoutedEntry
+pub fn nika_onboard::routing::route_skeleton_query(query: &str) -> nika_onboard::routing::RoutedEntry
 pub mod nika_onboard::wizard
 pub fn nika_onboard::wizard::wizard_io(dir: &str, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
 pub struct nika_onboard::Outcome
