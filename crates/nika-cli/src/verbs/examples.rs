@@ -148,7 +148,66 @@ fn index() -> Vec<(&'static str, &'static str, Vec<String>)> {
         .collect()
 }
 
-/// Bare `nika try` — the corpus, organized: the foundation path
+/// The three storefront jobs — contrasted trades (support · meetings ·
+/// dev), each a complete offline rehearsal. The FIRST screen of bare
+/// `nika try`: 39 rows at once was a choice tax the gauntlet measured
+/// (UX107-13 · D-018 one primary door), and the operator picked these
+/// three. `try --all` keeps the whole corpus one flag away, and the
+/// concierge still teaches `01-hello` directly — the path never hides.
+const STOREFRONT: [&str; 3] = ["support-triage", "meeting-actions", "release-notes"];
+
+/// Bare `nika try` — the storefront: three familiar jobs, whole rows
+/// (file · what goes in → what comes out · verbs), then the doors to
+/// the rest. Derived from the pack at call time; `--all` renders the
+/// full corpus (the path + every job).
+#[must_use]
+pub fn storefront(theme: Theme) -> VerbOutput {
+    let mut text = String::new();
+    let _ = writeln!(
+        text,
+        "{}",
+        chrome::rail_head(theme, "three jobs to see — offline · zero keys")
+    );
+    for slug in STOREFRONT {
+        let Some(body) = nika_pack::example(slug) else {
+            // A storefront slug missing from the pack is a build defect
+            // — fall back to the full corpus rather than a bare window.
+            return list(theme);
+        };
+        let m = meta(slug, body);
+        let _ = writeln!(
+            text,
+            "{}",
+            chrome::rail_line(
+                theme,
+                &format!(
+                    " {}  {}",
+                    theme.paint(Role::Strong, &format!("nika try {slug}")),
+                    chips(&m.verbs, theme),
+                ),
+            )
+        );
+        let _ = writeln!(
+            text,
+            "{}",
+            chrome::rail_line(
+                theme,
+                &format!("   {}", theme.paint(Role::Dim, &clip_title(&m.title, 66))),
+            )
+        );
+    }
+    let _ = write!(
+        text,
+        "\nnext ·\n  nika try support-triage              # watch one work · nothing written\n  nika new support-triage              # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the 13-step path + every job\n\n{}",
+        theme.paint(
+            Role::Dim,
+            "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
+        )
+    );
+    VerbOutput::ok(text)
+}
+
+/// `nika try --all` — the corpus, organized: the foundation path
 /// (numbered steps · full filenames · titles · verb chips), then the
 /// showcase by tier. Derived entirely from the pack at call time.
 #[must_use]
@@ -237,7 +296,11 @@ pub fn list(theme: Theme) -> VerbOutput {
 
     let _ = write!(
         text,
-        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika new 01-hello                    # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one"
+        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika new 01-hello                    # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n\n{}",
+        theme.paint(
+            Role::Dim,
+            "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
+        )
     );
     VerbOutput::ok(text)
 }
@@ -258,6 +321,57 @@ pub fn rehearsal_seat(model: Option<&str>) -> Option<&str> {
 mod tests {
     use super::*;
     use crate::verbs::exit;
+
+    /// The storefront (UX107-13 · operator-picked trio): three
+    /// contrasted jobs, every taught line names a living door, the
+    /// verb legend teaches the glyphs, and `--all` stays one row
+    /// away. Every slug in the trio must EXIST in the pack — a
+    /// missing one falls back to the full corpus, never a bare
+    /// window.
+    #[test]
+    fn the_storefront_teaches_three_jobs_and_the_shelf_door() {
+        for slug in STOREFRONT {
+            assert!(
+                nika_pack::example(slug).is_some(),
+                "storefront slug `{slug}` must exist in the pack"
+            );
+        }
+        let out = storefront(Theme::new(false, false, false));
+        assert_eq!(out.code, exit::OK);
+        for slug in STOREFRONT {
+            assert!(
+                out.text.contains(&format!("nika try {slug}")),
+                "{}",
+                out.text
+            );
+        }
+        assert!(out.text.contains("nika try --all"), "{}", out.text);
+        assert!(
+            out.text.contains("infer (ask a model)"),
+            "the verb legend teaches, never assumes: {}",
+            out.text
+        );
+        assert!(
+            !out.text.to_lowercase().contains("free"),
+            "no free-shaped claim: {}",
+            out.text
+        );
+    }
+
+    /// The full shelf keeps its parsable rows (the vscode extension
+    /// anchors on `.nika.yaml` tokens — a wire contract) AND gains the
+    /// same verb legend the storefront carries.
+    #[test]
+    fn the_full_shelf_stays_parsable_and_carries_the_legend() {
+        let out = list(Theme::new(false, false, false));
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text.matches(".nika.yaml").count() >= 30,
+            "the shelf lists the corpus: {}",
+            out.text
+        );
+        assert!(out.text.contains("infer (ask a model)"), "{}", out.text);
+    }
 
     /// V5 · RAMS-4: bare = mock rehearsal · `self` = the example's own
     /// seat · anything else passes through.

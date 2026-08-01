@@ -249,8 +249,12 @@ enum Command {
     /// owned. Bare `nika try` lists what there is to see.
     #[command(display_order = 10)]
     Try {
-        /// Example slug (bare `nika try` lists them).
+        /// Example slug (bare `nika try` shows the storefront).
         slug: Option<String>,
+        /// The whole shelf — the 13-step path plus every job (bare
+        /// `nika try` shows three familiar jobs first).
+        #[arg(long)]
+        all: bool,
         /// Run on a REAL seat instead of the default mock rehearsal
         /// (`<provider>/<name>` — the example's own `model:` via `self`).
         #[arg(long, value_name = "PROVIDER/NAME")]
@@ -737,13 +741,22 @@ fn dispatch_verb(
         }
         Command::Try {
             slug,
+            all,
             model,
             var,
             quiet,
             no_progress,
             max_cost_usd,
         } => match slug {
-            None => emit(&verbs::examples::list(plain_theme)),
+            // The storefront is a TTY rendering: a pipe gets the full
+            // parsable corpus unchanged (the vscode extension runs
+            // bare `try` and anchors on `.nika.yaml` rows — a wire
+            // contract; the same TTY law every interactive surface
+            // here follows). `--all` forces the shelf on a terminal.
+            None if all || !std::io::stdout().is_terminal() => {
+                emit(&verbs::examples::list(plain_theme))
+            }
+            None => emit(&verbs::examples::storefront(plain_theme)),
             Some(slug) => verbs::run::example(
                 &slug,
                 model.as_deref(),
