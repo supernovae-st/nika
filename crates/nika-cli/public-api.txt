@@ -173,10 +173,7 @@ impl<T> typenum::type_operators::Same for nika_cli::verbs::evidence::EvidenceArg
 pub type nika_cli::verbs::evidence::EvidenceArgs::Output = T
 pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::examples
-pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::examples::show(slug: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::examples::teaches_verb(construct: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::explain
 pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::explain_file

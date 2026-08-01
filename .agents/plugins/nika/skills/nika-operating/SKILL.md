@@ -136,7 +136,7 @@ Re-pin after human review: `nika mcp approve <server>`.
   sidecar verifies fully offline) · REPLAYED (`--replay` compares a
   fresh run). A journal that never reached a terminal frame verifies
   INCOMPLETE. Never a log screenshot.
-- `nika evidence <trace>` exports the auditor's pack — journal +
+- `nika trace evidence <trace>` exports the auditor's pack — journal +
   manifest + receipt + a `VERIFY.md` naming the exact commands. Hand
   THAT over, not a summary you wrote.
 - `nika trace anchor <trace>` notarizes the journal head OUTSIDE the
@@ -163,4 +163,4 @@ Re-pin after human review: `nika mcp approve <server>`.
    watches dashboards.
 8. For a run someone will audit: signed (`nika sign`), verified to its
    highest honest tier (`nika trace verify`), packed
-   (`nika evidence`).
+   (`nika trace evidence`).

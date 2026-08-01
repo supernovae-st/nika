@@ -53,7 +53,7 @@ need welcome "start here"
 for c in $(printf '%s' "$OUT" | grep -oE '→ nika [a-z-]+' | awk '{print $3}' | sort -u); do
   has_cmd "$c" || fail "[welcome] promises 'nika $c' — clap tree lacks it"
 done
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika examples run [a-z0-9-]+ --model mock/echo' | head -1)
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika try [a-z0-9-]+' | head -1)
 [ -n "$FIRST" ] || fail "[welcome] no offline first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
@@ -64,7 +64,7 @@ OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb OPENAI_API_KEY=sk-CAN
 printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leaked"
 
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
-run new-from 0 -- "$BIN" new --from chain first.nika.yaml
+run new-from 0 -- "$BIN" new chain first.nika.yaml
 [ -f first.nika.yaml ] || fail "[new] no file created"
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"

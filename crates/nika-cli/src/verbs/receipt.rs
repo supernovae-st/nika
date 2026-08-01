@@ -30,7 +30,7 @@ pub enum ReceiptAction {
 /// NEP-0012 law-1 posture: bound before read, never trust the size).
 const MAX_RECEIPT_BYTES: u64 = 1 << 20; // 1 MiB
 
-/// `nika receipt explain <file>` — the stable readable projection.
+/// `nika trace receipt explain <file>` — the stable readable projection.
 #[must_use]
 pub fn explain(file: &std::path::Path) -> VerbOutput {
     let label = file.display().to_string();

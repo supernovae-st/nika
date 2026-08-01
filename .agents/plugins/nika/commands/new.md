@@ -8,10 +8,10 @@ Scaffold from a template, never from scratch — then audit until clean.
 
 Arguments: `$ARGUMENTS` (template + destination; either may be missing).
 
-1. No template named? `nika examples list` and pick the closest to the
+1. No template named? `nika try` and pick the closest to the
    user's intent (say which and why, one line). No destination? Derive a
    kebab-case `<name>.nika.yaml` from the intent.
-2. `nika new --from <template> <file>` — the scriptable scaffold.
+2. `nika new <template> <file>` — the scriptable scaffold.
 3. Adapt the file to the user's actual task: the envelope stays
    `nika: v1` + a `workflow:` OBJECT (`id:`) + a `tasks:` MAP keyed by
    task id · exactly ONE verb per task · prefer `invoke:` builtins

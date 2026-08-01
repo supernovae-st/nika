@@ -34,12 +34,58 @@ pub struct CheckFlags {
 /// hints. The grade itself is a pure projection of the report — it adds
 /// no finding and no `NIKA-*` code.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+
 pub enum Profile {
     /// Grade displayed, never gating (the default).
     #[default]
     Advisory,
     /// Grade ≥ High fails the audit (exit 2).
     Operational,
+}
+
+/// The `nika check` argument surface (clap payload — descended from the
+/// bin's Command enum at the 1500-line file cap · the `RunArgs` precedent).
+// Four independent CLI flags ARE four bools — the clap-surface idiom
+// (the TraceArgs precedent), not a state machine to encode.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(clap::Args)]
+pub struct CheckArgs {
+    /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
+    /// `registry:owner/name[@version]` pull (cached + offline; workflow
+    /// `permits:` never govern the fetch) · several files audit in sequence
+    /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
+    /// Omitted with exactly one workflow here → that one is audited.
+    #[arg(num_args = 0..)]
+    pub files: Vec<String>,
+    /// Emit the versioned machine projection (`report_version: 1`).
+    #[arg(long)]
+    pub json: bool,
+    /// Print an inferred `permits:` boundary instead of the report.
+    #[arg(long)]
+    pub infer_permits: bool,
+    /// Apply the machine-applicable rename repairs (typed
+    /// did-you-mean suggestions only: fields · tools · args), rewrite
+    /// the file, and re-audit — the in-binary repair loop
+    /// (`clippy --fix` shape). One real file; ambiguous tokens are
+    /// skipped with a note, never guessed.
+    #[arg(long)]
+    pub fix: bool,
+    /// Fail (exit 2) when any `native-first` hint remains — an
+    /// `exec:` a builtin or MCP tool probably covers. The agent/CI
+    /// posture; hints stay advisory without it.
+    #[arg(long)]
+    pub native_strict: bool,
+    /// The readiness posture on the audit's risk grade (uncapped
+    /// spend · glob/wildcard grants): `advisory` displays the grade
+    /// on the verdict card, `operational` also fails (exit 2) when
+    /// the grade is high or unbounded — the agent/CI readiness gate.
+    #[arg(long, value_enum, default_value_t = Profile::Advisory)]
+    pub profile: Profile,
+    /// Price the static envelope AS IF this `<provider>/<model>`
+    /// replaced the envelope default — the preview of `nika run
+    /// --model` (per-task `model:` still wins, like the runtime).
+    #[arg(long)]
+    pub model: Option<String>,
 }
 
 #[must_use]

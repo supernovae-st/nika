@@ -51,10 +51,10 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 1. **Read the source completely.** Inventory: inputs · outputs · side
    effects · credentials · the failure the author feared (that guard
    clause is the intent — keep it).
-2. **Route to a template**: `nika new --from '?'` lists the embedded
+2. **Route to a template**: `nika new '?'` lists the embedded
    set; pick the OUTER shape (chain · fanout · gate-and-act ·
    etl-state · agent-loop · human-gated-ship) and instantiate with
-   `nika new --from <template> <file>.nika.yaml`.
+   `nika new <template> <file>.nika.yaml`.
 3. **Map with the table.** Native-first is the law: `invoke: nika:*`
    → `invoke: mcp:<server>/<tool>` → `exec:` last. Every surviving
    `exec:` gets its ledger row (task · command · why no native path ·
