@@ -358,7 +358,7 @@ lsp-types  = "0.97"     # nika-lsp L4 — LSP 3.17 protocol types (Diagnostic ·
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
 # Dev / test deps
-criterion   = { version = "0.5", features = ["html_reports"] }
+criterion   = { version = "0.8", features = ["html_reports"] }
 proptest    = "1.6"
 insta       = { version = "1.42", features = ["yaml"] }
 tempfile    = "3"   # nika-ocr dev — model-load error-path fixtures (with_models headless tests)

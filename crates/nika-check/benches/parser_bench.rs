@@ -16,7 +16,9 @@
 
 use std::fmt::Write as _;
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 use nika_check::check;
 use nika_schema::{FileId, ParseMode, parse};
 
