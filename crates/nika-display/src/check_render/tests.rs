@@ -229,3 +229,58 @@ mod models_rung_tests {
         assert!(report.is_clean());
     }
 }
+
+mod models_rung_liveness_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console(audit: &ModelsAudit) -> String {
+        let yaml = "nika: v1\nworkflow:\n  id: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  think:\n    infer: { prompt: \"hi\" }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            Theme::new(false, false, false),
+            audit,
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    /// B-5's sibling: a resolvable model on a server-backed keyless
+    /// engine nuances the green line — « resolves » is never
+    /// « reachable » for a server the rung never dialed.
+    #[test]
+    fn a_local_server_model_carries_the_liveness_nuance() {
+        let out = console(&ModelsAudit::new(Vec::new(), 0, 0).with_local_server(1));
+        let line = out
+            .lines()
+            .find(|l| l.contains("MODELS") && l.contains("resolves"))
+            .expect("the MODELS green line");
+        assert!(
+            line.contains("local servers not probed (nika doctor --ping)"),
+            "the nuance: {line}"
+        );
+    }
+
+    /// A cloud-only file keeps the bare green line — the nuance is
+    /// earned by a local model, never defaulted.
+    #[test]
+    fn no_local_server_model_means_no_nuance() {
+        let out = console(&ModelsAudit::new(Vec::new(), 0, 0));
+        let line = out
+            .lines()
+            .find(|l| l.contains("MODELS") && l.contains("resolves"))
+            .expect("the MODELS green line");
+        assert!(
+            !line.contains("not probed"),
+            "no nuance without a local engine: {line}"
+        );
+    }
+}
