@@ -571,6 +571,49 @@ fn level_glyphs_are_distinct() {
 }
 
 #[test]
+fn the_ascii_theme_folds_every_doctor_glyph() {
+    // LANG-04 (gauntlet G-B): `--plain` promises ASCII glyph twins,
+    // and doctor's ✔/⚠/· column shipped raw Unicode for a train while
+    // the concierge held the contract. The verb composes the same
+    // `vocab::sober` seam welcome rides — this pins the fold on a
+    // full findings render, not one glyph.
+    let wired = |id: &str| ClientProbe {
+        id: id.to_owned(),
+        path: format!("~/.{id}/cfg"),
+        present: true,
+        current: true,
+        stale: false,
+    };
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.106.0".to_owned(),
+        config_path: None,
+        providers: vec![],
+        clients: vec![wired("hermes"), wired("cursor")],
+        kits: vec![KitProbe {
+            client: "cursor".to_owned(),
+            version: "0.106.0".to_owned(),
+        }],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 0,
+    };
+    let ascii_theme = Theme::new(false, true, false);
+    let folded =
+        crate::display::vocab::sober(ascii_theme, &render(&diagnose(&probe), true, ascii_theme));
+    assert!(
+        folded.is_ascii(),
+        "ascii doctor render must carry zero Unicode: {folded}"
+    );
+    assert!(folded.contains("guard-declared"), "{folded}");
+}
+
+#[test]
 fn doctor_names_each_host_capability_level() {
     // P0-9 — the flat « wired at … » line claimed a host parity
     // that does not exist: an oracle-only host and a guarded one
@@ -606,9 +649,16 @@ fn doctor_names_each_host_capability_level() {
         text.contains("hermes wired · oracle-only (mcp · no hooks)"),
         "{text}"
     );
+    // UX107-04: a table-declared guard never borrows the proven word —
+    // the line says `guard-declared … unproven`, and the bare `guarded`
+    // token is reserved for a live allow+deny canary (none exists yet).
     assert!(
-        text.contains("cursor wired · guarded (kit + hooks)"),
+        text.contains("cursor wired · guard-declared (kit ships hooks · unproven in session)"),
         "{text}"
+    );
+    assert!(
+        !text.contains("· guarded ("),
+        "no assumed guard may render the proven word: {text}"
     );
 }
 

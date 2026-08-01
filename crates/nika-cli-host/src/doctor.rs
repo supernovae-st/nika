@@ -457,15 +457,17 @@ fn kit_finding(kit: &KitProbe, bin_version: &str) -> Finding {
 fn client_finding(client: &ClientProbe, kits: &[KitProbe]) -> Finding {
     if client.current {
         let level = client.capability(kits);
+        // The guard rung above the oracle floor rests on the static
+        // hook table today (the receipt's `level_assumed`) — the line
+        // must say so in its own words (UX107-04).
+        let assumed = kits.iter().any(|k| k.client == client.id);
+        let (word, surfaces) = guard_wording(level, assumed);
         return Finding {
             level: Level::Ok,
             label: "agent".to_owned(),
             detail: format!(
                 "{} wired · {} ({}) at {}",
-                client.id,
-                level.as_str(),
-                capability_surfaces(level),
-                client.path
+                client.id, word, surfaces, client.path
             ),
             fix: None,
         };
@@ -538,15 +540,22 @@ fn registry_finding(cov: &RegistryCoverage) -> Finding {
     }
 }
 
-/// The surfaces that earned a rung — the parenthetical that keeps the
-/// level auditable at a glance (P0-9: oracle-only ≠ guarded, and the
-/// line must SHOW why).
-const fn capability_surfaces(level: CapabilityLevel) -> &'static str {
-    match level {
-        CapabilityLevel::OracleOnly => "mcp · no hooks",
-        CapabilityLevel::AuthoringEnabled => "mcp + kit · no hooks",
-        CapabilityLevel::Guarded => "kit + hooks",
-        CapabilityLevel::FullyIntegrated => "kit + hooks + runtime",
+/// The level word plus the parenthetical that keeps it auditable at a
+/// glance (P0-9: oracle-only ≠ guarded, and the line must SHOW why).
+/// The guard rungs speak the evidence ladder (UX107-04): a hook the
+/// static table declares is `guard-declared … unproven`, and ONLY a
+/// live allow+deny canary on this host version/surface may ever say
+/// `guarded … proven live`. A declared guard never borrows the proven
+/// word — same glyph, different sentence, no laundering.
+const fn guard_wording(level: CapabilityLevel, assumed: bool) -> (&'static str, &'static str) {
+    match (level, assumed) {
+        (CapabilityLevel::OracleOnly, _) => ("oracle-only", "mcp · no hooks"),
+        (CapabilityLevel::AuthoringEnabled, _) => ("authoring-enabled", "mcp + kit · no hooks"),
+        (CapabilityLevel::Guarded, true) => {
+            ("guard-declared", "kit ships hooks · unproven in session")
+        }
+        (CapabilityLevel::Guarded, false) => ("guarded", "kit + hooks · proven live"),
+        (CapabilityLevel::FullyIntegrated, _) => ("fully-integrated", "kit + hooks + runtime"),
     }
 }
 
@@ -851,7 +860,12 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
                 &crate::probe::capability_receipts(&probe),
             )
         } else {
-            render(&findings, verbose, theme)
+            // The same sobriety seam the concierge rides: `--plain`
+            // promises ASCII glyph twins, and doctor's ✔/⚠/· column
+            // shipped raw Unicode into transcripts for a train
+            // (gauntlet G-B, LANG-04). JSON stays byte-exact — the
+            // machine lane never needed the fold.
+            crate::display::vocab::sober(theme, &render(&findings, verbose, theme))
         },
         code,
     }

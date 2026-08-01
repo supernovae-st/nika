@@ -228,6 +228,16 @@ pub struct HostCapabilityReceipt {
     /// `true` when part of the level rests on the static
     /// `kit_ships_hooks` table rather than a direct observation.
     pub level_assumed: bool,
+    /// The guard's evidence rung, when a guard exists at all —
+    /// `declared` (the static table says the kit ships hooks) ·
+    /// `loaded` (the host observably loaded the hook this session) ·
+    /// `proven` (an allow canary AND a deny canary passed on this
+    /// host version and surface, dated). Today every guard rung is
+    /// `declared`: no probe loads or canaries a hook live yet, and a
+    /// declared guard NEVER borrows the proven word or colour
+    /// (UX107-04 — `guarded` rendered green while `level_assumed`
+    /// said the receipt was a table lookup).
+    pub guard_evidence: Option<String>,
 }
 
 impl ClientProbe {
@@ -268,6 +278,7 @@ impl ClientProbe {
             missing_rails.push("kit".to_owned());
             missing_rails.push("hooks".to_owned());
         }
+        let has_hooks = components.iter().any(|c| c == "hooks");
         HostCapabilityReceipt {
             host: self.id.clone(),
             version: kit.map(|k| k.version.clone()),
@@ -292,6 +303,10 @@ impl ClientProbe {
             // Any rung above the oracle floor consulted the static hook
             // table — presence OR absence of hooks is a lookup there.
             level_assumed: self.current && kit.is_some(),
+            // The only evidence a hook has today IS that table:
+            // `declared`, never `loaded`/`proven` until a live probe
+            // and its allow+deny canaries exist.
+            guard_evidence: has_hooks.then(|| "declared".to_owned()),
         }
     }
 }
@@ -682,6 +697,12 @@ pub fn environment_json(probe: &Probe) -> serde_json::Value {
         .clients
         .iter()
         .map(|c| {
+            // UX107-04 — the same honesty companions the doctor
+            // receipt carries ride HERE too (additive): a bare
+            // `capability: "guarded"` in welcome's JSON was the exact
+            // laundering the receipt refuses (a table-declared hook is
+            // never a proven one, and every projection must say so).
+            let receipt = c.capability_receipt(&probe.kits);
             serde_json::json!({
                 "id": c.id,
                 "wired": c.current,
@@ -689,6 +710,8 @@ pub fn environment_json(probe: &Probe) -> serde_json::Value {
                 // (additive): « wired » alone rendered a host parity
                 // that does not exist.
                 "capability": c.capability(&probe.kits).as_str(),
+                "level_assumed": receipt.level_assumed,
+                "guard_evidence": receipt.guard_evidence,
             })
         })
         .collect();
@@ -1293,6 +1316,9 @@ mod tests {
         assert!(r.missing_rails.is_empty(), "{:?}", r.missing_rails);
         assert_eq!(r.repair, None);
         assert!(r.level_assumed, "the hooks claim is a table lookup");
+        // UX107-04: the guard evidence rung is `declared` — a table
+        // lookup, never `loaded` or `proven` until a live canary exists.
+        assert_eq!(r.guard_evidence.as_deref(), Some("declared"));
 
         // codex wired + kit without hooks: authoring is EARNED (the
         // manifest is found), the missing guard rail is named, and the
@@ -1304,6 +1330,7 @@ mod tests {
         assert_eq!(r.capability, "authoring-enabled");
         assert_eq!(r.missing_rails, ["hooks"]);
         assert!(r.level_assumed);
+        assert_eq!(r.guard_evidence, None, "no hooks — no guard rung at all");
 
         // An unwired host is BELOW the floor: no component, every rail
         // missing, the repair is the wire — and the receipt never lends
