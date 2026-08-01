@@ -159,9 +159,10 @@ impl ContextEnvelope {
     /// True when the host opened several roots and none was named yet:
     /// the consumer MUST ask (root 0 is never the silent pick).
     ///
-    /// Consumed by the experience router
-    /// ([`crate::welcome::experience_block`] → `MultiRootUnselected` →
-    /// the `select_root` action).
+    /// Consumed by the experience router: `welcome`'s experience block
+    /// maps a `true` here to `MultiRootUnselected`, which routes to the
+    /// `select_root` action. (Not a doc link — the consumer is a
+    /// private fn, and rustdoc cannot resolve one across modules.)
     #[must_use]
     pub(crate) fn requires_explicit_root(&self) -> bool {
         self.mode == ContextMode::Workspace
