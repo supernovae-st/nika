@@ -9,6 +9,37 @@
 use super::{RenderMode, RunVerdict, exit, run_verdict};
 use crate::Theme;
 
+/// Stage the rehearsal room: the workflow and the ingredients it
+/// reads, in a temp dir of their own, then ENTER it. Returns the
+/// staged path and the directory to restore on the way out — the
+/// isolation is what makes the storefront's « nothing written » a
+/// fact (paths resolve from the RUN's working directory, so an
+/// example that reads `examples/fixtures/x` must find it beside
+/// itself, and its writes must land here, not in the operator's
+/// folder). Split under the 100-line fn law.
+fn stage_room(
+    slug: &str,
+    yaml: &str,
+) -> Result<(std::path::PathBuf, Option<std::path::PathBuf>), u8> {
+    let stem = slug.replace('/', "-");
+    let room = std::env::temp_dir().join(format!("nika-try-{stem}"));
+    let path = room.join(format!("{stem}.nika.yaml"));
+    if let Err(e) = std::fs::create_dir_all(&room).and_then(|()| std::fs::write(&path, yaml)) {
+        eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
+        return Err(exit::ENV);
+    }
+    if let Err(e) = nika_onboard::fixtures::materialize(yaml, &path) {
+        eprintln!("nika run: environment: cannot stage the ingredients of `{slug}`: {e}");
+        return Err(exit::ENV);
+    }
+    let previous = std::env::current_dir().ok();
+    if let Err(e) = std::env::set_current_dir(&room) {
+        eprintln!("nika run: environment: cannot enter the rehearsal room: {e}");
+        return Err(exit::ENV);
+    }
+    Ok((path, previous))
+}
+
 /// `nika try <slug>` — execute one EMBEDDED example through the
 /// real runtime (the pack ships offline · zero network for the exec/
 /// mock-model examples). Stages the embedded YAML to a temp file (the
@@ -37,38 +68,10 @@ pub fn example(
         eprintln!("unknown example `{slug}` — bare `nika try` names the embedded set");
         return exit::FILE;
     };
-    // The slug comes from the embedded set (path-safe) · stage it beside
-    // a stable name so a re-run overwrites rather than litters. A slug may
-    // carry a `showcase/` prefix — flatten the separator so the temp name
-    // stays a single path component.
-    let stem = slug.replace('/', "-");
-    // The rehearsal runs in its OWN room (gauntlet 08-01, Sofia: the
-    // storefront taught three jobs and two exited 1 on a clean floor —
-    // their ingredients live in the pack, and only `nika new` used to
-    // install them). Staging the workflow AND its fixtures in a
-    // dedicated temp dir, then rehearsing from there, is what makes the
-    // door's own promise true: paths resolve from the RUN's working
-    // directory, so an isolated room means the example finds what it
-    // reads and writes what it writes WITHOUT touching the operator's
-    // folder — `nothing written` becomes a fact instead of a hope.
-    let room = std::env::temp_dir().join(format!("nika-try-{stem}"));
-    let path = room.join(format!("{stem}.nika.yaml"));
-    if let Err(e) = std::fs::create_dir_all(&room).and_then(|()| std::fs::write(&path, yaml)) {
-        eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
-        return exit::ENV;
-    }
-    if let Err(e) = nika_onboard::fixtures::materialize(yaml, &path) {
-        eprintln!("nika run: environment: cannot stage the ingredients of `{slug}`: {e}");
-        return exit::ENV;
-    }
-    // Enter the room for the rehearsal, and leave it exactly as we
-    // found it. `try` is a one-shot CLI path (no concurrent verb shares
-    // this process), and the restore runs on every exit below.
-    let previous_dir = std::env::current_dir().ok();
-    if let Err(e) = std::env::set_current_dir(&room) {
-        eprintln!("nika run: environment: cannot enter the rehearsal room: {e}");
-        return exit::ENV;
-    }
+    let (path, previous_dir) = match stage_room(slug, yaml) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
     // The example renders live on a TTY, plain when piped, silent on
     // `--quiet` (the verdict line still lands).
     let mode = if quiet {
