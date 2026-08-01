@@ -115,7 +115,7 @@ use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 mod drift;
 pub(crate) mod energy;
 mod models_rung;
-use models_rung::{ModelsAudit, pricing_section, unresolvable_models};
+use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
 
 use nika_display::check_render::render;
 #[cfg(test)]
@@ -353,6 +353,23 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     }
 }
 
+/// The machine rows both MODELS lists share (resolve findings · catalog
+/// warnings) — one `model`/`tasks`/`why` shape on the `--json` lane.
+fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
+    serde_json::Value::Array(
+        findings
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "model": f.model,
+                    "tasks": f.tasks,
+                    "why": f.why,
+                })
+            })
+            .collect(),
+    )
+}
+
 /// The `--json` verdict: the full report + the machine keys (`clean` ·
 /// `models_resolve` · `models_unjudged` (presence-gated) ·
 /// `model_findings[]` · `skills_resolve` · `skill_findings[]` ·
@@ -405,18 +422,16 @@ fn json_verdict(
         if !model_findings.is_empty() {
             obj.insert(
                 "model_findings".to_owned(),
-                serde_json::Value::Array(
-                    model_findings
-                        .iter()
-                        .map(|f| {
-                            serde_json::json!({
-                                "model": f.model,
-                                "tasks": f.tasks,
-                                "why": f.why,
-                            })
-                        })
-                        .collect(),
-                ),
+                model_finding_rows(model_findings),
+            );
+        }
+        // Presence-gated like its siblings: the catalog cross-check
+        // (advisory — `clean` is untouched; a machine consumer that
+        // wants to block on it can).
+        if !models_audit.catalog_warnings.is_empty() {
+            obj.insert(
+                "models_catalog_warnings".to_owned(),
+                model_finding_rows(&models_audit.catalog_warnings),
             );
         }
         skills.extend_check_json(obj);
