@@ -69,7 +69,20 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
         // stays generic (no N-file audit on a greeting).
         (_, false) => [
             ("nika init".to_owned(), "brief agents · adds only"),
-            gate.map_or_else(|| ("nika run".to_owned(), "your workflow, found"), run_line),
+            // A comment is a promise: `nika run` bare resolves the ONE
+            // workflow, so « your workflow, found » is only true when
+            // there IS one. With several, the bare form exits 3 asking
+            // which — the row says so up front (gauntlet 08-01).
+            gate.map_or_else(
+                || {
+                    if glance.workflows > 1 {
+                        ("nika run <file>".to_owned(), "pick one · check twin")
+                    } else {
+                        ("nika run".to_owned(), "your workflow, found")
+                    }
+                },
+                run_line,
+            ),
             DoorId::Discover.row(),
         ],
         // One workflow, fully founded AND clean: run it (bare — the
@@ -495,20 +508,41 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
         .iter()
         .map(|c| client_cell(theme, c))
         .collect();
-    let unwired = probe.clients.iter().find(|c| !c.current);
-    let _ = writeln!(
-        s,
-        "  editors    {}{}",
-        editors.join(" · "),
-        if let Some(c) = unwired {
-            // H7 (audit UX 2026-07-30): never recommend `wire all` — one
-            // named host, one consented mutation at a time. The short
-            // form keeps the line under 80 and names the exact command.
-            theme.paint(Role::Dim, &format!("   → nika wire {}", c.id))
-        } else {
-            String::new()
-        }
-    );
+    let unwired: Vec<&str> = probe
+        .clients
+        .iter()
+        .filter(|c| !c.current)
+        .map(|c| c.id.as_str())
+        .collect();
+    // H7 (audit UX 2026-07-30): never recommend `wire all` — one named
+    // host, one consented mutation at a time.
+    //
+    // ONE unwired host fits inline. SEVERAL do not: a fresh machine
+    // shows four ✗, and list + command + count measured 92 columns (the
+    // 80-col test caught the overflow the same minute it was written).
+    // The count still has to be spoken — one handle standing behind
+    // three gaps reads as one gap (gauntlet 08-01) — so it takes its
+    // own line instead of shrinking into a token nobody parses.
+    let inline = match unwired.split_first() {
+        Some((first, [])) => theme.paint(Role::Dim, &format!("   → nika wire {first}")),
+        _ => String::new(),
+    };
+    let _ = writeln!(s, "  editors    {}{}", editors.join(" · "), inline);
+    if let Some((first, rest)) = unwired.split_first()
+        && !rest.is_empty()
+    {
+        let _ = writeln!(
+            s,
+            "             {}",
+            theme.paint(
+                Role::Dim,
+                &format!(
+                    "{} unwired · one command each → nika wire {first}",
+                    unwired.len()
+                ),
+            )
+        );
+    }
     local_provider_lines(s, probe, theme);
     sovereign_and_keys_lines(s, probe, glance, ctx, theme);
 }
@@ -838,6 +872,14 @@ fn experience_block(
         ContextEvidenceV1, ContextModeV1, ExperienceStateV1, WorkflowStateV1, route,
     };
     let chat_only = envelope.mode == ContextMode::ChatOnly;
+    // The multi-root door. Several roots are open and none was named:
+    // the envelope has always known it, the router has always had the
+    // `select_root` arm for it — but `context_mode` only ever spoke
+    // two words, so the arm was unreachable and the predicate sat
+    // behind a dead-code exemption. One wire closes both, and every
+    // claim below narrows: an unchosen root is not a root, so nothing
+    // is named, scanned or called writable until the person picks.
+    let unselected = !chat_only && envelope.requires_explicit_root();
     let evidence = if chat_only {
         ContextEvidenceV1::None
     } else {
@@ -850,7 +892,7 @@ fn experience_block(
             EvidenceSource::None => ContextEvidenceV1::None,
         }
     };
-    let workflow = if chat_only {
+    let workflow = if chat_only || unselected {
         WorkflowStateV1::Unknown
     } else {
         // P0-4 applies to EVERY count, not just zero: a truncated walk
@@ -872,11 +914,11 @@ fn experience_block(
             (_, _) => WorkflowStateV1::Several,
         }
     };
-    let root = (!chat_only).then(|| envelope.project_root.display().to_string());
+    let root = (!chat_only && !unselected).then(|| envelope.project_root.display().to_string());
     // ONE writability truth: the envelope already probed it (mode bits
     // AND the mirror-safe rules) — recomputing it here would be a
     // second answer to the same question.
-    let writable = !chat_only && envelope.writable;
+    let writable = !chat_only && !unselected && envelope.writable;
     let configured = probe.providers.iter().any(|p| !p.requires_key)
         || probe
             .providers
@@ -885,13 +927,15 @@ fn experience_block(
     let state = ExperienceStateV1 {
         context_mode: if chat_only {
             ContextModeV1::ChatOnly
+        } else if unselected {
+            ContextModeV1::MultiRootUnselected
         } else {
             ContextModeV1::Workspace
         },
         evidence,
         root,
         writable,
-        inventory_complete: !chat_only && glance.complete,
+        inventory_complete: !chat_only && !unselected && glance.complete,
         workflow,
         workflow_path: gate.map(|g| g.path.clone()),
         provider: if configured {

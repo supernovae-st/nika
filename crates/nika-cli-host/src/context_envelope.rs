@@ -156,12 +156,13 @@ pub(crate) struct ContextEnvelope {
 }
 
 impl ContextEnvelope {
-    // The multi-root door — welcome is single-root by surface, so the
-    // doctor + hook waves eat these two next (tests pin them meanwhile).
     /// True when the host opened several roots and none was named yet:
     /// the consumer MUST ask (root 0 is never the silent pick).
+    ///
+    /// Consumed by the experience router
+    /// ([`crate::welcome::experience_block`] → `MultiRootUnselected` →
+    /// the `select_root` action).
     #[must_use]
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn requires_explicit_root(&self) -> bool {
         self.mode == ContextMode::Workspace
             && self.workspace_roots.len() > 1
@@ -170,7 +171,22 @@ impl ContextEnvelope {
 
     /// Name the root explicitly (the multi-root door). Refuses a root
     /// the host never opened; on accept, re-binds the nonce.
-    #[cfg_attr(not(test), allow(dead_code))]
+    ///
+    /// The ASK half of the door now ships (see
+    /// [`Self::requires_explicit_root`]); this is the ANSWER half, and
+    /// it stays parked until a surface can carry the person's pick —
+    /// `welcome` takes no root argument, so wiring it here would be a
+    /// silent choice, which is the one thing the door forbids. Tests
+    /// pin the behaviour meanwhile.
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "the ANSWER half of the multi-root door — the ask half ships in \
+                      the router; no surface carries a root argument yet, and wiring \
+                      it without one would make the silent pick the door forbids"
+        )
+    )]
     pub(crate) fn select_root(&mut self, root: &Path) -> bool {
         let Ok(canon) = root.canonicalize() else {
             return false;
