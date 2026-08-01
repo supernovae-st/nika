@@ -53,7 +53,9 @@
 //!   `check/exec_floor.rs` mirror (P0-13): an argv-form command whose
 //!   interpreter inline-eval flag or subcommand the runtime's exec
 //!   floor refuses positionally — the check predicts the refusal the
-//!   run would apply (script file or `pre_validated` instead).
+//!   run would apply (the script file is the route · N-6: the old
+//!   advice also named `pre_validated`, the kernel's internal wire
+//!   flag no author can write).
 //! - **unproven human-gate route** (`consent`) — emitted by the
 //!   `check/consent.rs` lane (P0-2 · NEP-0020): an egress-capable
 //!   descendant of a confirm-mode `nika:prompt` sits behind a gate the
