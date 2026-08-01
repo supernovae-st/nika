@@ -696,3 +696,50 @@ fn a_confident_route_lands_a_draft_that_hands_over_to_check() {
     assert!(out.text.contains("nika check"), "{}", out.text);
     std::fs::remove_file(&d).ok();
 }
+
+/// Gauntlet 2026-08-01 (Priya + Marco · the teach-a-command-that-breaks
+/// class): every taught line WORKS pasted back in the taught context.
+/// A skeleton clarify-hint carries its <dest>; an example lands bare;
+/// a spaced intent is re-echoed shell-quoted.
+#[test]
+fn taught_lines_survive_the_paste_back() {
+    // A skeleton-first clarify teaches the dest.
+    let out = run(
+        "check disk space, restart the stuck service, notify the team",
+        None,
+        false,
+    );
+    assert_eq!(out.code, codes::FILE, "{}", out.text);
+    let rest = out
+        .text
+        .split("take one by name (`")
+        .nth(1)
+        .expect("the clarify hint is present");
+    let taught = rest.split('`').next().unwrap_or("");
+    let name = taught
+        .trim_start_matches("nika new ")
+        .split_whitespace()
+        .next()
+        .unwrap_or("");
+    if nika_pack::template(name).is_some() {
+        assert!(
+            taught.ends_with("<dest>.nika.yaml"),
+            "a skeleton hint must teach its destination: {taught}"
+        );
+    } else {
+        assert!(
+            nika_pack::example(name).is_some(),
+            "the taught name must exist: {taught}"
+        );
+    }
+
+    // The dest-missing hint re-echoes a spaced intent QUOTED.
+    let out = run("summarize weekly sales from a csv", None, false);
+    assert_eq!(out.code, codes::ENV, "{}", out.text);
+    assert!(
+        out.text
+            .contains("nika new 'summarize weekly sales from a csv' <dest>.nika.yaml"),
+        "the taught paste-back is ONE shell argument: {}",
+        out.text
+    );
+}

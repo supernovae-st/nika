@@ -187,9 +187,14 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // contract (`unknown()`), so listing the set must not require a dummy
     // path (the help promises `nika new '?'` works bare).
     let Some(dest) = dest else {
+        // The taught line must be the command that WORKS pasted back: a
+        // plain-words intent carries spaces, so it is re-echoed QUOTED
+        // (gauntlet 2026-08-01 · Marco: the unquoted echo was a
+        // different shell command than the one that resolved).
         return Outcome {
             text: format!(
-                "template `{name}` resolved — pass a destination: nika new {template} <dest>.nika.yaml"
+                "template `{name}` resolved — pass a destination: nika new {} <dest>.nika.yaml",
+                shell_quote(template)
             ),
             code: codes::ENV,
         };
@@ -251,10 +256,19 @@ fn clarify(intent: &str, candidates: &[String]) -> Outcome {
             }
         })
         .collect();
+    // The taught command must WORK in the taught context (gauntlet
+    // 2026-08-01 · Priya: `nika new human-gated-ship` — a skeleton —
+    // exited rc=3 asking for the destination the hint never mentioned).
+    // An example lands bare; a skeleton carries its dest.
+    let first = candidates.first().map_or("chain", String::as_str);
+    let taught = if nika_pack::example(first).is_some() {
+        format!("nika new {first}")
+    } else {
+        format!("nika new {first} <dest>.nika.yaml")
+    };
     Outcome {
         text: format!(
-            "`{intent}` doesn't route confidently — closest matches:{rows}\n  hint: take one by name (`nika new {}`) or rephrase with what goes in and what comes out",
-            candidates.first().map_or("chain", String::as_str),
+            "`{intent}` doesn't route confidently — closest matches:{rows}\n  hint: take one by name (`{taught}`) or rephrase with what goes in and what comes out",
         ),
         code: codes::FILE,
     }
