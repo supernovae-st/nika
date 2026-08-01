@@ -597,11 +597,13 @@ mod tests {
     #[test]
     fn breakdown_names_each_reason_not_the_fixed_disjunction() {
         // A priced-but-unbounded task must read « no max_tokens », not
-        // « unpriced model » — the operator sees which is FIXABLE.
+        // « unpriced model » — the operator sees which is FIXABLE. The
+        // unpriced specimen is a sovereign local (unpriced-never-free);
+        // mock stopped qualifying when it became a proven zero (A-02).
         let msg = breakdown_of(
             "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
-             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
+             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/llama3\" }\n",
         );
         assert!(msg.contains("2 task(s)"), "{msg}");
         assert!(
@@ -610,24 +612,27 @@ mod tests {
         );
         assert!(
             msg.contains("1 on an unpriced model"),
-            "the mock task: {msg}"
+            "the local task: {msg}"
         );
     }
 
     #[test]
     fn breakdown_counts_only_the_unbounded_tasks() {
-        // A fully-bounded task (priced + max_tokens) is never in the tally.
-        // id b carries max_tokens so its reason is NoPrice (mock), not
-        // NoTokenLimit — proving the unpriced bucket AND the exclusion of
-        // the fully-bounded id a in one shot.
+        // Bounded tasks are never in the tally — and the mock plane is
+        // bounded BY CONSTRUCTION now (a proven zero · A-02), so it
+        // rides along as a second exclusion specimen. id b carries
+        // max_tokens so its reason is NoPrice (sovereign local), not
+        // NoTokenLimit — proving the unpriced bucket AND both
+        // exclusions in one shot.
         let msg = breakdown_of(
             "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 100, model: \"anthropic/claude-sonnet-5\" }\n  \
-             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
+             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/llama3\" }\n  \
+             c:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
         );
         assert!(
             msg.contains("1 task(s)"),
-            "only the unpriced mock task: {msg}"
+            "only the unpriced local task: {msg}"
         );
         assert!(msg.contains("unpriced model"), "{msg}");
     }
