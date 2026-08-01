@@ -55,11 +55,12 @@ pub(super) fn print_flow_epilogue(
     outputs: &BTreeMap<String, Value>,
     theme: Theme,
     file: &str,
+    trace_recorded: bool,
 ) {
     for line in crate::display::flow::waterfall(view, &theme) {
         println!("{line}");
     }
-    let mut notes = fruit_notes(view);
+    let mut notes = fruit_notes(view, trace_recorded);
     notes.extend(outputs_note(outputs));
     for line in crate::display::flow::verdict_card(view, &theme, &notes) {
         println!("{line}");
@@ -83,7 +84,7 @@ pub(super) fn print_flow_epilogue(
 /// and a path that stat fails (deleted since · sandbox) simply drops
 /// its size cell, never the line: the fruit is the run's claim, the
 /// size is today's disk.
-pub(super) fn fruit_notes(view: &crate::RunView) -> Vec<String> {
+pub(super) fn fruit_notes(view: &crate::RunView, trace_recorded: bool) -> Vec<String> {
     use crate::display::{fruit, shape};
     let mut notes = Vec::new();
     let files = fruit::written_files(view);
@@ -106,6 +107,21 @@ pub(super) fn fruit_notes(view: &crate::RunView) -> Vec<String> {
         && let Some(quote) = shape::summarize(text, SAID_CELLS)
     {
         notes.push(format!("said {quote}"));
+        // The word was CUT — teach the zero-arg door to the whole answer
+        // (gauntlet wave 2 · Marta: the card truncated the said and
+        // pointed at a raw .ndjson path; `nika trace <path>` is not a
+        // command, and `trace outputs` surfaced only after a two-screen
+        // help detour). Zero-arg on purpose: it auto-selects the
+        // workspace's latest trace — nothing to copy. ONLY where the run
+        // actually recorded one: `examples run` stages to a temp file
+        // with its journal deliberately off, and the taught door failed
+        // exit 3 in the exact context where it was taught (Elliot ·
+        // wave 3 — the same law, one recursion deeper).
+        let cut = shape::summarize(text, usize::MAX)
+            .is_some_and(|full| full.chars().count() > SAID_CELLS);
+        if cut && trace_recorded {
+            notes.push("see it whole: nika trace outputs".to_owned());
+        }
     }
     notes
 }
@@ -368,6 +384,62 @@ mod tests {
     use super::outputs_json_line;
     use serde_json::{Value, json};
     use std::collections::BTreeMap;
+
+    fn said_view(answer_json: &str) -> crate::RunView {
+        use nika_types::resource::{KeyValue, Value as RValue};
+        let mut view = crate::RunView::new();
+        let mut started = nika_cli_display_demo_bare(nika_event::EventKind::TaskStarted, 0);
+        started = started
+            .with_field(KeyValue::new("task", RValue::String("think".to_owned())))
+            .with_field(KeyValue::new(
+                "note",
+                RValue::String("infer · mock/echo".to_owned()),
+            ));
+        view.apply(&started);
+        let mut done = nika_cli_display_demo_bare(nika_event::EventKind::TaskCompleted, 1);
+        done = done
+            .with_field(KeyValue::new("task", RValue::String("think".to_owned())))
+            .with_field(KeyValue::new(
+                "output",
+                RValue::String(answer_json.to_owned()),
+            ));
+        view.apply(&done);
+        view
+    }
+
+    fn nika_cli_display_demo_bare(kind: nika_event::EventKind, ms: u64) -> nika_event::Event {
+        crate::display::demo::bare_event(kind, ms)
+    }
+
+    /// Wave 2 · Marta: a CUT `said` quote teaches the zero-arg door to
+    /// the whole answer — a short word stays a quiet card (the teach
+    /// line would be noise on a five-char answer).
+    #[test]
+    fn a_cut_said_teaches_the_trace_outputs_door() {
+        let long = format!("\"{}\"", "a long answer ".repeat(12));
+        let notes = super::fruit_notes(&said_view(&long), true);
+        assert!(
+            notes
+                .iter()
+                .any(|n| n == "see it whole: nika trace outputs"),
+            "{notes:?}"
+        );
+        let notes = super::fruit_notes(&said_view("\"short.\""), true);
+        assert!(
+            notes.iter().all(|n| !n.contains("see it whole")),
+            "a short answer keeps the card quiet: {notes:?}"
+        );
+        // Elliot (wave 3): the door is taught ONLY where a trace was
+        // recorded — `examples run` stages to a temp file with its
+        // journal deliberately off, and the taught zero-arg door failed
+        // exit 3 in the exact context where it was taught.
+        let long = format!("\"{}\"", "a long answer ".repeat(12));
+        let notes = super::fruit_notes(&said_view(&long), false);
+        assert!(
+            notes.iter().all(|n| !n.contains("see it whole")),
+            "no recorded trace = no taught door: {notes:?}"
+        );
+    }
 
     #[test]
     fn outputs_json_line_is_one_sorted_object() {

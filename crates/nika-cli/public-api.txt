@@ -661,6 +661,7 @@ pub fn nika_cli::verbs::run::FoldSink<W>::new(writer: W, theme: nika_display::th
 pub fn nika_cli::verbs::run::FoldSink<W>::print_final(&mut self)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_map(&mut self, doc: nika_graph::GraphDoc, waves: alloc::vec::Vec<alloc::vec::Vec<usize>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
+pub fn nika_cli::verbs::run::FoldSink<W>::set_trace_recorded(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::show_outputs(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_display::state::RunView
 impl<W: core::io::write::Write> nika_runtime::stamp::EventSink for nika_cli::verbs::run::FoldSink<W>
