@@ -148,7 +148,7 @@ fn index() -> Vec<(&'static str, &'static str, Vec<String>)> {
         .collect()
 }
 
-/// `nika examples list` — the corpus, organized: the foundation path
+/// Bare `nika try` — the corpus, organized: the foundation path
 /// (numbered steps · full filenames · titles · verb chips), then the
 /// showcase by tier. Derived entirely from the pack at call time.
 #[must_use]
@@ -279,8 +279,8 @@ mod tests {
         assert!(out.text.contains("the path"), "{}", out.text);
         assert!(out.text.contains("01-hello.nika.yaml"), "{}", out.text);
         // Two groups, not five. The tier headings are gone with the
-        // prefix that fed them; what a reader wanted from them lives in
-        // `nika examples teaches` and is derived rather than declared.
+        // prefix that fed them; what a reader wanted from them is
+        // derived from the pack at call time rather than declared.
         assert!(
             out.text.contains("the jobs"),
             "the second group: {}",

@@ -5,12 +5,11 @@
 > loose copies live here — a second copy is a future lie.
 
 ```sh
-nika examples                    # the path (01-07) + the showcase (T1→T4)
-nika examples show 01-hello      # read one
-nika examples run 01-hello --model mock/echo   # prove one, offline
-nika examples copy 01-hello      # make one yours
+nika try                         # the showroom: the path (01-07) + the jobs
+nika try 01-hello                # prove one, offline (mock rehearsal · zero keys)
+nika new 01-hello                # make one yours (ingredients included)
 ```
 
 The corpus is organized as **the path** (7 foundation steps · complete
-v0.1 construct coverage) then **showcase tiers T1→T4** (real jobs).
-Skeletons to start your own live under `nika new --from <template>`.
+v0.1 construct coverage) then **the jobs** (real showcase workflows).
+Skeletons to start your own: `nika new '?'` lists the set.

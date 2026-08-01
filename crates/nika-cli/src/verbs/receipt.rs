@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika receipt` — the receipt surface (F-P16 · NEP-0014 law 3).
+//! `nika trace receipt` — the receipt surface (F-P16 · NEP-0014 law 3
+//! · the dossier doors live under `trace` since RAMS-15).
 //!
 //! `explain` renders a receipt's readable projection as stable text: a
 //! READING, never a proof — the digest is never recomputed here
@@ -14,7 +15,7 @@ use std::path::PathBuf;
 
 use super::VerbOutput;
 
-/// The clap surface of `nika receipt` (the `verbs::key::KeyAction`
+/// The clap surface of `nika trace receipt` (the `verbs::key::KeyAction`
 /// precedent — main.rs stays under the file cap).
 #[derive(clap::Subcommand)]
 pub enum ReceiptAction {

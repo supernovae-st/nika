@@ -7,7 +7,7 @@
 //! the canonical examples, the instantiable templates and the manifest
 //! that hashes them (nika-spec README §The examples pack). This crate
 //! embeds the pack of the language version this binary speaks, so
-//! `nika examples` / `nika docs` / `nika schema` / `nika new` work
+//! `nika try` / `nika docs` / `nika schema` / `nika new` work
 //! offline and an installed binary always carries the artifacts of
 //! *its* version.
 //!

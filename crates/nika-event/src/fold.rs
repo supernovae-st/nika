@@ -5,7 +5,7 @@
 //!
 //! The flight recorder writes one NDJSON event per line; this module
 //! reads a journal's FIRST and LAST lines only (never a full parse) and
-//! folds them into [`RunFact`] — the shape `nika context` aggregates
+//! folds them into [`RunFact`] — the shape `nika welcome --deep` aggregates
 //! and future consumers (MCP · cockpit) reuse. It lives HERE because
 //! the fold is a projection of this crate's event format: the
 //! `workflow_*` terminal kinds and the `fields` key/value envelope.
