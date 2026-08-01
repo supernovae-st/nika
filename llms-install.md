@@ -71,20 +71,20 @@ shell needs a PATH refresh — open a new shell before diagnosing deeper.
 ## 3 · Prove it works (zero keys, zero network)
 
 ```sh
-nika examples run 01-hello --model mock/echo
+nika try 01-hello
 ```
 
 Exit 0 with a rendered run = the install is good. If Ollama is present,
 the same run works fully local:
 
 ```sh
-nika examples run 01-hello --model ollama/qwen3.5:4b
+nika try 01-hello --model ollama/qwen3.5:4b
 ```
 
 ## 4 · Wire nika as an MCP server (optional)
 
 `nika mcp` speaks MCP on stdio — read-only authoring tools (check ·
-explain · examples · catalog · …). For known clients, wiring is one
+explain · try · catalog · …). For known clients, wiring is one
 idempotent command: `nika wire --help` lists the supported hosts.
 Manual shape for anything else:
 

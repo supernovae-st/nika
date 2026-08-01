@@ -869,7 +869,7 @@ impl AdoptionState {
     #[must_use]
     pub const fn cta(self) -> &'static str {
         match self {
-            Self::Installed => "proof → nika examples run 01-hello",
+            Self::Installed => "proof → nika try 01-hello",
             Self::LocalDetected => "start it, then nika doctor --ping",
             Self::LocalReachable => "point a run at it",
             Self::KeyPresent => "ready for a real run",

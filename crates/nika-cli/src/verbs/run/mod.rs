@@ -76,7 +76,7 @@ use crate::verbs::exit;
 /// environment (unreadable file · TLS init · a system contract breach).
 ///
 /// `model_override` — when `Some(m)`, `m` REPLACES the workflow envelope's
-/// `model:` as the resolved default (so `examples run … --model mock/echo`
+/// `model:` as the resolved default (so `try … --model mock/echo`
 /// previews offline). It travels the SAME composition path as an envelope
 /// model, so a bad id fails loud identically (the registry surfaces its
 /// typed error when an infer/agent task actually resolves it).
@@ -91,7 +91,7 @@ use crate::verbs::exit;
 /// silent). `--from <task_id>` forces a subtree to re-run.
 ///
 /// `no_trace_file` — skip the run journal (`.nika/traces/` · spec §3.3):
-/// `--no-trace-file` / `NIKA_NO_TRACE_FILE` opt out; `examples run`
+/// `--no-trace-file` / `NIKA_NO_TRACE_FILE` opt out; `try`
 /// disables it too (a staged temp-file run is not a workspace run).
 // Ten independent CLI parameters ARE the clap surface — the same idiom
 // as TraceArgs' four bools, not a state machine to encode in a struct.
@@ -485,7 +485,7 @@ fn refusal_text(out: &crate::verbs::VerbOutput) -> String {
         return out.text.clone();
     }
     format!(
-        "nika run: {}\n  fix: check the path — `nika examples list` names runnable demos\n",
+        "nika run: {}\n  fix: check the path — bare `nika try` names runnable demos\n",
         out.text.trim_end()
     )
 }
