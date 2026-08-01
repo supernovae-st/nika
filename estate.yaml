@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4294
+  classified_files: 4295
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1376
+    authored: 1377
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: ef9a90f2d2eeca0b8ea79854342f24623cf5468e89a9292514d720da7be82a2b
+  sha256: e81ccc6b49a4a82be7e0b1b7fc776b5c68f511c917f81e34c9b9be4bdedda9a4
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 8169b37f738b952a60712b8ca6d196b4ab4ef8a7348bb579408eff078af255fb
+  sha256: 133f2f3a047caa6fdb179f6313947d683bd35594408943230f12a479f47f3148
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 38acfa5fbad7edcd3ba9beed3a15c260848ad89944712a51fb647603b1883ff2
+  sha256: 21c17f96fef9f4031dead27239770afaed2d0808f426bc0fc3fce23bbb74171e
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 695
-  aggregate_sha256: 30a9e62639741bf40d42ba4adf74280b67767df0990e28322af0f218a1c1116f
+  aggregate_sha256: a5d902823c379ed6aefea6bb6fc173223c83fd09c70a32bf5fa17242fc80a3f5
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -161,8 +161,8 @@ patterns:
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
-  match_count: 126
-  aggregate_sha256: 0981281518b829a05acf5b4c58424810e9e3a1a8a083ea0c3745152189a60804
+  match_count: 127
+  aggregate_sha256: 51c285ce9985924bb0db3e5975072139208f426eb33d3cc108218289c16934c2
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 21
-  aggregate_sha256: a937a2d54937bd3620d95b5c531dcfc229dc1fba22b0ee59f30feebf16783cbe
+  aggregate_sha256: a3f25cbe3259dc10d366c2ad5ec51d8f5d93a749b41147fa824750ba57259318
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 45b58da1936b269e3705d7621ed3525539d055cb599c0721d79a20964a3eebfe
+  aggregate_sha256: de9d9a5cf73efbff941260a15555f9c77050059b7285a0d412b132748ae3b309
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
