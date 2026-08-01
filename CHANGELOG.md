@@ -10,6 +10,76 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+**The composition wave.** The 0.107 train shipped the trust OBJECTS;
+an outside checkpoint then measured what a stranger actually meets and
+found the composition missing — the concierge still taught a verb the
+0.107 rename had killed, doctor rendered a table-declared guard in the
+green word a proven one earns, and every surface composed its own next
+step. Three synthetic personas (novice FR · senior dev · privacy-first)
+walked the binary end to end; the fixes below each carry the transcript
+line that found them.
+
+### The doors tell the truth
+
+- **One door catalog, one ratchet.** `DoorId{Discover,Create,Project}`
+  is the single source behind every taught first-contact command; the
+  five workspace states, the chat-only JSON mirror and the kit's
+  `allowed-tools` all derive from it, and a new test replays EVERY
+  command welcome can teach against the live clap tree. The dead
+  `nika examples` the concierge kept teaching (the parser refuses it)
+  is gone from text, JSON, kit and docs — and hygiene vector 45 sweeps
+  the whole rendered output of three surfaces so the class cannot
+  return.
+- **`nika try` opens on three jobs, not thirty-nine.** The storefront
+  names one contrasted trade each (support · meetings · release), every
+  row a taught `try <slug>` with its pitch, closed by four doors and the
+  verb legend the glyphs never had. A pipe still gets the full parsable
+  shelf byte-for-byte (the editor's wire contract), and `--all` forces
+  it on a terminal.
+
+### The verdicts narrow to what they cover
+
+- **`guard-declared` is not `guarded`.** The host receipt gains
+  `guard_evidence` (declared · loaded · proven): a hook the static kit
+  table declares now reads « guard-declared (kit ships hooks · unproven
+  in session) », and the bare word waits for a live allow+deny canary.
+  `welcome --json` carries the same companions the doctor receipt does.
+- **`--plain` means ASCII in doctor too** — the verb rides the same
+  sobriety seam the concierge rides; the machine lane stays byte-exact.
+- **The journey names its cloud endpoints in words** — locus, retention
+  and training were machine-only facts while the human line read
+  identically for a mock and a cloud model.
+- **`risk unbounded` carries its next move**, the red pre-run
+  diagnostic ends its own line, and a sensitive voyage discloses that
+  its trace keeps full task outputs in plaintext, with the removal
+  handle beside it.
+
+### The experience contracts land
+
+- **`ExperienceStateV1` → `route()` → `NextActionV1`** — one pure
+  decision table (drift ≻ unselected multi-root ≻ chat-only ≻ paused ≻
+  failed ≻ findings ≻ unknown inventory ≻ clean ≻ several ≻ create ≻
+  discover), one primary CTA with at most two safe exits, and gates
+  asserted structurally per action across the swept state space: no
+  door hides a run. `welcome --json` is its first consumer;
+  `WorkflowPreviewV1` renders the same content in strict ASCII and
+  Mermaid, beside the context, privacy and authority receipts.
+
+### The owned copy works where it landed
+
+- **The taught command inside YOUR file runs in YOUR workspace** — all
+  39 pack examples self-reference their pack path, and the copied
+  `# Run ·` comment exited 3 when pasted; `nika new` re-points it to the
+  destination.
+- **A dropped cadence is named** — « chaque lundi … » routed on the work
+  and ate the schedule half in silence; the file owns the WORK, a
+  scheduler owns WHEN, and the note says so.
+- **The guard judges both spellings of its own binary** (`nika` ·
+  `nika-cli`): a dev-build invocation rode past the uncapped-priced-run
+  refusal as no-opinion.
+- The wizard's run hint follows the chosen seat instead of teaching a
+  literal `$0.00` on an Ollama pick.
+
 ## [0.107.0](https://github.com/supernovae-st/nika/compare/v0.106.1..v0.107.0) - 2026-08-01
 
 **The trust release.** An outside audit measured the experience instead of
