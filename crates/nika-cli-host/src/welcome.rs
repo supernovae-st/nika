@@ -853,18 +853,30 @@ fn experience_block(
     let workflow = if chat_only {
         WorkflowStateV1::Unknown
     } else {
+        // P0-4 applies to EVERY count, not just zero: a truncated walk
+        // that saw one file knows nothing about the rest — and the one
+        // it saw was never audited (`glance` only hands a sole path,
+        // and therefore a gate, behind a COMPLETE walk). A `Clean` here
+        // would have the JSON contract claim an audit the text render
+        // refuses in the same breath (« 1+ found · scan partial ») —
+        // the two-surfaces-one-evidence law, caught by the refuter pass
+        // before it ever shipped.
         match (glance.workflows, gate) {
-            (0, _) if !glance.complete => WorkflowStateV1::Unknown,
+            (_, _) if !glance.complete => WorkflowStateV1::Unknown,
             (0, _) => WorkflowStateV1::Absent,
             (1, Some(g)) if !g.proposable => WorkflowStateV1::Findings,
-            (1, _) => WorkflowStateV1::Clean,
+            (1, Some(_)) => WorkflowStateV1::Clean,
+            // A complete walk that saw one file always carries its
+            // gate; without one the state is unknown, never clean.
+            (1, None) => WorkflowStateV1::Unknown,
             (_, _) => WorkflowStateV1::Several,
         }
     };
     let root = (!chat_only).then(|| envelope.project_root.display().to_string());
-    let writable = root
-        .as_deref()
-        .is_some_and(|r| std::fs::metadata(r).is_ok_and(|m| !m.permissions().readonly()));
+    // ONE writability truth: the envelope already probed it (mode bits
+    // AND the mirror-safe rules) — recomputing it here would be a
+    // second answer to the same question.
+    let writable = !chat_only && envelope.writable;
     let configured = probe.providers.iter().any(|p| !p.requires_key)
         || probe
             .providers
@@ -887,7 +899,16 @@ fn experience_block(
         } else {
             crate::experience::ProviderStateV1::Unconfigured
         },
-        versions_coherent: probe.kits.iter().all(|k| k.version == probe.version),
+        // ONE drift law with the rendered line (probe::train_differs):
+        // a PATCH is not a train. String equality here would have made
+        // the router cry `align_versions` the day a 0.107.1 binary met
+        // a 0.107.0 kit — degrading every richer CTA on the very
+        // release this wave is cutting, while the human line stayed
+        // silent. Two definitions of drift in one file is one too many.
+        versions_coherent: !probe
+            .kits
+            .iter()
+            .any(|k| probe::train_differs(&k.version, &probe.version)),
         ..ExperienceStateV1::chat_only()
     };
     let action = route(&state);

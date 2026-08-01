@@ -647,8 +647,11 @@ fn the_experience_block_routes_from_the_concierge_facts() {
     assert_eq!(block["action"]["action_id"], "open_workflow");
     assert_eq!(block["action"]["nothing_has_run"], true);
 
-    // Kit drift degrades every richer move (UX107-02).
+    // Kit drift degrades every richer move (UX107-02) — but a PATCH is
+    // not a train (probe::train_differs, the same law the human line
+    // obeys): a 0.107.0 kit under a 0.107.x binary stays coherent.
     let mut drifted = synthetic_probe();
+    drifted.version = "0.107.0".to_owned();
     drifted.kits.push(crate::probe::KitProbe {
         client: "cursor".to_owned(),
         version: "0.106.0".to_owned(),
@@ -656,6 +659,31 @@ fn the_experience_block_routes_from_the_concierge_facts() {
     let block = experience_block(&drifted, &workspace, one_clean, Some(&clean_gate));
     assert_eq!(block["state"]["versions_coherent"], false);
     assert_eq!(block["action"]["action_id"], "align_versions");
+
+    let mut patch = synthetic_probe();
+    patch.version = "0.107.1".to_owned();
+    patch.kits.push(crate::probe::KitProbe {
+        client: "cursor".to_owned(),
+        version: "0.107.0".to_owned(),
+    });
+    let block = experience_block(&patch, &workspace, one_clean, Some(&clean_gate));
+    assert_eq!(
+        block["state"]["versions_coherent"], true,
+        "a patch bump is not a train drift — the router must not degrade on it"
+    );
+    assert_eq!(block["action"]["action_id"], "open_workflow");
+
+    // A TRUNCATED walk is UNKNOWN at every count — the one file it saw
+    // was never audited (no gate exists behind an incomplete walk), so
+    // the JSON contract must not claim `clean` while the text render
+    // says « scan partial » (refuter pass, pre-ship).
+    let truncated = Glance {
+        complete: false,
+        ..one_clean
+    };
+    let block = experience_block(&synthetic_probe(), &workspace, truncated, None);
+    assert_eq!(block["state"]["workflow"], "unknown");
+    assert_eq!(block["action"]["action_id"], "deep_scan");
 
     // Chat-only: no root claim, discovery, nothing scanned.
     let block = experience_block(&synthetic_probe(), &chat, CHAT_ONLY_GLANCE, None);

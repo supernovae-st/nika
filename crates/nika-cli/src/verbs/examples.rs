@@ -345,10 +345,40 @@ mod tests {
     #[test]
     fn the_storefront_teaches_three_jobs_and_the_shelf_door() {
         for slug in STOREFRONT {
+            let body = nika_pack::example(slug).unwrap_or_default();
             assert!(
-                nika_pack::example(slug).is_some(),
+                !body.is_empty(),
                 "storefront slug `{slug}` must exist in the pack"
             );
+            // Every ingredient the job reads must ship IN the binary:
+            // the rehearsal room stages them beside the workflow, and a
+            // storefront row that cannot find its own fixture is the
+            // « the tool teaches a command that breaks » class — three
+            // of these shipped for one afternoon (gauntlet 08-01,
+            // Sofia: two of three jobs exited 1 on a clean floor).
+            let embedded: Vec<&str> = nika_pack::example_fixture_files()
+                .iter()
+                .map(|(tail, _)| *tail)
+                .collect();
+            for line in body.lines() {
+                let Some(rest) = line.split("examples/fixtures/").nth(1) else {
+                    continue;
+                };
+                let wanted: String = rest
+                    .chars()
+                    .take_while(|c| !c.is_whitespace() && *c != '"' && *c != '\'')
+                    .collect();
+                let wanted = wanted.trim_end_matches(['*', '/']);
+                if wanted.is_empty() {
+                    continue;
+                }
+                assert!(
+                    embedded
+                        .iter()
+                        .any(|t| *t == wanted || t.starts_with(&format!("{wanted}/"))),
+                    "storefront `{slug}` reads `{wanted}` — the pack must embed it"
+                );
+            }
         }
         let out = storefront(Theme::new(false, false, false));
         assert_eq!(out.code, exit::OK);

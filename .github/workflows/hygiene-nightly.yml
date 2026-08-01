@@ -29,6 +29,15 @@ jobs:
         with:
           tool: cargo-deny,cargo-machete,cargo-audit
 
+      # Vector 45 (taught-commands) renders the real surfaces with the
+      # real binary — on a fresh runner none exists, and the vector's
+      # honest SKIP would make it a permanent no-op in the one job that
+      # runs it nightly (measured by an adversarial pass the day the
+      # vector shipped). The build IS the vector's input. No workflow
+      # input is interpolated here: the command is a constant.
+      - name: Build the CLI (vector 45 renders the real surfaces)
+        run: cargo build -p nika-cli --bin nika-cli
+
       - name: Run hygiene dashboard
         id: hygiene
         env:

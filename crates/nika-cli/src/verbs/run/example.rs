@@ -42,9 +42,31 @@ pub fn example(
     // carry a `showcase/` prefix — flatten the separator so the temp name
     // stays a single path component.
     let stem = slug.replace('/', "-");
-    let path = std::env::temp_dir().join(format!("nika-example-{stem}.nika.yaml"));
-    if let Err(e) = std::fs::write(&path, yaml) {
+    // The rehearsal runs in its OWN room (gauntlet 08-01, Sofia: the
+    // storefront taught three jobs and two exited 1 on a clean floor —
+    // their ingredients live in the pack, and only `nika new` used to
+    // install them). Staging the workflow AND its fixtures in a
+    // dedicated temp dir, then rehearsing from there, is what makes the
+    // door's own promise true: paths resolve from the RUN's working
+    // directory, so an isolated room means the example finds what it
+    // reads and writes what it writes WITHOUT touching the operator's
+    // folder — `nothing written` becomes a fact instead of a hope.
+    let room = std::env::temp_dir().join(format!("nika-try-{stem}"));
+    let path = room.join(format!("{stem}.nika.yaml"));
+    if let Err(e) = std::fs::create_dir_all(&room).and_then(|()| std::fs::write(&path, yaml)) {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
+        return exit::ENV;
+    }
+    if let Err(e) = nika_onboard::fixtures::materialize(yaml, &path) {
+        eprintln!("nika run: environment: cannot stage the ingredients of `{slug}`: {e}");
+        return exit::ENV;
+    }
+    // Enter the room for the rehearsal, and leave it exactly as we
+    // found it. `try` is a one-shot CLI path (no concurrent verb shares
+    // this process), and the restore runs on every exit below.
+    let previous_dir = std::env::current_dir().ok();
+    if let Err(e) = std::env::set_current_dir(&room) {
+        eprintln!("nika run: environment: cannot enter the rehearsal room: {e}");
         return exit::ENV;
     }
     // The example renders live on a TTY, plain when piped, silent on
@@ -102,6 +124,11 @@ pub fn example(
             "\n  {}",
             crate::display::vocab::hint(theme, "make it yours", &format!("nika new {clean}"))
         );
+    }
+    // Leave the room as we found it — the rehearsal is isolated, not
+    // a relocation of the operator's session.
+    if let Some(dir) = previous_dir {
+        let _ = std::env::set_current_dir(dir);
     }
     verdict.code
 }
