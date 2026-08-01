@@ -694,6 +694,7 @@ pub(super) fn surface_trace(
     autopsy: Option<&str>,
     workflow_hash: Option<&str>,
     teardown: Option<&nika_dap::seal::SealTeardown>,
+    sensitive: bool,
 ) -> Option<std::path::PathBuf> {
     // The run seal (S2 · verifiable runs): when a run-key exists on this
     // machine, the journal's LAST line is the signature that binds the
@@ -727,6 +728,17 @@ pub(super) fn surface_trace(
     match note {
         TraceNote::Stdout => {
             println!("    {anchor}");
+            // PROV-08 (gauntlet 08-01, Aïcha): a sensitive-classified
+            // voyage wrote its task outputs — CRM rows, emails — into
+            // a plaintext journal, and only `doctor` ever said so. The
+            // disclosure now rides the trace line itself, once, with
+            // the removal handle beside it.
+            if sensitive {
+                println!(
+                    "    note: this trace keeps full task outputs in plaintext (sensitive data included) · retention is doctor's `traces` line · remove: nika trace rm {}",
+                    path.display()
+                );
+            }
             // The autopsy line — a FAILED run teaches its own forensics:
             // the journal it just wrote replays, peeks and time-travels.
             if let Some(task) = autopsy {

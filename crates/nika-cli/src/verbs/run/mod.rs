@@ -31,6 +31,16 @@ mod sink;
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use sink::{FoldSink, RenderMode};
 
+/// The voyage carries sensitive or regulated data — the trace line
+/// then carries its plaintext disclosure (PROV-08: the journal keeps
+/// full task outputs, and only doctor said so).
+fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
+    !matches!(
+        report.data_journey.classification,
+        nika_check::DataClassification::Internal
+    )
+}
+
 mod example;
 pub use example::example;
 use sink::{TraceNote, surface_trace};
@@ -936,6 +946,7 @@ async fn execute_output_json_lane(
         None,
         seal_hash(wf).as_deref(),
         Some(&teardown),
+        sensitive_journey(report),
     );
     // A paused run teaches its exact resume command on stderr — the
     // pause sibling of the failure lane's `autopsy:` line.
@@ -997,6 +1008,7 @@ async fn execute_json_lane(
         None,
         seal_hash(wf).as_deref(),
         Some(&teardown),
+        sensitive_journey(report),
     );
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!(
@@ -1140,6 +1152,7 @@ fn fold_lane_verdict(
         failed_task.as_deref(),
         seal_hash(wf).as_deref(),
         Some(&teardown),
+        sensitive_journey(report),
     );
     // A paused HUMAN run teaches its exact resume command too (the same
     // line the machine lanes print on stderr — a text-mode pause with no

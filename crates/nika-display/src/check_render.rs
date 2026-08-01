@@ -741,10 +741,30 @@ fn audited_line(
             crate::vocab::usd(report.cost.bounded_total_usd)
         )
     };
+    // « risk unbounded » used to close the output with no handle
+    // (gauntlet 08-01, Camille — an alarm without a remedy, and
+    // « 0 hints » confessed it): the footer now carries the one next
+    // move. An unpriced-only census is the local-model shape (no
+    // dollar meter exists — the cap matters IF a cloud seat is
+    // chosen); anything else has a declarable ceiling today.
+    let handle = if grade == nika_check::RiskGrade::Unbounded {
+        let unpriced_only = report
+            .cost
+            .tasks
+            .iter()
+            .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
+        if unpriced_only {
+            " — no dollar meter for a local/unknown model · cap a cloud seat with --max-cost-usd"
+        } else {
+            " — declare max_tokens/ceilings, or cap the run with --max-cost-usd"
+        }
+    } else {
+        ""
+    };
     t.paint(
         role,
         &format!(
-            "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}",
+            "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}{handle}",
             crate::vocab::count(tasks, "task"),
             crate::vocab::count(report.waves.len(), "wave"),
             crate::vocab::count(hints, "hint"),

@@ -177,11 +177,16 @@ pub(super) fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
 /// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
 /// envelope (F6) — the machine surface is self-sufficient, success or not.
 pub(super) fn emit_diagnostic(text: &str, output_json: bool) {
+    // Terminal-newline law (gauntlet 08-01, Marc): the red pre-run
+    // diagnostic ended flush against the next shell prompt and dirtied
+    // concatenated CI logs — every diagnostic ends its own line, and a
+    // text already carrying one is not doubled.
+    let text = text.strip_suffix('\n').unwrap_or(text);
     if output_json {
-        eprint!("{text}");
+        eprintln!("{text}");
         println!("{}", error_envelope_line(envelope_message(text)));
     } else {
-        print!("{text}");
+        println!("{text}");
     }
 }
 
