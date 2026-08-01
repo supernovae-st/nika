@@ -92,6 +92,49 @@ pub type nika_cli::verbs::check::Profile::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli::verbs::check::Profile where T: core::default::Default
 pub type nika_cli::verbs::check::Profile::NoneType = T
 pub fn nika_cli::verbs::check::Profile::null_value() -> T
+pub struct nika_cli::verbs::check::CheckArgs
+pub nika_cli::verbs::check::CheckArgs::files: alloc::vec::Vec<alloc::string::String>
+pub nika_cli::verbs::check::CheckArgs::fix: bool
+pub nika_cli::verbs::check::CheckArgs::infer_permits: bool
+pub nika_cli::verbs::check::CheckArgs::json: bool
+pub nika_cli::verbs::check::CheckArgs::model: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::check::CheckArgs::native_strict: bool
+pub nika_cli::verbs::check::CheckArgs::profile: nika_cli::verbs::check::Profile
+impl clap_builder::derive::Args for nika_cli::verbs::check::CheckArgs
+pub fn nika_cli::verbs::check::CheckArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::check::CheckArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli::verbs::check::CheckArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli::verbs::check::CheckArgs
+pub fn nika_cli::verbs::check::CheckArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::check::CheckArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli::verbs::check::CheckArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli::verbs::check::CheckArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::check::CheckArgs
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::CheckArgs where U: core::convert::From<T>
+pub fn nika_cli::verbs::check::CheckArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::check::CheckArgs where U: core::convert::Into<T>
+pub type nika_cli::verbs::check::CheckArgs::Error = core::convert::Infallible
+pub fn nika_cli::verbs::check::CheckArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::check::CheckArgs where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::check::CheckArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::check::CheckArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::check::CheckArgs where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::check::CheckArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::check::CheckArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckArgs
+pub fn nika_cli::verbs::check::CheckArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckArgs where T: 'static
+pub fn nika_cli::verbs::check::CheckArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckArgs where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::check::CheckArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::CheckArgs
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::CheckArgs
+impl<T> typenum::type_operators::Same for nika_cli::verbs::check::CheckArgs
+pub type nika_cli::verbs::check::CheckArgs::Output = T
 pub struct nika_cli::verbs::check::CheckFlags
 pub nika_cli::verbs::check::CheckFlags::infer_permits: bool
 pub nika_cli::verbs::check::CheckFlags::json: bool
@@ -174,6 +217,7 @@ pub type nika_cli::verbs::evidence::EvidenceArgs::Output = T
 pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::examples::rehearsal_seat(model: core::option::Option<&str>) -> core::option::Option<&str>
 pub mod nika_cli::verbs::explain
 pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::explain_file
@@ -555,6 +599,7 @@ pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str
 pub mod nika_cli::verbs::pack_surface
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::pack_surface::spec_or_schema(canon: bool, want_schema: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::receipt
 pub enum nika_cli::verbs::receipt::ReceiptAction
 pub nika_cli::verbs::receipt::ReceiptAction::Explain
@@ -692,7 +737,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::FoldSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::FoldSink<W>
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::FoldSink<W>
 pub type nika_cli::verbs::run::FoldSink<W>::Output = T
-pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::run::example(slug: &str, model_flag: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_dap::resume::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool, require_signature: bool) -> u8
 pub mod nika_cli::verbs::sign
 pub struct nika_cli::verbs::sign::SignArgs
@@ -745,6 +790,8 @@ pub nika_cli::verbs::trace::action::TraceAction::Anchor
 pub nika_cli::verbs::trace::action::TraceAction::Anchor::rekor_url: alloc::string::String
 pub nika_cli::verbs::trace::action::TraceAction::Anchor::trace: core::option::Option<std::path::PathBuf>
 pub nika_cli::verbs::trace::action::TraceAction::Anchor::tsa_url: alloc::string::String
+pub nika_cli::verbs::trace::action::TraceAction::Evidence
+pub nika_cli::verbs::trace::action::TraceAction::Evidence::args: nika_cli::verbs::evidence::EvidenceArgs
 pub nika_cli::verbs::trace::action::TraceAction::Export
 pub nika_cli::verbs::trace::action::TraceAction::Export::include_content: bool
 pub nika_cli::verbs::trace::action::TraceAction::Export::out: core::option::Option<std::path::PathBuf>
@@ -759,6 +806,8 @@ pub nika_cli::verbs::trace::action::TraceAction::Peek
 pub nika_cli::verbs::trace::action::TraceAction::Peek::raw: bool
 pub nika_cli::verbs::trace::action::TraceAction::Peek::task: alloc::string::String
 pub nika_cli::verbs::trace::action::TraceAction::Peek::trace: std::path::PathBuf
+pub nika_cli::verbs::trace::action::TraceAction::Receipt
+pub nika_cli::verbs::trace::action::TraceAction::Receipt::action: nika_cli::verbs::receipt::ReceiptAction
 pub nika_cli::verbs::trace::action::TraceAction::Replay(nika_cli::verbs::trace::action::TraceArgs)
 pub nika_cli::verbs::trace::action::TraceAction::Reproduce
 pub nika_cli::verbs::trace::action::TraceAction::Reproduce::fresh: std::path::PathBuf
@@ -907,6 +956,8 @@ pub nika_cli::verbs::trace::TraceAction::Anchor
 pub nika_cli::verbs::trace::TraceAction::Anchor::rekor_url: alloc::string::String
 pub nika_cli::verbs::trace::TraceAction::Anchor::trace: core::option::Option<std::path::PathBuf>
 pub nika_cli::verbs::trace::TraceAction::Anchor::tsa_url: alloc::string::String
+pub nika_cli::verbs::trace::TraceAction::Evidence
+pub nika_cli::verbs::trace::TraceAction::Evidence::args: nika_cli::verbs::evidence::EvidenceArgs
 pub nika_cli::verbs::trace::TraceAction::Export
 pub nika_cli::verbs::trace::TraceAction::Export::include_content: bool
 pub nika_cli::verbs::trace::TraceAction::Export::out: core::option::Option<std::path::PathBuf>
@@ -921,6 +972,8 @@ pub nika_cli::verbs::trace::TraceAction::Peek
 pub nika_cli::verbs::trace::TraceAction::Peek::raw: bool
 pub nika_cli::verbs::trace::TraceAction::Peek::task: alloc::string::String
 pub nika_cli::verbs::trace::TraceAction::Peek::trace: std::path::PathBuf
+pub nika_cli::verbs::trace::TraceAction::Receipt
+pub nika_cli::verbs::trace::TraceAction::Receipt::action: nika_cli::verbs::receipt::ReceiptAction
 pub nika_cli::verbs::trace::TraceAction::Replay(nika_cli::verbs::trace::action::TraceArgs)
 pub nika_cli::verbs::trace::TraceAction::Reproduce
 pub nika_cli::verbs::trace::TraceAction::Reproduce::fresh: std::path::PathBuf
