@@ -1314,9 +1314,29 @@ mod infer_deadline_tests {
         assert!(report.is_clean(), "fixture passes the ladder");
 
         let http = Arc::new(CapturingHttp::default());
+        // The B-5 liveness gate dials the local endpoint with a REAL
+        // TcpStream before any wire call — point ollama at a speaking
+        // loopback stub so the rig stays hermetic (a live/dead ollama on
+        // the host must never decide this test · the localhost-is-shared
+        // law).
+        let stub = {
+            #[allow(clippy::disallowed_methods)] // test seam — the probe's worker pattern
+            fn spawn() -> u16 {
+                let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+                let port = listener.local_addr().expect("addr").port();
+                std::thread::spawn(move || {
+                    while let Ok((mut stream, _)) = listener.accept() {
+                        use std::io::Write as _;
+                        let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
+                    }
+                });
+                port
+            }
+            spawn()
+        };
         let registry = Arc::new(ProviderRegistry::new(
             Arc::clone(&http),
-            ProvidersConfig::new(),
+            ProvidersConfig::new().with_base_url("ollama", format!("http://127.0.0.1:{stub}")),
         ));
         let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
         let runtime = Runtime::new(

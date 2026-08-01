@@ -171,6 +171,15 @@ pub const CANONICAL_IDS: [&str; 16] = [
     "mock",
 ];
 
+/// Whether the provider is one of the 5 server-backed KEYLESS engines
+/// (ollama · lmstudio · llamacpp · localai · vllm) — the class the B-5
+/// run gate probes, and the class the MODELS rung nuances: « resolves »
+/// is never « reachable » for a server nothing dialed.
+#[must_use]
+pub fn server_backed_local(provider: &str) -> bool {
+    LOCAL.iter().any(|(id, _)| *id == provider)
+}
+
 /// The MODELS-rung law (#320): why a `<provider>/<model>` string cannot
 /// resolve in THIS binary — `None` when it can. Lives beside the resolver
 /// (the set it interrogates is [`CANONICAL_IDS`]) and is shared by every
