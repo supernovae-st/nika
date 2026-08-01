@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 93a5e55ebe82907d4066adcab13a12c78296fe3a2d0ee7df5bf271fc06efdd37
+  sha256: 1340ab904f6c81f4b095181e0611408030f3349ac231af45a29254b82c83f762
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 127
-  aggregate_sha256: cde101e89c520304b6b8d11ff263bee4789734bae595b63782bb1068cbe08557
+  aggregate_sha256: 01f54f0dace8268ca956aeff9247f04fdb678ff361ccd7da95b4e766d87ac0cd
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
