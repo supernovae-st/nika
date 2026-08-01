@@ -9,7 +9,9 @@
 //!
 //! Run: `cargo bench -p nika-catalog`
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_find_pricing_scoped(c: &mut Criterion) {
     c.bench_function("find_pricing_scoped (exact)", |b| {
