@@ -182,3 +182,50 @@ mod energy_tests {
         assert_eq!(fmt_scope_totals(&[]), "");
     }
 }
+
+mod models_rung_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    /// The two-strike class, rendered (audit UX 2026-07-31): the rung
+    /// stays GREEN (the provider resolves — the catalog cross-check is
+    /// advisory) and the ⚠ rides UNDER the green line, never instead
+    /// of it — the user sees « resolves » AND « unheard of » together.
+    #[test]
+    fn a_catalog_warning_rides_under_the_green_models_line() {
+        let yaml = "nika: v1\nworkflow:\n  id: t\ntasks:\n  probe:\n    infer: { model: anthropic/claude-4-nonexistent, prompt: \"x\" }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        let audit =
+            ModelsAudit::new(Vec::new(), 0, 0).with_catalog_warnings(vec![ModelFinding::new(
+                "anthropic/claude-4-nonexistent".to_owned(),
+                vec!["probe".to_owned()],
+                "matches none of `anthropic`'s known models".to_owned(),
+            )]);
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            Theme::new(false, false, false),
+            &audit,
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        );
+        let green = out
+            .lines()
+            .position(|l| l.contains("MODELS") && l.contains('✔'))
+            .expect("the green line stays");
+        let warn = out
+            .lines()
+            .position(|l| l.contains("MODELS") && l.contains('⚠'))
+            .expect("the ⚠ rides");
+        assert!(warn > green, "the ⚠ rides UNDER the green line:\n{out}");
+        // The advisory never dirties the verdict: the report the rung
+        // rendered stayed clean (the provider resolves).
+        assert!(report.is_clean());
+    }
+}

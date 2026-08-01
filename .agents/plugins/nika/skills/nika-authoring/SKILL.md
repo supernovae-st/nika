@@ -19,21 +19,20 @@ The cost of skipping it was measured on 2026-07-28. Six authors each
 wrote one workflow from a real intention with this skill loaded and
 nothing else. **None reached a green check one-shot: 45 check→fix rounds
 between them, 7.5 on average, 11 at worst.** One of those authors spent
-**eight** rounds on their file, then ran `nika examples show` twice, on
-two files, and wrote their NEXT workflow **one-shot green. Zero
+**eight** rounds on their file, then read two example files, and wrote their NEXT workflow **one-shot green. Zero
 rounds.**
 
-Eight to zero, and the delta was two commands. Two `examples show` calls
-are two reads; the measured alternative is 7.5 check→fix rounds. Reading
+Eight to zero, and the delta was two reads; the measured alternative
+is 7.5 check→fix rounds. Reading
 them is not diligence, it is the cheapest move on the board.
 
 **The order, every time. Never write first and look second:**
 
 ```
-nika examples list                 # the shelf · the path, then T1 to T4
-nika examples show <slug>          # the one matching your intent (table below)
-nika examples show <second-slug>   # the one covering what the first did not
-                                   # only now open your file
+nika try                        # the shelf · the path, then the jobs
+nika new <slug>                 # take the one matching your intent (table below) — read it
+nika new <second-slug>          # take the one covering what the first did not — read it
+                                # only now open your file
 ```
 
 Read for SHAPE, not for prose. Four things, in this order: which verb
@@ -60,18 +59,18 @@ four are the decisions that cost rounds when guessed instead of copied.
 | a human signs before an irreversible step | `t4-release-train` |
 | a job too big for one file | §Composition below, then `01-hello` for the child |
 
-Second column verified against `nika examples list` on 2026-07-28. Any
+Second column verified against `nika try` on 2026-07-28. Any
 slug works with or without its `showcase/` prefix and with or without
-the `.nika.yaml` extension. `nika examples copy <slug>` makes one yours;
-`nika new --from <name>` does the same from the template side
-(`nika new --from '?'` prints that set).
+the `.nika.yaml` extension. `nika new <slug>` makes one yours;
+`nika new <name>` does the same from the template side
+(`nika new '?'` prints that set).
 
 ## The loop (always)
 
 1. **Start from the example you just read**, never from a blank file.
-   The section above is not advice, it is step zero: `nika examples list`
-   · `nika examples show <slug>` ·
-   `nika new --from <template> <file>.nika.yaml`. An author who writes
+   The section above is not advice, it is step zero: `nika try` ·
+   `nika new <slug>` (take the lesson — the file is the read) ·
+   `nika new <template> <file>.nika.yaml`. An author who writes
    first and reads second pays the measured 7.5 rounds.
 2. **Write the file.** The envelope is `nika: v1` + a `workflow:` OBJECT
    (`id:` kebab-case · optional `description:`) + a `tasks:` MAP keyed
@@ -118,7 +117,7 @@ the `.nika.yaml` extension. `nika examples copy <slug>` makes one yours;
    key) · **ANCHORED** (the detached transparency-log sidecar verifies
    fully offline) · **REPLAYED** (`--replay` compares a fresh run;
    verify never re-executes). `nika trace show <trace>` reads the card;
-   `nika evidence <trace>` exports the pack an auditor reads without
+   `nika trace evidence <trace>` exports the pack an auditor reads without
    trusting you. Cite the trace, never a memory of the run.
 
 ## The envelope: four value authorities, one boundary
@@ -233,8 +232,8 @@ Thirteen envelope keys, one verb per task, and a fixed set of modifiers.
 Every authoring decision has a default. Take it unless the job forces
 otherwise, in this order:
 
-1. **Shape before content.** Two `nika examples show` calls, then the
-   file (§Read two examples · measured 8 rounds → 0). Never a blank
+1. **Shape before content.** Two example reads (take them:
+   `nika new <slug>`), then the file (§Read two examples · measured 8 rounds → 0). Never a blank
    file. The outer shape decides the task graph before a single prompt
    is written, and copying a shape is free where guessing it is not.
 2. **One job, one task, one verb.** If a task needs an "and then", it is

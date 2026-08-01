@@ -48,7 +48,7 @@ pub(crate) fn resolve_lazy_target(given: Option<String>, verb: &str) -> Result<S
         }
         0 => {
             eprintln!(
-                "nika {verb}: no workflow here yet\n  nika init      # found this repo (wizard on a terminal)\n  nika new       # your first workflow — guided\n  nika examples run 01-hello --model mock/echo   # offline proof"
+                "nika {verb}: no workflow here yet\n  nika init      # found this repo (wizard on a terminal)\n  nika new       # your first workflow — guided\n  nika try 01-hello                              # offline proof"
             );
             Err(verbs::exit::ENV)
         }

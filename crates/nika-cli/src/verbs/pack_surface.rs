@@ -2,10 +2,10 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The embedded self-contained surface (spec §2) — `nika spec` ·
-//! `nika spec --schema` · `nika examples list|show|run`.
+//! `nika spec --schema` · `nika try`.
 //!
 //! Everything reads `nika-pack` (the spec snapshot baked at build):
-//! offline forever, version-pinned, zero network. `examples run`
+//! offline forever, version-pinned, zero network. `try`
 //! executes the embedded example through the shipped L3 runtime (see
 //! `verbs::run::example`).
 
@@ -30,9 +30,16 @@ pub fn schema() -> VerbOutput {
     VerbOutput::ok(nika_pack::schema_json().to_owned())
 }
 
-// `nika examples list|show` moved to `verbs::examples` (the organized
+// The showroom listing lives in `verbs::examples` (the organized
 // corpus experience — tiers · titles · verb chips · full filenames);
 // `run` executes via `verbs::run::example`.
+
+/// The pack identity's two dumps behind one verb — the spec card,
+/// `--canon`, or the JSON Schema (the old `nika schema`, one roof).
+#[must_use]
+pub fn spec_or_schema(canon: bool, want_schema: bool) -> crate::verbs::VerbOutput {
+    if want_schema { schema() } else { spec(canon) }
+}
 
 #[cfg(test)]
 mod tests {

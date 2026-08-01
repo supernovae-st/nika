@@ -437,7 +437,7 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              exits (pick one):\n    \
              · see what IS there:          ls <the path's parent>\n    \
              · run beside the file:        cd <the workflow's dir> && nika run <file>\n    \
-             · an example's ingredients:   `nika examples copy <slug>` lands its \
+             · an example's ingredients:   `nika new <slug>` lands its \
              `examples/fixtures/` files beside the recipe.\n",
         ),
         ("prompt", "001") => Some(
@@ -548,7 +548,7 @@ mod tests {
     fn prompt_001_explain_teaches_the_contract_and_its_exits() {
         let read = namespace_help("NIKA-BUILTIN-READ-001", "docs").expect("teaches");
         assert!(
-            read.contains("RUN's working directory") && read.contains("examples copy"),
+            read.contains("RUN's working directory") && read.contains("nika new"),
             "READ-001 carries the contract lesson (gauntlet 2026-07-31): {read}"
         );
         let help = namespace_help("NIKA-BUILTIN-PROMPT-001", "docs").expect("teaches");

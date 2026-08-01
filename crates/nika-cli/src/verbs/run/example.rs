@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The showroom lane — `nika examples run <slug>`: stage the embedded
+//! The showroom lane — `nika try <slug>`: stage the embedded
 //! example, pre-display the source (the lesson before the tokens),
 //! run it, and hand over the keys (split from `mod.rs` under the
 //! 1500-line file law).
@@ -9,7 +9,7 @@
 use super::{RenderMode, RunVerdict, exit, run_verdict};
 use crate::Theme;
 
-/// `nika examples run <slug>` — execute one EMBEDDED example through the
+/// `nika try <slug>` — execute one EMBEDDED example through the
 /// real runtime (the pack ships offline · zero network for the exec/
 /// mock-model examples). Stages the embedded YAML to a temp file (the
 /// verb reads a path) and runs it.
@@ -24,14 +24,17 @@ use crate::Theme;
 #[allow(clippy::fn_params_excessive_bools)] // the run trio, verbatim (two switches)
 pub fn example(
     slug: &str,
-    model_override: Option<&str>,
+    model_flag: Option<&str>,
     vars: &[String],
     (quiet, no_progress): (bool, bool),
     max_cost_usd: Option<f64>,
     theme: Theme,
 ) -> u8 {
+    // V5 seat law (RAMS-4): the raw --model flag resolves here — bare =
+    // the offline mock rehearsal · `self` = the example's own seat.
+    let model_override = crate::verbs::examples::rehearsal_seat(model_flag);
     let Some(yaml) = nika_pack::example(slug) else {
-        eprintln!("unknown example `{slug}` — `nika examples list` names the embedded set");
+        eprintln!("unknown example `{slug}` — bare `nika try` names the embedded set");
         return exit::FILE;
     };
     // The slug comes from the embedded set (path-safe) · stage it beside
@@ -97,11 +100,7 @@ pub fn example(
         let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
         eprintln!(
             "\n  {}",
-            crate::display::vocab::hint(
-                theme,
-                "make it yours",
-                &format!("nika examples copy {clean}")
-            )
+            crate::display::vocab::hint(theme, "make it yours", &format!("nika new {clean}"))
         );
     }
     verdict.code
@@ -184,7 +183,7 @@ fn example_tip(
             return None;
         }
         return Some(format!(
-            "tip: no local model running? preview this example offline →\n        nika examples run {slug} --model mock/echo"
+            "tip: no local model running? preview this example offline →\n        nika try {slug}"
         ));
     }
     // A missing program — name the REAL dependency (the ✖ line above
@@ -198,10 +197,10 @@ fn example_tip(
             .filter(|p| !p.is_empty());
         return Some(match program {
             Some(p) => format!(
-                "tip: this example shells out to `{p}` — not found on this machine;\n        install it, or browse offline-friendly examples → nika examples list"
+                "tip: this example shells out to `{p}` — not found on this machine;\n        install it, or browse offline-friendly examples → nika try"
             ),
             None => "tip: this example shells out to a program this machine does not \
-                     have\n        (the ✖ line names it) — install it, or try → nika examples list"
+                     have\n        (the ✖ line names it) — install it, or browse → nika try"
                 .to_owned(),
         });
     }
@@ -235,8 +234,9 @@ mod tests {
         // FAIL on infer + no override + a local model → the right nudge.
         let tip = example_tip("01-hello", &infer, false, "ollama/llama3.1")
             .expect("the infer failure earns the offline nudge");
-        assert!(tip.contains("--model mock/echo"), "{tip}");
-        assert!(tip.contains("01-hello"), "the retry names the slug: {tip}");
+        // V5: `try` is offline by default — the rescue line is the bare
+        // command again, no `--model` flag to teach.
+        assert!(tip.contains("nika try 01-hello"), "{tip}");
         // A clean run never needs the tip.
         let ok = RunVerdict::bare(exit::OK);
         assert!(example_tip("01-hello", &ok, false, "ollama/llama3.1").is_none());
@@ -266,7 +266,7 @@ mod tests {
         let vague = failed("NIKA-EXEC-002", "spawn refused");
         let tip = example_tip("03-exec-pipeline", &vague, false, "ollama/llama3.1")
             .expect("the exec class still explains itself");
-        assert!(tip.contains("nika examples list"), "{tip}");
+        assert!(tip.contains("nika try"), "{tip}");
         assert!(!tip.contains("mock/echo"), "{tip}");
     }
 

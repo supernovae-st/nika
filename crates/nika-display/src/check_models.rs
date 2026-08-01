@@ -57,6 +57,11 @@ pub struct ModelsAudit {
     /// whose declaration carries a literal string) that resolve — named
     /// on the green line because a `--var` can swap the value at run.
     pub via_default: usize,
+    /// Models that RESOLVE but match nothing the pricing snapshot
+    /// carries for their (priced) provider — the two-strike class
+    /// (audit UX 2026-07-31: buy the key, then meet the typo). A ⚠,
+    /// never a ✖: the snapshot is dated, providers ship models weekly.
+    pub catalog_warnings: Vec<ModelFinding>,
 }
 
 impl ModelsAudit {
@@ -67,7 +72,16 @@ impl ModelsAudit {
             findings,
             unjudged,
             via_default,
+            catalog_warnings: Vec::new(),
         }
+    }
+
+    /// Attach the catalog cross-check warnings (consuming builder — the
+    /// `new()` signature stays frozen, INV-019).
+    #[must_use]
+    pub fn with_catalog_warnings(mut self, warnings: Vec<ModelFinding>) -> Self {
+        self.catalog_warnings = warnings;
+        self
     }
 }
 
@@ -147,4 +161,16 @@ pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit
         t.paint(Role::Strong, "MODELS"),
         t.paint(Role::Dim, &line)
     );
+    // The catalog cross-check rides UNDER the green line (the audit
+    // stays clean — advisory): the model resolves, the snapshot has
+    // never heard of it, and the user deserves to know BEFORE the key.
+    for w in &audit.catalog_warnings {
+        let _ = writeln!(
+            out,
+            " {} {}   {}",
+            t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+            t.paint(Role::Strong, "MODELS"),
+            w.why
+        );
+    }
 }

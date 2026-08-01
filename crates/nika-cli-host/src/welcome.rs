@@ -57,10 +57,7 @@ fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str
         // The stranger's moment: nothing here yet — see one run, then found.
         // Only ever reached behind a COMPLETE scan (the arm above).
         (0, _) => [
-            (
-                "nika examples run 01-hello --model mock/echo".to_owned(),
-                "offline proof · zero keys",
-            ),
+            ("nika try 01-hello".to_owned(), "offline proof · zero keys"),
             ("nika init".to_owned(), "found this repo (wizard)"),
             ("nika new".to_owned(), "guided first workflow"),
         ],
@@ -418,7 +415,7 @@ fn client_cell(theme: Theme, c: &crate::probe::ClientProbe) -> String {
 /// The six-line taste of the language — shown ONLY when the workspace has
 /// zero workflows (the stranger's moment; a workspace with files already
 /// knows). The SAME shape as the embedded `01-hello` example, so the
-/// START block's `nika examples run 01-hello` runs exactly what the eye
+/// START block's `nika try 01-hello` runs exactly what the eye
 /// just read — a test pins that the sample checks clean for real.
 pub const SAMPLE: &str = r#"nika: v1
 workflow:
@@ -688,10 +685,7 @@ fn binary_section(
 /// and what is measured would make the metric a lie).
 fn chat_only_moves() -> [(String, &'static str); 3] {
     [
-        (
-            "nika examples run 01-hello --model mock/echo".to_owned(),
-            "isolated · zero keys",
-        ),
+        ("nika try 01-hello".to_owned(), "isolated · zero keys"),
         (
             "cd <project> && nika welcome".to_owned(),
             "choose a project first",
@@ -816,7 +810,7 @@ fn render_chat_only_json(probe: &Probe, counts: EngineCounts) -> String {
             "templates": counts.templates,
         },
         "start": [
-            "nika examples run 01-hello --model mock/echo",
+            "nika try 01-hello",
             "cd <project> && nika welcome",
             "nika examples",
         ],
