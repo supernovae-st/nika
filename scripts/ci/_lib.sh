@@ -75,12 +75,80 @@ except Exception:
 #     by filename via `rs_prod_files` for the convention `tests.rs`.
 strip_test_items() {
   awk '
-    BEGIN { skip = 0; depth = 0; pending = 0 }
+    # Blank out string literals, char literals and comments so brace
+    # counting sees CODE only.
+    #
+    # Without this, a single `{` inside a string in a #[cfg(test)] fn
+    # never closes: `skip` stays 1 and EVERY remaining line of the file
+    # is blanked. Three ratchets read through this filter — dead-code,
+    # error-one-voice, and .unwrap(), the most-cited invariant in the
+    # house — so one stray brace in a test fixture silently exempted the
+    # rest of a file from all three. Proven 2026-08-02 on a synthetic
+    # crate: a real production `.unwrap()` counted 1 in the file and 0
+    # after stripping.
+    #
+    # State is global on purpose: strings and block comments span lines.
+    function code_only(s,   out, i, n, c, j, k, hashes, closing) {
+      out = ""
+      n = length(s)
+      i = 1
+      while (i <= n) {
+        c = substr(s, i, 1)
+        if (in_block) {
+          if (c == "*" && substr(s, i + 1, 1) == "/") { in_block = 0; i += 2 }
+          else { i++ }
+          continue
+        }
+        if (in_raw) {
+          if (c == "\"") {
+            closing = 1
+            for (k = 1; k <= raw_hashes; k++) {
+              if (substr(s, i + k, 1) != "#") { closing = 0 }
+            }
+            if (closing) { in_raw = 0; i += raw_hashes + 1; continue }
+          }
+          i++
+          continue
+        }
+        if (in_str) {
+          if (c == "\\") { i += 2; continue }
+          if (c == "\"") { in_str = 0 }
+          i++
+          continue
+        }
+        if (c == "/" && substr(s, i + 1, 1) == "/") { break }
+        if (c == "/" && substr(s, i + 1, 1) == "*") { in_block = 1; i += 2; continue }
+        if (c == "r" && (substr(s, i + 1, 1) == "\"" || substr(s, i + 1, 1) == "#")) {
+          hashes = 0
+          j = i + 1
+          while (substr(s, j, 1) == "#") { hashes++; j++ }
+          if (substr(s, j, 1) == "\"") {
+            in_raw = 1; raw_hashes = hashes; i = j + 1; continue
+          }
+        }
+        if (c == "\"") { in_str = 1; i++; continue }
+        if (c == "'"'"'") {
+          # A char literal closes; a lifetime (`'"'"'a`) never does.
+          if (substr(s, i + 1, 1) == "\\") {
+            j = i + 2
+            while (j <= n && substr(s, j, 1) != "'"'"'") { j++ }
+            if (j <= n) { i = j + 1; continue }
+          } else if (substr(s, i + 2, 1) == "'"'"'") {
+            i += 3; continue
+          }
+        }
+        out = out c
+        i++
+      }
+      return out
+    }
+    BEGIN { skip = 0; depth = 0; pending = 0; in_str = 0; in_raw = 0; in_block = 0 }
     {
+      code = code_only($0)
       if (skip) {
-        n = length($0)
+        n = length(code)
         for (i = 1; i <= n; i++) {
-          c = substr($0, i, 1)
+          c = substr(code, i, 1)
           if (c == "{") {
             depth++
           } else if (c == "}") {
@@ -92,13 +160,13 @@ strip_test_items() {
         next
       }
       if (pending) {
-        n = length($0)
+        n = length(code)
         for (i = 1; i <= n; i++) {
-          c = substr($0, i, 1)
+          c = substr(code, i, 1)
           if (c == "{") {
             depth = 1; skip = 1; pending = 0
             for (j = i + 1; j <= n; j++) {
-              c2 = substr($0, j, 1)
+              c2 = substr(code, j, 1)
               if (c2 == "{") {
                 depth++
               } else if (c2 == "}") {

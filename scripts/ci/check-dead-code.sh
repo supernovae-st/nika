@@ -36,12 +36,32 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # balance, and judge the whole block. Reports the line the block opens.
 scan_blocks() {
   awk '
-    depth == 0 && index($0, "#[") == 0 { next }
+    # Blank string contents so a bracket inside a reason ("an array [x]")
+    # cannot unbalance the depth counter and swallow the file.
+    function code_only(s,   out, i, n, c) {
+      out = ""
+      n = length(s)
+      for (i = 1; i <= n; i++) {
+        c = substr(s, i, 1)
+        if (in_str) {
+          if (c == "\\") { i++ } else if (c == "\"") { in_str = 0 }
+          continue
+        }
+        if (c == "\"") { in_str = 1; continue }
+        out = out c
+      }
+      return out
+    }
+    BEGIN { in_str = 0 }
+    # Outer `#[…]` AND inner `#![…]` — an inner attribute silences the
+    # WHOLE module, so missing it was the larger hole of the two.
+    depth == 0 && index($0, "#[") == 0 && index($0, "#![") == 0 { code_only($0); next }
     {
       if (depth == 0) { start = FNR; block = "" }
       block = block " " $0
-      n = gsub(/\[/, "[")
-      m = gsub(/\]/, "]")
+      code = code_only($0)
+      n = gsub(/\[/, "[", code)
+      m = gsub(/\]/, "]", code)
       depth += n - m
       if (depth > 0) { next }
       depth = 0

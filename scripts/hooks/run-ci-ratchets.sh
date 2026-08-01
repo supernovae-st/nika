@@ -32,6 +32,19 @@ readonly RATCHETS=(
   'adr-coverage'
 )
 
+# Four of the ratchets above (unwrap · expect · dead-code, plus hygiene's
+# error-one-voice) do not read source files directly — they read what
+# `strip_test_items` hands them. A bug in that filter does not make them
+# fail; it makes them pass QUIETLY. So the filter proves itself honest
+# BEFORE anything trusts its verdict (2026-08-02: one brace in a string
+# blanked the rest of a file, hiding a real production `.unwrap()`).
+if ! bash "${CI_DIR}/test-strip-test-items.sh" >/dev/null 2>&1; then
+  printf '[ci-ratchets] FAIL — the shared test-item filter is not honest:\n' >&2
+  bash "${CI_DIR}/test-strip-test-items.sh" >&2 || true
+  printf '[ci-ratchets] the unwrap · expect · dead-code verdicts below would be meaningless\n' >&2
+  exit 1
+fi
+
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf -- "$TMPDIR_BASE"' EXIT
 
