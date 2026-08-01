@@ -159,9 +159,18 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         Some(body) => (template.to_owned(), body, false),
         None => match crate::intent::route(template) {
             RoutingOutcome::Routed { template: name, .. } => {
-                // route only returns names from template_names() —
-                // the lookup is total; an empty body would be a pack bug
-                // surfaced as the honest unknown error, never a panic.
+                // route returns names from the WHOLE catalog (G-16: the
+                // 26 human-worded jobs used to be invisible to the one
+                // surface that takes human words) — a routed EXAMPLE
+                // lands verbatim (the take gesture · fixtures follow via
+                // the shared materializer), a routed skeleton
+                // instantiates.
+                if let Some(body) = nika_pack::example(&name) {
+                    return write_example(&name, body, dest, force);
+                }
+                // A skeleton name — the lookup is total for the template
+                // set; an empty body would be a pack bug surfaced as the
+                // honest unknown error, never a panic.
                 let Some(body) = nika_pack::template(&name) else {
                     return unknown(template);
                 };
@@ -228,14 +237,49 @@ fn clarify(intent: &str, candidates: &[String]) -> Outcome {
     if candidates.is_empty() {
         return unknown(intent);
     }
+    // The faceted top-3 (entry-doors redesign R1): each candidate names
+    // its facet + its own one-line description — recognition, not
+    // recall. A description line is the entry's OWN wording (the yaml
+    // `description:`), the closest thing to the human's sentence.
+    let rows: String = candidates
+        .iter()
+        .map(|name| {
+            let facet = crate::intent::facet_of(name).noun();
+            match description_of(name) {
+                Some(d) => format!("\n    {name}  ({facet}) — {d}"),
+                None => format!("\n    {name}  ({facet})"),
+            }
+        })
+        .collect();
     Outcome {
         text: format!(
-            "`{intent}` doesn't route confidently — closest skeletons: {}\n  hint: name one explicitly (`nika new {} <dest>.nika.yaml`) or rephrase with the job's verbs (fetch · summarize · parallel · approve…)",
-            candidates.join(" · "),
+            "`{intent}` doesn't route confidently — closest matches:{rows}\n  hint: take one by name (`nika new {}`) or rephrase with what goes in and what comes out",
             candidates.first().map_or("chain", String::as_str),
         ),
         code: codes::FILE,
     }
+}
+
+/// One line in the entry's OWN words — the yaml `description:`, clipped
+/// at 72 chars (the clarify row must stay a row).
+fn description_of(name: &str) -> Option<String> {
+    let body = nika_pack::template(name).or_else(|| nika_pack::example(name))?;
+    let line = body
+        .lines()
+        .find(|l| l.trim_start().starts_with("description:"))?;
+    let text = line
+        .split_once(':')?
+        .1
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'');
+    (!text.is_empty()).then(|| {
+        let mut short: String = text.chars().take(72).collect();
+        if text.chars().count() > 72 {
+            short.push('…');
+        }
+        short
+    })
 }
 
 /// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
@@ -473,7 +517,10 @@ fn resolve_template(intent: &str) -> WizardRoute {
     if nika_pack::template(intent).is_some() {
         return WizardRoute::Exact(intent.to_owned());
     }
-    match crate::intent::route(intent) {
+    // The wizard's corpus IS the skeleton set (its whole gesture is a
+    // file of SLOTs to fill) — it routes within it; route() itself now
+    // sees the whole catalog (G-16 · the guided door's world).
+    match crate::intent::route_skeletons(intent) {
         RoutingOutcome::Routed { template, .. } => WizardRoute::Routed(template),
         RoutingOutcome::NeedsClarification { candidates, .. } => {
             WizardRoute::Fallback { candidates }
