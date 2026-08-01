@@ -27,8 +27,21 @@ use nika_bm25::{BmIndex, BmParams};
 /// highest score a WRONG confident top match reaches is 2.033 (« relance
 /// les factures impayées… » → docker-report — the P0-1 reproduction);
 /// the lowest score of an honest route kept green is 5.479 (« scrape a
-/// website and summarize » → website-brief). 3.0 sits between.
+/// website and summarize » → website-brief). 3.0 sits between. Governs
+/// the SKELETON corpus (the wizard's world — scores are corpus-relative).
 const TAU: f64 = 3.0;
+
+/// The floor for the WHOLE-catalog corpus (49 docs — BM25 scores are
+/// IDF-relative, so each corpus earns its own floor). Measured
+/// 2026-07-31 with the `calibration_probe` (run it after any corpus
+/// change): the highest vague-utterance top score is 4.949 (« make it
+/// good » → etl-quarantine) once the contract gate has disqualified the
+/// capability mismatches (« please answer my emails » tops at
+/// model-bench 6.201 on raw rank, but the utterance requires Net and
+/// model-bench carries none); the lowest honest route is 6.220
+/// (« chase unpaid invoices every friday » → invoice-chaser). 5.5 sits
+/// between with slack both ways.
+const TAU_CATALOG: f64 = 5.5;
 
 /// The relative margin: the winner must outscore the runner-up by 1.3×.
 /// Below it the two best skeletons are a coin-flip (« compare three
@@ -510,22 +523,80 @@ fn extract(intent: &str) -> IntentContract {
     }
 }
 
-/// BM25-route a free-form intent against the embedded templates, gated by
+/// The catalog facet of one entry — where it came from decides what
+/// taking it MEANS: a job runs today, a lesson teaches, a skeleton is
+/// homework. Derived from the name (template set membership · the
+/// numbered-lesson slug convention), never hand-listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Facet {
+    /// A complete, runnable example doing a real job (the 26).
+    Job,
+    /// A numbered curriculum lesson (`01-…` · the 13).
+    Lesson,
+    /// An embedded template with `# SLOT:` lines to fill (the 10).
+    Skeleton,
+}
+
+impl Facet {
+    /// The display noun (the clarify list's facet chip).
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Job => "job",
+            Self::Lesson => "lesson",
+            Self::Skeleton => "skeleton",
+        }
+    }
+}
+
+/// The facet of a catalog name. Skeletons are the template set; a
+/// leading digit is the curriculum convention (`01-hello`); everything
+/// else in the example corpus is a job.
+pub(crate) fn facet_of(name: &str) -> Facet {
+    if nika_pack::template(name).is_some() {
+        return Facet::Skeleton;
+    }
+    if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        return Facet::Lesson;
+    }
+    Facet::Job
+}
+
+/// The WHOLE catalog the router sees (user gauntlet 2026-07-31 · G-16:
+/// the router searched the 10 skeletons while the 26 human-worded jobs
+/// — the exact matter that answers a human sentence — stayed invisible;
+/// 3 probes, 3 misses, one rage-quit adjacent). Examples first, then
+/// templates: names never collide (pinned by test) so one flat
+/// namespace routes everything.
+fn catalog_names() -> Vec<String> {
+    let mut names = nika_pack::example_slugs();
+    names.extend(nika_pack::template_names());
+    names
+}
+
+/// One catalog body by name — template or example, whichever set owns
+/// the name (disjoint by the no-collision pin).
+fn body_of(name: &str) -> Option<&'static str> {
+    nika_pack::template(name).or_else(|| nika_pack::example(name))
+}
+
+/// BM25-route a free-form intent against the embedded catalog, gated by
 /// the [`IntentContract`]: extract FIRST, then score. A candidate must
 /// carry every required capability (and none forbidden); the winner must
 /// clear [`TAU`] and outscore the runner-up by [`MARGIN`]. Anything else
 /// is a [`RoutingOutcome::NeedsClarification`] — routing below the
 /// evidence bar would be a guess (P0-1 · P0-10).
-/// Index the templates' MEANINGFUL vocabulary — verbs · tools ·
+/// Index each entry's MEANINGFUL vocabulary — verbs · tools ·
 /// structure — but STRIP `#` comments. The `# SLOT: kebab-case workflow
 /// id` scaffolding prose otherwise pollutes the index, so
 /// boilerplate/stopword queries ("slot" · "kebab" · "fill" · "the")
 /// spuriously route instead of listing the set. Real intent routes on
-/// the YAML verbs/tools + the ALIASES, not the comment prose.
+/// the YAML verbs/tools + the ALIASES, not the comment prose — and a
+/// job's `description:` line (its human wording) rides the index too:
+/// that line is exactly what a human sentence matches.
 fn build_template_index(names: &[String]) -> BmIndex {
     let mut index = BmIndex::new(BmParams::default());
     for (i, name) in names.iter().enumerate() {
-        let body = nika_pack::template(name).unwrap_or_default();
+        let body = body_of(name).unwrap_or_default();
         let meaningful: String = body
             .lines()
             .filter(|l| !l.trim_start().starts_with('#'))
@@ -541,10 +612,39 @@ fn build_template_index(names: &[String]) -> BmIndex {
     index
 }
 
+/// Route against the WHOLE catalog (jobs + lessons + skeletons) — the
+/// `nika new --from <plain words>` door (G-16: human words must see the
+/// human-worded corpus).
 pub(crate) fn route(intent: &str) -> RoutingOutcome {
+    route_impl(intent, &catalog_names(), TAU_CATALOG)
+}
+
+/// Route against the SKELETON set only — the wizard's door (its whole
+/// gesture instantiates a `# SLOT:` file, so its corpus IS the template
+/// set; the index is built on those 10 docs alone, keeping its BM25
+/// scores — and the TAU/MARGIN calibration — exactly as shipped).
+pub(crate) fn route_skeletons(intent: &str) -> RoutingOutcome {
+    route_impl(intent, &nika_pack::template_names(), TAU)
+}
+
+/// The winner's best SAME-FACET rival — the score the margin judges
+/// against. Scans the whole ranked tail, never just position 1 (found
+/// by the adversarial pass 2026-07-31: a same-facet peer hiding at
+/// position 2 behind a cross-facet runner-up made the router
+/// overconfident — it routed a coin-flip it should have clarified).
+fn best_same_facet_runner(qualified: &[(String, f64)]) -> f64 {
+    let Some((winner, _)) = qualified.first() else {
+        return 0.0;
+    };
+    qualified[1..]
+        .iter()
+        .find(|(n, _)| facet_of(n) == facet_of(winner))
+        .map_or(0.0, |(_, s)| *s)
+}
+
+fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
     let contract = extract(intent);
-    let names = nika_pack::template_names();
-    let index = build_template_index(&names);
+    let index = build_template_index(names);
 
     // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
     // an all-boilerplate query routes NOWHERE → the honest unknown · list.
@@ -573,12 +673,12 @@ pub(crate) fn route(intent: &str) -> RoutingOutcome {
 
     let ranked = index.top_k(&query, names.len());
     // The contract gate: every required capability present, every
-    // forbidden one absent (capabilities derived from the template body).
+    // forbidden one absent (capabilities derived from the entry's body).
     let qualified: Vec<(String, f64)> = ranked
         .iter()
         .filter_map(|(doc, score)| {
             let name = names.get(*doc as usize)?;
-            let caps = template_capabilities(nika_pack::template(name)?);
+            let caps = template_capabilities(body_of(name)?);
             let ok = contract
                 .required_capabilities
                 .iter()
@@ -590,7 +690,6 @@ pub(crate) fn route(intent: &str) -> RoutingOutcome {
             ok.then(|| (name.clone(), *score))
         })
         .collect();
-
     let Some((winner, s1)) = qualified.first() else {
         // The contract emptied the field — clarify with the closest RAW
         // matches so the human still sees what almost fit.
@@ -605,8 +704,17 @@ pub(crate) fn route(intent: &str) -> RoutingOutcome {
             contract,
         };
     };
-    let s2 = qualified.get(1).map_or(0.0, |(_, s)| *s);
-    if *s1 >= TAU && (s2 <= 0.0 || *s1 >= MARGIN * s2) {
+    // The margin judges COIN-FLIPS BETWEEN PEERS: two entries of the
+    // SAME facet inside the margin are interchangeable answers — the
+    // honest move is to name both. Entries of DIFFERENT facets are
+    // different KINDS of answer (the generic shape vs the concrete
+    // job), not a coin-flip: the words already ranked them, the top
+    // routes, and the clarify list stays the place cross-facet
+    // neighbours surface (entry-doors redesign R1 · G-16). On the
+    // skeleton-only corpus every pair is same-facet, so the wizard's
+    // shipped behavior is byte-identical.
+    let same_facet_runner = best_same_facet_runner(&qualified);
+    if *s1 >= tau && (same_facet_runner <= 0.0 || *s1 >= MARGIN * same_facet_runner) {
         RoutingOutcome::Routed {
             template: winner.clone(),
             score: *s1,
@@ -655,10 +763,20 @@ mod tests {
     /// - `llm_markdown_processing` — the infer-over-markdown skeletons.
     ///
     /// An unmapped class guards a FUTURE template: vacuously green today.
+    // The catalog widened to the jobs (G-16) — a class extends to a job
+    // ONLY where the class is the job's ESSENCE (og-images and
+    // competitor-radar exist to render images — a cost surprise), never
+    // where it is one incidental step (six jobs notify Slack as their
+    // LAST step; the archetype belt guards the notification skeletons,
+    // and the check-time JOURNEY line names every incidental egress
+    // before a token is spent). An unmapped entry stays the vacuous
+    // guard it always was.
     fn forbidden_templates(class: &str) -> &'static [&'static str] {
         match class {
             "docker" => &["docker-report"],
-            "image_generation" | "asset_manifest" => &["media-asset-pack"],
+            "image_generation" | "asset_manifest" => {
+                &["media-asset-pack", "competitor-radar", "og-images"]
+            }
             "items_markdown_generic" | "flat_merge" => &["fanout"],
             "send_without_approval" => &[
                 "api-upload-and-create",
@@ -740,18 +858,27 @@ mod tests {
             let dest_s = dest.to_string_lossy().into_owned();
             let out = crate::guided::run(&case.utterance, Some(&dest_s), true);
             match &outcome {
-                RoutingOutcome::Routed { .. } => {
+                RoutingOutcome::Routed { template, .. } => {
                     assert_eq!(out.code, crate::codes::OK, "{}: {}", case.id, out.text);
                     assert!(
                         dest.exists(),
-                        "{}: a confident route lands the draft",
+                        "{}: a confident route lands the file",
                         case.id
                     );
                     let lower = out.text.to_ascii_lowercase();
+                    // A routed SKELETON is a draft (SLOTs to fill) and
+                    // says so; a routed EXAMPLE lands verbatim and says
+                    // « yours now » — calling it a draft would be the
+                    // lie (the catalog widened past skeletons · G-16).
+                    let says_what_it_is = match facet_of(template) {
+                        Facet::Skeleton => lower.contains("draft"),
+                        Facet::Job | Facet::Lesson => lower.contains("yours now"),
+                    };
                     assert!(
-                        lower.contains("draft"),
-                        "{}: the message says draft: {}",
+                        says_what_it_is,
+                        "{}: the message names what landed ({:?}): {}",
                         case.id,
+                        facet_of(template),
                         out.text
                     );
                     assert!(
@@ -760,8 +887,13 @@ mod tests {
                         case.id,
                         out.text
                     );
+                    // The WORD « ready » (the readiness over-promise) —
+                    // never the substring: « already yours, kept » is
+                    // the ingredients note, not a claim.
                     assert!(
-                        !lower.contains("ready"),
+                        !lower
+                            .split(|c: char| !c.is_alphanumeric())
+                            .any(|w| w == "ready"),
                         "{}: never « ready »: {}",
                         case.id,
                         out.text
@@ -964,5 +1096,210 @@ mod tests {
         let docker = caps_of("docker-report");
         assert!(docker.contains(&Capability::Container), "{docker:?}");
         assert!(docker.contains(&Capability::FsWrite), "{docker:?}");
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::print_stdout,
+    clippy::disallowed_macros,
+    reason = "a one-shot calibration instrument: its whole output IS the printout (run with --ignored --nocapture)"
+)]
+mod calibration_probe {
+    use super::*;
+
+    #[test]
+    #[ignore = "one-shot calibration probe · run with --ignored --nocapture"]
+    fn print_catalog_scores() {
+        let names = catalog_names();
+        let index = build_template_index(&names);
+        let cases = [
+            "extract action items from meeting notes with owners and deadlines",
+            "translate my docs folder to spanish",
+            "chase unpaid invoices every friday",
+            "please answer my emails",
+            "summarize every item in parallel",
+            "an agentic loop that researches until the budget runs out",
+            "scrape a website and summarize it",
+            "fill the lines",
+            "the workflow template",
+            "make it good",
+            "do the thing properly",
+        ];
+        for intent in cases {
+            let tokens: Vec<String> = intent
+                .split(|c: char| !c.is_ascii_alphanumeric())
+                .map(str::to_ascii_lowercase)
+                .filter(|t| !t.is_empty() && !STOPWORDS.contains(&t.as_str()))
+                .collect();
+            let mut query = tokens.join(" ");
+            for token in &tokens {
+                for (word, expansions) in ALIASES {
+                    if token == *word {
+                        for e in *expansions {
+                            query.push(' ');
+                            query.push_str(e);
+                        }
+                    }
+                }
+            }
+            let ranked = index.top_k(&query, 3);
+            let row: Vec<String> = ranked
+                .iter()
+                .filter_map(|(d, s)| names.get(*d as usize).map(|n| format!("{n}={s:.3}")))
+                .collect();
+            println!("CAL · {intent} → {}", row.join(" · "));
+        }
+    }
+}
+
+#[cfg(test)]
+mod catalog_routing_laws {
+    use super::*;
+
+    /// THE LAW (RAMS-1 · G-16 · entry-doors probes 2026-07-31): the
+    /// three probes that each failed on the skeleton-only corpus (« 3
+    /// sondes, 3 échecs ») now find the job-shaped matter. The first
+    /// two route outright; the invoice probe may honestly clarify (its
+    /// runner-up is a same-facet coin-flip) but the job MUST lead the
+    /// candidates — visible either way, never the 10-skeleton dump.
+    #[test]
+    fn the_three_evidence_probes_see_the_jobs() {
+        let p1 = route("extract action items from meeting notes with owners and deadlines");
+        assert!(
+            matches!(p1, RoutingOutcome::Routed { ref template, .. } if template == "meeting-actions"),
+            "probe 1 must route to the job: {p1:?}"
+        );
+        let p2 = route("translate my docs folder to spanish");
+        assert!(
+            matches!(p2, RoutingOutcome::Routed { ref template, .. } if template == "localization-factory"),
+            "probe 2 must route to the job: {p2:?}"
+        );
+        match route("chase unpaid invoices every friday") {
+            RoutingOutcome::Routed { template, .. } => assert_eq!(template, "invoice-chaser"),
+            RoutingOutcome::NeedsClarification { candidates, .. } => assert_eq!(
+                candidates.first().map(String::as_str),
+                Some("invoice-chaser"),
+                "the job leads the clarify list: {candidates:?}"
+            ),
+        }
+    }
+
+    /// The one flat namespace the catalog rests on: no example slug may
+    /// collide with a template name (facet derivation + body lookup
+    /// both assume the sets are disjoint — a collision would shadow).
+    #[test]
+    fn catalog_names_never_collide() {
+        let templates = nika_pack::template_names();
+        for slug in nika_pack::example_slugs() {
+            assert!(
+                !templates.contains(&slug),
+                "example `{slug}` shadows a template name"
+            );
+        }
+    }
+
+    /// The facet derivation reads the catalog itself: every template is
+    /// a Skeleton, every numbered example a Lesson, everything else a
+    /// Job — and the counts match the corpus (a moved file shows up
+    /// here before it surprises the router).
+    #[test]
+    fn facets_partition_the_whole_catalog() {
+        let names = catalog_names();
+        let (mut jobs, mut lessons, mut skeletons) = (0, 0, 0);
+        for n in &names {
+            match facet_of(n) {
+                Facet::Job => jobs += 1,
+                Facet::Lesson => lessons += 1,
+                Facet::Skeleton => skeletons += 1,
+            }
+        }
+        assert_eq!(skeletons, nika_pack::template_names().len());
+        assert!(lessons >= 12, "the numbered curriculum: {lessons}");
+        assert!(jobs >= 20, "the job corpus: {jobs}");
+        assert_eq!(jobs + lessons + skeletons, names.len());
+    }
+
+    /// The wizard's world is UNTOUCHED: its route sees the skeleton set
+    /// only, so a job-shaped utterance still lands the generic skeleton
+    /// there (the SLOT gesture) while the guided door sees the catalog.
+    #[test]
+    fn the_wizard_route_stays_skeleton_only() {
+        match route_skeletons("translate my docs folder to spanish") {
+            RoutingOutcome::Routed { template, .. } => {
+                assert!(
+                    nika_pack::template(&template).is_some(),
+                    "the wizard corpus is the template set: {template}"
+                );
+            }
+            RoutingOutcome::NeedsClarification { candidates, .. } => {
+                for c in &candidates {
+                    assert!(
+                        nika_pack::template(c).is_some(),
+                        "a wizard candidate is always a skeleton: {c}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod adversarial_pass_2026_07_31 {
+    use super::*;
+
+    /// THE LAW (found adversarially): the margin's rival is the best
+    /// SAME-FACET entry anywhere in the ranked tail — never merely
+    /// position 1. A job coin-flip hiding at position 2 behind a
+    /// cross-facet skeleton must still clarify. Synthetic names lean on
+    /// the derivation itself: `chain` IS a pack template (Skeleton);
+    /// unknown non-digit names read as Jobs.
+    #[test]
+    fn the_margin_rival_is_the_best_same_facet_anywhere() {
+        let q = vec![
+            ("alpha-job".to_owned(), 10.0),
+            ("chain".to_owned(), 9.0),
+            ("beta-job".to_owned(), 8.5),
+        ];
+        assert!(
+            (best_same_facet_runner(&q) - 8.5).abs() < f64::EPSILON,
+            "the job peer at position 2 is the rival, not the skeleton at 1"
+        );
+        // No same-facet rival anywhere → 0.0 (the top routes freely).
+        let lone = vec![("alpha-job".to_owned(), 10.0), ("chain".to_owned(), 9.0)];
+        assert!(best_same_facet_runner(&lone).abs() < f64::EPSILON);
+        assert!(
+            best_same_facet_runner(&[]).abs() < f64::EPSILON,
+            "empty is calm"
+        );
+    }
+
+    /// The LIVING bounds of [`TAU_CATALOG`] (Q2 of the socratic pass):
+    /// the floor was measured against TODAY's corpus, and nothing used
+    /// to force a re-measure when the corpus moves. These two probes
+    /// ARE the bounds — a corpus change that lets a vague utterance
+    /// route (or starves the honest one below the floor plus the
+    /// contract gate) turns this red, and red here means « re-run
+    /// `calibration_probe`, re-derive `TAU_CATALOG` », never « bump the
+    /// assertion ».
+    #[test]
+    fn tau_catalog_bounds_hold_on_the_living_corpus() {
+        for vague in ["make it good", "do the thing properly"] {
+            assert!(
+                matches!(route(vague), RoutingOutcome::NeedsClarification { .. }),
+                "`{vague}` is vague and must never route — TAU_CATALOG drifted under the corpus"
+            );
+        }
+        // The honest end stays reachable: the invoice probe either
+        // routes or leads its clarify list (the probe test pins which).
+        match route("chase unpaid invoices every friday") {
+            RoutingOutcome::Routed { template, .. } => assert_eq!(template, "invoice-chaser"),
+            RoutingOutcome::NeedsClarification { candidates, .. } => {
+                assert_eq!(
+                    candidates.first().map(String::as_str),
+                    Some("invoice-chaser")
+                );
+            }
+        }
     }
 }
