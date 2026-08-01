@@ -98,7 +98,7 @@ clients:
     gaps:
       rules: "grok reads the AGENTS.md and CLAUDE.md families plus .claude/rules natively · init covers the law · .mdc stays a Cursor dialect"
       presentation: "no official xAI catalog found (recon 2026-07-30) · listing lane = awesome-grok-build (mission W1.4)"
-    wire_pending: "WireTarget::Grok lands engine-side at W1.2 · the probe activates at the first release shipping it"
+    wire: grok
     proof: "verified live 2026-07-30 · grok 0.2.117 · nika 0.106.1 · grok inspect --json lists 4 skills + 6 commands + 3 subagents + the hook file + the oracle from the plugin install (dedup vs the claude compat scan held) · grok mcp doctor --json: command found · server started 0.0s · handshake OK protocol 2025-06-18 · 9 tools discovered · fiche: integrations/grok-build/README.md"
     docs: integrations/clients/grok-build.mdx
     notes: "xAI docs verbatim: Grok automatically reads Claude Code marketplaces, plugins, skills, MCPs, agents, hooks and instruction files · project .mcp.json picked up natively · the marketplace was picked up zero-config from the machine's Claude Code settings"
@@ -193,7 +193,7 @@ clients:
     install: "workspace .agents/mcp_config.json or global ~/.gemini/config/mcp_config.json (mcpServers map · remote key serverUrl) · agy plugin import gemini migrates"
     components: {mcp: mcp-config, scaffold: init}
     class_gap: "closed-source Go binary agy · no third-party plugin loader documented · MCP + the AGENTS.md family carry the teaching"
-    wire_pending: "WireTarget::Antigravity shipped engine-side (34bb14833) · the probe activates at the first release shipping it"
+    wire: antigravity
     docs: "pending · the page ships at proven (mission W2)"
     notes: "recon 2026-07-30 [PRIMARY] + probe 2026-07-31: agy 1.1.8 installed from the inspected official script · headless demands Google OAuth before any run (browser · operator gesture) so the load proof waits at that wall · no agy mcp list — the proof is stream-json init.tools · skills read workspace .agents/skills/ · parity with gemini-cli not 1:1 at launch per Google's own post · engine main e8b1930c4: nika init writes .agents/mcp_config.json — the workspace door opens by scaffold at the next release"
 
@@ -214,7 +214,7 @@ clients:
     install: "add nika to ~/.kimi-code/mcp.json (mcpServers map · their two-level contract) · the legacy kimi-cli `kimi mcp add` subcommand does NOT exist in kimi-code"
     components: {skills: init, mcp: mcp-config}
     class_gap: "no AGENTS.md auto-load (their docs are silent · upstream asks open) · skills scan 4 tiers including project and user .agents/skills — the init-written authoring skill is discovered · MCP carries the oracle"
-    wire_pending: "WireTarget::Kimi shipped engine-side (155bd53b6) · the probe activates at the first release shipping it"
+    wire: kimi
     proof: "verified live 2026-07-31 · kimi-code 0.30.0 · nika 0.106.1 · a stream-json headless run emits tool_calls naming mcp__nika__nika_canon (the oracle loaded from ~/.kimi-code/mcp.json and CALLED) · doctor green · ACP session/new lists the init-written skills · fiche: integrations/kimi-code/README.md"
     docs: integrations/clients/kimi-code.mdx
     notes: "wave-2 recon 2026-07-31 [PRIMARY moonshotai.github.io/kimi-code] · the file is the contract, never the dead kimi-cli subcommand"
@@ -226,7 +226,7 @@ clients:
     install: "add nika to ~/.kiro/settings/mcp.json (mcpServers map · the legacy ~/.aws/amazonq/mcp.json is still read, .kiro wins)"
     components: {mcp: mcp-config}
     class_gap: "no AGENTS.md read documented (steering files are their mechanism) · MCP carries the oracle"
-    wire_pending: "WireTarget::Kiro shipped engine-side (155bd53b6) · the probe activates at the first release shipping it"
+    wire: kiro
     docs: "pending · the page ships at proven"
     notes: "wave-2 recon 2026-07-31 [PRIMARY kiro.dev + AWS docs]: Amazon Q Developer CLI rebranded to Kiro · Q frozen at 1.19.7 · end-of-support announced · license moved Apache-2.0 to AWS-IP · never ship a page teaching the q surface"
 
@@ -247,7 +247,7 @@ clients:
     install: "copilot mcp add nika -- nika mcp  (writes ~/.copilot/mcp-config.json) · the project .mcp.json shipped by the kit is read natively (cwd up to repo root) and AGENTS.md too"
     components: {mcp: mcp-config, scaffold: init}
     class_gap: "in-IDE Copilot stays covered by the VS Code page · known wart upstream: CLI says mcpServers, VS Code says servers"
-    wire_pending: "WireTarget::Copilot shipped engine-side (37f95f0de · desired matches their writer: tools ['*'] + type local) · the probe activates at the first release shipping it"
+    wire: copilot
     proof: "verified live 2026-07-31 · copilot 1.0.76 · nika 0.106.1 (the digest-verified release asset) · copilot mcp get nika answers Enabled/local/User · AND the session-level receipt: a headless copilot -p run calls the oracle and its transcript names the server — `The spec canon (MCP: nika)` — returning the 37.5KB canon"
     docs: "pending · a page ships at proven"
     notes: "wave-2/3 recon+probe [PRIMARY + on-machine]: brew cask copilot-cli · the gh-copilot extension died 2025-10-25 · their mcp --help names the workspace sources .mcp.json and .github/mcp.json — the kit interop confirmed by the binary itself"
@@ -259,7 +259,7 @@ clients:
     install: "amp mcp add nika -- nika mcp  (writes amp.mcpServers in ~/.config/amp/settings.json · global scope by default · --workspace targets .amp/settings.json, approval-gated)"
     components: {skills: init, mcp: mcp-config, scaffold: init}
     class_gap: "AGENTS.md native multi-level · skills read .agents/skills AND .claude/skills (both init-covered) · settings may be .jsonc — the engine writer hands the snippet instead of rewriting comments"
-    wire_pending: "WireTarget::Amp shipped engine-side (37f95f0de · the literal dotted amp.mcpServers key · JSONC guard) · the probe activates at the first release shipping it"
+    wire: amp
     proof_partial: "verified live 2026-07-31 · amp 0.0.1785443059 · nika 0.106.1 · amp mcp add ran, amp mcp list reads back `nika command nika mcp` from the global settings · a session-level tool call stays owed (Amp account auth = operator gesture)"
     docs: "pending · the page ships at proven"
     notes: "wave-2 recon 2026-07-31 [PRIMARY ampcode.com/manual]: their recommended lane is MCP-servers-IN-skills (an mcp.json inside the skill dir · tools hidden until the skill loads) — a kit lane worth a gated probe · SDK stream exposes mcp_servers status (deterministic proof surface)"

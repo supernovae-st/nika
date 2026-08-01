@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 695
-  aggregate_sha256: 2d0ed43fbada92a027bcbbb6c58c77230cc31bf581a5fbcdf7d240a761e4bc56
+  aggregate_sha256: f97ab60afc295f9d2df801b088a0520c466c95d66b3add4fde98ede5523f3cfe
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 127
-  aggregate_sha256: bbb3138f3c81c8c03dd3d53297e32c6745a1cbc623c5e8a43326d78f81b8a12b
+  aggregate_sha256: c1d8c153fffdf80d7eb43e7789d9f71bcbc9da43c69a7903e8bb592da3dd0691
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 29
-  aggregate_sha256: d5c876f26b640e44def1ffa7e5138852afaea22b20721b92e2bb54661af5d4b8
+  aggregate_sha256: ff124a112e5d06b4fc5c481cbc3622e14ee7fff0a14cf84c7643c971d9c02880
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored

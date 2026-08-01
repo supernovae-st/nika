@@ -241,10 +241,11 @@ mod tests {
             .filter(|c| c.wire_pending.is_some())
             .count();
         assert_eq!(cov.wire_pending, pending);
-        assert!(
-            cov.wire_pending > 0,
-            "the matrix carries pending wires today (grok · kimi · kiro · copilot · amp · antigravity)"
-        );
+        // 0.107 flipped the six pending wires (grok · kimi · kiro ·
+        // copilot · amp · antigravity) — the first release shipping
+        // their WireTargets. Zero pending is now a LEGAL state; the
+        // invariant that remains is the equality above (the coverage
+        // count never lies about the rows).
         for id in &cov.declared_not_probed {
             let row = registry
                 .clients
