@@ -249,7 +249,8 @@ fn run_in(json: bool, theme: Theme, candidate: Option<&Path>) -> VerbOutput {
             ..ContextView::legacy()
         };
         if json {
-            return VerbOutput::ok(render_chat_only_json(&probe, counts));
+            let experience = experience_block(&probe, &envelope, CHAT_ONLY_GLANCE, None);
+            return VerbOutput::ok(render_chat_only_json(&probe, counts, experience));
         }
         crate::metrics::record_if_enabled(
             crate::metrics::EventKind::ContextResolved,
@@ -277,7 +278,14 @@ fn run_in(json: bool, theme: Theme, candidate: Option<&Path>) -> VerbOutput {
         expanded_from: envelope.evidence.expanded_from.clone(),
     };
     if json {
-        return VerbOutput::ok(render_json(&probe, glance, gate.as_ref(), counts));
+        let experience = experience_block(&probe, &envelope, glance, gate.as_ref());
+        return VerbOutput::ok(render_json(
+            &probe,
+            glance,
+            gate.as_ref(),
+            counts,
+            experience,
+        ));
     }
     crate::metrics::record_if_enabled(
         crate::metrics::EventKind::ContextResolved,
@@ -808,6 +816,83 @@ fn start_section(
     );
 }
 
+/// The experience block riding `welcome --json` (additive against
+/// `welcome_version: 1`) — the FIRST consumer of the router: the same
+/// facts the concierge already proves (envelope mode · glance · the
+/// one-file gate · kit drift) fold into an [`ExperienceStateV1`], and
+/// `route()` answers with the one next action. MCP and the plugin read
+/// THIS object next — one truth, many projections, never a second
+/// ladder. Honest floors of this projection, stated not hidden:
+/// `findings` is 0 (the gate carries a verdict, not a count),
+/// paused/failed traces are the deep lens's knowledge (not folded
+/// yet), `journey` has no local persistence (always `orientation`),
+/// and `intent` is unknowable at a greeting.
+fn experience_block(
+    probe: &Probe,
+    envelope: &ContextEnvelope,
+    glance: Glance,
+    gate: Option<&RunGate>,
+) -> serde_json::Value {
+    use crate::experience::{
+        ContextEvidenceV1, ContextModeV1, ExperienceStateV1, WorkflowStateV1, route,
+    };
+    let chat_only = envelope.mode == ContextMode::ChatOnly;
+    let evidence = if chat_only {
+        ContextEvidenceV1::None
+    } else {
+        match envelope.evidence.source {
+            EvidenceSource::HostSelection => ContextEvidenceV1::HostSelection,
+            EvidenceSource::ActiveFile => ContextEvidenceV1::ActiveFile,
+            // The CLI's cwd IS the operator's explicit choice (they
+            // stood there when they called).
+            EvidenceSource::ExplicitCwd => ContextEvidenceV1::ExplicitUser,
+            EvidenceSource::None => ContextEvidenceV1::None,
+        }
+    };
+    let workflow = if chat_only {
+        WorkflowStateV1::Unknown
+    } else {
+        match (glance.workflows, gate) {
+            (0, _) if !glance.complete => WorkflowStateV1::Unknown,
+            (0, _) => WorkflowStateV1::Absent,
+            (1, Some(g)) if !g.proposable => WorkflowStateV1::Findings,
+            (1, _) => WorkflowStateV1::Clean,
+            (_, _) => WorkflowStateV1::Several,
+        }
+    };
+    let root = (!chat_only).then(|| envelope.project_root.display().to_string());
+    let writable = root
+        .as_deref()
+        .is_some_and(|r| std::fs::metadata(r).is_ok_and(|m| !m.permissions().readonly()));
+    let configured = probe.providers.iter().any(|p| !p.requires_key)
+        || probe
+            .providers
+            .iter()
+            .any(|p| p.requires_key && p.key_present);
+    let state = ExperienceStateV1 {
+        context_mode: if chat_only {
+            ContextModeV1::ChatOnly
+        } else {
+            ContextModeV1::Workspace
+        },
+        evidence,
+        root,
+        writable,
+        inventory_complete: !chat_only && glance.complete,
+        workflow,
+        workflow_path: gate.map(|g| g.path.clone()),
+        provider: if configured {
+            crate::experience::ProviderStateV1::Configured
+        } else {
+            crate::experience::ProviderStateV1::Unconfigured
+        },
+        versions_coherent: probe.kits.iter().all(|k| k.version == probe.version),
+        ..ExperienceStateV1::chat_only()
+    };
+    let action = route(&state);
+    serde_json::json!({ "state": state, "action": action })
+}
+
 /// The versioned machine mirror — additive-only (`welcome_version: 1`).
 /// Names and booleans and counts, by construction: nothing in the probe
 /// carries a value a secret could ride.
@@ -816,12 +901,13 @@ fn render_json(
     glance: Glance,
     gate: Option<&RunGate>,
     counts: EngineCounts,
+    experience: serde_json::Value,
 ) -> String {
     let moves = start_moves(glance, gate);
     let start: Vec<&str> = moves.iter().map(|(cmd, _)| cmd.as_str()).collect();
     let mut machine = probe::environment_json(probe);
     machine["config"] = serde_json::json!(probe.config_path);
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "welcome_version": 1,
         "version": probe.version,
         "machine": machine,
@@ -840,18 +926,23 @@ fn render_json(
             "templates": counts.templates,
         },
         "start": start,
-    })
-    .to_string()
+    });
+    v["experience"] = experience;
+    v.to_string()
 }
 
 /// The chat-only machine mirror — the SAME versioned envelope, minus
 /// every workspace claim (there is none to make), plus the mode and the
 /// two doors the spec allows. Additive against `welcome_version: 1`: the
 /// `context` key is the chat-only signal.
-fn render_chat_only_json(probe: &Probe, counts: EngineCounts) -> String {
+fn render_chat_only_json(
+    probe: &Probe,
+    counts: EngineCounts,
+    experience: serde_json::Value,
+) -> String {
     let mut machine = probe::environment_json(probe);
     machine["config"] = serde_json::json!(probe.config_path);
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "welcome_version": 1,
         "version": probe.version,
         "context": { "mode": "chat_only" },
@@ -872,8 +963,9 @@ fn render_chat_only_json(probe: &Probe, counts: EngineCounts) -> String {
             .iter()
             .map(|(cmd, _)| cmd.clone())
             .collect::<Vec<String>>(),
-    })
-    .to_string()
+    });
+    v["experience"] = experience;
+    v.to_string()
 }
 
 #[cfg(test)]

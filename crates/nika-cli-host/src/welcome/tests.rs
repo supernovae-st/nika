@@ -162,7 +162,13 @@ fn one_red_workflow_gets_check_never_run() {
             "no run CTA while the exact file is red: {moves:?}"
         );
     }
-    let raw = render_json(&synthetic_probe(), g, gate.as_ref(), counts());
+    let raw = render_json(
+        &synthetic_probe(),
+        g,
+        gate.as_ref(),
+        counts(),
+        serde_json::Value::Null,
+    );
     let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
     assert_eq!(v["start"][0], "nika check bad.nika.yaml", "{raw}");
     assert!(
@@ -606,6 +612,58 @@ fn ascii_theme_swaps_every_glyph() {
     }
 }
 
+/// The experience block folds the concierge's own proven facts into
+/// the router and ships state+action beside the mirror — the FIRST
+/// consumer of `route()`. The three load-bearing arcs: a clean sole
+/// workflow opens (never runs), kit drift outranks everything, and a
+/// chat-only session discovers without a scan.
+#[test]
+fn the_experience_block_routes_from_the_concierge_facts() {
+    // The same pure seam run_in rides: a named candidate resolves to a
+    // workspace envelope, `None` resolves chat-only.
+    let facts = EnvFacts {
+        evidence: EvidenceSource::ExplicitCwd,
+        ..EnvFacts::default()
+    };
+    let dir = std::env::temp_dir();
+    let workspace = context_envelope::resolve(Some(dir.as_path()), &facts);
+    assert_eq!(workspace.mode, ContextMode::Workspace);
+    let chat = context_envelope::resolve(None, &EnvFacts::default());
+    assert_eq!(chat.mode, ContextMode::ChatOnly);
+    let clean_gate = RunGate {
+        path: "wf.nika.yaml".to_owned(),
+        proposable: true,
+        priced: false,
+    };
+    let one_clean = Glance {
+        git: true,
+        workflows: 1,
+        agents_md: true,
+        complete: true,
+    };
+    let block = experience_block(&synthetic_probe(), &workspace, one_clean, Some(&clean_gate));
+    assert_eq!(block["state"]["schema_version"], 1);
+    assert_eq!(block["state"]["workflow"], "clean");
+    assert_eq!(block["action"]["action_id"], "open_workflow");
+    assert_eq!(block["action"]["nothing_has_run"], true);
+
+    // Kit drift degrades every richer move (UX107-02).
+    let mut drifted = synthetic_probe();
+    drifted.kits.push(crate::probe::KitProbe {
+        client: "cursor".to_owned(),
+        version: "0.106.0".to_owned(),
+    });
+    let block = experience_block(&drifted, &workspace, one_clean, Some(&clean_gate));
+    assert_eq!(block["state"]["versions_coherent"], false);
+    assert_eq!(block["action"]["action_id"], "align_versions");
+
+    // Chat-only: no root claim, discovery, nothing scanned.
+    let block = experience_block(&synthetic_probe(), &chat, CHAT_ONLY_GLANCE, None);
+    assert_eq!(block["state"]["context_mode"], "chat_only");
+    assert_eq!(block["state"]["root"], serde_json::Value::Null);
+    assert_eq!(block["action"]["action_id"], "discover_example");
+}
+
 #[test]
 fn json_mirror_is_versioned_additive_and_value_free() {
     let raw = render_json(
@@ -618,6 +676,7 @@ fn json_mirror_is_versioned_additive_and_value_free() {
         },
         None,
         counts(),
+        serde_json::Value::Null,
     );
     let v: serde_json::Value = serde_json::from_str(&raw).expect("welcome --json parses");
     assert_eq!(v["welcome_version"], 1);
@@ -659,7 +718,13 @@ fn a_partial_scan_never_renders_the_strangers_zero() {
         !text.contains("a whole workflow is one file"),
         "the sample is the COMPLETE stranger's moment only:\n{text}"
     );
-    let raw = render_json(&synthetic_probe(), g, None, counts());
+    let raw = render_json(
+        &synthetic_probe(),
+        g,
+        None,
+        counts(),
+        serde_json::Value::Null,
+    );
     let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
     assert_eq!(
         v["workspace"]["inventory_complete"], false,
