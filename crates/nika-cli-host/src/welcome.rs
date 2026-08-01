@@ -819,7 +819,8 @@ fn start_section(
 /// The experience block riding `welcome --json` (additive against
 /// `welcome_version: 1`) — the FIRST consumer of the router: the same
 /// facts the concierge already proves (envelope mode · glance · the
-/// one-file gate · kit drift) fold into an [`ExperienceStateV1`], and
+/// one-file gate · kit drift) fold into an
+/// [`ExperienceStateV1`](crate::experience::ExperienceStateV1), and
 /// `route()` answers with the one next action. MCP and the plugin read
 /// THIS object next — one truth, many projections, never a second
 /// ladder. Honest floors of this projection, stated not hidden:
