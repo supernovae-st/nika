@@ -82,6 +82,38 @@ need subdir-payload-cwd 'This workspace uses Nika'
 need subdir-payload-cwd "$repo_resolved"
 need subdir-payload-cwd 'payload_cwd'
 
+# 4 · a workspace path carrying a POSIX-legal control character (a
+# newline) — the envelope must stay parseable JSON, with no raw control
+# byte leaking through the interpolated root.
+EVIL="$ROOT/evil
+path"
+mkdir -p "$EVIL/.nika"
+play "$ROOT" "$(printf '{"cwd":"%s"}' "$EVIL")"
+if command -v python3 >/dev/null 2>&1; then
+  if printf '%s' "$OUT" | python3 -c 'import json,sys; json.loads(sys.stdin.read())' 2>/dev/null; then
+    pass "[control-char-path] envelope stays parseable JSON"
+  else
+    fail "[control-char-path] envelope broke on a control byte"
+  fi
+else
+  deny control-char-path "$(printf '\n')"
+fi
+
+# 5 · the no-python3 fallback: a later field echoing the text "cwd"
+# must not hijack the workspace root — the FIRST key wins.
+REALWS="$ROOT/realws"
+FAKEWS="$ROOT/fakews"
+mkdir -p "$REALWS/.nika" "$FAKEWS/.nika"
+NO_PY="$ROOT/nopy-bin"
+mkdir -p "$NO_PY"
+for tool in bash sh git sed grep tr find dirname head cat; do
+  src="$(command -v "$tool" 2>/dev/null || true)"
+  [ -n "$src" ] && ln -sf "$src" "$NO_PY/$tool"
+done
+OUT="$(cd "$ROOT" && printf '%s' "{\"cwd\":\"$REALWS\",\"note\":\"see \\\"cwd\\\": \\\"$FAKEWS\\\"\"}" | env "PATH=$NO_PY" bash "$HOOK")"
+need fallback-first-cwd "$(cd "$REALWS" && pwd)"
+deny fallback-first-cwd 'fakews'
+
 if [ "$FAILS" -gt 0 ]; then
   say "── $FAILS failure(s)"
   exit 1

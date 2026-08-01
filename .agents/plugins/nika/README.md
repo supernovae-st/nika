@@ -41,7 +41,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 
 ## The loop it teaches
 
-1. route the intent to a template (`nika new --from <name>` or the
+1. route the intent to a template (`nika new <name>` or the
    `nika_template` tool)
 2. fill every `# SLOT:` marker — touch nothing else
 3. `nika check` — findings carry `NIKA-XXXX` codes with fix hints

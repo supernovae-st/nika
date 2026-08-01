@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4292
+  classified_files: 4293
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1374
+    authored: 1375
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 59
-  aggregate_sha256: 04a7096c4943b1ea0ed570abe037d75a044b701d70e76bb877ddeca7d92ddb7e
+  aggregate_sha256: 783efae6cc22dc7ad9f864b5bad248df442905a3abf24c2f472e476bd435291d
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 694
-  aggregate_sha256: 441a566a01ef8b537cd1d0a70e70772d3cd95ace4292a549eab8400497c84c68
+  aggregate_sha256: afa3e08553f7ec021804bf0b80c03f2ecce545c6d156dd503a3c01b1549cf790
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 125
-  aggregate_sha256: 85ecc4ef566c82ac7bb1846dd8df3bc4e29ff06236bfb8324075eed8f5981dfe
+  match_count: 126
+  aggregate_sha256: bacdef25ea7ad9a43465f4c52c81509e504f44998acd36502a51a8fbb0c207a2
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,12 +178,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 99
-  aggregate_sha256: 5df4baffb4a104d77d0511de0028dbbf65818868c2384440a0afcf620c062bc7
+  aggregate_sha256: cb3509d8dd47d0165c12929d70b0bc11bfe14079853c8a0ed13e4099111c5afc
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 130
-  aggregate_sha256: 6443570c3ddbd3446d29432afd49474624e26394b86b604e4104052e52ac3733
+  aggregate_sha256: 8cfbfb858eb2ac21399ff16d5aafabc131636bebed6f36cac6c1ee4a1ac97479
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 29
-  aggregate_sha256: dd99cad627b0cc69bdce48ce7b00996ffb2ec5be371cee60a5d8b82687f43f89
+  aggregate_sha256: d5c876f26b640e44def1ffa7e5138852afaea22b20721b92e2bb54661af5d4b8
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 14b786867f543ccaba731e9c1aceff7392fc2076731618b67ee27855f27c744f
+  aggregate_sha256: 90affcec61ede0330268a3a982c12ee286bc5e5c5ef0df790eb527f664d1e664
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

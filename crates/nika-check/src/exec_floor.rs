@@ -198,12 +198,18 @@ fn push_exec_floor(action: &RawAction, id: &str, hints: &mut Vec<Hint>) {
         hints.push(Hint {
             kind: KIND,
             task: id.to_owned(),
+            // N-6 (G-24 · Lucie): the old advice also taught « route the
+            // genuine need via `pre_validated` » — a field NO author can
+            // write. It is the kernel's internal wire flag (nika-verb-exec:
+            // « `pre_validated` is NEVER set — the runner's blocklist stays
+            // the floor »), absent from the workflow schema; a user who
+            // greps for it finds nothing. A hint may only teach a route
+            // that exists: the script file IS the route.
             advice: format!(
                 "`{base}` with an inline-eval flag or subcommand is REFUSED at run time by \
                  the exec floor (the runtime parses the argv positionally, per interpreter — \
-                 this command never starts): run a script file instead, or route the genuine \
-                 need via `pre_validated` (P0-13 · the check predicts the refusal the run \
-                 would apply)"
+                 this command never starts): run a script file instead (P0-13 · the check \
+                 predicts the refusal the run would apply)"
             ),
         });
     }
@@ -242,8 +248,16 @@ mod tests {
         assert_eq!(hints[0].task, "t");
         assert!(hints[0].advice.contains("node"), "{}", hints[0].advice);
         assert!(
-            hints[0].advice.contains("pre_validated"),
-            "the sanctioned route is taught: {}",
+            hints[0].advice.contains("script file"),
+            "the real route is taught: {}",
+            hints[0].advice
+        );
+        // N-6 · the phantom-route pin: `pre_validated` is the kernel's
+        // internal wire flag, never authorable — a hint that names it
+        // sends the user grepping for a field that does not exist.
+        assert!(
+            !hints[0].advice.contains("pre_validated"),
+            "a hint may only teach a field an author can write: {}",
             hints[0].advice
         );
     }

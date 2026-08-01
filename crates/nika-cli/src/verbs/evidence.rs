@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika evidence <trace>` — the exportable evidence pack (A5): ONE
+//! `nika trace evidence <trace>` — the exportable evidence pack (A5): ONE
 //! directory an auditor takes offline and believes the run. The pack
 //! COMPUTATION lives in the forensics plane ([`nika_dap::evidence`]);
 //! this shell owns the verb seam: the enrolled-key read, the `--json`
@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use super::VerbOutput;
 
-/// The clap surface of `nika evidence` — lives here so main.rs stays
+/// The clap surface of `nika trace evidence` — lives here so main.rs stays
 /// under the 1500-line file cap (the `verbs::key::KeyAction` precedent).
 #[derive(clap::Args)]
 pub struct EvidenceArgs {
@@ -31,7 +31,7 @@ pub struct EvidenceArgs {
     pub json: bool,
 }
 
-/// `nika evidence <trace>` — export the pack. The enrolled-key set is
+/// `nika trace evidence <trace>` — export the pack. The enrolled-key set is
 /// the machine's own custody ([`nika_dap::evidence::candidate_pubkeys`]).
 #[must_use]
 pub fn export(trace: &str, out: Option<&Path>, workflow: Option<&str>, json: bool) -> VerbOutput {

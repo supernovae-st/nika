@@ -671,7 +671,7 @@ where
         let retries = acc.retries;
         let agent_events = acc.agent_events;
         let mut ran = RanTask {
-            note: format!("for_each · {total} items"),
+            note: fan_out::fan_note(total, acc.recovered),
             retries,
             agent_events,
             decisions: acc.decisions,

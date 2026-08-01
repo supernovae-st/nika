@@ -81,6 +81,15 @@ pub(super) fn unresolvable_models(
                 .catalog_warnings
                 .push(ModelFinding::new(m.model.clone(), m.tasks.clone(), why));
         }
+        // The sister law, same home (audit UX 2026-07-31): a model that
+        // RESOLVES but matches nothing the snapshot prices for its
+        // provider warned nobody — the user bought the key, then met
+        // the typo. Advisory beside the green line, never a finding.
+        if let Some(why) = nika_providers::catalog_warning(judged) {
+            audit
+                .catalog_warnings
+                .push(ModelFinding::new(m.model.clone(), m.tasks.clone(), why));
+        }
     }
     audit
 }

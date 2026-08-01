@@ -272,7 +272,7 @@ pub fn example(slug: &str) -> Option<&'static str> {
 
 /// Every file under `examples/fixtures/` — (path relative to
 /// `examples/fixtures/`, raw bytes; photos are binary). The ingredients
-/// `examples copy` delivers beside a recipe that reads them (gauntlet
+/// a take (`nika new <slug>`) delivers beside a recipe that reads them (gauntlet
 /// 2026-07-31: the recipe without its ingredients was the one
 /// rage-quit — its own header taught an offline run that died on
 /// NIKA-BUILTIN-READ-001).

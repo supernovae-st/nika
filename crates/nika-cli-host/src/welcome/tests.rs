@@ -110,11 +110,7 @@ fn start_moves_key_on_the_workspace_state() {
         proposable: true,
         priced: false,
     };
-    assert!(
-        start_moves(g(0, false), None)[0]
-            .0
-            .contains("examples run 01-hello")
-    );
+    assert!(start_moves(g(0, false), None)[0].0.contains("try 01-hello"));
     assert_eq!(start_moves(g(2, false), None)[0].0, "nika init");
     // FLIP (P0-3 · audit UX 2026-07-30): this line pinned « 1 workflow
     // + AGENTS.md → nika run head » with NO verdict — the finding's
@@ -364,9 +360,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
     bare.providers[2].readiness.configured = false;
     let installed = render_human(&bare, glance, None, counts(), plain());
     assert!(
-        installed.contains(
-            "state      installed · no inference path — proof → nika examples run 01-hello"
-        ),
+        installed.contains("state      installed · no inference path — proof → nika try 01-hello"),
         "Installed routes to the offline proof:\n{installed}"
     );
 
