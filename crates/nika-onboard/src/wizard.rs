@@ -123,7 +123,7 @@ fn converse(
             theme,
             RECIPES.len() + 1,
             "example",
-            "start from one example — any slug from `nika examples list`",
+            "start from one example — any slug from bare `nika try`",
         )
     )?;
     let Some((recipe, example)) = ask_blueprint(input, out, theme)? else {
@@ -511,7 +511,7 @@ fn ask_example_slug(
         out,
         theme,
         &format!("example slug {}", theme.paint(Role::Dim, "[01-hello]")),
-        "any slug from `nika examples list`",
+        "any slug from bare `nika try`",
         |raw| {
             let slug = raw.trim();
             if nika_pack::example(slug).is_some() {

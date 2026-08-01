@@ -28,7 +28,7 @@ pub(crate) struct InitArgs {
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(verbs::init::RECIPE_NAMES))]
     recipe: Option<String>,
     /// Found the project from ONE embedded example (verbatim — any slug
-    /// from `nika examples list`). One founding source: conflicts with
+    /// from bare `nika try`). One founding source: conflicts with
     /// `--recipe`.
     #[arg(long, value_name = "SLUG", conflicts_with = "recipe")]
     example: Option<String>,

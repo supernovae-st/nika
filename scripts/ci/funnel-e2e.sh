@@ -37,7 +37,7 @@ run() { # run <name> <expected-exit> -- cmd...
     return 1
   fi
 }
-need() { printf '%s' "$OUT" | grep -qF "$2" || fail "[$1] missing: $2"; }
+need() { printf '%s' "$OUT" | grep -qF -- "$2" || fail "[$1] missing: $2"; }
 
 # A taught/promised verb must EXIST — listed in the tree OR deliberately
 # hidden (the hook verbs: `guard` rides the wired shims, hidden from the
@@ -53,7 +53,7 @@ need welcome "start here"
 for c in $(printf '%s' "$OUT" | grep -oE '→ nika [a-z-]+' | awk '{print $3}' | sort -u); do
   has_cmd "$c" || fail "[welcome] promises 'nika $c' — clap tree lacks it"
 done
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika examples run [a-z0-9-]+ --model mock/echo' | head -1)
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika try [a-z0-9-]+' | head -1)
 [ -n "$FIRST" ] || fail "[welcome] no offline first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
@@ -64,11 +64,13 @@ OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb OPENAI_API_KEY=sk-CAN
 printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leaked"
 
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
-run new-from 0 -- "$BIN" new --from chain first.nika.yaml
+run new-from 0 -- "$BIN" new chain first.nika.yaml
 [ -f first.nika.yaml ] || fail "[new] no file created"
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"
 need check "[inputs]" # the scaffold's input trap is taught BEFORE the run
+need check "risk "    # the risk rung names the autonomy class on the verdict line
+need check "JOURNEY"  # the data journey rung renders on every audit
 # Provision the input the scaffold DECLARES (./README.md since the
 # pack-SSOT era · ./input.txt before) — the funnel plays the file,
 # it never assumes the era.
@@ -136,6 +138,15 @@ need guard-dirty '"permission":"deny"'
 need guard-dirty 'NIKA-SEC-014'
 run consent-check 2 -- "$BIN" check consent-dirty.nika.yaml
 need consent-check 'NIKA-SEC-014'
+# The affirmative twin: a default-less confirm whose answer IS gated
+# (NEP-0020's human-gated-ship) pauses headless instead of dying — the
+# first-run-killer class. exit 4 + the taught resume line, never a
+# bare refusal.
+# shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
+printf 'nika: v1\nworkflow:\n  id: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika.yaml
+run consent-run 4 -- "$BIN" run consent-pause.nika.yaml
+need consent-run '--resume'
+need consent-run '--answer'
 mkdir -p "$HOME_DIR/.cursor" && printf '{}' >"$HOME_DIR/.cursor/mcp.json"
 BEFORE=$(find "$HOME_DIR" -type f | sort)
 run wire-dry 0 -- "$BIN" wire detected --dry-run

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika new --from <template|intent> <dest>` — instantiate one of the
+//! `nika new <template|intent> <dest>` — instantiate one of the
 //! embedded skeletons (spec §2). Refuses to overwrite (the human keeps
 //! the hand); `--force` is the explicit override. The written file is
 //! the template VERBATIM — slots stay visible so the author fills them
@@ -81,6 +81,34 @@ pub fn dispatch(
     audit: &Audit<'_>,
 ) -> Outcome {
     match from {
+        // The third door (V5 grammar): a lone `<name>.nika.yaml` that
+        // resolves to NO embedded example names a DESTINATION, not a
+        // source — the extension is the tell. A terminal gets the wizard
+        // with the given name as the file default; a pipe gets the
+        // honest pointer (never a silent intent-route on a filename).
+        Some(f)
+            if dest.is_none() && f.ends_with(".nika.yaml") && nika_pack::example(f).is_none() =>
+        {
+            if interactive() {
+                let stdin = std::io::stdin();
+                wizard_io(
+                    ".",
+                    Some(f),
+                    force,
+                    theme,
+                    &mut stdin.lock(),
+                    &mut std::io::stdout(),
+                    audit,
+                )
+            } else {
+                Outcome {
+                    text: format!(
+                        "`{f}` names a destination — say what it should DO: nika new \"<intent>\" {f}"
+                    ),
+                    code: codes::FILE,
+                }
+            }
+        }
         Some(f) => run(f, dest, force),
         None if interactive() => {
             let stdin = std::io::stdin();
@@ -96,7 +124,7 @@ pub fn dispatch(
         }
         None => Outcome {
             text: format!(
-                "nothing to scaffold — pass --from <template|intent> (`nika new --from '?'` lists the set)\nembedded set: {}",
+                "nothing to scaffold — pass an intent or a template name (`nika new '?'` lists the set)\nembedded set: {}",
                 nika_pack::template_names().join(" · ")
             ),
             code: codes::FILE,
@@ -122,8 +150,8 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // ONE resolution ladder for ONE intention («a file of mine») with two
     // sources: template skeletons (SLOTs to fill) and complete examples
     // (lessons, verbatim). Exact names first — templates, then examples
-    // (slug or filename) — then plain-words intent. `nika examples copy`
-    // stays the showroom-side handle of the same gesture.
+    // (slug or filename) — then plain-words intent. The showroom side
+    // (`nika try <slug>`) runs the same corpus without taking it.
     if let Some(body) = nika_pack::example(template) {
         return write_example(template, body, dest, force);
     }
@@ -148,11 +176,11 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // `--from '?'` (or any unknown) discovery query already returned above
     // WITHOUT touching `dest` — that is the editor-integration wire
     // contract (`unknown()`), so listing the set must not require a dummy
-    // path (the help promises `nika new --from '?'` works bare).
+    // path (the help promises `nika new '?'` works bare).
     let Some(dest) = dest else {
         return Outcome {
             text: format!(
-                "template `{name}` resolved — pass a destination: nika new --from {template} <dest>.nika.yaml"
+                "template `{name}` resolved — pass a destination: nika new {template} <dest>.nika.yaml"
             ),
             code: codes::ENV,
         };
@@ -202,7 +230,7 @@ fn clarify(intent: &str, candidates: &[String]) -> Outcome {
     }
     Outcome {
         text: format!(
-            "`{intent}` doesn't route confidently — closest skeletons: {}\n  hint: name one explicitly (`nika new --from {} <dest>.nika.yaml`) or rephrase with the job's verbs (fetch · summarize · parallel · approve…)",
+            "`{intent}` doesn't route confidently — closest skeletons: {}\n  hint: name one explicitly (`nika new {} <dest>.nika.yaml`) or rephrase with the job's verbs (fetch · summarize · parallel · approve…)",
             candidates.join(" · "),
             candidates.first().map_or("chain", String::as_str),
         ),
@@ -231,9 +259,29 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
             code: codes::ENV,
         };
     }
+    let ingredients = match crate::fixtures::materialize(body, Path::new(dest)) {
+        Ok((0, 0)) => String::new(),
+        Ok((written, kept)) => {
+            let kept_note = if kept > 0 {
+                format!(" · {kept} already yours, kept")
+            } else {
+                String::new()
+            };
+            format!(
+                "\n  examples/fixtures · {written} file{} (the recipe's ingredients){kept_note}",
+                if written == 1 { "" } else { "s" },
+            )
+        }
+        Err(e) => {
+            return Outcome {
+                text: format!("cannot write a fixture beside {dest}: {e}"),
+                code: codes::ENV,
+            };
+        }
+    };
     Outcome {
         text: format!(
-            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`",
+            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`{ingredients}",
             q = shell_quote(dest)
         ),
         code: codes::OK,
@@ -241,12 +289,12 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
 }
 
 /// The unknown-template finding. The `embedded set:` line is a WIRE
-/// CONTRACT — editor integrations probe `nika new --from '?'` and parse
+/// CONTRACT — editor integrations probe `nika new '?'` and parse
 /// the set from exactly this shape; never reword it.
 fn unknown(template: &str) -> Outcome {
     Outcome {
         text: format!(
-            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, describe the job with its verbs (fetch · summarize · parallel · approve…), or pass an example slug from `nika examples list`",
+            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, describe the job with its verbs (fetch · summarize · parallel · approve…), or pass an example slug from `nika try`",
             nika_pack::template_names().join(" · ")
         ),
         code: codes::FILE,
@@ -266,10 +314,10 @@ fn discovery() -> Outcome {
     }
     let _ = write!(text, "\nembedded set: {}", names.join(" · "));
     text.push_str(
-        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new --from 01-hello my-hello.nika.yaml    # any slug from `nika examples list`",
+        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new 01-hello my-hello.nika.yaml    # any slug from `nika try`",
     );
     text.push_str(
-        "\n\ntry ·\n  nika new --from chain my-first.nika.yaml\n  nika new --from \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
+        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
     );
     Outcome {
         text,
@@ -794,7 +842,7 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme, audit: &Audit<
         "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render (mock is offline · $0.00)\n\n{}",
         theme.paint(
             Role::Dim,
-            &format!("scriptable form · nika new --from {} {q}", w.template)
+            &format!("scriptable form · nika new {} {q}", w.template)
         ),
     );
     Outcome {

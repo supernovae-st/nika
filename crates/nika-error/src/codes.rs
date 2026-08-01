@@ -437,7 +437,7 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              exits (pick one):\n    \
              · see what IS there:          ls <the path's parent>\n    \
              · run beside the file:        cd <the workflow's dir> && nika run <file>\n    \
-             · an example's ingredients:   `nika examples copy <slug>` lands its \
+             · an example's ingredients:   `nika new <slug>` lands its \
              `examples/fixtures/` files beside the recipe.\n",
         ),
         ("prompt", "001") => Some(
@@ -504,7 +504,13 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              · the effect was NOT intended — then the boundary just did \
              its job; the refusal is the feature, not the failure.\n\n  \
              Never widen to a root `**` to silence the message — the \
-             tightest grant that covers the body is the whole point.\n",
+             tightest grant that covers the body is the whole point.\n\n  \
+             And a green `check` was never this refusal's promise: check \
+             judges the LITERAL shape — a computed path (a glob result · \
+             an interpolated binding) is judged HERE, at run. Two tools \
+             over one tree may need two grants (the walker wants the \
+             directory · the reader wants the files: `[\"./dir\", \
+             \"./dir/*\"]`).\n",
         ),
         _ => None,
     }
@@ -542,7 +548,7 @@ mod tests {
     fn prompt_001_explain_teaches_the_contract_and_its_exits() {
         let read = namespace_help("NIKA-BUILTIN-READ-001", "docs").expect("teaches");
         assert!(
-            read.contains("RUN's working directory") && read.contains("examples copy"),
+            read.contains("RUN's working directory") && read.contains("nika new"),
             "READ-001 carries the contract lesson (gauntlet 2026-07-31): {read}"
         );
         let help = namespace_help("NIKA-BUILTIN-PROMPT-001", "docs").expect("teaches");
@@ -598,6 +604,12 @@ mod tests {
             "permits.tools",
             "the refusal is the feature",
             "Never widen to a root `**`",
+            // V7-2 (wave-3 · 4 personas): the check⊥run split taught at
+            // the moment of refusal — a green check never promised the
+            // computed paths, and two tools over one tree may need two
+            // grants (the Marta read/glob whack-a-mole).
+            "judged HERE, at run",
+            "two grants",
         ] {
             assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
         }

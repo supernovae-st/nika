@@ -189,7 +189,7 @@ pub(crate) fn scaffold_example(
         return vec![(
             dest,
             ScaffoldStatus::Failed(format!(
-                "unknown example `{slug}` — `nika examples list` names the embedded set"
+                "unknown example `{slug}` — bare `nika try` names the embedded set"
             )),
         )];
     };

@@ -190,16 +190,17 @@ fn no_model_skeleton_completes_in_two_answers() {
 
 #[test]
 fn dest_hint_door_honors_the_given_name() {
-    // The third door: `nika new some-name.nika.yaml` bare on a terminal —
-    // a dest but no --from. The wizard runs with the GIVEN name as the
-    // file default (dispatch passes it as dest_hint), so Enter keeps it.
+    // The third door (V5 grammar): `nika new some-name.nika.yaml` bare on
+    // a terminal — the extension marks a DESTINATION, not an intent. The
+    // wizard runs with the GIVEN name as the file default, Enter keeps it.
     let dir = fresh_dir("hint");
     let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new", "team-standup"], true);
+    let mut p = spawn_pty(dir, &["new", "team-standup.nika.yaml"], true);
 
     p.expect("what should it do?").expect("q1");
     p.send_line("").expect("enter");
-    p.expect("[team-standup]").expect("the hint IS the default");
+    p.expect("[team-standup.nika.yaml]")
+        .expect("the hint IS the default");
     p.send_line("").expect("enter");
     p.expect("a number, or any provider/model").expect("q3");
     p.send_line("").expect("enter");

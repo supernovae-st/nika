@@ -12,8 +12,10 @@ structure; you instantiate it, then let the checker teach you.
 ## The protocol (follow exactly)
 
 0. **Read two examples. Before anything else, every time.**
-   `nika examples list`, then `nika examples show <slug>` twice: the one
-   matching the intent, then the one covering what the first did not.
+   Bare `nika try` names the shelf, then take two — `nika new <slug>`
+   twice (the taken file IS the lesson; the `nika_examples` MCP tool
+   reads one without taking it): the one matching the intent, then the
+   one covering what the first did not.
    This is step zero because it was measured on 2026-07-28: six authors
    writing from intent with the skill loaded took 45 check→fix rounds
    between them (7.5 mean · 11 worst · none green one-shot), and the one
@@ -22,14 +24,14 @@ structure; you instantiate it, then let the checker teach you.
    `permits:` · how the last task writes the artifact. The routing table
    from intent to slug lives in the `nika-authoring` skill.
 1. **Route.** Match the intent to a template
-   (`nika_template` MCP tool, or `nika new --from <name>`):
+   (`nika_template` MCP tool, or `nika new <name>`):
    chain (take data, produce words, save them) · gate-and-act (watch X,
    act when Y) · fanout (do this for EVERY item) · etl-state (only what
    changed) · agent-loop (research, open-ended) · human-gated-ship
    (anything irreversible) · website-brief · media-asset-pack ·
    api-upload-and-create · docker-report. Composite jobs compose
    templates; start from the OUTER shape. The LIVING list (this one can
-   age): `nika new --from '?'` prints the embedded set.
+   age): `nika new '?'` prints the embedded set.
 2. **Instantiate.** Copy the template whole. Fill every `# SLOT:`
    marker. Touch nothing else.
 3. **Check.** Run `nika check --native-strict <file>` (or the

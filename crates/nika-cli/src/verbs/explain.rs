@@ -93,12 +93,33 @@ fn canon_row(code: &str) -> Option<String> {
         .unwrap_or_default();
     Some(format!(
         "{code} · {category} · transient: {transient}\n\n  {failure}\n{lesson}\n{fix}\
-         full docs: https://nika.sh/errors/{code} — `nika check` catches \
-         this before a run ever starts.\n",
+         full docs: https://nika.sh/errors/{code} — {closer}\n",
         category = row.category,
         transient = row.transient,
         failure = row.failure,
+        closer = closer_line(code),
     ))
+}
+
+/// The canon row's closing claim — TRUE per code class (V7-2 · wave-3:
+/// four personas read « `nika check` catches this before a run ever
+/// starts » under a refusal that check CANNOT catch — a computed path
+/// is the run's to judge — and Marta « stopped running check at all »).
+/// A teaching surface must never promise more than the judge checked.
+fn closer_line(code: &str) -> &'static str {
+    match code {
+        // The boundary refusals: check judges the LITERAL shape (a
+        // written path · a `const:`-resolved arg); a computed path (a
+        // glob result · an interpolated binding · an upstream output)
+        // is judged at RUN — measured: a dir-only grant checked
+        // `✔ PERMITS`, then every per-item read died SEC-004.
+        "NIKA-SEC-004" => {
+            "`nika check` catches the LITERAL shape before a run; a \
+             computed path (a glob result · an interpolated binding) is \
+             judged at RUN — a green PERMITS is not its promise."
+        }
+        _ => "`nika check` catches this before a run ever starts.",
+    }
 }
 
 /// The retirement teaching for a conformance code the canon table no
@@ -276,6 +297,34 @@ mod tests {
         let out = run("NIKA-440");
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("NIKA-440"));
+    }
+
+    /// V7-2 (wave-3 · 4 personas · Priya BLOCKER): the closing claim is
+    /// TRUE per code class. SEC-004's closer stops promising what check
+    /// cannot judge (a computed path is the run's) — Marta read the old
+    /// line under a green-check-red-run pair and « stopped running check
+    /// at all ». A statically-caught class keeps the strong closer.
+    #[test]
+    fn the_closer_never_promises_more_than_the_judge_checked() {
+        let sec = run("NIKA-SEC-004");
+        assert_eq!(sec.code, exit::OK);
+        assert!(
+            !sec.text.contains("catches this before a run ever starts"),
+            "the over-claim is gone from the run-judged class:\n{}",
+            sec.text
+        );
+        assert!(
+            sec.text.contains("judged at RUN") && sec.text.contains("not its promise"),
+            "the honest split is taught:\n{}",
+            sec.text
+        );
+        let dag = run("NIKA-DAG-002");
+        assert_eq!(dag.code, exit::OK);
+        assert!(
+            dag.text.contains("catches this before a run ever starts"),
+            "a statically-caught class keeps its strong closer:\n{}",
+            dag.text
+        );
     }
 
     #[test]

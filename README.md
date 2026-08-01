@@ -43,8 +43,8 @@ Yes.
 
 ```sh
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
-nika examples run 01-hello --model mock/echo            # zero setup: no key, no model server
-nika examples run 01-hello --model ollama/llama3.2:3b   # got Ollama? the same run, real + local
+nika try 01-hello                                # zero setup: no key, no model server
+nika try 01-hello --model ollama/llama3.2:3b     # got Ollama? the same run, real + local
 # (first run loads the model into memory; later runs are much faster)
 ```
 
@@ -271,25 +271,25 @@ The living map: [nika.sh/map](https://nika.sh/map).
 ## Pick a workflow
 
 The binary embeds a versioned pack of runnable examples. Browse with
-`nika examples list`, read one with `nika examples show <slug>`, preview any
+bare `nika try`, take one with `nika new <slug>` (the file is the read), preview any
 of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
-| Review a PR before merging | `nika examples run pr-review-fanout` | developers |
-| Turn meeting notes into owned actions | `nika examples run meeting-actions` | everyone |
-| Digest a week of standups | `nika examples run standup-digest` | teams |
-| Draft release notes from commits | `nika examples run release-notes` | maintainers |
-| Triage a support inbox | `nika examples run support-triage` | support · ops |
-| Chase unpaid invoices politely | `nika examples run invoice-chaser` | founders |
-| Track competitors weekly | `nika examples run competitor-radar` | founders |
-| Screen resumes against a role | `nika examples run resume-screener` | hiring |
-| Build a Monday operating brief | `nika examples run ceo-monday-brief` | founders |
+| Review a PR before merging | `nika try pr-review-fanout` | developers |
+| Turn meeting notes into owned actions | `nika try meeting-actions` | everyone |
+| Digest a week of standups | `nika try standup-digest` | teams |
+| Draft release notes from commits | `nika try release-notes` | maintainers |
+| Triage a support inbox | `nika try support-triage` | support · ops |
+| Chase unpaid invoices politely | `nika try invoice-chaser` | founders |
+| Track competitors weekly | `nika try competitor-radar` | founders |
+| Screen resumes against a role | `nika try resume-screener` | hiring |
+| Build a Monday operating brief | `nika try ceo-monday-brief` | founders |
 
 The full gallery, every workflow sha256-pinned and proven in CI, lives in
 [`examples/`](examples/): foundation patterns, business showcases, and the
-skeletons `nika new --from <template>` instantiates (`nika examples` and
-`nika new --from '?'` list the live shelves).
+skeletons `nika new <template>` instantiates (bare `nika try` and
+`nika new '?'` list the live shelves).
 
 Shared workflows live on [**nika-registry**](https://github.com/supernovae-st/nika-registry):
 every entry pinned to a full commit + sha256 and re-proven by CI (the
@@ -476,8 +476,8 @@ key, then see what's wired:
 nika doctor                  # provider keys + local servers, with the exact fix
 nika init                    # schema wiring + AGENTS.md for this repo
 nika wire cursor             # explicit MCP wiring · also: vscode · windsurf · claude · codex · zed · all
-nika examples list           # browse the embedded examples
-nika examples run 01-hello --model ollama/llama3.2:3b   # a real local run
+nika try                     # browse the embedded examples
+nika try 01-hello --model ollama/llama3.2:3b     # a real local run
 ```
 
 From source (contributors): `git clone https://github.com/supernovae-st/nika.git && cd nika && cargo test --workspace --lib`. End-user docs: [docs.nika.sh](https://docs.nika.sh).
@@ -561,7 +561,7 @@ each with one job:
 | [nika-estate](https://github.com/supernovae-st/nika-estate) | the estate law: every file is authored bytes or a proven derivation, sealed and anchored |
 
 Examples live right here: [`examples/`](examples/), the embedded
-gallery (`nika examples list` shows the same shelf from the binary).
+gallery (bare `nika try` shows the same shelf from the binary).
 
 **Building Nika?** The engine is crafted under a strict workspace discipline:
 context-window-sized crates, a per-crate admission checklist, zero `.unwrap()`
