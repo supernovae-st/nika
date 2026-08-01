@@ -1,7 +1,7 @@
 ---
 name: nika-author
 description: Writes and repairs .nika.yaml workflows with the deterministic authoring protocol. Use when the user wants repeatable AI work turned into a workflow file, asks for a .nika.yaml, or a nika check must pass. Routes intent to a template, fills the SLOT markers, then loops nika check until rc=0. Its craft is WRITING — running belongs to the conversation (the main agent, capped and asked), never to an authoring subagent.
-readonly: true
+tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 # nika-author · the workflow author
