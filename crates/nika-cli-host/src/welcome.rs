@@ -215,9 +215,33 @@ const CHAT_ONLY_GLANCE: Glance = Glance {
 /// root (the evidence carries the subdir alongside, so the row shows
 /// both).
 fn root_label(envelope: &ContextEnvelope) -> String {
-    match (&envelope.evidence.expanded_from, &envelope.git_root) {
+    let full = match (&envelope.evidence.expanded_from, &envelope.git_root) {
         (Some(_), Some(root)) => root.display().to_string(),
         _ => envelope.display_path.clone(),
+    };
+    under_home(&full)
+}
+
+/// Abbreviate a path under the home directory to `~/…`.
+///
+/// A path is the one field on this screen whose width belongs to the
+/// person. Truncating it would be a lie about where they are, so the
+/// only honest shortening is the one the shell itself understands:
+/// `~` is lossless — it pastes back — and it keeps the operator's
+/// account name off a screen people paste into issues.
+fn under_home(path: &str) -> String {
+    let Some(home) = probe::home_dir() else {
+        return path.to_owned();
+    };
+    let home = home.to_string_lossy();
+    let home = home.trim_end_matches('/');
+    if home.is_empty() {
+        return path.to_owned();
+    }
+    match path.strip_prefix(home) {
+        Some("") => "~".to_owned(),
+        Some(rest) if rest.starts_with('/') => format!("~{rest}"),
+        _ => path.to_owned(),
     }
 }
 
@@ -499,15 +523,80 @@ fn identity_section(s: &mut String, probe: &Probe, theme: Theme) {
     let _ = writeln!(s);
 }
 
+/// The hanging indent under `  editors    ` — continuation rows and the
+/// wire handle line both sit under the label, never under the margin.
+const EDITOR_HANG: &str = "             ";
+
+/// Pack the client cells into rows that stay inside 80 display columns.
+///
+/// The roster is NOT a constant. Six hosts ship today, the registry
+/// already names a seventh, and every addition silently widened this
+/// row: on a real machine it measured **112 columns** under a published
+/// 0.107.0 — a third of the line hanging off an 80-column terminal. The
+/// ratchet that should have caught it was measuring a four-host fixture
+/// the binary stopped matching two hosts ago (the same drift its own
+/// doc comment records having learned once already, for providers).
+///
+/// So this measures instead of assuming, and it measures the PLAIN
+/// width (`id` + space + one mark glyph) — the painted cell carries
+/// zero-width escapes that would make a colour terminal wrap early.
+fn editor_rows(probe: &Probe, theme: Theme) -> Vec<String> {
+    let cells: Vec<(usize, String)> = probe
+        .clients
+        .iter()
+        .map(|c| (c.id.chars().count() + 2, client_cell(theme, c)))
+        .collect();
+    pack_cells(&cells)
+}
+
+/// The shared column budget. Eighty is the one terminal width nobody
+/// configures, so it is the one every row has to survive.
+const LIMIT: usize = 80;
+
+/// Pack `(plain_width, painted)` cells into rows that fit under a
+/// 13-column label with a matching hanging indent.
+///
+/// Every caller here renders a list whose length is DATA, not a
+/// constant — the host roster, the drifted kits — and a row that
+/// assumes its data is short is a row that breaks on somebody else's
+/// machine. The width is taken from the plain text because the painted
+/// cell carries zero-width escapes.
+fn pack_cells(cells: &[(usize, String)]) -> Vec<String> {
+    let hang = EDITOR_HANG.chars().count();
+    let mut rows: Vec<String> = Vec::new();
+    let mut row = String::new();
+    let mut used = hang;
+    for (plain, painted) in cells {
+        if !row.is_empty() && used + 3 + plain > LIMIT {
+            rows.push(std::mem::take(&mut row));
+            used = hang;
+        }
+        if !row.is_empty() {
+            row.push_str(" · ");
+            used += 3;
+        }
+        row.push_str(painted);
+        used += plain;
+    }
+    // An empty list still owns its label row — the mirror shows an
+    // empty cell, it never lets the label vanish.
+    if rows.is_empty() || !row.is_empty() {
+        rows.push(row);
+    }
+    rows
+}
+
 /// The machine half of the mirror — editors · local · keys · the P0-14
 /// session row ([`session_row`]).
 fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextView, theme: Theme) {
     let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this machine"));
-    let editors: Vec<String> = probe
-        .clients
-        .iter()
-        .map(|c| client_cell(theme, c))
-        .collect();
+    for (i, row) in editor_rows(probe, theme).iter().enumerate() {
+        let _ = writeln!(
+            s,
+            "{}{row}",
+            if i == 0 { "  editors    " } else { EDITOR_HANG }
+        );
+    }
     let unwired: Vec<&str> = probe
         .clients
         .iter()
@@ -515,33 +604,20 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextV
         .map(|c| c.id.as_str())
         .collect();
     // H7 (audit UX 2026-07-30): never recommend `wire all` — one named
-    // host, one consented mutation at a time.
-    //
-    // ONE unwired host fits inline. SEVERAL do not: a fresh machine
-    // shows four ✗, and list + command + count measured 92 columns (the
-    // 80-col test caught the overflow the same minute it was written).
-    // The count still has to be spoken — one handle standing behind
-    // three gaps reads as one gap (gauntlet 08-01) — so it takes its
-    // own line instead of shrinking into a token nobody parses.
-    let inline = match unwired.split_first() {
-        Some((first, [])) => theme.paint(Role::Dim, &format!("   → nika wire {first}")),
-        _ => String::new(),
-    };
-    let _ = writeln!(s, "  editors    {}{}", editors.join(" · "), inline);
-    if let Some((first, rest)) = unwired.split_first()
-        && !rest.is_empty()
-    {
-        let _ = writeln!(
-            s,
-            "             {}",
-            theme.paint(
-                Role::Dim,
-                &format!(
-                    "{} unwired · one command each → nika wire {first}",
-                    unwired.len()
-                ),
+    // host, one consented mutation at a time. The handle takes its own
+    // line unconditionally: hanging it off the cell list is what made
+    // the row 112 columns wide, and one handle standing behind three
+    // gaps reads as one gap, so the count is spoken (gauntlet 08-01).
+    if let Some((first, rest)) = unwired.split_first() {
+        let line = if rest.is_empty() {
+            format!("→ nika wire {first}")
+        } else {
+            format!(
+                "{} unwired · one command each → nika wire {first}",
+                unwired.len()
             )
-        );
+        };
+        let _ = writeln!(s, "{EDITOR_HANG}{}", theme.paint(Role::Dim, &line));
     }
     local_provider_lines(s, probe, theme);
     sovereign_and_keys_lines(s, probe, glance, ctx, theme);
@@ -628,12 +704,28 @@ fn sovereign_and_keys_lines(
         .map(|k| format!("{} {}", k.client, k.version))
         .collect();
     if !drifted.is_empty() {
+        // Same width law as the editors roster: the drifted list is
+        // data, not a constant. Three drifted kits plus the binary
+        // version plus the handle measured 100 columns on a normal
+        // machine — the verdict and the handle take the hanging line.
+        let cells: Vec<(usize, String)> = drifted
+            .iter()
+            .map(|d| (d.chars().count(), d.clone()))
+            .collect();
+        for (i, row) in pack_cells(&cells).iter().enumerate() {
+            let _ = writeln!(
+                s,
+                "{}{row}",
+                if i == 0 { "  kits       " } else { EDITOR_HANG }
+            );
+        }
         let _ = writeln!(
             s,
-            "  kits       {} vs binary {} {}",
-            drifted.join(" · "),
-            probe.version,
-            theme.paint(Role::Dim, "· fixes → nika doctor"),
+            "{EDITOR_HANG}{}",
+            theme.paint(
+                Role::Dim,
+                &format!("vs binary {} · fixes → nika doctor", probe.version),
+            ),
         );
     }
     session_row(s, glance, ctx, theme);
@@ -650,40 +742,71 @@ fn session_row(s: &mut String, glance: Glance, ctx: &ContextView, theme: Theme) 
             let _ = writeln!(s, "  session    chat only — no reliable project detected");
         }
         ContextMode::Workspace => {
-            let _ = write!(s, "  workspace  ");
-            if !ctx.root.is_empty() {
-                let _ = write!(s, "{} · ", ctx.root);
+            // The root is a PATH — the one field in this whole screen
+            // whose width belongs to the person, not to us. A normal
+            // checkout rendered this row at 150 columns. So the facts
+            // move under the label when the two cannot share a line;
+            // the path is never truncated (a half-path is a lie about
+            // where you are).
+            let facts = workspace_facts(glance, theme);
+            let plain = workspace_facts(glance, Theme::new(false, false, false));
+            let root_w = ctx.root.chars().count();
+            if ctx.root.is_empty() {
+                let _ = writeln!(s, "  workspace  {facts}");
+            } else if EDITOR_HANG.chars().count() + root_w + 3 + plain.chars().count() <= LIMIT {
+                let _ = writeln!(s, "  workspace  {} · {facts}", ctx.root);
+            } else {
+                let _ = writeln!(s, "  workspace  {}", ctx.root);
+                let _ = writeln!(s, "{EDITOR_HANG}{facts}");
             }
-            let _ = write!(
-                s,
-                "git {} · {} · agents {}",
-                mark(theme, glance.git),
-                match (glance.workflows, glance.complete) {
-                    // P0-4: « no workflows yet » is a claim only a COMPLETE scan
-                    // may make; a truncated walk renders the honest lower bound.
-                    (0, true) => "no workflows yet".to_owned(),
-                    (0, false) => "0 found · scan partial".to_owned(),
-                    (1, true) => "1 workflow".to_owned(),
-                    (n, true) => format!("{n} workflows"),
-                    (n, false) => format!("{n}+ found · scan partial"),
-                },
-                if glance.agents_md {
-                    format!("briefed {} (AGENTS.md)", mark(theme, true))
-                } else {
-                    format!("not briefed {}", theme.paint(Role::Dim, "→ nika init"))
-                }
-            );
+            // The expansion trace carries a SECOND path — the subdir
+            // the person actually stood in. Two unbounded paths never
+            // share a line (this one rendered at 161 columns beside the
+            // facts); it earns its own, and its own `~`.
             if let Some(from) = &ctx.expanded_from {
-                let _ = write!(
+                let _ = writeln!(
                     s,
-                    " {}",
-                    theme.paint(Role::Dim, &format!("· from {}", from.display()))
+                    "{EDITOR_HANG}{}",
+                    theme.paint(
+                        Role::Dim,
+                        &format!("from {}", under_home(&from.display().to_string())),
+                    )
                 );
             }
-            let _ = writeln!(s);
         }
     }
     let _ = writeln!(s);
+}
+
+/// The workspace row's facts — git bit · workflow count · agents brief
+/// · the subdir expansion when there was one. Built twice per render
+/// (painted for the eye, plain to MEASURE), because a painted string
+/// carries escapes that lie about its width.
+fn workspace_facts(glance: Glance, theme: Theme) -> String {
+    let mut s = String::new();
+    {
+        let s = &mut s;
+        let _ = write!(
+            s,
+            "git {} · {} · agents {}",
+            mark(theme, glance.git),
+            match (glance.workflows, glance.complete) {
+                // P0-4: « no workflows yet » is a claim only a COMPLETE scan
+                // may make; a truncated walk renders the honest lower bound.
+                (0, true) => "no workflows yet".to_owned(),
+                (0, false) => "0 found · scan partial".to_owned(),
+                (1, true) => "1 workflow".to_owned(),
+                (n, true) => format!("{n} workflows"),
+                (n, false) => format!("{n}+ found · scan partial"),
+            },
+            if glance.agents_md {
+                format!("briefed {} (AGENTS.md)", mark(theme, true))
+            } else {
+                format!("not briefed {}", theme.paint(Role::Dim, "→ nika init"))
+            }
+        );
+    }
+    s
 }
 
 /// What this binary carries — derived counts, and the six-line taste of

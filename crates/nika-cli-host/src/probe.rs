@@ -616,8 +616,11 @@ fn read_json(path: &Path) -> Option<Value> {
     serde_json::from_str(&body).ok()
 }
 
+/// The home directory, from the environment. The ONE sanctioned reader
+/// (the raw `var_os` is lint-denied crate-wide) — every surface that
+/// needs `~` comes through here.
 #[allow(clippy::disallowed_methods)]
-fn home_dir() -> Option<PathBuf> {
+pub(crate) fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)

@@ -332,9 +332,16 @@ fn mirror_names_kit_drift_and_stays_silent_when_aligned() {
         },
     ];
     let shown = render_human(&probe, glance, None, counts(), plain());
+    // The verdict moved to the hanging line when the drifted list grew
+    // past the right edge (three kits + the version + the handle
+    // measured 100 columns), so the two halves are asserted apart.
     assert!(
-        shown.contains("kits       claude 0.105.0 vs binary 0.0.0-test"),
+        shown.contains("kits       claude 0.105.0"),
         "only the DRIFTED kit is named, the aligned one is silent:\n{shown}"
+    );
+    assert!(
+        shown.contains("vs binary 0.0.0-test"),
+        "the drift is measured against THIS binary:\n{shown}"
     );
     assert!(!shown.contains("codex"), "aligned kit stays out:\n{shown}");
     assert!(shown.contains("fixes → nika doctor"), "{shown}");
@@ -474,10 +481,12 @@ fn human_mirror_carries_the_four_sections_and_no_key_names() {
     );
 }
 
-/// A probe shaped like the REAL shipped catalog (5 locals · 10
-/// clouds · 4 clients) — the 80-column gate must hold on the widest
-/// TRUE rows, not on a slim synthetic (the first cut passed on a
-/// 1-local probe while the real machine rendered 102 columns).
+/// A probe shaped like the REAL shipped catalog (5 locals · 10 clouds ·
+/// every client the registry names) — the 80-column gate must hold on
+/// the widest TRUE rows, not on a slim synthetic (the first cut passed
+/// on a 1-local probe while the real machine rendered 102 columns; the
+/// second passed on four hand-written clients while the real machine
+/// rendered 112). Counts that can drift are derived here, not typed.
 fn shipped_shape_probe() -> Probe {
     let local = |id: &str| ProviderProbe {
         id: id.to_owned(),
@@ -528,8 +537,15 @@ fn shipped_shape_probe() -> Probe {
                 .map(cloud),
             )
             .collect(),
-        clients: ["cursor", "windsurf", "claude", "vscode"]
-            .into_iter()
+        // DERIVED from the registry, never listed by hand. The hand-
+        // written four here were two short of what the binary probes,
+        // so the 80-column ratchet was measuring a machine that does
+        // not exist — and missed a row rendering 112 columns under a
+        // published release. The roster grows; the fixture follows it
+        // now, and this drift class cannot come back a third time.
+        clients: crate::clients_registry::PROBE_MECHANISMS
+            .iter()
+            .copied()
             .map(client)
             .collect(),
         kits: vec![],
@@ -860,9 +876,13 @@ fn workspace_names_the_root_and_traces_the_subdir_expansion() {
     let row = out
         .text
         .lines()
-        .find(|l| l.contains("  workspace"))
-        .expect("a workspace row")
-        .to_owned();
+        .skip_while(|l| !l.contains("  workspace"))
+        .take(3)
+        .collect::<Vec<_>>()
+        .join("\n");
+    // The facts drop under the label when the path cannot share its
+    // line (a normal checkout rendered 150 columns), so the block is
+    // the unit here — both claims must be present and adjacent.
     assert!(
         row.contains(&root.display().to_string()),
         "the row names the resolved root: {row}"
@@ -871,6 +891,17 @@ fn workspace_names_the_root_and_traces_the_subdir_expansion() {
         row.contains(&format!("from {}", deep_canon.display())),
         "the subdir→root expansion is traced: {row}"
     );
+    // The rule, stated honestly: a row may only pass the right edge
+    // because of ONE indivisible token — a path nobody may truncate.
+    // Drop the longest token and what remains must fit.
+    for line in row.lines() {
+        let widest = line.split_whitespace().map(str::len).max().unwrap_or(0);
+        assert!(
+            line.chars().count().saturating_sub(widest) <= 80,
+            "only one unbreakable token may pass the right edge ({}): `{line}`",
+            line.chars().count()
+        );
+    }
 }
 
 #[test]
@@ -883,4 +914,45 @@ fn welcome_is_always_a_success() {
     let json = run(true, plain());
     assert_eq!(json.code, exit::OK);
     assert!(json.text.contains("\"welcome_version\":1"), "{}", json.text);
+}
+
+#[test]
+fn the_editor_roster_wraps_instead_of_running_off_the_terminal() {
+    // The roster grows. A published 0.107.0 rendered this row at 112
+    // columns on a normal machine — the cells alone, before any wire
+    // handle — because the row assumed six ids would fit where four
+    // once did. Growth must cost a line, never the right edge.
+    let text = render_human(
+        &shipped_shape_probe(),
+        Glance {
+            git: true,
+            workflows: 0,
+            agents_md: false,
+            complete: true,
+        },
+        None,
+        EngineCounts {
+            builtins: 25,
+            locals: 5,
+            clouds: 10,
+            examples: 28,
+            templates: 9,
+        },
+        plain(),
+    );
+    let shown: Vec<&str> = text
+        .lines()
+        .filter(|l| l.contains(" ✓") || l.contains(" ✗"))
+        .collect();
+    for id in crate::clients_registry::PROBE_MECHANISMS {
+        assert!(
+            shown.iter().any(|l| l.contains(id)),
+            "every registry host stays visible after wrapping — {id} vanished:\n{text}"
+        );
+    }
+    // The handle names ONE host and speaks the count of the rest.
+    assert!(
+        text.contains("unwired · one command each → nika wire"),
+        "several gaps must say how many:\n{text}"
+    );
 }
