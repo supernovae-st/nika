@@ -115,31 +115,28 @@ fn welcome_speaks_the_wired_facet() {
 #[test]
 fn doctor_rows_are_the_wired_and_key_slot_facets() {
     let scratch = scratch_dir("mt-doctor");
-    let text = surface(&scratch, &["doctor"]);
     let truth = expected();
 
+    // B-8b (a healthy machine reads calm): the default render folds the
+    // advisory rows (unwired agents · unconfigured providers · the
+    // config-less default) into ONE advisory line — the facet rows now
+    // live under --verbose, and the fold line carries the SAME counts.
+    // A-06's law survives the fold: no surface may disagree with itself
+    // on a facet — the folded number IS the verbose row count.
+    let loud = surface(&scratch, &["doctor", "--verbose"]);
+
     // The cloud rows: one line per key-taking provider, label `provider`.
-    let cloud_rows = text
-        .lines()
-        .filter(|l| {
-            let mut t = l.split_whitespace();
-            let _mark = t.next();
-            t.next() == Some("provider")
-        })
-        .count();
+    let cloud_rows = count_label(&loud, "provider");
     assert_eq!(
         cloud_rows, truth.cloud_key_slots,
-        "doctor renders exactly one row per cloud key slot"
+        "doctor --verbose renders exactly one row per cloud key slot"
     );
 
-    // The local summary line: `local  N providers (…)`.
-    let local_line = text
+    // The local summary line: `local  N providers (…)` — an Ok row,
+    // never folded, present on BOTH lanes.
+    let local_line = loud
         .lines()
-        .find(|l| {
-            let mut t = l.split_whitespace();
-            let _mark = t.next();
-            t.next() == Some("local")
-        })
+        .find(|l| label_is(l, "local"))
         .expect("doctor renders the local providers line");
     let local_count = leading_number(local_line).expect("local line carries a count");
     assert_eq!(
@@ -147,6 +144,37 @@ fn doctor_rows_are_the_wired_and_key_slot_facets() {
         truth.wired,
         "doctor's local count + cloud rows IS the wired facet. Line: {local_line}"
     );
+
+    // The calm default: the unconfigured provider rows are gone, folded
+    // into ONE advisory line that names the class WITH its count — the
+    // same facet, folded, never dropped.
+    let calm = surface(&scratch, &["doctor"]);
+    assert_eq!(
+        count_label(&calm, "provider"),
+        0,
+        "the calm default folds every unconfigured provider row:\n{calm}"
+    );
+    let fold = calm
+        .lines()
+        .find(|l| label_is(l, "advisory"))
+        .expect("the calm default carries the advisory fold line");
+    assert!(
+        fold.contains(&format!("{} providers unconfigured", truth.cloud_key_slots)),
+        "the fold names the same facet count. Line: {fold}"
+    );
+}
+
+/// Count the rendered rows whose label cell is `label` (the fixed
+/// `LABEL_COL` grid: glyph · label · detail).
+fn count_label(text: &str, label: &str) -> usize {
+    text.lines().filter(|l| label_is(l, label)).count()
+}
+
+/// Whether a rendered doctor row carries `label` in its label cell.
+fn label_is(line: &str, label: &str) -> bool {
+    let mut t = line.split_whitespace();
+    let _mark = t.next();
+    t.next() == Some(label)
 }
 
 #[test]

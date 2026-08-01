@@ -188,16 +188,7 @@ enum Command {
     /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     #[command(display_order = 42)]
-    Doctor {
-        /// TCP-probe the local provider ports (loopback/configured only ·
-        /// 300ms cap · nothing is sent on the socket). Offline without it.
-        #[arg(long)]
-        ping: bool,
-        /// Emit the machine projection (summary + findings[] — agents/CI
-        /// branch on `summary.fail` instead of parsing glyphs).
-        #[arg(long)]
-        json: bool,
-    },
+    Doctor(DoctorArgs),
     /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
     /// `.agents/skills` authoring skill · optional workflow set). Bare on
     /// a terminal the founding wizard runs; flags are the scriptable
@@ -391,6 +382,24 @@ struct GuardArgs {
     human: bool,
 }
 
+/// The doctor arm's flags (the `GuardArgs` tuple-variant precedent).
+#[derive(Args)]
+struct DoctorArgs {
+    /// TCP-probe the local provider ports (loopback/configured only ·
+    /// 300ms cap · nothing is sent on the socket). Offline without it.
+    #[arg(long)]
+    ping: bool,
+    /// Emit the machine projection (summary + findings[] — agents/CI
+    /// branch on `summary.fail` instead of parsing glyphs).
+    #[arg(long)]
+    json: bool,
+    /// Unfold every advisory note (an unwired agent · an unconfigured
+    /// provider · the config-less default) — the calm default folds
+    /// them into ONE line (B-8b · a healthy machine reads calm).
+    #[arg(long)]
+    verbose: bool,
+}
+
 #[derive(Args)]
 // Six independent CLI flags ARE six bools — the clap-surface idiom
 // (same as TraceArgs), not a state machine to encode.
@@ -567,6 +576,18 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
 
 /// The `wire` door (H7): clap's flags plus the terminal fact `all`'s
 /// consent gate reads (a terminal asks · a pipe needs `--yes`).
+/// The doctor arm, extracted under the fn-length law (the `wire_verb`
+/// precedent) — `--verbose` unfolds the healthy machine's advisory
+/// notes (B-8b · the human lane defaults to calm).
+fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
+    emit(&verbs::doctor::run(
+        args.ping,
+        args.json,
+        args.verbose,
+        theme,
+    ))
+}
+
 fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: bool) -> u8 {
     let interactive = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
     emit(&verbs::wire::run_with(
@@ -695,7 +716,7 @@ fn dispatch_verb(
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
-        Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
+        Command::Doctor(args) => doctor_verb(&args, plain_theme),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
         Command::Wire {
             target,
