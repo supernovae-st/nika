@@ -603,8 +603,15 @@ const LABEL_COL: usize = 10;
 /// enter width arithmetic — the same law as `Theme::glyph`). The sober
 /// register (colour off · links off · every pipe) is byte-identical to the
 /// themeless render it replaces.
+///
+/// B-8b (the 2026-07-31 gauntlet): a healthy keyless machine printed 13+
+/// ⚠ rows — every unwired agent, every unconfigured provider, the
+/// config-less default — and the alarm glyph taught the user to ignore
+/// it. `verbose: false` folds those three advisory classes into ONE calm
+/// line (`--verbose` unfolds each); the verdict line keeps counting the
+/// truth, the machine lane (`render_json`) always carries every finding.
 #[must_use]
-pub fn render(findings: &[Finding], theme: Theme) -> String {
+pub fn render(findings: &[Finding], verbose: bool, theme: Theme) -> String {
     let mut s = String::new();
     let count = |level: Level| findings.iter().filter(|f| f.level == level).count();
     let (ok, warn, fail) = (count(Level::Ok), count(Level::Warn), count(Level::Fail));
@@ -612,6 +619,9 @@ pub fn render(findings: &[Finding], theme: Theme) -> String {
     let glyph = |level: Level| theme.paint(level.role(), &level.glyph().to_string());
     let _ = writeln!(s, "{} {ok} ok · {warn} warn · {fail} fail", glyph(verdict));
     for f in findings {
+        if !verbose && calm_foldable(f) {
+            continue;
+        }
         let _ = writeln!(
             s,
             "{} {:<LABEL_COL$} {}",
@@ -623,7 +633,54 @@ pub fn render(findings: &[Finding], theme: Theme) -> String {
             let _ = writeln!(s, "  fix: {}", link_targets(theme, fix));
         }
     }
+    if !verbose {
+        let agents = findings
+            .iter()
+            .filter(|f| calm_foldable(f) && f.label == "agent")
+            .count();
+        let providers = findings
+            .iter()
+            .filter(|f| calm_foldable(f) && f.label == "provider")
+            .count();
+        let config = findings
+            .iter()
+            .any(|f| calm_foldable(f) && f.label == "config");
+        let mut classes = Vec::new();
+        if agents > 0 {
+            classes.push(format!("{agents} agents unwired"));
+        }
+        if providers > 0 {
+            classes.push(format!("{providers} providers unconfigured"));
+        }
+        if config {
+            classes.push("config defaults".to_owned());
+        }
+        if !classes.is_empty() {
+            let _ = writeln!(
+                s,
+                "{} {:<LABEL_COL$} a healthy machine's notes — {} · nika doctor --verbose unfolds each",
+                theme.paint(Role::Dim, "·"),
+                theme.paint(Role::Dim, "advisory"),
+                theme.paint(Role::Dim, &classes.join(" · "))
+            );
+        }
+    }
     s
+}
+
+/// The B-8b fold classes — advisory by construction on a healthy
+/// machine: an unwired agent (wiring is opt-in), an unconfigured
+/// provider (keyless is a valid choice), the config-less default
+/// (built-ins are designed). A Warn of any OTHER kind (a stale snapshot
+/// · a kit drift · a dead ping) never folds — it earned its row.
+fn calm_foldable(f: &Finding) -> bool {
+    f.level == Level::Warn
+        && match f.label.as_str() {
+            "agent" => f.detail.contains("not wired"),
+            "provider" => f.detail.contains("not configured"),
+            "config" => true,
+            _ => false,
+        }
 }
 
 /// OSC-8-wrap the linkable targets inside ONE printed doctor line — an
@@ -779,9 +836,10 @@ pub fn redact_userinfo(url: &str) -> String {
 /// [`crate::probe`] engine · PRESENCE-only · offline unless `ping`), then
 /// render the findings. The theme comes from the global
 /// `--color`/`--hyperlink` chain (main.rs) — a piped doctor keeps its
-/// exact bytes; `--json` never colours.
+/// exact bytes; `--json` never colours. `verbose` unfolds the healthy
+/// machine's advisory notes (B-8b — the human lane defaults to calm).
 #[must_use]
-pub fn run(ping: bool, json: bool, theme: Theme) -> VerbOutput {
+pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     let probe = crate::probe::collect(ping);
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
@@ -793,7 +851,7 @@ pub fn run(ping: bool, json: bool, theme: Theme) -> VerbOutput {
                 &crate::probe::capability_receipts(&probe),
             )
         } else {
-            render(&findings, theme)
+            render(&findings, verbose, theme)
         },
         code,
     }
