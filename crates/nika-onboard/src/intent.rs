@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The intent layer of `nika new --from <plain words>` (P0-1 · P0-10 ·
+//! The intent layer of `nika new <plain words>` (P0-1 · P0-10 ·
 //! audit UX 2026-07-30): before ANY template is chosen, the utterance is
 //! read into an [`IntentContract`] — what the human asked for, which
 //! capabilities that implies, what it forbids. The contract is extracted

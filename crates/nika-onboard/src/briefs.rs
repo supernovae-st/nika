@@ -33,7 +33,7 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 **audited before they run**. (This guide is scaffolded by `nika init`.)
 
 ## The loop
-- **Author** · `nika new --from <template> <file>.nika.yaml` (or write one —
+- **Author** · `nika new <template> <file>.nika.yaml` (or write one —
   the envelope is `nika: v1` + a `workflow:` OBJECT carrying `id:` (kebab-case)
   + a `tasks:` MAP keyed by task id. A scalar `workflow:` refuses
   `NIKA-PARSE-020`, a `tasks:` sequence refuses `NIKA-PARSE-022`).
@@ -91,7 +91,7 @@ multi-turn ReAct loop).
 - snake_case task ids · kebab-case `workflow:`.
 
 ## Don't invent structure — route to a skeleton
-`nika new --from '?'` lists the embedded skeletons · `nika examples list` /
+`nika new '?'` lists the embedded skeletons · `nika try` /
 `show <slug>` reads a runnable example that exercises a construct ·
 `nika spec --schema` is the JSON Schema · `nika spec --canon` is the SSOT ·
 `nika catalog` names the providers/models · `nika catalog --tools` names the `nika:`
@@ -116,7 +116,7 @@ builtins. Copy, fill, check.
   sidecar · the workflow itself never changes) · `nika sign --check <file>`
   verifies · `nika run --require-signature <file>` refuses an unsigned or
   invalidly-signed workflow BEFORE anything executes (exit 2).
-- `nika evidence <run>` — export the evidence pack: journal + manifest
+- `nika trace evidence <run>` — export the evidence pack: journal + manifest
   (hash · boundary · trifecta · sandbox · seal grade) + receipt + VERIFY.md.
 - `nika dap` — step a recorded run under a debugger UI, forward AND back.
 
@@ -179,7 +179,7 @@ const MCP_SERVERS: &str =
 const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika.yaml`) — Copilot brief
 
 Nika workflows are audited BEFORE they run. The loop: author from a
-skeleton (`nika new --from '?'` lists them) → `nika check <file>` after
+skeleton (`nika new '?'` lists them) → `nika check <file>` after
 EVERY edit → `nika check <file> --fix` heals the mechanical renames →
 repair the rest from the diagnostics (`nika explain NIKA-XXXX`) →
 only a clean file reaches a human.
@@ -650,7 +650,7 @@ mod tests {
     fn agents_md_points_at_the_learning_surface() {
         // A wired agent must know the embedded surfaces exist, or it
         // improvises structure instead of routing to a template.
-        for needle in ["nika new --from", "nika examples", "nika spec --schema"] {
+        for needle in ["nika new", "nika try", "nika spec --schema"] {
             assert!(
                 AGENTS_MD.contains(needle),
                 "the guide names the discovery command `{needle}`"

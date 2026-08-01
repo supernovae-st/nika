@@ -805,3 +805,68 @@ fn temp_dir(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("temp dir");
     dir
 }
+
+/// The atomic write (audit 2026-07-31): every config write lands via a
+/// same-dir temp file + fsync + rename — a crash mid-write can no
+/// longer destroy the user's whole config. A NEW file is 0600 (these
+/// configs grow API keys); an existing file keeps its mode through the
+/// rename; no temp litter remains.
+#[test]
+fn atomic_write_creates_0600_preserves_mode_and_leaves_no_litter() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = temp_dir("atomic");
+    let path = dir.join("mcp.json");
+
+    // Create → 0600, exact bytes.
+    write_atomic(&path, "{\"a\":1}\n").expect("write");
+    let mode = std::fs::metadata(&path).expect("meta").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "a new config is owner-only, got {mode:o}");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "{\"a\":1}\n",
+        "the content is the post-rename body"
+    );
+
+    // Overwrite with a custom mode → the mode survives the rename.
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).expect("chmod");
+    write_atomic(&path, "{\"a\":2}\n").expect("rewrite");
+    let mode = std::fs::metadata(&path).expect("meta").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640, "an existing mode is preserved, got {mode:o}");
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), "{\"a\":2}\n");
+
+    // The temp file is renamed away — no `.nika-tmp-*` litter.
+    let litter: Vec<_> = std::fs::read_dir(&dir)
+        .expect("dir")
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_name().to_string_lossy().starts_with(".nika-tmp-"))
+        .collect();
+    assert!(litter.is_empty(), "no temp litter: {litter:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Both wire writers route through the atomic house: a fresh TOML/JSON
+/// config lands 0600, and a pre-existing file's mode survives the
+/// update (the truncate-in-place era rewrote it at the umask).
+#[test]
+fn writers_route_through_the_atomic_house() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = temp_dir("atomic-routes");
+    let mode_of = |path: &Path| std::fs::metadata(path).expect("meta").permissions().mode() & 0o777;
+
+    // The TOML writer, create path.
+    let toml = dir.join("config.toml");
+    let action = patch_toml_mcp(&toml, "codex", false).expect("wire");
+    assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+    assert_eq!(mode_of(&toml), 0o600, "a new TOML config is owner-only");
+
+    // The JSON writer, create path.
+    let json = dir.join("mcp.json");
+    write_json(&json, &json!({"mcpServers": {}})).expect("json");
+    assert_eq!(mode_of(&json), 0o600, "a new JSON config is owner-only");
+
+    // The JSON writer over a pre-existing 0640 file preserves the mode.
+    std::fs::set_permissions(&json, std::fs::Permissions::from_mode(0o640)).expect("chmod");
+    write_json(&json, &json!({"mcpServers": {"nika": {"command": "nika"}}})).expect("rewrite");
+    assert_eq!(mode_of(&json), 0o640, "an existing mode is preserved");
+    let _ = std::fs::remove_dir_all(dir);
+}

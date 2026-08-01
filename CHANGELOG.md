@@ -18,7 +18,8 @@ the arc closed every one: welcome gates its run CTA on the exact file's
 verdict, a non-affirmative consent fires zero effects (NIKA-SEC-014, minted
 spec-first with its conformance fixtures), the hooks' judge moved into the
 binary (`nika guard`, fail-visible, bypass matrix in test), autonomy is
-graded before it is colored (the risk rung never renders green past High),
+graded before it is colored (the risk rung never renders green past
+Supervised),
 the data journey names sources, destinations and secrets before the run,
 and redaction works by provenance — a one-byte secret dies the same death
 as a long one. Around the core the doors multiplied honestly: one client
@@ -71,9 +72,19 @@ percent instead of ambushing the push.
   direction-aware align command. `nika welcome`'s machine mirror names
   train drift in one line and routes to doctor — aligned or absent kits
   stay silent (carry information, never a lecture).
+- **A green run names its fruit and stops lying.** The run card says
+  what the run actually produced, and a run whose green hid an untruth
+  says so out loud — the run-comprehension surface's honesty pass
+  (A-2 of the first-run-truth arc · the 19-persona gauntlet).
 
 ### Fixed
 
+- **The permits stop punishing honesty.** The trifecta explains its
+  dominance rule (the dominating gate named · the bypassing data edge
+  named · the taught fix provably flips the verdict green), a
+  workspace-escaping path earns no machine fix but the taught narrow
+  way, and an exec grant reads "exec outside the fs bounds" — never a
+  default-deny misread (A-1 · Nina's BLOCKER).
 - **`nika examples copy` brings the recipe's ingredients.** Every
   `examples/fixtures/…` file the copied body reads now lands beside it at
   the exact relative path the yaml names (existing files are kept, never

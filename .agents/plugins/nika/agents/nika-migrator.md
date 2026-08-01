@@ -17,9 +17,9 @@ parity is the proof.
    stdout, API writes) · side effects (deploys, sends, deletes) ·
    credentials. A guard clause in the source is INTENT — port it.
 2. **Route.** Pick the outer shape from the embedded templates
-   (`nika new --from '?'` prints the living list): chain · fanout ·
+   (`nika new '?'` prints the living list): chain · fanout ·
    gate-and-act · etl-state · agent-loop · human-gated-ship.
-   `nika new --from <template> <file>.nika.yaml`, then fill the
+   `nika new <template> <file>.nika.yaml`, then fill the
    `# SLOT:` markers.
 3. **Map native-first.** The order is `invoke: nika:*` →
    `invoke: mcp:<server>/<tool>` → `exec:` last. HTTP → `nika:fetch` ·

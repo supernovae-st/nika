@@ -216,21 +216,18 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
     );
 }
 
-// `examples run` EXECUTES — and carries the run trio (--var ·
-// --no-progress · --max-cost-usd · gauntlet F7 2026-07-12). The trio
-// makes a hermetic smoke POSSIBLE at last: 04-schema-retry has a
+// `try` EXECUTES — and carries the run trio (--var · --no-progress ·
+// --max-cost-usd · gauntlet F7 2026-07-12). V5 sharpens the law: try is
+// OFFLINE BY DEFAULT (RAMS-4) — no `--model` here, and the run must
+// still be zero-keys zero-network green. 04-schema-retry has a
 // `required:` var (unrunnable by this surface before) and infers clean
-// under `--model mock/echo` — zero keys, zero network, the exact combo
-// the old `#[ignore = "needs a live ollama"]` excuse said couldn't exist.
+// on the default rehearsal seat.
 #[test]
-fn examples_run_carries_the_run_trio_hermetically() {
+fn try_carries_the_run_trio_hermetically_offline_by_default() {
     let out = bin()
         .args([
-            "examples",
-            "run",
+            "try",
             "04-schema-retry",
-            "--model",
-            "mock/echo",
             "--var",
             "text=Ada met Babbage in London",
             "--no-progress",
@@ -248,10 +245,9 @@ fn examples_run_carries_the_run_trio_hermetically() {
 }
 
 #[test]
-fn examples_run_unknown_slug_is_a_finding() {
+fn try_unknown_slug_is_a_finding() {
     let out = bin()
-        .arg("examples")
-        .arg("run")
+        .arg("try")
         .arg("no-such-example")
         .output()
         .expect("binary runs");
@@ -262,8 +258,8 @@ fn examples_run_unknown_slug_is_a_finding() {
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("examples list"),
-        "points at the set: {stderr}"
+        stderr.contains("nika try"),
+        "points at the showroom: {stderr}"
     );
 }
 

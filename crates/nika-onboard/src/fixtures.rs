@@ -7,7 +7,7 @@
 //! gauntlet 2026-07-31 · the one rage-quit: the copied recipe read
 //! `examples/fixtures/support-queue.json` and its own header taught an
 //! offline rehearsal that died on `NIKA-BUILTIN-READ-001`). The copy
-//! door was repaired first; the guided door (`nika new --from <words>`)
+//! door was repaired first; the guided door (`nika new <words>`)
 //! then routed MORE people into the same broken socket (the sequence
 //! law: a better router multiplies whatever the take delivers). Both
 //! doors now share this one materializer — a future door inherits the

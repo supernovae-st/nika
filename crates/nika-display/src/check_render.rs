@@ -1351,13 +1351,18 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
             // Measured 2026-07-29, both `✔ body fits the declared
             // boundary`. Naming the two halves costs one clause and stops
             // the line meaning more than it checked.
+            // « at run » alone read as a footnote, not a boundary of the
+            // claim (V7-2 · wave-3: four personas took this ✔ as a seal
+            // over their glob-fed paths, then died SEC-004 at run). The
+            // clause now states WHOSE verdict the computed half is.
             t.paint(
                 Role::Dim,
                 if exec_open {
-                    "literal + const: args fit the boundary · computed + symlinks at run · \
-                     exec outside the fs bounds"
+                    "literal + const: args fit the boundary · computed paths + symlinks \
+                     are the RUN's verdict · exec outside the fs bounds"
                 } else {
-                    "literal + const: args fit the boundary · computed + symlinks at run"
+                    "literal + const: args fit the boundary · computed paths + symlinks \
+                     are the RUN's verdict"
                 }
             )
         );

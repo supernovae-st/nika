@@ -218,10 +218,12 @@ fn resolve_targets(target: WireTarget, dir: &str) -> Vec<WireTarget> {
 }
 
 /// The clients this machine SHOWS — the same presence truth `doctor`
-/// reports. probe.rs owns its client list privately, so the wiring
-/// registry re-derives it at the same paths through the probe's own
-/// [`client_probe_any`](crate::probe::client_probe_any) machinery
-/// (one detection semantics — presence only, never a guess).
+/// reports. Both ride the shared [`crate::detect`] table: one per-client
+/// path list, one registry gate (a client dropped from the matrix leaves
+/// BOTH lists — never wire-visible but doctor-invisible), and one probe
+/// semantics through [`client_probe_any`](crate::probe::client_probe_any)
+/// (presence only, never a guess — a YAML config the JSON probe cannot
+/// parse still DETECTS on `present`, which is exactly that).
 fn detected_targets(dir: &str) -> Vec<WireTarget> {
     match home_path(&[]) {
         Ok(home) => detected_targets_in(&home, Path::new(dir)),
@@ -230,45 +232,9 @@ fn detected_targets(dir: &str) -> Vec<WireTarget> {
 }
 
 fn detected_targets_in(home: &Path, dir: &Path) -> Vec<WireTarget> {
-    let mcp_servers: &[&str; 2] = &["mcpServers", "nika"];
-    let probes = [
-        crate::probe::client_probe_any(
-            "cursor",
-            &[
-                home.join(".cursor").join("mcp.json"),
-                dir.join(".cursor").join("mcp.json"),
-            ],
-            mcp_servers,
-        ),
-        crate::probe::client_probe_any(
-            "windsurf",
-            &[home
-                .join(".codeium")
-                .join("windsurf")
-                .join("mcp_config.json")],
-            mcp_servers,
-        ),
-        crate::probe::client_probe_any("claude", &[home.join(".claude.json")], mcp_servers),
-        crate::probe::client_probe_any(
-            "zed",
-            &[home.join(".config").join("zed").join("settings.json")],
-            &["context_servers", "nika"],
-        ),
-        // Hermes is YAML — the JSON probe never parses it, but DETECTION
-        // is presence only, and `present` is exactly that.
-        crate::probe::client_probe_any(
-            "hermes",
-            &[home.join(".hermes").join("config.yaml")],
-            &["mcp_servers", "nika"],
-        ),
-        crate::probe::client_probe_any(
-            "vscode",
-            &[dir.join(".vscode").join("mcp.json")],
-            &["servers", "nika"],
-        ),
-    ];
-    probes
+    crate::detect::sights(Some(home), dir)
         .iter()
+        .map(|sight| crate::probe::client_probe_any(sight.id, &sight.paths, &sight.server_path))
         .filter(|probe| probe.present)
         .filter_map(|probe| WireTarget::from_str(&probe.id, true).ok())
         .collect()
@@ -552,7 +518,9 @@ fn patch_zed(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     let existing = servers.get("nika").cloned();
     let desired = zed_server();
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     if existing.as_ref() == Some(&desired) {
         return Ok(WireAction::Current(label_path));
     }
@@ -637,7 +605,9 @@ fn patch_config(
 
     let existing = servers.get("nika").cloned();
     let desired = nika_server(include_type);
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     let current = existing.as_ref().is_some_and(|value| *value == desired);
 
     if current {
@@ -699,12 +669,7 @@ fn patch_toml_mcp(path: &Path, label: &str, dry_run: bool) -> Result<WireAction,
     servers.insert("nika", toml_edit::Item::Table(entry));
 
     if !dry_run {
-        if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
-        }
-        std::fs::write(path, doc.to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
+        write_atomic(path, &doc.to_string())?;
     }
 
     if migrated {
@@ -795,19 +760,16 @@ const HERMES_SNIPPET: &str =
 fn patch_hermes(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     if !path.exists() {
         if !dry_run {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("{}: {e}", parent.display()))?;
-            }
-            std::fs::write(path, HERMES_SNIPPET).map_err(|e| format!("{}: {e}", path.display()))?;
+            write_atomic(path, HERMES_SNIPPET)?;
         }
         return Ok(WireAction::Created(format!("hermes: {}", path.display())));
     }
     let body = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    // CURRENT means the canonical block is present verbatim-modulo-indent:
-    // a `nika:` server whose command line names the binary. Anything else
-    // is the operator\u2019s file to edit \u2014 print the snippet, touch nothing.
-    let has_nika = body.contains("nika:") && body.contains("command: nika");
+    // CURRENT means the canonical block is present verbatim-modulo-indent
+    // — the shared `detect::hermes_recognized` predicate (a `nika:` server
+    // whose command line names the binary). Anything else is the
+    // operator’s file to edit — print the snippet, touch nothing.
+    let has_nika = crate::detect::hermes_recognized(&body);
     if has_nika {
         return Ok(WireAction::Current(format!("hermes: {}", path.display())));
     }
@@ -863,7 +825,9 @@ fn patch_copilot(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     let existing = servers.get("nika").cloned();
     let desired = copilot_server();
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     if existing.as_ref() == Some(&desired) {
         return Ok(WireAction::Current(format!("copilot: {}", path.display())));
     }
@@ -916,7 +880,9 @@ fn patch_amp(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     let existing = servers.get("nika").cloned();
     let desired = nika_server(false);
-    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    let migrated = existing
+        .as_ref()
+        .is_some_and(crate::detect::is_stale_mcp_server);
     if existing.as_ref() == Some(&desired) {
         return Ok(WireAction::Current(format!("amp: {}", path.display())));
     }
@@ -952,30 +918,55 @@ fn nika_server(include_type: bool) -> Value {
     Value::Object(server)
 }
 
-fn is_stale_server(value: &Value) -> bool {
-    let Some(args) = value.get("args").and_then(Value::as_array) else {
-        return false;
-    };
-    args.len() == 3
-        && args[0].as_str() == Some("mcp")
-        && args[1].as_str() == Some("serve")
-        && args[2].as_str() == Some("--stdio")
-}
-
 fn read_json(path: &Path) -> Result<Value, String> {
     let body = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&body).map_err(|e| format!("{}: malformed JSON: {e}", path.display()))
 }
 
-fn write_json(path: &Path, value: &Value) -> Result<(), String> {
+/// The ONE write path for host configs (audit 2026-07-31): the body
+/// lands in a same-dir temp file, is fsynced, then RENAMED over the
+/// target — a crash mid-write can no longer truncate the user's whole
+/// `~/.claude.json` in place. A NEW file gets 0600 (these configs grow
+/// API keys); an existing file's mode is carried onto the temp file
+/// BEFORE the rename so the swap preserves it.
+fn write_atomic(path: &Path, body: &str) -> Result<(), String> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
     {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
     }
+    let tmp = path.with_file_name(format!(".nika-tmp-{}", std::process::id()));
+    let result = write_atomic_via(&tmp, path, body);
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp); // never litter the user's dir
+    }
+    result
+}
+
+/// The tmp-file half of [`write_atomic`], split so every error path
+/// funnels through the litter sweep (the 100-line fn ratchet).
+fn write_atomic_via(tmp: &Path, path: &Path, body: &str) -> Result<(), String> {
+    use std::io::Write as _;
+    use std::os::unix::fs::PermissionsExt as _;
+    let mut file = std::fs::File::create(tmp).map_err(|e| format!("{}: {e}", tmp.display()))?;
+    file.write_all(body.as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(|e| format!("{}: {e}", tmp.display()))?;
+    drop(file);
+    // An existing file keeps its mode; a new one is owner-only (0600).
+    let mode = match std::fs::metadata(path) {
+        Ok(meta) => meta.permissions().mode() & 0o777,
+        Err(_) => 0o600,
+    };
+    std::fs::set_permissions(tmp, std::fs::Permissions::from_mode(mode))
+        .map_err(|e| format!("{}: {e}", tmp.display()))?;
+    std::fs::rename(tmp, path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     let body = serde_json::to_string_pretty(value)
         .map_err(|e| format!("{}: cannot encode JSON: {e}", path.display()))?;
-    std::fs::write(path, format!("{body}\n")).map_err(|e| format!("{}: {e}", path.display()))
+    write_atomic(path, &format!("{body}\n"))
 }
 
 #[allow(clippy::disallowed_methods)]

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika examples list|show` — the embedded corpus as an EXPERIENCE.
+//! The showroom listing behind bare `nika try` — the embedded corpus as an EXPERIENCE.
 //!
 //! One source, zero drift: every fact this surface paints is derived
 //! from the example FILE ITSELF at call time — the title from its own
@@ -18,7 +18,7 @@ use std::fmt::Write as _;
 
 use crate::display::chrome;
 use crate::display::theme::{Role, Theme};
-use crate::verbs::{VerbOutput, exit};
+use crate::verbs::VerbOutput;
 use nika_pack::meta;
 
 /// Clip a title to `max` chars on a WORD boundary with the honest
@@ -55,6 +55,7 @@ fn chips(verbs: &[&str], theme: Theme) -> String {
 /// One computation serves three needs — grouping the list, routing
 /// `--teaches`, and reporting the gaps. A grouping that only decorated a
 /// list would not have earned its place.
+#[cfg(test)]
 const CONSTRUCTS: [(&str, &str); 16] = [
     ("infer:", "ask a model"),
     ("exec:", "run a program"),
@@ -97,6 +98,7 @@ const CONSTRUCTS: [(&str, &str); 16] = [
 ///
 /// The rule that generalises: an envelope field and a task field can share
 /// a name, and indentation is the only thing that tells them apart.
+#[cfg(test)]
 fn teaches(body: &str) -> Vec<&'static str> {
     CONSTRUCTS
         .iter()
@@ -130,6 +132,7 @@ fn teaches(body: &str) -> Vec<&'static str> {
 /// first try, while one who read TWO EXAMPLES wrote their next workflow
 /// green in zero. Keeping the gaps in the same computation that serves
 /// the list means they cannot be quietly forgotten.
+#[cfg(test)]
 fn index() -> Vec<(&'static str, &'static str, Vec<String>)> {
     let slugs = nika_pack::example_slugs();
     CONSTRUCTS
@@ -234,334 +237,38 @@ pub fn list(theme: Theme) -> VerbOutput {
 
     let _ = write!(
         text,
-        "\nnext ·\n  nika examples show 01-hello.nika.yaml            # read one (the extension is optional)\n  nika examples teaches for_each:                  # which file shows a construct\n  nika examples run 01-hello --model mock/echo     # offline proof · zero keys\n  nika examples copy 01-hello                      # make any of these yours"
+        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika new 01-hello                    # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one"
     );
     VerbOutput::ok(text)
 }
 
-/// `nika examples teaches [construct]` — the corpus indexed by what its
-/// files USE, and with no argument, the coverage of that index.
-///
-/// The measured need this answers: an author who read TWO examples — « the
-/// one matching the intent, then the one covering what the first did not »
-/// — went from 8 check-fix rounds to 0. A flat list does not answer *which
-/// two*; a size-tier does not either. What a reader asks is which file
-/// shows a given construct, and that is a question with an exact answer.
-///
-/// With no argument it prints every construct, gaps included, because a
-/// verdict that shows only what it covers claims more than it holds. The
-/// empty rows are the corpus telling on itself.
+/// The `try` seat law (V5 · RAMS-4): offline by default — the mock
+/// rehearsal unless a real seat is asked for. `--model self` keeps the
+/// example's own `model:` (the file IS the lesson on that seat).
 #[must_use]
-pub fn teaches_verb(construct: Option<&str>, theme: Theme) -> VerbOutput {
-    let idx = index();
-    let mut text = String::new();
-
-    if let Some(want) = construct {
-        // A bare `for_each` means `for_each:` — the colon is how the spec
-        // writes a key, and typing it is not a hazing ritual.
-        let key = want.trim_end_matches(':');
-        let Some((c, label, files)) = idx
-            .iter()
-            .find(|(k, _, _)| k.trim_end_matches(':').eq_ignore_ascii_case(key))
-        else {
-            let known = idx
-                .iter()
-                .map(|(k, _, _)| *k)
-                .collect::<Vec<_>>()
-                .join(" · ");
-            return VerbOutput {
-                text: format!("examples: `{want}` is not an indexed construct\n  known: {known}\n"),
-                code: crate::verbs::exit::ENV,
-            };
-        };
-        if files.is_empty() {
-            let _ = write!(
-                text,
-                "{}\n  {}\n",
-                chrome::rail_head(theme, &format!("{c} — {label}")),
-                theme.paint(
-                    Role::Bad,
-                    "no example teaches this · the corpus does not cover it yet"
-                )
-            );
-            return VerbOutput::ok(text);
-        }
-        let _ = writeln!(
-            text,
-            "{}",
-            chrome::rail_head(theme, &format!("{c} — {label} · {} files", files.len()))
-        );
-        for f in files {
-            let _ = writeln!(
-                text,
-                "{}",
-                chrome::rail_line(theme, &format!(" {}", theme.paint(Role::Strong, f)))
-            );
-        }
-        return VerbOutput::ok(text);
+pub fn rehearsal_seat(model: Option<&str>) -> Option<&str> {
+    match model {
+        None => Some("mock/echo"),
+        Some("self") => None,
+        Some(m) => Some(m),
     }
-
-    let covered = idx.iter().filter(|(_, _, f)| !f.is_empty()).count();
-    let _ = writeln!(
-        text,
-        "{}",
-        chrome::rail_head(
-            theme,
-            &format!("constructs — {covered} of {} covered", idx.len())
-        )
-    );
-    let width = idx
-        .iter()
-        .map(|(k, _, _)| k.chars().count())
-        .max()
-        .unwrap_or(0);
-    for (key, label, files) in &idx {
-        let pad = " ".repeat(width.saturating_sub(key.chars().count()));
-        let right = if files.is_empty() {
-            theme.paint(Role::Bad, "no example — not covered")
-        } else {
-            theme.paint(Role::Dim, &format!("{} files · {label}", files.len()))
-        };
-        let _ = writeln!(
-            text,
-            "{}",
-            chrome::rail_line(
-                theme,
-                &format!(" {}{pad}  {right}", theme.paint(Role::Strong, key))
-            )
-        );
-    }
-    let _ = write!(
-        text,
-        "\nnext ·\n  nika examples teaches for_each:   # the files that show one construct\n"
-    );
-    VerbOutput::ok(text)
-}
-
-/// `nika examples show <slug>` — the anatomy header, then the file
-/// VERBATIM (the comments are the teaching), then the next move.
-#[must_use]
-pub fn show(slug: &str, theme: Theme) -> VerbOutput {
-    let Some(body) = nika_pack::example(slug) else {
-        return VerbOutput {
-            text: format!("unknown example `{slug}` — `nika examples list` names the embedded set"),
-            code: exit::FILE,
-        };
-    };
-    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
-    let m = meta(clean, body);
-    let verbs_said = if m.verbs.is_empty() {
-        String::new()
-    } else {
-        format!(" · {}", m.verbs.join(" · "))
-    };
-    let header = format!(
-        "{} {}\n  {}",
-        theme.logo(),
-        theme.paint(Role::Strong, &m.file),
-        theme.paint(
-            Role::Dim,
-            &format!(
-                "{} · {} task(s){verbs_said}",
-                clip_title(&m.title, 72),
-                m.tasks
-            )
-        ),
-    );
-    let run_hint = crate::display::vocab::hint(
-        theme,
-        "run",
-        &format!("nika examples run {clean} --model mock/echo"),
-    );
-    VerbOutput::ok(format!("{header}\n\n{body}\n{run_hint}"))
-}
-
-/// `nika examples copy <slug> [dest]` — take the lesson home: the
-/// embedded example lands as YOUR file, ready to edit and run. The
-/// showroom stays side-effect-free (`run` stages to a temp file); this
-/// is the one deliberate "make it yours" gesture, and it says the next
-/// two steps. Refuses to overwrite without `--force`.
-pub fn copy(slug: &str, dest: Option<&str>, force: bool, theme: Theme) -> VerbOutput {
-    let Some(body) = nika_pack::example(slug) else {
-        return VerbOutput {
-            text: format!("unknown example `{slug}` — `nika examples list` names the embedded set"),
-            code: exit::FILE,
-        };
-    };
-    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
-    // `showcase/t2-support-triage` lands as `t2-support-triage.nika.yaml`
-    // — the file joins YOUR flat workspace, the corpus tiering stays in
-    // the pack.
-    let base = clean.rsplit('/').next().unwrap_or(clean);
-    let dest = dest.map_or_else(|| format!("{base}.nika.yaml"), str::to_owned);
-    let path = std::path::Path::new(&dest);
-    if path.exists() && !force {
-        return VerbOutput {
-            text: format!("{dest} already exists — `--force` overwrites, or pick another name"),
-            code: exit::FILE,
-        };
-    }
-    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty())
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        return VerbOutput {
-            text: format!(
-                "nika examples copy: cannot create `{}`: {e}",
-                parent.display()
-            ),
-            code: exit::ENV,
-        };
-    }
-    if let Err(e) = std::fs::write(path, body) {
-        return VerbOutput {
-            text: format!("nika examples copy: cannot write `{dest}`: {e}"),
-            code: exit::ENV,
-        };
-    }
-    // The ingredients ride with the recipe (gauntlet 2026-07-31 · the one
-    // rage-quit): every `examples/fixtures/…` path the body reads is
-    // materialized beside the copy, at the exact relative path the yaml
-    // names. Files already yours are never clobbered.
-    let fixtures = materialize_fixtures(body, path);
-    let mut text = format!(
-        "{} {} {}",
-        theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
-        theme.paint(Role::Strong, &dest),
-        theme.paint(Role::Dim, "— yours now · edit anything"),
-    );
-    match fixtures {
-        Ok(counts) => {
-            if let Some(note) = fixture_note(counts, theme) {
-                let _ = write!(text, "\n{note}");
-            }
-        }
-        Err(e) => {
-            return VerbOutput {
-                text: format!("nika examples copy: cannot write a fixture: {e}"),
-                code: exit::ENV,
-            };
-        }
-    }
-    let _ = write!(
-        text,
-        "\n{}",
-        crate::display::vocab::hint(
-            theme,
-            "next",
-            &format!("nika check {dest} · then: nika run {dest}")
-        )
-    );
-    // No agent briefs beside the new file → the founding door, once.
-    let dir = path.parent().filter(|p| !p.as_os_str().is_empty());
-    let briefed = ["CLAUDE.md", "AGENTS.md"]
-        .iter()
-        .any(|b| dir.map_or_else(|| std::path::Path::new(b).exists(), |d| d.join(b).exists()));
-    if !briefed {
-        let _ = write!(
-            text,
-            "\n{}",
-            crate::display::vocab::hint(theme, "found a home for it", "nika init")
-        );
-    }
-    VerbOutput::ok(text)
-}
-
-/// The ingredients line under a copy — silent when nothing applied.
-fn fixture_note((written, kept): (usize, usize), theme: Theme) -> Option<String> {
-    if written == 0 && kept == 0 {
-        return None;
-    }
-    let mut note = format!(
-        "{} {}",
-        theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
-        theme.paint(
-            Role::Dim,
-            &format!(
-                "examples/fixtures · {} (the recipe's ingredients)",
-                crate::text::count(written, "file")
-            )
-        ),
-    );
-    if kept > 0 {
-        let _ = write!(
-            note,
-            " {}",
-            theme.paint(Role::Dim, &format!("· {kept} already yours, kept"))
-        );
-    }
-    Some(note)
-}
-
-/// The `examples/fixtures/<tail>` references a body reads — the shared
-/// door machinery (`nika_onboard::fixtures`): the guided door takes the
-/// same ingredients, so the repair lives ONCE (the sequence law — a
-/// better router must never multiply a broken take).
-#[cfg(test)]
-fn fixture_prefixes(body: &str) -> Vec<String> {
-    nika_onboard::fixtures::fixture_prefixes(body)
-}
-
-/// Write the pack fixtures a body reads beside the copied recipe —
-/// the ONE shared implementation (`nika_onboard::fixtures::materialize`
-/// · both taking doors deliver the same ingredients).
-fn materialize_fixtures(body: &str, dest: &std::path::Path) -> std::io::Result<(usize, usize)> {
-    nika_onboard::fixtures::materialize(body, dest)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::verbs::exit;
+
+    /// V5 · RAMS-4: bare = mock rehearsal · `self` = the example's own
+    /// seat · anything else passes through.
+    #[test]
+    fn the_rehearsal_seat_is_offline_by_default() {
+        assert_eq!(rehearsal_seat(None), Some("mock/echo"));
+        assert_eq!(rehearsal_seat(Some("self")), None);
+        assert_eq!(rehearsal_seat(Some("ollama/qwen3")), Some("ollama/qwen3"));
+    }
 
     const PLAIN: Theme = Theme::new(false, false, false);
-
-    /// Gauntlet 2026-07-31 (the one rage-quit): a copied recipe brings
-    /// its ingredients — the fixtures its body reads land beside it at
-    /// the exact relative paths the yaml names, and a file already
-    /// yours is kept, never clobbered.
-    #[test]
-    fn copy_brings_the_fixtures_the_body_reads() {
-        let dir = tempfile::tempdir().expect("tmp");
-        let dest = dir.path().join("review.nika.yaml");
-        let out = copy(
-            "06-code-review",
-            Some(dest.to_str().expect("utf8")),
-            false,
-            PLAIN,
-        );
-        assert_eq!(out.code, exit::OK, "{}", out.text);
-        let fixture = dir.path().join("examples/fixtures/review-me.rs");
-        assert!(fixture.exists(), "the ingredient landed: {}", out.text);
-        assert!(
-            out.text.contains("examples/fixtures"),
-            "the note names the ingredients: {}",
-            out.text
-        );
-
-        // Second copy over the same dir: the fixture is YOURS now — kept.
-        std::fs::write(&fixture, "mine").expect("user edit");
-        let again = copy(
-            "06-code-review",
-            Some(dir.path().join("review2.nika.yaml").to_str().expect("utf8")),
-            false,
-            PLAIN,
-        );
-        assert_eq!(again.code, exit::OK, "{}", again.text);
-        assert_eq!(
-            std::fs::read_to_string(&fixture).expect("read"),
-            "mine",
-            "an existing fixture is never clobbered"
-        );
-        assert!(again.text.contains("already yours"), "{}", again.text);
-    }
-
-    /// A dir-glob read (`photos/**`) pulls the whole dir; plain files
-    /// come one by one; a starless body brings nothing.
-    #[test]
-    fn fixture_prefixes_cut_globs_and_dedup() {
-        let body = "a: examples/fixtures/sales.csv\nb: \"./examples/fixtures/photos/**\"\nc: examples/fixtures/sales.csv\n";
-        assert_eq!(fixture_prefixes(body), vec!["sales.csv", "photos"]);
-        assert!(fixture_prefixes("no refs here").is_empty());
-    }
 
     /// Every listing row speaks the FULL filename — what you see is
     /// what you type (and the resolver tolerates it back).
@@ -627,68 +334,10 @@ mod tests {
         assert!(!ms.verbs.is_empty());
     }
 
-    /// `copy` writes the embedded body verbatim, names the next two
-    /// steps, refuses a silent overwrite, and flattens showcase paths.
-    #[test]
-    fn copy_takes_the_lesson_home() {
-        let dir = std::env::temp_dir().join(format!("nika-copy-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("mkdir");
-        let dest = dir.join("mine.nika.yaml");
-        let dest_s = dest.to_string_lossy().into_owned();
-
-        let out = copy("01-hello", Some(&dest_s), false, PLAIN);
-        assert_eq!(out.code, exit::OK, "{}", out.text);
-        let body = std::fs::read_to_string(&dest).expect("written");
-        assert_eq!(body, nika_pack::example("01-hello").expect("embedded"));
-        assert!(out.text.contains("yours now"), "{}", out.text);
-        assert!(
-            out.text.contains(&format!("nika check {dest_s}")),
-            "{}",
-            out.text
-        );
-        assert!(
-            out.text.contains("nika init"),
-            "no briefs beside it → the founding door"
-        );
-
-        // Refuse the silent overwrite; --force allows it.
-        let refused = copy("01-hello", Some(&dest_s), false, PLAIN);
-        assert_eq!(refused.code, exit::FILE);
-        assert!(refused.text.contains("--force"), "{}", refused.text);
-        assert_eq!(copy("01-hello", Some(&dest_s), true, PLAIN).code, exit::OK);
-
-        // A showcase slug flattens to its basename (default dest shape).
-        let unknown = copy("nope", None, false, PLAIN);
-        assert_eq!(unknown.code, exit::FILE);
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// `show` accepts slug AND filename, frames the anatomy, and keeps
-    /// the body VERBATIM (the teaching comments survive).
-    #[test]
-    fn show_frames_and_keeps_the_body_verbatim() {
-        let by_slug = show("01-hello", PLAIN);
-        let by_file = show("01-hello.nika.yaml", PLAIN);
-        assert_eq!(by_slug.code, exit::OK);
-        assert_eq!(by_slug.text, by_file.text, "extension-tolerant");
-        let body = nika_pack::example("01-hello").expect("embedded");
-        assert!(by_slug.text.contains(body), "verbatim body");
-        assert!(by_slug.text.contains("1 task(s)"), "{}", by_slug.text);
-        assert!(
-            by_slug.text.contains("run: nika examples run 01-hello"),
-            "{}",
-            by_slug.text
-        );
-        assert_eq!(show("nope", PLAIN).code, exit::FILE);
-    }
-
     /// Colour off = zero escapes (the sober register law).
     #[test]
     fn sober_register_stays_escape_free() {
         assert!(!list(PLAIN).text.contains('\x1b'));
-        assert!(!show("01-hello", PLAIN).text.contains('\x1b'));
     }
 
     /// The coverage ratchet, constructs leg. Every construct the index

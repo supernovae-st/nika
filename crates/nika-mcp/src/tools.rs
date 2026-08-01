@@ -274,6 +274,59 @@ fn native_first_verdict(
     ))
 }
 
+/// The MODELS cross-check rows for both laws (resolver refusals ·
+/// catalog warnings) — one `model`/`tasks`/`why` shape on every machine
+/// lane (this oracle and the CLI `--json` twin must not disagree). The
+/// catalog cross-check is the two-strike class (audit UX 2026-07-31): a
+/// model that RESOLVES but matches nothing the snapshot prices for its
+/// provider must be relayed BEFORE the human buys a key — advisory on
+/// both lanes, `clean` untouched.
+fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>) {
+    let findings = report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            nika_providers::resolve_refusal(&m.model)
+                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+        })
+        .collect();
+    let warnings = report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            nika_providers::catalog_warning(&m.model)
+                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+        })
+        .collect();
+    (findings, warnings)
+}
+
+/// The clean short-path — split out of `check` under the house function
+/// cap (the `native_first_verdict` precedent). Still carries the catalog
+/// cross-check: the ghost-model specimen IS clean (the provider
+/// resolves), and a warning that only rode the dirty path would never
+/// be seen.
+fn clean_verdict(
+    native: &[&str],
+    strict: bool,
+    grade: nika_check::RiskGrade,
+    catalog_warnings: &[Value],
+) -> Result<String, String> {
+    let verdict = native_first_verdict(native, strict, grade)?;
+    if catalog_warnings.is_empty() {
+        return Ok(verdict);
+    }
+    let rows = catalog_warnings
+        .iter()
+        .filter_map(|w| w.get("why").and_then(Value::as_str))
+        .map(|why| format!("  ⚠ {why}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(format!("{verdict}\n{rows}"))
+}
+
 fn check(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
@@ -292,16 +345,9 @@ fn check(args: &Value) -> Result<String, String> {
     let grade = nika_check::risk_grade(&report);
     // The MODELS rung, MCP lane (#320 repro 3): the schema ladder alone
     // audited a hallucinated model green — cross every requirement against
-    // the RESOLVER law shared with the CLI rung (nika-providers).
-    let model_findings: Vec<Value> = report
-        .requirements
-        .models
-        .iter()
-        .filter_map(|m| {
-            nika_providers::resolve_refusal(&m.model)
-                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
-        })
-        .collect();
+    // the RESOLVER law shared with the CLI rung (nika-providers), plus its
+    // sister catalog law (advisory — `clean` is untouched).
+    let (model_findings, catalog_warnings) = model_crosscheck(&report);
     // The is_clean mirror law, applied to the native-first lane. `hints`
     // are NOT part of `is_clean()`, so a workflow whose real work sits in
     // `exec python3 helper.py` used to come back here as a bare "✔ clean"
@@ -325,7 +371,7 @@ fn check(args: &Value) -> Result<String, String> {
         .map(|h| h.advice.as_str())
         .collect();
     if report.is_clean() && model_findings.is_empty() {
-        return native_first_verdict(&native, native_strict, grade);
+        return clean_verdict(&native, native_strict, grade, &catalog_warnings);
     }
     // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
     // egresses · capability escapes · schema findings + lints · unknown/missing
@@ -349,6 +395,14 @@ fn check(args: &Value) -> Result<String, String> {
         );
         if !model_findings.is_empty() {
             obj.insert("model_findings".to_owned(), Value::Array(model_findings));
+        }
+        // Presence-gated like the CLI twin (`models_catalog_warnings`) —
+        // the same key on both machine surfaces, one voice.
+        if !catalog_warnings.is_empty() {
+            obj.insert(
+                "models_catalog_warnings".to_owned(),
+                Value::Array(catalog_warnings),
+            );
         }
     }
     let detail = serde_json::to_string_pretty(&payload)
@@ -456,8 +510,14 @@ fn explain(args: &Value) -> Result<String, String> {
         .into_iter()
         .find(|r| r.code == normalized)
     {
+        // The contract lesson rides here too (one voice with the CLI's
+        // canon row · gauntlet 2026-07-31: the CLI taught the SEC-004
+        // grant grammar while this tool answered a category and a URL).
+        let lesson = nika_error::codes::spec_contract_help(&normalized)
+            .map(|l| format!("\n\n{l}"))
+            .unwrap_or_default();
         return Ok(format!(
-            "{normalized} · {} · transient: {}\n\n  {}",
+            "{normalized} · {} · transient: {}\n\n  {}{lesson}",
             row.category, row.transient, row.failure
         ));
     }

@@ -437,7 +437,7 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              exits (pick one):\n    \
              · see what IS there:          ls <the path's parent>\n    \
              · run beside the file:        cd <the workflow's dir> && nika run <file>\n    \
-             · an example's ingredients:   `nika examples copy <slug>` lands its \
+             · an example's ingredients:   `nika new <slug>` lands its \
              `examples/fixtures/` files beside the recipe.\n",
         ),
         ("prompt", "001") => Some(
@@ -451,6 +451,66 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              · resume the paused trace:   nika run <file> --resume <trace> --answer <task>=<value>\n    \
              · declare the unattended answer:  args: { …, default: <value> }\n    \
              · at a terminal, just run it — the gate asks you directly.\n",
+        ),
+        ("write", "001") => Some(
+            "  `nika:write` could not land the file. The causes, each with its \
+             own voice: a missing parent directory while `create_dirs: false` \
+             (the default — a typo'd path surfaces rather than silently \
+             materializing a tree; one carve-out: a declared `permits.fs.write` \
+             grant covering the path creates the tree itself, the permit IS \
+             the intent) · a `null` `content:` (almost always a missing \
+             upstream value — an unset var, a skipped task — refused loudly \
+             because silently writing the bytes `null` is data corruption) · \
+             a plain IO failure (disk · permission), named verbatim.\n\n  \
+             exits (pick one):\n    \
+             · create the parent:          args: { …, create_dirs: true }\n    \
+             · a null content: check the producing task in the trace — \
+             `nika trace peek <trace> <task>` shows what it actually \
+             handed over (to write the literal word, quote it: \"null\")\n    \
+             · the path exists + `overwrite: false` is its own code — \
+             `nika explain NIKA-BUILTIN-WRITE-002`.\n",
+        ),
+        _ => None,
+    }
+}
+
+/// The per-code contract lessons for the SPEC conformance codes — the
+/// high-traffic refusals whose registry row states WHAT while the user
+/// at the terminal needs the GRAMMAR (gauntlet 2026-07-31, twice: the
+/// finding named the exact boundary, `explain` answered a category and
+/// a URL). One voice: the CLI's canon row and the MCP explain tool both
+/// append this text. Only codes whose teaching is STABLE spec surface
+/// earn an entry.
+#[must_use]
+pub fn spec_contract_help(code: &str) -> Option<&'static str> {
+    match code {
+        "NIKA-SEC-004" => Some(
+            "  The boundary is default-deny once `permits:` is present: an \
+             effect the block does not cover is refused, and the FINDING \
+             names the exact path, host, program or tool that fell outside \
+             — grant that named thing, in its category, never more.\n\n  \
+             the grant grammar (measured · CONVENTIONS §2):\n    \
+             · a directory grant does NOT cover its children — `data` \
+             covers `data` itself, not `data/a.csv`\n    \
+             · `data/*` covers ONE level (`*` never crosses `/`) · \
+             `data/**` covers the subtree\n    \
+             · `net.http` entries are exact host names, never globs · \
+             `exec:` lists program names\n\n  \
+             exits (pick one):\n    \
+             · grant the named path:       fs: { read: [\"./dir/*\"] } — \
+             the file the finding printed, or its one-level glob\n    \
+             · grant the named host:       net: { http: [\"api.example.com\"] }\n    \
+             · grant the named tool:       add it to `permits.tools`\n    \
+             · the effect was NOT intended — then the boundary just did \
+             its job; the refusal is the feature, not the failure.\n\n  \
+             Never widen to a root `**` to silence the message — the \
+             tightest grant that covers the body is the whole point.\n\n  \
+             And a green `check` was never this refusal's promise: check \
+             judges the LITERAL shape — a computed path (a glob result · \
+             an interpolated binding) is judged HERE, at run. Two tools \
+             over one tree may need two grants (the walker wants the \
+             directory · the reader wants the files: `[\"./dir\", \
+             \"./dir/*\"]`).\n",
         ),
         _ => None,
     }
@@ -488,7 +548,7 @@ mod tests {
     fn prompt_001_explain_teaches_the_contract_and_its_exits() {
         let read = namespace_help("NIKA-BUILTIN-READ-001", "docs").expect("teaches");
         assert!(
-            read.contains("RUN's working directory") && read.contains("examples copy"),
+            read.contains("RUN's working directory") && read.contains("nika new"),
             "READ-001 carries the contract lesson (gauntlet 2026-07-31): {read}"
         );
         let help = namespace_help("NIKA-BUILTIN-PROMPT-001", "docs").expect("teaches");
@@ -508,6 +568,54 @@ mod tests {
             sibling.contains("per-builtin runtime diagnostic"),
             "{sibling}"
         );
+    }
+
+    /// C-9 (gauntlet 2026-07-31 ×2 · Marta + Lucie): WRITE-001 stops
+    /// being namespace boilerplate — the lesson names every measured
+    /// cause (missing parent + the #433 covering-grant carve-out · null
+    /// content · IO) and hands working exits, sibling WRITE-002 pointed.
+    #[test]
+    fn write_001_explain_teaches_the_contract_and_its_exits() {
+        let help = namespace_help("NIKA-BUILTIN-WRITE-001", "docs").expect("teaches");
+        for lesson in [
+            "create_dirs: false",
+            "the permit IS the intent",
+            "`null` `content:`",
+            "trace peek",
+            "NIKA-BUILTIN-WRITE-002",
+        ] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+    }
+
+    /// C-9 · the SEC-004 contract lesson (the refusal every beginner
+    /// meets first): the grant GRAMMAR is taught in-terminal — the
+    /// wildcard facts, one exit per category, the honest not-intended
+    /// arm — and the widening anti-pattern is named. Both explain
+    /// surfaces (CLI canon row · MCP) append this same text.
+    #[test]
+    fn sec_004_contract_lesson_teaches_the_grant_grammar() {
+        let help = spec_contract_help("NIKA-SEC-004").expect("teaches");
+        for lesson in [
+            "default-deny",
+            "does NOT cover its children",
+            "never crosses `/`",
+            "exact host names",
+            "permits.tools",
+            "the refusal is the feature",
+            "Never widen to a root `**`",
+            // V7-2 (wave-3 · 4 personas): the check⊥run split taught at
+            // the moment of refusal — a green check never promised the
+            // computed paths, and two tools over one tree may need two
+            // grants (the Marta read/glob whack-a-mole).
+            "judged HERE, at run",
+            "two grants",
+        ] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+        // Only the earned codes teach — the rest keep the registry row.
+        assert!(spec_contract_help("NIKA-SEC-001").is_none());
+        assert!(spec_contract_help("NIKA-DAG-001").is_none());
     }
 
     #[test]

@@ -14,6 +14,19 @@ use clap::{Args, Subcommand};
 pub enum TraceAction {
     /// Re-render a run live (replay = re-render, NEVER re-execute).
     Replay(TraceArgs),
+    /// Export the evidence pack for one run (journal + manifest +
+    /// receipt + VERIFY.md) — RAMS-15: one door on a run's dossier
+    /// (read · export · prove), all under `trace`.
+    Evidence {
+        #[command(flatten)]
+        args: crate::verbs::evidence::EvidenceArgs,
+    },
+    /// Read a run receipt — `explain` renders its readable projection
+    /// (stable text · a READING, never a proof).
+    Receipt {
+        #[command(subcommand)]
+        action: crate::verbs::receipt::ReceiptAction,
+    },
     /// Print the final card only.
     Show(TraceArgs),
     /// List the workspace trace store (`.nika/traces/`): age · size ·

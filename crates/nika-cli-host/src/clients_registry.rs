@@ -289,26 +289,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_vendored_snapshot_matches_the_agents_ssot_when_present() {
-        // Dev-machine seam: the monorepo layout puts the SSOT at
-        // <repos>/agents/repo/clients.yaml — walk the ancestors of
-        // CARGO_MANIFEST_DIR (worktree checkouts add one level below
-        // `repo/`). CI / packaged builds have no sibling repo: skip
-        // silently, the snapshot stands on its own tests there.
-        let Some(ssot) = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .map(|a| a.join("agents/repo/clients.yaml"))
-            .find(|p| p.is_file())
-        else {
-            return;
-        };
-        let disk = std::fs::read(&ssot).expect("the SSOT is readable");
-        assert_eq!(
-            disk,
-            VENDORED.as_bytes(),
-            "the vendored snapshot drifted from {ssot:?} — re-vendor: \
-             cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml"
-        );
-    }
+    // NOTE — drift between the vendored snapshot and the agents SSOT is
+    // NOT judged here. A unit test that byte-asserts against a live
+    // sibling checkout renders a different verdict for the same commit
+    // depending on what unrelated repos sit on the machine (the
+    // wrong-judge class — it blocked two unrelated engine pushes
+    // 2026-07-31). The drift surfaces in CI instead: the daily
+    // `clients-resync.yml` lane clones nika-agents@main, re-vendors, and
+    // opens ONE heal PR on drift — the 12-gate CI judges the new
+    // snapshot. Manual heal when the PR can't wait:
+    //   cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml
+    //   python3 scripts/estate.py --write
 }
