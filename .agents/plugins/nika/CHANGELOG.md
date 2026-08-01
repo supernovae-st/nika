@@ -5,6 +5,8 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+## 0.107.0 — 2026-08-01
+
 The agent-run contract lands (the friction was WRITTEN, not
 technical). The old law — « running is the human's move » — predates
 `nika guard`: prose said the agent never launches while the structure
@@ -33,10 +35,6 @@ command. A sixth slash command lands: `/nika:doctor` — the agent-side
 "is my suite coherent?" gesture, riding the binary's kit↔binary
 handshake (`nika doctor` now probes the three kit landings and prints
 the per-client refresh, both rungs named for Claude Code).
-
-## 0.107.0 — 2026-07-31
-
-Lockstep on the engine wave.
 
 ## 0.106.0 — 2026-07-27
 
