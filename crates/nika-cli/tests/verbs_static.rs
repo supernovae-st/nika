@@ -123,8 +123,13 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     assert_eq!(node("notify")["when"], "${{ const.source != '' }}");
     assert_eq!(node("fan")["fan_out"]["kind"], "list");
     assert_eq!(node("fan")["fan_out"]["count"], 3);
-    // mock/echo has no catalog price — the honest interval is null.
-    assert_eq!(node("think")["cost_interval"], serde_json::Value::Null);
+    // mock/echo is a proven zero (A-02): the echo never leaves the
+    // process, so the interval is the exact [$0, $0] — bounded, never
+    // null (null stays the honest shape for the sovereign locals).
+    assert_eq!(
+        node("think")["cost_interval"],
+        serde_json::json!([0.0, 0.0])
+    );
 
     // Edges: typed (graph_format 2 · kind closed enum), sorted (from, to).
     let edges: Vec<(String, String)> = doc["edges"]
@@ -208,17 +213,18 @@ fn inspect_draws_the_wave_groups_with_static_facts() {
     let out = inspect::run(&path, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
 
-    // Header: identity + counts + the honest cost bound (the narrowed
-    // claim: an unpriced model makes the estimate unbounded — the header
-    // says so and shows only the bounded portion).
+    // Header: identity + counts + the honest cost bound. The all-mock
+    // fixture is a proven zero (A-02), so the header carries the exact
+    // ceiling — `est unbounded · bounded portion` stays the shape for a
+    // genuinely unpriced (sovereign local) seat.
     let header = out.text.lines().next().expect("header");
     assert!(
         header.contains("static-suite · 5 tasks"),
         "header: {header}"
     );
     assert!(
-        header.contains("est unbounded · bounded portion"),
-        "mock/echo is unpriced: {header}"
+        header.contains("est out ≤$0.0000"),
+        "mock/echo is a proven zero: {header}"
     );
 
     // Waves as bordered groups: {gather,probe} · {fan,think} · notify.
@@ -276,9 +282,14 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
         "the audited card line closes a clean report: {}",
         out.text
     );
-    // mock/echo is unpriced: the cost lane names the unpriced task,
-    // never invents a bound.
-    assert!(out.text.contains("UNBOUNDED"), "{}", out.text);
+    // mock/echo is a proven zero (A-02): the whole-mock fixture audits
+    // to an exact $0 ceiling — no UNBOUNDED noise on the rehearsal plane
+    // (an unpriced SOVEREIGN model still earns it; mock never did).
+    assert!(
+        out.text.contains("$0.0000") && !out.text.contains("UNBOUNDED"),
+        "{}",
+        out.text
+    );
 }
 
 #[test]
