@@ -101,7 +101,7 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// must hand over to the next command. Golden path: offline proof in
 /// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
 /// non-interactive shape scripts have seen since #158.
-pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
+pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
 
 /// The scriptable path — briefs report (historical bytes), then each
 /// flagged extra as its own receipt block, then the hand-off. The door
@@ -477,11 +477,7 @@ mod tests {
             &stub_wire,
         );
         assert_eq!(unknown.code, codes::ENV, "{}", unknown.text);
-        assert!(
-            unknown.text.contains("nika examples list"),
-            "{}",
-            unknown.text
-        );
+        assert!(unknown.text.contains("nika try"), "{}", unknown.text);
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -505,7 +501,7 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(out.code, codes::OK);
         assert!(out.text.contains("next ·"), "{}", out.text);
-        assert!(out.text.contains("nika examples run 01-hello"));
+        assert!(out.text.contains("nika try 01-hello"));
         assert!(out.text.contains("nika check"));
     }
 
@@ -537,7 +533,7 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 15);
+        assert_eq!(p.len(), 17);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
         // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p

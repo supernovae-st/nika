@@ -29,7 +29,7 @@
 #     (`NIKA-AUTH-007` · a bound is a literal you can read)
 #
 # Run · nika run examples/11-declassify-the-door.nika.yaml
-#   another vendor file · --var path=examples/fixtures/inventory-q3.csv
+#   another vendor file · --var path=examples/fixtures/orders.csv
 
 nika: v1
 workflow:

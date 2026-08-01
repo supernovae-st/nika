@@ -92,13 +92,17 @@ tasks:
         message: "read ${{ const.source }}, summarize it and write the report?"
 
   gather:
-    after: { approve: success }
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     invoke:
       tool: "nika:read"
       args: { path: "${{ const.source }}" }
 
   probe:
-    after: { approve: success }
+    with:
+      go: ${{ tasks.approve.output }}
+    when: ${{ with.go == true }}
     exec:
       command: ["wc", "-l", "./news.json"]
 
@@ -307,7 +311,12 @@ async fn e2e_happy_path_full_pipeline() {
     // the static audit, is its own test above; execute() re-asserts it).
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams = Seams::new(shell, tools);
@@ -406,6 +415,107 @@ async fn e2e_happy_path_full_pipeline() {
     );
 }
 
+// ─── test 1ter · the human says NO — the runtime half of NIKA-SEC-014 ────
+//
+// The static half (the checker refuses a bare `after:` gate) has its
+// conformance corpus; the RUNTIME half — a refusal at the gate fires the
+// gated effects ZERO times — had no test at any level. Same diamond as
+// the happy path, one mock flipped: the approve builtin answers the
+// refusal shape the real `nika:prompt` confirm returns.
+
+#[tokio::test]
+async fn e2e_refused_gate_fires_zero_effects() {
+    let (wf, report) = parse_and_check(WORKFLOW_OK);
+
+    // NEP-0020: a REFUSED confirm settles SUCCESS with value `false`
+    // (never a failure — the gate is a decision, and that is exactly why
+    // the static law exists). The real builtin routes the typed bool on
+    // the structured plane; the mock speaks the same shape.
+    let shell = MockShell::new(); // NOTHING enqueued: reaching it fails loudly
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(
+            ToolResult::success("call-approve", "false").with_structured(serde_json::json!(false)),
+        )
+        .enqueue_ok(ToolResult::success("call-write", "0.0 KB written"));
+    let seams = Seams::new(shell, tools);
+
+    let (events, ok) = execute(&wf, &report, &seams).await;
+    assert!(ok, "a refusal is a decision: the run completes clean");
+
+    // THE LAW: zero exec effects — probe's `wc` never ran (its `when:`
+    // read the refusal) and notify's `echo` never ran (publish=no stays
+    // closed). An empty-queue MockShell would also have panicked; the
+    // explicit assertion names the contract.
+    assert!(
+        seams.shell.executed_commands().is_empty(),
+        "the gated execs never fired: {:?}",
+        seams.shell.executed_commands()
+    );
+
+    // The tool seam: approve asked, write_out persisted — `nika:read`
+    // (gather's private read) was NEVER touched.
+    let calls = seams.tools.captured_calls();
+    assert_eq!(calls.len(), 2, "approve + write_out · gather never ran");
+    assert!(
+        calls.iter().all(|c| c.name != "nika:read"),
+        "the private read never left the gate"
+    );
+
+    // The fold, task by task (the semantics named, not guessed):
+    // · gather/probe — `when: ${{ with.go == true }}` over the refusal →
+    //   SKIPPED (spec 03 §when: a closed gate is a decision).
+    // · extract/think — GATE-v2 (spec 03 §gate algebra): a VALUE edge
+    //   (`with:` reading `tasks.X.output`) ADMITS a skipped producer and
+    //   the output reads defined-`null` (spec 04), so the consumers RUN
+    //   on nulls. A skip is not a failure: nothing cascades.
+    // · write_out — both its edges admit (think succeeded · extract
+    //   succeeded), so the persist lane RUNS: the refusal's contract is
+    //   zero gated effects + zero private-data flow, never a DAG-wide
+    //   halt.
+    // · notify — publish=no, its own `when:` closes it as on the happy
+    //   path.
+    let view = fold(&events);
+    assert_eq!(view.verdict, Some(true));
+    let by_id = states(&view);
+    assert_eq!(by_id["approve"], TaskState::Ok);
+    assert_eq!(by_id["gather"], TaskState::Skipped);
+    assert_eq!(by_id["probe"], TaskState::Skipped);
+    assert_eq!(by_id["extract"], TaskState::Ok);
+    assert_eq!(by_id["think"], TaskState::Ok);
+    assert_eq!(by_id["write_out"], TaskState::Ok);
+    assert_eq!(by_id["notify"], TaskState::Skipped);
+    assert_eq!(view.done_count(), 7, "every task reached a terminal state");
+
+    // The written report carries the defined-null reads — and NEVER the
+    // private bytes gather would have read had the human said yes.
+    let write = calls
+        .iter()
+        .find(|c| c.name == "nika:write")
+        .expect("write_out hit the tool seam");
+    let written = write
+        .input
+        .get("content")
+        .and_then(serde_json::Value::as_str)
+        .expect("write_out carries content");
+    assert!(
+        !written.contains(GATHER_JSON),
+        "the refusal stops the DATA too: {written}"
+    );
+
+    // The stream opens and closes like any completed run — a refusal is
+    // not a failure, nothing failed.
+    let kinds: Vec<EventKind> = events.iter().map(|e| e.kind).collect();
+    assert_eq!(kinds[0], EventKind::WorkflowStarted);
+    assert_eq!(
+        *kinds.last().expect("stream non-empty"),
+        EventKind::WorkflowCompleted
+    );
+    assert!(
+        !kinds.contains(&EventKind::TaskFailed),
+        "a refused gate fails nothing"
+    );
+}
+
 // ─── test 2 · structured output through real dataflow ──────────────────
 
 #[tokio::test]
@@ -419,7 +529,12 @@ async fn e2e_structured_output_validates_real_dataflow() {
     // schema-validated and typed.
     let shell = MockShell::new().enqueue_ok("42\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "ok"));
     let seams = Seams::new(shell, tools);
@@ -467,7 +582,12 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
     // probe explodes; gather's lane stays alive.
     let shell = MockShell::new().enqueue_fail(7, "disk full: /var/news");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON));
     let seams = Seams::new(shell, tools);
 
@@ -592,7 +712,12 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
     let (wf, report) = parse_and_check(WORKFLOW_OK);
     let shell = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams = Seams::new(shell, tools);
@@ -621,7 +746,12 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
     // clock pin the whole pipeline (the spec's reproducibility law).
     let shell2 = MockShell::new().enqueue_ok("      42 ./news.json\n");
     let tools2 = MockToolExecutor::new()
-        .enqueue_ok(ToolResult::success("call-approve", "true"))
+        .enqueue_ok(
+            // The REAL confirm routes its typed value on the structured
+            // plane (bool · verb-invoke docs) — the affirmative `when:`
+            // gate reads THAT, so the mock speaks the same shape.
+            ToolResult::success("call-approve", "true").with_structured(serde_json::json!(true)),
+        )
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
         .enqueue_ok(ToolResult::success("call-write", "2.1 KB written"));
     let seams2 = Seams::new(shell2, tools2);

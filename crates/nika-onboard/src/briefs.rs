@@ -33,7 +33,7 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 **audited before they run**. (This guide is scaffolded by `nika init`.)
 
 ## The loop
-- **Author** · `nika new --from <template> <file>.nika.yaml` (or write one —
+- **Author** · `nika new <template> <file>.nika.yaml` (or write one —
   the envelope is `nika: v1` + a `workflow:` OBJECT carrying `id:` (kebab-case)
   + a `tasks:` MAP keyed by task id. A scalar `workflow:` refuses
   `NIKA-PARSE-020`, a `tasks:` sequence refuses `NIKA-PARSE-022`).
@@ -48,9 +48,10 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   declaration · unknown keys refused); a run
   paused on a `nika:prompt` resumes with `--resume <trace> --answer
   <task>=<value>` (confirm gates take booleans: `--answer approve=true`).
-- **Pin** · `nika test <file> --update` writes `<file>.golden.json` from an
-  offline mock run; `nika test <file>` replays and compares — deterministic,
-  zero keys, the CI gate.
+- **Pin** · `nika test <file> --update` writes `<file>.golden.json` from a
+  simulated run — the model is `mock/echo` (offline · deterministic) and
+  real effects are REFUSED, never performed; `nika test <file>` replays
+  and compares — zero keys, the CI gate.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
   `nika welcome` is the short mirror (machine · workspace · next commands).
 - **Context** · `nika welcome --deep --json` — the whole workspace truth in one
@@ -90,7 +91,7 @@ multi-turn ReAct loop).
 - snake_case task ids · kebab-case `workflow:`.
 
 ## Don't invent structure — route to a skeleton
-`nika new --from '?'` lists the embedded skeletons · `nika examples list` /
+`nika new '?'` lists the embedded skeletons · `nika try` /
 `show <slug>` reads a runnable example that exercises a construct ·
 `nika spec --schema` is the JSON Schema · `nika spec --canon` is the SSOT ·
 `nika catalog` names the providers/models · `nika catalog --tools` names the `nika:`
@@ -115,7 +116,7 @@ builtins. Copy, fill, check.
   sidecar · the workflow itself never changes) · `nika sign --check <file>`
   verifies · `nika run --require-signature <file>` refuses an unsigned or
   invalidly-signed workflow BEFORE anything executes (exit 2).
-- `nika evidence <run>` — export the evidence pack: journal + manifest
+- `nika trace evidence <run>` — export the evidence pack: journal + manifest
   (hash · boundary · trifecta · sandbox · seal grade) + receipt + VERIFY.md.
 - `nika dap` — step a recorded run under a debugger UI, forward AND back.
 
@@ -137,6 +138,11 @@ prints the build recipe).
   `env:` map. A variable the child needs must be named.
 - Secrets come from the environment (`${{ secrets.X }}`) — never inline.
 - `nika check` must be clean before `nika run` (audit-before-run is enforced).
+- The wired shell hook's judge is `nika guard` (the execution seatbelt):
+  before a `nika run` leaves the agent's shell it audits the exact file —
+  a red file or a priced model without `--max-cost-usd` is denied with the
+  findings; `guard_unavailable` means the judge could not see, never that
+  the check passed.
 ";
 
 /// `.cursor/rules/nika.mdc` — the agent-facing authoring floor for Cursor.
@@ -151,11 +157,20 @@ const CURSOR_RULES: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/rules/nika-workflow-language.mdc"
 ));
 
-/// `.cursor/mcp.json` — the project-scoped MCP wiring for Cursor: the
-/// read-only oracle (9 tools) reaches the agent without any manual setup.
-/// Project-scoped (not global) so the config travels with the repo and
-/// never touches the user's other projects.
-const CURSOR_MCP: &str =
+/// The standard `mcpServers` stanza — ONE body, three project files: the
+/// read-only oracle (9 tools) reaches the agent without any manual setup,
+/// project-scoped so the config travels with the repo and never touches
+/// the user's other projects.
+///   · `.cursor/mcp.json` — Cursor's project scope
+///   · `.mcp.json` — the root file FOUR surfaces read natively: Claude
+///     Code (project scope) · Grok Build (its Claude compat) · GitHub
+///     Copilot CLI (cwd → repo root) · Warp (third-party interop)
+///   · `.agents/mcp_config.json` — Antigravity CLI's workspace file
+///     (`agy` · a stdio command entry is the standard shape; the
+///     url→serverUrl rename touches remote servers only), living under
+///     `.agents/` beside the skill — the cross-vendor convention Warp ·
+///     Antigravity · Kimi · Amp share
+const MCP_SERVERS: &str =
     "{ \"mcpServers\": { \"nika\": { \"command\": \"nika\", \"args\": [\"mcp\"] } } }\n";
 
 /// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
@@ -164,7 +179,7 @@ const CURSOR_MCP: &str =
 const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika.yaml`) — Copilot brief
 
 Nika workflows are audited BEFORE they run. The loop: author from a
-skeleton (`nika new --from '?'` lists them) → `nika check <file>` after
+skeleton (`nika new '?'` lists them) → `nika check <file>` after
 EVERY edit → `nika check <file> --fix` heals the mechanical renames →
 repair the rest from the diagnostics (`nika explain NIKA-XXXX`) →
 only a clean file reaches a human.
@@ -264,6 +279,16 @@ const KIT_CURSOR_HOOKS: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/hooks/cursor-hooks.json"
 ));
 
+/// The kit's Codex manifest — test-only anchor: the plugin page's first
+/// contact (description · defaultPrompt) is pinned against the three-door
+/// CTA contract so a copy edit cannot silently re-expose engine
+/// capabilities as the entry points.
+#[cfg(test)]
+const KIT_CODEX_MANIFEST: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/.codex-plugin/plugin.json"
+));
+
 const CURSOR_HOOKS_JSON: &str = r#"{
   "hooks": {
     "sessionStart": [
@@ -291,13 +316,15 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 15] {
+pub(super) fn targets() -> [(&'static str, &'static str); 17] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
         (".cursor/rules/nika-delegation.mdc", CURSOR_DELEGATION),
-        (".cursor/mcp.json", CURSOR_MCP),
+        (".cursor/mcp.json", MCP_SERVERS),
+        (".mcp.json", MCP_SERVERS),
+        (".agents/mcp_config.json", MCP_SERVERS),
         (".cursor/agents/nika-author.md", CURSOR_AGENT_AUTHOR),
         (".cursor/agents/nika-debugger.md", CURSOR_AGENT_DEBUGGER),
         (".cursor/agents/nika-migrator.md", CURSOR_AGENT_MIGRATOR),
@@ -623,7 +650,7 @@ mod tests {
     fn agents_md_points_at_the_learning_surface() {
         // A wired agent must know the embedded surfaces exist, or it
         // improvises structure instead of routing to a template.
-        for needle in ["nika new --from", "nika examples", "nika spec --schema"] {
+        for needle in ["nika new", "nika try", "nika spec --schema"] {
             assert!(
                 AGENTS_MD.contains(needle),
                 "the guide names the discovery command `{needle}`"
@@ -637,7 +664,7 @@ mod tests {
     #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 15);
+        assert_eq!(t.len(), 17);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",
@@ -645,6 +672,8 @@ mod tests {
             ".cursor/rules/nika.mdc",
             ".cursor/rules/nika-delegation.mdc",
             ".cursor/mcp.json",
+            ".mcp.json",
+            ".agents/mcp_config.json",
             ".cursor/agents/nika-author.md",
             ".cursor/agents/nika-debugger.md",
             ".cursor/agents/nika-migrator.md",
@@ -719,6 +748,48 @@ mod tests {
             shape(&kit),
             "project hooks.json drifted from the kit manifest"
         );
+    }
+
+    /// The Codex plugin page opens with the three DOORS — one per visitor
+    /// state (create · discover · continue), never three engine
+    /// capabilities of equal weight (UX audit 2026-07-30 · three-door CTA
+    /// spec). Create is the primary door and the first CTA in the chat —
+    /// the platform's Try now is a system CTA and is never duplicated —
+    /// and « Nothing runs automatically. » is persistent copy, not a
+    /// tooltip. Validation and trace diagnosis stay available BEHIND the
+    /// Continue door; they no longer compete with first value.
+    #[test]
+    fn the_codex_manifest_opens_with_the_three_doors() {
+        let create = "Help me turn one task I repeat into a Nika workflow.";
+        let discover = "Teach me what Nika is through one small, concrete and safe example.";
+        let cont = "Inspect the current project's Nika state in read-only mode.";
+        for door in [create, discover, cont] {
+            assert!(
+                KIT_CODEX_MANIFEST.contains(door),
+                "missing door prompt: {door}"
+            );
+        }
+        let pos = |needle: &str| KIT_CODEX_MANIFEST.find(needle).expect("door present");
+        assert!(
+            pos(create) < pos(discover) && pos(discover) < pos(cont),
+            "create is the primary door — first in chat order"
+        );
+        assert!(
+            KIT_CODEX_MANIFEST.contains("Nothing runs automatically."),
+            "the safety line is persistent copy, not a tooltip"
+        );
+        // The retired capability trio (audit 2026-07-30): three internal
+        // capabilities presented as equals. They moved behind Continue.
+        for retired in [
+            "Turn this repeatable task into a checked Nika workflow.",
+            "Validate this .nika.yaml file and repair every finding.",
+            "Diagnose this failed Nika run from its trace.",
+        ] {
+            assert!(
+                !KIT_CODEX_MANIFEST.contains(retired),
+                "retired capability prompt still on the page: {retired}"
+            );
+        }
     }
 
     /// The subagents keep their kit identity — Cursor matches them by

@@ -846,7 +846,9 @@ mod tests {
         // boundary declares all three trifecta legs (fs.read · tools ·
         // exec), so the exec sits behind a blocking `nika:prompt` gate —
         // otherwise NIKA-SEC-009 flags it and the fixture is not clean.
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    after: { ask: success }\n    exec: { command: [\"git\", \"status\"] }\n";
+        // NEP-0020: the gate's answer is consumed AFFIRMATIVELY (a bare
+        // `after:` would carry the refusal — NIKA-SEC-014).
+        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"status\"] }\n";
         let parsed = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = crate::check(&parsed);
         assert!(report.is_clean(), "the fixture fits its boundary");

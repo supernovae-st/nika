@@ -5,6 +5,9 @@ pub mod nika_onboard::codes
 pub const nika_onboard::codes::ENV: u8
 pub const nika_onboard::codes::FILE: u8
 pub const nika_onboard::codes::OK: u8
+pub mod nika_onboard::fixtures
+pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>
 pub mod nika_onboard::founding
 pub enum nika_onboard::founding::CanvasTheme
 pub nika_onboard::founding::CanvasTheme::Auto

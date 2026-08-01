@@ -18,9 +18,6 @@ impl<D> owo_colors::OwoColorize for nika_display::check_render::ModelFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
-pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::check_render::ModelFinding where U: core::convert::From<T>
 pub fn nika_display::check_render::ModelFinding::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::ModelFinding where U: core::convert::Into<T>
@@ -55,11 +52,15 @@ impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::Mode
 impl<T> typenum::type_operators::Same for nika_display::check_render::ModelFinding
 pub type nika_display::check_render::ModelFinding::Output = T
 #[non_exhaustive] pub struct nika_display::check_render::ModelsAudit
+pub nika_display::check_render::ModelsAudit::catalog_warnings: alloc::vec::Vec<nika_display::check_render::ModelFinding>
 pub nika_display::check_render::ModelsAudit::findings: alloc::vec::Vec<nika_display::check_render::ModelFinding>
+pub nika_display::check_render::ModelsAudit::local_server: usize
 pub nika_display::check_render::ModelsAudit::unjudged: usize
 pub nika_display::check_render::ModelsAudit::via_default: usize
 impl nika_display::check_render::ModelsAudit
 pub fn nika_display::check_render::ModelsAudit::new(findings: alloc::vec::Vec<nika_display::check_render::ModelFinding>, unjudged: usize, via_default: usize) -> Self
+pub fn nika_display::check_render::ModelsAudit::with_catalog_warnings(self, warnings: alloc::vec::Vec<nika_display::check_render::ModelFinding>) -> Self
+pub fn nika_display::check_render::ModelsAudit::with_local_server(self, count: usize) -> Self
 impl core::clone::Clone for nika_display::check_render::ModelsAudit
 pub fn nika_display::check_render::ModelsAudit::clone(&self) -> nika_display::check_render::ModelsAudit
 impl core::cmp::Eq for nika_display::check_render::ModelsAudit
@@ -72,9 +73,6 @@ impl<D> owo_colors::OwoColorize for nika_display::check_render::ModelsAudit
 impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
-pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::check_render::ModelsAudit where U: core::convert::From<T>
 pub fn nika_display::check_render::ModelsAudit::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::ModelsAudit where U: core::convert::Into<T>
@@ -110,7 +108,7 @@ impl<T> typenum::type_operators::Same for nika_display::check_render::ModelsAudi
 pub type nika_display::check_render::ModelsAudit::Output = T
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
-pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]
@@ -131,6 +129,7 @@ pub fn nika_display::dag_art::wire_graph(doc: &nika_graph::GraphDoc, waves: &[al
 pub mod nika_display::demo
 pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
 pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_display::demo::paused() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::retrying() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::success() -> alloc::vec::Vec<nika_event::event::Event>
 pub mod nika_display::flow
@@ -150,9 +149,6 @@ impl<D> owo_colors::OwoColorize for nika_display::flow::Interval
 impl<Q, K> equivalent::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
-pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::flow::Interval where U: core::convert::From<T>
 pub fn nika_display::flow::Interval::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::flow::Interval where U: core::convert::Into<T>
@@ -193,7 +189,7 @@ pub fn nika_display::flow::fmt_wall_ms(ms: u64) -> alloc::string::String
 pub fn nika_display::flow::heat_bucket(wall_ms: u64, max_ms: u64) -> usize
 pub fn nika_display::flow::interval_of(row: &nika_display::state::TaskRow, now_ms: core::option::Option<i64>) -> core::option::Option<nika_display::flow::Interval>
 pub fn nika_display::flow::lane_marks(view: &nika_display::state::RunView) -> alloc::vec::Vec<bool>
-pub fn nika_display::flow::verdict_card(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, outputs_note: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::flow::verdict_card(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, notes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::flow::waterfall(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_display::format
 pub enum nika_display::format::ColorChoice
@@ -213,9 +209,6 @@ impl<D> owo_colors::OwoColorize for nika_display::format::ColorChoice
 impl<Q, K> equivalent::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
-pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::format::ColorChoice where U: core::convert::From<T>
 pub fn nika_display::format::ColorChoice::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::format::ColorChoice where U: core::convert::Into<T>
@@ -268,9 +261,6 @@ impl<D> owo_colors::OwoColorize for nika_display::format::LinkChoice
 impl<Q, K> equivalent::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
-pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::format::LinkChoice where U: core::convert::From<T>
 pub fn nika_display::format::LinkChoice::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::format::LinkChoice where U: core::convert::Into<T>
@@ -362,12 +352,68 @@ pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::stri
 pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
 pub fn nika_display::format::links_enabled(choice: nika_display::format::LinkChoice, tty: bool, term_dumb: bool) -> bool
 pub fn nika_display::format::osc8(url: &str, text: &str, id: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_display::fruit
+pub struct nika_display::fruit::WroteFile
+pub nika_display::fruit::WroteFile::path: alloc::string::String
+pub nika_display::fruit::WroteFile::verb: &'static str
+impl core::clone::Clone for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::clone(&self) -> nika_display::fruit::WroteFile
+impl core::cmp::Eq for nika_display::fruit::WroteFile
+impl core::cmp::PartialEq for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::eq(&self, other: &nika_display::fruit::WroteFile) -> bool
+impl core::fmt::Debug for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::fruit::WroteFile
+impl<D> owo_colors::OwoColorize for nika_display::fruit::WroteFile
+impl<Q, K> equivalent::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_display::fruit::WroteFile where U: core::convert::From<T>
+pub fn nika_display::fruit::WroteFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::fruit::WroteFile where U: core::convert::Into<T>
+pub type nika_display::fruit::WroteFile::Error = core::convert::Infallible
+pub fn nika_display::fruit::WroteFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::fruit::WroteFile where U: core::convert::TryFrom<T>
+pub type nika_display::fruit::WroteFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::fruit::WroteFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::fruit::WroteFile where T: core::clone::Clone
+pub type nika_display::fruit::WroteFile::Owned = T
+pub fn nika_display::fruit::WroteFile::clone_into(&self, target: &mut T)
+pub fn nika_display::fruit::WroteFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::fruit::WroteFile where T: 'static + ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::fruit::WroteFile where T: ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::fruit::WroteFile where T: ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::fruit::WroteFile where T: core::clone::Clone
+pub unsafe fn nika_display::fruit::WroteFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::fruit::WroteFile
+pub fn nika_display::fruit::WroteFile::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::fruit::WroteFile where T: core::clone::Clone
+pub fn nika_display::fruit::WroteFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::fruit::WroteFile where T: 'static
+pub fn nika_display::fruit::WroteFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::fruit::WroteFile where T: ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::fruit::WroteFile::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::fruit::WroteFile
+impl<T> tracing::instrument::WithSubscriber for nika_display::fruit::WroteFile
+impl<T> typenum::type_operators::Same for nika_display::fruit::WroteFile
+pub type nika_display::fruit::WroteFile::Output = T
+pub fn nika_display::fruit::asks_inputs_back(text: &str) -> bool
+pub fn nika_display::fruit::cautions(view: &nika_display::state::RunView, ascii: bool) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::fruit::inputs_all_recovered(view: &nika_display::state::RunView) -> core::option::Option<usize>
+pub fn nika_display::fruit::last_said(view: &nika_display::state::RunView) -> core::option::Option<(&str, &str)>
+pub fn nika_display::fruit::rehearsal(view: &nika_display::state::RunView) -> bool
+pub fn nika_display::fruit::rehearsal_note(view: &nika_display::state::RunView) -> core::option::Option<&'static str>
+pub fn nika_display::fruit::written_files(view: &nika_display::state::RunView) -> alloc::vec::Vec<nika_display::fruit::WroteFile>
 pub mod nika_display::render
 pub fn nika_display::render::frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::frame_with_outputs(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::stream_header(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::stream_settled_line(view: &nika_display::state::RunView, task: &str, theme: &nika_display::theme::Theme, outputs: bool) -> core::option::Option<alloc::string::String>
-pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, notes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::verdict_frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_display::shape
 pub const nika_display::shape::SHAPE_CELLS: usize
@@ -381,6 +427,7 @@ pub enum nika_display::state::TaskState
 pub nika_display::state::TaskState::Cancelled
 pub nika_display::state::TaskState::Failed
 pub nika_display::state::TaskState::Ok
+pub nika_display::state::TaskState::Paused
 pub nika_display::state::TaskState::Pending
 pub nika_display::state::TaskState::Retrying
 pub nika_display::state::TaskState::Running
@@ -398,9 +445,6 @@ impl<D> owo_colors::OwoColorize for nika_display::state::TaskState
 impl<Q, K> equivalent::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
-pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::state::TaskState where U: core::convert::From<T>
 pub fn nika_display::state::TaskState::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::state::TaskState where U: core::convert::Into<T>
@@ -441,6 +485,7 @@ pub nika_display::state::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_display::state::RunView::cost_usd: f64
 pub nika_display::state::RunView::elapsed_ms: u64
 pub nika_display::state::RunView::external_map: bool
+pub nika_display::state::RunView::paused_task: core::option::Option<alloc::string::String>
 pub nika_display::state::RunView::permits: core::option::Option<alloc::string::String>
 pub nika_display::state::RunView::retries: u32
 pub nika_display::state::RunView::token_samples: alloc::vec::Vec<u64>
@@ -450,6 +495,7 @@ pub nika_display::state::RunView::workflow: alloc::string::String
 pub nika_display::state::RunView::workflow_detail: core::option::Option<alloc::string::String>
 impl nika_display::state::RunView
 pub fn nika_display::state::RunView::apply(&mut self, event: &nika_event::event::Event)
+pub fn nika_display::state::RunView::cancelled_count(&self) -> usize
 pub fn nika_display::state::RunView::done_count(&self) -> usize
 pub fn nika_display::state::RunView::failed_count(&self) -> usize
 pub fn nika_display::state::RunView::last_ts_ms(&self) -> core::option::Option<i64>
@@ -577,9 +623,6 @@ impl<D> owo_colors::OwoColorize for nika_display::theme::Role
 impl<Q, K> equivalent::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
-pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::theme::Role where U: core::convert::From<T>
 pub fn nika_display::theme::Role::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::theme::Role where U: core::convert::Into<T>
@@ -686,6 +729,7 @@ pub fn nika_display::vocab::at_least(ascii: bool) -> &'static str
 pub fn nika_display::vocab::at_most(ascii: bool) -> &'static str
 pub fn nika_display::vocab::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_display::vocab::hint(theme: nika_display::theme::Theme, label: &str, command: &str) -> alloc::string::String
+pub fn nika_display::vocab::sober(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
 pub fn nika_display::vocab::usd(amount: f64) -> alloc::string::String
 pub mod nika_display::wires
 pub struct nika_display::wires::WireGraph

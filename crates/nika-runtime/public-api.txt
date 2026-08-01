@@ -520,7 +520,9 @@ pub fn nika_runtime::compose::fs_boundary_of_permits(permits: core::option::Opti
 pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
+pub fn nika_runtime::compose::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
 pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
+pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_clock::declared_clock::DeclaredClock>
 pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
@@ -733,6 +735,94 @@ pub type nika_runtime::resume::ResumeKey::Output = T
 pub const nika_runtime::resume::KEY_VERSION: u32
 pub fn nika_runtime::resume::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::resume::PriorSuccess>
+pub mod nika_runtime::simulated
+pub struct nika_runtime::simulated::SimulatedDispatcher<D>
+impl<D> nika_runtime::simulated::SimulatedDispatcher<D>
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::new(inner: alloc::sync::Arc<D>) -> Self
+impl<D: core::fmt::Debug> core::fmt::Debug for nika_runtime::simulated::SimulatedDispatcher<D>
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn for nika_runtime::simulated::SimulatedDispatcher<D> where D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn
+pub async fn nika_runtime::simulated::SimulatedDispatcher<D>::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<D> nika_kernel_runtime::tool_executor::ToolExecuteDyn for nika_runtime::simulated::SimulatedDispatcher<D> where D: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_runtime::simulated::SimulatedDispatcher<D>::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+impl<D> owo_colors::OwoColorize for nika_runtime::simulated::SimulatedDispatcher<D>
+impl<T, U> core::convert::Into<U> for nika_runtime::simulated::SimulatedDispatcher<D> where U: core::convert::From<T>
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::simulated::SimulatedDispatcher<D> where U: core::convert::Into<T>
+pub type nika_runtime::simulated::SimulatedDispatcher<D>::Error = core::convert::Infallible
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::simulated::SimulatedDispatcher<D> where U: core::convert::TryFrom<T>
+pub type nika_runtime::simulated::SimulatedDispatcher<D>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::simulated::SimulatedDispatcher<D> where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::simulated::SimulatedDispatcher<D> where T: ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::simulated::SimulatedDispatcher<D> where T: ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::simulated::SimulatedDispatcher<D>
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::simulated::SimulatedDispatcher<D> where T: 'static
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::simulated::SimulatedDispatcher<D> where T: ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::simulated::SimulatedDispatcher<D>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::simulated::SimulatedDispatcher<D>
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::simulated::SimulatedDispatcher<D>
+impl<T> typenum::type_operators::Same for nika_runtime::simulated::SimulatedDispatcher<D>
+pub type nika_runtime::simulated::SimulatedDispatcher<D>::Output = T
+impl<TraitVariantBlanketType> nika_kernel_ai::tool_defs::ToolDefinitionProvider for nika_runtime::simulated::SimulatedDispatcher<D> where TraitVariantBlanketType: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn
+pub async fn nika_runtime::simulated::SimulatedDispatcher<D>::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolExecute for nika_runtime::simulated::SimulatedDispatcher<D> where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_runtime::simulated::SimulatedDispatcher<D>::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+pub struct nika_runtime::simulated::SimulatedShell
+impl core::clone::Clone for nika_runtime::simulated::SimulatedShell
+pub fn nika_runtime::simulated::SimulatedShell::clone(&self) -> nika_runtime::simulated::SimulatedShell
+impl core::default::Default for nika_runtime::simulated::SimulatedShell
+pub fn nika_runtime::simulated::SimulatedShell::default() -> nika_runtime::simulated::SimulatedShell
+impl core::fmt::Debug for nika_runtime::simulated::SimulatedShell
+pub fn nika_runtime::simulated::SimulatedShell::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::simulated::SimulatedShell
+impl nika_kernel_core::io::process::ShellRunDyn for nika_runtime::simulated::SimulatedShell
+pub async fn nika_runtime::simulated::SimulatedShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+impl<D> owo_colors::OwoColorize for nika_runtime::simulated::SimulatedShell
+impl<T, U> core::convert::Into<U> for nika_runtime::simulated::SimulatedShell where U: core::convert::From<T>
+pub fn nika_runtime::simulated::SimulatedShell::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::simulated::SimulatedShell where U: core::convert::Into<T>
+pub type nika_runtime::simulated::SimulatedShell::Error = core::convert::Infallible
+pub fn nika_runtime::simulated::SimulatedShell::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::simulated::SimulatedShell where U: core::convert::TryFrom<T>
+pub type nika_runtime::simulated::SimulatedShell::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::simulated::SimulatedShell::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::simulated::SimulatedShell where T: core::clone::Clone
+pub type nika_runtime::simulated::SimulatedShell::Owned = T
+pub fn nika_runtime::simulated::SimulatedShell::clone_into(&self, target: &mut T)
+pub fn nika_runtime::simulated::SimulatedShell::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::simulated::SimulatedShell where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedShell::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::simulated::SimulatedShell where T: ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedShell::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::simulated::SimulatedShell where T: ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedShell::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::simulated::SimulatedShell where T: core::clone::Clone
+pub unsafe fn nika_runtime::simulated::SimulatedShell::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::simulated::SimulatedShell
+pub fn nika_runtime::simulated::SimulatedShell::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::simulated::SimulatedShell where T: core::clone::Clone
+pub fn nika_runtime::simulated::SimulatedShell::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::simulated::SimulatedShell where T: 'static
+pub fn nika_runtime::simulated::SimulatedShell::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::simulated::SimulatedShell where T: core::marker::Copy
+pub fn nika_runtime::simulated::SimulatedShell::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::simulated::SimulatedShell where T: ?core::marker::Sized
+pub fn nika_runtime::simulated::SimulatedShell::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::simulated::SimulatedShell::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::simulated::SimulatedShell
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::simulated::SimulatedShell
+impl<T> typenum::type_operators::Same for nika_runtime::simulated::SimulatedShell
+pub type nika_runtime::simulated::SimulatedShell::Output = T
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_runtime::simulated::SimulatedShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
+pub async fn nika_runtime::simulated::SimulatedShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
 #[non_exhaustive] pub enum nika_runtime::InputOrigin
 pub nika_runtime::InputOrigin::CiContext
 pub nika_runtime::InputOrigin::CliOperator
@@ -1578,6 +1668,8 @@ pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_ru
 pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
+pub fn nika_runtime::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool
 pub fn nika_runtime::unbounded_breakdown(cost: &nika_check::cost::CostCeiling) -> alloc::string::String
 pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
+pub type nika_runtime::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_clock::declared_clock::DeclaredClock>

@@ -17,9 +17,9 @@ parity is the proof.
    stdout, API writes) · side effects (deploys, sends, deletes) ·
    credentials. A guard clause in the source is INTENT — port it.
 2. **Route.** Pick the outer shape from the embedded templates
-   (`nika new --from '?'` prints the living list): chain · fanout ·
+   (`nika new '?'` prints the living list): chain · fanout ·
    gate-and-act · etl-state · agent-loop · human-gated-ship.
-   `nika new --from <template> <file>.nika.yaml`, then fill the
+   `nika new <template> <file>.nika.yaml`, then fill the
    `# SLOT:` markers.
 3. **Map native-first.** The order is `invoke: nika:*` →
    `invoke: mcp:<server>/<tool>` → `exec:` last. HTTP → `nika:fetch` ·
@@ -60,9 +60,11 @@ parity is the proof.
   human's call, after parity.
 - Never wrap the old script (`exec: bash old.sh`) and call it a
   migration — that is the exact anti-pattern (`native-first/005`).
-- Never run the workflow; propose the line (`nika run` is the
-  human's move). Your oracle is read-only: check · explain · schema ·
-  examples · template · catalog · tools.
+- You do not execute: your craft is porting the file and proving
+  parity at the check. Launching belongs to the conversation — the
+  main agent may run it under a `--max-cost-usd` ceiling when the
+  human asks — never to a porting subagent. Your oracle is read-only:
+  check · explain · schema · examples · template · catalog · tools.
 - Secrets become declared secrets AT PORT TIME, never "TODO later".
 - A missing binary is a stop:
   `brew install supernovae-st/tap/nika`.

@@ -263,6 +263,16 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
 /// `None` for local/unknown models — sovereign zero-price models are
 /// « unpriced », never « free ».
 pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
+    // The mock plane is the engine's own rehearsal: the echo never leaves
+    // the process — no tokens are bought, no API is reached. A PROVEN
+    // zero, priced $0.00 (A-02: the ⚠ COST UNBOUNDED on the first
+    // artifact every beginner checks taught that the free rehearsal was
+    // dangerous — and the run card already reports the truth, `$0.00`).
+    // The sovereign locals stay unpriced, never free: their watts are
+    // real; mock has no model at all.
+    if model == "mock" || model.starts_with("mock/") {
+        return Some(0.0);
+    }
     nika_catalog::find_pricing_for(model).map(|p| p.output_per_million)
 }
 
@@ -417,6 +427,49 @@ tasks:
             "local has no cloud price → reported, not $0"
         );
         assert_eq!(c.tasks[0].unbounded_reason, Some(UnboundedReason::NoPrice));
+    }
+
+    /// A-02 · the mock plane is a PROVEN zero, never an unknown: the
+    /// echo never leaves the process, so a capped mock task is bounded
+    /// at $0.00 — the ⚠ COST UNBOUNDED on the first artifact every
+    /// beginner checks was teaching that the free rehearsal is
+    /// dangerous. The sister law stays: locals are unpriced (their
+    /// watts are real — `local_model_is_unpriced_not_free` above).
+    #[test]
+    fn mock_is_a_proven_zero_never_unpriced() {
+        let c = ceiling_of(
+            "\
+nika: v1
+workflow:
+  id: rehearsal
+model: mock/echo
+tasks:
+  ask:
+    infer: { prompt: \"hi\", max_tokens: 1000 }
+",
+        );
+        assert!(!c.has_unbounded, "mock is $0 by construction: {c:?}");
+        assert_eq!(c.tasks[0].unbounded_reason, None);
+        assert_eq!(c.tasks[0].usd, Some(0.0));
+        assert_eq!(c.bounded_total_usd, 0.0);
+        // The cap habit still teaches: an UNCAPPED mock task keeps the
+        // NoTokenLimit report (true — and the habit survives the swap
+        // to a real model).
+        let uncapped = ceiling_of(
+            "\
+nika: v1
+workflow:
+  id: rehearsal-uncapped
+model: mock/echo
+tasks:
+  ask:
+    infer: { prompt: \"hi\" }
+",
+        );
+        assert_eq!(
+            uncapped.tasks[0].unbounded_reason,
+            Some(UnboundedReason::NoTokenLimit)
+        );
     }
 
     #[test]

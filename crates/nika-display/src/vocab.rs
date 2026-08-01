@@ -70,6 +70,64 @@ pub fn count(n: usize, noun: &str) -> String {
     }
 }
 
+/// The `--ascii` enforcement seam (audit UX 2026-07-30 · P1 « --plain
+/// --ascii réellement ASCII »). The glyph twins (`Theme::glyph` ·
+/// `verb_glyph` · [`arrow`] · [`at_most`]) are the PRIMARY mechanism —
+/// but a hardcoded literal (`·` · `—` · `→` · `↳` · `⭐` · `✖`) rides
+/// no seam, and every one the audit caught was exactly that class. A
+/// surface that opted into the ASCII register hands its FINISHED text
+/// through here once, at the verb boundary: the chrome punctuation and
+/// every documented twin fold to their ASCII spelling, so the emitted
+/// bytes are ASCII by construction rather than by audit.
+///
+/// The fold set is CHROME ONLY — decorative punctuation and the glyphs
+/// that already have a `Theme` twin. Letters and digits are never
+/// touched: content (a task id · a path · a model name) renders as
+/// written. A no-op unless `theme.ascii` — the unicode register keeps
+/// its exact bytes.
+#[must_use]
+pub fn sober(theme: Theme, text: &str) -> String {
+    if !theme.ascii {
+        return text.to_owned();
+    }
+    text.chars()
+        .flat_map(|c| match c {
+            // The separator/dash family — one twin, one arm (clippy's
+            // same-arms law): `·` the separator · en `–` the cost range ·
+            // the box-drawing horizontals (chrome.rs panel/rail literals).
+            '·' | '–' | '─' | '━' | '╸' => "-".chars().collect(),
+            // The dash family (em — the prose dash).
+            '—' => "--".chars().collect(),
+            // The arrow family (data arrow · hint marker).
+            '→' | '↳' => "->".chars().collect(),
+            // The comparison family (mirrors at_least/at_most).
+            '≥' => ">=".chars().collect(),
+            '≤' => "<=".chars().collect(),
+            // Ellipsis.
+            '…' => "...".chars().collect(),
+            // The verdict + brand glyphs (mirrors mark()/logo()).
+            '✔' => "ok".chars().collect(),
+            '✖' => "X".chars().collect(),
+            '⚠' => "!".chars().collect(),
+            '🦋' => "[nika]".chars().collect(),
+            '○' => ".".chars().collect(),
+            '◐' => ">".chars().collect(),
+            '↻' => "r".chars().collect(),
+            '↷' => "~>".chars().collect(),
+            '⊘' => "x".chars().collect(),
+            '◇' => "i".chars().collect(),
+            '▷' => "$".chars().collect(),
+            '◆' => "@".chars().collect(),
+            // The star pair (the GitHub mark · the agent verb glyph —
+            // one twin, so one arm: clippy's same-arms law).
+            '⭐' | '✦' => "*".chars().collect(),
+            '│' => "|".chars().collect(),
+            '╭' | '╮' | '╰' | '╯' | '┌' | '┐' | '└' | '┘' => "+".chars().collect(),
+            other => vec![other],
+        })
+        .collect()
+}
+
 /// A USD amount at the 4-decimal display grain, ceiling-honest at the
 /// bottom: a positive amount smaller than the grain rounds UP to
 /// `0.0001` instead of printing `0.0000` — a fabricated zero for money
@@ -132,6 +190,45 @@ mod tests {
         assert!(
             painted.starts_with("\x1b[2m") && painted.ends_with("\x1b[0m"),
             "one dim unit: {painted:?}"
+        );
+    }
+
+    /// The `--ascii` enforcement seam: a surface's finished text folds
+    /// every chrome glyph the audit caught (· — → ↳ ⭐ ✔ ✖ ⚠ 🦋 · the
+    /// box-drawing panel set) to its documented ASCII twin — the bytes
+    /// are ASCII by construction, and the twins match what the `Theme`
+    /// seam would have picked (one vocabulary, two mechanisms).
+    #[test]
+    fn sober_folds_the_chrome_set_to_ascii() {
+        let ascii = Theme::new(false, true, false);
+        let leaked = " ✖ CONFORM · findings — read → fix ↳ [NIKA-1] · est ≤$0.01 · ⭐ 🦋 ⚠ …";
+        let folded = sober(ascii, leaked);
+        assert!(
+            folded.is_ascii(),
+            "every byte < 128 after the fold: {folded:?}"
+        );
+        assert_eq!(
+            folded,
+            " X CONFORM - findings -- read -> fix -> [NIKA-1] - est <=$0.01 - * [nika] ! ..."
+        );
+        // The state/verb/box glyphs fold to the SAME twins Theme picks.
+        let glyphs = sober(ascii, "○ ◐ ↻ ↷ ⊘ ◇ ▷ ◆ ✦ ─ │ ╭ ╯");
+        assert_eq!(glyphs, ". > r ~> x i $ @ * - | + +");
+    }
+
+    /// The unicode register keeps its exact bytes — `sober` is a no-op
+    /// unless the theme opted into ASCII (a fold that always fires would
+    /// sober the default surface, the opposite regression).
+    #[test]
+    fn sober_is_a_no_op_outside_the_ascii_register() {
+        let text = "✔ audited · 2 tasks — est ≤$0.01 · → nika run";
+        assert_eq!(sober(PLAIN, text), text, "unicode keeps its bytes");
+        // Content is never transliterated: letters survive the fold.
+        let ascii = Theme::new(false, true, false);
+        assert_eq!(
+            sober(ascii, "task `café` reads ./données"),
+            "task `café` reads ./données",
+            "only the chrome set folds — content renders as written"
         );
     }
 }

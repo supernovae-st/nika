@@ -2,10 +2,10 @@
 # funnel-e2e · the stranger's first path, played against a BUILT binary.
 #
 # Release-gate version of the V-arc deep e2e (2026-07-09): structural
-# asserts only — sections exist · promised commands exist in the clap
-# tree · JSON envelope versions · stable semantic needles (FLOOR ·
-# unpriced) · exit codes. Never whole transcripts (those live in docs,
-# re-captured by hand per the RELEASED law).
+# asserts only — sections exist · promised commands exist · JSON envelope
+# versions · stable semantic needles (bounded portion · unpriced) · exit
+# codes. Never whole transcripts (those live in docs, re-captured by hand
+# per the RELEASED law).
 #
 # Runs OFFLINE in a throwaway HOME (no keys · no configs · TERM=dumb).
 # Usage: funnel-e2e.sh <nika-binary>
@@ -37,10 +37,12 @@ run() { # run <name> <expected-exit> -- cmd...
     return 1
   fi
 }
-need() { printf '%s' "$OUT" | grep -qF "$2" || fail "[$1] missing: $2"; }
+need() { printf '%s' "$OUT" | grep -qF -- "$2" || fail "[$1] missing: $2"; }
 
-HELP=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" --help 2>&1)
-has_cmd() { printf '%s' "$HELP" | grep -Eq "^[[:space:]]+$1([[:space:]]|$)"; }
+# A taught/promised verb must EXIST — listed in the tree OR deliberately
+# hidden (the hook verbs: `guard` rides the wired shims, hidden from the
+# listing by design): ask the verb itself rather than the listing.
+has_cmd() { env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" "$1" --help >/dev/null 2>&1; }
 
 say "── funnel e2e · $("$BIN" --version)"
 
@@ -51,7 +53,7 @@ need welcome "start here"
 for c in $(printf '%s' "$OUT" | grep -oE '→ nika [a-z-]+' | awk '{print $3}' | sort -u); do
   has_cmd "$c" || fail "[welcome] promises 'nika $c' — clap tree lacks it"
 done
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika examples run [a-z0-9-]+ --model mock/echo' | head -1)
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika try [a-z0-9-]+' | head -1)
 [ -n "$FIRST" ] || fail "[welcome] no offline first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
@@ -62,11 +64,13 @@ OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb OPENAI_API_KEY=sk-CAN
 printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leaked"
 
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
-run new-from 0 -- "$BIN" new --from chain first.nika.yaml
+run new-from 0 -- "$BIN" new chain first.nika.yaml
 [ -f first.nika.yaml ] || fail "[new] no file created"
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"
 need check "[inputs]" # the scaffold's input trap is taught BEFORE the run
+need check "risk "    # the risk rung names the autonomy class on the verdict line
+need check "JOURNEY"  # the data journey rung renders on every audit
 # Provision the input the scaffold DECLARES (./README.md since the
 # pack-SSOT era · ./input.txt before) — the funnel plays the file,
 # it never assumes the era.
@@ -77,7 +81,7 @@ TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
 if has_cmd explain; then
   run explain-file 0 -- "$BIN" explain first.nika.yaml
-  need explain-file "FLOOR"
+  need explain-file "bounded portion"
   need explain-file "unpriced"
   need explain-file "flight recorder"
   need explain-file "$(basename "$TRACE")"
@@ -118,7 +122,39 @@ for c in $(grep -oE '`nika [a-z-]+' AGENTS.md | awk '{print $2}' | tr -d '`' | s
   has_cmd "$c" || fail "[agents-md] teaches 'nika $c' — clap tree lacks it"
 done
 
-# 5 · doctor diagnoses offline · broken files fail WITH a code
+# 5 · the hook's judge at the wire (the hidden `guard` verb the shims
+# ride): a clean run flows in the generic dialect, a consent-dirty run
+# denies (NIKA-SEC-014 · NEP-0020's bare-`after:` violation), the same
+# file refuses at `check`, and `wire detected --dry-run` previews
+# without a single write under HOME. (The payload rides a HERESTRING,
+# never an `echo | run` pipe: a piped function runs in a subshell and
+# its OUT would never reach the need() checks below.)
+run guard-clean 0 -- "$BIN" guard --stdin <<<'{"command":"nika run first.nika.yaml","cwd":"."}'
+need guard-clean '"permission":"allow"'
+# shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
+printf 'nika: v1\nworkflow:\n  id: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika.yaml
+run guard-dirty 2 -- "$BIN" guard --stdin <<<'{"command":"nika run consent-dirty.nika.yaml","cwd":"."}'
+need guard-dirty '"permission":"deny"'
+need guard-dirty 'NIKA-SEC-014'
+run consent-check 2 -- "$BIN" check consent-dirty.nika.yaml
+need consent-check 'NIKA-SEC-014'
+# The affirmative twin: a default-less confirm whose answer IS gated
+# (NEP-0020's human-gated-ship) pauses headless instead of dying — the
+# first-run-killer class. exit 4 + the taught resume line, never a
+# bare refusal.
+# shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
+printf 'nika: v1\nworkflow:\n  id: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika.yaml
+run consent-run 4 -- "$BIN" run consent-pause.nika.yaml
+need consent-run '--resume'
+need consent-run '--answer'
+mkdir -p "$HOME_DIR/.cursor" && printf '{}' >"$HOME_DIR/.cursor/mcp.json"
+BEFORE=$(find "$HOME_DIR" -type f | sort)
+run wire-dry 0 -- "$BIN" wire detected --dry-run
+need wire-dry "dry"
+AFTER=$(find "$HOME_DIR" -type f | sort)
+[ "$BEFORE" = "$AFTER" ] || fail "[wire-dry] a dry run created files under HOME"
+
+# 6 · doctor diagnoses offline · broken files fail WITH a code
 run doctor 0 -- "$BIN" doctor
 # shellcheck disable=SC2016 # the ${{ }} island must reach the file UNEXPANDED
 printf 'nika: v1\nworkflow:\n  id: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika.yaml
@@ -129,7 +165,7 @@ set -e
 [ "$GOT" -eq 0 ] && fail "[broken] invalid workflow checked clean"
 printf '%s' "$OUT" | grep -qE "NIKA-[A-Z0-9-]+[0-9]" || fail "[broken] no error code in voice"
 
-# 6 · the managed-host wire: the http transport answers the same truth
+# 7 · the managed-host wire: the http transport answers the same truth
 # as stdio (one server · initialize + a real tools/call · the origin
 # gate holds). curl ships on every runner this plays on; loopback only.
 if command -v curl >/dev/null 2>&1; then
@@ -159,7 +195,7 @@ else
   say "── mcp-http leg skipped (no curl on this runner)"
 fi
 
-# 5 · the sovereign lane ships whole (#518 · release ruling A-CPU):
+# 8 · the sovereign lane ships whole (#518 · release ruling A-CPU):
 # a release binary carries local-infer — it must NEVER utter the
 # build-from-source refusal. Offline: a header-only fake GGUF passes
 # model resolution; the refusal we then expect is the POST-feature

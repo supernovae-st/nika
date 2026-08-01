@@ -3,7 +3,8 @@
 
 //! The production composition root — wires the runtime over REAL effects
 //! (fs · http · clock · subprocess · provider registry with env-resolved
-//! keys). Descended from `nika-cli`'s run verb 2026-07-22 (the 15k wall ·
+//! keys), plus the SIMULATED sibling ([`simulated_runtime`] · the `nika
+//! test` plane — same shape, effects refused · see `simulated.rs`). Descended from `nika-cli`'s run verb 2026-07-22 (the 15k wall ·
 //! compute descends, render stays): the composer is compute with zero
 //! render coupling, and its home beside the generic [`Runtime`] lets every
 //! embedder (cli today · daemon/serve/sdk tomorrow) compose the production
@@ -31,6 +32,7 @@
 
 use std::sync::Arc;
 
+use crate::simulated::{SimulatedDispatcher, SimulatedShell};
 use crate::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
 use nika_builtin::{
     BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive, TtsKeys,
@@ -870,6 +872,107 @@ pub fn production_runtime(
     .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
 }
 
+/// The fully-resolved SIMULATED runtime spelling (the `nika test` plane ·
+/// P0-16): the SAME provider/infer/clock wiring as [`ProdRuntime`], but the
+/// exec shell and the tool plane are the effects-disabled seams.
+pub type SimRuntime = Runtime<
+    SimulatedShell,
+    SimulatedDispatcher<ProdDispatcher>,
+    ReqwestHttp,
+    RegistryProvider<ReqwestHttp>,
+    SimulatedDispatcher<ProdDispatcher>,
+    DeclaredClock,
+>;
+
+/// Compose the SIMULATED runtime — the `nika test` plane (UX audit
+/// 2026-07-30 · P0-16). `capture_mock_outputs` substitutes the MODEL
+/// (`mock/echo`), and a model swap alone left the tool/exec seams REAL:
+/// `invoke nika:write` landed bytes, an exec task spawned a child,
+/// `nika:fetch` opened a socket — under a verb documented « offline ».
+/// This composition keeps the production shape (the declared `permits.fs`
+/// boundary still gates every delegated fs READ · the registry resolves
+/// the mock provider exactly as `run` would) but swaps the two effect
+/// seams for their simulated twins:
+///
+/// - exec → [`crate::simulated::SimulatedShell`] — every command refused before spawn.
+/// - the tool plane → [`crate::simulated::SimulatedDispatcher`] over the real
+///   [`BuiltinDispatcher`] — pure compute, stderr observability, and fs
+///   reads inside the declared boundary delegate VERBATIM; the effect set
+///   (writes · network · media · any non-`nika:` namespace) refuses with
+///   « effects disabled under `nika test` ».
+///
+/// The image/TTS provider planes are NOT wired (no env-key reads): every
+/// media tool is in the refusal set, so resolving their keys would be
+/// work toward a call the gate refuses anyway. The journaled sandbox
+/// backend reads `simulated` — no OS confinement is claimed for children
+/// that never spawn.
+///
+/// # Errors
+///
+/// Same construction failure as [`production_runtime`]: the TLS backend
+/// refusing to initialize ([`ReqwestHttp`] — mapped to the environment
+/// exit class by the caller).
+pub fn simulated_runtime(
+    default_model: &str,
+    caps: RuntimeCapabilities,
+    run: Option<&RunDecl>,
+) -> Result<SimRuntime, nika_kernel::HttpError> {
+    // F-P3 · the run: declaration resolves the same seams as production
+    // (clock · jitter stream) — determinism is the golden's whole point.
+    let seams = RunSeams::of(run);
+    // Wired for SHAPE parity with production (the delegated reads share the
+    // fetch-plane client type · the declared net boundary still derives) —
+    // the gate refuses `nika:fetch`/`nika:notify` before this client could
+    // open a socket.
+    let http = Arc::new(fetch_http(caps.net)?);
+    let provider_http = Arc::new(provider_http()?);
+    let config = config_from_env();
+
+    // The REAL builtin plane (pure + read tools delegate to it) — the
+    // declared permits.fs boundary enforced exactly as production — then
+    // the simulated gate over it.
+    let dispatcher = Arc::new(SimulatedDispatcher::new(Arc::new(
+        BuiltinDispatcher::new(
+            Arc::new(TokioFs),
+            http,
+            Arc::new(seams.clock.clone()),
+            Arc::new(StderrEmitter),
+            Arc::new(NonInteractive::default()),
+            Arc::new(NoWorkflow::default()),
+        )
+        .with_fs_boundary(caps.fs),
+    )));
+    let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
+
+    // The provider registry (real http + env keys) drives infer directly
+    // and the agent via the per-call RegistryProvider bridge — under
+    // `nika test` the default model is `mock/echo` (keyless · offline).
+    let registry = Arc::new(ProviderRegistry::new(provider_http, config));
+    let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
+
+    Ok(Runtime::new(
+        // The effects-disabled shell: no sandbox selection, no unconfined
+        // note — a child that can never spawn needs neither.
+        ExecVerb::new(Arc::new(SimulatedShell)),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, default_model),
+        AgentVerb::new(
+            agent_provider,
+            invoke,
+            Arc::clone(&dispatcher),
+            default_model,
+        ),
+        seams.clock,
+        RuntimeConfig::new(None, seams.jitter_seed)
+            .with_sandbox_root(std::env::current_dir().unwrap_or_default())
+            .with_sandbox_backend("simulated"),
+    )
+    // The SAME secrets boundary as production (env/file at run start ·
+    // fail-closed on a miss) — reading the operator's own store is not an
+    // external effect, and ${{ secrets.X }} templates resolve identically.
+    .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
@@ -1008,6 +1111,26 @@ mod tests {
         assert!(
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"
+        );
+    }
+
+    #[test]
+    fn simulated_composition_succeeds_for_a_mock_model() {
+        // P0-16 · the `nika test` plane composes offline too (the mock
+        // profile needs no key · the gate swaps the effect seams, never
+        // the construction contract).
+        let runtime = simulated_runtime(
+            "mock/echo",
+            RuntimeCapabilities {
+                fs: FsBoundary::unbounded(),
+                net: NetBoundary::Unbounded,
+                exec_tasks: false,
+            },
+            None,
+        );
+        assert!(
+            runtime.is_ok(),
+            "the simulated runtime composes (TLS init is the only failure)"
         );
     }
 

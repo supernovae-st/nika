@@ -238,10 +238,19 @@ pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
 /// `nika_check` — parse + the static check ladder over the supplied YAML.
 /// The verdict for a workflow that passed all TEN finding surfaces but
 /// may still leave the native path. Split out of `check` to stay under
-/// the house function cap.
-fn native_first_verdict(native: &[&str], strict: bool) -> Result<String, String> {
+/// the house function cap. The risk grade rides every arm — the CLI card
+/// shows it on every audited card (P0-6: « clean » alone never names the
+/// rope a declared grant hands over).
+fn native_first_verdict(
+    native: &[&str],
+    strict: bool,
+    grade: nika_check::RiskGrade,
+) -> Result<String, String> {
+    let word = grade.as_str();
     if native.is_empty() {
-        return Ok("✔ clean — audited before a single token was spent".to_owned());
+        return Ok(format!(
+            "✔ clean — audited before a single token was spent · risk {word}"
+        ));
     }
     let rows = native
         .iter()
@@ -255,14 +264,67 @@ fn native_first_verdict(native: &[&str], strict: bool) -> Result<String, String>
              call(s) leave the native path. Replace each with the builtin its hint \
              names; the exec ledger documents intent without clearing this. The gate \
              in front of `nika run` uses the same posture, so this file cannot be run \
-             as written:\n{rows}"
+             as written (risk {word}):\n{rows}"
         ));
     }
     Ok(format!(
-        "✔ clean (advisory) — audited before a single token was spent. {n} \
+        "✔ clean (advisory) — audited before a single token was spent · risk {word}. {n} \
          native-first hint(s) are NOT enforced because native_strict=false; the same \
          file fails `nika check --native-strict` and the run gate:\n{rows}"
     ))
+}
+
+/// The MODELS cross-check rows for both laws (resolver refusals ·
+/// catalog warnings) — one `model`/`tasks`/`why` shape on every machine
+/// lane (this oracle and the CLI `--json` twin must not disagree). The
+/// catalog cross-check is the two-strike class (audit UX 2026-07-31): a
+/// model that RESOLVES but matches nothing the snapshot prices for its
+/// provider must be relayed BEFORE the human buys a key — advisory on
+/// both lanes, `clean` untouched.
+fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>) {
+    let findings = report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            nika_providers::resolve_refusal(&m.model)
+                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+        })
+        .collect();
+    let warnings = report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            nika_providers::catalog_warning(&m.model)
+                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+        })
+        .collect();
+    (findings, warnings)
+}
+
+/// The clean short-path — split out of `check` under the house function
+/// cap (the `native_first_verdict` precedent). Still carries the catalog
+/// cross-check: the ghost-model specimen IS clean (the provider
+/// resolves), and a warning that only rode the dirty path would never
+/// be seen.
+fn clean_verdict(
+    native: &[&str],
+    strict: bool,
+    grade: nika_check::RiskGrade,
+    catalog_warnings: &[Value],
+) -> Result<String, String> {
+    let verdict = native_first_verdict(native, strict, grade)?;
+    if catalog_warnings.is_empty() {
+        return Ok(verdict);
+    }
+    let rows = catalog_warnings
+        .iter()
+        .filter_map(|w| w.get("why").and_then(Value::as_str))
+        .map(|why| format!("  ⚠ {why}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(format!("{verdict}\n{rows}"))
 }
 
 fn check(args: &Value) -> Result<String, String> {
@@ -277,18 +339,15 @@ fn check(args: &Value) -> Result<String, String> {
     )
     .map_err(|e| format!("PARSE ✗ {e}"))?;
     let report = nika_check::check(&wf);
+    // The grade rides EVERY verdict (the CLI card's law, P0-11): « clean »
+    // alone never names how much rope the file has. A pure projection of
+    // the report — zero new scan.
+    let grade = nika_check::risk_grade(&report);
     // The MODELS rung, MCP lane (#320 repro 3): the schema ladder alone
     // audited a hallucinated model green — cross every requirement against
-    // the RESOLVER law shared with the CLI rung (nika-providers).
-    let model_findings: Vec<Value> = report
-        .requirements
-        .models
-        .iter()
-        .filter_map(|m| {
-            nika_providers::resolve_refusal(&m.model)
-                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
-        })
-        .collect();
+    // the RESOLVER law shared with the CLI rung (nika-providers), plus its
+    // sister catalog law (advisory — `clean` is untouched).
+    let (model_findings, catalog_warnings) = model_crosscheck(&report);
     // The is_clean mirror law, applied to the native-first lane. `hints`
     // are NOT part of `is_clean()`, so a workflow whose real work sits in
     // `exec python3 helper.py` used to come back here as a bare "✔ clean"
@@ -312,7 +371,7 @@ fn check(args: &Value) -> Result<String, String> {
         .map(|h| h.advice.as_str())
         .collect();
     if report.is_clean() && model_findings.is_empty() {
-        return native_first_verdict(&native, native_strict);
+        return clean_verdict(&native, native_strict, grade, &catalog_warnings);
     }
     // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
     // egresses · capability escapes · schema findings + lints · unknown/missing
@@ -328,8 +387,22 @@ fn check(args: &Value) -> Result<String, String> {
             "models_resolve".to_owned(),
             Value::Bool(model_findings.is_empty()),
         );
+        // The same key the CLI `--json` lane stamps (lowercase wire word)
+        // — the two machine lanes must not disagree on the one verdict.
+        obj.insert(
+            "risk_grade".to_owned(),
+            Value::String(grade.as_str().to_owned()),
+        );
         if !model_findings.is_empty() {
             obj.insert("model_findings".to_owned(), Value::Array(model_findings));
+        }
+        // Presence-gated like the CLI twin (`models_catalog_warnings`) —
+        // the same key on both machine surfaces, one voice.
+        if !catalog_warnings.is_empty() {
+            obj.insert(
+                "models_catalog_warnings".to_owned(),
+                Value::Array(catalog_warnings),
+            );
         }
     }
     let detail = serde_json::to_string_pretty(&payload)
@@ -437,8 +510,14 @@ fn explain(args: &Value) -> Result<String, String> {
         .into_iter()
         .find(|r| r.code == normalized)
     {
+        // The contract lesson rides here too (one voice with the CLI's
+        // canon row · gauntlet 2026-07-31: the CLI taught the SEC-004
+        // grant grammar while this tool answered a category and a URL).
+        let lesson = nika_error::codes::spec_contract_help(&normalized)
+            .map(|l| format!("\n\n{l}"))
+            .unwrap_or_default();
         return Ok(format!(
-            "{normalized} · {} · transient: {}\n\n  {}",
+            "{normalized} · {} · transient: {}\n\n  {}{lesson}",
             row.category, row.transient, row.failure
         ));
     }
@@ -697,6 +776,58 @@ mod tests {
         );
     }
 
+    /// P0-6's second answer rides the MCP verdict too: the CLI card shows
+    /// the risk grade on EVERY audited card — a bare « ✔ clean » that
+    /// never names the rope is the false-green shape this oracle exists to
+    /// kill (a declared effect is Supervised, and the agent reading this
+    /// verdict must see it).
+    #[test]
+    fn the_clean_verdict_names_the_risk_grade() {
+        let wf = "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
+        assert!(out.contains("clean"), "{out}");
+        assert!(
+            out.contains("risk supervised"),
+            "the grade rides the clean verdict: {out}"
+        );
+    }
+
+    /// The dirty lane IS the machine contract (a model repairs from this
+    /// JSON) — it must carry the same `risk_grade` key the CLI `--json`
+    /// verdict stamps (lowercase, like `check --json`), or the two machine
+    /// lanes disagree about the one verdict.
+    #[test]
+    fn the_findings_payload_carries_the_risk_grade_like_the_cli_json_lane() {
+        // A dangling `after:` edge — dirty, no grants, nothing uncapped.
+        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    after:\n      ghost: success\n    exec: { command: [\"x\"] }\n";
+        let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
+        let json_start = err.find('{').expect("the report rides the error as JSON");
+        let payload: Value =
+            serde_json::from_str(&err[json_start..]).expect("the report is valid JSON");
+        assert_eq!(
+            payload["risk_grade"],
+            json!("low"),
+            "lowercase, like the CLI lane: {payload:#}"
+        );
+    }
+
+    /// The field tracks the REPORT, it is not a stamped constant: an
+    /// agent loop without `max_tokens_total` (the audit's P0-6 fixture)
+    /// grades Unbounded even behind a findings verdict.
+    #[test]
+    fn the_findings_payloads_grade_reflects_the_report() {
+        let wf = "nika: v1\nworkflow:\n  id: t\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:read\"] }\ntasks:\n  a:\n    agent: { prompt: go, tools: [\"nika:read\"], max_turns: 100 }\n    after: { ghost: success }\n";
+        let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
+        let json_start = err.find('{').expect("the report rides the error as JSON");
+        let payload: Value =
+            serde_json::from_str(&err[json_start..]).expect("the report is valid JSON");
+        assert_eq!(
+            payload["risk_grade"],
+            json!("unbounded"),
+            "max_turns bounds turns, never tokens: {payload:#}"
+        );
+    }
+
     #[test]
     fn explain_a_known_code_teaches_it() {
         let out = execute("nika_explain", &json!({ "code": "NIKA-VAR-001" })).expect("ran");
@@ -713,6 +844,8 @@ mod tests {
     /// One voice with the CLI (gauntlet 2026-07-12): a failed run's
     /// per-builtin / per-provider code must TEACH over MCP too — the
     /// agent debugging a trace calls this tool, not the terminal.
+    /// PROMPT-001 carries the full contract lesson (first-run gate ·
+    /// 2026-07-31): the agent reads the same exits the CLI teaches.
     #[test]
     fn explain_teaches_the_runtime_namespaces_like_the_cli() {
         let b = execute(
@@ -720,7 +853,18 @@ mod tests {
             &json!({ "code": "NIKA-BUILTIN-PROMPT-001" }),
         )
         .expect("builtin namespace teaches");
-        assert!(b.contains("`nika:prompt` builtin") && b.contains("on_codes"));
+        assert!(b.contains("the `nika:prompt` contract") && b.contains("on_codes"));
+        assert!(
+            b.contains("--answer <task>=<value>") && b.contains("`default:`"),
+            "the contract lesson rides MCP too: {b}"
+        );
+        // A builtin WITHOUT a contract entry keeps the namespace voice.
+        let generic = execute("nika_explain", &json!({ "code": "NIKA-BUILTIN-JQ-001" }))
+            .expect("namespace teaches");
+        assert!(
+            generic.contains("per-builtin runtime diagnostic"),
+            "{generic}"
+        );
         let p = execute("nika_explain", &json!({ "code": "NIKA-PROVIDER-007" }))
             .expect("provider namespace teaches");
         assert!(p.contains("provider-adapter"));

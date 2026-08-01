@@ -393,7 +393,7 @@ fn missing_refusal(what: &str, items: &[InstalledGguf]) -> String {
     if items.is_empty() {
         text.push_str(
             "  nothing pulled yet — nika model pull <owner/repo> (e.g. nika model pull \
-             Qwen/Qwen3-4B-Instruct-2507-GGUF)\n",
+             unsloth/Qwen3-4B-Instruct-2507-GGUF)\n",
         );
     } else {
         text.push_str("  installed:\n");
@@ -425,7 +425,7 @@ pub(crate) fn list_at(root: &Path) -> String {
     if items.is_empty() {
         text.push_str(
             "  none yet — nika model pull <owner/repo> (e.g. nika model pull \
-             Qwen/Qwen3-4B-Instruct-2507-GGUF)",
+             unsloth/Qwen3-4B-Instruct-2507-GGUF)",
         );
         return text;
     }
@@ -455,7 +455,20 @@ pub(crate) fn list_at(root: &Path) -> String {
         );
     }
     if any_servable {
-        text.push_str("\nserve one: nika model serve --model <id>  ·  reclaim: nika model rm <id>");
+        if crate::SERVES {
+            text.push_str(
+                "\nserve one: nika model serve --model <id>  ·  reclaim: nika model rm <id>",
+            );
+        } else {
+            // B-6c — a serve-less binary names the build that serves,
+            // never the verb this one lacks (the gauntlet law « never
+            // teach what THIS binary cannot do »).
+            text.push_str(
+                "\nserve: this binary has no local inference — cargo build -p nika-cli \
+                 --features local-infer (Apple GPU: --features metal)  ·  \
+                 reclaim: nika model rm <id>",
+            );
+        }
     } else {
         // Every row positively sniffs another family — `serve one:`
         // would be the false-receipt class. Point at the runners.
@@ -596,7 +609,7 @@ fn prune_owner_level(repo_dir: &Path) {
 fn refuse_ref(arg: &str, why: &str) -> String {
     format!(
         "model: `{arg}` is not a model reference ({why})\n  fix: the form is \
-         owner/repo[:QUANT] — e.g. Qwen/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M\n"
+         owner/repo[:QUANT] — e.g. unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M\n"
     )
 }
 
@@ -636,11 +649,11 @@ mod tests {
 
     #[test]
     fn parses_bare_and_quant_refs() {
-        let bare = parse_model_ref("Qwen/Qwen3-4B-Instruct-2507-GGUF").expect("bare parses");
-        assert_eq!(bare.owner, "Qwen");
+        let bare = parse_model_ref("unsloth/Qwen3-4B-Instruct-2507-GGUF").expect("bare parses");
+        assert_eq!(bare.owner, "unsloth");
         assert_eq!(bare.name, "Qwen3-4B-Instruct-2507-GGUF");
         assert_eq!(bare.quant, None);
-        assert_eq!(bare.repo_id(), "Qwen/Qwen3-4B-Instruct-2507-GGUF");
+        assert_eq!(bare.repo_id(), "unsloth/Qwen3-4B-Instruct-2507-GGUF");
 
         let tagged = parse_model_ref("unsloth/gpt-oss-20b-GGUF:Q4_K_M").expect("quant parses");
         assert_eq!(tagged.quant.as_deref(), Some("Q4_K_M"));
@@ -841,7 +854,14 @@ mod tests {
         assert!(out.contains("u/m"), "{out}");
         assert!(out.contains("Q4_K_M"), "{out}");
         assert!(out.contains("2.0 KiB"), "{out}");
-        assert!(out.contains("nika model serve"), "{out}");
+        if crate::SERVES {
+            assert!(out.contains("nika model serve"), "{out}");
+        } else {
+            assert!(
+                out.contains("no local inference"),
+                "a serve-less binary names the build, never the verb: {out}"
+            );
+        }
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -886,7 +906,14 @@ mod tests {
             !out.contains("qwen3 — runner-only"),
             "the servable row stays bare: {out}"
         );
-        assert!(out.contains("serve one: nika model serve"), "{out}");
+        if crate::SERVES {
+            assert!(out.contains("serve one: nika model serve"), "{out}");
+        } else {
+            assert!(
+                out.contains("no local inference"),
+                "a serve-less binary names the build, never the verb: {out}"
+            );
+        }
 
         // Only the llama left → the serve promise would be false.
         std::fs::remove_dir_all(root.join("q")).expect("rm qwen dir");

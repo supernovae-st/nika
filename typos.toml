@@ -46,6 +46,7 @@ BUIL       = "BUIL"
 markdwon   = "markdwon"  # extract-mode typo rung fixture (nika-types suggest/extract tests)
 buidl      = "buidl"     # dep/ref rename fixture (rename_repair docs + --fix convergence tests)
 promt      = "promt"     # field rename fixture (--fix docs + CHANGELOG cite the healed typo)
+childs     = "childs"    # the v0.107.0 CHANGELOG cites the healed typo (childs → child · #759)
 topik      = "topik"     # vars-ref rename fixture (--fix convergence test)
 # French (the studio writes franglais — these are real French words, not typos)
 raison     = "raison"
@@ -77,6 +78,16 @@ unparseable = "unparseable"
 # File-format plural in vendored corpus prose (« two PNGs » · README-jobs) —
 # the tokenizer splits the acronym and reads `PN` as a typo of `ON`.
 PN         = "PN"
+# Test-fixture tokens the un-excluded crates carry ON PURPOSE (the 2026-07-31
+# de-exclusion: 15 of the 30 « legacy excluded » crates no longer existed and
+# the 13 live ones held ZERO real typos — only these deliberate fixtures).
+empted     = "empted"    # `preempted` split by the tokenizer (verdict-coverage oracle)
+mesage     = "mesage"    # did-you-mean fixture — the test ASSERTS the suggestion (bin_smoke)
+hel        = "hel"       # half-typed completion fixtures (nika-lsp analysis)
+som        = "som"       # half-typed completion fixtures (nika-lsp analysis)
+Caf        = "Caf"       # « Café » ISO-8859-1 encoding fixtures, é split off (net · image)
+caf        = "caf"       # lowercase twin
+abd        = "abd"       # negative glob-match fixture (`abc` vs `abd` · file.rs)
 # in-toto attestation format — the SLSA generator's release asset is literally
 # named `multiple.intoto.jsonl` (RELEASING.md + release notes teach the
 # slsa-verifier command against it).
@@ -105,35 +116,4 @@ extend-exclude = [
   "**/*.svg",
   # Snapshot tests — controlled by the test author
   "**/snapshots/",
-  # Legacy excluded crates
-  "crates/nika-blob",
-  "crates/nika-builtin",
-  "crates/nika-cli",
-  "crates/nika-clock",
-  "crates/nika-core",
-  "crates/nika-daemon",
-  "crates/nika-display",
-  "crates/nika-engine",
-  "crates/nika-event",
-  "crates/nika-exec-runner",
-  "crates/nika-extract",
-  "crates/nika-fs",
-  "crates/nika-http",
-  "crates/nika-init",
-  "crates/nika-lsp",
-  "crates/nika-lsp-core",
-  "crates/nika-macros",
-  "crates/nika-mcp",
-  "crates/nika-media",
-  "crates/nika-policy",
-  "crates/nika-sdk",
-  "crates/nika-security",
-  "crates/nika-serve",
-  "crates/nika-storage",
-  "crates/nika-vault",
-  "crates/nika-verb-exec",
-  "crates/nika-verb-fetch",
-  "crates/nika-verb-infer",
-  "crates/nika-verb-invoke",
-  "crates/nika",
 ]

@@ -57,6 +57,16 @@ pub struct ModelsAudit {
     /// whose declaration carries a literal string) that resolve — named
     /// on the green line because a `--var` can swap the value at run.
     pub via_default: usize,
+    /// Models that RESOLVE but match nothing the pricing snapshot
+    /// carries for their (priced) provider — the two-strike class
+    /// (audit UX 2026-07-31: buy the key, then meet the typo). A ⚠,
+    /// never a ✖: the snapshot is dated, providers ship models weekly.
+    pub catalog_warnings: Vec<ModelFinding>,
+    /// Resolvable models on a server-backed KEYLESS engine (the local
+    /// five) — the green line must nuance « resolves » for these: the
+    /// rung never dialed the server, so it is never « reachable »
+    /// (B-5's sibling · the gauntlet read the green line as a promise).
+    pub local_server: usize,
 }
 
 impl ModelsAudit {
@@ -67,7 +77,25 @@ impl ModelsAudit {
             findings,
             unjudged,
             via_default,
+            catalog_warnings: Vec::new(),
+            local_server: 0,
         }
+    }
+
+    /// Attach the catalog cross-check warnings (consuming builder — the
+    /// `new()` signature stays frozen, INV-019).
+    #[must_use]
+    pub fn with_catalog_warnings(mut self, warnings: Vec<ModelFinding>) -> Self {
+        self.catalog_warnings = warnings;
+        self
+    }
+
+    /// Attach the server-backed-local count (consuming builder — the
+    /// `new()` signature stays frozen, INV-019).
+    #[must_use]
+    pub fn with_local_server(mut self, count: usize) -> Self {
+        self.local_server = count;
+        self
     }
 }
 
@@ -127,9 +155,18 @@ pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit
     } else {
         String::new()
     };
+    // B-5's sibling (the gauntlet read the green line as a promise, then
+    // met the dead server at run): « resolves » is never « reachable »
+    // for a server this rung never dialed — say so, and name the one
+    // probe that does.
+    let liveness = if audit.local_server > 0 {
+        " · local servers not probed (nika doctor --ping)"
+    } else {
+        ""
+    };
     let line = if audit.unjudged > 0 {
         format!(
-            "{judged} of {n} models resolve in this binary{via} · {} run-time · unjudged",
+            "{judged} of {n} models resolve in this binary{via} · {} run-time · unjudged{liveness}",
             audit.unjudged
         )
     } else {
@@ -138,7 +175,7 @@ pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit
         } else {
             "models resolve"
         };
-        format!("{n} {noun} in this binary{via}")
+        format!("{n} {noun} in this binary{via}{liveness}")
     };
     let _ = writeln!(
         out,
@@ -147,4 +184,16 @@ pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit
         t.paint(Role::Strong, "MODELS"),
         t.paint(Role::Dim, &line)
     );
+    // The catalog cross-check rides UNDER the green line (the audit
+    // stays clean — advisory): the model resolves, the snapshot has
+    // never heard of it, and the user deserves to know BEFORE the key.
+    for w in &audit.catalog_warnings {
+        let _ = writeln!(
+            out,
+            " {} {}   {}",
+            t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+            t.paint(Role::Strong, "MODELS"),
+            w.why
+        );
+    }
 }

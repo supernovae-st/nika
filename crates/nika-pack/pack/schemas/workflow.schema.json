@@ -430,7 +430,7 @@
           "enum": [
             "solo"
           ],
-          "description": "HARD · the NAMED solo mode of endorsement (NEP-0014 · F-P23) · judged at check: a human gate under no declared mode refuses (NIKA-SEC-013 · fail-closed), and a declared solo with more than one gate refuses as the declaration lying."
+          "description": "HARD · the NAMED solo mode of endorsement (NEP-0017 · F-P23) · judged at check: a human gate under no declared mode refuses (NIKA-SEC-013 · fail-closed), and a declared solo with more than one gate refuses as the declaration lying."
         }
       }
     },

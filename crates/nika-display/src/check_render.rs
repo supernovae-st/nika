@@ -61,6 +61,15 @@ fn conformance_row(out: &mut String, c: &ConformanceViolation, source: &str, pat
 }
 
 /// Render the human report — every section present, grep-stable keywords.
+///
+/// `verdict` is THE verdict, computed once by the caller (the CLI folds
+/// `report.is_clean()` with the MODELS and SKILLS rungs — both live
+/// outside the report). The footer renders it verbatim: it never
+/// re-derives a verdict of its own (P0-11 · measured 2026-07-30: a
+/// `✖ MODELS` report closed on a green `✔ audited` card while the exit
+/// code said 2 and `--json` said `clean: false` — three surfaces, two
+/// answers).
+#[allow(clippy::too_many_arguments)] // the report's seams, one each — the render.rs:427 precedent
 #[must_use]
 pub fn render(
     report: &CheckReport,
@@ -71,6 +80,7 @@ pub fn render(
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
+    verdict: bool,
 ) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -136,8 +146,10 @@ pub fn render(
     permits(&mut out, report, wf, t);
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
+    consent_rung(&mut out, report, t);
+    journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, t, drift_hints);
+    hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
     // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
@@ -267,6 +279,84 @@ fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Th
                 .iter()
                 .map(|f| format!("[NIKA-SEC-009] {}", f.detail))
                 .collect(),
+        );
+    }
+}
+
+/// CONSENT rung (NEP-0020 · P0-2) · silent when no confirm guards an
+/// effect — a proven non-affirmative route is NIKA-SEC-014, the same
+/// code the `--json` findings[] lane stamps (one voice, one verdict).
+fn consent_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    if report.consent_findings.is_empty() {
+        return;
+    }
+    section_list(
+        out,
+        t,
+        "CONSENT",
+        "every effect behind a confirm crosses an affirmative gate",
+        report
+            .consent_findings
+            .iter()
+            .map(|f| format!("[{}] {}", nika_check::ConsentFinding::WIRE_CODE, f.detail))
+            .collect(),
+    );
+}
+
+/// JOURNEY rung (P0-18 · audit UX 2026-07-30) — the data voyage made
+/// visible BEFORE the run: the derived class and the counts, then one ⚠
+/// row per secret reaching a cloud destination, NAMED. Advisory by
+/// design — the blocking refusal of an UNSANCTIONED flow lives in the
+/// SECRETS lane (the IFC leak finding); a sanctioned flow still has to
+/// be SEEN, which is the receipt law the row carries (« read it before
+/// the run »). Names and classes only — never a value (law 13).
+fn journey_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    let j = &report.data_journey;
+    let flows: Vec<(&str, &str)> = j
+        .secrets_used
+        .iter()
+        .flat_map(|s| {
+            s.flows_to
+                .iter()
+                .map(move |d| (s.name.as_str(), d.as_str()))
+        })
+        .collect();
+    let summary = format!(
+        "{} · {} · {} · {}",
+        j.classification.as_str(),
+        crate::vocab::count(j.sources.len(), "source"),
+        crate::vocab::count(j.destinations.len(), "destination"),
+        crate::vocab::count(j.model_endpoints.len(), "model endpoint"),
+    );
+    if flows.is_empty() {
+        let _ = writeln!(
+            out,
+            " {} {} {}",
+            mark(t, true),
+            t.paint(Role::Strong, "JOURNEY"),
+            t.paint(
+                Role::Dim,
+                &format!("{summary} · no secret reaches a cloud destination")
+            )
+        );
+        return;
+    }
+    // A flow exists: the headline takes the warn posture (the audit
+    // completed, the voyage carries a receipt obligation), and every
+    // (secret, destination) pair gets its own named row.
+    let _ = writeln!(
+        out,
+        " {} {} {}",
+        t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+        t.paint(Role::Strong, "JOURNEY"),
+        t.paint(Role::Dim, &summary)
+    );
+    for (name, dest) in flows {
+        let _ = writeln!(
+            out,
+            " {} {} secret `{name}` flows to {dest} · the receipt names this flow — read it before the run",
+            t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+            t.paint(Role::Strong, "JOURNEY"),
         );
     }
 }
@@ -427,12 +517,15 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
 }
 
 /// Advisory hints + the one-line verdict (the report's last words).
+/// `verdict` is the caller's ONE verdict (see [`render`]) — this footer
+/// shows it, it never re-decides it.
 fn hints_and_verdict(
     out: &mut String,
     report: &CheckReport,
     wf: &RawWorkflow,
     t: Theme,
     drift_hints: &[String],
+    verdict: bool,
 ) {
     let mut hint_count = report.hints.len() + drift_hints.len();
     for h in &report.hints {
@@ -490,8 +583,9 @@ fn hints_and_verdict(
             t.paint(Role::Strong, "HINT"),
         );
     }
-    if report.is_clean() {
-        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, t));
+    if verdict {
+        let grade = nika_check::risk_grade(report);
+        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, grade, t));
     } else {
         // Through `mark()`, not a hardcoded glyph: this line shipped a
         // literal `✖` and was the one verdict in the report that leaked
@@ -545,16 +639,38 @@ fn unbounded_census(report: &CheckReport) -> String {
 
 /// The clean verdict as ONE informative card line — what was proven,
 /// at a glance: `✔ audited · N tasks · M waves · permits <state> ·
-/// est ≥$X · K hints`. The hints themselves stay above; this line
-/// counts them so a scroll-past never misses advice silently.
-fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) -> String {
+/// est ≤$X · K hints · risk <grade>`. The hints themselves stay above;
+/// this line counts them so a scroll-past never misses advice silently.
+///
+/// The grade is the card's honesty gate (P0-6 · 2026-07-30): past
+/// [`nika_check::RiskGrade::Supervised`] the line is NEVER green. `✔ audited · est
+/// unbounded` in `Role::Good` shipped exactly that lie — an agent loop
+/// at `max_turns: 100` with no token cap closed on a green card while
+/// the COST section named the uncapped task three lines up. High and
+/// Unbounded render the warn mark and name the grade; only Low and
+/// Supervised earn the green mark.
+fn audited_line(
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    hints: usize,
+    grade: nika_check::RiskGrade,
+    t: Theme,
+) -> String {
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
     let permits = if wf.permits.is_some() {
         "declared"
     } else {
         "none"
     };
-    let mark = if t.ascii { "ok" } else { "✔" };
+    // The green mark is EARNED, never defaulted: grade ≥ High (glob
+    // grants · true wildcards · uncapped spend) renders the warn mark
+    // and Role::Warn — the audit completed, the readiness did not.
+    let ready = grade < nika_check::RiskGrade::High;
+    let (mark, role) = if ready {
+        (if t.ascii { "ok" } else { "✔" }, Role::Good)
+    } else {
+        (if t.ascii { "!" } else { "⚠" }, Role::Warn)
+    };
     // The COST section speaks CEILING throughout — `≤N tk` per task, and
     // the range labelled "worst-case ceiling". This line used to speak
     // FLOOR (`est ≥$X`) over `min_path_total_usd`, and the two
@@ -588,12 +704,13 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
         )
     };
     t.paint(
-        Role::Good,
+        role,
         &format!(
-            "{mark} audited · {} · {} · permits {permits} · {est} · {}",
+            "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}",
             crate::vocab::count(tasks, "task"),
             crate::vocab::count(report.waves.len(), "wave"),
             crate::vocab::count(hints, "hint"),
+            grade.as_str(),
         ),
     )
 }
@@ -1213,6 +1330,11 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
         && report.permit_taints.is_empty()
         && report.sink_findings.is_empty()
     {
+        // The exec-grant clause (user gauntlet 2026-07-31 · G-10): a
+        // granted `exec:` lets sub-processes touch files the fs lists
+        // never admitted, so a green PERMITS must not read as a sealed
+        // fence — the same honesty the run banner speaks.
+        let exec_open = wf.permits.as_ref().is_some_and(|p| p.value.allows_exec());
         let _ = writeln!(
             out,
             " {} {}  {}",
@@ -1229,9 +1351,19 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
             // Measured 2026-07-29, both `✔ body fits the declared
             // boundary`. Naming the two halves costs one clause and stops
             // the line meaning more than it checked.
+            // « at run » alone read as a footnote, not a boundary of the
+            // claim (V7-2 · wave-3: four personas took this ✔ as a seal
+            // over their glob-fed paths, then died SEC-004 at run). The
+            // clause now states WHOSE verdict the computed half is.
             t.paint(
                 Role::Dim,
-                "literal + const: args fit the boundary · computed + symlinks at run"
+                if exec_open {
+                    "literal + const: args fit the boundary · computed paths + symlinks \
+                     are the RUN's verdict · exec outside the fs bounds"
+                } else {
+                    "literal + const: args fit the boundary · computed paths + symlinks \
+                     are the RUN's verdict"
+                }
             )
         );
         loopback_declassification_lines(out, wf, t);
@@ -1338,98 +1470,5 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
         }
     }
 }
-
 #[cfg(test)]
-mod policy_rung_tests {
-    use nika_schema::parser::{ParseMode, parse};
-    use nika_schema::source::FileId;
-
-    use super::*;
-
-    fn console(yaml: &str) -> String {
-        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
-        let report = nika_check::check(&wf);
-        render(
-            &report,
-            &wf,
-            yaml,
-            "w.nika.yaml",
-            Theme::new(false, false, false),
-            &ModelsAudit::new(Vec::new(), 0, 0),
-            &nika_schema::ResolvedSkills::default(),
-            &[],
-        )
-    }
-
-    /// 2a · the console speaks the findings[] voice: an `endorsement.*`
-    /// finding prints NIKA-SEC-013 on the POLICY rung — the rung used to
-    /// stamp NIKA-POLICY-001 on EVERY policy row while the wire spoke
-    /// SEC-013 (measured live broken).
-    #[test]
-    fn a_solo_count_row_prints_sec_013_on_console() {
-        let out = console(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
-        );
-        let row = out
-            .lines()
-            .find(|l| l.contains("POLICY") && l.contains("solo_count"))
-            .expect("the POLICY finding row");
-        assert!(
-            row.contains("[NIKA-SEC-013]"),
-            "the console speaks the wire code: {row}"
-        );
-        assert!(
-            !out.contains("[NIKA-POLICY-001]"),
-            "no stale policy-lane code on an endorsement row:\n{out}"
-        );
-    }
-
-    /// The mapping is prefix-exact, not a blanket rename: a plain
-    /// policy-lane rule keeps NIKA-POLICY-001 on the console too.
-    #[test]
-    fn a_limits_row_keeps_policy_001_on_console() {
-        let out = console(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
-        );
-        let row = out
-            .lines()
-            .find(|l| l.contains("POLICY") && l.contains('['))
-            .expect("the POLICY finding row");
-        assert!(row.contains("[NIKA-POLICY-001]"), "the lane code: {row}");
-    }
-}
-
-#[cfg(test)]
-mod energy_tests {
-    use super::{fmt_scope_totals, fmt_wh};
-
-    /// The display grain is ceiling-honest: rounding is UP, and the
-    /// floor of the grain is 0.001 — `0.000` would claim free
-    /// inference for a task that does spend.
-    #[test]
-    fn fmt_wh_never_prints_zero_for_a_positive_bound() {
-        assert_eq!(fmt_wh(0.0004), "0.001");
-        assert_eq!(fmt_wh(0.004), "0.004");
-        assert_eq!(fmt_wh(0.087), "0.087");
-        assert_eq!(fmt_wh(2.34), "2.3");
-        assert_eq!(fmt_wh(660.1), "660.1");
-    }
-
-    /// The scope-total display: one class states the number bare (the
-    /// class rides the count line); several classes join, each wearing
-    /// its class; nothing measured → no claim at all. (The partition
-    /// MATH is `nika_check::energy`'s — these pin the RENDER.)
-    #[test]
-    fn scope_totals_render_one_claim_per_class() {
-        assert_eq!(
-            fmt_scope_totals(&[
-                ("device".to_owned(), 2.0),
-                ("fleet".to_owned(), 4.0),
-                ("gpu".to_owned(), 1.5),
-            ]),
-            "device ≤ 2.0 Wh · fleet ≤ 4.0 Wh · gpu ≤ 1.5 Wh"
-        );
-        assert_eq!(fmt_scope_totals(&[("gpu".to_owned(), 0.087)]), "≤ 0.087 Wh");
-        assert_eq!(fmt_scope_totals(&[]), "");
-    }
-}
+mod tests;

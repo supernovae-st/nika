@@ -252,23 +252,61 @@ pub fn trifecta_violations(
             .any(|&g| subjects.get(g).is_some_and(|t| t.human_gate));
         if !gated {
             let source = witness.and_then(|w| w.source.clone());
+            // The dominance rule, EXPLAINED (user gauntlet 2026-07-31 ·
+            // G-07: the printed fix applied verbatim returned the finding
+            // byte-identical, zero delta, no rule named). Two teaching
+            // arms, one placement law: a gate parked next to the sink
+            // cannot dominate it — the data edges feeding the sink from
+            // pre-gate tasks are paths too. Upstream of the ingress,
+            // EVERY path (order and data alike) crosses the gate.
+            let ingress = source.as_deref().unwrap_or("the untrusted ingress");
+            let why = bypass_note(&dom, subjects, i).unwrap_or_else(|| {
+                format!(
+                    "no blocking `invoke: {}` dominates every path to it",
+                    crate::HUMAN_GATE_TOOL
+                )
+            });
             out.push(TrifectaViolation {
                 task: s.id.clone(),
                 detail: format!(
                     "lethal trifecta complete · human gate required — untrusted content from \
                      `{}` reaches egress task `{}` while private read + untrusted ingress + \
-                     external egress are all permitted, and no blocking `invoke: {}` dominates \
-                     every path to it · fix: gate the egress path behind a human prompt task \
-                     (NEP-0002 · the Rule of Two as a check)",
+                     external egress are all permitted, and {why} · fix: place the blocking \
+                     `invoke: {}` upstream of `{ingress}` — every path to `{}`, order and \
+                     data edges alike, then crosses it (NEP-0002 · the Rule of Two as a check)",
                     source.as_deref().unwrap_or("<ingress>"),
                     s.id,
-                    crate::HUMAN_GATE_TOOL
+                    crate::HUMAN_GATE_TOOL,
+                    s.id,
                 ),
                 source,
             });
         }
     }
     out
+}
+
+/// Name WHY an existing gate fails to dominate the sink (the dominance
+/// rule spoken, not implied): the first declared gate + the first
+/// parent of the sink whose paths never cross it — usually the data
+/// edge (`with: ${{ tasks.X.output }}`) feeding the sink from a
+/// pre-gate task. `None` when the workflow has no gate at all (the
+/// generic clause reads better than a vacuous explanation).
+fn bypass_note(
+    dom: &[BTreeSet<usize>],
+    subjects: &[TrifectaSubject],
+    sink: usize,
+) -> Option<String> {
+    let gate = subjects.iter().position(|t| t.human_gate)?;
+    let bypass = subjects[sink]
+        .parents
+        .iter()
+        .find(|&&p| !dom.get(p).is_some_and(|d| d.contains(&gate)))?;
+    Some(format!(
+        "the blocking gate `{}` does not dominate it — the edge from `{}` reaches `{}` \
+         without crossing the gate (a `with:` data edge is a path too)",
+        subjects[gate].id, subjects[*bypass].id, subjects[sink].id,
+    ))
 }
 
 #[cfg(test)]

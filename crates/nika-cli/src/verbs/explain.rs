@@ -83,17 +83,43 @@ fn canon_row(code: &str) -> Option<String> {
     let row = nika_pack::error_codes()
         .into_iter()
         .find(|r| r.code == code)?;
+    // The contract lesson, when the code earned one (one voice: the MCP
+    // explain appends the same text — `nika_error::codes::spec_contract_help`).
+    let lesson = nika_error::codes::spec_contract_help(code)
+        .map(|l| format!("\n{l}"))
+        .unwrap_or_default();
     let fix = cli_fix_hint(code)
         .map(|h| format!("  fix: {h}\n\n"))
         .unwrap_or_default();
     Some(format!(
-        "{code} · {category} · transient: {transient}\n\n  {failure}\n\n{fix}\
-         full docs: https://nika.sh/errors/{code} — `nika check` catches \
-         this before a run ever starts.\n",
+        "{code} · {category} · transient: {transient}\n\n  {failure}\n{lesson}\n{fix}\
+         full docs: https://nika.sh/errors/{code} — {closer}\n",
         category = row.category,
         transient = row.transient,
         failure = row.failure,
+        closer = closer_line(code),
     ))
+}
+
+/// The canon row's closing claim — TRUE per code class (V7-2 · wave-3:
+/// four personas read « `nika check` catches this before a run ever
+/// starts » under a refusal that check CANNOT catch — a computed path
+/// is the run's to judge — and Marta « stopped running check at all »).
+/// A teaching surface must never promise more than the judge checked.
+fn closer_line(code: &str) -> &'static str {
+    match code {
+        // The boundary refusals: check judges the LITERAL shape (a
+        // written path · a `const:`-resolved arg); a computed path (a
+        // glob result · an interpolated binding · an upstream output)
+        // is judged at RUN — measured: a dir-only grant checked
+        // `✔ PERMITS`, then every per-item read died SEC-004.
+        "NIKA-SEC-004" => {
+            "`nika check` catches the LITERAL shape before a run; a \
+             computed path (a glob result · an interpolated binding) is \
+             judged at RUN — a green PERMITS is not its promise."
+        }
+        _ => "`nika check` catches this before a run ever starts.",
+    }
 }
 
 /// The retirement teaching for a conformance code the canon table no
@@ -101,24 +127,31 @@ fn canon_row(code: &str) -> Option<String> {
 /// allocation hole is deliberate). States what the class BECAME so an
 /// old trace, doc or memory that names the code still gets an answer.
 fn retired_row(code: &str) -> Option<String> {
-    let teaching = match code {
-        "NIKA-DAG-003" => {
+    // (teaching, the LIVE successor code — its page is the one that
+    // exists; a retired per-code URL is a 404, measured 2026-08-01:
+    // the site's error pages project the CURRENT canon table, and a
+    // retired code is exactly the row it no longer carries.)
+    let (teaching, successor) = match code {
+        "NIKA-DAG-003" => (
             "« a `tasks.X` reference with no declared edge » became \
              INEXPRESSIBLE in W2 « the flow »: the `with:` binding IS the \
              edge (derived, never restated), and a reference outside the \
              boundary is NIKA-VAR-021 (hoist it into `with:` — \
-             `nika check --fix` applies it)"
-        }
-        "NIKA-PARSE-016" => {
+             `nika check --fix` applies it)",
+            "NIKA-VAR-021",
+        ),
+        "NIKA-PARSE-016" => (
             "the jq-binding-contains-template class folded into \
-             NIKA-VAR-005 at the deep-conformance registry remap"
-        }
+             NIKA-VAR-005 at the deep-conformance registry remap",
+            "NIKA-VAR-005",
+        ),
         _ => return None,
     };
     Some(format!(
         "{code} · retired — never reused\n\n  {teaching}\n\n\
-         full docs: https://nika.sh/errors/{code} — retired codes keep \
-         their page; the successor code carries the live teaching.\n"
+         full docs: https://nika.sh/errors/{successor} — the successor \
+         code carries the live page; a retired code's own page is gone \
+         with its registry row.\n"
     ))
 }
 
@@ -266,6 +299,34 @@ mod tests {
         assert!(out.text.contains("NIKA-440"));
     }
 
+    /// V7-2 (wave-3 · 4 personas · Priya BLOCKER): the closing claim is
+    /// TRUE per code class. SEC-004's closer stops promising what check
+    /// cannot judge (a computed path is the run's) — Marta read the old
+    /// line under a green-check-red-run pair and « stopped running check
+    /// at all ». A statically-caught class keeps the strong closer.
+    #[test]
+    fn the_closer_never_promises_more_than_the_judge_checked() {
+        let sec = run("NIKA-SEC-004");
+        assert_eq!(sec.code, exit::OK);
+        assert!(
+            !sec.text.contains("catches this before a run ever starts"),
+            "the over-claim is gone from the run-judged class:\n{}",
+            sec.text
+        );
+        assert!(
+            sec.text.contains("judged at RUN") && sec.text.contains("not its promise"),
+            "the honest split is taught:\n{}",
+            sec.text
+        );
+        let dag = run("NIKA-DAG-002");
+        assert_eq!(dag.code, exit::OK);
+        assert!(
+            dag.text.contains("catches this before a run ever starts"),
+            "a statically-caught class keeps its strong closer:\n{}",
+            dag.text
+        );
+    }
+
     #[test]
     fn spec_conformance_codes_answer_from_the_canon() {
         // ONE voice: every code `nika check` emits is explainable.
@@ -312,6 +373,20 @@ mod tests {
         assert_eq!(folded.code, exit::OK, "{}", folded.text);
         assert!(folded.text.contains("retired"), "{}", folded.text);
         assert!(folded.text.contains("NIKA-VAR-005"), "{}", folded.text);
+        // The test's own name, finally enforced: the docs door taught is
+        // the SUCCESSOR's page — a retired code's per-code URL is a 404
+        // (measured 2026-08-01 · the site projects the CURRENT canon
+        // table, and retirement is exactly the row it no longer has).
+        assert!(
+            out.text.contains("errors/NIKA-VAR-021"),
+            "the taught URL is the live successor page:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("errors/NIKA-DAG-003"),
+            "never the retired 404:\n{}",
+            out.text
+        );
     }
 
     #[test]

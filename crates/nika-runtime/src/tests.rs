@@ -529,7 +529,7 @@ async fn resolved_secret_is_scrubbed_from_the_event_stream() {
         }
     }
 
-    const SECRET: &str = "sk-live-9f2c7e4a1b6d"; // ≥ the 8-char scrub floor
+    const SECRET: &str = "sk-live-9f2c7e4a1b6d"; // redacted by provenance — never a length floor
     // The leak is DYNAMIC by construction: argv carries no `${{ secrets.X }}`
     // (the static IFC sees nothing to sanction — the report is clean), and
     // the shell mock's OUTPUT is the secret value — the same bytes a

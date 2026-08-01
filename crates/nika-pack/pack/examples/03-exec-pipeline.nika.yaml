@@ -91,9 +91,10 @@ tasks:
       command: ["echo", "deploy skipped · the suite was red"]
 
 # Both halves of the story, so a reader can see them disagree · read with
-# `--output json`. In an empty directory, measured:
-#   {"suite_exit_code": 1, "task_status": "success"}
-# The number is whatever the command returned; the status is about the task.
+# `--output json`. In an empty directory with no cargo on PATH, measured:
+#   {"suite_exit_code": 127, "task_status": "success"}
+# The number is whatever the command returned — 127 is the shell saying
+# `cargo` was not found, and even that is just a number the gate reads.
 outputs:
   suite_exit_code: ${{ tasks.test.output.exit_code }}
   task_status: ${{ tasks.test.status }}

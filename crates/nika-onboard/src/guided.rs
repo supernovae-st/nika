@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika new --from <template|intent> <dest>` — instantiate one of the
+//! `nika new <template|intent> <dest>` — instantiate one of the
 //! embedded skeletons (spec §2). Refuses to overwrite (the human keeps
 //! the hand); `--force` is the explicit override. The written file is
 //! the template VERBATIM — slots stay visible so the author fills them
@@ -9,24 +9,31 @@
 //!
 //! `--from` resolves in two rungs:
 //! 1. **exact template name** — instant, unchanged;
-//! 2. **intent routing** — anything else is BM25-ranked (the admitted
-//!    `nika-bm25` crate · Robertson-Zaragoza Okapi) against the
-//!    template names + bodies, with a small everyday-word → Nika-vocab
-//!    alias bridge on the QUERY side (« scrape » → fetch · « summarize »
-//!    → infer · « parallel » → fan-out). The top match instantiates and
-//!    the routing is SAID (`routed intent → template …`); a zero-score
-//!    query gets the honest unknown-template error. Deterministic,
-//!    zero-LLM — the floor of « the binary generates the best workflow
-//!    for the intent » (editor LLM loops build ON this rung).
+//! 2. **intent routing** — anything else is read into an `IntentContract`
+//!    FIRST (crates/nika-onboard/src/intent.rs · deterministic lexicon,
+//!    zero LLM), then BM25-ranked (the admitted `nika-bm25` crate ·
+//!    Robertson-Zaragoza Okapi) against the template names + bodies, with
+//!    a small everyday-word → Nika-vocab alias bridge on the QUERY side
+//!    (« scrape » → fetch · « summarize » → infer · « parallel » →
+//!    fan-out). A candidate must carry every capability the contract
+//!    requires, the winner must clear an absolute score floor AND a 1.3×
+//!    margin over the runner-up: below that bar the answer is an honest
+//!    clarification naming the closest skeletons (P0-1 · P0-10) — never
+//!    a silent guess, and NOTHING is written. A confident route
+//!    instantiates as a DRAFT (the message says so) and hands over to
+//!    `nika check`; a zero-evidence query gets the honest
+//!    unknown-template error. The routing is SAID
+//!    (`routed intent → template …`). Deterministic, zero-LLM — the floor
+//!    of « the binary generates the best workflow for the intent »
+//!    (editor LLM loops build ON this rung).
 
 use std::fmt::Write as _;
 use std::io::{BufRead, IsTerminal};
 use std::path::Path;
 
-use nika_bm25::{BmIndex, BmParams};
-
 use nika_display::theme::{Role, Theme};
 
+use crate::intent::RoutingOutcome;
 use crate::{Audit, Outcome, codes};
 
 /// Emit a value as a SAFE YAML scalar. A plain token (`provider/model`,
@@ -74,6 +81,34 @@ pub fn dispatch(
     audit: &Audit<'_>,
 ) -> Outcome {
     match from {
+        // The third door (V5 grammar): a lone `<name>.nika.yaml` that
+        // resolves to NO embedded example names a DESTINATION, not a
+        // source — the extension is the tell. A terminal gets the wizard
+        // with the given name as the file default; a pipe gets the
+        // honest pointer (never a silent intent-route on a filename).
+        Some(f)
+            if dest.is_none() && f.ends_with(".nika.yaml") && nika_pack::example(f).is_none() =>
+        {
+            if interactive() {
+                let stdin = std::io::stdin();
+                wizard_io(
+                    ".",
+                    Some(f),
+                    force,
+                    theme,
+                    &mut stdin.lock(),
+                    &mut std::io::stdout(),
+                    audit,
+                )
+            } else {
+                Outcome {
+                    text: format!(
+                        "`{f}` names a destination — say what it should DO: nika new \"<intent>\" {f}"
+                    ),
+                    code: codes::FILE,
+                }
+            }
+        }
         Some(f) => run(f, dest, force),
         None if interactive() => {
             let stdin = std::io::stdin();
@@ -89,7 +124,7 @@ pub fn dispatch(
         }
         None => Outcome {
             text: format!(
-                "nothing to scaffold — pass --from <template|intent> (`nika new --from '?'` lists the set)\nembedded set: {}",
+                "nothing to scaffold — pass an intent or a template name (`nika new '?'` lists the set)\nembedded set: {}",
                 nika_pack::template_names().join(" · ")
             ),
             code: codes::FILE,
@@ -115,36 +150,46 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // ONE resolution ladder for ONE intention («a file of mine») with two
     // sources: template skeletons (SLOTs to fill) and complete examples
     // (lessons, verbatim). Exact names first — templates, then examples
-    // (slug or filename · `showcase/` browsable) — then plain-words
-    // intent. `nika examples copy` stays the showroom-side handle of the
-    // same gesture.
+    // (slug or filename) — then plain-words intent. The showroom side
+    // (`nika try <slug>`) runs the same corpus without taking it.
     if let Some(body) = nika_pack::example(template) {
         return write_example(template, body, dest, force);
     }
     let (name, body, routed) = match nika_pack::template(template) {
         Some(body) => (template.to_owned(), body, false),
-        None => match route_intent(template) {
-            Some(name) => {
-                // route_intent only returns names from template_names() —
-                // the lookup is total; an empty body would be a pack bug
-                // surfaced as the honest unknown error, never a panic.
+        None => match crate::intent::route(template) {
+            RoutingOutcome::Routed { template: name, .. } => {
+                // route returns names from the WHOLE catalog (G-16: the
+                // 26 human-worded jobs used to be invisible to the one
+                // surface that takes human words) — a routed EXAMPLE
+                // lands verbatim (the take gesture · fixtures follow via
+                // the shared materializer), a routed skeleton
+                // instantiates.
+                if let Some(body) = nika_pack::example(&name) {
+                    return write_example(&name, body, dest, force);
+                }
+                // A skeleton name — the lookup is total for the template
+                // set; an empty body would be a pack bug surfaced as the
+                // honest unknown error, never a panic.
                 let Some(body) = nika_pack::template(&name) else {
                     return unknown(template);
                 };
                 (name, body, true)
             }
-            None => return unknown(template),
+            RoutingOutcome::NeedsClarification { candidates, .. } => {
+                return clarify(template, &candidates);
+            }
         },
     };
     // A known template needs a destination to instantiate into. The
     // `--from '?'` (or any unknown) discovery query already returned above
     // WITHOUT touching `dest` — that is the editor-integration wire
     // contract (`unknown()`), so listing the set must not require a dummy
-    // path (the help promises `nika new --from '?'` works bare).
+    // path (the help promises `nika new '?'` works bare).
     let Some(dest) = dest else {
         return Outcome {
             text: format!(
-                "template `{name}` resolved — pass a destination: nika new --from {template} <dest>.nika.yaml"
+                "template `{name}` resolved — pass a destination: nika new {template} <dest>.nika.yaml"
             ),
             code: codes::ENV,
         };
@@ -162,20 +207,85 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         };
     }
     let routing = if routed { "routed intent → " } else { "" };
-    Outcome {
-        text: format!(
-            "{dest} ← {routing}template `{name}` · fill the `# SLOT:` lines then `nika check {q}`",
+    // A ROUTED file is a draft by construction (P0-10): the intent was
+    // interpreted, not understood — the message says « draft », never
+    // « ready », and hands over to `nika check` before any run.
+    let text = if routed {
+        format!(
+            "{dest} ← {routing}template `{name}` — a DRAFT scaffold · fill the `# SLOT:` lines, then `nika check {q}` before any run",
             q = shell_quote(dest)
-        ),
+        )
+    } else {
+        format!(
+            "{dest} ← template `{name}` · fill the `# SLOT:` lines then `nika check {q}`",
+            q = shell_quote(dest)
+        )
+    };
+    Outcome {
+        text,
         code: codes::OK,
     }
 }
 
+/// The below-the-bar finding (P0-10): a weak or ambiguous route writes
+/// NOTHING — the honest error names the 2-3 closest skeletons so the
+/// human picks one explicitly (or rephrases). Zero candidates = zero
+/// evidence → the unknown-template wire contract (editor probes parse
+/// its `embedded set:` line). Same exit family as the unknown finding
+/// (`codes::FILE`): the file the human asked for does not exist yet.
+fn clarify(intent: &str, candidates: &[String]) -> Outcome {
+    if candidates.is_empty() {
+        return unknown(intent);
+    }
+    // The faceted top-3 (entry-doors redesign R1): each candidate names
+    // its facet + its own one-line description — recognition, not
+    // recall. A description line is the entry's OWN wording (the yaml
+    // `description:`), the closest thing to the human's sentence.
+    let rows: String = candidates
+        .iter()
+        .map(|name| {
+            let facet = crate::intent::facet_of(name).noun();
+            match description_of(name) {
+                Some(d) => format!("\n    {name}  ({facet}) — {d}"),
+                None => format!("\n    {name}  ({facet})"),
+            }
+        })
+        .collect();
+    Outcome {
+        text: format!(
+            "`{intent}` doesn't route confidently — closest matches:{rows}\n  hint: take one by name (`nika new {}`) or rephrase with what goes in and what comes out",
+            candidates.first().map_or("chain", String::as_str),
+        ),
+        code: codes::FILE,
+    }
+}
+
+/// One line in the entry's OWN words — the yaml `description:`, clipped
+/// at 72 chars (the clarify row must stay a row).
+fn description_of(name: &str) -> Option<String> {
+    let body = nika_pack::template(name).or_else(|| nika_pack::example(name))?;
+    let line = body
+        .lines()
+        .find(|l| l.trim_start().starts_with("description:"))?;
+    let text = line
+        .split_once(':')?
+        .1
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'');
+    (!text.is_empty()).then(|| {
+        let mut short: String = text.chars().take(72).collect();
+        if text.chars().count() > 72 {
+            short.push('…');
+        }
+        short
+    })
+}
+
 /// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
 /// the receipt says the check-then-run road. The default destination is
-/// the slug's basename (`showcase/t1-price-watch` → `t1-price-watch
-/// .nika.yaml` — the tiering belongs to the pack, your workspace is
-/// flat).
+/// the slug's basename (a nested slug flattens — the tiering belongs to
+/// the pack, your workspace is flat).
 fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
     let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);
@@ -193,9 +303,29 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
             code: codes::ENV,
         };
     }
+    let ingredients = match crate::fixtures::materialize(body, Path::new(dest)) {
+        Ok((0, 0)) => String::new(),
+        Ok((written, kept)) => {
+            let kept_note = if kept > 0 {
+                format!(" · {kept} already yours, kept")
+            } else {
+                String::new()
+            };
+            format!(
+                "\n  examples/fixtures · {written} file{} (the recipe's ingredients){kept_note}",
+                if written == 1 { "" } else { "s" },
+            )
+        }
+        Err(e) => {
+            return Outcome {
+                text: format!("cannot write a fixture beside {dest}: {e}"),
+                code: codes::ENV,
+            };
+        }
+    };
     Outcome {
         text: format!(
-            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`",
+            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`{ingredients}",
             q = shell_quote(dest)
         ),
         code: codes::OK,
@@ -203,12 +333,12 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
 }
 
 /// The unknown-template finding. The `embedded set:` line is a WIRE
-/// CONTRACT — editor integrations probe `nika new --from '?'` and parse
+/// CONTRACT — editor integrations probe `nika new '?'` and parse
 /// the set from exactly this shape; never reword it.
 fn unknown(template: &str) -> Outcome {
     Outcome {
         text: format!(
-            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, describe the job with its verbs (fetch · summarize · parallel · approve…), or pass an example slug from `nika examples list`",
+            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, describe the job with its verbs (fetch · summarize · parallel · approve…), or pass an example slug from `nika try`",
             nika_pack::template_names().join(" · ")
         ),
         code: codes::FILE,
@@ -228,10 +358,10 @@ fn discovery() -> Outcome {
     }
     let _ = write!(text, "\nembedded set: {}", names.join(" · "));
     text.push_str(
-        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new --from 01-hello my-hello.nika.yaml    # any slug from `nika examples list`",
+        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new 01-hello my-hello.nika.yaml    # any slug from `nika try`",
     );
     text.push_str(
-        "\n\ntry ·\n  nika new --from chain my-first.nika.yaml\n  nika new --from \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
+        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
     );
     Outcome {
         text,
@@ -331,19 +461,95 @@ pub(crate) fn ask(
     Ok(Some(line.trim().to_owned()))
 }
 
-/// Intent → template: exact name first, BM25 routing second, the
-/// `chain` default third (empty answer = the golden path).
-fn resolve_template(intent: &str) -> (String, bool) {
+/// One prompt, re-asked until the answer RESOLVES (P0-8): Enter takes
+/// the announced default (unchanged behavior) · a NON-EMPTY answer the
+/// parser refuses is SAID (« unrecognized ») and asked again — a typo
+/// must never become a silent default · EOF cancels, honestly (`None`,
+/// never a loop). The parser sees only non-empty answers.
+pub(crate) fn ask_validated<T>(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+    prompt: &str,
+    hint: &str,
+    parse: impl Fn(&str) -> Option<T>,
+    default: impl Fn() -> T,
+) -> std::io::Result<Option<T>> {
+    loop {
+        let Some(raw) = ask(input, out, theme, prompt)? else {
+            return Ok(None);
+        };
+        if raw.is_empty() {
+            return Ok(Some(default()));
+        }
+        if let Some(value) = parse(&raw) {
+            return Ok(Some(value));
+        }
+        let said = format!("unrecognized `{raw}` — {hint}");
+        writeln!(out, "  {}", theme.paint(Role::Bad, &said))?;
+    }
+}
+
+/// The wizard's template rung: exact name first, confident intent route
+/// second, the announced Enter default third — and the SAID fallback
+/// last (P0-1: the chain fallback used to be SILENT; a below-the-bar
+/// intent now names its closest candidates before starting from the
+/// generic spine, so the human sees the guess instead of inheriting it).
+enum WizardRoute {
+    /// The answer IS a template name.
+    Exact(String),
+    /// The intent cleared the confidence bar.
+    Routed(String),
+    /// Empty answer — the golden path the prompt announces (`[chain]`).
+    Default,
+    /// Below the bar: `chain`, but SAID, with the closest candidates.
+    Fallback {
+        /// The 2-3 closest skeletons (empty on zero evidence).
+        candidates: Vec<String>,
+    },
+}
+
+/// Intent → template rung, per [`WizardRoute`].
+fn resolve_template(intent: &str) -> WizardRoute {
     if intent.is_empty() {
-        return ("chain".to_owned(), false);
+        return WizardRoute::Default;
     }
     if nika_pack::template(intent).is_some() {
-        return (intent.to_owned(), false);
+        return WizardRoute::Exact(intent.to_owned());
     }
-    match route_intent(intent) {
-        Some(name) => (name, true),
-        None => ("chain".to_owned(), false),
+    // The wizard's corpus IS the skeleton set (its whole gesture is a
+    // file of SLOTs to fill) — it routes within it; route() itself now
+    // sees the whole catalog (G-16 · the guided door's world).
+    match crate::intent::route_skeletons(intent) {
+        RoutingOutcome::Routed { template, .. } => WizardRoute::Routed(template),
+        RoutingOutcome::NeedsClarification { candidates, .. } => {
+            WizardRoute::Fallback { candidates }
+        }
     }
+}
+
+/// The ollama menu note. « local » is a TOPOLOGY claim (P0-20): with an
+/// endpoint override active (`NIKA_OLLAMA_BASE_URL` · `OLLAMA_HOST`) the
+/// engine may be a LAN box, so the note drops « local » and says what is
+/// actually known — the sovereign protocol · zero key · a custom
+/// endpoint. The env probe stays out of this pure pick (testable, no
+/// `set_var` race).
+const fn ollama_note_for(override_active: bool) -> &'static str {
+    if override_active {
+        "sovereign · zero key · custom endpoint"
+    } else {
+        "local · sovereign · zero key"
+    }
+}
+
+/// Presence-only read of the ollama endpoint-override family — the value
+/// is connection config and is never bound (the probe layer's
+/// PRESENT-NOT-PRINTED discipline).
+#[allow(clippy::disallowed_methods)] // presence-only · an endpoint override is config, not a secret
+fn ollama_endpoint_overridden() -> bool {
+    ["NIKA_OLLAMA_BASE_URL", "OLLAMA_HOST"]
+        .iter()
+        .any(|v| std::env::var_os(v).is_some_and(|val| !val.is_empty()))
 }
 
 /// The provider menu, DERIVED from the embedded catalog (no hardcoded
@@ -352,7 +558,7 @@ fn resolve_template(intent: &str) -> (String, bool) {
 pub(crate) fn model_menu() -> Vec<(String, &'static str)> {
     let export = nika_catalog::export::catalog_export();
     [
-        ("ollama", "local · sovereign · zero key"),
+        ("ollama", ollama_note_for(ollama_endpoint_overridden())),
         ("mock", "offline preview · zero key · always works"),
         ("mistral", "EU · open-weight"),
         ("anthropic", ""),
@@ -375,26 +581,29 @@ pub(crate) fn model_menu() -> Vec<(String, &'static str)> {
     .collect()
 }
 
-/// A menu number, a full `provider/model`, or Enter → the offline mock
-/// (the one answer that succeeds with zero keys and zero network — the
-/// first run must not be able to fail).
-pub(crate) fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> String {
-    let fallback = || {
-        menu.get(1)
-            .map_or_else(|| "mock/echo".to_owned(), |(m, _)| m.clone())
-    };
-    if pick.is_empty() {
-        return fallback();
-    }
-    if let Ok(n) = pick.parse::<usize>()
-        && let Some((m, _)) = n.checked_sub(1).and_then(|i| menu.get(i))
-    {
-        return m.clone();
+/// A menu number or a full `provider/model` → the model. `None` = the
+/// answer is NEITHER (a bare word like « gpt » · a number off the menu)
+/// — the caller re-asks instead of inheriting a silent mock (P0-8).
+/// Enter never reaches here: the ask loop maps it to [`default_model`].
+pub(crate) fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> Option<String> {
+    if let Ok(n) = pick.parse::<usize>() {
+        return n
+            .checked_sub(1)
+            .and_then(|i| menu.get(i))
+            .map(|(m, _)| m.clone());
     }
     if pick.contains('/') {
-        return pick.to_owned();
+        return Some(pick.to_owned());
     }
-    fallback()
+    None
+}
+
+/// The Enter default — the offline mock (the one answer that succeeds
+/// with zero keys and zero network — the first run must not be able to
+/// fail).
+pub(crate) fn default_model(menu: &[(String, &'static str)]) -> String {
+    menu.get(1)
+        .map_or_else(|| "mock/echo".to_owned(), |(m, _)| m.clone())
 }
 
 /// A kebab workflow id out of the destination file name.
@@ -474,7 +683,7 @@ pub(crate) fn ask_model(
             theme.paint(Role::Dim, note),
         )?;
     }
-    let Some(pick) = ask(
+    let Some(model) = ask_validated(
         input,
         out,
         theme,
@@ -482,13 +691,43 @@ pub(crate) fn ask_model(
             "a number, or any provider/model {}",
             theme.paint(Role::Dim, "[2]")
         ),
+        &format!("choose 1-{} or a provider/model", menu.len()),
+        |raw| resolve_model(raw, &menu),
+        || default_model(&menu),
     )?
     else {
         return Ok(None);
     };
-    let model = resolve_model(&pick, &menu);
     writeln!(out, "  → model `{}`", theme.paint(Role::Accent, &model))?;
     Ok(Some(model))
+}
+
+/// Resolve the wizard's template from the intent — the fallback is
+/// SAID (P0-1): the human reads WHY chain and what almost matched
+/// before the file exists.
+fn routed_template(
+    intent: &str,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+) -> std::io::Result<(String, bool)> {
+    Ok(match resolve_template(intent) {
+        WizardRoute::Exact(name) => (name, false),
+        WizardRoute::Routed(name) => (name, true),
+        WizardRoute::Default => ("chain".to_owned(), false),
+        WizardRoute::Fallback { candidates } => {
+            let note = if candidates.is_empty() {
+                "no skeleton matches that intent — starting from `chain`, the generic spine"
+                    .to_owned()
+            } else {
+                format!(
+                    "no confident match (closest: {}) — starting from `chain`, the generic spine",
+                    candidates.join(" · ")
+                )
+            };
+            writeln!(out, "  {}", theme.paint(Role::Dim, &note))?;
+            ("chain".to_owned(), false)
+        }
+    })
 }
 
 fn read_wizard(
@@ -520,7 +759,7 @@ fn read_wizard(
     else {
         return Ok(None);
     };
-    let (template, routed) = resolve_template(&intent);
+    let (template, routed) = routed_template(&intent, out, theme)?;
     let tag = nika_pack::template(&template).map_or_else(String::new, |b| tagline(&template, b));
     writeln!(
         out,
@@ -650,7 +889,7 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme, audit: &Audit<
         "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render (mock is offline · $0.00)\n\n{}",
         theme.paint(
             Role::Dim,
-            &format!("scriptable form · nika new --from {} {q}", w.template)
+            &format!("scriptable form · nika new {} {q}", w.template)
         ),
     );
     Outcome {
@@ -659,706 +898,5 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme, audit: &Audit<
     }
 }
 
-/// Everyday intent words → the Nika vocabulary the template bodies
-/// actually carry. Query-side only (documents are never expanded) — the
-/// evidenced cheap recall upgrade at tiny corpus scale, in place of
-/// embeddings (BM25 stays the ranker).
-const ALIASES: &[(&str, &[&str])] = &[
-    ("scrape", &["fetch", "read"]),
-    ("crawl", &["fetch"]),
-    ("download", &["fetch"]),
-    ("http", &["fetch"]),
-    ("url", &["fetch"]),
-    ("website", &["fetch"]),
-    ("page", &["fetch"]),
-    ("api", &["fetch", "invoke"]),
-    ("llm", &["infer"]),
-    ("ai", &["infer"]),
-    ("model", &["infer"]),
-    ("prompt", &["infer"]),
-    ("summarize", &["infer", "think"]),
-    ("classify", &["infer"]),
-    ("generate", &["infer"]),
-    ("save", &["write", "persist", "state"]),
-    ("shell", &["exec"]),
-    ("command", &["exec"]),
-    ("script", &["exec"]),
-    ("build", &["exec"]),
-    ("test", &["exec", "verify"]),
-    ("deploy", &["ship", "act", "exec"]),
-    ("release", &["ship", "act"]),
-    ("parallel", &["for_each", "fan", "merge"]),
-    ("concurrent", &["for_each", "fan"]),
-    ("batch", &["for_each", "items"]),
-    ("each", &["for_each", "items"]),
-    ("every", &["for_each", "items"]),
-    ("loop", &["agent", "for_each"]),
-    ("iterate", &["agent", "for_each"]),
-    ("agentic", &["agent"]),
-    ("autonomous", &["agent", "budgeted"]),
-    ("review", &["gate", "verify"]),
-    ("approve", &["gate", "human"]),
-    ("approval", &["gate", "human"]),
-    ("confirm", &["gate", "human"]),
-    ("pipeline", &["chain", "gather", "think"]),
-    ("sequence", &["chain"]),
-    ("transform", &["jq", "process"]),
-    ("json", &["jq"]),
-    ("state", &["state", "diff", "delta"]),
-    ("incremental", &["state", "diff", "delta"]),
-];
-
-/// Function words + Nika envelope keywords that carry zero routing signal —
-/// stripped from the query so an all-boilerplate `--from` (`the` · `workflow`
-/// · `template`) lists the set instead of spuriously routing (every template
-/// shares `workflow:`/`tasks:`/… so those terms separate nothing).
-const STOPWORDS: &[&str] = &[
-    "a", "an", "and", "the", "to", "of", "in", "on", "for", "with", "that", "this", "then", "than",
-    "into", "from", "by", "as", "at", "is", "are", "be", "it", "its", "or", "i", "me", "my", "we",
-    "you", "no", "such", "nika", "workflow", "model", "vars", "tasks", "id", "template", "slot",
-    "kebab", "case",
-];
-
-/// BM25-route a free-form intent to the best embedded template.
-/// `None` when no template shares a single term with the (alias-
-/// expanded) query — routing on zero evidence would be a guess.
-fn route_intent(intent: &str) -> Option<String> {
-    let names = nika_pack::template_names();
-    let mut index = BmIndex::new(BmParams::default());
-    for (i, name) in names.iter().enumerate() {
-        let body = nika_pack::template(name).unwrap_or_default();
-        // Index the template's MEANINGFUL vocabulary — verbs · tools ·
-        // structure — but STRIP `#` comments. The `# SLOT: kebab-case
-        // workflow id` scaffolding prose otherwise pollutes the index, so
-        // boilerplate/stopword queries ("slot" · "kebab" · "fill" · "the")
-        // spuriously route instead of listing the set. Real intent routes
-        // on the YAML verbs/tools + the ALIASES, not the comment prose.
-        let meaningful: String = body
-            .lines()
-            .filter(|l| !l.trim_start().starts_with('#'))
-            .map(|l| l.split_once(" #").map_or(l, |(before, _)| before))
-            .collect::<Vec<_>>()
-            .join("\n");
-        index.add_document(u32::try_from(i).ok()?, &format!("{name}\n{meaningful}"));
-    }
-    index.finalize();
-
-    // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
-    // an all-boilerplate query routes NOWHERE → the honest unknown · list.
-    let tokens: Vec<String> = intent
-        .split(|c: char| !c.is_ascii_alphanumeric())
-        .map(str::to_ascii_lowercase)
-        .filter(|t| !t.is_empty() && !STOPWORDS.contains(&t.as_str()))
-        .collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let mut query = tokens.join(" ");
-    for token in &tokens {
-        for (word, expansions) in ALIASES {
-            if token == *word {
-                for e in *expansions {
-                    query.push(' ');
-                    query.push_str(e);
-                }
-            }
-        }
-    }
-
-    let ranked = index.top_k(&query, 1);
-    let (doc, score) = ranked.first()?;
-    if *score <= 0.0 {
-        return None;
-    }
-    names.get(*doc as usize).cloned()
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const PLAIN: Theme = Theme::new(false, false, false);
-
-    /// The test audit stub — the ladder's SHAPE without the ladder
-    /// (integration against the real check lives at the composition
-    /// root and in nika-onboard's own dev-dep ratchets).
-    fn stub_audit(path: &str) -> Outcome {
-        Outcome::ok(format!("✔ audited (stub) ← {path}"))
-    }
-
-    #[test]
-    fn shell_quote_wraps_only_when_needed() {
-        // A kebab path stays bare (the common case · no visual noise);
-        // a spaced path is single-quoted so `nika run <it>` survives the
-        // copy-paste (a wizard hand-off must not emit a broken command).
-        assert_eq!(shell_quote("my-flow.nika.yaml"), "my-flow.nika.yaml");
-        assert_eq!(shell_quote("a/b/c.nika.yaml"), "a/b/c.nika.yaml");
-        assert_eq!(
-            shell_quote("My Cool Flow.nika.yaml"),
-            "'My Cool Flow.nika.yaml'"
-        );
-        // The `'` escape is the total POSIX form (close · escaped · open).
-        assert_eq!(shell_quote("it's.nika.yaml"), r"'it'\''s.nika.yaml'");
-        // Shell metacharacters (a `;`/`$`/`&` in a pasted name) are quoted.
-        assert_eq!(shell_quote("a;rm -rf.yaml"), "'a;rm -rf.yaml'");
-    }
-
-    /// A unique EMPTY dir per test — the collision-aware default reads
-    /// the base, so shared temp dirs would leak state between tests.
-    fn fresh_base(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("nika-wiz-{tag}-{}", std::process::id()));
-        std::fs::remove_dir_all(&dir).ok();
-        std::fs::create_dir_all(&dir).expect("mkdir");
-        dir
-    }
-
-    fn dest(tag: &str) -> String {
-        std::env::temp_dir()
-            .join(format!("nika-new-{}-{tag}.nika.yaml", std::process::id()))
-            .to_string_lossy()
-            .into_owned()
-    }
-
-    #[test]
-    fn exact_template_name_stays_the_fast_path() {
-        let d = dest("exact");
-        let out = run("chain", Some(&d), true);
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        assert!(!out.text.contains("routed"), "{}", out.text);
-        std::fs::remove_file(&d).ok();
-    }
-
-    /// The ladder's second rung: an example slug (or filename · or
-    /// showcase path) lands VERBATIM at dest — and the default dest
-    /// flattens the tiering to the basename.
-    #[test]
-    fn example_sources_land_verbatim_through_new() {
-        let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("mkdir");
-        let dest = dir.join("mine.nika.yaml");
-        let dest_s = dest.to_string_lossy().into_owned();
-
-        let out = run("01-hello", Some(&dest_s), false);
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        assert!(out.text.contains("example `01-hello`"), "{}", out.text);
-        assert!(out.text.contains("nika check"), "{}", out.text);
-        assert_eq!(
-            std::fs::read_to_string(&dest).expect("written"),
-            nika_pack::example("01-hello").expect("embedded"),
-            "verbatim — a lesson has no SLOTs"
-        );
-        // Filename form + showcase tiering resolve too; overwrite refuses.
-        assert_eq!(
-            run("01-hello.nika.yaml", Some(&dest_s), true).code,
-            codes::OK
-        );
-        assert_eq!(run("01-hello", Some(&dest_s), false).code, codes::ENV);
-        let show = run("showcase/t1-price-watch", Some(&dest_s), true);
-        assert_eq!(show.code, codes::OK, "{}", show.text);
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// The wire contract: `nika new --from '?'` (NO dest) names the set —
-    /// and a discovery query answered is a SUCCESS (exit 0 · it used to
-    /// reuse the unknown-template error, so the documented command read
-    /// as a failure). The `embedded set:` line survives verbatim (the
-    /// editor probes regex exactly that grammar).
-    #[test]
-    fn discovery_query_lists_the_set_without_a_dest() {
-        let out = run("?", None, false);
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        assert!(out.text.contains("embedded set:"), "{}", out.text);
-        for name in nika_pack::template_names() {
-            assert!(out.text.contains(&name), "lists `{name}`: {}", out.text);
-        }
-    }
-
-    /// The listing derives its taglines from the template bodies' own
-    /// `# TEMPLATE` headers — no second prose source to drift.
-    #[test]
-    fn discovery_taglines_come_from_the_bodies() {
-        let body = nika_pack::template("chain").expect("chain embedded");
-        let tag = tagline("chain", body);
-        assert!(!tag.is_empty(), "chain header carries a tagline");
-        assert!(
-            run("?", None, false).text.contains(&tag),
-            "the listing shows it"
-        );
-    }
-
-    /// A REAL template with no dest can't be instantiated — ask for one
-    /// (don't silently no-op or panic).
-    #[test]
-    fn known_template_without_dest_asks_for_a_path() {
-        let out = run("chain", None, false);
-        assert_eq!(out.code, codes::ENV, "{}", out.text);
-        assert!(out.text.contains("pass a destination"), "{}", out.text);
-    }
-
-    #[test]
-    fn parallel_intent_routes_to_fanout() {
-        let d = dest("par");
-        let out = run("summarize every item in parallel", Some(&d), true);
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        assert!(
-            out.text.contains("routed intent → template `fanout`"),
-            "{}",
-            out.text
-        );
-        // Own-corpus by construction: the instantiated file IS the
-        // embedded template verbatim.
-        let written = std::fs::read_to_string(&d).expect("file written");
-        assert_eq!(Some(written.as_str()), nika_pack::template("fanout"));
-        std::fs::remove_file(&d).ok();
-    }
-
-    #[test]
-    fn agentic_intent_routes_to_agent_loop() {
-        let d = dest("agent");
-        let out = run(
-            "an autonomous budgeted agent that researches a topic",
-            Some(&d),
-            true,
-        );
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        assert!(out.text.contains("template `agent-loop`"), "{}", out.text);
-        std::fs::remove_file(&d).ok();
-    }
-
-    #[test]
-    fn approval_intent_routes_to_a_gated_template() {
-        let d = dest("gate");
-        let out = run(
-            "verify then wait for human approval before deploy",
-            Some(&d),
-            true,
-        );
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        assert!(
-            out.text.contains("`human-gated-ship`") || out.text.contains("`gate-and-act`"),
-            "a gated template must win: {}",
-            out.text
-        );
-        std::fs::remove_file(&d).ok();
-    }
-
-    #[test]
-    fn zero_evidence_intent_keeps_the_wire_contract_error() {
-        // Gibberish shares no term with any template — the honest unknown
-        // (exit 2) still names the set on the `embedded set:` wire line.
-        let out = run("zzzz qqqq xxxx", Some(&dest("zero")), true);
-        assert_eq!(out.code, codes::FILE, "{}", out.text);
-        assert!(out.text.contains("embedded set:"), "{}", out.text);
-    }
-
-    // NOTE · the bare-`nika new`-in-a-pipe contract (fail fast naming
-    // `--from`) is pinned at the BINARY plane (bin_smoke) — is_terminal
-    // inside `cargo test` reflects the invoking terminal, so an
-    // in-process assert would flip between a laptop run and CI.
-
-    #[test]
-    fn dispatch_with_a_template_is_the_flag_path_unchanged() {
-        let d = dest("dispatch");
-        let out = dispatch(Some("chain"), Some(&d), true, PLAIN, &stub_audit);
-        assert_eq!(out.code, codes::OK, "{}", out.text);
-        std::fs::remove_file(&d).ok();
-    }
-
-    // ─── The wizard's pure parts ─────────────────────────────────────
-
-    #[test]
-    fn resolve_template_covers_the_three_rungs() {
-        assert_eq!(resolve_template(""), ("chain".to_owned(), false));
-        assert_eq!(resolve_template("fanout"), ("fanout".to_owned(), false));
-        let (name, routed) = resolve_template("summarize every item in parallel");
-        assert_eq!(name, "fanout");
-        assert!(routed);
-        // Zero evidence → the chain default, never a dead end.
-        assert_eq!(resolve_template("zzzz qqqq"), ("chain".to_owned(), false));
-    }
-
-    #[test]
-    fn the_model_menu_derives_from_the_catalog_local_first() {
-        let menu = model_menu();
-        assert!(menu.len() >= 2, "catalog carries the menu providers");
-        assert!(
-            menu[0].0.starts_with("ollama/"),
-            "local first (presentation order): {menu:?}"
-        );
-        assert!(menu[1].0.starts_with("mock/"), "offline second: {menu:?}");
-        // Every entry is a full provider/model wire id from the catalog.
-        assert!(menu.iter().all(|(m, _)| m.contains('/')), "{menu:?}");
-    }
-
-    #[test]
-    fn resolve_model_defaults_to_the_offline_mock() {
-        let menu = model_menu();
-        let default = resolve_model("", &menu);
-        assert!(
-            default.starts_with("mock/"),
-            "Enter must never fail: {default}"
-        );
-        assert_eq!(resolve_model("1", &menu), menu[0].0);
-        assert_eq!(
-            resolve_model("ollama/llama3.2:3b", &menu),
-            "ollama/llama3.2:3b"
-        );
-        // A number off the menu or a word without `/` falls back safe.
-        assert!(resolve_model("99", &menu).starts_with("mock/"));
-        assert!(resolve_model("gpt", &menu).starts_with("mock/"));
-    }
-
-    #[test]
-    fn workflow_id_is_a_kebab_of_the_file_name() {
-        assert_eq!(workflow_id("my-first.nika.yaml"), "my-first");
-        assert_eq!(workflow_id("dir/Sub/PR Review.nika.yaml"), "pr-review");
-        assert_eq!(workflow_id(".nika.yaml"), "my-first");
-    }
-
-    #[test]
-    fn yaml_scalar_keeps_plain_bare_and_single_quotes_the_rest() {
-        assert_eq!(yaml_scalar("mock/echo"), "mock/echo");
-        assert_eq!(yaml_scalar("summarize"), "summarize");
-        // Space · colon · backslash · quote → single-quoted, literal.
-        assert_eq!(
-            yaml_scalar("save to C:\\Users\\me"),
-            "'save to C:\\Users\\me'"
-        );
-        assert_eq!(yaml_scalar("foo/bar: baz"), "'foo/bar: baz'");
-        assert_eq!(yaml_scalar("it's a test"), "'it''s a test'");
-        assert_eq!(yaml_scalar(""), "''");
-    }
-
-    #[test]
-    fn stamped_file_survives_a_hostile_intent_and_model_string() {
-        // The rust-pro HIGH: a backslash in the intent (a Windows path ·
-        // a regex) and a YAML-significant model pick BOTH reached the
-        // scalar unescaped → the fresh scaffold failed its OWN check
-        // under a green ✔. Every stamp must now round-trip through the
-        // REAL parser+check clean.
-        let body = nika_pack::template("chain").expect("embedded");
-        for (desc, model) in [
-            ("save to C:\\Users\\me", "mock/echo"),
-            ("match \\d+ then ship", "mock/echo"),
-            ("it's a \"quoted\" job", "mock/echo"),
-            ("a job", "foo/bar: baz"),
-        ] {
-            let stamped = stamp(body, "hostile", desc, Some(model));
-            let parsed = nika_schema::parse(
-                &stamped,
-                nika_schema::FileId::new(0),
-                nika_schema::ParseMode::Strict,
-            );
-            assert!(
-                parsed.is_ok(),
-                "desc={desc:?} model={model:?} must parse: {parsed:?}"
-            );
-            // The check ladder must not choke either (a dirty audit is
-            // fine; a PARSE error at this point is the bug).
-            let wf = parsed.expect("asserted ok above");
-            let _ = nika_check::check(&wf);
-        }
-    }
-
-    #[test]
-    fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
-        // The own-corpus law (#261): every embedded skeleton a fresh
-        // scaffold can produce MUST audit clean — a red ladder on a first
-        // scaffold is the self-contradiction the wizard exists to avoid.
-        // This ratchet was MISSING (pack-integrity only hashes text), so
-        // `api-upload-and-create` shipped in #257 failing its OWN
-        // SECRETS-egress check, unnoticed, until a user-sim caught it.
-        //
-        // KNOWN GAP — an operator design call, NOT a template typo: the
-        // ADR-092 flow model taints an authenticated `invoke`'s OUTPUT (a
-        // secret in a fetch auth-header taints the response, exactly as a
-        // secret in the body would), with no `infer`/`agent`-style prompt
-        // exception and no output-declassification construct. So
-        // EMPTY since 2026-07-10: the one former gap
-        // (`api-upload-and-create` — a secret-authed response piped to
-        // `outputs:` had NO sanctioned path) resolved via the
-        // output-declassification this ratchet's note called for:
-        // `egress: [{ to: "outputs" }]` (spec 01-envelope §egress · the
-        // owner declassifies the workflow boundary itself). Every template
-        // now passes its own audit; a dirty one fails this ratchet unless
-        // a genuine flow-model design gap is documented here.
-        const KNOWN_GAP: &[&str] = &[];
-        let mut clean = 0_usize;
-        for name in nika_pack::template_names() {
-            let body = nika_pack::template(&name).expect("template embedded");
-            let parsed = nika_schema::parse(
-                body,
-                nika_schema::FileId::new(0),
-                nika_schema::ParseMode::Strict,
-            );
-            assert!(parsed.is_ok(), "{name}: template must parse: {parsed:?}");
-            let wf = parsed.expect("asserted ok above");
-            let is_gap = KNOWN_GAP.contains(&name.as_str());
-            if nika_check::check(&wf).is_clean() {
-                assert!(
-                    !is_gap,
-                    "{name}: now audits CLEAN — remove it from KNOWN_GAP, the design gap is resolved"
-                );
-                clean += 1;
-            } else {
-                assert!(
-                    is_gap,
-                    "{name}: a fresh scaffold FAILS its own `nika check` (own-corpus law · #261) — \
-                     fix the template, or (if a genuine flow-model design gap) document it in KNOWN_GAP"
-                );
-            }
-        }
-        assert!(clean >= 8, "expected >= 8 clean templates, got {clean}");
-    }
-
-    #[test]
-    fn stamp_fills_exactly_the_three_known_slots() {
-        for name in nika_pack::template_names() {
-            let body = nika_pack::template(&name).expect("embedded");
-            let stamped = stamp(body, "field-demo", "their problem", Some("mock/echo"));
-            assert!(stamped.contains("  id: field-demo"), "{name}: id stamped");
-            assert!(
-                !stamped.contains("-template "),
-                "{name}: no template id remnant"
-            );
-            assert!(
-                stamped.contains("description: 'their problem'"),
-                "{name}: description stamped (single-quoted YAML scalar)"
-            );
-            if body.lines().any(|l| l.starts_with("model: ")) {
-                assert!(
-                    stamped.contains("model: mock/echo"),
-                    "{name}: model stamped"
-                );
-            }
-        }
-    }
-
-    /// The whole conversation over an injected cursor: three Enters =
-    /// the golden path (chain · default name · offline mock).
-    #[test]
-    fn read_wizard_three_enters_is_the_golden_path() {
-        let base = fresh_base("golden");
-        let mut input = std::io::Cursor::new(b"\n\n\n".to_vec());
-        let mut out = Vec::new();
-        let w = read_wizard(
-            &mut input,
-            &mut out,
-            base.to_str().expect("utf8"),
-            None,
-            PLAIN,
-        )
-        .expect("io ok")
-        .expect("not cancelled");
-        assert_eq!(w.template, "chain");
-        assert_eq!(w.dest, "my-first.nika.yaml");
-        assert!(w.model.as_deref().is_some_and(|m| m.starts_with("mock/")));
-        let shown = String::from_utf8(out).expect("utf8");
-        assert!(shown.contains("template `chain`"), "{shown}");
-        assert!(shown.contains("ollama/"), "menu shows local first: {shown}");
-        std::fs::remove_dir_all(&base).ok();
-    }
-
-    /// A skeleton without a top-level `model:` gets NO model question —
-    /// asking would promise a stamp the file doesn't carry. Two answers
-    /// complete the flow and the conversation says where models live.
-    #[test]
-    fn read_wizard_skips_the_model_question_when_the_template_takes_none() {
-        let base = fresh_base("permodel");
-        // gate-and-act carries no top-level model line (exact name = rung 1).
-        let mut input = std::io::Cursor::new(b"gate-and-act\n\n".to_vec());
-        let mut out = Vec::new();
-        let w = read_wizard(
-            &mut input,
-            &mut out,
-            base.to_str().expect("utf8"),
-            None,
-            PLAIN,
-        )
-        .expect("io ok")
-        .expect("not cancelled");
-        assert_eq!(w.template, "gate-and-act");
-        assert_eq!(w.model, None, "no model harvested");
-        let shown = String::from_utf8(out).expect("utf8");
-        assert!(
-            shown.contains("models are per-task in this skeleton"),
-            "{shown}"
-        );
-        assert!(
-            !shown.contains("a number, or any provider/model"),
-            "the question must not fire: {shown}"
-        );
-        std::fs::remove_dir_all(&base).ok();
-    }
-
-    /// The default file name walks past collisions — a wizard re-run must
-    /// never dead-end on « exists » AFTER every question was answered.
-    #[test]
-    fn wizard_default_dest_walks_past_collisions() {
-        let base = fresh_base("collide");
-        let b = base.to_str().expect("utf8");
-        assert_eq!(wizard_default_dest(b), "my-first.nika.yaml");
-        std::fs::write(base.join("my-first.nika.yaml"), "x").expect("seed");
-        assert_eq!(wizard_default_dest(b), "my-second.nika.yaml");
-        std::fs::write(base.join("my-second.nika.yaml"), "x").expect("seed");
-        std::fs::write(base.join("my-third.nika.yaml"), "x").expect("seed");
-        assert_eq!(wizard_default_dest(b), "my-4.nika.yaml");
-        std::fs::remove_dir_all(&base).ok();
-    }
-
-    #[test]
-    fn template_takes_model_matches_every_body() {
-        for name in nika_pack::template_names() {
-            let body = nika_pack::template(&name).expect("embedded");
-            let has = body.lines().any(|l| l.starts_with("model: "));
-            assert_eq!(template_takes_model(body), has, "{name}");
-        }
-        // The split is real: both kinds exist in the embedded set.
-        let kinds: Vec<bool> = nika_pack::template_names()
-            .iter()
-            .map(|n| template_takes_model(nika_pack::template(n).expect("embedded")))
-            .collect();
-        assert!(kinds.contains(&true) && kinds.contains(&false));
-    }
-
-    /// An intent answer routes; EOF mid-flow cancels instead of looping.
-    #[test]
-    fn read_wizard_routes_and_cancels_honestly() {
-        let base = fresh_base("routes");
-        let mut input =
-            std::io::Cursor::new(b"process every item in parallel\nbatch\n2\n".to_vec());
-        let mut out = Vec::new();
-        let w = read_wizard(
-            &mut input,
-            &mut out,
-            base.to_str().expect("utf8"),
-            None,
-            PLAIN,
-        )
-        .expect("io ok")
-        .expect("not cancelled");
-        assert_eq!(w.template, "fanout");
-        assert_eq!(w.dest, "batch.nika.yaml", "the suffix is appended");
-
-        let mut eof = std::io::Cursor::new(Vec::new());
-        let mut out2 = Vec::new();
-        assert!(
-            read_wizard(
-                &mut eof,
-                &mut out2,
-                base.to_str().expect("utf8"),
-                None,
-                PLAIN
-            )
-            .expect("io ok")
-            .is_none(),
-            "EOF = cancelled"
-        );
-        std::fs::remove_dir_all(&base).ok();
-    }
-
-    /// Answering everything and THEN hitting an existing typed dest is
-    /// the one wizard dead-end left by design (the refuse-overwrite law
-    /// on a HUMAN-chosen name) — pin the honest ENV exit + the --force
-    /// override (rust-pro e2e review finding #4).
-    #[test]
-    fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
-        let base = fresh_base("refuse");
-        std::fs::write(base.join("my-first.nika.yaml"), "taken").expect("seed");
-
-        let mut input = std::io::Cursor::new(b"\nmy-first\n\n".to_vec());
-        let mut out = Vec::new();
-        let v = wizard_io(
-            base.to_str().expect("utf8"),
-            None,
-            false,
-            PLAIN,
-            &mut input,
-            &mut out,
-            &stub_audit,
-        );
-        assert_eq!(v.code, codes::ENV, "{}", v.text);
-        assert!(
-            v.text.contains("--force"),
-            "teaches the override: {}",
-            v.text
-        );
-        assert_eq!(
-            std::fs::read_to_string(base.join("my-first.nika.yaml")).expect("read"),
-            "taken",
-            "refused = untouched"
-        );
-
-        let mut input2 = std::io::Cursor::new(b"\nmy-first\n\n".to_vec());
-        let mut out2 = Vec::new();
-        let v2 = wizard_io(
-            base.to_str().expect("utf8"),
-            None,
-            true,
-            PLAIN,
-            &mut input2,
-            &mut out2,
-            &stub_audit,
-        );
-        assert_eq!(v2.code, codes::OK, "{}", v2.text);
-        assert!(
-            std::fs::read_to_string(base.join("my-first.nika.yaml"))
-                .expect("read")
-                .contains("  id: my-first"),
-            "--force overwrote with the stamped template"
-        );
-        std::fs::remove_dir_all(&base).ok();
-    }
-
-    /// End-to-end over injected io: the file lands stamped + checkable.
-    #[test]
-    fn wizard_io_materializes_a_stamped_file() {
-        let dir = std::env::temp_dir().join(format!("nika-wizard-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("mkdir");
-        let mut input = std::io::Cursor::new(b"\nfirst\n\n".to_vec());
-        let mut out = Vec::new();
-        let v = wizard_io(
-            dir.to_str().expect("utf8"),
-            None,
-            true,
-            PLAIN,
-            &mut input,
-            &mut out,
-            &stub_audit,
-        );
-        assert_eq!(v.code, codes::OK, "{}", v.text);
-        assert!(v.text.contains("scriptable form"), "{}", v.text);
-        // The wow contract: the wizard SHOWS the audit ladder — the file
-        // arrives already checked, not with a suggestion to check.
-        assert!(v.text.contains("audited"), "the ladder ran: {}", v.text);
-        let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
-        assert!(written.contains("  id: first"));
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn boilerplate_and_stopwords_do_not_route() {
-        // Regression: route_intent indexed the `# SLOT:` scaffolding prose +
-        // accepted any score > 0, so envelope/stopword queries spuriously
-        // routed to a scaffold. They carry no SIGNAL → unknown · list.
-        for garbage in [
-            "the",
-            "workflow",
-            "template",
-            "slot",
-            "fill the lines",
-            "a workflow",
-        ] {
-            assert!(
-                route_intent(garbage).is_none(),
-                "`{garbage}` must not route · got {:?}",
-                route_intent(garbage)
-            );
-        }
-        // …but a real intent still routes on its signal terms.
-        assert!(route_intent("scrape a website and summarize").is_some());
-        assert!(route_intent("review and approve before deploy").is_some());
-    }
-}
+mod tests;

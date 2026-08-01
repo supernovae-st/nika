@@ -5,8 +5,9 @@
 #
 # A pile of saved URLs becomes one triage table: fetch each page's
 # metadata (title · description), fold the survivors into a markdown
-# table, note the dead links — without a single page's failure killing
-# the batch. The resilient fan-out every real crawl needs.
+# table at `out/bookmarks.md`, note the dead links — without a single
+# page's failure killing the batch. The resilient fan-out every real
+# crawl needs.
 #
 # Demonstrates ·
 #   - `nika:fetch` `mode: metadata` · the page's OG/meta head as typed
@@ -47,11 +48,14 @@ const:
 
 permits:
   exec: false
+  tools: ["nika:fetch", "nika:jq", "nika:write"]
   net:
     http: ["example.com", "github.com", "this-domain-does-not-exist-0000.invalid"]
   fs:
-    write: ["out/**"]
-  tools: ["nika:fetch", "nika:jq", "nika:write"]
+    # One report, one literal: the body's only write is this exact static path,
+    # so the grant names it — the audit line reads `risk supervised` where
+    # `out/**` read `risk unbounded`.
+    write: ["out/bookmarks.md"]
 
 tasks:
   # The fan-out · one metadata fetch per URL · a dead link recovers to a

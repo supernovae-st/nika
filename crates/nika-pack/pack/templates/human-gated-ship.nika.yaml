@@ -26,11 +26,15 @@
 #   `on_error:` on `record` so a lost audit trail is loud.
 #
 # Run · nika run <file>                    # unattended · gates run, the answer defaults to NO
-#     · nika run <file> --output json      # durable pause · resume with the line it prints
+#       Headless, `default: false` answers for you — delete that line and the
+#       run PAUSES instead (exit 4 · durable, not a failure) and prints its
+#       own resume line ·
+#       nika run <file> --resume <trace> --answer human=true · or false
 nika: v1
 workflow:
   id: human-gated-ship-template  # SLOT: kebab-case workflow id
-  description: "verify in parallel · human GO · act · record"   # SLOT
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "verify in parallel · human GO · act · record"
 
 permits:                            # SLOT: the blast radius · default-deny once present
   exec: ["echo"]                    # SLOT: ONLY the programs the gates + act run (argv form)
@@ -76,10 +80,11 @@ tasks:
     after:
       gates: success              # state, no data · no question until the board is green
     invoke:
-      # On a terminal this ASKS. Headless, it answers with `default:` below.
-      # Under `--output json` the run PAUSES durably (exit 4 · not a failure)
-      # and prints its own resume line:
-      #   nika run <file> --resume <trace> --answer human=true
+      # On a terminal this ASKS. Headless, it answers with `default:` below —
+      # the run completes, it does not pause (measured · act settles skipped).
+      # The durable pause belongs to a prompt with NO default: headless it
+      # PAUSES (exit 4 · not a failure) and prints its own resume line:
+      #   nika run <file> --resume <trace> --answer human=true · or false
       tool: "nika:prompt"
       args:
         message: "All gates GREEN. Proceed?"   # SLOT: the decision, fully informed

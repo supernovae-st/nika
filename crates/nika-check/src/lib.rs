@@ -116,12 +116,15 @@ pub mod analyzer;
 mod analysis;
 mod certificate;
 mod composition;
+mod consent;
 mod content_flow;
 mod cost;
+mod data_journey;
 mod data_sink;
 mod declass;
 mod effective;
 mod energy;
+mod exec_floor;
 mod findings;
 mod flow;
 mod hints;
@@ -132,6 +135,7 @@ mod permits_infer;
 mod policy;
 mod reach;
 mod requirements;
+mod risk;
 mod run_decl;
 mod schema_lint;
 mod schema_typing;
@@ -146,7 +150,12 @@ use nika_schema::raw::RawWorkflow;
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
+pub use consent::ConsentFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
+pub use data_journey::{
+    DataClassification, DataJourney, EndpointLocus, JourneyConsent, JourneyEndpoint, ModelEndpoint,
+    RetentionFact, SecretUse,
+};
 pub use data_sink::SinkFinding;
 pub use declass::LeakReason;
 pub use effective::{EffectivePermits, PermitsSource};
@@ -160,6 +169,7 @@ pub use permits_infer::InferredPermits;
 pub use policy::policy_wire_code;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
+pub use risk::{RiskGrade, risk_grade};
 pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
@@ -312,6 +322,15 @@ pub struct CheckReport {
     /// never depends on who runs it). Additive: `report_version`
     /// stays 1.
     pub requirements: Requirements,
+    /// The DATA JOURNEY (P0-18) — where this workflow's data goes,
+    /// projected from the facts above: sources · destinations · model
+    /// endpoints · the secrets in play (NAMES, never values — law 13) ·
+    /// the declared clearances · the derived classification. Advisory by
+    /// design: the blocking refusals stay in their own lanes (`secret_*`
+    /// · `consent_findings`); the journey makes every cloud flow VISIBLE
+    /// so no sensitive sink ever rides without a receipt the operator
+    /// has seen. Additive: `report_version` stays 1.
+    pub data_journey: DataJourney,
     /// Every `secrets.X` that escapes the masking boundary into an
     /// `exec`/`invoke` effect (directly, via a `with:` alias, or
     /// transitively through a tainted upstream output · IFC · ADR-092).
@@ -344,6 +363,15 @@ pub struct CheckReport {
     /// `NIKA-SEC-013` — judged on the derived graph, so empty when
     /// `conformance` has entries). Additive: `report_version` stays 1.
     pub policy_findings: Vec<nika_cap::PolicyViolation>,
+    /// Every affirmative-consent refusal (NEP-0020 · `NIKA-SEC-014`): an
+    /// egress-capable task reached from a confirm-mode human gate over a
+    /// route no affirmative gate closes — false triggers exactly zero
+    /// effects. Judged on the derived graph — empty when `conformance`
+    /// has entries. The UNDECIDABLE remainder (a nested binding · a
+    /// non-fragment gate) stays advisory in `hints` — the blocking row
+    /// fires only on the PROVEN route (sound, never a false red).
+    /// Additive: `report_version` stays 1.
+    pub consent_findings: Vec<ConsentFinding>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
     /// `nika:prompt` gate dominates. Judged on the derived graph and the
@@ -443,9 +471,10 @@ pub struct CheckReport {
 
 impl CheckReport {
     /// Whether the workflow is clean — conformant, no leaks, no
-    /// egresses, no capability escapes, no schema-type findings, no
-    /// unknown tools, no schema-lint defects. (Cost-ceiling unknowns
-    /// and hints are informational, not failures.)
+    /// egresses, no capability escapes, no policy or consent refusals,
+    /// no schema-type findings, no unknown tools, no schema-lint
+    /// defects. (Cost-ceiling unknowns and hints are informational, not
+    /// failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.conformance.is_empty()
@@ -455,6 +484,7 @@ impl CheckReport {
             && self.permit_taints.is_empty()
             && self.sink_findings.is_empty()
             && self.policy_findings.is_empty()
+            && self.consent_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
@@ -528,6 +558,12 @@ impl CheckReport {
         // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
         let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
         codes.extend(self.trifecta_findings.iter().map(|_| trifecta_code));
+        // The affirmative-consent law (NEP-0020) → NIKA-SEC-014.
+        codes.extend(
+            self.consent_findings
+                .iter()
+                .map(|_| SpecCode::new("SEC", 14, SpecCategory::SecurityError)),
+        );
         codes.extend(self.unknown_tools.iter().map(|_| builtin));
         codes.extend(self.unknown_args.iter().map(|_| builtin));
         codes.extend(self.missing_args.iter().map(|_| builtin));
@@ -645,6 +681,32 @@ fn conformance_violation(e: &nika_schema::error::SchemaError) -> ConformanceViol
 }
 
 #[must_use]
+/// The DAG-gated finding lanes — policy reads graph ancestors, the
+/// trifecta lane (NEP-0002) and the affirmative-consent lane (NEP-0020
+/// · NIKA-SEC-014) share the same gating: a valid wave order or no
+/// claim (skipped, never wrong). The consent scan's PROVEN
+/// non-affirmative route refuses (the finding); the undecidable
+/// remainder keeps the advisory hint.
+fn gated_scans(
+    wf: &RawWorkflow,
+    conformance_clean: bool,
+    edges: &[analyzer::Edge],
+    topo_waves: &[Vec<usize>],
+) -> (
+    Vec<nika_cap::PolicyViolation>,
+    Vec<nika_cap::TrifectaViolation>,
+    consent::ConsentScan,
+) {
+    if !conformance_clean {
+        return (Vec::new(), Vec::new(), consent::ConsentScan::default());
+    }
+    (
+        policy::scan_policy(wf, edges),
+        trifecta::scan_trifecta(wf, edges, topo_waves),
+        consent::scan_consent(wf, edges),
+    )
+}
+
 pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
         Ok(AnalyzedWorkflow {
@@ -670,6 +732,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
+    // P0-13 check-side · the exec-floor mirror predicts the refusal the
+    // run's eval floor would apply (advisory — argv form, literal only).
+    hints.extend(exec_floor::scan(wf));
     // H6 · the width-capped DAG read STATES its miss (the
     // verdict-coverage law: a law that did not judge says so, in the
     // report's own surface — the JSON `hints[]` and the console HINTS
@@ -681,18 +746,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
-    // policy reads graph ancestors — valid order or no claim (IFC gating)
-    let policy_findings = if conformance.is_empty() {
-        policy::scan_policy(wf, &edges)
-    } else {
-        Vec::new()
-    };
-    // The trifecta lane shares the gating (NEP-0002 · valid DAG or no claim).
-    let trifecta_findings = if conformance.is_empty() {
-        trifecta::scan_trifecta(wf, &edges, &topo_waves)
-    } else {
-        Vec::new()
-    };
+    let (policy_findings, trifecta_findings, mut consent_scan) =
+        gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
+    hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
     legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
     let cost = cost::ceiling(wf);
@@ -706,12 +762,14 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         certificate: certificate::certify(wf),
         requirements: requirements::collect(wf),
         permits: effective::collect(wf),
+        data_journey: data_journey::collect(wf, &flow),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes,
         permit_taints: permit_taint::scan_permit_taint(wf),
         sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,
+        consent_findings: consent_scan.findings,
         trifecta_findings,
         schema_findings,
         unverifiable_output_refs,

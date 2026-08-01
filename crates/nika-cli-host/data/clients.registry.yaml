@@ -1,0 +1,370 @@
+# clients.yaml · the client × component matrix (kit-native · SSOT of client coverage)
+#
+# Law (mission nika-client-doors · 2026-07-30): a client's coverage is asserted
+# HERE and nowhere else. README rows, docs pages and the everywhere map are
+# projections of this file. Cells are closed enums; an absent or `none` cell
+# REQUIRES a reason (per-cell `gaps:` or row-level `class_gap:`) · no silent caps.
+# The gate (scripts/check-clients-matrix.py) proves: cells within enums · every
+# gap reasoned · class-A manifests exist on disk · prose counts in manifests and
+# READMEs equal the derived bundle counts · `wire:` values equal the shipped
+# binary's target list (probed when a nika binary is present) · both directions.
+#
+# component keys (the 9 classes):
+#   manifest skills subagents commands hooks rules mcp presentation scaffold
+# mechanisms (closed enum):
+#   native-manifest  the client's own plugin system loads it from our manifest
+#   claude-layout    the client reads the Claude Code layout unported
+#   wire             `nika wire <target>` writes the client's real config
+#   init             `nika init` project scaffold covers it (AGENTS.md family ·
+#                    .agents/skills authoring skill · editor wiring)
+#   mcp-config       hand-carried MCP stanza documented in the client's guide
+#   skill-pack       the kit-native skill file (agentskills.io shape)
+#   none             the client's loader has no such surface · reason required
+# statuses:
+#   recon   mechanism known from primary sources · nothing shipped or proven
+#   wired   shipped (manifest/wire/docs exist) · live proof fiche not in hand
+#   proven  live fiche: version pair + a deterministic check line
+schema_version: 1
+
+clients:
+  # ── CLASS A · native marketplace (adapter manifest over the shared bundle) ──
+  - id: claude-code
+    name: Claude Code
+    class: A
+    status: proven
+    install: "claude plugin marketplace add supernovae-st/nika-agents && claude plugin install nika@nika"
+    components: {manifest: native-manifest, skills: native-manifest,
+                 subagents: native-manifest, commands: native-manifest,
+                 hooks: native-manifest, mcp: native-manifest,
+                 presentation: native-manifest, scaffold: init}
+    gaps:
+      rules: "rules (.mdc) are a Cursor surface · Claude sessions get the law via the skill, the hooks and the init scaffold (CLAUDE.md family)"
+    wire: claude
+    proof: "live in-session load on the operator machine 2026-07-30 · 4 skills + 3 subagents + /nika:* commands + hooks + the 9-tool oracle registered"
+    docs: integrations/clients/claude-code.mdx
+
+  - id: codex
+    name: Codex
+    class: A
+    status: proven
+    install: "codex plugin marketplace add supernovae-st/nika-agents && codex plugin add nika@nika"
+    components: {manifest: native-manifest, skills: native-manifest,
+                 commands: native-manifest, hooks: native-manifest,
+                 mcp: native-manifest, presentation: native-manifest,
+                 scaffold: init}
+    gaps:
+      subagents: "no agents key in the Codex plugin schema · OpenAI's own plugins carry no agents/ dir (probed on-machine 2026-07-30) · the cache receives ours inert · re-sonde when the Codex changelog grows the key"
+      rules: "same evidence class as subagents · rules (.mdc) is a Cursor surface"
+    wire: codex
+    proof: "live install on the operator machine (plugin cache nika/0.106.0 enabled) + the live marketplace page (operator screenshot 2026-07-30 · interface block renders capabilities, prompts, logo)"
+    docs: integrations/clients/codex.mdx
+
+  - id: cursor
+    name: Cursor
+    class: A
+    status: wired
+    install: "Settings → Plugins → search nika → Add (marketplace) · manual drop loads MCP + skills only"
+    components: {manifest: native-manifest, skills: native-manifest,
+                 subagents: native-manifest, commands: native-manifest,
+                 hooks: native-manifest, rules: native-manifest,
+                 mcp: native-manifest, presentation: native-manifest,
+                 scaffold: init}
+    wire: cursor
+    docs: integrations/clients/cursor.mdx
+    notes: "the fullest manifest (rules + agents declared) · live one-Add fiche owed (W6 debt) · the manual-drop partial path is documented in the kit README"
+
+  - id: openclaude
+    name: OpenClaude
+    class: A
+    status: wired
+    install: "openclaude plugin marketplace add supernovae-st/nika-agents && openclaude plugin install nika@nika"
+    components: {manifest: claude-layout, skills: claude-layout,
+                 subagents: claude-layout, commands: claude-layout,
+                 hooks: claude-layout, mcp: claude-layout, scaffold: init}
+    gaps:
+      rules: "claude-layout client · rules (.mdc) is a Cursor surface"
+      presentation: "no marketplace browse surface of its own · installs by name from the Claude layout"
+    docs: integrations/openclaude (kit folder + Skill Hub dossier)
+    notes: "its loader reads the Claude Code marketplace layout · integrations/openclaude/ carries the dossier"
+
+  - id: grok-build
+    name: Grok Build (xAI)
+    class: A
+    status: proven
+    install: "grok plugin marketplace add supernovae-st/nika-agents && grok plugin install nika@nika --trust"
+    components: {manifest: claude-layout, skills: claude-layout,
+                 subagents: claude-layout, commands: claude-layout,
+                 hooks: claude-layout, mcp: claude-layout, scaffold: init}
+    gaps:
+      rules: "grok reads the AGENTS.md and CLAUDE.md families plus .claude/rules natively · init covers the law · .mdc stays a Cursor dialect"
+      presentation: "no official xAI catalog found (recon 2026-07-30) · listing lane = awesome-grok-build (mission W1.4)"
+    wire_pending: "WireTarget::Grok lands engine-side at W1.2 · the probe activates at the first release shipping it"
+    proof: "verified live 2026-07-30 · grok 0.2.117 · nika 0.106.1 · grok inspect --json lists 4 skills + 6 commands + 3 subagents + the hook file + the oracle from the plugin install (dedup vs the claude compat scan held) · grok mcp doctor --json: command found · server started 0.0s · handshake OK protocol 2025-06-18 · 9 tools discovered · fiche: integrations/grok-build/README.md"
+    docs: integrations/clients/grok-build.mdx
+    notes: "xAI docs verbatim: Grok automatically reads Claude Code marketplaces, plugins, skills, MCPs, agents, hooks and instruction files · project .mcp.json picked up natively · the marketplace was picked up zero-config from the machine's Claude Code settings"
+
+  # ── CLASS B · projected wiring (no marketplace · real native config slots) ──
+  - id: claude-desktop
+    name: Claude Desktop
+    class: B
+    status: wired
+    install: "one-click .mcpb bundle (release assets) · or nika wire claude-desktop"
+    components: {mcp: wire}
+    class_gap: "no plugin loader · the oracle carries the teaching · .mcpb bundles are the one-click path"
+    wire: claude-desktop
+    docs: integrations/clients/claude-desktop.mdx
+
+  - id: vscode
+    name: VS Code · Copilot
+    class: B
+    status: wired
+    install: "nika wire vscode · or the one-click MCP install badge · the compiled extension (nika-vscode) is a separate product"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no agent-plugin loader · MCP + the init scaffold (.vscode wiring · copilot brief) carry the teaching"
+    wire: vscode
+    docs: integrations/clients/vscode.mdx
+
+  - id: windsurf
+    name: Windsurf
+    class: B
+    status: wired
+    install: "nika wire windsurf"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: windsurf
+    docs: integrations/clients/windsurf.mdx
+
+  - id: zed
+    name: Zed
+    class: B
+    status: wired
+    install: "nika wire zed"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: zed
+    docs: integrations/clients/zed.mdx
+
+  - id: cline
+    name: Cline
+    class: B
+    status: wired
+    install: "nika wire cline  (cline_mcp_settings.json · hot-reloaded)"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: cline
+    docs: integrations/clients/cline.mdx
+
+  - id: continue
+    name: Continue
+    class: B
+    status: wired
+    install: "nika wire continue  (~/.continue/mcpServers/nika.json)"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: continue
+    docs: integrations/clients/continue.mdx
+
+  - id: opencode
+    name: OpenCode
+    class: B
+    status: proven
+    install: "nika init  (AGENTS.md is read natively) · oracle: nika wire opencode"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · AGENTS.md + the oracle carry the teaching · tool names are server-prefixed in-session · prompts/list not served so slash commands stay a plugin feature"
+    wire: opencode
+    proof: "integrations/opencode/README.md fiche · verified live 2026-07-09 · opencode 1.17.5 · nika 0.98.0 · deterministic check: opencode mcp list → ✓ nika connected"
+    docs: integrations/opencode.mdx
+
+  - id: gemini-cli
+    name: Gemini CLI
+    class: B
+    status: wired
+    install: "nika wire gemini  (user-scope settings.json mcpServers)"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: gemini
+    docs: integrations/clients/gemini-cli.mdx
+    notes: "2026-06-18 consumer cutoff per Google's own post · enterprise and paid API-key access continue and the OSS repo is alive · the docs page gains the nuance banner + Antigravity pointer (mission W2)"
+
+  - id: antigravity
+    name: Antigravity CLI (Google)
+    class: B
+    status: recon
+    install: "workspace .agents/mcp_config.json or global ~/.gemini/config/mcp_config.json (mcpServers map · remote key serverUrl) · agy plugin import gemini migrates"
+    components: {mcp: mcp-config, scaffold: init}
+    class_gap: "closed-source Go binary agy · no third-party plugin loader documented · MCP + the AGENTS.md family carry the teaching"
+    wire_pending: "WireTarget::Antigravity shipped engine-side (34bb14833) · the probe activates at the first release shipping it"
+    docs: "pending · the page ships at proven (mission W2)"
+    notes: "recon 2026-07-30 [PRIMARY] + probe 2026-07-31: agy 1.1.8 installed from the inspected official script · headless demands Google OAuth before any run (browser · operator gesture) so the load proof waits at that wall · no agy mcp list — the proof is stream-json init.tools · skills read workspace .agents/skills/ · parity with gemini-cli not 1:1 at launch per Google's own post · engine main e8b1930c4: nika init writes .agents/mcp_config.json — the workspace door opens by scaffold at the next release"
+
+  - id: qwen-code
+    name: Qwen Code
+    class: B
+    status: wired
+    install: "nika wire qwen  (user-scope settings.json mcpServers)"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: qwen
+    docs: integrations/clients/qwen-code.mdx
+
+  - id: kimi-code
+    name: Kimi Code CLI (Moonshot)
+    class: B
+    status: proven
+    install: "add nika to ~/.kimi-code/mcp.json (mcpServers map · their two-level contract) · the legacy kimi-cli `kimi mcp add` subcommand does NOT exist in kimi-code"
+    components: {skills: init, mcp: mcp-config}
+    class_gap: "no AGENTS.md auto-load (their docs are silent · upstream asks open) · skills scan 4 tiers including project and user .agents/skills — the init-written authoring skill is discovered · MCP carries the oracle"
+    wire_pending: "WireTarget::Kimi shipped engine-side (155bd53b6) · the probe activates at the first release shipping it"
+    proof: "verified live 2026-07-31 · kimi-code 0.30.0 · nika 0.106.1 · a stream-json headless run emits tool_calls naming mcp__nika__nika_canon (the oracle loaded from ~/.kimi-code/mcp.json and CALLED) · doctor green · ACP session/new lists the init-written skills · fiche: integrations/kimi-code/README.md"
+    docs: integrations/clients/kimi-code.mdx
+    notes: "wave-2 recon 2026-07-31 [PRIMARY moonshotai.github.io/kimi-code] · the file is the contract, never the dead kimi-cli subcommand"
+
+  - id: kiro
+    name: Kiro CLI (the Amazon Q Developer CLI rebrand)
+    class: B
+    status: recon
+    install: "add nika to ~/.kiro/settings/mcp.json (mcpServers map · the legacy ~/.aws/amazonq/mcp.json is still read, .kiro wins)"
+    components: {mcp: mcp-config}
+    class_gap: "no AGENTS.md read documented (steering files are their mechanism) · MCP carries the oracle"
+    wire_pending: "WireTarget::Kiro shipped engine-side (155bd53b6) · the probe activates at the first release shipping it"
+    docs: "pending · the page ships at proven"
+    notes: "wave-2 recon 2026-07-31 [PRIMARY kiro.dev + AWS docs]: Amazon Q Developer CLI rebranded to Kiro · Q frozen at 1.19.7 · end-of-support announced · license moved Apache-2.0 to AWS-IP · never ship a page teaching the q surface"
+
+  - id: warp
+    name: Warp · Oz CLI
+    class: C
+    status: wired
+    install: "already covered by interop: Warp reads ~/.claude.json, the project .mcp.json and ~/.codex/config.toml — nika wire claude or codex opens this door today"
+    components: {mcp: mcp-config, scaffold: init}
+    class_gap: "the door is INTEROP by their design (docs.warp.dev capabilities/mcp) · native ~/.warp/.mcp.json exists (a wire target lands only on real demand) · AGENTS.md read natively (WARP.md compat) · project-scoped servers never auto-spawn · house doctrine: operator surface, interop yes, no fork no dependency"
+    docs: "pending · a page ships at proven"
+    notes: "wave-2 recon 2026-07-31 [PRIMARY]: warp-cli deprecated, the CLI is oz (brew cask oz) · oz agent run --mcp takes a BARE map without the mcpServers wrapper · even local runs report progress to Warp's servers — named in any future page · engine main e8b1930c4: nika init writes the root .mcp.json warp reads natively — the project door opens by scaffold at the next release"
+
+  - id: copilot-cli
+    name: GitHub Copilot CLI (standalone)
+    class: B
+    status: proven
+    install: "copilot mcp add nika -- nika mcp  (writes ~/.copilot/mcp-config.json) · the project .mcp.json shipped by the kit is read natively (cwd up to repo root) and AGENTS.md too"
+    components: {mcp: mcp-config, scaffold: init}
+    class_gap: "in-IDE Copilot stays covered by the VS Code page · known wart upstream: CLI says mcpServers, VS Code says servers"
+    wire_pending: "WireTarget::Copilot shipped engine-side (37f95f0de · desired matches their writer: tools ['*'] + type local) · the probe activates at the first release shipping it"
+    proof: "verified live 2026-07-31 · copilot 1.0.76 · nika 0.106.1 (the digest-verified release asset) · copilot mcp get nika answers Enabled/local/User · AND the session-level receipt: a headless copilot -p run calls the oracle and its transcript names the server — `The spec canon (MCP: nika)` — returning the 37.5KB canon"
+    docs: "pending · a page ships at proven"
+    notes: "wave-2/3 recon+probe [PRIMARY + on-machine]: brew cask copilot-cli · the gh-copilot extension died 2025-10-25 · their mcp --help names the workspace sources .mcp.json and .github/mcp.json — the kit interop confirmed by the binary itself"
+
+  - id: amp
+    name: Amp (Sourcegraph)
+    class: B
+    status: wired
+    install: "amp mcp add nika -- nika mcp  (writes amp.mcpServers in ~/.config/amp/settings.json · global scope by default · --workspace targets .amp/settings.json, approval-gated)"
+    components: {skills: init, mcp: mcp-config, scaffold: init}
+    class_gap: "AGENTS.md native multi-level · skills read .agents/skills AND .claude/skills (both init-covered) · settings may be .jsonc — the engine writer hands the snippet instead of rewriting comments"
+    wire_pending: "WireTarget::Amp shipped engine-side (37f95f0de · the literal dotted amp.mcpServers key · JSONC guard) · the probe activates at the first release shipping it"
+    proof_partial: "verified live 2026-07-31 · amp 0.0.1785443059 · nika 0.106.1 · amp mcp add ran, amp mcp list reads back `nika command nika mcp` from the global settings · a session-level tool call stays owed (Amp account auth = operator gesture)"
+    docs: "pending · the page ships at proven"
+    notes: "wave-2 recon 2026-07-31 [PRIMARY ampcode.com/manual]: their recommended lane is MCP-servers-IN-skills (an mcp.json inside the skill dir · tools hidden until the skill loads) — a kit lane worth a gated probe · SDK stream exposes mcp_servers status (deterministic proof surface)"
+
+  - id: lmstudio
+    name: LM Studio
+    class: B
+    status: wired
+    install: "nika wire lmstudio"
+    components: {mcp: wire}
+    class_gap: "no plugin loader · the oracle carries the teaching (local-first pairing: lmstudio is also a provider)"
+    wire: lmstudio
+    docs: integrations/clients/lm-studio.mdx
+
+  - id: junie
+    name: JetBrains Junie
+    class: B
+    status: wired
+    install: "nika wire junie  (project-scope .junie/mcp/mcp.json)"
+    components: {mcp: wire, scaffold: init}
+    class_gap: "no plugin loader · MCP + scaffold carry the teaching"
+    wire: junie
+    docs: integrations/clients/junie.mdx
+
+  - id: hermes
+    name: Hermes · skills.sh clients
+    class: B
+    status: proven
+    install: "hermes skills tap add supernovae-st/nika-agents · or npx skills add supernovae-st/nika-agents"
+    components: {skills: skill-pack, mcp: wire, scaffold: init}
+    class_gap: "skills-first client · the delegation skill carries the teaching · no manifest/commands/hooks surfaces"
+    wire: hermes
+    proof: "skills.sh live + e2e-proven (2 skills · 17 clients · listings.yaml skills.sh entry) · official catalog PR NousResearch/hermes-agent#61632 pending"
+    docs: integrations/hermes.mdx
+
+  # ── CLASS C · generic doors (AGENTS.md readers + raw MCP clients) ──
+  - id: goose
+    name: goose (Block)
+    class: C
+    status: wired
+    install: "MCP extension stanza (nika mcp) · AGENTS.md read natively via nika init"
+    components: {mcp: mcp-config, scaffold: init}
+    class_gap: "generic door · MCP extension + AGENTS.md carry the teaching"
+    docs: integrations/clients/goose.mdx
+
+  - id: open-webui
+    name: Open WebUI
+    class: C
+    status: wired
+    install: "mcpo recipe (stdio bridge) documented in its guide"
+    components: {mcp: mcp-config}
+    class_gap: "generic door · the oracle via mcpo carries the teaching"
+    docs: integrations/clients/open-webui.mdx
+
+  - id: anythingllm
+    name: AnythingLLM
+    class: C
+    status: wired
+    install: "generic stdio stanza documented in its guide"
+    components: {mcp: mcp-config}
+    class_gap: "generic door · the oracle carries the teaching"
+    docs: integrations/clients/anythingllm.mdx
+
+  - id: cherry-studio
+    name: Cherry Studio
+    class: C
+    status: wired
+    install: "generic stdio stanza documented in its guide"
+    components: {mcp: mcp-config}
+    class_gap: "generic door · the oracle carries the teaching"
+    docs: integrations/clients/cherry-studio.mdx
+
+  - id: jan
+    name: Jan
+    class: C
+    status: wired
+    install: "generic stdio stanza documented in its guide"
+    components: {mcp: mcp-config}
+    class_gap: "generic door · the oracle carries the teaching"
+    docs: integrations/clients/jan.mdx
+
+  - id: aider
+    name: Aider
+    class: C
+    status: wired
+    install: "nika init  (AGENTS.md carries the teaching)"
+    components: {scaffold: init}
+    class_gap: "no MCP client surface · AGENTS.md written by nika init is the whole door"
+    docs: integrations/mcp-clients.mdx
+
+  - id: neovim
+    name: Neovim (mcphub.nvim)
+    class: C
+    status: wired
+    install: "via the mcphub.nvim registry entry (covers avante · codecompanion · CopilotChat)"
+    components: {mcp: mcp-config}
+    class_gap: "generic door · the registry entry carries the wiring"
+    docs: integrations/mcp-clients.mdx
+
+  - id: mcp-generic
+    name: Any MCP client
+    class: C
+    status: proven
+    install: "nika mcp (stdio) · server.json registry shape · Docker image for hosted listers"
+    components: {mcp: mcp-config}
+    class_gap: "the generic door itself · integrations/mcp/ carries server.json, the Dockerfile and the threat model"
+    proof: "gate.yml docker-oracle job: the containerized server answers initialize + tools/list on every CI run (the exact check directory listers run)"
+    docs: integrations/mcp-clients.mdx

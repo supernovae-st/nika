@@ -35,7 +35,8 @@
 nika: v1
 workflow:
   id: api-upload-and-create-template  # SLOT: kebab-case workflow id
-  description: "upload + create in one authenticated call"   # SLOT: one honest sentence
+  # SLOT: one honest sentence — `nika new` matches intents against these words
+  description: "upload + create in one authenticated call"
 
 const:
   api_base: "https://api.example.com"     # SLOT: the product API base

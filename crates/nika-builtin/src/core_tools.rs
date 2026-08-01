@@ -165,17 +165,18 @@ fn default_or_fail(
                 format!("`default:` must be {type_hint} for this mode (got {raw}) — {remedy}"),
             )
         }),
-        // Teach BOTH exits from the headless dead-end (stateful gauntlet
-        // 2026-07-11): the stdlib contract fails here by design (never
-        // hang), but the message named neither route — an author could not
-        // learn that `default:` unblocks headless runs or that the machine
-        // surfaces pause durably instead of failing.
+        // Teach EVERY exit from the headless dead-end (stateful gauntlet
+        // 2026-07-11 · re-taught 2026-07-31): the stdlib contract fails
+        // here by design (never hang, never invent) — and the reference
+        // CLI converts this branch to a durable pause on every lane
+        // (ADR-099 rider), so the old "run with `--json`" recipe is
+        // retired: the message names the routes that ship.
         None => Err(BuiltinFailure::new(
             code,
             "non-interactive and no `default:` — cannot answer without a human · \
-             either declare `default:` (headless runs answer with it) or run \
-             with `--json`/`--output json` (the run pauses durably · resume \
-             with `--resume <trace> --answer <task>=<value>`)",
+             pre-answer with `--answer <task>=<value>` · declare `default:` \
+             (unattended runs answer with it) · or let the run pause durably \
+             and resume with `--resume <trace> --answer <task>=<value>`",
         )),
     }
 }

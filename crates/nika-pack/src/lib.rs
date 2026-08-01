@@ -270,6 +270,38 @@ pub fn example(slug: &str) -> Option<&'static str> {
         .or_else(|| file_str(&format!("examples/showcase/{slug}.nika.yaml")))
 }
 
+/// Every file under `examples/fixtures/` — (path relative to
+/// `examples/fixtures/`, raw bytes; photos are binary). The ingredients
+/// a take (`nika new <slug>`) delivers beside a recipe that reads them (gauntlet
+/// 2026-07-31: the recipe without its ingredients was the one
+/// rage-quit — its own header taught an offline run that died on
+/// NIKA-BUILTIN-READ-001).
+#[must_use]
+pub fn example_fixture_files() -> Vec<(&'static str, &'static [u8])> {
+    fn walk(dir: &Dir<'static>, out: &mut Vec<(&'static str, &'static [u8])>) {
+        for entry in dir.entries() {
+            match entry {
+                include_dir::DirEntry::File(f) => {
+                    if let Some(tail) = f
+                        .path()
+                        .to_str()
+                        .and_then(|p| p.strip_prefix("examples/fixtures/"))
+                    {
+                        out.push((tail, f.contents()));
+                    }
+                }
+                include_dir::DirEntry::Dir(d) => walk(d, out),
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if let Some(dir) = PACK.get_dir("examples/fixtures") {
+        walk(dir, &mut out);
+    }
+    out.sort_by_key(|(p, _)| *p);
+    out
+}
+
 /// Every example slug (foundation first, then `showcase/<slug>`), sorted.
 #[must_use]
 pub fn example_slugs() -> Vec<String> {

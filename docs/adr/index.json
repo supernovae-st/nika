@@ -45,7 +45,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011","ADR-037","ADR-038","ADR-081","ADR-083","ADR-084","ADR-090","ADR-091","ADR-093","ADR-094","ADR-095"],
+      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011","ADR-037","ADR-038","ADR-081","ADR-083","ADR-084","ADR-090","ADR-091","ADR-093","ADR-094","ADR-095","ADR-107"],
       "requires": ["ADR-001","ADR-004"],
       "enables": ["ADR-009","ADR-011"]
     }
@@ -317,7 +317,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-028","ADR-032","ADR-034","ADR-035","ADR-080"],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-028","ADR-032","ADR-034","ADR-035","ADR-080","ADR-107"],
       "requires": ["ADR-007","ADR-014"],
       "enables": []
     }
@@ -349,7 +349,7 @@
       "affects_layers": ["L0","L0.5","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-021","ADR-023","ADR-024","ADR-025","ADR-026","ADR-027","ADR-036"],
+      "related": ["ADR-006","ADR-021","ADR-023","ADR-024","ADR-025","ADR-026","ADR-027","ADR-036","ADR-108"],
       "requires": ["ADR-021"],
       "enables": ["ADR-027"]
     }
@@ -509,7 +509,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-020","ADR-028","ADR-030","ADR-033"],
+      "related": ["ADR-020","ADR-028","ADR-030","ADR-033","ADR-107"],
       "requires": ["ADR-020","ADR-028"],
       "enables": []
     }
@@ -605,7 +605,7 @@
       "affects_layers": ["L1"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-003","ADR-016","ADR-023","ADR-037","ADR-039","ADR-040","ADR-078"],
+      "related": ["ADR-001","ADR-003","ADR-016","ADR-023","ADR-037","ADR-039","ADR-040","ADR-078","ADR-107"],
       "requires": ["ADR-078"],
       "enables": []
     }
@@ -877,7 +877,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-003","ADR-005","ADR-081","ADR-091"],
+      "related": ["ADR-003","ADR-005","ADR-081","ADR-091","ADR-108"],
       "requires": ["ADR-003"],
       "enables": []
     }
@@ -1021,7 +1021,7 @@
       "affects_layers": ["L2","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-100","ADR-106"],
+      "related": ["ADR-100","ADR-106","ADR-109"],
       "requires": [],
       "enables": []
     }
@@ -1101,7 +1101,7 @@
       "affects_layers": ["L0","L3"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-022","ADR-090"],
+      "related": ["ADR-022","ADR-090","ADR-109"],
       "requires": [],
       "enables": []
     }
@@ -1118,6 +1118,22 @@
       "supersedes": [],
       "superseded_by": [],
       "related": ["ADR-099","ADR-108"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-110",
+      "title": "nika-cli size-cap member split: the host plane descends to nika-cli-host",
+      "status": "accepted",
+      "date": "2026-07-31",
+      "filename": "adr-110-nika-cli-host-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","host-integration"],
+      "affects_crates": ["nika-cli","nika-cli-host"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-022","ADR-023","ADR-024"],
       "requires": [],
       "enables": []
     }

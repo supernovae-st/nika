@@ -1,0 +1,39 @@
+[package]
+name          = "nika-cli-host"
+description   = "The host-integration member of the nika-cli unit (L4 · size-cap split per D-2026-07-09-N1 · ADR-110). Carries the integration control plane — client probes, wire writers, doctor receipts, the vendored client matrix, the context envelope and the trace-retention config. nika-cli re-exports every item at its historical path: one unit, two members."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal member of the nika-cli unit (the binary ships, the lib doesn't).
+
+[dependencies]
+nika-builtin   = { path = "../nika-builtin", version = "0.107.0" }   # tool surfaces the welcome glance names
+nika-catalog   = { path = "../nika-catalog", version = "0.107.0" }   # env_var ladder (probe key presence)
+nika-check     = { path = "../nika-check", version = "0.107.0" }     # CheckReport surfaces the doctor/welcome glance reads
+nika-dap       = { path = "../nika-dap", version = "0.107.0" }       # workspace inventory (welcome glance · truncation law)
+nika-display   = { path = "../nika-display", version = "0.107.0" }   # theme (Role · Theme) + display::format::file_url
+nika-models    = { path = "../nika-models", version = "0.107.0" }    # model ids the probe/doctor ladders name
+nika-pack      = { path = "../nika-pack", version = "0.107.0" }      # embedded pack version (kit probes)
+nika-providers = { path = "../nika-providers", version = "0.107.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)
+nika-runtime   = { path = "../nika-runtime", version = "0.107.0" }   # trace-store shapes retention walks
+nika-schema    = { path = "../nika-schema", version = "0.107.0" }    # RawWorkflow (context envelope · glance)
+clap           = { workspace = true }                                # WireTarget ValueEnum (the wire verb's clap seam)
+serde          = { workspace = true }                                # receipts + registry rows
+serde_json     = { workspace = true }                                # --json surfaces (doctor receipt · wire plan)
+serde_yaml_bw  = { workspace = true }                                # the vendored clients matrix parse (H6)
+toml_edit      = { workspace = true }                                # wire codex/grok · comment-preserving TOML tables
+
+[lints]
+workspace = true
+
+[features]
+# Forwarded from nika-cli (one unit, two members): the doctor's local-model
+# surface rides the same flag as the descended local-models member.
+local-infer = ["nika-models/local-infer"]
+
+[dev-dependencies]
+tempfile = { workspace = true }  # scratch dirs for the metrics + welcome test fixtures

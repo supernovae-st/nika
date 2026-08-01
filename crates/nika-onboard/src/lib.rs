@@ -22,8 +22,10 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod briefs;
+pub mod fixtures;
 pub mod founding;
 pub mod guided;
+mod intent;
 pub mod recipes;
 pub mod wizard;
 

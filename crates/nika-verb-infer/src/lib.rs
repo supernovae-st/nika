@@ -58,8 +58,8 @@ use nika_types::cost::SpendOnFailure;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ProviderMeta,
-    ResponseFormat, Role, StopReason, TokenUsage,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
+    ProviderMeta, ResponseFormat, Role, StopReason, TokenUsage,
 };
 use nika_kernel::http::HttpPostDyn;
 use nika_providers::ProviderRegistry;
@@ -234,6 +234,8 @@ where
                     model: model.to_owned(),
                     source,
                 })?;
+        // B-5: a silent/mute local server refuses HERE — before any wire call.
+        refuse_unlive_local(&self.registry, model)?;
         let wire = schema_wire(
             &input,
             provider.supports_response_format(),
@@ -307,6 +309,50 @@ where
             }
         }
     }
+}
+
+/// The B-5 gate (the sibling of [`refuse_unmetered`] — a named refusal
+/// BEFORE the hang, never a silent one): probe the local endpoint a
+/// server-backed keyless model would call, and refuse FAST when it is
+/// silent (nothing listening · DNS stalled · blackholed) or mute
+/// (accepts, never speaks). `None` from the gate — a keyed cloud
+/// provider, `mock`, an unknown provider, a probe that itself failed —
+/// never blocks a run: the gate is a diagnostic, the transport's own
+/// errors stay the fallback truth.
+///
+/// The call is blocking IO on the executor (this crate is deliberately
+/// tokio-free in prod): milliseconds against a live engine, ≤1.5s on
+/// the dead path — the cold path that used to cost the user a kill.
+fn refuse_unlive_local<H>(
+    registry: &Arc<ProviderRegistry<H>>,
+    model: &str,
+) -> Result<(), VerbInferError>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    use nika_providers::probe::LocalLiveness;
+
+    let (addr, cause) = match nika_providers::probe::local_run_gate(registry, model) {
+        None | Some(LocalLiveness::Live(_)) => return Ok(()),
+        Some(LocalLiveness::Mute(addr)) => (
+            addr,
+            "accepts connections but never answers HTTP (1s cap) — a stuck server",
+        ),
+        Some(LocalLiveness::Silent(addr)) => (
+            addr,
+            "nothing answers there (300ms cap) — no server listening",
+        ),
+    };
+    Err(VerbInferError::ProviderCall {
+        source: ProviderError::Other {
+            reason: format!(
+                "local endpoint {addr}: {cause} — start the engine (e.g. `ollama serve`) \
+                 or rehearse keyless with `mock/echo`; the run stopped BEFORE any wire call"
+            ),
+        },
+        // Zero billed, zero signal — the gate fired before any round-trip.
+        spend: Box::default(),
+    })
 }
 
 /// The R3-F1 gate (extracted under the fn-length law · the agent loop's
@@ -882,6 +928,112 @@ mod tests {
             ProvidersConfig::new().with_key("openai", Secret::new("sk-test")),
         );
         InferVerb::new(Arc::new(registry), "openai/gpt-4o-mini")
+    }
+
+    /// An ollama-routed verb whose endpoint is a real loopback address —
+    /// the B-5 gate dials THAT (a real `TcpStream`), while the adapter's
+    /// own wire stays on the canned seam.
+    fn ollama_verb(seam: &Arc<SeamHttp>, base_url: String) -> InferVerb<SeamHttp> {
+        let registry = Registry::new(
+            Arc::clone(seam),
+            ProvidersConfig::new().with_base_url("ollama", base_url),
+        );
+        InferVerb::new(Arc::new(registry), "ollama/qwen3.5:4b")
+    }
+
+    /// A one-shot loopback server: `speak` answers a bare 404 (a live
+    /// engine), `!speak` holds the socket mute (the gauntlet hang).
+    #[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
+    fn spawn_stub_server(speak: bool) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            while let Ok((mut stream, _)) = listener.accept() {
+                std::thread::spawn(move || {
+                    if speak {
+                        use std::io::Write as _;
+                        let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
+                    } else {
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                        drop(stream);
+                    }
+                });
+            }
+        });
+        port
+    }
+
+    /// B-5: a silent local endpoint refuses in milliseconds — BEFORE any
+    /// wire call — naming the cause and the exits (the gauntlet's
+    /// « still running » until kill).
+    #[tokio::test]
+    async fn a_silent_local_endpoint_refuses_before_any_wire_call() {
+        let dead = {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+            let port = listener.local_addr().expect("addr").port();
+            drop(listener);
+            port
+        };
+        let seam = SeamHttp::with_json(&[]);
+        let verb = ollama_verb(&seam, format!("http://127.0.0.1:{dead}"));
+        let started = std::time::Instant::now();
+        let err = verb
+            .run(InferInput::new("hi"))
+            .await
+            .expect_err("the gate refuses a silent endpoint");
+        let text = err.to_string();
+        assert!(text.contains("no server listening"), "{text}");
+        assert!(text.contains(&format!("127.0.0.1:{dead}")), "{text}");
+        assert!(
+            text.contains("mock/echo"),
+            "the keyless exit is named · {text}"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "a refusal, never a hang"
+        );
+        assert!(
+            seam.captured().is_empty(),
+            "zero wire calls — the gate fired before the transport"
+        );
+    }
+
+    /// B-5's edge: a MUTE server (accepts, never speaks) is named as a
+    /// stuck server — a connect-only probe would pass it and hang.
+    #[tokio::test]
+    async fn a_mute_local_endpoint_names_the_stuck_server() {
+        let port = spawn_stub_server(false);
+        let seam = SeamHttp::with_json(&[]);
+        let verb = ollama_verb(&seam, format!("http://127.0.0.1:{port}"));
+        let started = std::time::Instant::now();
+        let err = verb
+            .run(InferInput::new("hi"))
+            .await
+            .expect_err("the gate refuses a mute endpoint");
+        let text = err.to_string();
+        assert!(text.contains("never answers HTTP"), "{text}");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "≤ the speak cap, never the old forever"
+        );
+        assert!(seam.captured().is_empty(), "still zero wire calls");
+    }
+
+    /// The gate's non-regression: a LIVE local engine passes and the one
+    /// real call goes through (the probe costs milliseconds).
+    #[tokio::test]
+    async fn a_live_local_endpoint_passes_the_gate() {
+        let port = spawn_stub_server(true);
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}"#,
+        ]);
+        let verb = ollama_verb(&seam, format!("http://127.0.0.1:{port}"));
+        let out = verb
+            .run(InferInput::new("hi"))
+            .await
+            .expect("a live server clears the gate");
+        assert!(matches!(out.output, InferValue::Text(_)));
+        assert_eq!(seam.captured().len(), 1, "the one real call went through");
     }
 
     /// The captured wire body of the seam's one request.

@@ -46,8 +46,8 @@ pub(super) fn unresolvable_models(
         // The ONE law, shared with the MCP lane (#320 follow-up: the two
         // machine surfaces consult the same fn beside the resolver —
         // they cannot drift apart again).
-        match nika_providers::resolve_refusal(judged) {
-            Some(why) => audit.findings.push(ModelFinding::new(
+        if let Some(why) = nika_providers::resolve_refusal(judged) {
+            audit.findings.push(ModelFinding::new(
                 m.model.clone(),
                 m.tasks.clone(),
                 // A via-default refusal names BOTH halves: the template
@@ -57,9 +57,38 @@ pub(super) fn unresolvable_models(
                 } else {
                     why
                 },
-            )),
-            None if via_default => audit.via_default += 1,
-            None => {}
+            ));
+        } else {
+            // B-5's sibling: a resolvable model on a server-backed
+            // keyless engine earns the green line's liveness nuance —
+            // this rung never dialed the server it names.
+            if judged
+                .split_once('/')
+                .is_some_and(|(provider, _)| nika_providers::server_backed_local(provider))
+            {
+                audit.local_server += 1;
+            }
+            if via_default {
+                audit.via_default += 1;
+            }
+        }
+        // The sister law, same home (audit UX 2026-07-31): a model that
+        // RESOLVES but matches nothing the snapshot prices for its
+        // provider warned nobody — the user bought the key, then met
+        // the typo. Advisory beside the green line, never a finding.
+        if let Some(why) = nika_providers::catalog_warning(judged) {
+            audit
+                .catalog_warnings
+                .push(ModelFinding::new(m.model.clone(), m.tasks.clone(), why));
+        }
+        // The sister law, same home (audit UX 2026-07-31): a model that
+        // RESOLVES but matches nothing the snapshot prices for its
+        // provider warned nobody — the user bought the key, then met
+        // the typo. Advisory beside the green line, never a finding.
+        if let Some(why) = nika_providers::catalog_warning(judged) {
+            audit
+                .catalog_warnings
+                .push(ModelFinding::new(m.model.clone(), m.tasks.clone(), why));
         }
     }
     audit

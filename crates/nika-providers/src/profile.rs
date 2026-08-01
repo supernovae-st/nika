@@ -171,6 +171,15 @@ pub const CANONICAL_IDS: [&str; 16] = [
     "mock",
 ];
 
+/// Whether the provider is one of the 5 server-backed KEYLESS engines
+/// (ollama · lmstudio · llamacpp · localai · vllm) — the class the B-5
+/// run gate probes, and the class the MODELS rung nuances: « resolves »
+/// is never « reachable » for a server nothing dialed.
+#[must_use]
+pub fn server_backed_local(provider: &str) -> bool {
+    LOCAL.iter().any(|(id, _)| *id == provider)
+}
+
 /// The MODELS-rung law (#320): why a `<provider>/<model>` string cannot
 /// resolve in THIS binary — `None` when it can. Lives beside the resolver
 /// (the set it interrogates is [`CANONICAL_IDS`]) and is shared by every
@@ -203,6 +212,80 @@ pub fn resolve_refusal(model: &str) -> Option<String> {
         }
         Some(_) => None,
     }
+}
+
+/// The MODELS-rung catalog cross-check (audit UX 2026-07-31 · the
+/// two-strike class): `anthropic/claude-4-nonexistent` RESOLVES (the
+/// provider is runnable) and the audit said `✔ MODELS` — the user buys
+/// a key, and only THEN meets the typo at the provider.
+///
+/// `Some(warning)` when the model name matches NOTHING this binary
+/// knows for a PRICED provider — neither of the two lanes the run
+/// itself trusts: the catalog row's nicknames + wire ids (what
+/// [`Profile::resolve_model`] maps at run, so `mistral/small` and
+/// `anthropic/sonnet` are the binary's OWN teaching, never ghosts) and
+/// the pricing snapshot's patterns. `None` otherwise. A warning, never
+/// a refusal: the snapshot is a dated artifact and providers ship new
+/// models weekly — the message says exactly that. Providers with no
+/// priced rows (the local five · mock) are never judged: their models
+/// are whatever the user pulled, and the catalog cannot know them.
+///
+/// Lives beside [`resolve_refusal`] for the same reason it does: ONE
+/// law, consulted by every audit surface (CLI check · MCP `nika_check`).
+#[must_use]
+pub fn catalog_warning(model: &str) -> Option<String> {
+    let (provider, name) = model.split_once('/')?;
+    if !CANONICAL_IDS.contains(&provider) {
+        return None; // resolve_refusal owns the unknown-provider class
+    }
+    // Lane 1 — the run lane's own names. The first cut of this law
+    // consulted the pricing snapshot ONLY and warned on
+    // `anthropic/sonnet` — a nickname the binary itself teaches and
+    // maps to a wire id at run (binary probe, 2026-07-31).
+    let catalog_row = nika_catalog::find_provider(provider);
+    let row_models = catalog_row.map_or(&[][..], |row| row.models);
+    if row_models.iter().any(|m| m.id == name || m.model == name) {
+        return None;
+    }
+    // Lane 2 — the pricing snapshot (exact, then contains: the pass
+    // that prices dated variants absorbs their near-typos too — the
+    // conjured-price trade-off lives in the pricing layer, documented
+    // at `find_pricing`, deliberately not re-judged here).
+    let priced: Vec<&'static str> = nika_catalog::all_pricing()
+        .iter()
+        .filter(|p| p.provider.eq_ignore_ascii_case(provider))
+        .map(|p| p.model_pattern)
+        .collect();
+    if priced.is_empty() {
+        return None; // local/mock class — models are whatever was pulled
+    }
+    if nika_catalog::find_pricing_for(model).is_some() {
+        return None;
+    }
+    // The same shared metric as the provider guess above — over the
+    // UNION of what both lanes know (when the near miss is a nickname,
+    // the nickname is the right suggestion).
+    let guess = nika_types::suggest::did_you_mean(
+        name,
+        row_models
+            .iter()
+            .flat_map(|m| [m.id, m.model])
+            .chain(priced.iter().copied()),
+    )
+    .map(|m| format!(" — did you mean `{provider}/{m}`?"))
+    .unwrap_or_default();
+    let snapshot = nika_catalog::pricing_snapshot();
+    let known = priced.len()
+        + row_models
+            .iter()
+            .filter(|m| !priced.contains(&m.model))
+            .count();
+    Some(format!(
+        "`{model}` resolves (the provider is runnable) but matches none of \
+         `{provider}`'s {known} known models — a typo, or newer than this \
+         binary's snapshot ({}); a run would fail at the provider{guess}",
+        snapshot.as_of,
+    ))
 }
 
 /// The 10 cloud rows (catalog-backed) + the in-process mock.
@@ -342,6 +425,48 @@ mod tests {
         assert!(typo.contains("did you mean `anthropic`?"), "{typo}");
         let gemni = resolve_refusal("gemni/gemini-2.5-flash").expect("typo refused");
         assert!(gemni.contains("did you mean `gemini`?"), "{gemni}");
+    }
+
+    /// The two-strike class (audit UX 2026-07-31): a ghost model on a
+    /// RUNNABLE provider resolved green, the user bought a key, and only
+    /// then met the typo. The catalog cross-check warns at audit time —
+    /// and stays honestly a WARNING (the snapshot is dated; providers
+    /// ship new models weekly).
+    #[test]
+    fn catalog_warning_catches_the_ghost_and_spares_the_living() {
+        // The exact audit specimen: provider runnable, model nowhere in
+        // the snapshot — warned, with the snapshot date named.
+        let ghost = catalog_warning("anthropic/claude-4-nonexistent").expect("ghost warned");
+        assert!(
+            ghost.contains("matches none of `anthropic`'s")
+                && ghost.contains("newer than this binary's snapshot"),
+            "{ghost}"
+        );
+        // A cataloged model never warns (exact then contains — the same
+        // one resolution the COST rung prices with).
+        assert!(catalog_warning("openai/gpt-4o-mini").is_none());
+        // The run lane's OWN names never warn: catalog-row nicknames
+        // and wire ids are what `resolve_model` maps at run — the first
+        // cut of this law warned on `anthropic/sonnet`, a nickname the
+        // binary itself teaches (binary probe, 2026-07-31).
+        assert!(catalog_warning("anthropic/sonnet").is_none());
+        assert!(catalog_warning("mistral/small").is_none());
+        assert!(catalog_warning("mistral/mistral-small-latest").is_none());
+        assert!(catalog_warning("anthropic/claude-sonnet-4-20250514").is_none());
+        // A nickname near-miss warns AND suggests the nickname.
+        let sonett = catalog_warning("anthropic/sonett").expect("nickname typo warned");
+        assert!(
+            sonett.contains("did you mean `anthropic/sonnet`?"),
+            "{sonett}"
+        );
+        // Local providers carry whatever was pulled: never judged.
+        assert!(catalog_warning("ollama/qwen3.5:4b").is_none());
+        assert!(catalog_warning("llamacpp/anything-at-all").is_none());
+        // mock and the not-our-class shapes stay silent (resolve_refusal
+        // owns bare ids and unknown providers).
+        assert!(catalog_warning("mock/echo").is_none());
+        assert!(catalog_warning("gpt-4o-mini").is_none());
+        assert!(catalog_warning("azure/gpt-4o").is_none());
     }
 
     use super::*;

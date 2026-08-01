@@ -79,6 +79,10 @@ pub mod resume;
 mod retry;
 mod secret;
 mod settle;
+/// The effects-simulated seams (the `nika test` plane · P0-16) — `pub`
+/// because [`SimRuntime`](compose::SimRuntime) names them in its spelling
+/// (the `compose::StderrEmitter` precedent).
+pub mod simulated;
 mod stamp;
 mod task;
 mod trust;
@@ -112,7 +116,8 @@ pub use admit::{
     unbounded_breakdown,
 };
 pub use compose::{
-    ProdRuntime, RunSeams, RuntimeCapabilities, capabilities_of, production_runtime,
+    ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
+    simulated_runtime,
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
@@ -521,6 +526,28 @@ pub(crate) fn i(v: i64) -> FieldValue {
     FieldValue::Int(v)
 }
 
+/// The run banner's boundary clause — it reflects the ACTUAL boundary:
+/// a declared `permits:` block is a default-deny boundary, so the
+/// banner must not keep saying "no boundary declared" once one is
+/// present (it misled operators into thinking permits were inert). We
+/// state only what is unconditionally true and DO NOT claim
+/// "(enforced)": runtime enforcement is axis-dependent (fs+exec gate at
+/// dispatch; tools+net are validated by `nika check`), so a blanket
+/// enforcement claim would over-state for a tools/net-only block
+/// (NIKA-SEC-004 · spn-nika review). And when `exec:` is granted,
+/// `default-deny` would itself over-state (user gauntlet 2026-07-31 ·
+/// G-10: a sub-process read files no `fs.read` admitted, under this
+/// very banner) — the grant is named as the opening it is, until the
+/// engine binds sub-process I/O to the fs boundary (spec-first ·
+/// operator Q2).
+fn permits_banner(wf: &RawWorkflow) -> &'static str {
+    match wf.permits.as_ref() {
+        Some(p) if p.value.allows_exec() => "declared boundary · exec outside the fs bounds",
+        Some(_) => "declared boundary · default-deny",
+        None => "zero authority (no `permits:` declared · F-O8)",
+    }
+}
+
 /// Emit the run's opening frames · `WorkflowStarted` + one
 /// `TaskScheduled` per task (the storyboard's fixed prologue) — then
 /// open the F-P4 approval book on the opening frame's id (the run
@@ -539,20 +566,10 @@ fn emit_prologue(
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
-    // The run banner reflects the ACTUAL boundary: a declared `permits:` block
-    // is a default-deny boundary, so the banner must not keep saying "no
-    // boundary declared" once one is present (it misled operators into thinking
-    // permits were inert). We state only what is unconditionally true — the
-    // boundary is declared and default-deny — and DO NOT claim "(enforced)":
-    // runtime enforcement is axis-dependent (fs+exec gate at dispatch; tools+net
-    // are validated by `nika check`), so a blanket enforcement claim would
-    // over-state for a tools/net-only block (NIKA-SEC-004 · spn-nika review).
-    let permits_desc = if wf.permits.is_some() {
-        "declared boundary · default-deny"
-    } else {
-        "zero authority (no `permits:` declared · F-O8)"
-    };
-    let mut opening = vec![("workflow", s(workflow_name)), ("permits", s(permits_desc))];
+    let mut opening = vec![
+        ("workflow", s(workflow_name)),
+        ("permits", s(permits_banner(wf))),
+    ];
     if let Some(hex) = source_sha256 {
         opening.push(("workflow_sha256", s(hex)));
     }

@@ -5,6 +5,25 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The agent-run contract lands (the friction was WRITTEN, not
+technical). The old law — « running is the human's move » — predates
+`nika guard`: prose said the agent never launches while the structure
+already judged every launch at the hook. Three laws replace it, in
+the injected session context and the delegation rule alike: (1) the
+agent MAY run, capped, when the human asks — ceiling announced first,
+its own terminal, `nika guard` judging; (2) the human gate is theirs
+alone — a paused run's question goes back to the conversation
+verbatim, never a pre-filled `--answer`; (3) cost honesty before the
+gesture. The authoring/porting/debugging subagents keep their
+read-only nature FOR THE STATED REASON (their craft is writing and
+diagnosis; launching belongs to the conversation), the doctor's fixes
+stay the human's (credentials · env that dies with the process), and
+the MCP oracle gains NO run tool — the agent launches in its own
+tool-use, visible and interruptible, never through a hidden channel.
+Installed kits keep the old prose until the next release train picks
+this up. The law beneath: an agent may SPEND under a ceiling; it may
+never CONSENT in the human's place.
+
 The kit learns to keep itself honest about its substrate. The
 session-context hook grows two probes: a missing nika binary teaches
 the install line in every workspace (every surface of this kit invokes
@@ -14,6 +33,10 @@ command. A sixth slash command lands: `/nika:doctor` — the agent-side
 "is my suite coherent?" gesture, riding the binary's kit↔binary
 handshake (`nika doctor` now probes the three kit landings and prints
 the per-client refresh, both rungs named for Claude Code).
+
+## 0.107.0 — 2026-07-31
+
+Lockstep on the engine wave.
 
 ## 0.106.0 — 2026-07-27
 

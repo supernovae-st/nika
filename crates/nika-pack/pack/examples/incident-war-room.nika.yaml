@@ -28,7 +28,8 @@
 #
 # Run · nika run examples/incident-war-room.nika.yaml
 #       · rehearse fast, no keys · add --model mock/echo --var settle=2s
-#       · arm the on-call ping · add --var alert=true (see permits.net.http)
+#       · arm the on-call ping · add --var alert=true — ONCALL_WEBHOOK_URL must be
+#         set or the armed run dies NIKA-VAR-001 at `alert` (see permits.net.http)
 
 nika: v1
 workflow:

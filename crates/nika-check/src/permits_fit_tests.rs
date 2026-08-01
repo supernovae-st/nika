@@ -210,6 +210,68 @@ tasks:
         assert_eq!(e[1].fix, None, "phantom builtin → rename owns the repair");
     }
 
+    /// THE LAW (A-1d · user gauntlet 2026-07-31 · G-09 · Nina): the
+    /// checker never hands the shovel with the hole. A path that
+    /// ESCAPES the workspace earns NO machine fix (the agent repair
+    /// loop must never auto-widen a boundary toward an escape) and the
+    /// detail teaches the narrow way first — the declared entries by
+    /// name — with the widening named as the deliberate second. An
+    /// in-tree path keeps the classic grant fix, byte-identical.
+    #[test]
+    fn escaping_path_earns_no_shovel_in_tree_path_keeps_the_grant_fix() {
+        let y = "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:write\"], fs: { write: [\"report.md\"] } }\ntasks:\n  probe:\n    invoke: { tool: \"nika:write\", args: { path: \"../../pwned.md\", content: \"x\" } }\n  neighbor:\n    invoke: { tool: \"nika:write\", args: { path: \"out/notes.md\", content: \"y\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 2, "{e:?}");
+        let probe = e
+            .iter()
+            .find(|c| c.detail.contains("../../pwned.md"))
+            .expect("the escape row");
+        assert_eq!(
+            probe.fix, None,
+            "no machine fix toward an escape — the shovel stays in the shed: {probe:?}"
+        );
+        assert!(probe.detail.contains("escapes the workspace"), "{probe:?}");
+        assert!(
+            probe
+                .detail
+                .contains("keep the path inside the declared fs.write (report.md)"),
+            "the narrow way is taught first, entries named: {probe:?}"
+        );
+        assert!(
+            probe.detail.contains("deliberate operator choice"),
+            "the widening is named as the second, deliberate move: {probe:?}"
+        );
+        let neighbor = e
+            .iter()
+            .find(|c| c.detail.contains("out/notes.md"))
+            .expect("the in-tree row");
+        assert_eq!(
+            neighbor.fix.as_deref(),
+            Some("add \"out/notes.md\" to permits.fs.write"),
+            "an in-tree miss keeps the one machine idiom"
+        );
+    }
+
+    /// The escape read is lexical and exact: absolute roots and
+    /// climbing traversals escape; interior `..` that never leaves the
+    /// anchor does not (a false alarm here would strip the grant fix
+    /// from an honest path).
+    #[test]
+    fn workspace_escape_is_lexical_and_exact() {
+        for escaping in [
+            "/etc/passwd",
+            "../x",
+            "a/../../x",
+            "a/b/../../../x",
+            "\\\\x",
+        ] {
+            assert!(path_escapes_workspace(escaping), "{escaping}");
+        }
+        for inside in ["a/../b", "./x", "out/notes.md", "a/b/../c", "..a/b", "a..b"] {
+            assert!(!path_escapes_workspace(inside), "{inside}");
+        }
+    }
+
     #[test]
     fn on_finally_cleanup_outside_boundary_escapes() {
         // A cleanup verb runs under the same boundary — and ALWAYS runs.

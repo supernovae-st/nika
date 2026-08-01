@@ -27,7 +27,10 @@
 //! payload into `.nika/traces/*.ndjson` in plaintext. [`RedactingSink`]
 //! wraps the run's ONE sink seam and rewrites every occurrence of a
 //! resolved value to [`REDACTED`] before any lane (journal · `--json` ·
-//! the live fold) sees the event.
+//! the live fold) sees the event. Redaction follows PROVENANCE — any
+//! value the map resolved, down to one byte (P0-19 · the PIN/OTP
+//! class) — never a length floor; a short needle only narrows its blast
+//! radius to the value-payload fields (see [`WIDE_SCRUB_MIN`]).
 //!
 //! ## Fail-closed
 //!
@@ -150,13 +153,24 @@ pub fn source_is_runtime_resolvable(source: SecretSource) -> bool {
 /// must not encode anything about the value it hides, not even a length.
 pub(crate) const REDACTED: &str = "***";
 
-/// The scan floor — resolved values SHORTER than this never join the
-/// scrub set. A short needle over-redacts: a handful of characters rides
-/// inside hashes · ids · ordinary words, so scrubbing it would mangle the
-/// journal without buying safety (and a value that small was brute-force
-/// territory anyway). The static IFC + fail-closed resolution stay the
-/// real boundary — this scrub is the dynamic-flow backstop, not the wall.
-const REDACT_FLOOR: usize = 8;
+/// The wide-scrub threshold (P0-19). Redaction follows PROVENANCE —
+/// every value resolved through the `secrets` map joins the scrub set,
+/// down to ONE byte (the PIN/OTP class) — never a length floor. What a
+/// needle's length decides is its BLAST RADIUS: at this size or beyond
+/// the needle is distinctive enough to scrub every String field of the
+/// frame; below it the needle bites only [`PAYLOAD_FIELDS`], because a
+/// handful of characters rides inside hashes · ids · ordinary words and
+/// a frame-wide scrub would mangle the journal.
+const WIDE_SCRUB_MIN: usize = 8;
+
+/// The String fields that can carry a resolved secret's VALUE — the
+/// terminal frame's `outcome` payload (spec 13 · serialized task data),
+/// the ADR-099 `output` rehydration text, and the failure frame's
+/// `detail` (`error.code · error.message` — the message embeds up to
+/// 1024 bytes of raw process stderr, the audit's 6-byte OTP leak).
+/// Short needles scrub ONLY these; digests · ids · labels stay outside
+/// by construction.
+const PAYLOAD_FIELDS: [&str; 3] = ["outcome", crate::resume::fields::OUTPUT, "detail"];
 
 /// The dynamic-flow backstop (S1). The static IFC sanctions every
 /// DECLARED secret flow; it cannot see a value that reaches a task's
@@ -165,6 +179,7 @@ const REDACT_FLOOR: usize = 8;
 /// `outcome`/`output` payloads would carry that value into the journal
 /// in plaintext. The runtime knows the resolved map, so the run's ONE
 /// sink seam is wrapped and every event's string fields are scrubbed
+/// (needles under [`WIDE_SCRUB_MIN`] · the [`PAYLOAD_FIELDS`] only)
 /// before any lane (journal · `--json` · the live fold) sees them.
 pub(crate) struct RedactingSink<'a> {
     /// The lane this scrub rides (the run verb's whole tee in production).
@@ -185,7 +200,10 @@ impl<'a> RedactingSink<'a> {
         let needles = resolved
             .values()
             .filter_map(|v| match v {
-                Value::String(s) if s.len() >= REDACT_FLOOR => Some(s.clone()),
+                // PROVENANCE, not length (P0-19): every resolved value is
+                // a needle, down to one byte — only the EMPTY string is
+                // refused (replacing it would detonate every field).
+                Value::String(s) if !s.is_empty() => Some(s.clone()),
                 _ => None,
             })
             .collect::<std::collections::BTreeSet<_>>() // two secrets may share a value
@@ -201,10 +219,15 @@ impl<'a> RedactingSink<'a> {
     /// Rewrite every needle occurrence in `text` to the marker — the
     /// escaped form first (when the pair differs it is the more specific
     /// needle), then the raw bytes. Borrowed when nothing matched (the
-    /// common field), owned only on a hit.
-    fn scrub<'t>(&self, text: &'t str) -> Cow<'t, str> {
+    /// common field), owned only on a hit. A needle shorter than
+    /// [`WIDE_SCRUB_MIN`] bites only when `key` is a [`PAYLOAD_FIELDS`]
+    /// member — the over-redaction bound (P0-19).
+    fn scrub<'t>(&self, key: &str, text: &'t str) -> Cow<'t, str> {
         let mut out = Cow::Borrowed(text);
         for (raw, escaped) in &self.needles {
+            if raw.len() < WIDE_SCRUB_MIN && !PAYLOAD_FIELDS.contains(&key) {
+                continue;
+            }
             if out.contains(escaped.as_str()) {
                 out = Cow::Owned(out.replace(escaped.as_str(), REDACTED));
             }
@@ -224,7 +247,7 @@ impl EventSink for RedactingSink<'_> {
                 // arms are numbers/bools) — and the marker swaps whole
                 // bytes, never the field's shape.
                 if let FieldValue::String(text) = &mut kv.value
-                    && let Cow::Owned(scrubbed) = self.scrub(text)
+                    && let Cow::Owned(scrubbed) = self.scrub(&kv.key, text)
                 {
                     *text = scrubbed;
                 }
@@ -255,6 +278,7 @@ fn json_escaped(raw: &str) -> String {
 mod tests {
     use super::*;
     use nika_schema::Spanned;
+    use proptest::prelude::*;
 
     /// A scripted resolver mapping `name → value` (the composer's role,
     /// without touching env/files).
@@ -357,6 +381,34 @@ mod tests {
         .with_field(KeyValue::new("tokens", FieldValue::Int(7)))
     }
 
+    /// One failure-shaped event whose `detail` field carries `payload`
+    /// verbatim — the settle.rs `error.code · error.message` frame,
+    /// where the message embeds up to 1024 bytes of raw process stderr
+    /// (the audit's 6-byte OTP leak).
+    fn detail_event(payload: &str) -> Event {
+        Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            EventKind::TaskFailed,
+        )
+        .with_field(KeyValue::new(
+            "detail",
+            FieldValue::String(payload.to_owned()),
+        ))
+    }
+
+    fn field_text<'e>(event: &'e Event, key: &str) -> &'e str {
+        event
+            .fields
+            .iter()
+            .find(|kv| kv.key == key)
+            .and_then(|kv| match &kv.value {
+                FieldValue::String(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("the {key} field rides"))
+    }
+
     fn resolved(secret: &str) -> BTreeMap<String, Value> {
         BTreeMap::from([("tok".to_owned(), Value::String(secret.to_owned()))])
     }
@@ -372,15 +424,7 @@ mod tests {
     }
 
     fn outcome_of(event: &Event) -> &str {
-        event
-            .fields
-            .iter()
-            .find(|kv| kv.key == "outcome")
-            .and_then(|kv| match &kv.value {
-                FieldValue::String(s) => Some(s.as_str()),
-                _ => None,
-            })
-            .expect("the outcome field rides")
+        field_text(event, "outcome")
     }
 
     /// The audit's leak: a resolved value surfaced inside a task output
@@ -408,7 +452,7 @@ mod tests {
     /// one that bites, and the payload stays parseable afterwards.
     #[test]
     fn redacting_sink_rewrites_the_json_escaped_form() {
-        let secret = "ab\"cd1234"; // ≥ the floor · carries a quote
+        let secret = "ab\"cd1234"; // carries a quote — provenance governs, never length
         let payload = serde_json::json!({"class": "ok", "value": secret}).to_string();
         let events = scrubbed(secret, outcome_event(&payload));
         let outcome = outcome_of(&events[0]);
@@ -421,16 +465,111 @@ mod tests {
         assert_eq!(parsed["value"], serde_json::json!(REDACTED));
     }
 
-    /// The floor: a value shorter than 8 chars never joins the scrub set
-    /// (a short needle would redact the world — see `REDACT_FLOOR`), so it
-    /// rides through untouched.
+    proptest! {
+        /// P0-19 · redaction follows PROVENANCE, never a length threshold:
+        /// a value resolved through the `secrets` map — down to ONE byte
+        /// (the PIN/OTP class the audit named) — never survives in an event
+        /// payload, whatever its length. The marker stands in its place.
+        /// (Alphanumeric alphabet: those bytes JSON-escape to themselves,
+        /// so the raw and escaped needles coincide.)
+        #[test]
+        fn redacting_sink_redacts_a_secret_of_any_length(
+            secret in "[a-zA-Z0-9]{1,7}",
+        ) {
+            let events = scrubbed(&secret, outcome_event(&format!("echo {secret} done")));
+            let outcome = outcome_of(&events[0]);
+            prop_assert!(
+                !outcome.contains(&secret),
+                "the short value is gone: {outcome}"
+            );
+            prop_assert!(
+                outcome.contains(REDACTED),
+                "the marker stands: {outcome}"
+            );
+        }
+    }
+
+    /// P0-19 · the over-redaction bound: a short needle scrubs the
+    /// VALUE-PAYLOAD fields (`outcome` · `output`) but leaves every
+    /// other String field alone — a 1-byte needle over the whole frame
+    /// would mangle ids · hashes · labels (`attested` carries the
+    /// needle `a` and must ride through untouched).
     #[test]
-    fn redacting_sink_skips_values_under_the_floor() {
-        let secret = "short7!";
-        let events = scrubbed(secret, outcome_event(&format!("echo {secret}")));
+    fn short_secret_scrubs_only_the_payload_fields() {
+        let secret = "a";
+        let event = outcome_event("echo a done").with_field(KeyValue::new(
+            "integrity",
+            FieldValue::String("attested".to_owned()),
+        ));
+        let events = scrubbed(secret, event);
+        let outcome = outcome_of(&events[0]);
+        assert!(outcome.contains(REDACTED), "payload scrubbed: {outcome}");
+        let integrity = field_text(&events[0], "integrity");
+        assert_eq!(
+            integrity, "attested",
+            "a short needle never touches non-payload fields"
+        );
+    }
+
+    /// The audit's `detail` leak (2026-07-31): a failed exec journals
+    /// `error.code · error.message` as the `detail` field — and the
+    /// message embeds raw process stderr, so a 6-byte OTP rides the
+    /// trace in plaintext while the `outcome` copy is scrubbed.
+    /// `detail` is a value-payload field: the needle must not survive.
+    #[test]
+    fn short_secret_scrubs_the_detail_field() {
+        let secret = "827351"; // the 6-byte OTP — under WIDE_SCRUB_MIN
+        let events = scrubbed(
+            secret,
+            detail_event(&format!(
+                "NIKA-EXEC-001 · command exited with status 3: {secret}"
+            )),
+        );
+        let detail = field_text(&events[0], "detail");
         assert!(
-            outcome_of(&events[0]).contains(secret),
-            "under the floor the field is left alone"
+            !detail.contains(secret),
+            "the detail copy carries no plaintext: {detail}"
+        );
+        assert!(
+            detail.contains(REDACTED),
+            "the marker stands in its place: {detail}"
+        );
+    }
+
+    proptest! {
+        /// The `detail` sibling of the length property above: a needle
+        /// of ANY length under the wide-scrub threshold is rewritten in
+        /// the failure frame's detail payload, never just in `outcome`.
+        #[test]
+        fn redacting_sink_redacts_a_short_secret_in_detail(
+            secret in "[a-zA-Z0-9]{1,7}",
+        ) {
+            let events = scrubbed(
+                &secret,
+                detail_event(&format!("NIKA-EXEC-001 · boom: {secret}")),
+            );
+            let detail = field_text(&events[0], "detail");
+            prop_assert!(
+                !detail.contains(&secret),
+                "the short value is gone from detail: {detail}"
+            );
+            prop_assert!(
+                detail.contains(REDACTED),
+                "the marker stands: {detail}"
+            );
+        }
+    }
+
+    /// An EMPTY resolved value never joins the scrub set — replacing
+    /// the empty needle would detonate the field (a marker between
+    /// every byte).
+    #[test]
+    fn empty_secret_value_never_becomes_a_needle() {
+        let events = scrubbed("", outcome_event("echo done"));
+        assert_eq!(
+            outcome_of(&events[0]),
+            "echo done",
+            "the empty needle is no needle"
         );
     }
 

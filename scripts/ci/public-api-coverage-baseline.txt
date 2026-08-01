@@ -87,6 +87,8 @@ nika-cap
 nika-builtin
 nika-cel
 nika-cli
+# --- 2026-07-31: the host-integration member out of nika-cli at the 15k wall (ADR-110 · one unit, two members) ---
+nika-cli-host
 nika-dap
 nika-display
 nika-pck-manifest

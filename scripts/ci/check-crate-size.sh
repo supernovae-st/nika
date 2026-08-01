@@ -15,7 +15,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 . "$HERE/_lib.sh"
 
-MAX=15000
+# Overridable ONLY so the hygiene dashboard's yellow band (vector 24 ·
+# scripts/hygiene/check-crate-size.sh) can reuse THIS ONE counter with a
+# lowered ceiling — two policies, one measure, zero duplication. CI never
+# sets the var: the default keeps the ratchet strictly binary at 15k.
+MAX="${CRATE_SIZE_MAX:-15000}"
 violations=0
 
 while IFS= read -r manifest; do

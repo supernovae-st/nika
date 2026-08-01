@@ -14,10 +14,10 @@ use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 
-mod examples_args;
 mod init_args;
 mod lazy;
 mod model_args;
+mod pipe_hygiene;
 mod registry_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -26,7 +26,6 @@ use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 
-use examples_args::{ExamplesAction, examples_verb};
 use init_args::{InitArgs, init_verb};
 use lazy::{check_lazy, resolve_lazy_target, run_lazy};
 use nika_event::Event;
@@ -43,7 +42,7 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace · evidence        # the living DAG · the flight recorder · the pack\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
+    after_help = "the map (the craft · 12 verbs):\n  begin     try · new · init          # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                     # the concierge (a terminal greets you)\n  nika try 01-hello        # offline proof · zero keys · zero flags\n  nika init                # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -133,38 +132,7 @@ enum Command {
     /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
     /// flows · types · tools — every finding teaches its fix.
     #[command(display_order = 20)]
-    Check {
-        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
-        /// `registry:owner/name[@version]` pull (cached + offline; workflow
-        /// `permits:` never govern the fetch) · several files audit in sequence
-        /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
-        /// Omitted with exactly one workflow here → that one is audited.
-        #[arg(num_args = 0..)]
-        files: Vec<String>,
-        /// Emit the versioned machine projection (`report_version: 1`).
-        #[arg(long)]
-        json: bool,
-        /// Print an inferred `permits:` boundary instead of the report.
-        #[arg(long)]
-        infer_permits: bool,
-        /// Apply the machine-applicable rename repairs (typed
-        /// did-you-mean suggestions only: fields · tools · args), rewrite
-        /// the file, and re-audit — the in-binary repair loop
-        /// (`clippy --fix` shape). One real file; ambiguous tokens are
-        /// skipped with a note, never guessed.
-        #[arg(long)]
-        fix: bool,
-        /// Fail (exit 2) when any `native-first` hint remains — an
-        /// `exec:` a builtin or MCP tool probably covers. The agent/CI
-        /// posture; hints stay advisory without it.
-        #[arg(long)]
-        native_strict: bool,
-        /// Price the static envelope AS IF this `<provider>/<model>`
-        /// replaced the envelope default — the preview of `nika run
-        /// --model` (per-task `model:` still wins, like the runtime).
-        #[arg(long)]
-        model: Option<String>,
-    },
+    Check(verbs::check::CheckArgs),
     /// Run a workflow (the same audit runs first · live render).
     #[command(display_order = 30)]
     Run(RunArgs),
@@ -181,7 +149,7 @@ enum Command {
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
     /// machine surfaces · human stays the default).
-    #[command(display_order = 43)]
+    #[command(hide = true, display_order = 43)]
     Inspect {
         /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
@@ -209,27 +177,18 @@ enum Command {
         forecast: bool,
     },
     /// The run-signing key lifecycle (mint · TOFU fingerprint · rotate — old pubs stay verifiable).
-    #[command(display_order = 70)]
+    #[command(hide = true, display_order = 70)]
     Key {
         #[command(subcommand)]
         action: verbs::key::KeyAction,
     },
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
-    #[command(display_order = 71)]
+    #[command(hide = true, display_order = 71)]
     Sign(verbs::sign::SignArgs),
     /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     #[command(display_order = 42)]
-    Doctor {
-        /// TCP-probe the local provider ports (loopback/configured only ·
-        /// 300ms cap · nothing is sent on the socket). Offline without it.
-        #[arg(long)]
-        ping: bool,
-        /// Emit the machine projection (summary + findings[] — agents/CI
-        /// branch on `summary.fail` instead of parsing glyphs).
-        #[arg(long)]
-        json: bool,
-    },
+    Doctor(DoctorArgs),
     /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
     /// `.agents/skills` authoring skill · optional workflow set). Bare on
     /// a terminal the founding wizard runs; flags are the scriptable
@@ -237,14 +196,24 @@ enum Command {
     #[command(display_order = 10)]
     Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
+    /// The door: `detected --dry-run` previews what this machine shows ·
+    /// `detected` wires it · `<client>` wires one · `all` is the advanced
+    /// sweep (previewed, then confirmed or `--yes`).
     #[command(display_order = 50)]
     Wire {
-        /// Client to wire.
+        /// Client to wire (`detected` = only the clients this machine shows).
         #[arg(value_enum)]
         target: verbs::wire::WireTarget,
         /// Workspace directory for repo-local clients such as VS Code.
         #[arg(long, default_value = ".")]
         dir: String,
+        /// Print the per-client plan (created/updated/current/manual) —
+        /// writes nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Consent to `all` without a prompt (scripts · CI — a terminal asks).
+        #[arg(long)]
+        yes: bool,
     },
     /// Local models — pull from the Hugging Face Hub, serve on this
     /// machine, list/rm the disk (ONE models dir · no external daemon).
@@ -254,7 +223,7 @@ enum Command {
         action: model_args::ModelAction,
     },
     /// The embedded spec identity (`--canon` prints the SSOT).
-    #[command(display_order = 44)]
+    #[command(hide = true, display_order = 44)]
     Spec {
         /// Print the canon.yaml single source of truth.
         #[arg(long)]
@@ -265,7 +234,7 @@ enum Command {
         schema: bool,
     },
     /// The embedded provider/model catalog (models · capabilities · env vars).
-    #[command(display_order = 52)]
+    #[command(hide = true, display_order = 52)]
     Catalog {
         /// Emit the versioned machine projection (`catalog_version: 1`).
         #[arg(long)]
@@ -275,32 +244,52 @@ enum Command {
         #[arg(long)]
         tools: bool,
     },
-    /// Browse the embedded examples.
-    #[command(display_order = 12)]
-    Examples {
-        /// Bare `nika examples` lists — the clap usage screen answered
-        /// where a user following init's « next · » expected the slugs
-        /// (the user-sim finding).
-        #[command(subcommand)]
-        action: Option<ExamplesAction>,
+    /// See a canonical workflow WORK — offline by default (the mock
+    /// rehearsal · zero keys · zero flags), nothing written, nothing
+    /// owned. Bare `nika try` lists what there is to see.
+    #[command(display_order = 10)]
+    Try {
+        /// Example slug (bare `nika try` lists them).
+        slug: Option<String>,
+        /// Run on a REAL seat instead of the default mock rehearsal
+        /// (`<provider>/<name>` — the example's own `model:` via `self`).
+        #[arg(long, value_name = "PROVIDER/NAME")]
+        model: Option<String>,
+        /// Set a workflow `inputs:` value (repeatable).
+        #[arg(long, value_name = "KEY=VALUE")]
+        var: Vec<String>,
+        /// Verdict line only (suppress the storyboard).
+        #[arg(long)]
+        quiet: bool,
+        /// One final storyboard frame (no live repaints) — pipes/CI
+        /// get this automatically.
+        #[arg(long)]
+        no_progress: bool,
+        /// Refuse to start if the static cost floor exceeds this (USD);
+        /// metered spend aborts past it mid-run. Same guard, same
+        /// parser as `nika run`.
+        #[arg(long, value_name = "USD", value_parser = crate::parse_budget_usd)]
+        max_cost_usd: Option<f64>,
     },
-    /// Instantiate an embedded template skeleton.
+    /// The ONE creation door: describe the job in plain words (routes),
+    /// or name a slug/skeleton (takes it, ingredients included) — the
+    /// destination derives from the slug. Bare `nika new` on a terminal
+    /// is the guided flow; `nika new '?'` lists the skeleton set.
     #[command(display_order = 11)]
     New {
-        /// Template name or plain-words intent (`--from '?'` lists the
-        /// set). Omitted on a terminal → the guided three-question flow;
-        /// omitted in a pipe → fail fast naming this flag.
-        #[arg(long)]
-        from: Option<String>,
-        /// Destination path (`*.nika.yaml`). Optional for the `--from '?'`
-        /// discovery query; required to instantiate a template.
+        /// Plain-words intent, an example slug, or a skeleton name
+        /// (`'?'` lists the set). Omitted on a terminal → the guided
+        /// three-question flow; omitted in a pipe → fail fast.
+        intent: Option<String>,
+        /// Destination path (`*.nika.yaml`) — defaults to
+        /// `<slug>.nika.yaml` beside you.
         dest: Option<String>,
         /// Overwrite an existing destination.
         #[arg(long)]
         force: bool,
     },
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
-    #[command(display_order = 63)]
+    #[command(hide = true, display_order = 63)]
     Completions {
         /// Target shell.
         #[arg(value_enum)]
@@ -312,27 +301,24 @@ enum Command {
         #[command(subcommand)]
         action: verbs::trace::TraceAction,
     },
-    /// Export the evidence pack for one run (journal + manifest + receipt + VERIFY.md).
-    #[command(display_order = 32)]
-    Evidence {
-        #[command(flatten)]
-        args: verbs::evidence::EvidenceArgs,
-    },
-    /// Read a run receipt — `explain` renders its readable projection
-    /// (stable text · a READING, never a proof).
-    #[command(display_order = 33)]
-    Receipt {
-        #[command(subcommand)]
-        action: verbs::receipt::ReceiptAction,
-    },
+    /// The hook's judge (hidden — the wired `guard-run.sh` shim calls it,
+    /// agents never type it): read a host hook payload (`--stdin`) or one
+    /// command line (`--command`), find every effective `nika run`, audit
+    /// the EXACT file in-process, and answer the hook protocol. P0-7 +
+    /// P0-15: a red file or a priced model without `--max-cost-usd` is
+    /// denied; an unjudgeable run is a VISIBLE `guard_unavailable`, never
+    /// a silent allow. The run belongs to the human — guard JUDGES, it
+    /// never executes.
+    #[command(hide = true)]
+    Guard(GuardArgs),
     /// Debug Adapter Protocol server (stdio) — time-travel a recorded
     /// run under a debugger UI: breakpoints on task lines · step forward
     /// AND back through settles · outputs in the variables pane. Replay
     /// re-renders, never re-executes.
-    #[command(display_order = 62)]
+    #[command(hide = true, display_order = 62)]
     Dap,
     /// Run the language server over stdio (drives the editor extension).
-    #[command(display_order = 61)]
+    #[command(hide = true, display_order = 61)]
     Lsp {
         /// LSP-host convention flag: vscode-languageclient, nvim and
         /// helix spawn `<server> --stdio` by habit. Stdio is this
@@ -355,7 +341,7 @@ enum Command {
     /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
     /// `approve` runs the CLIENT side: the MCP tool-pinning re-approval over
     /// the servers configured in `.nika/mcp_servers.json`.
-    #[command(display_order = 60)]
+    #[command(hide = true, display_order = 60)]
     Mcp {
         #[command(subcommand)]
         action: Option<verbs::mcp_pins::McpAction>,
@@ -372,6 +358,46 @@ enum Command {
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
     },
+}
+
+/// The hidden `guard` arm's flags (the `RunArgs` tuple-variant precedent).
+#[derive(Args)]
+struct GuardArgs {
+    /// Read the host hook JSON payload from stdin (the shim's wire:
+    /// Cursor `{command, cwd}` · Claude Code `PreToolUse`
+    /// `{tool_input:{command}, cwd}` — sniffed by `hook_event_name`).
+    #[arg(long)]
+    stdin: bool,
+    /// Judge ONE shell command line instead of a hook payload.
+    #[arg(long, value_name = "LINE", conflicts_with = "stdin")]
+    command: Option<String>,
+    /// The directory the command runs in (with `--command`; the
+    /// payload's `cwd` wins on the stdin wire, the process cwd
+    /// otherwise).
+    #[arg(long, value_name = "DIR", requires = "command")]
+    cwd: Option<String>,
+    /// The human reading (allow · deny · `guard_unavailable` + why)
+    /// instead of the hook JSON protocol.
+    #[arg(long)]
+    human: bool,
+}
+
+/// The doctor arm's flags (the `GuardArgs` tuple-variant precedent).
+#[derive(Args)]
+struct DoctorArgs {
+    /// TCP-probe the local provider ports (loopback/configured only ·
+    /// 300ms cap · nothing is sent on the socket). Offline without it.
+    #[arg(long)]
+    ping: bool,
+    /// Emit the machine projection (summary + findings[] — agents/CI
+    /// branch on `summary.fail` instead of parsing glyphs).
+    #[arg(long)]
+    json: bool,
+    /// Unfold every advisory note (an unwired agent · an unconfigured
+    /// provider · the config-less default) — the calm default folds
+    /// them into ONE line (B-8b · a healthy machine reads calm).
+    #[arg(long)]
+    verbose: bool,
 }
 
 #[derive(Args)]
@@ -548,26 +574,73 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
     }
 }
 
-/// The pack identity's two dumps — the spec card, `--canon`, or the
-/// JSON Schema (the old `schema` verb, one roof).
-fn spec_verb(canon: bool, schema: bool) -> u8 {
-    if schema {
-        emit(&verbs::pack_surface::schema())
-    } else {
-        emit(&verbs::pack_surface::spec(canon))
-    }
+/// The `wire` door (H7): clap's flags plus the terminal fact `all`'s
+/// consent gate reads (a terminal asks · a pipe needs `--yes`).
+/// The doctor arm, extracted under the fn-length law (the `wire_verb`
+/// precedent) — `--verbose` unfolds the healthy machine's advisory
+/// notes (B-8b · the human lane defaults to calm).
+fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
+    emit(&verbs::doctor::run(
+        args.ping,
+        args.json,
+        args.verbose,
+        theme,
+    ))
+}
+
+fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: bool) -> u8 {
+    let interactive = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
+    emit(&verbs::wire::run_with(
+        target,
+        dir,
+        verbs::wire::WireOptions {
+            dry_run,
+            yes,
+            interactive,
+        },
+    ))
 }
 
 fn concierge(plain_theme: Theme) -> std::process::ExitCode {
-    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
-        return emit(&verbs::welcome::run(false, plain_theme)).into();
-    }
-    let mut cmd = <Cli as CommandFactory>::command();
-    let _ = cmd.print_help();
-    std::process::ExitCode::from(2)
+    // TTY or pipe, the front door answers with the mirror (gauntlet
+    // 2026-07-31: the taught « a terminal greets you » card exited 2 in
+    // a pipe — an agent's first contact read as breakage, and spec §4
+    // reserves 2 for FILE findings). Welcome is offline and always 0;
+    // `--help` stays the reference card.
+    emit(&verbs::welcome::run(false, plain_theme)).into()
 }
 
 fn main() -> std::process::ExitCode {
+    pipe_hygiene::guard(real_main)
+}
+
+fn real_main() -> std::process::ExitCode {
+    // RAMS-13 · the full surface on demand: `--help --all` prints the
+    // SAME tree with nothing hidden (12 craft verbs lead the default
+    // help; protocols · trust cycle · plumbing stay one flag away —
+    // ranged, never removed). Judged before clap parses, and ONLY when
+    // the whole invocation is help words — a named verb keeps its own
+    // help untouched (`nika trace rm --all --help` is trace's business:
+    // `--all` is a REAL flag there, the adversarial pass caught the
+    // theft).
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    let help_words_only = !argv.is_empty()
+        && argv
+            .iter()
+            .all(|a| a == "--all" || a == "--help" || a == "-h" || a == "help");
+    if help_words_only
+        && argv.iter().any(|a| a == "--all")
+        && argv
+            .iter()
+            .any(|a| a == "--help" || a == "-h" || a == "help")
+    {
+        let mut cmd = <Cli as clap::CommandFactory>::command();
+        cmd = cmd.mut_subcommands(|sc| sc.hide(false));
+        // Rendering help to stdout is this binary's whole job here; a
+        // closed pipe is the caller's choice, never a crash.
+        let _ = cmd.print_long_help();
+        return std::process::ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
@@ -578,34 +651,63 @@ fn main() -> std::process::ExitCode {
     let Some(command) = cli.command else {
         return concierge(plain_theme);
     };
-    let code = match command {
-        Command::Check {
-            files,
-            json,
-            infer_permits,
-            fix,
-            native_strict,
-            model,
-        } => check_lazy(
-            files,
-            &verbs::check::CheckFlags {
-                json,
-                infer_permits,
-                native_strict,
-            },
-            fix,
-            model.as_deref(),
-            interactive_theme(plain_theme),
-        ),
-        Command::Run(args) => run_lazy(args, color, link_when, cli.plain, cli.ascii),
-        Command::Test { file, update } => match resolve_lazy_target(file, "test") {
-            Ok(file) => verbs::test::run(&file, update, plain_theme),
-            Err(code) => code,
-        },
-        Command::Inspect { file, format } => match format {
-            Some(f) => emit(&verbs::graph::run(&file, f.into(), plain_theme)),
-            None => emit(&verbs::inspect::run(&file, plain_theme)),
-        },
+    let code = dispatch_verb(command, plain_theme, color, link_when, cli.plain, cli.ascii);
+    std::process::ExitCode::from(code)
+}
+
+/// The check arm's plumbing — folded out of the dispatch so the seam
+/// stays one line per verb.
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value
+)]
+/// The `test` arm — resolve the lazy target, then run the goldens.
+fn test_arm(file: Option<String>, update: bool, plain_theme: Theme) -> u8 {
+    match resolve_lazy_target(file, "test") {
+        Ok(file) => verbs::test::run(&file, update, plain_theme),
+        Err(code) => code,
+    }
+}
+
+/// The `inspect` arm — the one graph projector behind `--format`.
+fn inspect_arm(file: &str, format: Option<verbs::graph::GraphFormatArg>, plain_theme: Theme) -> u8 {
+    match format {
+        Some(f) => emit(&verbs::graph::run(file, f.into(), plain_theme)),
+        None => emit(&verbs::inspect::run(file, plain_theme)),
+    }
+}
+
+fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8 {
+    let flags = verbs::check::CheckFlags {
+        json: args.json,
+        infer_permits: args.infer_permits,
+        native_strict: args.native_strict,
+        profile: args.profile,
+    };
+    check_lazy(
+        args.files,
+        &flags,
+        args.fix,
+        args.model.as_deref(),
+        interactive_theme(plain_theme),
+    )
+}
+
+/// One arm per subcommand — the dispatch seam `main` hands to.
+fn dispatch_verb(
+    command: Command,
+    plain_theme: Theme,
+    color: ColorWhenArg,
+    link_when: LinkChoice,
+    plain: bool,
+    ascii: bool,
+) -> u8 {
+    match command {
+        Command::Check(args) => check_arm(args, plain_theme),
+        Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
+        Command::Test { file, update } => test_arm(file, update, plain_theme),
+        Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {
             code,
@@ -614,11 +716,18 @@ fn main() -> std::process::ExitCode {
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
-        Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
+        Command::Doctor(args) => doctor_verb(&args, plain_theme),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
-        Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
+        Command::Wire {
+            target,
+            dir,
+            dry_run,
+            yes,
+        } => wire_verb(target, &dir, dry_run, yes),
         Command::Model { action } => model_args::model_verb(action),
-        Command::Spec { canon, schema } => spec_verb(canon, schema),
+        Command::Spec { canon, schema } => {
+            emit(&verbs::pack_surface::spec_or_schema(canon, schema))
+        }
         Command::Catalog { json, tools } => {
             if tools {
                 emit(&verbs::tools::run(json, plain_theme))
@@ -626,9 +735,30 @@ fn main() -> std::process::ExitCode {
                 emit(&verbs::catalog::run(json, plain_theme))
             }
         }
-        Command::Examples { action } => examples_verb(action, plain_theme),
-        Command::New { from, dest, force } => emit(&verbs::new::dispatch(
-            from.as_deref(),
+        Command::Try {
+            slug,
+            model,
+            var,
+            quiet,
+            no_progress,
+            max_cost_usd,
+        } => match slug {
+            None => emit(&verbs::examples::list(plain_theme)),
+            Some(slug) => verbs::run::example(
+                &slug,
+                model.as_deref(),
+                &var,
+                (quiet, no_progress),
+                max_cost_usd,
+                plain_theme,
+            ),
+        },
+        Command::New {
+            intent,
+            dest,
+            force,
+        } => emit(&verbs::new::dispatch(
+            intent.as_deref(),
             dest.as_deref(),
             force,
             plain_theme,
@@ -638,8 +768,7 @@ fn main() -> std::process::ExitCode {
             0
         }
         Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
-        Command::Evidence { args } => evidence_run(args),
-        Command::Receipt { action } => emit(&verbs::receipt::run(action)),
+        Command::Guard(args) => guard_verb(&args, plain_theme),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -653,18 +782,35 @@ fn main() -> std::process::ExitCode {
                 1
             }
         },
-        // The MCP server OWNS stdout (JSON-RPC) — like `lsp`, it must not go
-        // through `emit`. Same server-process exit convention: 0 on a clean
-        // EOF shutdown, 1 on a transport failure. The CLIENT subcommands
-        // (verify · approve) are ordinary verbs and DO go through emit.
+        // The MCP server OWNS stdout (JSON-RPC · like `lsp` · never `emit`) —
+        // exit 0 on clean EOF, 1 on transport failure; verify/approve are
+        // ordinary verbs and DO go through emit.
         Command::Mcp {
             action,
             transport,
             port,
             bind,
         } => verbs::mcp_pins::mcp_verb(action, transport, port, &bind),
-    };
-    std::process::ExitCode::from(code)
+    }
+}
+
+/// The `guard` arm's routing — the hook wire OWNS stdout like lsp/mcp:
+/// the verdict JSON is the protocol on EVERY exit class (0 allow · 2
+/// deny · 3 `guard_unavailable`), so this bypasses `emit` (which routes
+/// exit 3 to stderr — the host would see nothing, the exact
+/// silent-degradation class the verb exists to kill).
+fn guard_verb(args: &GuardArgs, theme: Theme) -> u8 {
+    let out = verbs::guard::run(
+        args.stdin,
+        args.command.as_deref(),
+        args.cwd.as_deref(),
+        args.human,
+        theme,
+    );
+    if !out.text.is_empty() {
+        println!("{}", out.text.trim_end());
+    }
+    out.code
 }
 
 /// The `evidence` arm's routing: resolve the trace (store handle or
@@ -724,6 +870,10 @@ fn trace_verb(
         verbs::trace::TraceAction::Replay(args) => {
             trace_render(&args, true, color, link_when, theme.ascii)
         }
+        // RAMS-15 · the dossier doors live under trace (read · export ·
+        // prove) — the old top-level verbs were four doors on one run.
+        verbs::trace::TraceAction::Evidence { args } => evidence_run(args),
+        verbs::trace::TraceAction::Receipt { action } => emit(&verbs::receipt::run(action)),
         verbs::trace::TraceAction::Show(args) => {
             trace_render(&args, false, color, link_when, theme.ascii)
         }
@@ -733,27 +883,10 @@ fn trace_verb(
             older_than,
             all,
             force,
-        } => {
-            let target = if all {
-                verbs::trace::manage::RmTarget::All
-            } else if let Some(raw) = older_than {
-                match verbs::trace::manage::parse_older_than(&raw) {
-                    Ok(cutoff) => verbs::trace::manage::RmTarget::OlderThan(cutoff),
-                    Err(message) => {
-                        eprintln!("nika trace: {message}");
-                        return verbs::exit::ENV;
-                    }
-                }
-            } else {
-                // clap's required_unless_present_any guarantees the handle.
-                let Some(handle) = trace else {
-                    eprintln!("nika trace: rm needs a trace, --older-than, or --all");
-                    return verbs::exit::ENV;
-                };
-                verbs::trace::manage::RmTarget::One(handle)
-            };
-            emit(&verbs::trace::manage::rm(&target, force, theme))
-        }
+        } => match rm_target(trace, older_than, all) {
+            Ok(target) => emit(&verbs::trace::manage::rm(&target, force, theme)),
+            Err(code) => code,
+        },
         verbs::trace::TraceAction::Outputs { trace } => {
             let trace = match verbs::trace::manage::resolve_trace(trace) {
                 Ok(path) => path,
@@ -814,6 +947,33 @@ fn trace_verb(
     }
 }
 
+/// The `rm` arm's target resolution — one of three mutually-exclusive
+/// spellings (clap owns the arity; this owns the semantics).
+fn rm_target(
+    trace: Option<String>,
+    older_than: Option<String>,
+    all: bool,
+) -> Result<verbs::trace::manage::RmTarget, u8> {
+    if all {
+        return Ok(verbs::trace::manage::RmTarget::All);
+    }
+    if let Some(raw) = older_than {
+        return match verbs::trace::manage::parse_older_than(&raw) {
+            Ok(cutoff) => Ok(verbs::trace::manage::RmTarget::OlderThan(cutoff)),
+            Err(message) => {
+                eprintln!("nika trace: {message}");
+                Err(verbs::exit::ENV)
+            }
+        };
+    }
+    // clap's required_unless_present_any guarantees the handle.
+    let Some(handle) = trace else {
+        eprintln!("nika trace: rm needs a trace, --older-than, or --all");
+        return Err(verbs::exit::ENV);
+    };
+    Ok(verbs::trace::manage::RmTarget::One(handle))
+}
+
 /// The `anchor` arm's routing: resolve the trace (store handle or
 /// bare-latest), then notarize through the verbs seam.
 fn anchor_verb(trace: Option<PathBuf>, rekor_url: &str, tsa_url: &str) -> u8 {
@@ -850,7 +1010,7 @@ fn run_verb(
     // exact bytes.
     theme.accents = mode == verbs::run::RenderMode::Live;
     // Duration heat additionally needs colour + the truecolor PROOF.
-    theme.heat = theme.accents && theme.color && truecolor_env();
+    theme.heat = theme.accents && theme.color && nika_cli_host::output::truecolor_env();
     // The live storyboard breathes (the braille beat between settles) —
     // interactive surface only, and the motion opt-out wins (the same
     // env the replay honours).
@@ -953,7 +1113,7 @@ fn trace_render(
     // `trace show` keeps its exact legacy bytes.
     theme.accents = tty;
     // Duration heat additionally needs colour + the truecolor PROOF.
-    theme.heat = tty && theme.color && truecolor_env();
+    theme.heat = tty && theme.color && nika_cli_host::output::truecolor_env();
 
     // The shape tails ride the interactive surface only: a TTY render
     // (show OR replay) carries them unless `--no-outputs`; a piped
@@ -975,9 +1135,22 @@ fn trace_render(
     }
     // The trace surface owns the run overlays (replay = re-render, never
     // re-execute): the waterfall + the verdict card close the read, from
-    // any past trace — the same final frame a live TTY run ends on.
+    // any past trace — the same final frame a live TTY run ends on. The
+    // fruit rides in its PURE form (paths + the model's last word, no
+    // sizes: stat would read today's disk against a past run's claim).
     print_lines(&nika_cli::display::flow::waterfall(&view, &theme));
-    print_lines(&nika_cli::display::flow::verdict_card(&view, &theme, None));
+    let mut notes: Vec<String> = nika_cli::display::fruit::written_files(&view)
+        .iter()
+        .map(|f| format!("{} {}", f.verb, f.path))
+        .collect();
+    if let Some((_task, text)) = nika_cli::display::fruit::last_said(&view)
+        && let Some(quote) = nika_cli::display::shape::summarize(text, 46)
+    {
+        notes.push(format!("said {quote}"));
+    }
+    print_lines(&nika_cli::display::flow::verdict_card(
+        &view, &theme, &notes,
+    ));
     // The locked exit contract: 0 = run ok · 1 = workflow failed.
     u8::from(view.verdict != Some(true))
 }
@@ -1046,15 +1219,10 @@ fn env_flag(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
 }
 
-/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
-/// The duration-heat ramp fires only on proof — 256-colour terminals
-/// get the flat fallback, never an approximated ramp (design §1.5).
-fn truecolor_env() -> bool {
-    env_value("COLORTERM").is_some_and(|v| v == "truecolor" || v == "24bit")
-}
-
-/// Read a presentation variable's VALUE (`CLICOLOR` · `TERM` ·
-/// `COLORTERM`) — the same non-secret seam as [`env_flag`].
+/// Read a presentation variable's VALUE (`CLICOLOR` · `TERM`) — the same
+/// non-secret seam as [`env_flag`]. The truecolor PROOF reads through the
+/// host member's [`nika_cli_host::output::truecolor_env`], never a local
+/// shadow.
 #[allow(clippy::disallowed_methods)]
 fn env_value(name: &str) -> Option<String> {
     std::env::var(name).ok()
@@ -1071,7 +1239,7 @@ mod tests {
     /// field-fixes branch: the scaffold then taught zero of the new
     /// train). Derived from the tree itself so it can never lag again.
     /// The budget guard is ONE guard on both doors: `run` and
-    /// `examples run` share `parse_budget_usd`, so a NaN/inf (which
+    /// `try` share `parse_budget_usd`, so a NaN/inf (which
     /// silently disarms every comparison) refuses at parse time on
     /// BOTH — the drift where one door validated and the other let
     /// the disarmed value through is pinned shut.
@@ -1104,14 +1272,7 @@ mod tests {
         }
         for argv in [
             vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "0.05"],
-            vec![
-                "nika",
-                "examples",
-                "run",
-                "01-hello",
-                "--max-cost-usd",
-                "0.05",
-            ],
+            vec!["nika", "try", "01-hello", "--max-cost-usd", "0.05"],
         ] {
             assert!(Cli::try_parse_from(&argv).is_ok(), "{argv:?} must parse");
         }
@@ -1130,8 +1291,9 @@ mod tests {
                 "the scaffolded AGENTS.md must teach `nika {name}`"
             );
         }
-        // The flags an agent needs daily — inputs, resume, goldens, scaffold.
-        for flag in ["--var", "--resume", "--answer", "--update", "--from"] {
+        // The flags an agent needs daily — inputs, resume, goldens.
+        // (The scaffold takes a positional intent since V5 — no flag to teach.)
+        for flag in ["--var", "--resume", "--answer", "--update"] {
             assert!(
                 agents.contains(flag),
                 "the scaffolded AGENTS.md must teach `{flag}`"
@@ -1190,17 +1352,43 @@ mod tests {
         }
     }
 
-    /// Bare `nika examples` answers with the LIST, not the usage
-    /// screen — init's « next · » sends users here (user-sim finding).
+    /// V5 · the three doors. Bare `nika try` lists the showroom (the
+    /// user-sim finding kept: a door with nothing behind it answers
+    /// with what there IS); `nika try 01-hello` parses the slug;
+    /// `nika new "plain words" out.nika.yaml` parses positionally
+    /// (N-4 · the `--from` flag is gone); and the dead top-level verbs
+    /// (`examples` · `evidence` · `receipt`) refuse — one door each,
+    /// no ghosts (no-legacy law).
     #[test]
-    fn bare_examples_defaults_to_list() {
-        let cli = Cli::try_parse_from(["nika", "examples"]).expect("parses");
-        assert!(
-            matches!(cli.command, Some(Command::Examples { action: None })),
-            "bare form parses (dispatch folds to List)"
-        );
-        // The explicit form still parses.
-        assert!(Cli::try_parse_from(["nika", "examples", "list"]).is_ok());
+    fn the_three_doors_parse_and_the_dead_verbs_refuse() {
+        let cli = Cli::try_parse_from(["nika", "try"]).expect("parses");
+        assert!(matches!(cli.command, Some(Command::Try { slug: None, .. })));
+        let cli = Cli::try_parse_from(["nika", "try", "01-hello"]).expect("parses");
+        assert!(matches!(cli.command, Some(Command::Try { slug: Some(s), .. }) if s == "01-hello"));
+        let cli = Cli::try_parse_from(["nika", "new", "chase unpaid invoices", "mine.nika.yaml"])
+            .expect("parses");
+        assert!(matches!(
+            cli.command,
+            Some(Command::New {
+                intent: Some(_),
+                dest: Some(_),
+                ..
+            })
+        ));
+        for dead in [
+            vec!["nika", "examples"],
+            vec!["nika", "examples", "run", "01-hello"],
+            vec!["nika", "evidence"],
+            vec!["nika", "receipt", "show"],
+            vec!["nika", "new", "--from", "chain", "x.nika.yaml"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&dead).is_err(),
+                "{dead:?} must refuse — the door moved, no ghost stays"
+            );
+        }
+        // The dossier doors live under trace now (RAMS-15).
+        assert!(Cli::try_parse_from(["nika", "trace", "receipt", "explain", "r.json"]).is_ok());
     }
 
     /// The public name is `nika` EVERYWHERE clap speaks (found live
@@ -1231,5 +1419,55 @@ mod tests {
             "bash completes `nika`, never nika-cli: {bash}"
         );
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
+    }
+    /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
+    /// reached by <=1 user, yet all 23 hit 11 first-timers in the
+    /// face): the default help shows AT MOST the 12 craft verbs; the
+    /// full tree stays one flag away (`--help --all`) and NOTHING is
+    /// removed — visible + hidden is the whole enum, invariant. Ranged,
+    /// never deleted: `key`/`sign`/`mcp`/`lsp` serve — just not on day
+    /// one.
+    #[test]
+    fn the_default_help_shows_the_craft_and_hides_nothing_forever() {
+        let cmd = <Cli as clap::CommandFactory>::command();
+        let total = cmd
+            .get_subcommands()
+            .filter(|c| c.get_name() != "help")
+            .count();
+        let visible: Vec<&str> = cmd
+            .get_subcommands()
+            .filter(|c| !c.is_hide_set() && c.get_name() != "help")
+            .map(clap::Command::get_name)
+            .collect();
+        assert!(
+            visible.len() <= 12,
+            "the first screen is the craft, not a manifesto: {visible:?}"
+        );
+        for craft in [
+            "try", "new", "init", "check", "run", "test", "trace", "welcome", "doctor", "model",
+            "wire", "explain",
+        ] {
+            assert!(
+                visible.contains(&craft),
+                "`{craft}` is the day-one craft and must stay visible: {visible:?}"
+            );
+        }
+        let hidden = cmd
+            .get_subcommands()
+            .filter(|c| c.is_hide_set() && c.get_name() != "help")
+            .count();
+        assert_eq!(
+            visible.len() + hidden,
+            total,
+            "visible + hidden is the WHOLE tree — ranged, never removed"
+        );
+        // The un-hide pass reaches every verb: the --all surface shows
+        // exactly the full enum (the sum stays invariant by law).
+        let all = <Cli as clap::CommandFactory>::command().mut_subcommands(|sc| sc.hide(false));
+        let unhidden = all
+            .get_subcommands()
+            .filter(|c| !c.is_hide_set() && c.get_name() != "help")
+            .count();
+        assert_eq!(unhidden, total, "--all shows the whole surface");
     }
 }

@@ -603,17 +603,19 @@ fn bare_new_in_a_pipe_fails_fast_naming_the_flag() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(text.contains("--from"), "names the flag: {text}");
+    assert!(
+        text.contains("nika new '?'"),
+        "names the discovery form: {text}"
+    );
     assert!(text.contains("embedded set:"), "hands over the set: {text}");
 }
 
 #[test]
 fn discovery_query_is_a_success_at_the_binary_plane() {
-    // `nika new --from '?'` is the documented discovery command — exit 0
+    // `nika new '?'` is the documented discovery command — exit 0
     // (a question answered is a success), the wire-contract line intact.
     let out = bin()
         .arg("new")
-        .arg("--from")
         .arg("?")
         .stdin(std::process::Stdio::null())
         .output()
@@ -1481,4 +1483,17 @@ fn help_teaches_the_registry_form_on_check_and_run() {
             "`nika {verb} --help` says permits do not govern the fetch · got: {text}"
         );
     }
+}
+
+/// Gauntlet 2026-07-31: bare `nika` piped = welcome mirror, exit 0
+/// (§4 reserves 2 for FILE findings · `--help` stays the reference).
+#[test]
+fn bare_nika_greets_and_exits_zero_in_a_pipe() {
+    let out = bin().output().expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "a greeting, not a finding");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("nika") && stdout.contains("start here"),
+        "the mirror names the product and the start-here door:\n{stdout}"
+    );
 }

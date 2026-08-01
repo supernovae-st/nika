@@ -38,5 +38,5 @@ newest — say which one you picked).
    (never re-executes) if the human wants to watch it again; the run
    line is theirs. Dashboards? `nika trace export <trace>` emits
    OTLP/JSON lines any OTel viewer reads. An auditor gets
-   `nika evidence <trace>` — journal + manifest + receipt + a
+   `nika trace evidence <trace>` — journal + manifest + receipt + a
    `VERIFY.md` that tells them exactly what to run.

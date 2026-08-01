@@ -16,7 +16,9 @@
 
 pub mod action;
 pub mod manage;
-pub(crate) mod retention;
+pub(crate) use nika_cli_host::retention;
+#[cfg(test)]
+mod retention_tests;
 pub(crate) mod store;
 
 pub use action::{TraceAction, TraceArgs};

@@ -13,7 +13,6 @@
 pub mod catalog;
 pub mod check;
 pub mod context;
-pub mod doctor;
 pub mod evidence;
 pub mod examples;
 pub mod explain;
@@ -21,6 +20,7 @@ pub mod explain_file;
 pub mod fix;
 pub(crate) mod forecast;
 pub mod graph;
+pub mod guard;
 pub mod init;
 pub mod inspect;
 pub mod key;
@@ -28,7 +28,6 @@ pub mod mcp_pins;
 pub mod model;
 pub mod new;
 pub mod pack_surface;
-pub mod probe;
 pub mod receipt;
 pub mod run;
 pub mod sign;
@@ -39,101 +38,14 @@ pub mod trace_anchor;
 pub mod trace_otel;
 pub mod trace_reproduce;
 pub mod trace_verify;
-pub mod welcome;
-pub mod wire;
+pub use nika_cli_host::{doctor, probe, welcome, wire};
 
 use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::{FileId, ParseMode};
 
-/// Exit-code contract (spec §4 · LOCKED · additive-only forever).
-pub mod exit {
-    /// Success (run completed · check clean · verb done).
-    pub const OK: u8 = 0;
-    /// A workflow RAN and FAILED (a task failed unrecovered · `nika run`
-    /// only · distinct from a static FILE finding · spec §4).
-    pub const WORKFLOW: u8 = 1;
-    /// Validation findings — the FILE has errors (CI gates on this).
-    pub const FILE: u8 = 2;
-    /// Environment error — config · I/O · missing resource.
-    pub const ENV: u8 = 3;
-    /// The run PAUSED on a blocking `nika:prompt` (ADR-099 rider · run
-    /// state `paused` · additive per the locked contract). NOT a
-    /// failure — but non-zero on purpose: `nika run … && next` must not
-    /// proceed past an unanswered human gate. Resume with
-    /// `--resume <trace> --answer <task>=<value>`.
-    pub const PAUSED: u8 = 4;
-}
-
-/// One verb invocation's outcome: the text to print + the exit code.
-#[derive(Debug)]
-pub struct VerbOutput {
-    /// Human or machine text (the caller owns the stream choice).
-    pub text: String,
-    /// Spec §4 exit code.
-    pub code: u8,
-}
-
-impl VerbOutput {
-    pub(crate) fn ok(text: String) -> Self {
-        Self {
-            text,
-            code: exit::OK,
-        }
-    }
-
-    pub(crate) fn file(text: String) -> Self {
-        Self {
-            text,
-            code: exit::FILE,
-        }
-    }
-
-    pub(crate) fn env(text: String) -> Self {
-        Self {
-            text,
-            code: exit::ENV,
-        }
-    }
-}
-
-/// Best-effort hostname for `file://` links (iTerm2 opens them only when
-/// the host names this machine). Env-only — no libc, no subprocess; an
-/// empty host degrades to RFC 8089 localhost. The read is presentation
-/// state, not a secret — the same scoped exemption as `env_flag` in
-/// `main.rs` (the workspace `disallowed_methods` ban routes SECRET reads
-/// through the kernel vault seam, which has no business here).
-#[allow(clippy::disallowed_methods)]
-pub(crate) fn link_host() -> String {
-    std::env::var("HOSTNAME")
-        .or_else(|_| std::env::var("HOST"))
-        .unwrap_or_default()
-}
-
-/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
-/// Presentation env — the same scoped exemption as [`link_host`].
-#[allow(clippy::disallowed_methods)]
-pub(crate) fn truecolor_env() -> bool {
-    std::env::var("COLORTERM").is_ok_and(|v| v == "truecolor" || v == "24bit")
-}
-
-/// Render one on-disk path as an OSC-8 `file://` hyperlink when the
-/// theme's `links` capability resolved on — the TEXT stays the path the
-/// verb already prints (byte-identical registers when links are off).
-/// A path that will not canonicalize (deleted mid-run · unsaved) stays
-/// plain: a link that cannot open is worse than no link.
-pub(crate) fn linked_path(theme: crate::Theme, path: &str) -> String {
-    if !theme.links {
-        return path.to_owned();
-    }
-    match std::fs::canonicalize(path) {
-        Ok(abs) => {
-            let url = crate::display::format::file_url(&link_host(), &abs.to_string_lossy());
-            theme.link(&url, path)
-        }
-        Err(_) => path.to_owned(),
-    }
-}
+pub use nika_cli_host::output::{VerbOutput, exit};
+pub(crate) use nika_cli_host::output::{linked_path, truecolor_env};
 
 /// Read + strict-parse + ladder-check one workflow file. The Unix dash
 /// (`-`) reads stdin — the editor wire: a dirty buffer pipes straight

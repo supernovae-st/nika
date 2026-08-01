@@ -22,7 +22,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | `nika-debugging` skill | run forensics: trace ls → show → outputs → verify · resume lines · surgical reruns |
 | `nika-operating` skill | day-2 hardening: spend caps · permits · secrets · model swaps · CI goldens · OTLP export |
 | `nika-migration` skill | convert scripts, CI jobs and prompt chains to workflows — mapping table + parity protocol |
-| `nika-author` subagent | routes an intent to a template, fills the `# SLOT:` markers, loops `nika check` until rc=0 — read-only, never runs the workflow |
+| `nika-author` subagent | routes an intent to a template, fills the `# SLOT:` markers, loops `nika check` until rc=0 — writes and verifies; launching belongs to the conversation |
 | `nika-debugger` subagent | root-causes a failed or paused run from its hash-chained trace, hands back the exact resume line |
 | `nika-migrator` subagent | ports existing automation: inventory → native-first mapping → check loop → golden pin |
 | language rule | the 4-verb surface (`infer` · `exec` · `invoke` · `agent`), auto-loaded on `*.nika.yaml` |
@@ -41,7 +41,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 
 ## The loop it teaches
 
-1. route the intent to a template (`nika new --from <name>` or the
+1. route the intent to a template (`nika new <name>` or the
    `nika_template` tool)
 2. fill every `# SLOT:` marker — touch nothing else
 3. `nika check` — findings carry `NIKA-XXXX` codes with fix hints

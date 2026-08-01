@@ -43,8 +43,8 @@ Yes.
 
 ```sh
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
-nika examples run 01-hello --model mock/echo            # zero setup: no key, no model server
-nika examples run 01-hello --model ollama/llama3.2:3b   # got Ollama? the same run, real + local
+nika try 01-hello                                # zero setup: no key, no model server
+nika try 01-hello --model ollama/llama3.2:3b     # got Ollama? the same run, real + local
 # (first run loads the model into memory; later runs are much faster)
 ```
 
@@ -66,15 +66,18 @@ $ nika check brief.nika.yaml
  ✔ MODELS   1 model resolves in this binary
  ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
    brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
+ ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)
  ✔ SECRETS  no declared secret reaches an effect · model echo untracked
  ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
  ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
  ✔ ARGS     every builtin invoke arg key is declared + required args present
  ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
  ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
  ✔ PERMITS  literal + const: args fit the boundary · computed + symlinks at run
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
- ✔ audited · 2 tasks · 2 waves · permits declared · est unbounded · 1 uncapped task · 0 hints
+ ✔ JOURNEY  internal · 1 source · 0 destinations · 2 model endpoints · no secret reaches a cloud destination
+ ⚠ audited · 2 tasks · 2 waves · permits declared · est unbounded · 1 uncapped task · 0 hints · risk unbounded
 
 $ nika run brief.nika.yaml
   🦋 nika · daily-brief · 2 tasks
@@ -215,7 +218,7 @@ nika check flow.nika.yaml            # the audit · exit 0 clean · 2 findings
 nika explain flow.nika.yaml          # the story · waves · cost BEFORE a token · what it touches
 nika explain NIKA-VAR-001            # any code · cause · category · fix-form
 nika run flow.nika.yaml --var topic=rust   # launch inputs · repeatable
-nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI
+nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI (simulated · effects refused)
 nika run flow.nika.yaml --task hero    # regenerate ONE task + its upstream cone
 nika run flow.nika.yaml --resume .nika/traces/<run>.ndjson   # skip journaled successes
 nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a paused gate
@@ -268,25 +271,25 @@ The living map: [nika.sh/map](https://nika.sh/map).
 ## Pick a workflow
 
 The binary embeds a versioned pack of runnable examples. Browse with
-`nika examples list`, read one with `nika examples show <slug>`, preview any
+bare `nika try`, take one with `nika new <slug>` (the file is the read), preview any
 of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
-| Review a PR before merging | `nika examples run pr-review-fanout` | developers |
-| Turn meeting notes into owned actions | `nika examples run meeting-actions` | everyone |
-| Digest a week of standups | `nika examples run standup-digest` | teams |
-| Draft release notes from commits | `nika examples run release-notes` | maintainers |
-| Triage a support inbox | `nika examples run support-triage` | support · ops |
-| Chase unpaid invoices politely | `nika examples run invoice-chaser` | founders |
-| Track competitors weekly | `nika examples run competitor-radar` | founders |
-| Screen resumes against a role | `nika examples run resume-screener` | hiring |
-| Build a Monday operating brief | `nika examples run ceo-monday-brief` | founders |
+| Review a PR before merging | `nika try pr-review-fanout` | developers |
+| Turn meeting notes into owned actions | `nika try meeting-actions` | everyone |
+| Digest a week of standups | `nika try standup-digest` | teams |
+| Draft release notes from commits | `nika try release-notes` | maintainers |
+| Triage a support inbox | `nika try support-triage` | support · ops |
+| Chase unpaid invoices politely | `nika try invoice-chaser` | founders |
+| Track competitors weekly | `nika try competitor-radar` | founders |
+| Screen resumes against a role | `nika try resume-screener` | hiring |
+| Build a Monday operating brief | `nika try ceo-monday-brief` | founders |
 
 The full gallery, every workflow sha256-pinned and proven in CI, lives in
 [`examples/`](examples/): foundation patterns, business showcases, and the
-skeletons `nika new --from <template>` instantiates (`nika examples` and
-`nika new --from '?'` list the live shelves).
+skeletons `nika new <template>` instantiates (bare `nika try` and
+`nika new '?'` list the live shelves).
 
 Shared workflows live on [**nika-registry**](https://github.com/supernovae-st/nika-registry):
 every entry pinned to a full commit + sha256 and re-proven by CI (the
@@ -473,8 +476,8 @@ key, then see what's wired:
 nika doctor                  # provider keys + local servers, with the exact fix
 nika init                    # schema wiring + AGENTS.md for this repo
 nika wire cursor             # explicit MCP wiring · also: vscode · windsurf · claude · codex · zed · all
-nika examples list           # browse the embedded examples
-nika examples run 01-hello --model ollama/llama3.2:3b   # a real local run
+nika try                     # browse the embedded examples
+nika try 01-hello --model ollama/llama3.2:3b     # a real local run
 ```
 
 From source (contributors): `git clone https://github.com/supernovae-st/nika.git && cd nika && cargo test --workspace --lib`. End-user docs: [docs.nika.sh](https://docs.nika.sh).
@@ -558,7 +561,7 @@ each with one job:
 | [nika-estate](https://github.com/supernovae-st/nika-estate) | the estate law: every file is authored bytes or a proven derivation, sealed and anchored |
 
 Examples live right here: [`examples/`](examples/), the embedded
-gallery (`nika examples list` shows the same shelf from the binary).
+gallery (bare `nika try` shows the same shelf from the binary).
 
 **Building Nika?** The engine is crafted under a strict workspace discipline:
 context-window-sized crates, a per-crate admission checklist, zero `.unwrap()`

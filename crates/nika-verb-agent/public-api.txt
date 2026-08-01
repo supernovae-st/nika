@@ -461,6 +461,7 @@ pub mod nika_verb_agent::whitelist
 pub struct nika_verb_agent::whitelist::Whitelist
 impl nika_verb_agent::whitelist::Whitelist
 pub fn nika_verb_agent::whitelist::Whitelist::admits(&self, tool: &str) -> bool
+pub fn nika_verb_agent::whitelist::Whitelist::author_rank(&self, tool: &str) -> usize
 pub fn nika_verb_agent::whitelist::Whitelist::is_empty(&self) -> bool
 pub fn nika_verb_agent::whitelist::Whitelist::new(patterns: &[alloc::string::String]) -> Self
 impl core::clone::Clone for nika_verb_agent::whitelist::Whitelist
@@ -1090,6 +1091,7 @@ pub fn nika_verb_agent::observe::SourceCounts::as_out(&mut self) -> outref::Out<
 pub struct nika_verb_agent::Whitelist
 impl nika_verb_agent::whitelist::Whitelist
 pub fn nika_verb_agent::whitelist::Whitelist::admits(&self, tool: &str) -> bool
+pub fn nika_verb_agent::whitelist::Whitelist::author_rank(&self, tool: &str) -> usize
 pub fn nika_verb_agent::whitelist::Whitelist::is_empty(&self) -> bool
 pub fn nika_verb_agent::whitelist::Whitelist::new(patterns: &[alloc::string::String]) -> Self
 impl core::clone::Clone for nika_verb_agent::whitelist::Whitelist

@@ -107,7 +107,11 @@ impl ProviderRegistry<NoHttp> {
             config,
         }
     }
+}
 
+// Capability queries that need only the profiles (no http · no key) —
+// the keyless surface the composition's per-call bridge consults.
+impl<H> ProviderRegistry<H> {
     /// The base URL a run against this provider would ACTUALLY hit —
     /// the operator's `with_base_url` override when present, else the
     /// profile seed. Diagnostic surfaces (doctor `--ping`) must probe
@@ -123,11 +127,7 @@ impl ProviderRegistry<NoHttp> {
             .find(|p| p.id == provider)
             .map(|p| p.base_url)
     }
-}
 
-// Capability queries that need only the profiles (no http · no key) —
-// the keyless surface the composition's per-call bridge consults.
-impl<H> ProviderRegistry<H> {
     /// Whether `model`'s resolved provider supports native
     /// `response_format: json_schema` (structured output).
     ///

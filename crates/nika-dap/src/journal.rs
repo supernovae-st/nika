@@ -81,7 +81,7 @@ impl<W: Write> EventSink for JsonSink<W> {
 /// The run-journal state: which disk lane, if any, this sink drives.
 enum Lane {
     /// `--no-trace-file` / `NIKA_NO_TRACE_FILE` / a non-workspace run
-    /// (`examples run` stages a temp file) — emit is a no-op by design,
+    /// (`try` stages a temp file) — emit is a no-op by design,
     /// so the caller keeps ONE code path whether journaling or not.
     Disabled,
     /// Enabled but not yet on disk — the file is NAMED from the first
@@ -162,6 +162,16 @@ impl TraceFileSink {
     #[must_use]
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
+    }
+
+    /// Whether this journal is the permanently-silent opt-out shape —
+    /// the fact a teaching surface needs BEFORE any lazy open: a door
+    /// taught toward a disabled journal is a door to a file that will
+    /// never exist (`path()` is lazily `None` on BOTH shapes early, so
+    /// it cannot carry this distinction).
+    #[must_use]
+    pub fn is_disabled(&self) -> bool {
+        matches!(self.lane, Lane::Disabled)
     }
 
     /// The buffered fs error, if journaling ever failed.
