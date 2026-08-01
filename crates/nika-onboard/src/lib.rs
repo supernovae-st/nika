@@ -27,6 +27,7 @@ pub mod founding;
 pub mod guided;
 mod intent;
 pub mod recipes;
+pub mod routing;
 pub mod wizard;
 
 /// A finished verb's text + exit code — the shape the composition root

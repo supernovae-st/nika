@@ -426,12 +426,34 @@ fn check(args: &Value) -> Result<String, String> {
 fn examples(args: &Value) -> Result<String, String> {
     match args.get("slug").and_then(Value::as_str) {
         None => Ok(nika_pack::example_slugs().join("\n")),
-        Some(slug) => nika_pack::example(slug).map(str::to_owned).ok_or_else(|| {
-            format!(
+        Some(slug) => match nika_pack::example(slug) {
+            Some(body) => Ok(body.to_owned()),
+            // RAMS-11: a PLAIN-WORDS miss routes through the SAME door
+            // the CLI walks (`nika new <words>` · whole catalog) — one
+            // router, one calibration. Only multi-word queries route:
+            // a single token is a slug (typo'd or adversarial) and the
+            // unknown-key contract holds — the router never sees the
+            // traversal-shaped garbage the adversarial pin feeds.
+            None if !slug.trim().contains(' ') => Err(format!(
                 "unknown example `{slug}` — call nika_examples without arguments \
                  for the list"
-            )
-        }),
+            )),
+            None => match nika_onboard::routing::route_query(slug) {
+                nika_onboard::routing::RoutedEntry::Example(name) => {
+                    let body = nika_pack::example(&name).unwrap_or_default();
+                    Ok(format!("# routed: `{slug}` → example `{name}`\n{body}"))
+                }
+                nika_onboard::routing::RoutedEntry::Skeleton(name) => {
+                    let body = nika_pack::template(&name).unwrap_or_default();
+                    Ok(format!("# routed: `{slug}` → template `{name}`\n{body}"))
+                }
+                nika_onboard::routing::RoutedEntry::Clarify(candidates) => Err(format!(
+                    "`{slug}` doesn't route confidently — closest: {} · call \
+                     nika_examples without arguments for the list",
+                    candidates.join(" · ")
+                )),
+            },
+        },
     }
 }
 
@@ -440,12 +462,31 @@ fn examples(args: &Value) -> Result<String, String> {
 fn template(args: &Value) -> Result<String, String> {
     match args.get("name").and_then(Value::as_str) {
         None => Ok(nika_pack::template_names().join("\n")),
-        Some(name) => nika_pack::template(name).map(str::to_owned).ok_or_else(|| {
-            format!(
+        Some(name) => match nika_pack::template(name) {
+            Some(body) => Ok(body.to_owned()),
+            // RAMS-11: a PLAIN-WORDS miss routes within the SKELETON set
+            // — the CLI wizard's door (SLOTs to fill). Single tokens keep
+            // the unknown-key contract (see nika_examples).
+            None if !name.trim().contains(' ') => Err(format!(
                 "unknown template `{name}` — call nika_template without arguments \
                  for the list"
-            )
-        }),
+            )),
+            None => match nika_onboard::routing::route_skeleton_query(name) {
+                nika_onboard::routing::RoutedEntry::Skeleton(routed) => {
+                    let body = nika_pack::template(&routed).unwrap_or_default();
+                    Ok(format!("# routed: `{name}` → template `{routed}`\n{body}"))
+                }
+                nika_onboard::routing::RoutedEntry::Example(routed) => {
+                    let body = nika_pack::example(&routed).unwrap_or_default();
+                    Ok(format!("# routed: `{name}` → example `{routed}`\n{body}"))
+                }
+                nika_onboard::routing::RoutedEntry::Clarify(candidates) => Err(format!(
+                    "`{name}` doesn't route confidently — closest: {} · call \
+                     nika_template without arguments for the list",
+                    candidates.join(" · ")
+                )),
+            },
+        },
     }
 }
 
@@ -934,6 +975,30 @@ mod tests {
         let err = execute("nika_examples", &json!({ "slug": "no-such-example" }))
             .expect_err("unknown slug");
         assert!(err.contains("unknown example"), "{err}");
+    }
+
+    /// RAMS-11: the oracle walks the CLI's routing door on plain words —
+    /// the SAME query `nika new` routes lands the SAME entry here, and
+    /// the interpretation is SAID in a leading YAML comment.
+    #[test]
+    fn examples_route_plain_words_through_the_one_door() {
+        let out =
+            execute("nika_examples", &json!({ "slug": "chase unpaid invoices" })).expect("routes");
+        assert!(
+            out.starts_with("# routed: `chase unpaid invoices` → example `invoice-chaser`"),
+            "the routing is said: {out}"
+        );
+        assert!(out.contains("nika: v1"), "the body follows: {out}");
+    }
+
+    /// RAMS-11, the honest floor: plain words below the confidence bar
+    /// clarify with the closest names — never a silent guess.
+    #[test]
+    fn examples_clarify_below_the_bar_instead_of_guessing() {
+        let err = execute("nika_examples", &json!({ "slug": "do stuff with things" }))
+            .expect_err("vague words clarify");
+        assert!(err.contains("doesn't route confidently"), "{err}");
+        assert!(err.contains("·"), "names candidates: {err}");
     }
 
     /// The slug/name is a KEY into the compile-time embedded pack
