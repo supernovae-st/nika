@@ -58,15 +58,24 @@ callable is a tool under `invoke:`, and the engine ships its own
 - **macOS GUI PATH**: Cursor may not inherit your shell PATH — if the
   MCP oracle does not start, launch Cursor from a terminal once
   (`open -a Cursor`) or ensure `nika` is reachable from GUI apps.
-- **Windows**: the hooks are bash scripts; without a bash on PATH they
-  fail open (edits and runs always proceed — hooks never brick a
-  machine).
-- Every hook fails open by design: a missing binary, an unreadable
-  file or a broken oracle never blocks you. The ONLY deny is a
-  `nika run` on a file with live check findings — and the denial
-  carries the findings, so the agent repairs and reruns by itself.
-- Everything the oracle answers is read-only by design: the plugin can
-  audit and teach, only YOU run workflows.
+- **Two hook classes, two failure laws.** The *comfort* hooks (session
+  context, check-on-edit) degrade quietly: a missing binary or an
+  unreadable file means no context and no verdict, never a bricked
+  editor. The *run guard* is the opposite — fail-visible: a `nika run`
+  the judge cannot judge (binary missing, oracle broken) is DENIED
+  with `guard_unavailable` and the exact repair, because an unjudged
+  run never gets its allow. The other deny is a run on a file with
+  live check findings — the denial carries the findings, so the agent
+  repairs and re-checks by itself.
+- **Windows**: the hooks are bash scripts; without a bash on PATH the
+  hook processes cannot run — comfort AND guard rails are effectively
+  absent (runs fall back to the host's own permission flow, unguarded).
+  `nika doctor` names the missing rails; the engine's own boundaries
+  (`nika check` · `permits:` · cost caps) still hold whenever you run
+  the binary yourself.
+- The engine stays the authority: hooks are a seatbelt, never the
+  airbag. Everything the oracle answers is read-only by design: the
+  plugin can audit and teach, only YOU run workflows.
 
 ## Links
 
