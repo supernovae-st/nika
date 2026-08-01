@@ -40,7 +40,7 @@ At a terminal, `nika:prompt` asks the human directly and the run
 continues. Headless — which is where an agent lives — a prompt
 without a `default:` **pauses durably** (exit 4 · `workflow_paused`
 in the trace · never a failure frame) and the frame prints its exact
-resume line. Three ways to answer, all attested the same way:
+resume line. Three ways to answer, all recorded tamper-evident the same way:
 
 ```
 nika run <file> --answer <task>=<value>                    # pre-answer at launch
