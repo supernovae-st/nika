@@ -25,11 +25,30 @@ fi
 # api-commit route). `main` resolves fine from linked worktrees (shared
 # common-dir); HEAD stays the fallback for clones with another default.
 actual="$(git rev-parse --short=9 main 2>/dev/null || git rev-parse --short=9 HEAD 2>/dev/null)"
-# shellcheck disable=SC2016  # literal backtick regex — no expansion needed
-recorded="$(grep -oE 'nika-diamond\):\*\* `[a-f0-9]+`' "$MEMORY" | head -1 | grep -oE '[a-f0-9]+' | tail -1)"
+# The anchor, and why there are two (2026-08-02): this vector matched the
+# literal `nika-diamond):** <sha>` prose. That branch was renamed to `main`
+# on 2026-05-06, so the pattern has matched nothing for three months — and
+# the empty result printed "no HEAD recorded in MEMORY.md", which reads as
+# "you forgot to write it down" when it meant "I am looking for a branch
+# that no longer exists". A vector that cannot find its own anchor must
+# say so in those words, or the next reader spends the same three months.
+#
+# The current prose is `engine main <sha>`; the legacy form is kept so an
+# older MEMORY.md still resolves. Both are tried, in order, and the failure
+# branch below names them rather than blaming the file.
+# shellcheck disable=SC2016  # literal backtick regexes — no expansion wanted
+PATTERNS='engine[^`]{0,40}`[0-9a-f]{7,40}`|nika-diamond\):\*\* `[0-9a-f]{7,40}`'
+recorded="$(grep -oE "$PATTERNS" "$MEMORY" | head -1 | grep -oE '[0-9a-f]{7,40}' | tail -1)"
 
 if [ -z "$recorded" ]; then
-  echo "no HEAD recorded in MEMORY.md"
+  # Two different problems wear this face. Say which is which, and name
+  # what was tried, so neither one can hide behind the other again.
+  # shellcheck disable=SC2016
+  if grep -qE '`[0-9a-f]{7,40}`' "$MEMORY"; then
+    echo "MEMORY.md records SHAs but none under an engine anchor · tried: ${PATTERNS}"
+  else
+    echo "no HEAD recorded in MEMORY.md (no backticked SHA anywhere in the file)"
+  fi
   exit 1
 fi
 
