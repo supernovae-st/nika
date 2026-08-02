@@ -1011,7 +1011,11 @@ where
         // that breaks its declared `type:` can fail the run — the output half
         // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
         // symmetric with the typed-`vars:` input validation).
-        let outputs = resolve_outputs(wf, &records, &inputs, &config, &consts, &secrets);
+        let mut outputs = resolve_outputs(wf, &records, &inputs, &config, &consts, &secrets);
+        // The outputs map is NOT an event, so the redacting sink never
+        // saw it: the same bytes were `***` in the trace and in the
+        // clear on `--output json` stdout. Scrub before it leaves.
+        crate::secret::scrub_outputs(&mut outputs, &secrets);
         let snapshot = run_ledger.snapshot();
         let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
 

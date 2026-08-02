@@ -497,6 +497,64 @@ async fn wave_settles_stream_before_the_join() {
 }
 
 /// S1 journal hygiene — the dynamic-flow backstop, end to end: an exec
+/// The dynamic-leak fixture. Nothing here says `${{ secrets.X }}` — the
+/// static IFC has nothing to sanction, the report is clean — and the
+/// shell mock's OUTPUT is the secret's value, the same bytes a
+/// file-sourced `cat` or an mcp echo would surface. `outputs:` returns
+/// that value, so ONE fixture exercises both lanes it can ride.
+const LEAK_YAML: &str = "nika: v1\nworkflow:\n  id: journal-hygiene\npermits: { exec: [\"echo\"] }\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\noutputs:\n  returned: ${{ tasks.leak.output }}\n";
+
+/// The FIRST lane: every event the journal, the `--json` trace and the
+/// live fold mirror byte for byte. Extracted so its sibling below has
+/// a peer · two lanes, two helpers, neither able to rot alone.
+fn assert_event_stream_is_scrubbed(sink: &VecSink, secret: &str) {
+    // The journal mirrors this stream byte-for-byte (plus its `chain`
+    // key) · serialize the way the NDJSON lanes do.
+    let bytes = sink
+        .events()
+        .iter()
+        .map(|e| serde_json::to_string(e).expect("event serializes"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !bytes.contains(secret),
+        "no event carries the resolved value: {bytes}"
+    );
+    assert!(
+        bytes.contains(secret::REDACTED),
+        "the marker stands where the value surfaced: {bytes}"
+    );
+    // And precisely: the terminal frame's `outcome` payload · the leak
+    // vector the audit named · carries the marker, not the plaintext.
+    let outcome_field = sink
+        .events()
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .and_then(|e| e.fields.iter().find(|kv| kv.key == "outcome"))
+        .and_then(|kv| match &kv.value {
+            FieldValue::String(s) => Some(s.as_str()),
+            _ => None,
+        })
+        .expect("a terminal frame carries its outcome");
+    assert!(outcome_field.contains(secret::REDACTED), "{outcome_field}");
+}
+
+/// What the run RETURNS is a second lane. `--output json` serializes
+/// `RunOutcome.outputs` verbatim, and that map is not an event, so the
+/// redacting sink never saw it: the same value was `***` in the trace
+/// and in the clear on stdout (2026-08-02 · an adversarial pass).
+fn assert_returned_outputs_are_scrubbed(outcome: &RunOutcome, secret: &str) {
+    let returned = serde_json::to_string(&outcome.outputs).expect("outputs serialize");
+    assert!(
+        !returned.contains(secret),
+        "the returned outputs carry the resolved value: {returned}"
+    );
+    assert!(
+        returned.contains(secret::REDACTED),
+        "the marker stands in the returned outputs too: {returned}"
+    );
+}
+
 /// ECHOES a resolved secret (the static IFC sanctioned the declared
 /// flow; a file-sourced `cat` or an mcp echo takes the same dynamic
 /// path), so the value lands in the task's OUTPUT and would ride the
@@ -504,7 +562,7 @@ async fn wave_settles_stream_before_the_join() {
 /// The stream every lane mirrors must carry the marker, never the
 /// value.
 #[tokio::test]
-async fn resolved_secret_is_scrubbed_from_the_event_stream() {
+async fn resolved_secret_is_scrubbed_from_every_lane_it_can_ride() {
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -535,9 +593,14 @@ async fn resolved_secret_is_scrubbed_from_the_event_stream() {
     // the shell mock's OUTPUT is the secret value — the same bytes a
     // file-sourced `cat` or an mcp echo would surface. What the scrub must
     // catch is the value, wherever it came from.
-    let yaml = "nika: v1\nworkflow:\n  id: journal-hygiene\npermits: { exec: [\"echo\"] }\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\n";
+    // `outputs:` returns the task's own value, which is the OTHER lane
+    // the same bytes ride: `RunOutcome.outputs` is not an event, so the
+    // redacting sink never saw it and `--output json` printed it in the
+    // clear while the trace said `***` (2026-08-02 · an adversarial pass
+    // over the day's work). One fixture, both lanes, so neither can be
+    // fixed while the other rots.
     let wf = nika_schema::parse(
-        yaml,
+        LEAK_YAML,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
@@ -569,36 +632,21 @@ async fn resolved_secret_is_scrubbed_from_the_event_stream() {
         .expect("clean run");
     assert!(outcome.ok, "the workflow itself succeeds");
 
-    // The journal mirrors this stream byte-for-byte (plus its `chain`
-    // key) — serialize the way the NDJSON lanes do.
-    let bytes = sink
-        .events()
-        .iter()
-        .map(|e| serde_json::to_string(e).expect("event serializes"))
-        .collect::<Vec<_>>()
-        .join("\n");
+    assert_event_stream_is_scrubbed(&sink, SECRET);
+    assert_returned_outputs_are_scrubbed(&outcome, SECRET);
+
+    // The SECOND lane: what the run RETURNS. `--output json` serializes
+    // this map verbatim, so a value redacted in the trace and printed
+    // here would be the same leak on a different channel.
+    let returned = serde_json::to_string(&outcome.outputs).expect("outputs serialize");
     assert!(
-        !bytes.contains(SECRET),
-        "no event carries the resolved value: {bytes}"
+        !returned.contains(SECRET),
+        "the returned outputs carry the resolved value: {returned}"
     );
     assert!(
-        bytes.contains(secret::REDACTED),
-        "the marker stands where the value surfaced: {bytes}"
+        returned.contains(secret::REDACTED),
+        "the marker stands in the returned outputs too: {returned}"
     );
-    // And precisely: the terminal frame's `outcome` payload — the leak
-    // vector the audit named — carries the marker, not the plaintext.
-    let outcome_field = sink
-        .events()
-        .iter()
-        .find(|e| e.kind == EventKind::TaskCompleted)
-        .and_then(|e| e.fields.iter().find(|kv| kv.key == "outcome"))
-        .and_then(|kv| match &kv.value {
-            FieldValue::String(s) => Some(s.as_str()),
-            _ => None,
-        })
-        .expect("a terminal frame carries its outcome");
-    assert!(outcome_field.contains(secret::REDACTED), "{outcome_field}");
-    assert!(!outcome_field.contains(SECRET), "{outcome_field}");
 }
 
 #[test]

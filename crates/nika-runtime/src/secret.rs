@@ -239,6 +239,79 @@ impl<'a> RedactingSink<'a> {
     }
 }
 
+/// Scrub the run's resolved `outputs:` map with the same needles the
+/// sink uses.
+///
+/// [`RedactingSink`] wraps the EVENT lane, and the outputs map is not an
+/// event: it rides `RunOutcome` straight to `--output json`, where the
+/// CLI serializes it verbatim. So the identical bytes were redacted in
+/// `.nika/traces` and printed in the clear on stdout, in the same run
+/// (2026-08-02 · found by an adversarial pass over the day's work).
+///
+/// The static IFC refuses a DECLARED egress (`outputs: ${{ secrets.x }}`
+/// is `NIKA-SEC-007`, and a red file never runs). This closes the side
+/// channel the runtime's own doc names as the reason this backstop
+/// exists: an `exec` catting a file-sourced secret, an mcp tool echoing
+/// its input — a value that never mentions `secrets.` and so is
+/// invisible to the checker.
+///
+/// Every output is a value payload by nature, so the short-needle bound
+/// does not apply here: a six-byte token in a returned value is exactly
+/// the leak, not a false positive.
+pub(crate) fn scrub_outputs(
+    outputs: &mut BTreeMap<String, Value>,
+    resolved: &BTreeMap<String, Value>,
+) {
+    let needles: Vec<(String, String)> = resolved
+        .values()
+        .filter_map(|v| match v {
+            Value::String(s) if !s.is_empty() => Some(s.clone()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .map(|raw| {
+            let escaped = json_escaped(&raw);
+            (raw, escaped)
+        })
+        .collect();
+    if needles.is_empty() {
+        return;
+    }
+    for value in outputs.values_mut() {
+        scrub_value(value, &needles);
+    }
+}
+
+/// Rewrite every needle inside a JSON value, at any depth · a secret
+/// nested in a returned object or array leaks exactly as loudly as one
+/// at the top.
+fn scrub_value(value: &mut Value, needles: &[(String, String)]) {
+    match value {
+        Value::String(s) => {
+            for (raw, escaped) in needles {
+                if s.contains(escaped.as_str()) {
+                    *s = s.replace(escaped.as_str(), REDACTED);
+                }
+                if raw != escaped && s.contains(raw.as_str()) {
+                    *s = s.replace(raw.as_str(), REDACTED);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                scrub_value(item, needles);
+            }
+        }
+        Value::Object(map) => {
+            for v in map.values_mut() {
+                scrub_value(v, needles);
+            }
+        }
+        _ => {}
+    }
+}
+
 impl EventSink for RedactingSink<'_> {
     fn emit(&mut self, mut event: Event) {
         if !self.needles.is_empty() {
@@ -653,5 +726,83 @@ mod tests {
             vec![event],
             "zero needles · zero rewrites"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod outputs_scrub_tests {
+    use super::{REDACTED, scrub_outputs};
+    use serde_json::{Value, json};
+    use std::collections::BTreeMap;
+
+    fn resolved(v: &str) -> BTreeMap<String, Value> {
+        let mut m = BTreeMap::new();
+        m.insert("db_pass".to_owned(), Value::String(v.to_owned()));
+        m
+    }
+
+    /// The side channel the runtime's own doc names: a task reads the
+    /// secret's FILE by an ordinary tool, so nothing ever mentions
+    /// `secrets.` and the static IFC has nothing to refuse. The value
+    /// then rides `outputs:` to `--output json` stdout, where the
+    /// redacting sink — an EVENT wrapper — never looked (2026-08-02).
+    #[test]
+    fn a_secret_reaching_outputs_by_a_side_channel_is_redacted() {
+        let secrets = resolved("hunter2-secret");
+        let mut outputs = BTreeMap::new();
+        outputs.insert(
+            "result".to_owned(),
+            Value::String("hunter2-secret\n".to_owned()),
+        );
+        scrub_outputs(&mut outputs, &secrets);
+        let text = outputs["result"].as_str().expect("string");
+        assert!(
+            !text.contains("hunter2-secret"),
+            "the secret rode out: {text}"
+        );
+        assert!(text.contains(REDACTED), "redacted, not dropped: {text}");
+    }
+
+    /// Depth is not a hiding place: an object or array member leaks as
+    /// loudly as a top-level string.
+    #[test]
+    fn a_nested_secret_is_redacted_at_any_depth() {
+        let secrets = resolved("hunter2-secret");
+        let mut outputs = BTreeMap::new();
+        outputs.insert(
+            "report".to_owned(),
+            json!({"rows": [{"creds": "user:hunter2-secret@host"}], "n": 1}),
+        );
+        scrub_outputs(&mut outputs, &secrets);
+        let dumped = serde_json::to_string(&outputs).expect("json");
+        assert!(
+            !dumped.contains("hunter2-secret"),
+            "nested secret rode out: {dumped}"
+        );
+        assert!(dumped.contains(REDACTED), "{dumped}");
+    }
+
+    /// A short needle IS scrubbed here. Every output is a value payload
+    /// by nature, so the six-byte OTP in a returned value is the leak,
+    /// not a false positive — the bound that protects ids and labels on
+    /// the event lane has nothing to protect here.
+    #[test]
+    fn a_short_needle_is_scrubbed_in_an_output() {
+        let secrets = resolved("827351");
+        let mut outputs = BTreeMap::new();
+        outputs.insert("code".to_owned(), Value::String("otp 827351".to_owned()));
+        scrub_outputs(&mut outputs, &secrets);
+        assert_eq!(outputs["code"].as_str(), Some("otp ***"));
+    }
+
+    /// A run with no secrets pays nothing and changes nothing.
+    #[test]
+    fn no_secrets_leaves_every_output_untouched() {
+        let mut outputs = BTreeMap::new();
+        outputs.insert("a".to_owned(), Value::String("plain text".to_owned()));
+        let before = outputs.clone();
+        scrub_outputs(&mut outputs, &BTreeMap::new());
+        assert_eq!(outputs, before);
     }
 }
