@@ -223,6 +223,119 @@ mod tests {
         }
     }
 
+    /// EVERY entry, not the eleven somebody happened to name.
+    ///
+    /// The list had 40 entries and 11 named assertions, so 29 were
+    /// carried by nothing at all: deleting `DYLD_INSERT_LIBRARIES` —
+    /// which makes macOS load arbitrary code into every dynamically
+    /// linked child — left all 126 tests green (2026-08-02). A list is
+    /// only as strong as the weakest entry nobody checks, and the credential
+    /// header leak of the same day was this exact shape: one name tried,
+    /// the rest assumed.
+    ///
+    /// Iterate the const. Never the examples.
+    #[test]
+    fn every_dangerous_name_is_refused_and_never_reaches_a_child() {
+        let ambient_all = |name: &str| -> Option<String> {
+            DANGEROUS_ENV_VARS
+                .contains(&name)
+                .then(|| "/tmp/attacker".to_owned())
+        };
+        for name in DANGEROUS_ENV_VARS {
+            assert!(
+                is_dangerous_env_name(name),
+                "{name} is on the list but the predicate does not know it"
+            );
+            // Three doors, all shut: the ambient environment, an explicit
+            // passthrough grant, and the authored map.
+            let grants = vec![(*name).to_owned()];
+            let mut authored = BTreeMap::new();
+            authored.insert((*name).to_owned(), "/tmp/hook".to_owned());
+            let env = compose_child_env(ambient_all, &grants, &authored);
+            assert!(
+                !env.contains_key(*name),
+                "{name} reached the child despite the dangerous floor"
+            );
+        }
+    }
+
+    /// The names that can never LEAVE the list.
+    ///
+    /// The test above iterates the const, which proves every listed name
+    /// is enforced — and proves nothing about a name that was deleted,
+    /// because the loop simply stops visiting it. Found by mutation:
+    /// dropping `DYLD_INSERT_LIBRARIES` left the iterating test green
+    /// (2026-08-02). Iterating catches an entry the code forgot to
+    /// enforce; only a floor catches an entry someone removed.
+    ///
+    /// This is a ratchet, not a copy of the const. The const may grow
+    /// freely; this says what it may never shed, and each line carries
+    /// the mechanism that makes removal a remote-code-execution door.
+    const FLOOR: &[(&str, &str)] = &[
+        (
+            "LD_PRELOAD",
+            "loads attacker code into any dynamically linked child (linux)",
+        ),
+        ("LD_AUDIT", "same, via the linker's audit interface"),
+        (
+            "LD_LIBRARY_PATH",
+            "redirects library resolution to attacker paths",
+        ),
+        ("GCONV_PATH", "glibc iconv module load, then execution"),
+        ("DYLD_INSERT_LIBRARIES", "the macOS twin of LD_PRELOAD"),
+        ("DYLD_LIBRARY_PATH", "macOS library redirection"),
+        (
+            "DYLD_FALLBACK_LIBRARY_PATH",
+            "macOS library redirection, fallback path",
+        ),
+        ("BASH_ENV", "sources a file on every non-interactive bash"),
+        ("ENV", "the same for POSIX sh"),
+        (
+            "GIT_SSH_COMMAND",
+            "runs an arbitrary command on every fetch",
+        ),
+        (
+            "GIT_EXTERNAL_DIFF",
+            "runs an arbitrary command on every diff",
+        ),
+        (
+            "GIT_CONFIG_PARAMETERS",
+            "inline config, so RCE with no file on disk",
+        ),
+        (
+            "PYTHONSTARTUP",
+            "sources a file into every interactive python",
+        ),
+        ("PYTHONPATH", "shadows any importable module"),
+        ("PERL5OPT", "injects switches into every perl"),
+        ("RUBYOPT", "the same for ruby"),
+        ("NODE_OPTIONS", "injects --require into every node"),
+        ("IFS", "re-splits words in every unquoted shell expansion"),
+        ("LESSOPEN", "runs a preprocessor on every file less opens"),
+    ];
+
+    #[test]
+    fn the_floor_never_leaves_the_dangerous_list() {
+        for (name, why) in FLOOR {
+            assert!(
+                DANGEROUS_ENV_VARS.contains(name),
+                "{name} was removed from the dangerous floor — it {why}"
+            );
+        }
+    }
+
+    /// The floor is case-INSENSITIVE on the platforms that are, and the
+    /// list is spelled in one case. A child env is a map, so a lookalike
+    /// spelling is a different key — this pins which way the predicate
+    /// actually answers rather than assuming it.
+    #[test]
+    fn the_predicate_answers_on_exact_names_only() {
+        assert!(is_dangerous_env_name("LD_PRELOAD"));
+        assert!(!is_dangerous_env_name("LD_PRELOAD_EXTRA"));
+        assert!(!is_dangerous_env_name("MY_LD_PRELOAD"));
+        assert!(!is_dangerous_env_name(""));
+    }
+
     #[test]
     fn floor_and_dangerous_lists_are_disjoint() {
         // The structural invariant the composition order relies on: a floor
