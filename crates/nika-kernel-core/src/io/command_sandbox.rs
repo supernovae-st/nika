@@ -122,6 +122,25 @@ impl CommandSandbox for NoopSandbox {
 /// A normalizer that stops before a fixed point cannot feed an
 /// exact-match check. This one reaches it: segments are rebuilt, empties
 /// (from `//`) and `.` dropped, `..` refused outright.
+/// True when `folded` names one of `roots`, comparing the way the
+/// KERNEL will.
+///
+/// The comparison is case-INSENSITIVE, and that is not defensive
+/// styling. macOS ships a case-insensitive filesystem by default, where
+/// `/ETC` and `/etc` are the same inode (verified: identical inode
+/// numbers, both symlinks to `private/etc`). The root list is spelled
+/// in lower case, so an exact match let `/ETC/passwd*` and `/ROOT/x*`
+/// straight through the guard that exists to stop exactly that, on the
+/// very platform the seatbelt backend serves (2026-08-02).
+///
+/// Linux is case-sensitive, so folding case there can only ever refuse
+/// a path that does not exist. Refusing more on the stricter reading is
+/// the safe direction for a boundary.
+#[must_use]
+pub fn names_system_root(folded: &str, roots: &[&str]) -> bool {
+    roots.iter().any(|r| folded.eq_ignore_ascii_case(r))
+}
+
 #[must_use]
 pub fn fold_sandbox_prefix(prefix: &str) -> Option<String> {
     if !prefix.starts_with('/') || prefix.contains('\0') {

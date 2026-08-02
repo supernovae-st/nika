@@ -61,7 +61,9 @@
 
 use std::path::Path;
 
-use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError, fold_sandbox_prefix};
+use nika_kernel::command_sandbox::{
+    CommandSandbox, CommandSandboxError, fold_sandbox_prefix, names_system_root,
+};
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
 
 /// The bubblewrap launcher. A fixed absolute path (not `$PATH`) so a hijacked
@@ -285,7 +287,7 @@ fn grant_subpath(glob: &str) -> Result<Option<String>, CommandSandboxError> {
     let Some(folded) = fold_sandbox_prefix(&prefix) else {
         return refuse("this path cannot be expressed as a stable bind");
     };
-    if SYSTEM_ROOTS.contains(&folded.as_str()) {
+    if names_system_root(&folded, SYSTEM_ROOTS) {
         return refuse("a bare system-root directory would over-bind its whole tree");
     }
     Ok(Some(folded))
@@ -370,6 +372,15 @@ mod tests {
             "~/s",
             "$HOME/x",
             "/a/../..",
+            // macOS ships a case-insensitive filesystem: `/ETC` and
+            // `/etc` are the SAME inode, so an exact-match root check
+            // let these through the guard that exists to stop them
+            // (2026-08-02). Linux is case-sensitive, where refusing
+            // these can only ever refuse a path that does not exist.
+            "/ETC/passwd*",
+            "/ROOT/x*",
+            "/Root/./x*",
+            "/HOME//x*",
             // The escape of 2026-08-02. Every one of these named a
             // system root and was GRANTED: the check trimmed trailing
             // slashes and compared text, while the kernel folds `.` and
@@ -403,6 +414,8 @@ mod tests {
                 format!("{root}/./x*"),
                 format!("{root}//x*"),
                 format!("{root}/.//."),
+                root.to_uppercase(),
+                format!("{}/x*", root.to_uppercase()),
             ] {
                 assert!(
                     grant_subpath(&spelled).is_err(),

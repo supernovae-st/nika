@@ -67,7 +67,9 @@
 
 use std::path::{Path, PathBuf};
 
-use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError, fold_sandbox_prefix};
+use nika_kernel::command_sandbox::{
+    CommandSandbox, CommandSandboxError, fold_sandbox_prefix, names_system_root,
+};
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
 
 /// The OS-shipped Seatbelt launcher. A fixed absolute path (not `$PATH`) so a
@@ -333,7 +335,7 @@ fn grant_subpath(glob: &str) -> Result<Option<String>, CommandSandboxError> {
     let Some(folded) = fold_sandbox_prefix(&prefix) else {
         return refuse("this path cannot be expressed as a stable subpath");
     };
-    if SYSTEM_ROOTS.contains(&folded.as_str()) {
+    if names_system_root(&folded, SYSTEM_ROOTS) {
         return refuse("a bare system-root directory would over-grant its whole tree");
     }
     Ok(Some(folded))
