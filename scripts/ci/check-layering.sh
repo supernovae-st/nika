@@ -87,15 +87,22 @@ for crate in "${!CRATE_LAYER[@]}"; do
   # Extract workspace-member deps (lines like `nika-xxx = { ... path = "../..." ... }`
   # or `nika-xxx = { workspace = true }` or `nika-xxx.workspace = true`).
   # Matches the crate name (LHS) before `=`.
+  #
+  # The class allows DIGITS (2026-08-02). It read `[a-z-]+`, so every
+  # crate whose name carries one was invisible to this check:
+  # `nika-bm25` and `nika-a11y`. Two real dependency lines went unread
+  # (nika-onboard and nika-verb-agent on nika-bm25 · both downward, so
+  # nothing was hiding today) — but an UPWARD dep on either would have
+  # passed in silence, which is the only thing this check exists to stop.
   deps=$(awk '
     /^\[dependencies\]/ || /^\[dev-dependencies\]/ || /^\[build-dependencies\]/ { in_deps = 1; next }
     /^\[/ && in_deps { in_deps = 0 }
-    in_deps && /^nika-[a-z-]+[[:space:]]*=/ {
+    in_deps && /^nika-[a-z0-9-]+[[:space:]]*=/ {
       split($0, parts, "=")
       gsub(/[[:space:]]/, "", parts[1])
       print parts[1]
     }
-    in_deps && /^nika-[a-z-]+\.workspace[[:space:]]*=/ {
+    in_deps && /^nika-[a-z0-9-]+\.workspace[[:space:]]*=/ {
       split($0, parts, ".")
       gsub(/[[:space:]]/, "", parts[1])
       print parts[1]
