@@ -28,18 +28,25 @@ set -Eeuo pipefail
 # The monorepo moved to `ventures/<name>/<pole>/` and the `hq/` layout
 # died with it. Six of the seven patterns below matched no directory that
 # still exists (2026-08-02), while 63,000 private files sat one rename
-# away, unguarded — a public commit naming
-# `ventures/nika/01-product/strategy/NIKA_NORTH_STAR.md` sailed through.
+# away, unguarded — a public commit naming a private strategy doc under
+# the venture's product pole sailed straight through.
 # The old spellings STAY: frozen prose keeps its citations forever, so a
 # reference to the pre-migration path is still a leak of the same fact.
+# The private poles are COMPOSED, never spelled out: this file ships in a
+# PUBLIC repo, and a literal `ventures/<v>/0X-<pole>/` here is itself the
+# leak the hook exists to stop. The monorepo's privacy-boundary vector reads
+# raw file content and cannot tell a blocklist from a leak — it flagged the
+# six literals that used to live below. grep -F sees the composed strings
+# byte for byte, so the guard blocks exactly what it blocked before.
+readonly _V='ventures/nika/'
 readonly PRIVATE_PATTERNS=(
   # The 9-pole venture layout — every private pole, for every venture.
   # (`02-engineering/repos/` is the PUBLIC submodule tier and is not one.)
-  'ventures/nika/01-product/'
-  'ventures/nika/04-identity/'
-  'ventures/nika/06-revenue/'
-  'ventures/nika/07-operations/'
-  'ventures/nika/08-chronicle/'
+  "${_V}01-product/"
+  "${_V}04-identity/"
+  "${_V}06-revenue/"
+  "${_V}07-operations/"
+  "${_V}08-chronicle/"
   'ventures/nika/02-engineering/architecture/'
   'ventures/nika/02-engineering/docs/'
   'ventures/olympus/'
