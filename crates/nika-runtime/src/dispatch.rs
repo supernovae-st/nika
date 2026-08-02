@@ -488,7 +488,10 @@ where
         let note = format!("invoke · {tool}");
         // NIKA-SEC-004 BEFORE any arg rendering — the tool id is static,
         // so an out-of-boundary invoke is refused without touching the scope.
-        if let Some(denial) = permits::check_tool_permits(scope.permits, &note, &tool, witness) {
+        let raw_args = action.args.as_ref().map(|s| &s.value);
+        if let Some(denial) =
+            permits::check_tool_permits(scope.permits, &note, &tool, raw_args, witness)
+        {
             return denial;
         }
         let args = match &action.args {

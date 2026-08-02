@@ -25,14 +25,25 @@ pub(super) fn check_tool_permits(
     permits: Option<&nika_schema::types::Permits>,
     note: &str,
     tool: &str,
+    args: Option<&serde_json::Value>,
     witness: &PermitWitness,
 ) -> Option<Dispatched> {
     let Some(permits) = permits else {
         // F-O8 · absent = zero authority: every tool effect refused —
-        // EXCEPT the pure-internal class (NEP-0003 law 1 · mirrors the
+        // EXCEPT a pure-internal CALL (NEP-0003 law 1 · mirrors the
         // check-time exemption · check≡run: pure compute RUNS under the
         // legal zero, effects refuse).
-        if nika_cap::is_pure_internal(tool) {
+        //
+        // The exemption reads the CALL, not just the tool name (2026-08-02).
+        // `nika:decide` is in the class and also carries an fs effect when
+        // its `bundle:` is a literal path; the name-only question let
+        // `nika:decide { bundle: "/etc/passwd" }` through here with a
+        // witness reading "allow · pure-internal exemption", while the
+        // same read via `nika:read` was refused. `args` are the RAW,
+        // unrendered ones on purpose: the gate still runs before any
+        // template is touched, and a templated path yields no static
+        // effect, so it defers to NIKA-SEC-004 exactly as before.
+        if nika_cap::is_pure_internal_call(tool, args) {
             witness.record(
                 "tool",
                 tool,
@@ -130,7 +141,12 @@ pub(super) fn check_agent_tools_permits(
     witness: &PermitWitness,
 ) -> Option<Dispatched> {
     for tool in tools {
-        if let Some(denial) = check_tool_permits(permits, "agent · ?", &tool.value, witness) {
+        // No args at GRANT time — an agent's universe entry is a name.
+        // `None` args means a tool whose effect is arg-conditional (decide)
+        // stays exempt here; its actual CALLS route through
+        // `dispatch_invoke`, which passes the real args to this same gate.
+        if let Some(denial) = check_tool_permits(permits, "agent · ?", &tool.value, None, witness)
+        {
             return Some(denial);
         }
     }
@@ -253,4 +269,56 @@ pub(super) fn env_passthrough_witnessed(
         "composed floor ∪ declared passthrough (NEP-0005)",
     );
     names
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// The run half of the per-call exemption. Its check twin lives in
+    /// `nika-check::permits_fit`; both read `is_pure_internal_call`, so
+    /// check≡run holds by construction rather than by two lists agreeing.
+    #[test]
+    fn under_zero_authority_a_pure_tool_naming_a_path_is_refused() {
+        let w = PermitWitness::new();
+        let literal = json!({ "bundle": "/etc/passwd", "evidence": {} });
+        let denial = check_tool_permits(
+            None,
+            "invoke · nika:decide",
+            "nika:decide",
+            Some(&literal),
+            &w,
+        );
+        assert!(
+            denial.is_some(),
+            "a literal bundle path is an fs.read · zero authority must refuse it"
+        );
+    }
+
+    #[test]
+    fn under_zero_authority_the_same_tool_stays_pure_without_a_path() {
+        let w = PermitWitness::new();
+        let inline = json!({ "bundle": { "policy": {} }, "evidence": {} });
+        assert!(
+            check_tool_permits(None, "n", "nika:decide", Some(&inline), &w).is_none(),
+            "an inline bundle touches no filesystem · the legal zero admits it"
+        );
+        assert!(
+            check_tool_permits(None, "n", "nika:log", None, &w).is_none(),
+            "pure compute still runs under an absent block"
+        );
+    }
+
+    #[test]
+    fn zero_authority_still_refuses_every_effectful_tool() {
+        let w = PermitWitness::new();
+        for tool in ["nika:read", "nika:write", "nika:fetch", "nika:grep"] {
+            assert!(
+                check_tool_permits(None, "n", tool, None, &w).is_some(),
+                "{tool} must be refused under an absent permits block"
+            );
+        }
+    }
 }

@@ -78,9 +78,41 @@ pub const PURE_INTERNAL_TOOLS: &[&str] = &[
 
 /// NEP-0003 · is `tool` in the pure-internal class (no authority needed
 /// under an absent block)?
+///
+/// This answers about the TOOL. For an authority decision, ask
+/// [`is_pure_internal_call`] instead — the class is a property of the
+/// builtin, but the exemption is a property of the CALL.
 #[must_use]
 pub fn is_pure_internal(tool: &str) -> bool {
     PURE_INTERNAL_TOOLS.contains(&tool)
+}
+
+/// NEP-0003 · does THIS CALL qualify for the pure-internal exemption?
+///
+/// The class and the exemption are not the same question, and treating
+/// them as one opened a real hole (2026-08-02). `nika:decide` is
+/// `pure_internal` in the SSOT and also carries an fs effect in
+/// [`builtin_effect`] — a literal `bundle:` path. Asking only the class
+/// short-circuited before the effect was ever consulted, so under an
+/// ABSENT `permits:` block:
+///
+/// ```text
+/// nika:read   { path: "/etc/passwd" }    → refused  (NIKA-AUTH-006)
+/// nika:decide { bundle: "/etc/passwd" }  → allowed, reported "pure compute"
+/// ```
+///
+/// Same effect, opposite verdicts. The SSOT prose already says which one
+/// is right — `nika:decide`'s own doc reads « a bundle: path reads like
+/// any declared fs.read; an inline object needs no filesystem » — so a
+/// bundle path was always meant to be an fs.read, and the engine simply
+/// never looked. No spec change: the exemption is per-call.
+///
+/// A call is exempt when the tool is in the class AND the call carries no
+/// statically-visible effect. `nika:decide` with an inline object bundle
+/// still runs under the legal zero; the same tool naming a path does not.
+#[must_use]
+pub fn is_pure_internal_call(tool: &str, args: Option<&serde_json::Value>) -> bool {
+    is_pure_internal(tool) && builtin_effect(tool, args).is_none()
 }
 
 #[must_use]
@@ -226,6 +258,83 @@ mod tests {
     use super::*;
     use crate::EffectClass;
     use serde_json::json;
+
+    #[test]
+    fn the_exemption_belongs_to_the_call_not_the_tool() {
+        // `nika:decide` is pure-internal in the SSOT and carries an fs
+        // effect when `bundle:` is a literal path. Asking only the class
+        // let the path ride the legal zero.
+        let literal = json!({ "bundle": "/etc/passwd", "evidence": {} });
+        let inline = json!({ "bundle": { "policy": {} }, "evidence": {} });
+        assert!(
+            is_pure_internal("nika:decide"),
+            "the CLASS is unchanged — the SSOT says pure_internal"
+        );
+        assert!(
+            !is_pure_internal_call("nika:decide", Some(&literal)),
+            "a literal bundle path is an fs.read · it needs authority"
+        );
+        assert!(
+            is_pure_internal_call("nika:decide", Some(&inline)),
+            "an inline object bundle touches no filesystem · still pure"
+        );
+        // A templated path yields no STATIC effect and defers to the
+        // runtime gate, exactly as before this predicate existed.
+        let templated = json!({ "bundle": "${{ inputs.p }}", "evidence": {} });
+        assert!(is_pure_internal_call("nika:decide", Some(&templated)));
+    }
+
+    #[test]
+    fn every_pure_internal_tool_is_exempt_when_its_call_has_no_effect() {
+        // The class must stay usable: with no args, each member is exempt.
+        // A member that stopped being exempt here would silently start
+        // demanding authority for pure compute.
+        for tool in PURE_INTERNAL_TOOLS {
+            assert!(
+                is_pure_internal_call(tool, None),
+                "{tool} lost its argless exemption"
+            );
+        }
+        // …and the exemption never leaks to a tool outside the class.
+        for tool in ["nika:read", "nika:write", "nika:fetch", "nika:exec"] {
+            assert!(
+                !is_pure_internal_call(tool, None),
+                "{tool} is not pure-internal and must never be exempt"
+            );
+        }
+    }
+
+    #[test]
+    fn the_pure_internal_floor_never_loses_a_tool() {
+        // Iterating the const cannot notice a deletion. A tool dropped
+        // from the class starts REQUIRING authority for pure compute —
+        // silently stricter, which breaks working workflows.
+        const FLOOR: &[&str] = &[
+            "nika:assert",
+            "nika:compose",
+            "nika:convert",
+            "nika:date",
+            "nika:decide",
+            "nika:done",
+            "nika:emit",
+            "nika:hash",
+            "nika:inspect",
+            "nika:jq",
+            "nika:json_diff",
+            "nika:json_merge_patch",
+            "nika:log",
+            "nika:prompt",
+            "nika:uuid",
+            "nika:validate",
+            "nika:wait",
+        ];
+        for tool in FLOOR {
+            assert!(
+                PURE_INTERNAL_TOOLS.contains(tool),
+                "{tool} left the pure-internal class · it now needs a permits block"
+            );
+        }
+    }
 
     #[test]
     fn notify_is_net_only_on_the_webhook_channel() {

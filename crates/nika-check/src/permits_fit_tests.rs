@@ -134,6 +134,36 @@ tasks:
     }
 
     #[test]
+    fn a_pure_internal_tool_naming_a_path_still_escapes_the_zero_boundary() {
+        // The exemption is a property of the CALL, not the tool. `nika:decide`
+        // is pure-internal in the SSOT AND carries an fs effect when `bundle:`
+        // is a literal path — asking only the class returned before the effect
+        // was consulted, so this read rode the legal zero while the identical
+        // read through `nika:read` was refused. The SSOT already said which was
+        // right: « a bundle: path reads like any declared fs.read ».
+        let literal = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  d:\n    \
+             invoke: { tool: \"nika:decide\", args: { bundle: \"/etc/passwd\", evidence: {} } }\n";
+        let e = escapes_of(literal);
+        assert_eq!(e.len(), 1, "the literal bundle path must escape: {e:?}");
+        assert!(e[0].undeclared, "absent block = the AUTH-006 class");
+
+        // The legitimate half survives: an inline object bundle touches no
+        // filesystem, so it stays pure compute under the legal zero.
+        let inline = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  d:\n    \
+             invoke: { tool: \"nika:decide\", args: { bundle: { policy: {} }, evidence: {} } }\n";
+        assert!(
+            escapes_of(inline).is_empty(),
+            "an inline bundle needs no authority: {:?}",
+            escapes_of(inline)
+        );
+
+        // …and the witness that made the asymmetry visible in the first place.
+        let read = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  r:\n    \
+             invoke: { tool: \"nika:read\", args: { path: \"/etc/passwd\" } }\n";
+        assert_eq!(escapes_of(read).len(), 1, "the twin read is refused");
+    }
+
+    #[test]
     fn absent_permits_every_effect_escapes_the_zero_boundary() {
         // F-O8 « absent = zero authority » + NEP-0003 law 3: no `permits:`
         // block = the EMPTY boundary — a STATICALLY visible exec (argv

@@ -191,8 +191,16 @@ fn check_action(
             };
             // NEP-0003 law 1 · under an ABSENT block a pure-internal
             // builtin requires nothing (it is the « pure compute » the
-            // legal zero admits).
-            if undeclared && nika_cap::is_pure_internal(&tool.value) {
+            // legal zero admits) — but the exemption belongs to the CALL,
+            // not the tool. `nika:decide` is in the class AND carries an
+            // fs effect when its `bundle:` is a literal path; asking only
+            // the class returned here before the effect was consulted, so
+            // `nika:decide { bundle: "/etc/passwd" }` passed clean under
+            // zero authority while `nika:read` on the same path was
+            // refused. The SSOT already said which was right (« a bundle:
+            // path reads like any declared fs.read »).
+            let args = a.args.as_ref().map(|s| &s.value);
+            if undeclared && nika_cap::is_pure_internal_call(&tool.value, args) {
                 return;
             }
             if permits.allows_tool(&tool.value) {
