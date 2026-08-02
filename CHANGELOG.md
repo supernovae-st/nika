@@ -65,6 +65,50 @@ line that found them.
   `WorkflowPreviewV1` renders the same content in strict ASCII and
   Mermaid, beside the context, privacy and authority receipts.
 
+### The boundaries hold where they claimed to
+
+A sweep for checks that report a verdict they cannot justify found six
+places where a boundary was green and open. Every one was proven on the
+binary before it was touched, and every repair carries the mutation that
+makes it fail.
+
+- **A cross-origin redirect no longer carries the API key.** The header
+  list that strips credentials on a redirect had been copied from a
+  general-purpose HTTP client and did not know `x-api-key` — which the
+  Anthropic wire sends, and which `nika:fetch` documents to workflow
+  authors as the place auth rides. A 302 handed the live key to whatever
+  host the redirect named. One list now serves both the redirect strip
+  and the Debug redaction, and `check-credential-headers.sh` fails the
+  build when a source sends an auth header the list does not name.
+- **A permit can no longer name a system root through `.`.** Both
+  sandbox backends refused `/root/*` and granted `/root/./x*` — they
+  compared text where the kernel folds, so the grant resolved back to a
+  read-write bind of the host's root inside the jail. The fold lives in
+  the kernel now, shared, and the guard test walks every root in the
+  const across six spellings instead of the three its doc comment named.
+- **A tainted `nika:notify` target is re-gated like a `fetch` url.**
+  Notify sat in the taint re-gate's tool list and did nothing: the list
+  read `url` from every member, and notify's argument is `target`. The
+  re-gate asks the capability table now. Measured against the reference
+  oracle: parity unchanged at 216/220, all 39 examples clean.
+- **The run guard stops approving what it never judged.** On the generic
+  hook wire, "no opinion" and "judged clean" shared an arm, so the kit
+  answered `permission: allow` to every shell command in the session.
+  A command with no `nika run` in it now gets `{}` — the bytes that mean
+  *behave as if this hook were not installed*. And with the binary off
+  PATH the shim used to deny everything, telling the user `ls` was
+  "nika run blocked"; it degrades only for commands that could have been
+  ours.
+- **The editor offers what the binary accepts.** Completion taught
+  `description:` at top level (the parser refuses it with its own code)
+  and `google/` as a provider (this binary does not resolve it — the
+  runnable id is `gemini`), while never offering four keys the parser
+  takes. The vocabulary derives from the parser and the catalog now.
+- **The privacy gate guards the layout that exists.** Six of its seven
+  patterns matched no directory that still exists, leaving the private
+  content it was written for entirely unguarded, and a `git mv` skipped
+  it altogether.
+
 ### The owned copy works where it landed
 
 - **The taught command inside YOUR file runs in YOUR workspace** — all
