@@ -529,9 +529,27 @@ jobs:
           # tarball publish runs zero lifecycle scripts, by npm's own code)
           npm publish ./*.tgz --provenance --access public
           # the byte-equality claim, gated instead of asserted: registry
-          # integrity must equal the tarball we attested
-          want="$(npm view "@supernovae-st/nika-check-wasm@${VERSION}" dist.integrity)"
+          # integrity must equal the tarball we attested.
+          #
+          # The registry needs a moment. Asked one second after publish it
+          # answers E404 for a version it has just accepted — CDN
+          # propagation, not a mismatch — and under `set -e` that killed
+          # the step on a train whose package HAD published (v0.107.1,
+          # 2026-08-02: npm carried 0.107.1 with its integrity while this
+          # job was red). A verification that cannot yet see the thing it
+          # verifies must say « not yet », never « wrong ».
           have="sha512-$(openssl dgst -sha512 -binary ./*.tgz | base64 -w 0)"
+          want=""
+          for attempt in 1 2 3 4 5 6; do
+            want="$(npm view "@supernovae-st/nika-check-wasm@${VERSION}" dist.integrity 2>/dev/null || true)"
+            [ -n "$want" ] && break
+            echo "registry has not propagated yet (attempt ${attempt}/6) — waiting 10s"
+            sleep 10
+          done
+          if [ -z "$want" ]; then
+            echo "::error::the registry never answered for ${VERSION} after 60s — publish state UNKNOWN, check npm before re-dispatching"
+            exit 1
+          fi
           [ "$want" = "$have" ] || {
             echo "::error::registry bytes ≠ published tarball"
             exit 1
