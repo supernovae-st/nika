@@ -122,6 +122,31 @@ impl CommandSandbox for NoopSandbox {
 /// A normalizer that stops before a fixed point cannot feed an
 /// exact-match check. This one reaches it: segments are rebuilt, empties
 /// (from `//`) and `.` dropped, `..` refused outright.
+///
+/// # Symlinks are the kernel's job, and it does it
+///
+/// This fold is LEXICAL · it never resolves a link, which raises the
+/// obvious question: does a permit naming `/tmp/link/**` grant whatever
+/// the link points at, a system root included?
+///
+/// No. Measured on macOS 2026-08-02 against the real `sandbox-exec`
+/// with this crate's own preamble:
+///
+/// ```text
+///   grant the LINK    → reading through the link  REFUSED
+///   grant the LINK    → reading the target        REFUSED
+///   grant the TARGET  → reading the target        allowed
+///   grant the TARGET  → reading through the link  allowed
+/// ```
+///
+/// Seatbelt canonicalizes the path before matching a `subpath`, so a
+/// grant follows the REAL location and a link is not a way to name
+/// something the boundary refuses. The failure direction is the safe
+/// one: naming a link grants nothing at all.
+///
+/// The Linux half (bwrap binds a literal path, which the mount
+/// namespace then resolves) is unmeasured here · this machine has no
+/// bwrap. Stated rather than assumed.
 /// True when `folded` names one of `roots`, comparing the way the
 /// KERNEL will.
 ///
