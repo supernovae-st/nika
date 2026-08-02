@@ -511,6 +511,71 @@ mod tests {
         );
     }
 
+    /// One completion event whose `output` field carries `payload` —
+    /// the field a task's own result lands in, and the third member of
+    /// [`PAYLOAD_FIELDS`].
+    fn output_event(payload: &str) -> Event {
+        Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            EventKind::TaskCompleted,
+        )
+        .with_field(KeyValue::new(
+            crate::resume::fields::OUTPUT,
+            FieldValue::String(payload.to_owned()),
+        ))
+    }
+
+    /// `output` is where a task's own result lands, so it is where a
+    /// secret reaching a value through a side channel arrives — an
+    /// `exec` catting a file-sourced credential, an mcp tool echoing
+    /// its input. It is the whole reason this backstop exists.
+    ///
+    /// It was the one member of [`PAYLOAD_FIELDS`] no test named:
+    /// removing it from the array left the suite green (2026-08-02),
+    /// while its two siblings were each caught by name. The sibling
+    /// above even documents covering it.
+    #[test]
+    fn short_secret_scrubs_the_output_field() {
+        let secret = "827351"; // under WIDE_SCRUB_MIN, like the OTP leak
+        let events = scrubbed(secret, output_event(&format!("token: {secret}")));
+        let out = field_text(&events[0], crate::resume::fields::OUTPUT);
+        assert!(
+            !out.contains(secret),
+            "a secret reaching a task output must not ride the journal: {out}"
+        );
+        assert!(
+            out.contains(REDACTED),
+            "and it is redacted, not dropped: {out}"
+        );
+    }
+
+    /// Every payload field, from the const — so a member added later
+    /// inherits the proof instead of waiting for someone to notice.
+    /// (The floor that keeps one from LEAVING is the array's own length,
+    /// which the compiler checks.)
+    #[test]
+    fn every_payload_field_scrubs_a_short_needle() {
+        let secret = "827351";
+        for field in PAYLOAD_FIELDS {
+            let event = Event::new(
+                EventId::new(uuid::Uuid::nil()),
+                Timestamp::from_unix_ms(0),
+                EventKind::TaskCompleted,
+            )
+            .with_field(KeyValue::new(
+                field,
+                FieldValue::String(format!("carries {secret} inside")),
+            ));
+            let events = scrubbed(secret, event);
+            let text = field_text(&events[0], field);
+            assert!(
+                !text.contains(secret),
+                "payload field `{field}` let a short needle through: {text}"
+            );
+        }
+    }
+
     /// The audit's `detail` leak (2026-07-31): a failed exec journals
     /// `error.code · error.message` as the `detail` field — and the
     /// message embeds raw process stderr, so a 6-byte OTP rides the
