@@ -71,8 +71,29 @@ const FS_READ_TOOLS: &[&str] = &["nika:read", "nika:glob", "nika:grep"];
 /// The fs-write twin (an `edit`'s untrusted path re-gates on the WRITE
 /// direction only — the read half is the runtime boundary's).
 const FS_WRITE_TOOLS: &[&str] = &["nika:write", "nika:edit"];
-/// The net tool set whose `url` arg the static re-gate judges.
-const NET_TOOLS: &[&str] = &["nika:fetch", "nika:notify"];
+/// The net egress arg for a tool, ASKED of the authoritative table
+/// rather than re-typed here.
+///
+/// The re-gate used to carry its own `NET_TOOLS` list and read `"url"`
+/// from every member. `nika:notify`'s URL arg is `target` — a fact
+/// `nika-cap` has always known — so the tool was in the list and inert:
+/// a tainted `target` escaping the declared hosts passed check with
+/// rc=0, while the identical shape on `nika:fetch` was refused with
+/// NIKA-AUTH-008 (proven 2026-08-02). A list that names a tool without
+/// knowing how to read it is worse than one that omits it, because the
+/// name reads as coverage.
+///
+/// The `Net` arm also encodes notify's channel rule (webhook, present
+/// or defaulted), which the flat list could not express at all.
+fn net_url_arg(
+    tool: &str,
+    args: Option<&nika_schema::Spanned<serde_json::Value>>,
+) -> Option<&'static str> {
+    match nika_cap::builtin_effect(tool, args.map(|a| &a.value)) {
+        Some(nika_cap::BuiltinEffect::Net { url_arg }) => Some(url_arg),
+        _ => None,
+    }
+}
 /// The exec re-entry class (spec 10 §the permit-parameterization taint):
 /// a token that re-enters a command interpreter is never covered by a
 /// program allowlist unless the permit lists the token itself.
@@ -346,8 +367,8 @@ fn regate_invoke(
                 "keep the value inside the boundary",
             ));
         }
-    } else if NET_TOOLS.contains(&tool)
-        && let Some(template) = string_arg(a.args.as_ref(), "url")
+    } else if let Some(url_arg) = net_url_arg(tool, a.args.as_ref())
+        && let Some(template) = string_arg(a.args.as_ref(), url_arg)
         && let Some((resolved, paths)) = resolve_untrusted(template, wf, declassified)
         && let Some(host) = url_host(&resolved)
         && !boundary.allows_host(&host)
@@ -355,7 +376,7 @@ fn regate_invoke(
         out.push(regate_finding(
             &task.id.value,
             &paths,
-            &format!("args.url ({tool})"),
+            &format!("args.{url_arg} ({tool})"),
             &resolved,
             &host,
             &format!("net.http {:?}", net_globs(permits)),
@@ -1116,6 +1137,37 @@ tasks:
                 registered.contains(code),
                 "`{code}` is not in the canon registry (spec/05-errors.md SSOT)"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod net_arg_tests {
+    use super::net_url_arg;
+
+    /// Every net builtin's URL arg comes from the authoritative table.
+    /// `notify` was in the old flat list and inert, because the list
+    /// knew the tool but not that its arg is `target` — a tainted
+    /// `target` escaping the declared hosts passed check with rc=0
+    /// while the same shape on `fetch` was refused (2026-08-02).
+    #[test]
+    fn each_net_builtin_names_its_own_url_arg() {
+        let webhook = serde_json::json!({ "channel": "webhook", "target": "https://x.test" });
+        let spanned = nika_schema::Spanned::new(webhook, nika_schema::Span::default());
+        assert_eq!(net_url_arg("nika:fetch", None), Some("url"));
+        assert_eq!(net_url_arg("nika:notify", Some(&spanned)), Some("target"));
+        // Absent channel rides the webhook default — the same contract
+        // `nika-cap` encodes, which a flat list could not express.
+        let bare = serde_json::json!({ "target": "https://x.test" });
+        let bare = nika_schema::Spanned::new(bare, nika_schema::Span::default());
+        assert_eq!(net_url_arg("nika:notify", Some(&bare)), Some("target"));
+    }
+
+    /// A non-net tool has no URL arg — the re-gate must not invent one.
+    #[test]
+    fn a_non_net_tool_has_no_url_arg() {
+        for tool in ["nika:read", "nika:write", "nika:jq", "nika:decide", "mcp:x"] {
+            assert_eq!(net_url_arg(tool, None), None, "{tool} is not a net egress");
         }
     }
 }
