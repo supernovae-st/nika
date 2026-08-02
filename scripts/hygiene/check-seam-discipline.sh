@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Vector: seam discipline — L1.5+ crates must reach the OS through the
+# Vector: seam discipline — the COMPOSING crates (L1.5/L2/L3) must reach
+# the OS through the
 # injected kernel seams, never std/dep defaults directly.
 #
 # The builtins deep-verify (2026-07-06) named the engine's DOMINANT bug
@@ -15,6 +16,22 @@
 # through the injected seams). The L1 effect crates (nika-fs, nika-http,
 # nika-clock, nika-blob, nika-exec-runner, nika-screen, ...) ARE the seams
 # / effects and legitimately touch the OS — they are NOT scanned.
+#
+# The L4 gap, named and sized (2026-08-02). The header said "L1.5+" while
+# the scope stopped at L3 — a claim wider than the reading, which is the
+# defect this vector exists to prevent elsewhere. L4 is the interface tier
+# (cli · cli-host · mcp · lsp · dap · onboard · display · models · wasm ·
+# catalog-verify): ten crates, as many as everything scanned here.
+#
+# Measured with this vector's own logic, scope temporarily widened: 55
+# unmarked direct-OS constructs, mostly `std::fs::` in the verbs that read
+# what the operator names. Whether the interface tier owes the same seam
+# discipline as the composing tiers is an ARCHITECTURE question — it binds
+# `permits` and hermetic testing at the CLI boundary — so it belongs to the
+# layer registry and an ADR, not to a gate widening itself.
+#
+# Until that is ruled, the claim matches the reading. The number above is
+# the size of the hole, so it cannot be rediscovered as a surprise.
 #
 # Allowlist: a line carrying `// seam-bypass-ok: <reason>` is exempt —
 # the one intended exception is nika:uuid (entropy/freshness IS the id, so
@@ -39,7 +56,8 @@ cd "$REPO_ROOT" || exit 2
 # shellcheck source=../ci/_lib.sh
 . "$REPO_ROOT/scripts/ci/_lib.sh"
 
-# Direct-OS constructs that MUST go through a seam at L1.5+. Time/entropy
+# Direct-OS constructs that MUST go through a seam in the composing
+# layers. Time/entropy
 # (ride ClockDyn / are the uuid effect), filesystem, and network.
 FORBIDDEN_PATTERNS=(
   'SystemTime::now' # wall clock — ride the injected ClockDyn (INV-027)
@@ -126,10 +144,10 @@ for crate in "${SCANNED_CRATES[@]}"; do
 done
 
 if [ "$violations" -gt 0 ]; then
-  printf "RED: %d unmarked seam bypass(es) in L1.5+ crates:\n" "$violations"
+  printf "RED: %d unmarked seam bypass(es) in L1.5/L2/L3 crates:\n" "$violations"
   printf "%b\n" "$violation_log"
   echo ""
-  echo "Hint: L1.5+ crates must reach the OS through the injected kernel"
+  echo "Hint: composing crates must reach the OS through the injected kernel"
   echo "seams (ClockDyn, FsDyn, HttpDyn — not std/dep defaults directly)."
   echo "If a bypass is genuinely intended (like nika:uuid's entropy), add"
   echo "a '// seam-bypass-ok: <reason>' marker on the line — a deliberate,"
@@ -137,5 +155,5 @@ if [ "$violations" -gt 0 ]; then
   exit 2
 fi
 
-echo "OK: no unmarked seam bypass in ${#SCANNED_CRATES[@]} L1.5+ crate(s)"
+echo "OK: no unmarked seam bypass in ${#SCANNED_CRATES[@]} L1.5/L2/L3 crate(s)"
 exit 0
