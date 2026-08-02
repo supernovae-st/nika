@@ -19,8 +19,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::clients_registry::ClientsRegi
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::clients_registry::ClientsRegistry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::clients_registry::ClientsRegistry::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::clients_registry::ClientsRegistry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::clients_registry::ClientsRegistry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::clients_registry::ClientsRegistry::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::clients_registry::ClientsRegistry::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::clients_registry::ClientsRegistry where U: core::convert::From<T>
 pub fn nika_cli_host::clients_registry::ClientsRegistry::into(self) -> U
@@ -78,8 +76,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::clients_registry::RegistryCli
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::clients_registry::RegistryClient where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::clients_registry::RegistryClient::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::clients_registry::RegistryClient where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::clients_registry::RegistryClient where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::clients_registry::RegistryClient::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::clients_registry::RegistryClient::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::clients_registry::RegistryClient where U: core::convert::From<T>
 pub fn nika_cli_host::clients_registry::RegistryClient::into(self) -> U
@@ -135,8 +131,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::clients_registry::RegistryCov
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::clients_registry::RegistryCoverage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::clients_registry::RegistryCoverage::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::clients_registry::RegistryCoverage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::clients_registry::RegistryCoverage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::clients_registry::RegistryCoverage::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::clients_registry::RegistryCoverage::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::clients_registry::RegistryCoverage where U: core::convert::From<T>
 pub fn nika_cli_host::clients_registry::RegistryCoverage::into(self) -> U
@@ -199,8 +193,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::doctor::Level
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::doctor::Level::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::doctor::Level::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::doctor::Level where U: core::convert::From<T>
 pub fn nika_cli_host::doctor::Level::into(self) -> U
@@ -256,8 +248,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::doctor::Finding
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::doctor::Finding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::doctor::Finding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::doctor::Finding where U: core::convert::From<T>
 pub fn nika_cli_host::doctor::Finding::into(self) -> U
@@ -298,6 +288,851 @@ pub fn nika_cli_host::doctor::redact_userinfo(url: &str) -> alloc::string::Strin
 pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], verbose: bool, theme: nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt]) -> alloc::string::String
 pub fn nika_cli_host::doctor::run(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub mod nika_cli_host::door
+pub enum nika_cli_host::door::DoorId
+pub nika_cli_host::door::DoorId::Create
+pub nika_cli_host::door::DoorId::Discover
+pub nika_cli_host::door::DoorId::Project
+impl nika_cli_host::door::DoorId
+pub const nika_cli_host::door::DoorId::ALL: [Self; 3]
+pub const fn nika_cli_host::door::DoorId::blurb(self) -> &'static str
+pub const fn nika_cli_host::door::DoorId::command(self) -> &'static str
+pub fn nika_cli_host::door::DoorId::row(self) -> (alloc::string::String, &'static str)
+impl core::clone::Clone for nika_cli_host::door::DoorId
+pub fn nika_cli_host::door::DoorId::clone(&self) -> nika_cli_host::door::DoorId
+impl core::cmp::Eq for nika_cli_host::door::DoorId
+impl core::cmp::PartialEq for nika_cli_host::door::DoorId
+pub fn nika_cli_host::door::DoorId::eq(&self, other: &nika_cli_host::door::DoorId) -> bool
+impl core::fmt::Debug for nika_cli_host::door::DoorId
+pub fn nika_cli_host::door::DoorId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::door::DoorId
+impl core::marker::StructuralPartialEq for nika_cli_host::door::DoorId
+impl<D> owo_colors::OwoColorize for nika_cli_host::door::DoorId
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::door::DoorId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::door::DoorId::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::door::DoorId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::door::DoorId::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::door::DoorId where U: core::convert::From<T>
+pub fn nika_cli_host::door::DoorId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::door::DoorId where U: core::convert::Into<T>
+pub type nika_cli_host::door::DoorId::Error = core::convert::Infallible
+pub fn nika_cli_host::door::DoorId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::door::DoorId where U: core::convert::TryFrom<T>
+pub type nika_cli_host::door::DoorId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::door::DoorId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::door::DoorId where T: core::clone::Clone
+pub type nika_cli_host::door::DoorId::Owned = T
+pub fn nika_cli_host::door::DoorId::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::door::DoorId::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::door::DoorId where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::door::DoorId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::door::DoorId where T: ?core::marker::Sized
+pub fn nika_cli_host::door::DoorId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::door::DoorId where T: ?core::marker::Sized
+pub fn nika_cli_host::door::DoorId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::door::DoorId where T: core::clone::Clone
+pub unsafe fn nika_cli_host::door::DoorId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::door::DoorId
+pub fn nika_cli_host::door::DoorId::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::door::DoorId where T: core::clone::Clone
+pub fn nika_cli_host::door::DoorId::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::door::DoorId where T: 'static
+pub fn nika_cli_host::door::DoorId::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::door::DoorId where T: core::marker::Copy
+pub fn nika_cli_host::door::DoorId::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::door::DoorId where T: ?core::marker::Sized
+pub fn nika_cli_host::door::DoorId::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::door::DoorId::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::door::DoorId
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::door::DoorId
+impl<T> typenum::type_operators::Same for nika_cli_host::door::DoorId
+pub type nika_cli_host::door::DoorId::Output = T
+pub mod nika_cli_host::experience
+pub enum nika_cli_host::experience::ContextEvidenceV1
+pub nika_cli_host::experience::ContextEvidenceV1::ActiveFile
+pub nika_cli_host::experience::ContextEvidenceV1::Attachment
+pub nika_cli_host::experience::ContextEvidenceV1::ExplicitUser
+pub nika_cli_host::experience::ContextEvidenceV1::HostSelection
+pub nika_cli_host::experience::ContextEvidenceV1::None
+impl core::clone::Clone for nika_cli_host::experience::ContextEvidenceV1
+pub fn nika_cli_host::experience::ContextEvidenceV1::clone(&self) -> nika_cli_host::experience::ContextEvidenceV1
+impl core::cmp::Eq for nika_cli_host::experience::ContextEvidenceV1
+impl core::cmp::PartialEq for nika_cli_host::experience::ContextEvidenceV1
+pub fn nika_cli_host::experience::ContextEvidenceV1::eq(&self, other: &nika_cli_host::experience::ContextEvidenceV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::ContextEvidenceV1
+pub fn nika_cli_host::experience::ContextEvidenceV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::experience::ContextEvidenceV1
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::ContextEvidenceV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::ContextEvidenceV1
+pub fn nika_cli_host::experience::ContextEvidenceV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::ContextEvidenceV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::ContextEvidenceV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextEvidenceV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::ContextEvidenceV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextEvidenceV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::ContextEvidenceV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::ContextEvidenceV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::ContextEvidenceV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::ContextEvidenceV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::ContextEvidenceV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::ContextEvidenceV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::ContextEvidenceV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::ContextEvidenceV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::ContextEvidenceV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::ContextEvidenceV1::Owned = T
+pub fn nika_cli_host::experience::ContextEvidenceV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::ContextEvidenceV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::ContextEvidenceV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextEvidenceV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::ContextEvidenceV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextEvidenceV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::ContextEvidenceV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextEvidenceV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::ContextEvidenceV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::ContextEvidenceV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::ContextEvidenceV1
+pub fn nika_cli_host::experience::ContextEvidenceV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::ContextEvidenceV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::ContextEvidenceV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::ContextEvidenceV1 where T: 'static
+pub fn nika_cli_host::experience::ContextEvidenceV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::experience::ContextEvidenceV1 where T: core::marker::Copy
+pub fn nika_cli_host::experience::ContextEvidenceV1::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::ContextEvidenceV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextEvidenceV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::ContextEvidenceV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::ContextEvidenceV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::ContextEvidenceV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::ContextEvidenceV1
+pub type nika_cli_host::experience::ContextEvidenceV1::Output = T
+pub enum nika_cli_host::experience::ContextModeV1
+pub nika_cli_host::experience::ContextModeV1::ChatOnly
+pub nika_cli_host::experience::ContextModeV1::MultiRootUnselected
+pub nika_cli_host::experience::ContextModeV1::Workspace
+impl core::clone::Clone for nika_cli_host::experience::ContextModeV1
+pub fn nika_cli_host::experience::ContextModeV1::clone(&self) -> nika_cli_host::experience::ContextModeV1
+impl core::cmp::Eq for nika_cli_host::experience::ContextModeV1
+impl core::cmp::PartialEq for nika_cli_host::experience::ContextModeV1
+pub fn nika_cli_host::experience::ContextModeV1::eq(&self, other: &nika_cli_host::experience::ContextModeV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::ContextModeV1
+pub fn nika_cli_host::experience::ContextModeV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::experience::ContextModeV1
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::ContextModeV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::ContextModeV1
+pub fn nika_cli_host::experience::ContextModeV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::ContextModeV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::ContextModeV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextModeV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::ContextModeV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextModeV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::ContextModeV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::ContextModeV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::ContextModeV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::ContextModeV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::ContextModeV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::ContextModeV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::ContextModeV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::ContextModeV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::ContextModeV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::ContextModeV1::Owned = T
+pub fn nika_cli_host::experience::ContextModeV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::ContextModeV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::ContextModeV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextModeV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::ContextModeV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextModeV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::ContextModeV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextModeV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::ContextModeV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::ContextModeV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::ContextModeV1
+pub fn nika_cli_host::experience::ContextModeV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::ContextModeV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::ContextModeV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::ContextModeV1 where T: 'static
+pub fn nika_cli_host::experience::ContextModeV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::experience::ContextModeV1 where T: core::marker::Copy
+pub fn nika_cli_host::experience::ContextModeV1::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::ContextModeV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextModeV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::ContextModeV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::ContextModeV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::ContextModeV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::ContextModeV1
+pub type nika_cli_host::experience::ContextModeV1::Output = T
+pub enum nika_cli_host::experience::IntentClassV1
+pub nika_cli_host::experience::IntentClassV1::Continue
+pub nika_cli_host::experience::IntentClassV1::Create
+pub nika_cli_host::experience::IntentClassV1::Discover
+pub nika_cli_host::experience::IntentClassV1::Unknown
+impl core::clone::Clone for nika_cli_host::experience::IntentClassV1
+pub fn nika_cli_host::experience::IntentClassV1::clone(&self) -> nika_cli_host::experience::IntentClassV1
+impl core::cmp::Eq for nika_cli_host::experience::IntentClassV1
+impl core::cmp::PartialEq for nika_cli_host::experience::IntentClassV1
+pub fn nika_cli_host::experience::IntentClassV1::eq(&self, other: &nika_cli_host::experience::IntentClassV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::IntentClassV1
+pub fn nika_cli_host::experience::IntentClassV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::experience::IntentClassV1
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::IntentClassV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::IntentClassV1
+pub fn nika_cli_host::experience::IntentClassV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::IntentClassV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::IntentClassV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::IntentClassV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::IntentClassV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::IntentClassV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::IntentClassV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::IntentClassV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::IntentClassV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::IntentClassV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::IntentClassV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::IntentClassV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::IntentClassV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::IntentClassV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::IntentClassV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::IntentClassV1::Owned = T
+pub fn nika_cli_host::experience::IntentClassV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::IntentClassV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::IntentClassV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::IntentClassV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::IntentClassV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::IntentClassV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::IntentClassV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::IntentClassV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::IntentClassV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::IntentClassV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::IntentClassV1
+pub fn nika_cli_host::experience::IntentClassV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::IntentClassV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::IntentClassV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::IntentClassV1 where T: 'static
+pub fn nika_cli_host::experience::IntentClassV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::experience::IntentClassV1 where T: core::marker::Copy
+pub fn nika_cli_host::experience::IntentClassV1::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::IntentClassV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::IntentClassV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::IntentClassV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::IntentClassV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::IntentClassV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::IntentClassV1
+pub type nika_cli_host::experience::IntentClassV1::Output = T
+pub enum nika_cli_host::experience::JourneyStageV1
+pub nika_cli_host::experience::JourneyStageV1::Checked
+pub nika_cli_host::experience::JourneyStageV1::Configured
+pub nika_cli_host::experience::JourneyStageV1::Hardened
+pub nika_cli_host::experience::JourneyStageV1::Orientation
+pub nika_cli_host::experience::JourneyStageV1::Previewed
+pub nika_cli_host::experience::JourneyStageV1::Ran
+pub nika_cli_host::experience::JourneyStageV1::Repeated
+pub nika_cli_host::experience::JourneyStageV1::Traced
+impl core::clone::Clone for nika_cli_host::experience::JourneyStageV1
+pub fn nika_cli_host::experience::JourneyStageV1::clone(&self) -> nika_cli_host::experience::JourneyStageV1
+impl core::cmp::Eq for nika_cli_host::experience::JourneyStageV1
+impl core::cmp::PartialEq for nika_cli_host::experience::JourneyStageV1
+pub fn nika_cli_host::experience::JourneyStageV1::eq(&self, other: &nika_cli_host::experience::JourneyStageV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::JourneyStageV1
+pub fn nika_cli_host::experience::JourneyStageV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::experience::JourneyStageV1
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::JourneyStageV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::JourneyStageV1
+pub fn nika_cli_host::experience::JourneyStageV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::JourneyStageV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::JourneyStageV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::JourneyStageV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::JourneyStageV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::JourneyStageV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::JourneyStageV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::JourneyStageV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::JourneyStageV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::JourneyStageV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::JourneyStageV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::JourneyStageV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::JourneyStageV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::JourneyStageV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::JourneyStageV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::JourneyStageV1::Owned = T
+pub fn nika_cli_host::experience::JourneyStageV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::JourneyStageV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::JourneyStageV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::JourneyStageV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::JourneyStageV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::JourneyStageV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::JourneyStageV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::JourneyStageV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::JourneyStageV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::JourneyStageV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::JourneyStageV1
+pub fn nika_cli_host::experience::JourneyStageV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::JourneyStageV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::JourneyStageV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::JourneyStageV1 where T: 'static
+pub fn nika_cli_host::experience::JourneyStageV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::experience::JourneyStageV1 where T: core::marker::Copy
+pub fn nika_cli_host::experience::JourneyStageV1::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::JourneyStageV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::JourneyStageV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::JourneyStageV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::JourneyStageV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::JourneyStageV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::JourneyStageV1
+pub type nika_cli_host::experience::JourneyStageV1::Output = T
+pub enum nika_cli_host::experience::PreviewCostV1
+pub nika_cli_host::experience::PreviewCostV1::Ceiling
+pub nika_cli_host::experience::PreviewCostV1::Ceiling::usd: f64
+pub nika_cli_host::experience::PreviewCostV1::Unknown
+pub nika_cli_host::experience::PreviewCostV1::Unpriced
+impl core::clone::Clone for nika_cli_host::experience::PreviewCostV1
+pub fn nika_cli_host::experience::PreviewCostV1::clone(&self) -> nika_cli_host::experience::PreviewCostV1
+impl core::cmp::PartialEq for nika_cli_host::experience::PreviewCostV1
+pub fn nika_cli_host::experience::PreviewCostV1::eq(&self, other: &nika_cli_host::experience::PreviewCostV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::PreviewCostV1
+pub fn nika_cli_host::experience::PreviewCostV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::PreviewCostV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::PreviewCostV1
+pub fn nika_cli_host::experience::PreviewCostV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::PreviewCostV1
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::PreviewCostV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::PreviewCostV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::PreviewCostV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::PreviewCostV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::PreviewCostV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::PreviewCostV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::PreviewCostV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::PreviewCostV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::PreviewCostV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::PreviewCostV1::Owned = T
+pub fn nika_cli_host::experience::PreviewCostV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::PreviewCostV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::PreviewCostV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::PreviewCostV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::PreviewCostV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::PreviewCostV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::PreviewCostV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::PreviewCostV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::PreviewCostV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::PreviewCostV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::PreviewCostV1
+pub fn nika_cli_host::experience::PreviewCostV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::PreviewCostV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::PreviewCostV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::PreviewCostV1 where T: 'static
+pub fn nika_cli_host::experience::PreviewCostV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::PreviewCostV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::PreviewCostV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::PreviewCostV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::PreviewCostV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::PreviewCostV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::PreviewCostV1
+pub type nika_cli_host::experience::PreviewCostV1::Output = T
+pub enum nika_cli_host::experience::ProviderStateV1
+pub nika_cli_host::experience::ProviderStateV1::Configured
+pub nika_cli_host::experience::ProviderStateV1::Reachable
+pub nika_cli_host::experience::ProviderStateV1::RunProven
+pub nika_cli_host::experience::ProviderStateV1::Unconfigured
+impl core::clone::Clone for nika_cli_host::experience::ProviderStateV1
+pub fn nika_cli_host::experience::ProviderStateV1::clone(&self) -> nika_cli_host::experience::ProviderStateV1
+impl core::cmp::Eq for nika_cli_host::experience::ProviderStateV1
+impl core::cmp::PartialEq for nika_cli_host::experience::ProviderStateV1
+pub fn nika_cli_host::experience::ProviderStateV1::eq(&self, other: &nika_cli_host::experience::ProviderStateV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::ProviderStateV1
+pub fn nika_cli_host::experience::ProviderStateV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::experience::ProviderStateV1
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::ProviderStateV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::ProviderStateV1
+pub fn nika_cli_host::experience::ProviderStateV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::ProviderStateV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::ProviderStateV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ProviderStateV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::ProviderStateV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ProviderStateV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::ProviderStateV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::ProviderStateV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::ProviderStateV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::ProviderStateV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::ProviderStateV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::ProviderStateV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::ProviderStateV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::ProviderStateV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::ProviderStateV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::ProviderStateV1::Owned = T
+pub fn nika_cli_host::experience::ProviderStateV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::ProviderStateV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::ProviderStateV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::ProviderStateV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::ProviderStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ProviderStateV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::ProviderStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ProviderStateV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::ProviderStateV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::ProviderStateV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::ProviderStateV1
+pub fn nika_cli_host::experience::ProviderStateV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::ProviderStateV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::ProviderStateV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::ProviderStateV1 where T: 'static
+pub fn nika_cli_host::experience::ProviderStateV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::experience::ProviderStateV1 where T: core::marker::Copy
+pub fn nika_cli_host::experience::ProviderStateV1::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::ProviderStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ProviderStateV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::ProviderStateV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::ProviderStateV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::ProviderStateV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::ProviderStateV1
+pub type nika_cli_host::experience::ProviderStateV1::Output = T
+pub enum nika_cli_host::experience::RetentionV1
+pub nika_cli_host::experience::RetentionV1::Known(alloc::string::String)
+pub nika_cli_host::experience::RetentionV1::Unknown
+impl core::clone::Clone for nika_cli_host::experience::RetentionV1
+pub fn nika_cli_host::experience::RetentionV1::clone(&self) -> nika_cli_host::experience::RetentionV1
+impl core::cmp::Eq for nika_cli_host::experience::RetentionV1
+impl core::cmp::PartialEq for nika_cli_host::experience::RetentionV1
+pub fn nika_cli_host::experience::RetentionV1::eq(&self, other: &nika_cli_host::experience::RetentionV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::RetentionV1
+pub fn nika_cli_host::experience::RetentionV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::RetentionV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::RetentionV1
+pub fn nika_cli_host::experience::RetentionV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::RetentionV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::RetentionV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::RetentionV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::RetentionV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::RetentionV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::RetentionV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::RetentionV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::RetentionV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::RetentionV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::RetentionV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::RetentionV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::RetentionV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::RetentionV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::RetentionV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::RetentionV1::Owned = T
+pub fn nika_cli_host::experience::RetentionV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::RetentionV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::RetentionV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::RetentionV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::RetentionV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::RetentionV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::RetentionV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::RetentionV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::RetentionV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::RetentionV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::RetentionV1
+pub fn nika_cli_host::experience::RetentionV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::RetentionV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::RetentionV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::RetentionV1 where T: 'static
+pub fn nika_cli_host::experience::RetentionV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::RetentionV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::RetentionV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::RetentionV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::RetentionV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::RetentionV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::RetentionV1
+pub type nika_cli_host::experience::RetentionV1::Output = T
+pub enum nika_cli_host::experience::WorkflowStateV1
+pub nika_cli_host::experience::WorkflowStateV1::Absent
+pub nika_cli_host::experience::WorkflowStateV1::Clean
+pub nika_cli_host::experience::WorkflowStateV1::Failed
+pub nika_cli_host::experience::WorkflowStateV1::Findings
+pub nika_cli_host::experience::WorkflowStateV1::Paused
+pub nika_cli_host::experience::WorkflowStateV1::Several
+pub nika_cli_host::experience::WorkflowStateV1::Unknown
+impl core::clone::Clone for nika_cli_host::experience::WorkflowStateV1
+pub fn nika_cli_host::experience::WorkflowStateV1::clone(&self) -> nika_cli_host::experience::WorkflowStateV1
+impl core::cmp::Eq for nika_cli_host::experience::WorkflowStateV1
+impl core::cmp::PartialEq for nika_cli_host::experience::WorkflowStateV1
+pub fn nika_cli_host::experience::WorkflowStateV1::eq(&self, other: &nika_cli_host::experience::WorkflowStateV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::WorkflowStateV1
+pub fn nika_cli_host::experience::WorkflowStateV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::experience::WorkflowStateV1
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::WorkflowStateV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::WorkflowStateV1
+pub fn nika_cli_host::experience::WorkflowStateV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::WorkflowStateV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::WorkflowStateV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowStateV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::WorkflowStateV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowStateV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::WorkflowStateV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::WorkflowStateV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::WorkflowStateV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::WorkflowStateV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::WorkflowStateV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::WorkflowStateV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::WorkflowStateV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::WorkflowStateV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::WorkflowStateV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::WorkflowStateV1::Owned = T
+pub fn nika_cli_host::experience::WorkflowStateV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::WorkflowStateV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::WorkflowStateV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowStateV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::WorkflowStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowStateV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::WorkflowStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowStateV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::WorkflowStateV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::WorkflowStateV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::WorkflowStateV1
+pub fn nika_cli_host::experience::WorkflowStateV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::WorkflowStateV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::WorkflowStateV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::WorkflowStateV1 where T: 'static
+pub fn nika_cli_host::experience::WorkflowStateV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::experience::WorkflowStateV1 where T: core::marker::Copy
+pub fn nika_cli_host::experience::WorkflowStateV1::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::WorkflowStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowStateV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::WorkflowStateV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::WorkflowStateV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::WorkflowStateV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::WorkflowStateV1
+pub type nika_cli_host::experience::WorkflowStateV1::Output = T
+pub struct nika_cli_host::experience::AuthorityReceiptV1
+pub nika_cli_host::experience::AuthorityReceiptV1::denied: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::AuthorityReceiptV1::effects: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::AuthorityReceiptV1::network: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::AuthorityReceiptV1::reads: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::AuthorityReceiptV1::schema_version: u32
+pub nika_cli_host::experience::AuthorityReceiptV1::source: alloc::string::String
+pub nika_cli_host::experience::AuthorityReceiptV1::writes: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_cli_host::experience::AuthorityReceiptV1
+pub fn nika_cli_host::experience::AuthorityReceiptV1::clone(&self) -> nika_cli_host::experience::AuthorityReceiptV1
+impl core::cmp::Eq for nika_cli_host::experience::AuthorityReceiptV1
+impl core::cmp::PartialEq for nika_cli_host::experience::AuthorityReceiptV1
+pub fn nika_cli_host::experience::AuthorityReceiptV1::eq(&self, other: &nika_cli_host::experience::AuthorityReceiptV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::AuthorityReceiptV1
+pub fn nika_cli_host::experience::AuthorityReceiptV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::AuthorityReceiptV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::AuthorityReceiptV1
+pub fn nika_cli_host::experience::AuthorityReceiptV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::AuthorityReceiptV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::AuthorityReceiptV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::AuthorityReceiptV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::AuthorityReceiptV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::AuthorityReceiptV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::AuthorityReceiptV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::AuthorityReceiptV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::AuthorityReceiptV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::AuthorityReceiptV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::AuthorityReceiptV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::AuthorityReceiptV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::AuthorityReceiptV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::AuthorityReceiptV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::AuthorityReceiptV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::AuthorityReceiptV1::Owned = T
+pub fn nika_cli_host::experience::AuthorityReceiptV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::AuthorityReceiptV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::AuthorityReceiptV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::AuthorityReceiptV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::AuthorityReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::AuthorityReceiptV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::AuthorityReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::AuthorityReceiptV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::AuthorityReceiptV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::AuthorityReceiptV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::AuthorityReceiptV1
+pub fn nika_cli_host::experience::AuthorityReceiptV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::AuthorityReceiptV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::AuthorityReceiptV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::AuthorityReceiptV1 where T: 'static
+pub fn nika_cli_host::experience::AuthorityReceiptV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::AuthorityReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::AuthorityReceiptV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::AuthorityReceiptV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::AuthorityReceiptV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::AuthorityReceiptV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::AuthorityReceiptV1
+pub type nika_cli_host::experience::AuthorityReceiptV1::Output = T
+pub struct nika_cli_host::experience::ContextReceiptV1
+pub nika_cli_host::experience::ContextReceiptV1::assumptions: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::ContextReceiptV1::remote: core::option::Option<alloc::string::String>
+pub nika_cli_host::experience::ContextReceiptV1::root: core::option::Option<alloc::string::String>
+pub nika_cli_host::experience::ContextReceiptV1::schema_version: u32
+pub nika_cli_host::experience::ContextReceiptV1::source: nika_cli_host::experience::ContextEvidenceV1
+pub nika_cli_host::experience::ContextReceiptV1::writable: bool
+impl nika_cli_host::experience::ContextReceiptV1
+pub fn nika_cli_host::experience::ContextReceiptV1::render_line(&self) -> alloc::string::String
+impl core::clone::Clone for nika_cli_host::experience::ContextReceiptV1
+pub fn nika_cli_host::experience::ContextReceiptV1::clone(&self) -> nika_cli_host::experience::ContextReceiptV1
+impl core::cmp::Eq for nika_cli_host::experience::ContextReceiptV1
+impl core::cmp::PartialEq for nika_cli_host::experience::ContextReceiptV1
+pub fn nika_cli_host::experience::ContextReceiptV1::eq(&self, other: &nika_cli_host::experience::ContextReceiptV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::ContextReceiptV1
+pub fn nika_cli_host::experience::ContextReceiptV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::ContextReceiptV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::ContextReceiptV1
+pub fn nika_cli_host::experience::ContextReceiptV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::ContextReceiptV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::ContextReceiptV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextReceiptV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::ContextReceiptV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextReceiptV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::ContextReceiptV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::ContextReceiptV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::ContextReceiptV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::ContextReceiptV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::ContextReceiptV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::ContextReceiptV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::ContextReceiptV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::ContextReceiptV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::ContextReceiptV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::ContextReceiptV1::Owned = T
+pub fn nika_cli_host::experience::ContextReceiptV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::ContextReceiptV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::ContextReceiptV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextReceiptV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::ContextReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextReceiptV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::ContextReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextReceiptV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::ContextReceiptV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::ContextReceiptV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::ContextReceiptV1
+pub fn nika_cli_host::experience::ContextReceiptV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::ContextReceiptV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::ContextReceiptV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::ContextReceiptV1 where T: 'static
+pub fn nika_cli_host::experience::ContextReceiptV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::ContextReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ContextReceiptV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::ContextReceiptV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::ContextReceiptV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::ContextReceiptV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::ContextReceiptV1
+pub type nika_cli_host::experience::ContextReceiptV1::Output = T
+pub struct nika_cli_host::experience::ExperienceStateV1
+pub nika_cli_host::experience::ExperienceStateV1::context_mode: nika_cli_host::experience::ContextModeV1
+pub nika_cli_host::experience::ExperienceStateV1::evidence: nika_cli_host::experience::ContextEvidenceV1
+pub nika_cli_host::experience::ExperienceStateV1::findings: u32
+pub nika_cli_host::experience::ExperienceStateV1::intent: nika_cli_host::experience::IntentClassV1
+pub nika_cli_host::experience::ExperienceStateV1::inventory_complete: bool
+pub nika_cli_host::experience::ExperienceStateV1::journey: nika_cli_host::experience::JourneyStageV1
+pub nika_cli_host::experience::ExperienceStateV1::provider: nika_cli_host::experience::ProviderStateV1
+pub nika_cli_host::experience::ExperienceStateV1::root: core::option::Option<alloc::string::String>
+pub nika_cli_host::experience::ExperienceStateV1::schema_version: u32
+pub nika_cli_host::experience::ExperienceStateV1::versions_coherent: bool
+pub nika_cli_host::experience::ExperienceStateV1::workflow: nika_cli_host::experience::WorkflowStateV1
+pub nika_cli_host::experience::ExperienceStateV1::workflow_path: core::option::Option<alloc::string::String>
+pub nika_cli_host::experience::ExperienceStateV1::writable: bool
+impl nika_cli_host::experience::ExperienceStateV1
+pub fn nika_cli_host::experience::ExperienceStateV1::chat_only() -> Self
+impl core::clone::Clone for nika_cli_host::experience::ExperienceStateV1
+pub fn nika_cli_host::experience::ExperienceStateV1::clone(&self) -> nika_cli_host::experience::ExperienceStateV1
+impl core::cmp::PartialEq for nika_cli_host::experience::ExperienceStateV1
+pub fn nika_cli_host::experience::ExperienceStateV1::eq(&self, other: &nika_cli_host::experience::ExperienceStateV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::ExperienceStateV1
+pub fn nika_cli_host::experience::ExperienceStateV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::ExperienceStateV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::ExperienceStateV1
+pub fn nika_cli_host::experience::ExperienceStateV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::ExperienceStateV1
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::ExperienceStateV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::ExperienceStateV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::ExperienceStateV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::ExperienceStateV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::ExperienceStateV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::ExperienceStateV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::ExperienceStateV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::ExperienceStateV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::ExperienceStateV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::ExperienceStateV1::Owned = T
+pub fn nika_cli_host::experience::ExperienceStateV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::ExperienceStateV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::ExperienceStateV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::ExperienceStateV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::ExperienceStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ExperienceStateV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::ExperienceStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ExperienceStateV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::ExperienceStateV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::ExperienceStateV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::ExperienceStateV1
+pub fn nika_cli_host::experience::ExperienceStateV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::ExperienceStateV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::ExperienceStateV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::ExperienceStateV1 where T: 'static
+pub fn nika_cli_host::experience::ExperienceStateV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::ExperienceStateV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::ExperienceStateV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::ExperienceStateV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::ExperienceStateV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::ExperienceStateV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::ExperienceStateV1
+pub type nika_cli_host::experience::ExperienceStateV1::Output = T
+pub struct nika_cli_host::experience::NextActionV1
+pub nika_cli_host::experience::NextActionV1::action_id: &'static str
+pub nika_cli_host::experience::NextActionV1::alternatives: alloc::vec::Vec<&'static str>
+pub nika_cli_host::experience::NextActionV1::blocked_by: alloc::vec::Vec<&'static str>
+pub nika_cli_host::experience::NextActionV1::consent_required: bool
+pub nika_cli_host::experience::NextActionV1::label: &'static str
+pub nika_cli_host::experience::NextActionV1::nothing_has_run: bool
+pub nika_cli_host::experience::NextActionV1::preview_required: bool
+pub nika_cli_host::experience::NextActionV1::why_now: &'static str
+impl core::clone::Clone for nika_cli_host::experience::NextActionV1
+pub fn nika_cli_host::experience::NextActionV1::clone(&self) -> nika_cli_host::experience::NextActionV1
+impl core::cmp::Eq for nika_cli_host::experience::NextActionV1
+impl core::cmp::PartialEq for nika_cli_host::experience::NextActionV1
+pub fn nika_cli_host::experience::NextActionV1::eq(&self, other: &nika_cli_host::experience::NextActionV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::NextActionV1
+pub fn nika_cli_host::experience::NextActionV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::NextActionV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::NextActionV1
+pub fn nika_cli_host::experience::NextActionV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::NextActionV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::NextActionV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::NextActionV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::NextActionV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::NextActionV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::NextActionV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::NextActionV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::NextActionV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::NextActionV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::NextActionV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::NextActionV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::NextActionV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::NextActionV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::NextActionV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::NextActionV1::Owned = T
+pub fn nika_cli_host::experience::NextActionV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::NextActionV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::NextActionV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::NextActionV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::NextActionV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::NextActionV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::NextActionV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::NextActionV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::NextActionV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::NextActionV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::NextActionV1
+pub fn nika_cli_host::experience::NextActionV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::NextActionV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::NextActionV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::NextActionV1 where T: 'static
+pub fn nika_cli_host::experience::NextActionV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::NextActionV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::NextActionV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::NextActionV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::NextActionV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::NextActionV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::NextActionV1
+pub type nika_cli_host::experience::NextActionV1::Output = T
+pub struct nika_cli_host::experience::PrivacyReceiptV1
+pub nika_cli_host::experience::PrivacyReceiptV1::data_classes: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::PrivacyReceiptV1::destinations: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::PrivacyReceiptV1::excluded: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::PrivacyReceiptV1::model: core::option::Option<alloc::string::String>
+pub nika_cli_host::experience::PrivacyReceiptV1::provider: alloc::string::String
+pub nika_cli_host::experience::PrivacyReceiptV1::retention: nika_cli_host::experience::RetentionV1
+pub nika_cli_host::experience::PrivacyReceiptV1::schema_version: u32
+impl core::clone::Clone for nika_cli_host::experience::PrivacyReceiptV1
+pub fn nika_cli_host::experience::PrivacyReceiptV1::clone(&self) -> nika_cli_host::experience::PrivacyReceiptV1
+impl core::cmp::Eq for nika_cli_host::experience::PrivacyReceiptV1
+impl core::cmp::PartialEq for nika_cli_host::experience::PrivacyReceiptV1
+pub fn nika_cli_host::experience::PrivacyReceiptV1::eq(&self, other: &nika_cli_host::experience::PrivacyReceiptV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::PrivacyReceiptV1
+pub fn nika_cli_host::experience::PrivacyReceiptV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::PrivacyReceiptV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::PrivacyReceiptV1
+pub fn nika_cli_host::experience::PrivacyReceiptV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::PrivacyReceiptV1
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::experience::PrivacyReceiptV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::PrivacyReceiptV1::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::experience::PrivacyReceiptV1 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::experience::PrivacyReceiptV1::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::PrivacyReceiptV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::PrivacyReceiptV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::PrivacyReceiptV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::PrivacyReceiptV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::PrivacyReceiptV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::PrivacyReceiptV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::PrivacyReceiptV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::PrivacyReceiptV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::PrivacyReceiptV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::PrivacyReceiptV1::Owned = T
+pub fn nika_cli_host::experience::PrivacyReceiptV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::PrivacyReceiptV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::PrivacyReceiptV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::PrivacyReceiptV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::PrivacyReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::PrivacyReceiptV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::PrivacyReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::PrivacyReceiptV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::PrivacyReceiptV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::PrivacyReceiptV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::PrivacyReceiptV1
+pub fn nika_cli_host::experience::PrivacyReceiptV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::PrivacyReceiptV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::PrivacyReceiptV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::PrivacyReceiptV1 where T: 'static
+pub fn nika_cli_host::experience::PrivacyReceiptV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::PrivacyReceiptV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::PrivacyReceiptV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::PrivacyReceiptV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::PrivacyReceiptV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::PrivacyReceiptV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::PrivacyReceiptV1
+pub type nika_cli_host::experience::PrivacyReceiptV1::Output = T
+pub struct nika_cli_host::experience::WorkflowPreviewV1
+pub nika_cli_host::experience::WorkflowPreviewV1::cost: nika_cli_host::experience::PreviewCostV1
+pub nika_cli_host::experience::WorkflowPreviewV1::goal: alloc::string::String
+pub nika_cli_host::experience::WorkflowPreviewV1::inputs: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::WorkflowPreviewV1::network: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::WorkflowPreviewV1::nothing_has_run: bool
+pub nika_cli_host::experience::WorkflowPreviewV1::output: alloc::string::String
+pub nika_cli_host::experience::WorkflowPreviewV1::reads: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::WorkflowPreviewV1::schema_version: u32
+pub nika_cli_host::experience::WorkflowPreviewV1::steps: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::experience::WorkflowPreviewV1::writes: alloc::vec::Vec<alloc::string::String>
+impl nika_cli_host::experience::WorkflowPreviewV1
+pub fn nika_cli_host::experience::WorkflowPreviewV1::render_ascii(&self) -> alloc::string::String
+pub fn nika_cli_host::experience::WorkflowPreviewV1::render_mermaid(&self) -> alloc::string::String
+impl core::clone::Clone for nika_cli_host::experience::WorkflowPreviewV1
+pub fn nika_cli_host::experience::WorkflowPreviewV1::clone(&self) -> nika_cli_host::experience::WorkflowPreviewV1
+impl core::cmp::PartialEq for nika_cli_host::experience::WorkflowPreviewV1
+pub fn nika_cli_host::experience::WorkflowPreviewV1::eq(&self, other: &nika_cli_host::experience::WorkflowPreviewV1) -> bool
+impl core::fmt::Debug for nika_cli_host::experience::WorkflowPreviewV1
+pub fn nika_cli_host::experience::WorkflowPreviewV1::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::experience::WorkflowPreviewV1
+impl serde_core::ser::Serialize for nika_cli_host::experience::WorkflowPreviewV1
+pub fn nika_cli_host::experience::WorkflowPreviewV1::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::experience::WorkflowPreviewV1
+impl<T, U> core::convert::Into<U> for nika_cli_host::experience::WorkflowPreviewV1 where U: core::convert::From<T>
+pub fn nika_cli_host::experience::WorkflowPreviewV1::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::experience::WorkflowPreviewV1 where U: core::convert::Into<T>
+pub type nika_cli_host::experience::WorkflowPreviewV1::Error = core::convert::Infallible
+pub fn nika_cli_host::experience::WorkflowPreviewV1::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::experience::WorkflowPreviewV1 where U: core::convert::TryFrom<T>
+pub type nika_cli_host::experience::WorkflowPreviewV1::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::experience::WorkflowPreviewV1::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::experience::WorkflowPreviewV1 where T: core::clone::Clone
+pub type nika_cli_host::experience::WorkflowPreviewV1::Owned = T
+pub fn nika_cli_host::experience::WorkflowPreviewV1::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::experience::WorkflowPreviewV1::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::experience::WorkflowPreviewV1 where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowPreviewV1::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::experience::WorkflowPreviewV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowPreviewV1::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::experience::WorkflowPreviewV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowPreviewV1::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::experience::WorkflowPreviewV1 where T: core::clone::Clone
+pub unsafe fn nika_cli_host::experience::WorkflowPreviewV1::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::experience::WorkflowPreviewV1
+pub fn nika_cli_host::experience::WorkflowPreviewV1::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::experience::WorkflowPreviewV1 where T: core::clone::Clone
+pub fn nika_cli_host::experience::WorkflowPreviewV1::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::experience::WorkflowPreviewV1 where T: 'static
+pub fn nika_cli_host::experience::WorkflowPreviewV1::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::experience::WorkflowPreviewV1 where T: ?core::marker::Sized
+pub fn nika_cli_host::experience::WorkflowPreviewV1::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::experience::WorkflowPreviewV1::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::experience::WorkflowPreviewV1
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::WorkflowPreviewV1
+impl<T> typenum::type_operators::Same for nika_cli_host::experience::WorkflowPreviewV1
+pub type nika_cli_host::experience::WorkflowPreviewV1::Output = T
+pub fn nika_cli_host::experience::route(state: &nika_cli_host::experience::ExperienceStateV1) -> nika_cli_host::experience::NextActionV1
 pub mod nika_cli_host::machine_truth
 pub struct nika_cli_host::machine_truth::MachineTruth
 pub nika_cli_host::machine_truth::MachineTruth::catalog_entries: usize
@@ -319,8 +1154,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::machine_truth::MachineTruth
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::machine_truth::MachineTruth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::machine_truth::MachineTruth::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::machine_truth::MachineTruth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::machine_truth::MachineTruth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::machine_truth::MachineTruth::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::machine_truth::MachineTruth::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::machine_truth::MachineTruth where U: core::convert::From<T>
 pub fn nika_cli_host::machine_truth::MachineTruth::into(self) -> U
@@ -377,8 +1210,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::metrics::Cta
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::metrics::Cta where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::metrics::Cta::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Cta where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Cta where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::metrics::Cta::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::metrics::Cta::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::metrics::Cta where U: core::convert::From<T>
 pub fn nika_cli_host::metrics::Cta::into(self) -> U
@@ -433,8 +1264,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::metrics::DraftSource
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::metrics::DraftSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::metrics::DraftSource::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::DraftSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::DraftSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::metrics::DraftSource::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::metrics::DraftSource::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::metrics::DraftSource where U: core::convert::From<T>
 pub fn nika_cli_host::metrics::DraftSource::into(self) -> U
@@ -502,8 +1331,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::metrics::EventKind
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::metrics::EventKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::metrics::EventKind::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::EventKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::EventKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::metrics::EventKind::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::metrics::EventKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::metrics::EventKind where U: core::convert::From<T>
 pub fn nika_cli_host::metrics::EventKind::into(self) -> U
@@ -558,8 +1385,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::metrics::Handoff
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::metrics::Handoff where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::metrics::Handoff::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Handoff where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Handoff where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::metrics::Handoff::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::metrics::Handoff::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::metrics::Handoff where U: core::convert::From<T>
 pub fn nika_cli_host::metrics::Handoff::into(self) -> U
@@ -614,8 +1439,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::metrics::Session
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::metrics::Session where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::metrics::Session::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Session where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Session where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::metrics::Session::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::metrics::Session::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::metrics::Session where U: core::convert::From<T>
 pub fn nika_cli_host::metrics::Session::into(self) -> U
@@ -678,8 +1501,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::metrics::Facts
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::metrics::Facts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::metrics::Facts::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Facts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::metrics::Facts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::metrics::Facts::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::metrics::Facts::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::metrics::Facts where U: core::convert::From<T>
 pub fn nika_cli_host::metrics::Facts::into(self) -> U
@@ -795,8 +1616,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::AdoptionState
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::AdoptionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::AdoptionState::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::AdoptionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::AdoptionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::AdoptionState::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::AdoptionState::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::AdoptionState where U: core::convert::From<T>
 pub fn nika_cli_host::probe::AdoptionState::into(self) -> U
@@ -853,8 +1672,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::CapabilityLevel
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::CapabilityLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::CapabilityLevel::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::CapabilityLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::CapabilityLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::CapabilityLevel::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::CapabilityLevel::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::CapabilityLevel where U: core::convert::From<T>
 pub fn nika_cli_host::probe::CapabilityLevel::into(self) -> U
@@ -913,8 +1730,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::ClientProbe
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::ClientProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::ClientProbe::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::ClientProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::ClientProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::ClientProbe::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::ClientProbe::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::ClientProbe where U: core::convert::From<T>
 pub fn nika_cli_host::probe::ClientProbe::into(self) -> U
@@ -953,6 +1768,7 @@ pub struct nika_cli_host::probe::HostCapabilityReceipt
 pub nika_cli_host::probe::HostCapabilityReceipt::canaries: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::probe::HostCapabilityReceipt::capability: alloc::string::String
 pub nika_cli_host::probe::HostCapabilityReceipt::components: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::probe::HostCapabilityReceipt::guard_evidence: core::option::Option<alloc::string::String>
 pub nika_cli_host::probe::HostCapabilityReceipt::host: alloc::string::String
 pub nika_cli_host::probe::HostCapabilityReceipt::level_assumed: bool
 pub nika_cli_host::probe::HostCapabilityReceipt::missing_rails: alloc::vec::Vec<alloc::string::String>
@@ -974,8 +1790,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::HostCapabilityReceipt
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::HostCapabilityReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::HostCapabilityReceipt::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::HostCapabilityReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::HostCapabilityReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::HostCapabilityReceipt::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::HostCapabilityReceipt::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::HostCapabilityReceipt where U: core::convert::From<T>
 pub fn nika_cli_host::probe::HostCapabilityReceipt::into(self) -> U
@@ -1029,8 +1843,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::ImageProbe
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::ImageProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::ImageProbe::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::ImageProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::ImageProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::ImageProbe::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::ImageProbe::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::ImageProbe where U: core::convert::From<T>
 pub fn nika_cli_host::probe::ImageProbe::into(self) -> U
@@ -1083,8 +1895,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::KitProbe
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::KitProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::KitProbe::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::KitProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::KitProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::KitProbe::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::KitProbe::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::KitProbe where U: core::convert::From<T>
 pub fn nika_cli_host::probe::KitProbe::into(self) -> U
@@ -1139,8 +1949,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::PricingProbe
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::PricingProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::PricingProbe::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::PricingProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::PricingProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::PricingProbe::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::PricingProbe::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::PricingProbe where U: core::convert::From<T>
 pub fn nika_cli_host::probe::PricingProbe::into(self) -> U
@@ -1205,8 +2013,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::Probe
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::Probe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::Probe::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::Probe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::Probe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::Probe::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::Probe::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::Probe where U: core::convert::From<T>
 pub fn nika_cli_host::probe::Probe::into(self) -> U
@@ -1259,8 +2065,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::probe::TtsProbe
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::TtsProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::probe::TtsProbe::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::TtsProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::TtsProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::probe::TtsProbe::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::probe::TtsProbe::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::probe::TtsProbe where U: core::convert::From<T>
 pub fn nika_cli_host::probe::TtsProbe::into(self) -> U
@@ -1318,6 +2122,7 @@ pub fn nika_cli_host::text::usd(amount: f64) -> alloc::string::String
 pub mod nika_cli_host::welcome
 pub const nika_cli_host::welcome::SAMPLE: &str
 pub fn nika_cli_host::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::welcome::taught_start_commands() -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_cli_host::wire
 pub enum nika_cli_host::wire::WireTarget
 pub nika_cli_host::wire::WireTarget::All
@@ -1359,8 +2164,6 @@ impl<D> owo_colors::OwoColorize for nika_cli_host::wire::WireTarget
 impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::wire::WireTarget where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli_host::wire::WireTarget::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::wire::WireTarget where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::wire::WireTarget where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::wire::WireTarget::equivalent(&self, key: &K) -> bool
 pub fn nika_cli_host::wire::WireTarget::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli_host::wire::WireTarget where U: core::convert::From<T>
 pub fn nika_cli_host::wire::WireTarget::into(self) -> U

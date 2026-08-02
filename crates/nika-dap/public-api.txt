@@ -16,8 +16,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::rekor::Checkpoint
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::rekor::Checkpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::rekor::Checkpoint::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::Checkpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::Checkpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::rekor::Checkpoint::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::rekor::Checkpoint::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::rekor::Checkpoint where U: core::convert::From<T>
 pub fn nika_dap::anchor::rekor::Checkpoint::into(self) -> U
@@ -71,8 +69,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::rekor::SubmittedEntry
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::rekor::SubmittedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::rekor::SubmittedEntry::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::SubmittedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rekor::SubmittedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::rekor::SubmittedEntry::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::rekor::SubmittedEntry::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::rekor::SubmittedEntry where U: core::convert::From<T>
 pub fn nika_dap::anchor::rekor::SubmittedEntry::into(self) -> U
@@ -134,8 +130,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::rfc3161::VerifiedToken
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::rfc3161::VerifiedToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rfc3161::VerifiedToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::rfc3161::VerifiedToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::rfc3161::VerifiedToken::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::rfc3161::VerifiedToken where U: core::convert::From<T>
 pub fn nika_dap::anchor::rfc3161::VerifiedToken::into(self) -> U
@@ -198,8 +192,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::run::AnchorFailure
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::run::AnchorFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::run::AnchorFailure::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::run::AnchorFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::run::AnchorFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::run::AnchorFailure::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::run::AnchorFailure::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::run::AnchorFailure where U: core::convert::From<T>
 pub fn nika_dap::anchor::run::AnchorFailure::into(self) -> U
@@ -252,8 +244,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::run::AnchoredReport
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::run::AnchoredReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::run::AnchoredReport::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::run::AnchoredReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::run::AnchoredReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::run::AnchoredReport::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::run::AnchoredReport::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::run::AnchoredReport where U: core::convert::From<T>
 pub fn nika_dap::anchor::run::AnchoredReport::into(self) -> U
@@ -307,8 +297,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::AnchorTier
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::AnchorTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::AnchorTier::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::AnchorTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::AnchorTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::AnchorTier::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::AnchorTier::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::AnchorTier where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::AnchorTier::into(self) -> U
@@ -361,8 +349,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::AttainedTier
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::AttainedTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::AttainedTier::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::AttainedTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::AttainedTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::AttainedTier::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::AttainedTier::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::AttainedTier where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::AttainedTier::into(self) -> U
@@ -415,8 +401,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::ReplayCompare
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::ReplayCompare where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::ReplayCompare::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::ReplayCompare where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::ReplayCompare where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::ReplayCompare::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::ReplayCompare::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::ReplayCompare where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::ReplayCompare::into(self) -> U
@@ -468,8 +452,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::ReplayTier
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::ReplayTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::ReplayTier::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::ReplayTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::ReplayTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::ReplayTier::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::ReplayTier::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::ReplayTier where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::ReplayTier::into(self) -> U
@@ -524,8 +506,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::SealTier
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::SealTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::SealTier::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::SealTier::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::SealTier::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::SealTier where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::SealTier::into(self) -> U
@@ -577,8 +557,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::TierExit
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::TierExit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::TierExit::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::TierExit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::TierExit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::TierExit::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::TierExit::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::TierExit where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::TierExit::into(self) -> U
@@ -631,8 +609,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::SealVerdict
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::SealVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::SealVerdict::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::SealVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::SealVerdict::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::SealVerdict::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::SealVerdict where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::SealVerdict::into(self) -> U
@@ -686,8 +662,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::tier::TierReport
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::tier::TierReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::tier::TierReport::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::TierReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::tier::TierReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::tier::TierReport::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::tier::TierReport::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::tier::TierReport where U: core::convert::From<T>
 pub fn nika_dap::anchor::tier::TierReport::into(self) -> U
@@ -748,8 +722,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::HeadRefusal
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::HeadRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::HeadRefusal::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::HeadRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::HeadRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::HeadRefusal::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::HeadRefusal::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::HeadRefusal where U: core::convert::From<T>
 pub fn nika_dap::anchor::HeadRefusal::into(self) -> U
@@ -807,8 +779,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::AnchorSidecar
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::AnchorSidecar where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::AnchorSidecar::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::AnchorSidecar where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::AnchorSidecar where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::AnchorSidecar::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::AnchorSidecar::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::AnchorSidecar where U: core::convert::From<T>
 pub fn nika_dap::anchor::AnchorSidecar::into(self) -> U
@@ -870,8 +840,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::RekorAnchor
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::RekorAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::RekorAnchor::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::RekorAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::RekorAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::RekorAnchor::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::RekorAnchor::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::RekorAnchor where U: core::convert::From<T>
 pub fn nika_dap::anchor::RekorAnchor::into(self) -> U
@@ -958,8 +926,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::TsaAnchor
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::TsaAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::TsaAnchor::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::TsaAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::TsaAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::TsaAnchor::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::TsaAnchor::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::TsaAnchor where U: core::convert::From<T>
 pub fn nika_dap::anchor::TsaAnchor::into(self) -> U
@@ -1011,8 +977,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::anchor::VerifiedAnchor
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::anchor::VerifiedAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::anchor::VerifiedAnchor::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::VerifiedAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::anchor::VerifiedAnchor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::anchor::VerifiedAnchor::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::anchor::VerifiedAnchor::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::anchor::VerifiedAnchor where U: core::convert::From<T>
 pub fn nika_dap::anchor::VerifiedAnchor::into(self) -> U
@@ -1092,8 +1056,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::bounded::DecodeRefusal
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::bounded::DecodeRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::bounded::DecodeRefusal::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::bounded::DecodeRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::bounded::DecodeRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::bounded::DecodeRefusal::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::bounded::DecodeRefusal::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::bounded::DecodeRefusal where U: core::convert::From<T>
 pub fn nika_dap::bounded::DecodeRefusal::into(self) -> U
@@ -1206,8 +1168,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::Agreement
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_replay::Agreement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::cost_replay::Agreement::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::Agreement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::Agreement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::cost_replay::Agreement::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::cost_replay::Agreement::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::Agreement where U: core::convert::From<T>
 pub fn nika_dap::cost_replay::Agreement::into(self) -> U
@@ -1353,8 +1313,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::cost_replay::PricingPin
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_replay::PricingPin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::cost_replay::PricingPin::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::PricingPin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_replay::PricingPin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::cost_replay::PricingPin::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::cost_replay::PricingPin::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::cost_replay::PricingPin where U: core::convert::From<T>
 pub fn nika_dap::cost_replay::PricingPin::into(self) -> U
@@ -1461,8 +1419,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::evidence::PackError
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::evidence::PackError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::evidence::PackError::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::evidence::PackError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::evidence::PackError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::evidence::PackError::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::evidence::PackError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::evidence::PackError where U: core::convert::From<T>
 pub fn nika_dap::evidence::PackError::into(self) -> U
@@ -1555,8 +1511,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::flow::FlowEdge
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::flow::FlowEdge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::flow::FlowEdge::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::flow::FlowEdge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::flow::FlowEdge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::flow::FlowEdge::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::flow::FlowEdge::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::flow::FlowEdge where U: core::convert::From<T>
 pub fn nika_dap::flow::FlowEdge::into(self) -> U
@@ -1938,8 +1892,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::otel::ExportOutcome
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::otel::ExportOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::otel::ExportOutcome::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::otel::ExportOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::otel::ExportOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::otel::ExportOutcome::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::otel::ExportOutcome::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::otel::ExportOutcome where U: core::convert::From<T>
 pub fn nika_dap::otel::ExportOutcome::into(self) -> U
@@ -2077,8 +2029,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::reproduce::CompareRefusal
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::reproduce::CompareRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::reproduce::CompareRefusal::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::reproduce::CompareRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::reproduce::CompareRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::reproduce::CompareRefusal::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::reproduce::CompareRefusal::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::reproduce::CompareRefusal where U: core::convert::From<T>
 pub fn nika_dap::reproduce::CompareRefusal::into(self) -> U
@@ -2136,8 +2086,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::reproduce::Verdict
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::reproduce::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::reproduce::Verdict::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::reproduce::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::reproduce::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::reproduce::Verdict::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::reproduce::Verdict::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::reproduce::Verdict where U: core::convert::From<T>
 pub fn nika_dap::reproduce::Verdict::into(self) -> U
@@ -2292,8 +2240,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::resume::CompatVerdict
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::resume::CompatVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::resume::CompatVerdict::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::resume::CompatVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::resume::CompatVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::resume::CompatVerdict::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::resume::CompatVerdict::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::resume::CompatVerdict where U: core::convert::From<T>
 pub fn nika_dap::resume::CompatVerdict::into(self) -> U
@@ -2347,8 +2293,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::resume::ResumeVersion
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::resume::ResumeVersion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::resume::ResumeVersion::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::resume::ResumeVersion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::resume::ResumeVersion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::resume::ResumeVersion::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::resume::ResumeVersion::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::resume::ResumeVersion where U: core::convert::From<T>
 pub fn nika_dap::resume::ResumeVersion::into(self) -> U
@@ -2492,8 +2436,6 @@ pub fn nika_dap::retention::Reason::compare(&self, key: &K) -> core::cmp::Orderi
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::retention::Reason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::retention::Reason::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::Reason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::Reason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::retention::Reason::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::retention::Reason::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::retention::Reason where U: core::convert::From<T>
 pub fn nika_dap::retention::Reason::into(self) -> U
@@ -2548,8 +2490,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::retention::GcReport
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::retention::GcReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::retention::GcReport::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::GcReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::GcReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::retention::GcReport::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::retention::GcReport::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::retention::GcReport where U: core::convert::From<T>
 pub fn nika_dap::retention::GcReport::into(self) -> U
@@ -2599,8 +2539,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::retention::RetentionConfig
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::retention::RetentionConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::retention::RetentionConfig::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::RetentionConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::RetentionConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::retention::RetentionConfig::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::retention::RetentionConfig::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::retention::RetentionConfig where U: core::convert::From<T>
 pub fn nika_dap::retention::RetentionConfig::into(self) -> U
@@ -2883,8 +2821,6 @@ impl<D> owo_colors::OwoColorize for nika_dap::store::TraceState
 impl<Q, K> equivalent::Equivalent<K> for nika_dap::store::TraceState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_dap::store::TraceState::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::TraceState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::TraceState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_dap::store::TraceState::equivalent(&self, key: &K) -> bool
 pub fn nika_dap::store::TraceState::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_dap::store::TraceState where U: core::convert::From<T>
 pub fn nika_dap::store::TraceState::into(self) -> U

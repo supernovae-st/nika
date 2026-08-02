@@ -18,6 +18,7 @@ impl<D> owo_colors::OwoColorize for nika_display::check_render::ModelFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::ModelFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::check_render::ModelFinding where U: core::convert::From<T>
 pub fn nika_display::check_render::ModelFinding::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::ModelFinding where U: core::convert::Into<T>
@@ -73,6 +74,7 @@ impl<D> owo_colors::OwoColorize for nika_display::check_render::ModelsAudit
 impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::ModelsAudit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::ModelsAudit::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::check_render::ModelsAudit where U: core::convert::From<T>
 pub fn nika_display::check_render::ModelsAudit::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::ModelsAudit where U: core::convert::Into<T>
@@ -149,6 +151,7 @@ impl<D> owo_colors::OwoColorize for nika_display::flow::Interval
 impl<Q, K> equivalent::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::flow::Interval where U: core::convert::From<T>
 pub fn nika_display::flow::Interval::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::flow::Interval where U: core::convert::Into<T>
@@ -209,6 +212,7 @@ impl<D> owo_colors::OwoColorize for nika_display::format::ColorChoice
 impl<Q, K> equivalent::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::format::ColorChoice where U: core::convert::From<T>
 pub fn nika_display::format::ColorChoice::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::format::ColorChoice where U: core::convert::Into<T>
@@ -261,6 +265,7 @@ impl<D> owo_colors::OwoColorize for nika_display::format::LinkChoice
 impl<Q, K> equivalent::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::format::LinkChoice where U: core::convert::From<T>
 pub fn nika_display::format::LinkChoice::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::format::LinkChoice where U: core::convert::Into<T>
@@ -368,6 +373,7 @@ impl<D> owo_colors::OwoColorize for nika_display::fruit::WroteFile
 impl<Q, K> equivalent::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::fruit::WroteFile::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::fruit::WroteFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::fruit::WroteFile::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::fruit::WroteFile where U: core::convert::From<T>
 pub fn nika_display::fruit::WroteFile::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::fruit::WroteFile where U: core::convert::Into<T>
@@ -445,6 +451,7 @@ impl<D> owo_colors::OwoColorize for nika_display::state::TaskState
 impl<Q, K> equivalent::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::state::TaskState where U: core::convert::From<T>
 pub fn nika_display::state::TaskState::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::state::TaskState where U: core::convert::Into<T>
@@ -623,6 +630,7 @@ impl<D> owo_colors::OwoColorize for nika_display::theme::Role
 impl<Q, K> equivalent::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_display::theme::Role where U: core::convert::From<T>
 pub fn nika_display::theme::Role::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_display::theme::Role where U: core::convert::Into<T>

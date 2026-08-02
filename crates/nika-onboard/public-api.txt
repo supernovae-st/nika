@@ -29,8 +29,6 @@ impl<D> owo_colors::OwoColorize for nika_onboard::founding::CanvasTheme
 impl<Q, K> equivalent::Equivalent<K> for nika_onboard::founding::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::founding::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::founding::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
 pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::founding::CanvasTheme where U: core::convert::From<T>
 pub fn nika_onboard::founding::CanvasTheme::into(self) -> U
@@ -90,8 +88,6 @@ impl<D> owo_colors::OwoColorize for nika_onboard::routing::RoutedEntry
 impl<Q, K> equivalent::Equivalent<K> for nika_onboard::routing::RoutedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::routing::RoutedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::routing::RoutedEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
 pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::routing::RoutedEntry where U: core::convert::From<T>
 pub fn nika_onboard::routing::RoutedEntry::into(self) -> U

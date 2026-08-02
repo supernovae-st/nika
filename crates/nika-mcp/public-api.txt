@@ -31,6 +31,11 @@ impl<T> core::convert::From<T> for nika_mcp::client::ConnectOutcome
 pub fn nika_mcp::client::ConnectOutcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_mcp::client::ConnectOutcome where T: 'static
 pub fn nika_mcp::client::ConnectOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::client::ConnectOutcome where T: ?core::marker::Sized
+pub fn nika_mcp::client::ConnectOutcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::client::ConnectOutcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::client::ConnectOutcome
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::client::ConnectOutcome
 impl<T> typenum::type_operators::Same for nika_mcp::client::ConnectOutcome
 pub type nika_mcp::client::ConnectOutcome::Output = T
 #[non_exhaustive] pub struct nika_mcp::client::ApproveReport
@@ -58,6 +63,11 @@ impl<T> core::convert::From<T> for nika_mcp::client::ApproveReport
 pub fn nika_mcp::client::ApproveReport::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_mcp::client::ApproveReport where T: 'static
 pub fn nika_mcp::client::ApproveReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::client::ApproveReport where T: ?core::marker::Sized
+pub fn nika_mcp::client::ApproveReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::client::ApproveReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::client::ApproveReport
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::client::ApproveReport
 impl<T> typenum::type_operators::Same for nika_mcp::client::ApproveReport
 pub type nika_mcp::client::ApproveReport::Output = T
 #[non_exhaustive] pub struct nika_mcp::client::McpServerConfig
@@ -84,8 +94,6 @@ impl<D> owo_colors::OwoColorize for nika_mcp::client::McpServerConfig
 impl<Q, K> equivalent::Equivalent<K> for nika_mcp::client::McpServerConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_mcp::client::McpServerConfig::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::client::McpServerConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::client::McpServerConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_mcp::client::McpServerConfig::equivalent(&self, key: &K) -> bool
 pub fn nika_mcp::client::McpServerConfig::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_mcp::client::McpServerConfig where U: core::convert::From<T>
 pub fn nika_mcp::client::McpServerConfig::into(self) -> U
@@ -113,6 +121,11 @@ impl<T> dyn_clone::DynClone for nika_mcp::client::McpServerConfig where T: core:
 pub fn nika_mcp::client::McpServerConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_mcp::client::McpServerConfig where T: 'static
 pub fn nika_mcp::client::McpServerConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::client::McpServerConfig where T: ?core::marker::Sized
+pub fn nika_mcp::client::McpServerConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::client::McpServerConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::client::McpServerConfig
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::client::McpServerConfig
 impl<T> typenum::type_operators::Same for nika_mcp::client::McpServerConfig
 pub type nika_mcp::client::McpServerConfig::Output = T
 pub struct nika_mcp::client::StdioMcpClient
@@ -143,6 +156,11 @@ impl<T> core::convert::From<T> for nika_mcp::client::StdioMcpClient
 pub fn nika_mcp::client::StdioMcpClient::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_mcp::client::StdioMcpClient where T: 'static
 pub fn nika_mcp::client::StdioMcpClient::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::client::StdioMcpClient where T: ?core::marker::Sized
+pub fn nika_mcp::client::StdioMcpClient::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::client::StdioMcpClient::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::client::StdioMcpClient
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::client::StdioMcpClient
 impl<T> typenum::type_operators::Same for nika_mcp::client::StdioMcpClient
 pub type nika_mcp::client::StdioMcpClient::Output = T
 pub const nika_mcp::client::SERVERS_FORMAT: u32
@@ -192,8 +210,6 @@ impl<D> owo_colors::OwoColorize for nika_mcp::pin::PinError
 impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::PinError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_mcp::pin::PinError::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::PinError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::PinError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_mcp::pin::PinError::equivalent(&self, key: &K) -> bool
 pub fn nika_mcp::pin::PinError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_mcp::pin::PinError where U: core::convert::From<T>
 pub fn nika_mcp::pin::PinError::into(self) -> U
@@ -221,8 +237,15 @@ impl<T> core::convert::From<T> for nika_mcp::pin::PinError
 pub fn nika_mcp::pin::PinError::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_mcp::pin::PinError where T: core::clone::Clone
 pub fn nika_mcp::pin::PinError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_mcp::pin::PinError where T: core::fmt::Display
+pub fn nika_mcp::pin::PinError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_mcp::pin::PinError where T: 'static
 pub fn nika_mcp::pin::PinError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::pin::PinError where T: ?core::marker::Sized
+pub fn nika_mcp::pin::PinError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::pin::PinError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::pin::PinError
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::pin::PinError
 impl<T> typenum::type_operators::Same for nika_mcp::pin::PinError
 pub type nika_mcp::pin::PinError::Output = T
 #[non_exhaustive] pub struct nika_mcp::pin::McpToolDef
@@ -267,6 +290,11 @@ impl<T> dyn_clone::DynClone for nika_mcp::pin::McpToolDef where T: core::clone::
 pub fn nika_mcp::pin::McpToolDef::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_mcp::pin::McpToolDef where T: 'static
 pub fn nika_mcp::pin::McpToolDef::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::pin::McpToolDef where T: ?core::marker::Sized
+pub fn nika_mcp::pin::McpToolDef::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::pin::McpToolDef::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::pin::McpToolDef
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::pin::McpToolDef
 impl<T> typenum::type_operators::Same for nika_mcp::pin::McpToolDef
 pub type nika_mcp::pin::McpToolDef::Output = T
 #[non_exhaustive] pub struct nika_mcp::pin::ServerDrift
@@ -288,8 +316,6 @@ impl<D> owo_colors::OwoColorize for nika_mcp::pin::ServerDrift
 impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::ServerDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_mcp::pin::ServerDrift::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ServerDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ServerDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_mcp::pin::ServerDrift::equivalent(&self, key: &K) -> bool
 pub fn nika_mcp::pin::ServerDrift::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_mcp::pin::ServerDrift where U: core::convert::From<T>
 pub fn nika_mcp::pin::ServerDrift::into(self) -> U
@@ -317,8 +343,15 @@ impl<T> core::convert::From<T> for nika_mcp::pin::ServerDrift
 pub fn nika_mcp::pin::ServerDrift::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_mcp::pin::ServerDrift where T: core::clone::Clone
 pub fn nika_mcp::pin::ServerDrift::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_mcp::pin::ServerDrift where T: core::fmt::Display
+pub fn nika_mcp::pin::ServerDrift::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_mcp::pin::ServerDrift where T: 'static
 pub fn nika_mcp::pin::ServerDrift::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::pin::ServerDrift where T: ?core::marker::Sized
+pub fn nika_mcp::pin::ServerDrift::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::pin::ServerDrift::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::pin::ServerDrift
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::pin::ServerDrift
 impl<T> typenum::type_operators::Same for nika_mcp::pin::ServerDrift
 pub type nika_mcp::pin::ServerDrift::Output = T
 #[non_exhaustive] pub struct nika_mcp::pin::ToolDrift
@@ -337,8 +370,6 @@ impl<D> owo_colors::OwoColorize for nika_mcp::pin::ToolDrift
 impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::ToolDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_mcp::pin::ToolDrift::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ToolDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::ToolDrift where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_mcp::pin::ToolDrift::equivalent(&self, key: &K) -> bool
 pub fn nika_mcp::pin::ToolDrift::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_mcp::pin::ToolDrift where U: core::convert::From<T>
 pub fn nika_mcp::pin::ToolDrift::into(self) -> U
@@ -366,6 +397,11 @@ impl<T> dyn_clone::DynClone for nika_mcp::pin::ToolDrift where T: core::clone::C
 pub fn nika_mcp::pin::ToolDrift::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_mcp::pin::ToolDrift where T: 'static
 pub fn nika_mcp::pin::ToolDrift::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::pin::ToolDrift where T: ?core::marker::Sized
+pub fn nika_mcp::pin::ToolDrift::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::pin::ToolDrift::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::pin::ToolDrift
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::pin::ToolDrift
 impl<T> typenum::type_operators::Same for nika_mcp::pin::ToolDrift
 pub type nika_mcp::pin::ToolDrift::Output = T
 pub const nika_mcp::pin::PINS_FORMAT: u32
@@ -401,8 +437,15 @@ impl<T> core::borrow::BorrowMut<T> for nika_mcp::McpError where T: ?core::marker
 pub fn nika_mcp::McpError::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_mcp::McpError
 pub fn nika_mcp::McpError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_mcp::McpError where T: core::fmt::Display
+pub fn nika_mcp::McpError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
 impl<T> nika_error::traits::AsAny for nika_mcp::McpError where T: 'static
 pub fn nika_mcp::McpError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::McpError where T: ?core::marker::Sized
+pub fn nika_mcp::McpError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::McpError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::McpError
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::McpError
 impl<T> typenum::type_operators::Same for nika_mcp::McpError
 pub type nika_mcp::McpError::Output = T
 pub struct nika_mcp::HttpServer
@@ -429,6 +472,11 @@ impl<T> core::convert::From<T> for nika_mcp::HttpServer
 pub fn nika_mcp::HttpServer::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_mcp::HttpServer where T: 'static
 pub fn nika_mcp::HttpServer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::HttpServer where T: ?core::marker::Sized
+pub fn nika_mcp::HttpServer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::HttpServer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::HttpServer
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::HttpServer
 impl<T> typenum::type_operators::Same for nika_mcp::HttpServer
 pub type nika_mcp::HttpServer::Output = T
 pub fn nika_mcp::run_stdio() -> core::result::Result<(), nika_mcp::McpError>

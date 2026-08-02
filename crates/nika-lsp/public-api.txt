@@ -148,8 +148,6 @@ impl<D> owo_colors::OwoColorize for nika_lsp::analysis::vocab::Entry
 impl<Q, K> equivalent::Equivalent<K> for nika_lsp::analysis::vocab::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_lsp::analysis::vocab::Entry::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_lsp::analysis::vocab::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_lsp::analysis::vocab::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_lsp::analysis::vocab::Entry::equivalent(&self, key: &K) -> bool
 pub fn nika_lsp::analysis::vocab::Entry::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_lsp::analysis::vocab::Entry where U: core::convert::From<T>
 pub fn nika_lsp::analysis::vocab::Entry::into(self) -> U

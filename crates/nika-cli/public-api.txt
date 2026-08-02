@@ -51,8 +51,6 @@ impl<D> owo_colors::OwoColorize for nika_cli::verbs::check::Profile
 impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::check::Profile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::check::Profile::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::check::Profile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::check::Profile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::check::Profile::equivalent(&self, key: &K) -> bool
 pub fn nika_cli::verbs::check::Profile::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::Profile where U: core::convert::From<T>
 pub fn nika_cli::verbs::check::Profile::into(self) -> U
@@ -218,6 +216,8 @@ pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::examples::rehearsal_seat(model: core::option::Option<&str>) -> core::option::Option<&str>
+pub fn nika_cli::verbs::examples::shelf_or_front(all: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::examples::storefront(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::explain
 pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::explain_file
@@ -250,8 +250,6 @@ impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::GraphFormat
 impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::graph::GraphFormat where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::graph::GraphFormat::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormat where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormat where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::graph::GraphFormat::equivalent(&self, key: &K) -> bool
 pub fn nika_cli::verbs::graph::GraphFormat::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::GraphFormat where U: core::convert::From<T>
 pub fn nika_cli::verbs::graph::GraphFormat::into(self) -> U
@@ -311,8 +309,6 @@ impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::GraphFormatArg
 impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
 pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::GraphFormatArg where U: core::convert::From<T>
 pub fn nika_cli::verbs::graph::GraphFormatArg::into(self) -> U
@@ -380,8 +376,6 @@ impl<D> owo_colors::OwoColorize for nika_cli::verbs::init::CanvasTheme
 impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
 pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::init::CanvasTheme where U: core::convert::From<T>
 pub fn nika_cli::verbs::init::CanvasTheme::into(self) -> U
@@ -544,8 +538,6 @@ impl<D> owo_colors::OwoColorize for nika_cli::verbs::mcp_pins::McpTransportArg
 impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::mcp_pins::McpTransportArg where U: core::convert::From<T>
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::into(self) -> U
@@ -661,8 +653,6 @@ impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::RenderMode
 impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::run::RenderMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::run::RenderMode::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::run::RenderMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::run::RenderMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::run::RenderMode::equivalent(&self, key: &K) -> bool
 pub fn nika_cli::verbs::run::RenderMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::RenderMode where U: core::convert::From<T>
 pub fn nika_cli::verbs::run::RenderMode::into(self) -> U

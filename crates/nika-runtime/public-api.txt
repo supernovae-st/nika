@@ -20,8 +20,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::approval::ApprovalDecision
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::ApprovalDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::approval::ApprovalDecision::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::approval::ApprovalDecision::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::approval::ApprovalDecision::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::approval::ApprovalDecision where U: core::convert::From<T>
 pub fn nika_runtime::approval::ApprovalDecision::into(self) -> U
@@ -82,8 +80,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::approval::ApprovalTicket
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::ApprovalTicket where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::approval::ApprovalTicket::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalTicket where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::ApprovalTicket where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::approval::ApprovalTicket::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::approval::ApprovalTicket::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::approval::ApprovalTicket where U: core::convert::From<T>
 pub fn nika_runtime::approval::ApprovalTicket::into(self) -> U
@@ -135,8 +131,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::approval::PausedApproval
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::approval::PausedApproval where U: core::convert::From<T>
 pub fn nika_runtime::approval::PausedApproval::into(self) -> U
@@ -328,8 +322,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::child::ChildRunSummary
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::child::ChildRunSummary where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::child::ChildRunSummary::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::child::ChildRunSummary where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::child::ChildRunSummary where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::child::ChildRunSummary::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::child::ChildRunSummary::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::child::ChildRunSummary where U: core::convert::From<T>
 pub fn nika_runtime::child::ChildRunSummary::into(self) -> U
@@ -601,8 +593,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::proof::ir::WorkflowProof
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::proof::ir::WorkflowProof where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::proof::ir::WorkflowProof::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::proof::ir::WorkflowProof where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::proof::ir::WorkflowProof where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::proof::ir::WorkflowProof::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::proof::ir::WorkflowProof::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::proof::ir::WorkflowProof where U: core::convert::From<T>
 pub fn nika_runtime::proof::ir::WorkflowProof::into(self) -> U
@@ -845,8 +835,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::InputOrigin
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::InputOrigin where U: core::convert::From<T>
 pub fn nika_runtime::InputOrigin::into(self) -> U
@@ -973,8 +961,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::TaskStatus
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::TaskStatus::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::TaskStatus::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::TaskStatus::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::TaskStatus where U: core::convert::From<T>
 pub fn nika_runtime::TaskStatus::into(self) -> U
@@ -1041,8 +1027,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::TerminalCause
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::TerminalCause::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::TerminalCause::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::TerminalCause::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::TerminalCause where U: core::convert::From<T>
 pub fn nika_runtime::TerminalCause::into(self) -> U
@@ -1380,8 +1364,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::SecretResolveError
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::SecretResolveError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::SecretResolveError::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::SecretResolveError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::SecretResolveError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::SecretResolveError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::SecretResolveError where U: core::convert::From<T>
 pub fn nika_runtime::SecretResolveError::into(self) -> U
@@ -1473,8 +1455,6 @@ impl<D> owo_colors::OwoColorize for nika_runtime::TaskErrorRecord
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::TaskErrorRecord::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::TaskErrorRecord::equivalent(&self, key: &K) -> bool
 pub fn nika_runtime::TaskErrorRecord::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_runtime::TaskErrorRecord where U: core::convert::From<T>
 pub fn nika_runtime::TaskErrorRecord::into(self) -> U

@@ -19,8 +19,6 @@ impl core::marker::StructuralPartialEq for nika_builtin::decide::DecideError
 impl<D> owo_colors::OwoColorize for nika_builtin::decide::DecideError
 impl<Q, K> equivalent::Equivalent<K> for nika_builtin::decide::DecideError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_builtin::decide::DecideError::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_builtin::decide::DecideError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_builtin::decide::DecideError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_builtin::decide::DecideError where U: core::convert::From<T>
 pub fn nika_builtin::decide::DecideError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_builtin::decide::DecideError where U: core::convert::Into<T>
@@ -238,8 +236,6 @@ pub fn nika_builtin::BuiltinFailure::fmt(&self, f: &mut core::fmt::Formatter<'_>
 impl core::marker::StructuralPartialEq for nika_builtin::BuiltinFailure
 impl<D> owo_colors::OwoColorize for nika_builtin::BuiltinFailure
 impl<Q, K> equivalent::Equivalent<K> for nika_builtin::BuiltinFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_builtin::BuiltinFailure::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_builtin::BuiltinFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_builtin::BuiltinFailure::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_builtin::BuiltinFailure where U: core::convert::From<T>
 pub fn nika_builtin::BuiltinFailure::into(self) -> U

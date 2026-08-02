@@ -279,8 +279,6 @@ impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::NudgeReason
 impl<Q, K> equivalent::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
 pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::From<T>
 pub fn nika_verb_agent::observe::NudgeReason::into(self) -> U
@@ -331,8 +329,6 @@ impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::ToolSource
 impl<Q, K> equivalent::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
 pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::ToolSource where U: core::convert::From<T>
 pub fn nika_verb_agent::observe::ToolSource::into(self) -> U
@@ -422,8 +418,6 @@ impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::SourceCounts
 impl<Q, K> equivalent::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
 pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::From<T>
 pub fn nika_verb_agent::observe::SourceCounts::into(self) -> U
@@ -617,8 +611,6 @@ impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::NudgeReason
 impl<Q, K> equivalent::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
 pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::From<T>
 pub fn nika_verb_agent::observe::NudgeReason::into(self) -> U
@@ -669,8 +661,6 @@ impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::ToolSource
 impl<Q, K> equivalent::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
 pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::ToolSource where U: core::convert::From<T>
 pub fn nika_verb_agent::observe::ToolSource::into(self) -> U
@@ -1057,8 +1047,6 @@ impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::SourceCounts
 impl<Q, K> equivalent::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
 pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::From<T>
 pub fn nika_verb_agent::observe::SourceCounts::into(self) -> U

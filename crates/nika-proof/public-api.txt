@@ -40,8 +40,6 @@ pub fn nika_proof::HashDomain::compare(&self, key: &K) -> core::cmp::Ordering
 impl<Q, K> equivalent::Equivalent<K> for nika_proof::HashDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_proof::HashDomain::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_proof::HashDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_proof::HashDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_proof::HashDomain::equivalent(&self, key: &K) -> bool
 pub fn nika_proof::HashDomain::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_proof::HashDomain where U: core::convert::From<T>
 pub fn nika_proof::HashDomain::into(self) -> U
@@ -97,8 +95,6 @@ pub fn nika_proof::SemanticHash::compare(&self, key: &K) -> core::cmp::Ordering
 impl<Q, K> equivalent::Equivalent<K> for nika_proof::SemanticHash where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_proof::SemanticHash::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_proof::SemanticHash where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_proof::SemanticHash where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_proof::SemanticHash::equivalent(&self, key: &K) -> bool
 pub fn nika_proof::SemanticHash::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_proof::SemanticHash where U: core::convert::From<T>
 pub fn nika_proof::SemanticHash::into(self) -> U
@@ -143,8 +139,6 @@ impl<D> owo_colors::OwoColorize for nika_proof::UnknownDomain
 impl<Q, K> equivalent::Equivalent<K> for nika_proof::UnknownDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_proof::UnknownDomain::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_proof::UnknownDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_proof::UnknownDomain where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_proof::UnknownDomain::equivalent(&self, key: &K) -> bool
 pub fn nika_proof::UnknownDomain::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_proof::UnknownDomain where U: core::convert::From<T>
 pub fn nika_proof::UnknownDomain::into(self) -> U

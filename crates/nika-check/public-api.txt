@@ -23,8 +23,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::EdgeKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::EdgeKind::into(self) -> U
@@ -72,8 +70,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::SettledState
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::SettledState where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::SettledState::into(self) -> U
@@ -121,8 +117,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::Edge
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::Edge where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::Edge::into(self) -> U
@@ -165,8 +159,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::RecoveryRead
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::RecoveryRead::into(self) -> U
@@ -225,8 +217,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::EdgeKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::EdgeKind where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::EdgeKind::into(self) -> U
@@ -274,8 +264,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::SettledState
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::SettledState where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::SettledState::into(self) -> U
@@ -323,8 +311,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::AnalyzedWorkflow
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::From<T>
 pub fn nika_check::analyzer::AnalyzedWorkflow::into(self) -> U
@@ -370,8 +356,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::Edge
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::Edge where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::Edge::into(self) -> U
@@ -414,8 +398,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::edges::RecoveryRead
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::edges::RecoveryRead where U: core::convert::From<T>
 pub fn nika_check::analyzer::edges::RecoveryRead::into(self) -> U
@@ -472,8 +454,6 @@ impl<D> owo_colors::OwoColorize for nika_check::permits_fit::CapabilityEscape
 impl<Q, K> equivalent::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
 pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::From<T>
 pub fn nika_check::permits_fit::CapabilityEscape::into(self) -> U
@@ -527,8 +507,6 @@ impl<D> owo_colors::OwoColorize for nika_check::DataClassification
 impl<Q, K> equivalent::Equivalent<K> for nika_check::DataClassification where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::DataClassification::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::DataClassification where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::DataClassification where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::DataClassification::equivalent(&self, key: &K) -> bool
 pub fn nika_check::DataClassification::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::DataClassification where U: core::convert::From<T>
 pub fn nika_check::DataClassification::into(self) -> U
@@ -579,8 +557,6 @@ impl<D> owo_colors::OwoColorize for nika_check::EndpointLocus
 impl<Q, K> equivalent::Equivalent<K> for nika_check::EndpointLocus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::EndpointLocus::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::EndpointLocus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::EndpointLocus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::EndpointLocus::equivalent(&self, key: &K) -> bool
 pub fn nika_check::EndpointLocus::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::EndpointLocus where U: core::convert::From<T>
 pub fn nika_check::EndpointLocus::into(self) -> U
@@ -629,8 +605,6 @@ impl<D> owo_colors::OwoColorize for nika_check::FindingSeverity
 impl<Q, K> equivalent::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
 pub fn nika_check::FindingSeverity::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::FindingSeverity where U: core::convert::From<T>
 pub fn nika_check::FindingSeverity::into(self) -> U
@@ -680,8 +654,6 @@ impl<D> owo_colors::OwoColorize for nika_check::GateFindingKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::GateFindingKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
 pub fn nika_check::GateFindingKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::GateFindingKind where U: core::convert::From<T>
 pub fn nika_check::GateFindingKind::into(self) -> U
@@ -736,8 +708,6 @@ impl<D> owo_colors::OwoColorize for nika_check::LeakReason
 impl<Q, K> equivalent::Equivalent<K> for nika_check::LeakReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::LeakReason::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::LeakReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::LeakReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::LeakReason::equivalent(&self, key: &K) -> bool
 pub fn nika_check::LeakReason::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::LeakReason where U: core::convert::From<T>
 pub fn nika_check::LeakReason::into(self) -> U
@@ -785,8 +755,6 @@ impl<D> owo_colors::OwoColorize for nika_check::PermitTaintKind
 impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaintKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
 pub fn nika_check::PermitTaintKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::PermitTaintKind where U: core::convert::From<T>
 pub fn nika_check::PermitTaintKind::into(self) -> U
@@ -834,8 +802,6 @@ impl<D> owo_colors::OwoColorize for nika_check::PermitsSource
 impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
 pub fn nika_check::PermitsSource::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::PermitsSource where U: core::convert::From<T>
 pub fn nika_check::PermitsSource::into(self) -> U
@@ -893,8 +859,6 @@ pub fn nika_check::RiskGrade::compare(&self, key: &K) -> core::cmp::Ordering
 impl<Q, K> equivalent::Equivalent<K> for nika_check::RiskGrade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::RiskGrade::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::RiskGrade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::RiskGrade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::RiskGrade::equivalent(&self, key: &K) -> bool
 pub fn nika_check::RiskGrade::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::RiskGrade where U: core::convert::From<T>
 pub fn nika_check::RiskGrade::into(self) -> U
@@ -943,8 +907,6 @@ impl<D> owo_colors::OwoColorize for nika_check::UnboundedReason
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnboundedReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
 pub fn nika_check::UnboundedReason::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::UnboundedReason where U: core::convert::From<T>
 pub fn nika_check::UnboundedReason::into(self) -> U
@@ -992,8 +954,6 @@ impl<D> owo_colors::OwoColorize for nika_check::analyzer::AnalyzedWorkflow
 impl<Q, K> equivalent::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
 pub fn nika_check::analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::analyzer::AnalyzedWorkflow where U: core::convert::From<T>
 pub fn nika_check::analyzer::AnalyzedWorkflow::into(self) -> U
@@ -1042,8 +1002,6 @@ impl<D> owo_colors::OwoColorize for nika_check::Bound
 impl<Q, K> equivalent::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::Bound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
 pub fn nika_check::Bound::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::Bound where U: core::convert::From<T>
 pub fn nika_check::Bound::into(self) -> U
@@ -1091,8 +1049,6 @@ impl<D> owo_colors::OwoColorize for nika_check::ByteSpan
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::ByteSpan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
 pub fn nika_check::ByteSpan::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::ByteSpan where U: core::convert::From<T>
 pub fn nika_check::ByteSpan::into(self) -> U
@@ -1143,8 +1099,6 @@ impl<D> owo_colors::OwoColorize for nika_check::permits_fit::CapabilityEscape
 impl<Q, K> equivalent::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::permits_fit::CapabilityEscape where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
 pub fn nika_check::permits_fit::CapabilityEscape::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::permits_fit::CapabilityEscape where U: core::convert::From<T>
 pub fn nika_check::permits_fit::CapabilityEscape::into(self) -> U
@@ -1189,8 +1143,6 @@ impl<D> owo_colors::OwoColorize for nika_check::CertTerm
 impl<Q, K> equivalent::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::CertTerm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
 pub fn nika_check::CertTerm::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::CertTerm where U: core::convert::From<T>
 pub fn nika_check::CertTerm::into(self) -> U
@@ -1350,8 +1302,6 @@ impl<D> owo_colors::OwoColorize for nika_check::CompositionFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::CompositionFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
 pub fn nika_check::CompositionFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::CompositionFinding where U: core::convert::From<T>
 pub fn nika_check::CompositionFinding::into(self) -> U
@@ -1401,8 +1351,6 @@ impl<D> owo_colors::OwoColorize for nika_check::ConformanceViolation
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::ConformanceViolation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
 pub fn nika_check::ConformanceViolation::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::ConformanceViolation where U: core::convert::From<T>
 pub fn nika_check::ConformanceViolation::into(self) -> U
@@ -1450,8 +1398,6 @@ impl<D> owo_colors::OwoColorize for nika_check::ConsentFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ConsentFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ConsentFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::ConsentFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::ConsentFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::ConsentFinding::equivalent(&self, key: &K) -> bool
 pub fn nika_check::ConsentFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::ConsentFinding where U: core::convert::From<T>
 pub fn nika_check::ConsentFinding::into(self) -> U
@@ -1584,8 +1530,6 @@ impl<D> owo_colors::OwoColorize for nika_check::DataJourney
 impl<Q, K> equivalent::Equivalent<K> for nika_check::DataJourney where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::DataJourney::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::DataJourney where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::DataJourney where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::DataJourney::equivalent(&self, key: &K) -> bool
 pub fn nika_check::DataJourney::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::DataJourney where U: core::convert::From<T>
 pub fn nika_check::DataJourney::into(self) -> U
@@ -1674,8 +1618,6 @@ impl<D> owo_colors::OwoColorize for nika_check::EnergyCounts
 impl<Q, K> equivalent::Equivalent<K> for nika_check::EnergyCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::EnergyCounts::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::EnergyCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::EnergyCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::EnergyCounts::equivalent(&self, key: &K) -> bool
 pub fn nika_check::EnergyCounts::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::EnergyCounts where U: core::convert::From<T>
 pub fn nika_check::EnergyCounts::into(self) -> U
@@ -1890,8 +1832,6 @@ impl<D> owo_colors::OwoColorize for nika_check::Hint
 impl<Q, K> equivalent::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::Hint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
 pub fn nika_check::Hint::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::Hint where U: core::convert::From<T>
 pub fn nika_check::Hint::into(self) -> U
@@ -1936,8 +1876,6 @@ impl<D> owo_colors::OwoColorize for nika_check::InferredPermits
 impl<Q, K> equivalent::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::InferredPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
 pub fn nika_check::InferredPermits::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::InferredPermits where U: core::convert::From<T>
 pub fn nika_check::InferredPermits::into(self) -> U
@@ -1983,8 +1921,6 @@ impl<D> owo_colors::OwoColorize for nika_check::JourneyConsent
 impl<Q, K> equivalent::Equivalent<K> for nika_check::JourneyConsent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::JourneyConsent::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::JourneyConsent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::JourneyConsent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::JourneyConsent::equivalent(&self, key: &K) -> bool
 pub fn nika_check::JourneyConsent::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::JourneyConsent where U: core::convert::From<T>
 pub fn nika_check::JourneyConsent::into(self) -> U
@@ -2030,8 +1966,6 @@ impl<D> owo_colors::OwoColorize for nika_check::JourneyEndpoint
 impl<Q, K> equivalent::Equivalent<K> for nika_check::JourneyEndpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::JourneyEndpoint::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::JourneyEndpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::JourneyEndpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::JourneyEndpoint::equivalent(&self, key: &K) -> bool
 pub fn nika_check::JourneyEndpoint::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::JourneyEndpoint where U: core::convert::From<T>
 pub fn nika_check::JourneyEndpoint::into(self) -> U
@@ -2077,8 +2011,6 @@ impl<D> owo_colors::OwoColorize for nika_check::MissingArg
 impl<Q, K> equivalent::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::MissingArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
 pub fn nika_check::MissingArg::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::MissingArg where U: core::convert::From<T>
 pub fn nika_check::MissingArg::into(self) -> U
@@ -2129,8 +2061,6 @@ impl<D> owo_colors::OwoColorize for nika_check::ModelEndpoint
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ModelEndpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ModelEndpoint::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::ModelEndpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::ModelEndpoint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::ModelEndpoint::equivalent(&self, key: &K) -> bool
 pub fn nika_check::ModelEndpoint::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::ModelEndpoint where U: core::convert::From<T>
 pub fn nika_check::ModelEndpoint::into(self) -> U
@@ -2175,8 +2105,6 @@ impl<D> owo_colors::OwoColorize for nika_check::ModelRequirement
 impl<Q, K> equivalent::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
 pub fn nika_check::ModelRequirement::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::ModelRequirement where U: core::convert::From<T>
 pub fn nika_check::ModelRequirement::into(self) -> U
@@ -2225,8 +2153,6 @@ impl<D> owo_colors::OwoColorize for nika_check::PermitTaint
 impl<Q, K> equivalent::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::PermitTaint where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
 pub fn nika_check::PermitTaint::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::PermitTaint where U: core::convert::From<T>
 pub fn nika_check::PermitTaint::into(self) -> U
@@ -2276,8 +2202,6 @@ impl<D> owo_colors::OwoColorize for nika_check::Requirements
 impl<Q, K> equivalent::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
 pub fn nika_check::Requirements::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::Requirements where U: core::convert::From<T>
 pub fn nika_check::Requirements::into(self) -> U
@@ -2323,8 +2247,6 @@ impl<D> owo_colors::OwoColorize for nika_check::RetentionFact
 impl<Q, K> equivalent::Equivalent<K> for nika_check::RetentionFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::RetentionFact::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::RetentionFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::RetentionFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::RetentionFact::equivalent(&self, key: &K) -> bool
 pub fn nika_check::RetentionFact::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::RetentionFact where U: core::convert::From<T>
 pub fn nika_check::RetentionFact::into(self) -> U
@@ -2378,8 +2300,6 @@ impl<D> owo_colors::OwoColorize for nika_check::RunCertificate
 impl<Q, K> equivalent::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunCertificate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
 pub fn nika_check::RunCertificate::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::RunCertificate where U: core::convert::From<T>
 pub fn nika_check::RunCertificate::into(self) -> U
@@ -2428,8 +2348,6 @@ impl<D> owo_colors::OwoColorize for nika_check::RunDeclFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::RunDeclFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
 pub fn nika_check::RunDeclFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::RunDeclFinding where U: core::convert::From<T>
 pub fn nika_check::RunDeclFinding::into(self) -> U
@@ -2475,8 +2393,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SchemaLintFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaLintFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SchemaLintFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SchemaLintFinding where U: core::convert::From<T>
 pub fn nika_check::SchemaLintFinding::into(self) -> U
@@ -2523,8 +2439,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SchemaTypeFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SchemaTypeFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SchemaTypeFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SchemaTypeFinding where U: core::convert::From<T>
 pub fn nika_check::SchemaTypeFinding::into(self) -> U
@@ -2570,8 +2484,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SecretEgress
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretEgress where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SecretEgress::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SecretEgress where U: core::convert::From<T>
 pub fn nika_check::SecretEgress::into(self) -> U
@@ -2620,8 +2532,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SecretLeak
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretLeak where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SecretLeak::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SecretLeak where U: core::convert::From<T>
 pub fn nika_check::SecretLeak::into(self) -> U
@@ -2667,8 +2577,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SecretRequirement
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SecretRequirement::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SecretRequirement where U: core::convert::From<T>
 pub fn nika_check::SecretRequirement::into(self) -> U
@@ -2715,8 +2623,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SecretUse
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SecretUse where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SecretUse::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretUse where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SecretUse where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SecretUse::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SecretUse::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SecretUse where U: core::convert::From<T>
 pub fn nika_check::SecretUse::into(self) -> U
@@ -2767,8 +2673,6 @@ impl<D> owo_colors::OwoColorize for nika_check::SinkFinding
 impl<Q, K> equivalent::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::SinkFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
 pub fn nika_check::SinkFinding::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::SinkFinding where U: core::convert::From<T>
 pub fn nika_check::SinkFinding::into(self) -> U
@@ -2812,8 +2716,6 @@ impl<D> owo_colors::OwoColorize for nika_check::TaintTrace
 impl<Q, K> equivalent::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::TaintTrace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
 pub fn nika_check::TaintTrace::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::TaintTrace where U: core::convert::From<T>
 pub fn nika_check::TaintTrace::into(self) -> U
@@ -2985,8 +2887,6 @@ impl<D> owo_colors::OwoColorize for nika_check::UnknownArg
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
 pub fn nika_check::UnknownArg::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::UnknownArg where U: core::convert::From<T>
 pub fn nika_check::UnknownArg::into(self) -> U
@@ -3032,8 +2932,6 @@ impl<D> owo_colors::OwoColorize for nika_check::UnknownTool
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnknownTool where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
 pub fn nika_check::UnknownTool::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::UnknownTool where U: core::convert::From<T>
 pub fn nika_check::UnknownTool::into(self) -> U
@@ -3078,8 +2976,6 @@ impl<D> owo_colors::OwoColorize for nika_check::UnverifiableOutputRef
 impl<Q, K> equivalent::Equivalent<K> for nika_check::UnverifiableOutputRef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::UnverifiableOutputRef::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnverifiableOutputRef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::UnverifiableOutputRef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::UnverifiableOutputRef::equivalent(&self, key: &K) -> bool
 pub fn nika_check::UnverifiableOutputRef::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::UnverifiableOutputRef where U: core::convert::From<T>
 pub fn nika_check::UnverifiableOutputRef::into(self) -> U
@@ -3129,8 +3025,6 @@ impl<D> owo_colors::OwoColorize for nika_check::WriteConflict
 impl<Q, K> equivalent::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_check::WriteConflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
 pub fn nika_check::WriteConflict::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_check::WriteConflict where U: core::convert::From<T>
 pub fn nika_check::WriteConflict::into(self) -> U
