@@ -1048,14 +1048,37 @@ fn parse_payload(raw: &str) -> Result<Input, Verdict> {
     })
 }
 
-/// The hook protocol render. The no-opinion pass is `{}` on Claude
-/// Code (NEVER "allow" — the hook teaches, it never widens the user's
-/// own permission flow) and the plain allow on the generic wire. Deny
-/// AND `guard_unavailable` are both denial-SHAPED: an unjudged run never
-/// gets the guard's allow, and the reason names the degradation.
+/// The hook protocol render.
+///
+/// Two verdicts used to share one arm, and they are not the same claim.
+/// `NotOurs` means there is no `nika run` in the command at all — this
+/// guard has no opinion and never looked. `Allow` means a run was
+/// judged and found clean. Lumping them emitted `{"permission":"allow"}`
+/// for `ls`, for `rm -rf`, for every shell command in the session:
+/// installing the nika kit changed how the host treats commands that
+/// have nothing to do with nika, which is authority the kit has no
+/// business taking.
+///
+/// So `NotOurs` is `{}` on BOTH wires — the bytes that say « behave as
+/// if this hook were not installed ». It is already what the Claude
+/// lane emitted, for the reason stated right here in the old comment:
+/// the hook teaches, it never widens the user's own permission flow.
+/// The generic lane simply did not follow its own rule.
+///
+/// `Allow` keeps its affirmative on the generic wire, because that one
+/// is EARNED — a file the ladder just saw clean. Cursor's docs define
+/// `"allow"` as « to proceed » and are silent (checked 2026-08-02 at
+/// cursor.com/docs/agent/hooks) on whether it skips the user's
+/// confirmation, on what a no-opinion answer looks like, and on how
+/// several hooks combine. Under that silence the guard claims only what
+/// it measured.
+///
+/// Deny AND `guard_unavailable` are both denial-SHAPED: an unjudged run
+/// never gets the guard's allow, and the reason names the degradation.
 fn render_hook(verdict: &Verdict, dialect: Dialect) -> String {
     match verdict {
-        Verdict::NotOurs | Verdict::Allow(_) => match dialect {
+        Verdict::NotOurs => "{}".to_owned(),
+        Verdict::Allow(_) => match dialect {
             Dialect::Claude => "{}".to_owned(),
             Dialect::Generic => r#"{"permission":"allow"}"#.to_owned(),
         },
