@@ -89,10 +89,28 @@ fn net_url_arg(
     tool: &str,
     args: Option<&nika_schema::Spanned<serde_json::Value>>,
 ) -> Option<&'static str> {
-    match nika_cap::builtin_effect(tool, args.map(|a| &a.value)) {
-        Some(nika_cap::BuiltinEffect::Net { url_arg }) => Some(url_arg),
-        _ => None,
+    if let Some(nika_cap::BuiltinEffect::Net { url_arg }) =
+        nika_cap::builtin_effect(tool, args.map(|a| &a.value))
+    {
+        return Some(url_arg);
     }
+    // The undecidable channel. `builtin_effect` classifies notify as net
+    // only when `channel:` reads literally `webhook`, so an INTERPOLATED
+    // channel makes the whole tool unclassifiable and the re-gate went
+    // silent — the same shape as the arg-name bug above, through a
+    // different door: `channel: "${{ inputs.ch }}"` with a tainted
+    // target passed check rc=0 where the literal spelling gives rc=2
+    // (2026-08-02).
+    //
+    // Re-gating on an unknown channel cannot invent a finding. A
+    // non-webhook channel's `target` is not a URL (`#general`, an
+    // address), `url_host` returns None on it, and the branch below
+    // never fires. Only a target that IS a URL escaping the declared
+    // hosts speaks — which is a finding whatever channel carries it.
+    if tool == "nika:notify" && string_arg(args, "channel").is_some() {
+        return Some("target");
+    }
+    None
 }
 /// The exec re-entry class (spec 10 §the permit-parameterization taint):
 /// a token that re-enters a command interpreter is never covered by a
@@ -1161,6 +1179,37 @@ mod net_arg_tests {
         let bare = serde_json::json!({ "target": "https://x.test" });
         let bare = nika_schema::Spanned::new(bare, nika_schema::Span::default());
         assert_eq!(net_url_arg("nika:notify", Some(&bare)), Some("target"));
+    }
+
+    /// An INTERPOLATED channel keeps the target under the re-gate.
+    ///
+    /// `builtin_effect` classifies notify as net only on a literal
+    /// `webhook`, so a templated channel made the whole tool
+    /// unclassifiable and the re-gate went silent: the same payload
+    /// passed check rc=0 with `channel: "${{ inputs.ch }}"` and rc=2
+    /// with `channel: webhook` (2026-08-02).
+    #[test]
+    fn an_interpolated_channel_still_re_gates_the_target() {
+        let templated = serde_json::json!({
+            "channel": "${{ inputs.ch }}",
+            "target": "${{ inputs.t }}",
+        });
+        let spanned = nika_schema::Spanned::new(templated, nika_schema::Span::default());
+        assert_eq!(net_url_arg("nika:notify", Some(&spanned)), Some("target"));
+    }
+
+    /// And re-gating an unknown channel cannot invent a finding: a
+    /// non-webhook target is not a URL, so the host extraction yields
+    /// nothing and the branch never speaks. Pinned at the seam that
+    /// makes that true.
+    #[test]
+    fn a_non_url_target_has_no_host_to_judge() {
+        assert_eq!(super::url_host("#general"), None);
+        assert_eq!(super::url_host("ops@example.com"), None);
+        assert_eq!(
+            super::url_host("https://evil.example.com/hook").as_deref(),
+            Some("evil.example.com")
+        );
     }
 
     /// A non-net tool has no URL arg — the re-gate must not invent one.
