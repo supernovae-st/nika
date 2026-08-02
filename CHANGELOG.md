@@ -10,6 +10,8 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.107.1](https://github.com/supernovae-st/nika/compare/v0.107.0..v0.107.1) - 2026-08-02
+
 **The composition wave.** The 0.107 train shipped the trust OBJECTS;
 an outside checkpoint then measured what a stranger actually meets and
 found the composition missing — the concierge still taught a verb the

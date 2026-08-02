@@ -129,9 +129,9 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/f-p8-signed-memory`                                      |
-| HEAD             | `1fc344a2f` (`1fc344a2f649a32365694beb4a07dddb8be03267`)             |
-| workspace        | v0.107.0                                  |
+| branch           | `main`                                      |
+| HEAD             | `cc5fbb9aa` (`cc5fbb9aa845c83d8f705fe4256f415a8537abeb`)             |
+| workspace        | v0.107.1                                  |
 | crates (workspace)| 60                                              |
 | crates (admitted)| 56                                             |
 | crates (WIP)     | 4 — nika-chart nika-fx nika-proof nika-store                                  |
@@ -142,8 +142,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 10                                              |
-| lib tests        | (skipped — pass --no-quick to compute)                              |
-| clippy           | (skipped)                              |
+| lib tests        | 5505 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 

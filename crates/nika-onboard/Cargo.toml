@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name        = "nika-onboard"
-version     = "0.107.0"
+version.workspace = true
 edition     = "2024"
 rust-version = "1.88"
 license     = "AGPL-3.0-or-later"
@@ -9,18 +9,18 @@ description = "nika's onboarding surface — the founding wizard (init) and the 
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
-nika-pack    = { path = "../nika-pack", version = "0.107.0" }    # templates · examples (the scaffold corpus)
-nika-bm25    = { path = "../nika-bm25", version = "0.107.0" }    # intent→template routing (the deterministic floor)
-nika-display = { path = "../nika-display", version = "0.107.0" } # theme + chrome (rail · panel · banner)
-nika-catalog = { path = "../nika-catalog", version = "0.107.0", features = ["providers"] } # the model menu (local first)
+nika-pack    = { path = "../nika-pack", version = "0.107.1" }    # templates · examples (the scaffold corpus)
+nika-bm25    = { path = "../nika-bm25", version = "0.107.1" }    # intent→template routing (the deterministic floor)
+nika-display = { path = "../nika-display", version = "0.107.1" } # theme + chrome (rail · panel · banner)
+nika-catalog = { path = "../nika-catalog", version = "0.107.1", features = ["providers"] } # the model menu (local first)
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
 
 [dev-dependencies]
 # The own-corpus ratchet: every recipe scaffold must parse AND check
 # clean — proven against the REAL ladder, test-side only (the runtime
 # audit arrives injected from the composition root).
-nika-schema = { path = "../nika-schema", version = "0.107.0" }  # parse the scaffolded workflow
-nika-check  = { path = "../nika-check", version = "0.107.0" }  # the is_clean gate the guided loop judges against
+nika-schema = { path = "../nika-schema", version = "0.107.1" }  # parse the scaffolded workflow
+nika-check  = { path = "../nika-check", version = "0.107.1" }  # the is_clean gate the guided loop judges against
 
 [package.metadata.lore]
 daemon        = "forgeron"
