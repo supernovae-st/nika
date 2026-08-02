@@ -999,6 +999,7 @@ pub fn nika_kernel_core::io::command_sandbox::CommandSandbox::confine(&self, spe
 impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_kernel_core::io::command_sandbox::NoopSandbox
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::backend(&self) -> &'static str
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::confine(&self, _spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
+pub fn nika_kernel_core::io::command_sandbox::fold_sandbox_prefix(prefix: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_kernel_core::io::fs
 #[non_exhaustive] pub enum nika_kernel_core::io::fs::FsError
 pub nika_kernel_core::io::fs::FsError::AlreadyExists

@@ -61,7 +61,7 @@
 
 use std::path::Path;
 
-use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError, fold_sandbox_prefix};
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
 
 /// The bubblewrap launcher. A fixed absolute path (not `$PATH`) so a hijacked
@@ -275,17 +275,20 @@ fn grant_subpath(glob: &str) -> Result<Option<String>, CommandSandboxError> {
     if prefix.contains('\0') {
         return refuse("a NUL byte cannot be expressed in a bwrap bind argument");
     }
-    if prefix.split('/').any(|seg| seg == "..") {
-        return refuse("a `..` traversal cannot be expressed as a stable bind");
-    }
-    let normalized = prefix.trim_end_matches('/');
-    if normalized.is_empty() {
-        return refuse("a path of `/` would bind the whole filesystem");
-    }
-    if SYSTEM_ROOTS.contains(&normalized) {
+    // Fold to what the KERNEL will see before comparing. Trimming
+    // trailing slashes is not a fixed point: `/root/./x*` trimmed to
+    // `/root/.` and `//etc/passwd*` to `//etc`, neither of which is a
+    // string in SYSTEM_ROOTS — and both of which the kernel resolves
+    // straight back to the root, binding it read-write into the jail
+    // (2026-08-02). One fold, shared with the seatbelt sibling, so the
+    // two cannot drift apart on the answer.
+    let Some(folded) = fold_sandbox_prefix(&prefix) else {
+        return refuse("this path cannot be expressed as a stable bind");
+    };
+    if SYSTEM_ROOTS.contains(&folded.as_str()) {
         return refuse("a bare system-root directory would over-bind its whole tree");
     }
-    Ok(Some(prefix))
+    Ok(Some(folded))
 }
 
 /// The literal directory prefix of a gitignore-style glob — everything before
@@ -367,11 +370,45 @@ mod tests {
             "~/s",
             "$HOME/x",
             "/a/../..",
+            // The escape of 2026-08-02. Every one of these named a
+            // system root and was GRANTED: the check trimmed trailing
+            // slashes and compared text, while the kernel folds `.` and
+            // collapses `//`. `/root/./x*` became a read-write bind of
+            // the host's `/root` inside the jail.
+            "/root/./x*",
+            "//etc/passwd*",
+            "/home/./x*",
+            "/root/.//x*",
+            "/./usr/x*",
+            "///var///x*",
         ] {
             assert!(
                 grant_subpath(hostile).is_err(),
                 "{hostile:?} must be refused"
             );
+        }
+    }
+
+    /// The list is the contract — every entry, not the three the doc
+    /// comment happens to name as examples. The old test tried exactly
+    /// the prose's `/etc`, `/usr`, `/home`, so deleting any other root
+    /// from the const left every test green.
+    #[test]
+    fn every_system_root_is_refused_in_every_spelling() {
+        for root in SYSTEM_ROOTS {
+            for spelled in [
+                (*root).to_owned(),
+                format!("{root}/"),
+                format!("/{root}"),
+                format!("{root}/./x*"),
+                format!("{root}//x*"),
+                format!("{root}/.//."),
+            ] {
+                assert!(
+                    grant_subpath(&spelled).is_err(),
+                    "{spelled:?} reaches system root {root:?} and must be refused"
+                );
+            }
         }
     }
 

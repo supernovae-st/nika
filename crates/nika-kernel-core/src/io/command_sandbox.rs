@@ -99,6 +99,48 @@ impl CommandSandbox for NoopSandbox {
     }
 }
 
+/// Fold a permit's literal path prefix to the form the KERNEL will see,
+/// so a system-root check can compare against reality instead of text.
+///
+/// Returns `None` when the path can never be a stable confinement —
+/// relative, empty, or carrying a `..` the backend cannot express.
+///
+/// Both sandbox backends used to trim trailing slashes and reject `..`,
+/// then compare the raw string against their root list. Two spellings
+/// survived that and named a system root anyway (2026-08-02):
+///
+/// ```text
+///   /root/*      REFUSED          /root/./x*    granted as "/root/."
+///   /etc/passwd* REFUSED          //etc/passwd* granted as "//etc"
+/// ```
+///
+/// The kernel resolves `.` and collapses `//`, so both became a
+/// read-write bind of the host's system root INTO the jail — the exact
+/// thing each crate's doc comment promises is unrepresentable, and
+/// reachable through any permit an author did not write themselves.
+///
+/// A normalizer that stops before a fixed point cannot feed an
+/// exact-match check. This one reaches it: segments are rebuilt, empties
+/// (from `//`) and `.` dropped, `..` refused outright.
+#[must_use]
+pub fn fold_sandbox_prefix(prefix: &str) -> Option<String> {
+    if !prefix.starts_with('/') || prefix.contains('\0') {
+        return None;
+    }
+    let mut out = String::with_capacity(prefix.len());
+    for seg in prefix.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => return None,
+            s => {
+                out.push('/');
+                out.push_str(s);
+            }
+        }
+    }
+    if out.is_empty() { None } else { Some(out) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +175,68 @@ mod tests {
             reason: "bad path".into(),
         };
         assert!(e.to_string().contains("profile"));
+    }
+}
+
+#[cfg(test)]
+mod fold_tests {
+    use super::fold_sandbox_prefix;
+
+    /// Every spelling that reaches a system root must FOLD to that root,
+    /// so the callers' exact-match check sees it. The first two rows are
+    /// the live escape of 2026-08-02.
+    #[test]
+    fn every_spelling_of_a_system_root_folds_to_it() {
+        for (spelled, want) in [
+            ("/root/.", "/root"),
+            ("//etc", "/etc"),
+            ("/home/.", "/home"),
+            ("/root/.//.", "/root"),
+            ("///usr///", "/usr"),
+            ("/etc/", "/etc"),
+            ("/./etc", "/etc"),
+        ] {
+            assert_eq!(
+                fold_sandbox_prefix(spelled).as_deref(),
+                Some(want),
+                "{spelled} must fold to {want} or the root check cannot see it"
+            );
+        }
+    }
+
+    /// A legitimate subpath keeps its shape — folding must not widen or
+    /// narrow what the author declared.
+    #[test]
+    fn a_real_subpath_survives_folding() {
+        for (spelled, want) in [
+            ("/etc/myapp", "/etc/myapp"),
+            ("/home/me/project", "/home/me/project"),
+            ("/data/./out", "/data/out"),
+            ("/var/log/app/", "/var/log/app"),
+        ] {
+            assert_eq!(fold_sandbox_prefix(spelled).as_deref(), Some(want));
+        }
+    }
+
+    /// What can never be a stable confinement.
+    #[test]
+    fn unconfinable_paths_fold_to_nothing() {
+        for bad in [
+            "relative/path",
+            "./out",
+            "~/x",
+            "$VAR/x",
+            "/",
+            "//",
+            "/././",
+            "/etc/../root",
+            "/a/../..",
+            "/nul\0byte",
+        ] {
+            assert!(
+                fold_sandbox_prefix(bad).is_none(),
+                "{bad:?} must not fold to a confinable path"
+            );
+        }
     }
 }

@@ -67,7 +67,7 @@
 
 use std::path::{Path, PathBuf};
 
-use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError, fold_sandbox_prefix};
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
 
 /// The OS-shipped Seatbelt launcher. A fixed absolute path (not `$PATH`) so a
@@ -327,17 +327,16 @@ fn grant_subpath(glob: &str) -> Result<Option<String>, CommandSandboxError> {
         // no shell expansion, so these would not match the canonical path.
         return refuse("a sandbox path must be absolute (canonicalize it first)");
     }
-    if prefix.split('/').any(|seg| seg == "..") {
-        return refuse("a `..` traversal cannot be expressed as a stable subpath");
-    }
-    let normalized = prefix.trim_end_matches('/');
-    if normalized.is_empty() {
-        return refuse("a path of `/` would grant the whole filesystem");
-    }
-    if SYSTEM_ROOTS.contains(&normalized) {
+    // Fold to what the KERNEL will see before comparing — see the
+    // landlock sibling for the escape this closes. One fold, shared, so
+    // the two backends cannot answer differently.
+    let Some(folded) = fold_sandbox_prefix(&prefix) else {
+        return refuse("this path cannot be expressed as a stable subpath");
+    };
+    if SYSTEM_ROOTS.contains(&folded.as_str()) {
         return refuse("a bare system-root directory would over-grant its whole tree");
     }
-    Ok(Some(prefix))
+    Ok(Some(folded))
 }
 
 /// The literal directory prefix of a gitignore-style glob — everything before
