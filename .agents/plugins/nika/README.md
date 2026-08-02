@@ -67,6 +67,13 @@ callable is a tool under `invoke:`, and the engine ships its own
   run never gets its allow. The other deny is a run on a file with
   live check findings — the denial carries the findings, so the agent
   repairs and re-checks by itself.
+- **The guard speaks only about `nika run`.** Every other shell command
+  the agent proposes passes through untouched — the hook returns no
+  decision at all, so your host's own permission flow decides exactly
+  as it would without the kit installed. Installing this must not change
+  how your editor treats `rm -rf` or anything else that is not a run.
+  An affirmative « proceed » is only ever earned by a run the ladder
+  just saw clean.
 - **Windows**: the hooks are bash scripts; without a bash on PATH the
   hook processes cannot run — comfort AND guard rails are effectively
   absent (runs fall back to the host's own permission flow, unguarded).
