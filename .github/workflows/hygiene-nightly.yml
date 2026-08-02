@@ -51,6 +51,17 @@ jobs:
           cat /tmp/hygiene.txt
           sed -E 's/\x1b\[[0-9;]*[mK]//g' /tmp/hygiene.txt > /tmp/hygiene-clean.txt
 
+      # An exit this job does not recognise is NOT a clear. 127 (the script
+      # is gone), 124 (timeout), 137 (OOM-killed) all used to fall past
+      # every branch below and leave a green check — the dashboard silently
+      # reporting nothing about a run that never happened. It fails loudly
+      # instead: an unmeasurable state is not a measured one.
+      - name: Refuse an unmeasurable run
+        if: steps.hygiene.outputs.exit != '0' && steps.hygiene.outputs.exit != '1' && steps.hygiene.outputs.exit != '2'
+        run: |
+          echo "::error::hygiene dashboard could not answer (exit ${{ steps.hygiene.outputs.exit }}) — this is not a clean bill"
+          exit 1
+
       - name: Prepare issue body
         if: steps.hygiene.outputs.exit == '2'
         run: |
@@ -84,8 +95,13 @@ jobs:
             gh issue create --title "$TITLE" --body-file /tmp/issue-body.md --label hygiene-drift
           fi
 
-      - name: Close drift issue if all green
-        if: steps.hygiene.outputs.exit == '0'
+      # NOT-RED closes it, which is 0 or 1 — not 0 alone. The dashboard
+      # tracks DRIFT (exit 2); a yellow is a warning, not drift. Keyed on
+      # 0 only, and with five persistent yellows on the tree, the close
+      # path could never fire: every issue this job ever opened would stay
+      # open forever once the red was repaired (2026-08-02).
+      - name: Close drift issue when no longer RED
+        if: steps.hygiene.outputs.exit == '0' || steps.hygiene.outputs.exit == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
