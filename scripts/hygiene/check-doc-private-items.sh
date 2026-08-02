@@ -57,7 +57,30 @@ done
 export CARGO_TARGET_DIR="$REPO_ROOT/target/doc-check"
 
 # RUSTDOCFLAGS=-D warnings promotes every rustdoc warning to an error.
-output=$(RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items "${pkg_args[@]}" 2>&1 || true)
+#
+# The exit code is KEPT, and it decides. `|| true` used to throw it away
+# and let a grep speak for cargo, which got both directions wrong: a
+# cargo killed mid-run (OOM · a timeout · lock contention under the
+# pre-push gate, where three cargos run back to back) prints no
+# `error:` line and read as CLEAN, while any crash that did print one
+# was reported as « private-doc drift » — a content finding that does
+# not exist. That misattribution cost a real debugging round on
+# 2026-08-02: the gate said drift, the tree had none, and the vector
+# was green the moment it ran alone.
+#
+# Three outcomes now, named apart: cargo says clean · cargo says drift
+# · cargo could not answer.
+output=$(RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items "${pkg_args[@]}" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ] && ! echo "$output" | grep -qE '^(error|warning):'; then
+  printf "RED: cargo doc could not answer (exit %s · no rustdoc diagnostic)\n" "$rc"
+  echo "$output" | tail -10 | sed 's/^/    /'
+  echo ""
+  echo "This is NOT a documentation finding — the tool failed to run."
+  echo "Common causes: a concurrent cargo holding the lock, an OOM kill,"
+  echo "a full disk under target/doc-check. Re-run this vector alone."
+  exit 2
+fi
 if echo "$output" | grep -qE '^(error|warning):'; then
   printf "RED: private-doc drift (cargo doc --document-private-items emitted warnings/errors):\n"
   echo "$output" | grep -E '^(error|warning):' | head -20 | sed 's/^/    /'
