@@ -4,6 +4,31 @@
 
 set -euo pipefail
 
+# The filter below decides what four ratchets are allowed to SEE, so it
+# proves itself honest before any of them reads a verdict from it. A
+# broken filter does not make a gate fail — it makes a gate pass quietly,
+# and on 2026-08-02 one brace inside a string blanked whole files for the
+# .unwrap() ratchet among others.
+#
+# The proof lives HERE, not in a caller: the pre-push runner ran it, CI
+# invoked the check scripts directly and did not, so the very bug the
+# self-test was written for would have stayed green in CI indefinitely.
+# A dependency belongs with the thing that has it.
+#
+# Set NIKA_SKIP_FILTER_SELFTEST=1 only inside the self-test itself (it
+# sources this file, and must not recurse).
+_lib_prove_filter() {
+  local selftest="${BASH_SOURCE[0]%/*}/test-strip-test-items.sh"
+  [ -n "${NIKA_SKIP_FILTER_SELFTEST:-}" ] && return 0
+  [ -x "$selftest" ] || return 0
+  if ! NIKA_SKIP_FILTER_SELFTEST=1 bash "$selftest" >/dev/null 2>&1; then
+    printf 'FAIL  the shared test-item filter is not honest — this ratchet cannot be trusted:\n' >&2
+    NIKA_SKIP_FILTER_SELFTEST=1 bash "$selftest" >&2 || true
+    exit 2
+  fi
+}
+_lib_prove_filter
+
 # List tracked .rs files under any */src/ directory (excluding tests/benches/examples).
 rs_src_files() {
   git ls-files '*.rs' | grep -E '(^|/)src/' | grep -vE '(^|/)(tests|benches|examples)/' || true
