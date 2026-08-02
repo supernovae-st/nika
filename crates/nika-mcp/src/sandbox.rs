@@ -28,15 +28,15 @@
 //!   documented for exec; `proxy_port` stays `None`).
 //! - **Environment** — the child gets a SCRUBBED environment: the spawn
 //!   site `env_clear`s every ambient value (provider API keys, session
-//!   tokens, the [`DANGEROUS_ENV_VARS`] injection vectors) and re-admits
-//!   ONLY the curated `PASSTHROUGH_ENV_VARS`. MCP config values pass
+//!   tokens, the dangerous-floor injection vectors) and re-admits
+//!   ONLY the curated runner floor. MCP config values pass
 //!   explicitly (argv), never via ambient env inheritance.
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use nika_kernel::command_sandbox::CommandSandbox;
-use nika_kernel::process::{DANGEROUS_ENV_VARS, NetPolicy, SandboxSpec};
+use nika_kernel::process::{NetPolicy, SandboxSpec};
 
 use crate::client::McpServerConfig;
 
@@ -57,25 +57,6 @@ pub fn platform_sandbox() -> Arc<dyn CommandSandbox> {
         return Arc::new(nika_sandbox_landlock::LandlockSandbox::new());
     }
     Arc::new(nika_kernel::command_sandbox::NoopSandbox)
-}
-
-/// The env-var names a spawned MCP server may inherit — the ONE canonical
-/// runner env floor (NEP-0005 · `nika_kernel::process::RUNNER_FLOOR_ENV_VARS`
-/// · the same list the exec spawn site composes from, so the two spawn
-/// families cannot drift). A server needs its loader path, a home for tool
-/// caches, scratch, and locale/timezone — nothing else. Provider API keys and
-/// every other ambient value stay with the engine; a workflow-declared
-/// `permits.env:` passthrough joins here when run-time MCP spawning lands
-/// (the seam is `compose_child_env` · today's spawns are the pin/approve
-/// verbs, outside any workflow — floor-only is the correct composition).
-pub(crate) const PASSTHROUGH_ENV_VARS: &[&str] = nika_kernel::process::RUNNER_FLOOR_ENV_VARS;
-
-/// The spawn-env decision, pure: ONLY the floor names inherit, and the
-/// [`DANGEROUS_ENV_VARS`] floor wins even over those — a name on both lists
-/// never reaches the child (the same « the floor wins » posture as the exec
-/// runner's composed strip · disjointness is asserted kernel-side).
-pub(crate) fn env_passthrough(name: &str) -> bool {
-    PASSTHROUGH_ENV_VARS.contains(&name) && !DANGEROUS_ENV_VARS.contains(&name)
 }
 
 /// The one-line sandbox mode note printed on every connect/verify —
@@ -169,6 +150,7 @@ fn lexically_normalize(path: &Path) -> String {
     clippy::disallowed_methods
 )] // disallowed_methods: tests read HOME/vars to build probe paths — no SecretStore in a test
 mod tests {
+    use nika_kernel::process::{DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS as PASSTHROUGH_ENV_VARS};
     use std::path::PathBuf;
     use std::sync::Mutex;
 
@@ -378,8 +360,23 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ping","descri
 
     #[test]
     fn the_dangerous_floor_and_the_secret_class_never_pass() {
+        // Asked of the composition PRODUCTION runs, not of a predicate
+        // beside it. `apply_env_scrub` calls `compose_child_env` with no
+        // grants and no authored map, so this map IS what a spawned
+        // server inherits — the crate's own copy of the law was retired
+        // the day an adversarial pass noticed the doc promised one
+        // function and the code had two (2026-08-02).
+        let ambient = |name: &str| Some(format!("ambient-{name}"));
+        let composed = nika_kernel::process::compose_child_env(
+            ambient,
+            &[],
+            &std::collections::BTreeMap::new(),
+        );
         for name in DANGEROUS_ENV_VARS {
-            assert!(!env_passthrough(name), "{name} must never reach a server");
+            assert!(
+                !composed.contains_key(*name),
+                "{name} must never reach a server"
+            );
         }
         for provider_key in [
             "OPENAI_API_KEY",
@@ -388,12 +385,12 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ping","descri
             "GITHUB_TOKEN",
         ] {
             assert!(
-                !env_passthrough(provider_key),
+                !composed.contains_key(provider_key),
                 "{provider_key} is not curated"
             );
         }
         for ok in ["PATH", "HOME", "TMPDIR"] {
-            assert!(env_passthrough(ok), "{ok} is curated");
+            assert!(composed.contains_key(ok), "{ok} is curated");
         }
         // The two lists are structurally disjoint — a curated name can never
         // be an injection vector.

@@ -708,21 +708,35 @@ impl ToolsListDyn for StdioMcpClient {
 
 /// Scrub the child's environment: `env_clear` drops EVERY ambient value the
 /// engine holds (provider API keys, session tokens, the whole
-/// env-var-injection class), then ONLY the curated passthrough names a
-/// server legitimately needs are re-admitted
-/// ([`crate::sandbox::PASSTHROUGH_ENV_VARS`]) — with the exec path's
-/// [`DANGEROUS_ENV_VARS`](nika_kernel::process::DANGEROUS_ENV_VARS) floor
-/// winning even over those. MCP config values reach the server via argv,
-/// never via ambient env inheritance.
+/// env-var-injection class), then ONLY the curated names a server
+/// legitimately needs are re-admitted — the runner floor
+/// ([`nika_kernel::process::RUNNER_FLOOR_ENV_VARS`]) minus the
+/// [`DANGEROUS_ENV_VARS`](nika_kernel::process::DANGEROUS_ENV_VARS)
+/// floor, which wins even over those. MCP config values reach the server
+/// via argv, never via ambient env inheritance.
 #[allow(clippy::disallowed_types, clippy::disallowed_methods)] // import-site exemption note · reading the operator's ambient env to re-admit a curated subset to the child is the spawn site's duty, not a secret lookup
 fn apply_env_scrub(cmd: &mut Command) {
+    // ONE composition, shared with the exec runner. This used to walk
+    // the floor itself and re-check the dangerous list — a second
+    // implementation of the same law, under a doc that says both spawn
+    // families run the SAME function (2026-08-02 · an adversarial pass
+    // caught the doc telling the truth about an intent the code had
+    // stopped honouring).
+    //
+    // It was equivalent, and equivalence is exactly what nothing
+    // guaranteed: a protective rule added to `compose_child_env` had no
+    // structural path into this copy. The MCP stdio child still gets
+    // the STRICTEST call — no passthrough grants, no authored map, so
+    // only the floor minus the dangerous names survives, which is what
+    // this crate's own module doc promises.
+    let env = nika_kernel::process::compose_child_env(
+        |name| std::env::var(name).ok(),
+        &[],
+        &std::collections::BTreeMap::new(),
+    );
     cmd.env_clear();
-    for &name in crate::sandbox::PASSTHROUGH_ENV_VARS {
-        if crate::sandbox::env_passthrough(name)
-            && let Some(value) = std::env::var_os(name)
-        {
-            cmd.env(name, value);
-        }
+    for (name, value) in env {
+        cmd.env(name, value);
     }
 }
 
