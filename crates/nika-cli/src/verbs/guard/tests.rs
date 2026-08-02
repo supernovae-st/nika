@@ -647,9 +647,19 @@ fn dialect_sniff_ignores_the_marker_inside_the_command_text() {
 fn infrastructure_failure_is_a_visible_guard_unavailable() {
     // Malformed JSON: the dialect is still sniffed from the raw
     // bytes (a Claude payload breaks into the Claude shape).
-    let input = parse_payload("{not json}");
+    //
+    // The payloads here NAME a run, and that is now load-bearing: a
+    // broken payload that never says `nika` is not ours to refuse, or
+    // wiring a host we cannot parse costs it every shell command
+    // (2026-08-02 · the shim's own fixed bug, one layer down). What
+    // this test pins is the other half — when the bytes COULD have
+    // carried a run and we cannot read them, the degradation is loud.
+    //
+    // A truncated payload cannot dodge that scope: the oversize path
+    // refuses before `parse_payload` is ever called.
+    let input = parse_payload("{not json} nika run x");
     assert!(input.is_err(), "malformed refuses to parse");
-    let raw = r#"{"hook_event_name":"PreToolUse", BROKEN}"#;
+    let raw = r#"{"hook_event_name":"PreToolUse","tool_input":{"command":"nika run x"} BROKEN}"#;
     let verdict = parse_payload(raw).expect_err("malformed refuses to parse");
     let out = finish(&verdict, Dialect::Claude, false, plain());
     assert_eq!(out.code, exit::ENV);
@@ -660,8 +670,9 @@ fn infrastructure_failure_is_a_visible_guard_unavailable() {
         .to_owned();
     assert!(reason.contains("guard_unavailable"), "{reason}");
 
-    // No command key at all.
-    let verdict = parse_payload(r#"{"hook_event_name":"PreToolUse","cwd":"/tmp"}"#)
+    // No command key at all — but the payload speaks of a run, so the
+    // guard owes an answer about it.
+    let verdict = parse_payload(r#"{"hook_event_name":"PreToolUse","cwd":"/tmp/nika"}"#)
         .expect_err("a payload without a command cannot be judged");
     assert!(matches!(verdict, Verdict::Unavailable(_)), "{verdict:?}");
 
@@ -883,4 +894,46 @@ fn shim_broken_binary_is_a_visible_guard_unavailable() {
     assert_eq!(rc, 0, "{stdout}");
     assert!(stdout.contains("guard_unavailable"), "{stdout}");
     assert!(stdout.contains(r#""permission":"deny""#), "{stdout}");
+}
+
+/// A host whose payload shape we do not parse must not lose its shell.
+///
+/// Wiring a new client is exactly when nobody is watching, and the
+/// binary denied EVERY command on an unread payload — `ls` came back
+/// « nika run blocked » (2026-08-02). That is the shim's fixed bug one
+/// layer down. The scope law is the same and just as exact: the judge
+/// only ever claims a command whose word is `nika` or `nika-cli`, both
+/// of which contain that substring, so bytes without it hold no run for
+/// us to miss.
+#[test]
+fn an_unreadable_payload_is_only_ours_when_it_could_have_carried_a_run() {
+    // Shapes other hosts plausibly send — none of them ours.
+    for payload in [
+        r#"{"shell_command":"ls -la","working_directory":"/tmp"}"#,
+        r#"{"tool":{"name":"terminal","input":{"command":"git status"}}}"#,
+        r#"{"arguments":{"cmd":["rm","-rf","/tmp/x"]}}"#,
+        "{}",
+        "not json at all",
+    ] {
+        let verdict = parse_payload(payload).expect_err("no command to judge");
+        assert_eq!(
+            verdict,
+            Verdict::NotOurs,
+            "a payload that never says nika is not ours to refuse: {payload}"
+        );
+    }
+
+    // The same unreadable shapes, now naming a run: the degradation is
+    // ours to report, and it stays deny-shaped.
+    for payload in [
+        r#"{"shell_command":"nika run x.nika.yaml","working_directory":"/tmp"}"#,
+        r#"{"tool":{"input":{"cmd":"nika run x"}}}"#,
+        "garbage nika run x",
+    ] {
+        let verdict = parse_payload(payload).expect_err("still unreadable");
+        assert!(
+            matches!(verdict, Verdict::Unavailable(_)),
+            "an unjudgeable run degrades visibly: {payload} → {verdict:?}"
+        );
+    }
 }
