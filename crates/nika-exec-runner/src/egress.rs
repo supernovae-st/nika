@@ -861,9 +861,12 @@ mod tests {
     #[test]
     fn the_port_floor_refuses_classic_non_http_services() {
         // H3 · a net.http permit never admits ssh/smtp/docker/kube ports.
+        // Every DECLARED port, not a sample: the four hand-typed ones this
+        // test used to carry left ten of the fourteen unproven, and an
+        // entry nobody exercises is an entry nobody would miss.
         let probe = Probe::default();
         let observer = probe.observer();
-        for port in [22, 25, 2375, 10250] {
+        for &port in DANGEROUS_EGRESS_PORTS {
             assert!(
                 !decide(
                     "api.example.com",
@@ -871,15 +874,50 @@ mod tests {
                     &["api.example.com".to_owned()],
                     &observer
                 ),
-                "port {port} must hit the floor"
+                "port {port} is on the floor and must be refused"
             );
         }
-        assert!(decide(
-            "api.example.com",
-            443,
-            &["api.example.com".to_owned()],
-            &observer
-        ));
+        // The floor only means something against an open door.
+        for port in [80, 443, 8080, 8443] {
+            assert!(
+                decide(
+                    "api.example.com",
+                    port,
+                    &["api.example.com".to_owned()],
+                    &observer
+                ),
+                "port {port} is ordinary HTTP egress and must pass"
+            );
+        }
+    }
+
+    #[test]
+    fn the_floor_never_loses_a_port() {
+        // Iterating the list above proves what IS there; it cannot notice a
+        // deletion — the loop simply stops visiting what is gone. This names
+        // each port and the relay a `net.http` permit would become without it.
+        const FLOOR: &[(u16, &str)] = &[
+            (22, "ssh — a shell on the far side of an HTTP grant"),
+            (23, "telnet — the same, in clear text"),
+            (25, "smtp — mail relay, the classic spam confused deputy"),
+            (110, "pop3 — mailbox read"),
+            (143, "imap — mailbox read"),
+            (445, "smb — file shares, and the NTLM-relay family"),
+            (2375, "docker daemon (plain) — root on the host"),
+            (2376, "docker daemon (tls) — the same door, wearing a cert"),
+            (3306, "mysql — direct database access"),
+            (5432, "postgres — direct database access"),
+            (6379, "redis — unauthenticated by default"),
+            (9200, "elasticsearch — bulk read of whatever it indexes"),
+            (10250, "kubelet — exec into any pod on the node"),
+            (27017, "mongodb — direct database access"),
+        ];
+        for (port, why) in FLOOR {
+            assert!(
+                DANGEROUS_EGRESS_PORTS.contains(port),
+                "port {port} left the floor · it opens: {why}"
+            );
+        }
     }
 
     #[test]

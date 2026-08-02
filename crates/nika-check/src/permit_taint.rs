@@ -906,6 +906,47 @@ tasks:
         );
     }
 
+    /// The fixture above proves `--exec`. The other five rode on its
+    /// reputation: each names a way back into an interpreter, and each
+    /// must be refused by its own name.
+    #[test]
+    fn every_reentry_token_is_refused_by_name() {
+        for token in REENTRY_TOKENS {
+            let y = format!(
+                "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"find\"]\ninputs:\n  \
+                 extra: {{ type: string, default: \"{token}\" }}\ntasks:\n  search:\n    \
+                 exec: {{ command: [\"find\", \".\", \"${{{{ inputs.extra }}}}\"] }}\n"
+            );
+            let taints = taints_of(&y);
+            assert_eq!(taints.len(), 1, "{token:?} was not refused: {taints:?}");
+            assert!(
+                taints[0].detail.contains("re-entry"),
+                "{token:?} refused for the wrong reason: {}",
+                taints[0].detail
+            );
+        }
+    }
+
+    /// Iterating cannot see a deletion. This names each token and the door
+    /// it closes, so removing one fails here instead of passing silently.
+    #[test]
+    fn the_reentry_floor_never_loses_a_token() {
+        const FLOOR: &[(&str, &str)] = &[
+            ("--exec", "find/xargs run an arbitrary program per match"),
+            ("--execdir", "the same, from the match's directory"),
+            ("-exec", "the single-dash spelling find also accepts"),
+            ("-execdir", "the single-dash spelling of --execdir"),
+            ("-c", "sh/bash/python read a program from the argument"),
+            ("eval", "the shell builtin that re-parses its argument"),
+        ];
+        for (token, why) in FLOOR {
+            assert!(
+                REENTRY_TOKENS.contains(token),
+                "{token:?} left the re-entry class · it re-opens: {why}"
+            );
+        }
+    }
+
     #[test]
     fn fixture_009_untrusted_host_under_fetch_permit_is_refused() {
         let y = r#"nika: v1

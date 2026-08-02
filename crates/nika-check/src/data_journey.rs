@@ -734,6 +734,41 @@ tasks:
         );
     }
 
+    /// The test above proves ONE token of ten. Every declared token must
+    /// mark a path, or the list is decoration for the nine nobody exercises.
+    #[test]
+    fn every_declared_pii_token_marks_a_path() {
+        for token in PII_PATH_TOKENS {
+            assert!(
+                pii_shaped(&format!("data/{token}-export.csv")),
+                "the declared token {token:?} classifies nothing"
+            );
+            // Segment-prefix, per the doc: a token INSIDE a word is not a match.
+            assert!(
+                !pii_shaped(&format!("data/x{token}.csv")),
+                "{token:?} matched mid-segment · the rule says segment-prefix"
+            );
+        }
+        // Conservative by law: an unmatched shape stays internal.
+        assert!(!pii_shaped("data/build-cache.json"));
+        assert!(!pii_shaped("custom.rs"), "custom != customer");
+    }
+
+    /// Iterating proves what is there; only a named floor catches a removal.
+    #[test]
+    fn the_pii_floor_never_loses_a_token() {
+        const FLOOR: &[&str] = &[
+            "pii", "personal", "customer", "patient", "passport", "ssn", "identity", "medical",
+            "gdpr", "rgpd",
+        ];
+        for token in FLOOR {
+            assert!(
+                PII_PATH_TOKENS.contains(token),
+                "{token:?} left the list · paths naming it stop reading as sensitive"
+            );
+        }
+    }
+
     /// The wire shape: lowercase classification + locus, the field riding
     /// the report's `--json` surface as `data_journey` (additive —
     /// `report_version` untouched).
