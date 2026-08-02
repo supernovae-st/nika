@@ -59,7 +59,27 @@ recorded_prefix="${recorded:0:7}"
 if [ "$actual_prefix" = "$recorded_prefix" ]; then
   echo "OK ($recorded)"
   exit 0
-else
-  echo "stale: MEMORY=$recorded actual=$actual"
+fi
+
+# Behind is not the same as wrong (2026-08-02). This vector ran RED on any
+# mismatch, which at PRE-PUSH time is red by construction: MEMORY.md is
+# written before the commit being pushed exists, so it is always at least
+# one behind. A gate that cannot be green when everything is correct is the
+# false-RED class the runner's own header calls social noise. It only
+# escaped notice because the vector had been blind since May.
+#
+# So the two cases split. A recorded SHA the repo knows AND that is an
+# ancestor of main is a LAG — yellow, carrying its distance, so a pointer
+# drifting far behind still says so loudly. A recorded SHA the repo does
+# not know, or that sits on another lineage, is a WRONG pointer — red.
+if ! git cat-file -e "${recorded}^{commit}" 2>/dev/null; then
+  echo "wrong: MEMORY=$recorded is not a commit in this repo (actual=$actual)"
   exit 2
 fi
+if ! git merge-base --is-ancestor "$recorded" "$actual" 2>/dev/null; then
+  echo "wrong: MEMORY=$recorded is not an ancestor of $actual (diverged pointer)"
+  exit 2
+fi
+behind="$(git rev-list --count "${recorded}..${actual}" 2>/dev/null || echo '?')"
+echo "behind by ${behind}: MEMORY=$recorded actual=$actual"
+exit 1
