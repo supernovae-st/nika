@@ -35,6 +35,10 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 2
 
+# The shared production-region filter (and its source-time self-test).
+# shellcheck source=../ci/_lib.sh
+. "$REPO_ROOT/scripts/ci/_lib.sh"
+
 # Direct-OS constructs that MUST go through a seam at L1.5+. Time/entropy
 # (ride ClockDyn / are the uuid effect), filesystem, and network.
 FORBIDDEN_PATTERNS=(
@@ -69,14 +73,35 @@ violation_log=""
 for crate in "${SCANNED_CRATES[@]}"; do
   src_dir="crates/$crate/src"
   [ -d "$src_dir" ] || continue
-  # Scan every .rs file's PRODUCTION region only — the lines BEFORE the
-  # first `#[cfg(test)]` / `mod tests` (Rust convention: tests live in a
-  # trailing test module). A test naming a scratch dir by SystemTime or a
-  # boundary test writing real files is not a runtime bypass.
+  # Scan every .rs file's PRODUCTION region only. This used to cut at the
+  # FIRST `#[cfg(test)]` / `mod tests` line and keep the head — a filter
+  # that is wrong in both directions (2026-08-02):
+  #
+  #   · production code AFTER a test module is never read. Three files in
+  #     the current scope carry code past the first marker, so this vector
+  #     had a blind tail it never announced.
+  #   · a whole test FILE (`tests.rs`, gated by `#[cfg(test)] mod tests;`
+  #     in its parent) has no in-file marker, so all of it counted as
+  #     production — 8.5k lines of it here, one fixture away from a false RED.
+  #
+  # `strip_test_items` is the house filter for exactly this: brace-counting,
+  # literal-aware, with a 9-case self-test that runs at source time. Four
+  # ratchets already read through it (unwrap · dead-code · error-one-voice).
+  # A second, weaker copy of a filter is the divergence class this repo
+  # keeps paying for — so there is now one filter, not two.
+  #
+  # It is used as a MASK, never as the text. `strip_test_items` also blanks
+  # COMMENTS (it must, to count braces), and this vector's entire allowlist
+  # lives in a comment: `// seam-bypass-ok: <reason>`. Reading its output
+  # directly reported all eleven signed-off exemptions as violations — a
+  # green turned red by the fix meant to make it honest. So the filter says
+  # WHICH lines are production, and the ORIGINAL file says what they say.
+  # Line numbering is preserved on both sides, so the report still points
+  # at the real line.
   while IFS= read -r rs; do
-    cut=$(grep -nE '#\[cfg\(test\)\]|^[[:space:]]*mod tests' "$rs" 2>/dev/null \
-      | head -1 | cut -d: -f1)
-    prod=$(if [ -n "$cut" ]; then head -n $((cut - 1)) "$rs"; else cat "$rs"; fi)
+    prod=$(awk 'NR==FNR { mask[FNR] = $0; next }
+                { print (mask[FNR] ~ /[^[:space:]]/) ? $0 : "" }' \
+      <(strip_test_items "$rs") "$rs")
     for pat in "${FORBIDDEN_PATTERNS[@]}"; do
       # Match with line numbers, then drop: line comments (//), `use`
       # import lines (a TYPE import like `use std::net::SocketAddr` is not
@@ -94,7 +119,10 @@ for crate in "${SCANNED_CRATES[@]}"; do
         violation_log+="$(echo "$hits" | head -3 | sed 's/^/    /')\n"
       fi
     done
-  done < <(find "$src_dir" -name '*.rs' 2>/dev/null)
+    # `tests.rs` is excluded by basename, mirroring `rs_prod_files` — the
+    # same rule clippy's own scoping uses, and the same one the four sibling
+    # ratchets apply.
+  done < <(find "$src_dir" -name '*.rs' 2>/dev/null | grep -vE '(^|/)tests\.rs$')
 done
 
 if [ "$violations" -gt 0 ]; then
