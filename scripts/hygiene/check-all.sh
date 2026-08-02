@@ -142,6 +142,7 @@ run_check "42 seam-discipline      " "check-seam-discipline.sh"
 run_check "43 adr-index-parity     " "check-adr-index-parity.sh"
 run_check "44 script-path-refs     " "check-script-path-refs.sh"
 run_check "45 taught-commands      " "check-taught-commands.sh"
+run_check "46 kit-script-tests     " "check-kit-script-tests.sh"
 
 # --- Output ---
 g=0

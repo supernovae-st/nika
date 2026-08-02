@@ -24,6 +24,26 @@ unavailable() {
   # $1 = a one-line reason — fixed strings and an exit code only, never
   # raw payload bytes (hand-interpolated JSON stays injection-free by
   # construction, the same law the old fixed-message fallback obeyed).
+  #
+  # SCOPE FIRST. A degradation is only ours to report about a command
+  # that could have been ours. Without this, a missing binary denied
+  # EVERY shell command in the session — `ls` came back « nika run
+  # blocked » — and the README's own macOS bullet says a GUI-launched
+  # Cursor not inheriting PATH is a normal Tuesday. Fail-visible must
+  # not mean fail-on-everything (2026-08-02).
+  #
+  # The filter is EXACT, not a heuristic, and it is not the regex era
+  # returning: the judge itself only ever claims a command whose word is
+  # `nika` or `nika-cli` (guard.rs, the dispatch), and both contain this
+  # substring. A payload without it would come back NotOurs from the
+  # binary too — so staying silent here loses nothing the guard ever had.
+  case "$input" in
+    *[Nn][Ii][Kk][Aa]*) ;;
+    *)
+      printf '{}\n'
+      exit 0
+      ;;
+  esac
   case "$input" in
     *hook_event_name*)
       printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"guard_unavailable: %s — the guard could not judge, and an unjudged run never gets its allow. Judge by hand: nika check <file> — or run outside the agent, where the run belongs to you."}}\n' "$1"
