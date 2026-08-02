@@ -66,10 +66,6 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
         doc: "The workflow id (kebab-case). Required.",
     },
     Entry {
-        name: "description",
-        doc: "Free-form human description of the workflow.",
-    },
-    Entry {
         name: "model",
         doc: "The workflow-level default model, as `<provider>/<name>`.",
     },
@@ -103,6 +99,22 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
     Entry {
         name: "outputs",
         doc: "The workflow's return contract — named values the run yields.",
+    },
+    Entry {
+        name: "policy",
+        doc: "Run-wide policy (retries · timeouts · concurrency) applied to every task.",
+    },
+    Entry {
+        name: "types",
+        doc: "Named schemas reusable by `inputs`, `outputs` and structured infer.",
+    },
+    Entry {
+        name: "run",
+        doc: "Run-level settings the engine reads before the DAG starts.",
+    },
+    Entry {
+        name: "assert",
+        doc: "Post-run assertions the engine evaluates against the outputs.",
     },
 ];
 
@@ -265,7 +277,7 @@ pub const PROVIDERS: &[Entry] = &[
         doc: "OpenAI GPT models (cloud).",
     },
     Entry {
-        name: "google",
+        name: "gemini",
         doc: "Google Gemini models (cloud).",
     },
     Entry {
@@ -296,23 +308,20 @@ mod tests {
 
     #[test]
     fn top_level_keys_mirror_the_parser() {
-        // Must match nika_schema::parser TOP_LEVEL_KEYS exactly.
-        let names: Vec<&str> = TOP_LEVEL_KEYS.iter().map(|e| e.name).collect();
+        // DERIVED from the parser, never retyped. The old assertion
+        // compared this list to a third hand-written copy in the test
+        // body — so it passed while the editor offered 11 keys of the
+        // parser's 14, including `description`, which the parser refuses
+        // with its own code. A mirror checked against itself is not a
+        // mirror (2026-08-02).
+        let mut ours: Vec<&str> = TOP_LEVEL_KEYS.iter().map(|e| e.name).collect();
+        let mut theirs: Vec<&str> = nika_schema::parser::TOP_LEVEL_KEYS.to_vec();
+        ours.sort_unstable();
+        theirs.sort_unstable();
         assert_eq!(
-            names,
-            [
-                "nika",
-                "workflow",
-                "description",
-                "model",
-                "inputs",
-                "config",
-                "const",
-                "secrets",
-                "permits",
-                "tasks",
-                "outputs",
-            ]
+            ours, theirs,
+            "the editor's top-level vocabulary must BE the parser's — \
+             anything it offers that the parser refuses teaches a broken file"
         );
     }
 
@@ -378,24 +387,31 @@ mod tests {
             .split("providers_order:")
             .nth(1)
             .expect("the pack tokens carry presentation.providers_order (sync-pack post spec#73)");
-        let pinned: Vec<&str> = section
+        // The token is a PRESENTATION order and may name a provider by an
+        // alias — it carries `google`, whose runnable id is `gemini`. The
+        // editor must complete the RUNNABLE id: `google/gemini-2.5-flash`
+        // is refused by this very binary (« provider `google` does not
+        // resolve »), so offering it taught a broken file (2026-08-02).
+        //
+        // The alias table is the catalog's, never retyped here. The spec's
+        // token owes the same repair; until it lands, this maps.
+        let canonical = |name: &str| -> String {
+            nika_catalog::all_providers()
+                .iter()
+                .find(|p| p.id == name || p.aliases.contains(&name))
+                .map_or_else(|| name.to_owned(), |p| p.id.to_owned())
+        };
+        let pinned: Vec<String> = section
             .lines()
             .skip(1)
             .map_while(|l| l.trim().strip_prefix("- "))
+            .map(canonical)
             .collect();
-        let ours: Vec<&str> = PROVIDERS.iter().map(|e| e.name).collect();
+        let ours: Vec<String> = PROVIDERS.iter().map(|e| e.name.to_owned()).collect();
         assert_eq!(
             &ours[..pinned.len()],
             pinned.as_slice(),
             "vocab::PROVIDERS drifted from the spec's presentation order token"
-        );
-        // The token's own law for absentees: they rank AFTER. The one
-        // engine extra today is `mock` (the test provider — real to the
-        // engine, not a teaching row the spec orders).
-        assert_eq!(
-            &ours[pinned.len()..],
-            ["mock"],
-            "an engine-only provider must trail the spec-ordered set"
         );
     }
 }

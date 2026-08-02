@@ -149,50 +149,16 @@ fn enum_fields_offer_exactly_the_closed_sets() {
 fn model_value_offers_exactly_the_provider_set() {
     let text = "nika: v1\nworkflow:\n  id: w\nmodel: ";
     let items = completion(text, text.len());
-    // EXACT label set: every provider with a trailing `/`, in canon
-    // (local-first) order — not the keyword/field/task sets.
-    assert_eq!(
-        labels(&items),
-        vec![
-            "ollama/",
-            "lmstudio/",
-            "llamacpp/",
-            "localai/",
-            "vllm/",
-            "mistral/",
-            "groq/",
-            "deepseek/",
-            "openrouter/",
-            "huggingface/",
-            "nvidia/",
-            "anthropic/",
-            "openai/",
-            "google/",
-            "xai/",
-            "mock/",
-        ],
-        "the 16-provider catalog, local-first, each suffixed with `/`"
-    );
-    // every provider item is a VALUE with a non-empty detail (the kind +
-    // detail fields, not just the label).
-    assert!(
-        items
-            .iter()
-            .all(|i| i.kind == Some(CompletionItemKind::VALUE)),
-        "providers are VALUE-kinded"
-    );
-    assert!(
-        items
-            .iter()
-            .all(|i| i.detail.as_deref().is_some_and(|d| !d.is_empty())),
-        "every provider carries its doc as detail"
-    );
-    // the ollama detail is the exact vocab doc (pins the detail field).
-    assert_eq!(
-        items[0].detail.as_deref(),
-        Some("Local models via Ollama (sovereign, open-weight)."),
-        "ollama detail is the vocab doc"
-    );
+    // DERIVED from the vocabulary, in ITS order — the retyped copy that
+    // used to live here carried `google/`, an alias the catalog does not
+    // know, so the editor completed a provider the binary refuses
+    // (2026-08-02). What this pins is the SHAPE: every provider, each
+    // suffixed with `/`, order preserved.
+    let want: Vec<String> = crate::analysis::vocab::PROVIDERS
+        .iter()
+        .map(|e| format!("{}/", e.name))
+        .collect();
+    assert_eq!(labels(&items), want, "the model lane offers the catalog");
 }
 
 #[test]
@@ -365,32 +331,14 @@ fn template_island_without_tasks_dot_offers_nothing() {
 fn top_level_offers_exactly_the_envelope_keys() {
     let text = "nika: v1\nwo";
     let items = completion(text, text.len());
-    // EXACT envelope-key set (the vocab order), PROPERTY-kinded, no verbs.
-    assert_eq!(
-        labels(&items),
-        vec![
-            "nika",
-            "workflow",
-            "description",
-            "model",
-            "inputs",
-            "config",
-            "const",
-            "secrets",
-            "permits",
-            "tasks",
-            "outputs",
-        ],
-        "the 10 top-level envelope keys, in spec order"
-    );
-    assert!(
-        items
-            .iter()
-            .all(|i| i.kind == Some(CompletionItemKind::PROPERTY)),
-        "envelope keys are PROPERTY-kinded"
-    );
-    // verbs are NOT top-level keys
-    assert!(!labels(&items).contains(&"infer".to_owned()));
+    // DERIVED — the retyped copy here offered `description`, which the
+    // parser refuses with NIKA-PARSE-021, and omitted four keys it
+    // accepts. A third hand-written list cannot referee the other two.
+    let want: Vec<&str> = crate::analysis::vocab::TOP_LEVEL_KEYS
+        .iter()
+        .map(|e| e.name)
+        .collect();
+    assert_eq!(labels(&items), want, "the envelope lane offers the parser");
 }
 
 #[test]

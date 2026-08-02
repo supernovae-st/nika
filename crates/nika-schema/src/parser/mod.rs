@@ -54,7 +54,15 @@ pub enum ParseMode {
 /// `09-types.md` `types:` + `10-authority.md` `policy:` + F-P3 `run:` ·
 /// post-C2 the four-authority family — `vars`/`env` are NOT here: they get
 /// their specific dead-form refusals (NIKA-VALUES-001/002) before this check).
-const TOP_LEVEL_KEYS: &[&str] = &[
+/// The workflow envelope's accepted top-level keys — the authority.
+///
+/// Public so consumers can DERIVE from it instead of retyping it. The
+/// language server kept its own copy and a test that compared that copy
+/// to a third hand-written list: 14 keys here, 11 offered in the editor,
+/// with `description` offered and refused by this very parser
+/// (NIKA-PARSE-021). A mirror validated against itself proves nothing
+/// (2026-08-02).
+pub const TOP_LEVEL_KEYS: &[&str] = &[
     "nika", "workflow", "model", "inputs", "config", "const", "secrets", "permits", "policy",
     "types", "run", "tasks", "outputs", "assert",
 ];

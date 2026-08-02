@@ -466,6 +466,7 @@ impl<T> core::convert::From<T> for nika_schema::parser::ParseMode
 pub fn nika_schema::parser::ParseMode::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::parser::ParseMode where T: 'static
 pub fn nika_schema::parser::ParseMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_schema::parser::TOP_LEVEL_KEYS: &[&str]
 pub fn nika_schema::parser::parse(yaml: &str, file_id: nika_source::span::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub mod nika_schema::raw
 pub mod nika_schema::raw::action
