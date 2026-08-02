@@ -11,6 +11,14 @@
 # Usage: session-context.test.sh  (exit 0 = all green)
 set -euo pipefail
 
+# This test builds throwaway repositories. An inherited git environment
+# points every one of them at the caller's repository instead — which is
+# exactly what happens under a git hook, where GIT_DIR is always set.
+# The test died with « this operation must be run in a work tree » the
+# first time anything ran it, from the pre-push gate (2026-08-02); it
+# had sat unexecuted long enough for nobody to know.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
+
 HOOK="$(cd "$(dirname "$0")/.." && pwd)/session-context.sh"
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT

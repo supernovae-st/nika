@@ -94,7 +94,13 @@ if [ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" 2>/dev/null; then
   # is one — the workspace markers (.nika/ · .cursor/rules/nika.mdc ·
   # *.nika.yaml) live at the root. Not a git repo → stay on the
   # payload cwd (old behavior).
-  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  # The ambient git environment is NOT evidence either. `GIT_DIR` and
+  # friends override `-C` and the cwd entirely, so an inherited one
+  # would make this resolve somebody else's repository as the session's
+  # root — the same class as trusting the process cwd, which the law
+  # above already refuses. Scrubbed per-command, never for the caller.
+  top="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+    git rev-parse --show-toplevel 2>/dev/null || true)"
   [ -n "$top" ] && [ -d "$top" ] && cd "$top" 2>/dev/null || true
   root="$(pwd)"
 fi
