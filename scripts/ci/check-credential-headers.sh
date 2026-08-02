@@ -36,10 +36,26 @@ fi
 # Header names our sources insert. Only real senders — tests carry
 # fixtures and docs carry examples, both of which name headers they never
 # actually put on a wire.
+#
+# WHOLE-FILE, not line-by-line. rustfmt wraps a long insert:
+#
+#     headers.insert(
+#         "authorization",
+#         format!("Bearer {}", key.expose()),
+#     );
+#
+# and a per-line grep sees neither half. Seven real auth-header sites
+# were invisible that way — including this gate's own reason for
+# existing. It stayed green only because those files also send a name
+# the list already knew; a NEW provider adding a wrapped
+# `x-vendor-secret-token` scored OK, proven by inserting exactly that
+# (2026-08-02). A gate written against « a check that cannot see » must
+# not be one.
+# shellcheck disable=SC2016  # the perl program is literal by design
 sent=$(
-  grep -rhoE '\.insert\(\s*"[a-zA-Z0-9-]+"' \
-    "$ROOT"/crates/*/src --include='*.rs' 2>/dev/null \
-    | grep -oE '"[a-zA-Z0-9-]+"' | tr -d '"' | tr '[:upper:]' '[:lower:]' | sort -u
+  find "$ROOT/crates" -path '*/src/*' -name '*.rs' -type f -print0 2>/dev/null \
+    | xargs -0 perl -0777 -ne 'while (/\.insert\(\s*"([a-zA-Z0-9-]+)"/gs) { print lc($1), "\n" }' \
+    | sort -u
 )
 
 # Which of those look like an authentication credential.
