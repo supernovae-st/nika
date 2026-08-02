@@ -20,8 +20,30 @@ without an explicit operator decision.
    generated body: the section, not the release page, is where curation
    lives. `CHANGELOG.md` is the single source the release body renders from.
 
-2. **Bump the workspace version** in `Cargo.toml` to `<NEXT>`: the release
-   workflow refuses a tag that disagrees with the manifest (first gate).
+2. **Bump every surface that spells the version.** The workspace manifest
+   is the authority and the release workflow refuses a tag that disagrees
+   with it (first gate), but four other places carry the number and two
+   releases in a row forgot them (2026-08-02):
+
+   ```sh
+   # the authority
+   Cargo.toml                     version = "<NEXT>"
+   # the internal pins · 212 of them across 50 manifests
+   crates/*/Cargo.toml            { path = "../nika-x", version = "<NEXT>" }
+   # what an editor SHOWS the user
+   .agents/plugins/nika/.{claude,codex,cursor}-plugin/plugin.json
+   # the install example in the image header
+   Dockerfile                     v=<NEXT>
+   # follows the workspace, and is easy to mistake for noise
+   fuzz/Cargo.lock
+   ```
+
+   Then `bash scripts/refresh-status.sh` and paste its block into
+   `ROADMAP.md` and `.claude/CLAUDE.md` · the script PRINTS, it never
+   writes. Vector 23 refuses a tag while those blocks name the old
+   version; **vector 47** refuses one while any surface above disagrees.
+   Run `bash scripts/hygiene/check-all.sh` before tagging: both fire
+   there, and both were earned by a release that shipped without them.
 
 3. **Tag and push.**
 
