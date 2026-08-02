@@ -301,6 +301,40 @@ mod tests {
     }
 
     #[test]
+    fn every_catalogued_binary_actually_fires() {
+        // Eleven of the nineteen were exercised by name; the other eight
+        // rode on the catalog's reputation. A row nothing reaches is a row
+        // that can stop working without anything going red.
+        for b in BINARIES {
+            let l = one_lint(b.name);
+            assert!(
+                l.message.contains(b.name),
+                "{} is catalogued but its lint does not name it: {}",
+                b.name,
+                l.message
+            );
+            assert!(!l.suggestion.is_empty(), "{} fires with no way out", b.name);
+        }
+    }
+
+    #[test]
+    fn the_catalog_never_loses_a_binary() {
+        // Walking BINARIES proves what is in it — it cannot notice a row
+        // that was deleted. Each name here is a documented command-exec or
+        // arbitrary-file vector; losing one loses the advisory, silently.
+        const FLOOR: &[&str] = &[
+            "ssh", "scp", "sftp", "rsync", "git", "tar", "bsdtar", "curl", "wget", "find", "awk",
+            "sed", "zip", "unzip", "psql", "mysql", "gpg", "openssl", "socat",
+        ];
+        for name in FLOOR {
+            assert!(
+                BINARIES.iter().any(|b| b.name == *name),
+                "{name} left the catalog · interpolating into its argv stops warning"
+            );
+        }
+    }
+
+    #[test]
     fn bsdtar_catalog_hole_is_closed() {
         // review P1 · bsdtar shares tar's vectors under a distinct basename.
         let l = one_lint("bsdtar");
