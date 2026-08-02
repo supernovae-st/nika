@@ -10,6 +10,55 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.107.2](https://github.com/supernovae-st/nika/compare/v0.107.1..v0.107.2) - 2026-08-02
+
+**The adversarial pass.** 0.107.1 shipped six boundaries; an adversary
+was then set on that work with one instruction, break it. Three of six
+claims fell, and hunting what the first repairs still let through found
+four more. Every fix below was proven on the binary before it was
+touched, and each carries the mutation that makes it fail.
+
+### Two doors that were open
+
+- **A permit could name a system root by shouting it.** `/root/./x*`
+  closed in the morning; `/ROOT/x*` did not. macOS ships a
+  case-insensitive filesystem — `/ETC` and `/etc` are the same inode —
+  so an exact-match root check let a permit name any system root on the
+  very platform the seatbelt backend serves. The comparison folds case
+  now, and refusing these on Linux can only ever refuse a path that does
+  not exist.
+- **A secret was redacted in the trace and printed on stdout.** The
+  redacting sink wraps the event lane, and a run's `outputs:` map is not
+  an event: it rides `RunOutcome` straight to `--output json`, where the
+  CLI serialized it verbatim. The static check refuses a *declared*
+  egress, but not the side channel this backstop exists for — an exec
+  catting a file-sourced secret, a tool echoing its input. The map is
+  scrubbed now, at any depth.
+
+### Three guards that judged less than they claimed
+
+- **The dangerous-environment floor is proven entry by entry.** Forty
+  names, eleven asserted; deleting the one that makes macOS load
+  arbitrary code into every dynamically linked child left the suite
+  green. Both halves are pinned now — every listed name enforced, and a
+  floor naming what may never leave.
+- **A tainted `nika:notify` target is judged whatever channel carries
+  it.** One `${{ }}` in `channel:` made the tool unclassifiable and the
+  re-gate silent: the same payload passed with rc=0 templated and rc=2
+  spelled out.
+- **The run guard speaks only about runs.** An unreadable payload from a
+  host we do not parse denied every command in the session — `ls` came
+  back « nika run blocked ». It now degrades only for bytes that could
+  have carried a run.
+
+### One law, two implementations
+
+- **The MCP spawn composes the child environment through the same
+  function as the exec runner**, which its own module doc had promised
+  all along. The copy was equivalent, and equivalence was exactly what
+  nothing guaranteed.
+
+
 ## [0.107.1](https://github.com/supernovae-st/nika/compare/v0.107.0..v0.107.1) - 2026-08-02
 
 **The composition wave.** The 0.107 train shipped the trust OBJECTS;
