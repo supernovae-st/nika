@@ -54,6 +54,15 @@ set -e
 # every test binary was stalled pre-main in _dyld_start waiting on
 # Gatekeeper to scan it. That is a machine setting, not a bug in here.
 cargo test --workspace --lib --quiet </dev/null
+# `--lib` is a house absolute (a `--test` run pops the macOS Keychain), so
+# this leg CANNOT see the integration tier. It is a real platform limit,
+# not a bug — but a gate that stays silent about what it did not look at
+# reads as full coverage, and on 2026-08-02 a green push landed a red CI:
+# `init_smoke::the_first_hour_walks_end_to_end` lives in `tests/`, and
+# nothing local runs it. Say the limit out loud; CI's nextest leg is what
+# closes it.
+printf '[gate] lib tests green · %s integration file(s) NOT run here (--lib · Keychain) — CI nextest covers them\n' \
+  "$(find crates -path '*/tests/*.rs' -type f 2>/dev/null | wc -l | tr -d ' ')"
 cargo clippy --workspace --all-targets -- -D warnings </dev/null
 # hygiene: YELLOW (rc=1) passes with its stdout · only RED (rc=2) blocks —
 # the exact contract the old inline leg carried.

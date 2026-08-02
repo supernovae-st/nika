@@ -153,10 +153,26 @@ fn the_first_hour_walks_end_to_end() {
         .output()
         .expect("new runs");
     assert_eq!(new.status.code(), Some(0), "new-from-example is green");
+    // One resolution, two handles — the SAME example, and each copy names
+    // ITSELF. Byte-identity was the old assertion and it pinned a bug: the
+    // copy landing as `twin.nika.yaml` still taught `nika run
+    // 01-hello.nika.yaml`, a command that fails in the reader's own
+    // directory. The self-reference follows the destination now, so the
+    // two differ in exactly that way and no other.
+    let twin = std::fs::read_to_string(dir.join("twin.nika.yaml")).expect("written");
+    let orig = std::fs::read_to_string(dir.join("01-hello.nika.yaml")).expect("copied");
     assert_eq!(
-        std::fs::read_to_string(dir.join("twin.nika.yaml")).expect("written"),
-        std::fs::read_to_string(dir.join("01-hello.nika.yaml")).expect("copied"),
-        "one resolution · two handles · identical bytes"
+        twin.replace("twin.nika.yaml", "01-hello.nika.yaml"),
+        orig,
+        "one resolution · two handles · the same example modulo its own name"
+    );
+    assert!(
+        twin.contains("nika run twin.nika.yaml") && !twin.contains("run 01-hello.nika.yaml"),
+        "the copy teaches a command that works where it landed:\n{twin}"
+    );
+    assert!(
+        orig.contains("nika run 01-hello.nika.yaml"),
+        "and so does the one that kept its name:\n{orig}"
     );
 
     // 4 · found a second repo around an example, scriptably.
