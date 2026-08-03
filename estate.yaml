@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 104
-  aggregate_sha256: 1b7fa154b28d50a50116954e45cc449e9c6e41fe254753a0f8e85f78aa8b827b
+  aggregate_sha256: bf93d4b425adf0cff63aa49f1f1e480603609684e392b6daf45718e9728acbe2
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 59
-  aggregate_sha256: 70c5d261a0a5fa9996072689a3d9cb2c147c3b65afd7c8035ca20af0d43c87c2
+  aggregate_sha256: db84d5b3c31c8c497d5ae9544c8b7e874e57cdf4eac3692d8e74a56ce1a18daf
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 700
-  aggregate_sha256: 715f337e782b909963002c6dd8e99bdd5cd73c24fa1f6a51dcefb0ef662b5dd7
+  aggregate_sha256: 7cfd340eca4d31a258b6aeb8e16c0d933ca0bd9ceb1a762b2ad4176183b5d691
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 127
-  aggregate_sha256: 43dfee4b64b4a76d241f239fb6ca398e93a368e621e4d11ad62200291ce63331
+  aggregate_sha256: 15f2afd99b00b8a5ecd9f427dd69896efd2294731fe150c127d4d041883017ee
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 99
-  aggregate_sha256: df47c8811cd3f5442a1722f788422a079a734f21fcf38bb9d7e19e601293c811
+  aggregate_sha256: e95dccc542c111d34237647e984ae24fe496a43c4d4484ab619979540a706be7
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 21
-  aggregate_sha256: 1cf9b8544bda262f81936e16a2ea971d780b474441d9e45bfc2d6f97677fab2c
+  aggregate_sha256: b67f5f071e200354eabb93c83d584e0d119678478e4e09a129d353c832ea5894
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
