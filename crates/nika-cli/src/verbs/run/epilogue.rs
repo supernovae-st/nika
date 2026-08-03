@@ -212,7 +212,11 @@ pub(super) fn env_refusal(message: &str, output_json: bool) -> u8 {
 /// resume · or a serve webhook later). The F-P4 approval ticket rides
 /// additively (NEP-0013): the machine consumer sees EXACTLY what an
 /// answer would sign — shown-hash · digest · nonce · mint · TTL.
-pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
+/// `resume_carry` (issue 772 · additive) is the run's own `--var`/
+/// `--model` tail, shell-quoted verbatim — the taught line's carry, so
+/// a machine consumer reconstructing the resume command drops nothing
+/// (the flag-less-resume refusal stays the backstop).
+pub(super) fn paused_envelope_line(pause: &WorkflowPause, carry: &str) -> String {
     let approval = pause.approval.as_ref().map(|t| {
         serde_json::json!({
             "digest": t.digest(),
@@ -229,6 +233,7 @@ pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
             "message": pause.message,
             "choices": pause.choices,
             "approval": approval,
+            "resume_carry": carry,
         }
     })
     .to_string()
@@ -655,5 +660,28 @@ mod tests {
         // An embedded single quote splices through the POSIX idiom.
         let quoted = super::resume_carry(&["msg=it's".to_owned()], None);
         assert_eq!(quoted, r" --var 'msg=it'\''s'");
+    }
+
+    /// Issue 772 — the machine pause contract carries the run's own
+    /// carry verbatim: a JSON consumer reconstructing the resume
+    /// command must not drop the `--var`/`--model` tail (the flag-less
+    /// refusal at resume stays the backstop, this is the teaching lane).
+    #[test]
+    fn paused_envelope_carries_the_resume_carry() {
+        use nika_runtime::WorkflowPause;
+        let pause = WorkflowPause::new("gate".into(), "confirm".into(), None, vec![]);
+        let carry = super::resume_carry(&["k=v".to_owned()], Some("mock/override"));
+        let line = super::paused_envelope_line(&pause, &carry);
+        let json: serde_json::Value =
+            serde_json::from_str(&line).expect("the envelope is one JSON document");
+        assert_eq!(
+            json["paused"]["resume_carry"],
+            serde_json::json!(" --var k=v --model mock/override")
+        );
+        // A carry-less run rides an EMPTY carry — present and honest,
+        // never a missing key a consumer must special-case.
+        let bare = super::paused_envelope_line(&pause, "");
+        let json: serde_json::Value = serde_json::from_str(&bare).expect("one JSON document");
+        assert_eq!(json["paused"]["resume_carry"], serde_json::json!(""));
     }
 }

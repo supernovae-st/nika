@@ -46,6 +46,7 @@ pub(super) struct ResumeSetup {
 pub(super) fn resume_setup(
     resume: Option<&ResumeRequest>,
     wf: &RawWorkflow,
+    model_override: Option<&str>,
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
     let (plan, paused, compat) = match resume {
@@ -55,7 +56,8 @@ pub(super) fn resume_setup(
             // below ride into the gate map and wait for the ask.
             None => (None, None, None),
             Some(trace) => {
-                let (plan, paused, compat) = load_resume_plan(req, trace, wf, output_json)?;
+                let (plan, paused, compat) =
+                    load_resume_plan(req, trace, wf, model_override, output_json)?;
                 (Some(plan), paused, compat)
             }
         },
@@ -93,6 +95,7 @@ fn load_resume_plan(
     req: &ResumeRequest,
     trace: &std::path::Path,
     wf: &RawWorkflow,
+    model_override: Option<&str>,
     output_json: bool,
 ) -> Result<
     (
@@ -139,6 +142,32 @@ fn load_resume_plan(
         )]
         other => unreachable!("unknown compat verdict: {other:?}"),
     };
+    // Issue 772 — the model judgment beside the version one: a run
+    // recorded under `--model` must never SILENTLY resume on the
+    // envelope model (the mock-previewed run that resumes onto a
+    // priced seat). Explicit argv wins; silence refuses, naming the
+    // recorded seat + the exact flag.
+    match nika_dap::resume::judge_model(
+        nika_dap::resume::trace_model_override(&recovered.events).as_deref(),
+        model_override,
+    ) {
+        nika_dap::resume::ModelVerdict::Proceed { changed } => {
+            if let Some((recorded, declared)) = changed {
+                eprintln!(
+                    "nika run: --resume: model change declared — the trace was recorded \
+                     under --model {recorded}, this resume runs --model {declared}"
+                );
+            }
+        }
+        nika_dap::resume::ModelVerdict::Refuse(message) => {
+            return Err(refuse(format!("--resume: {message}")));
+        }
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown model verdict: {other:?}"),
+    }
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no

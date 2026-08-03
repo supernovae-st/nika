@@ -278,7 +278,7 @@ fn run_verdict(
     }
 
     // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
-    let setup = match resume_setup(resume, &wf, output_json) {
+    let setup = match resume_setup(resume, &wf, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -416,7 +416,7 @@ fn answered_leg(
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-    let setup = match resume_setup(Some(request), wf, output_json) {
+    let setup = match resume_setup(Some(request), wf, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -960,7 +960,10 @@ async fn execute_output_json_lane(
     // Built BEFORE the sink is consumed — the failure envelope reads
     // the folded view (the failed row's detail carries the wire code).
     let verdict_line = if code == exit::PAUSED {
-        outcome.paused.as_ref().map(epilogue::paused_envelope_line)
+        outcome
+            .paused
+            .as_ref()
+            .map(|p| epilogue::paused_envelope_line(p, carry))
     } else if code != exit::OK {
         Some(epilogue::run_failure_envelope(sink.view()))
     } else {

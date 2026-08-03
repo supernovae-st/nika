@@ -24,17 +24,18 @@ fn started_fields_with_origins(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
 ) -> Vec<(String, String)> {
-    started_fields_full(yaml, sandbox, origins, None, None)
+    started_fields_full(yaml, sandbox, origins, None, None, None)
 }
 
 /// The full knob set (origins · the F-P21 declared compat · the F-P18
-/// operator budget).
+/// operator budget · the issue-772 model override).
 fn started_fields_full(
     yaml: &str,
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
     max_cost_usd: Option<f64>,
+    model_override: Option<&str>,
 ) -> Vec<(String, String)> {
     let wf = nika_schema::parse(
         yaml,
@@ -54,6 +55,7 @@ fn started_fields_full(
         origins,
         resume_compat,
         max_cost_usd,
+        model_override,
         &book,
         &mut stamper,
         &mut sink,
@@ -155,7 +157,7 @@ fn prologue_journals_the_input_origins() {
 fn prologue_attests_the_declared_cross_version_compat() {
     let yaml =
         "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
-    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"), None);
+    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"), None, None);
     assert_eq!(get(&fields, "resumed_from_engine"), Some("0.105.0"));
     assert_eq!(get(&fields, "resume_compat"), Some("declared"));
 
@@ -203,7 +205,7 @@ fn prologue_pins_the_pricing_table_identity() {
 fn prologue_journals_the_budget_only_when_bounded() {
     let yaml =
         "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
-    let bounded = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(0.05));
+    let bounded = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(0.05), None);
     let budget: serde_json::Value =
         serde_json::from_str(get(&bounded, "budget").expect("a bounded run journals its budget"))
             .expect("budget is one JSON document");
@@ -222,6 +224,37 @@ fn prologue_journals_the_budget_only_when_bounded() {
     );
     // …and a NaN/inf budget is filtered before the wire (the CLI
     // refuses it at the flag; the journal guard is the second wall).
-    let non_finite = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(f64::NAN));
+    let non_finite = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(f64::NAN), None);
     assert_eq!(get(&non_finite, "budget"), None);
+}
+
+/// Issue 772 — the composer's `--model` override rides the boot frame
+/// so a resume can judge the seat it would run on; an override-less run
+/// journals NO `model_override` key (absent is honest — no claim,
+/// never a guess).
+#[test]
+fn prologue_journals_the_model_override_only_when_declared() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let overridden = started_fields_full(
+        yaml,
+        None,
+        &BTreeMap::new(),
+        None,
+        None,
+        Some("mock/override"),
+    );
+    assert_eq!(
+        get(&overridden, "model_override"),
+        Some("mock/override"),
+        "an override run journals the seat it actually ran on"
+    );
+
+    // No override → the key stays ABSENT (no claim, never a guess).
+    let bare = started_fields(yaml, None);
+    assert_eq!(
+        get(&bare, "model_override"),
+        None,
+        "no override = nothing journaled"
+    );
 }

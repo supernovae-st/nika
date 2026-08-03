@@ -179,6 +179,58 @@ pub fn judge_resume(judgment: &ResumeVersion, compat: Option<&str>) -> CompatVer
     }
 }
 
+/// The trace's recorded `--model` override — the `workflow_started` boot
+/// manifest's `model_override` field. `None` when the run carried no
+/// override, or on an older journal (absent is honest either way — no
+/// claim, never a guess).
+#[must_use]
+pub fn trace_model_override(events: &[Event]) -> Option<String> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    str_field(started, "model_override").map(str::to_owned)
+}
+
+/// The resume's model verdict (issue 772) — a run recorded under a
+/// `--model` override must never SILENTLY resume on the envelope model
+/// (the mock-previewed run that resumes onto a priced seat).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ModelVerdict {
+    /// The resume proceeds — `changed` names `(recorded, declared)` when
+    /// an explicit flag moves the seat (noticed on stderr, never silent).
+    Proceed {
+        /// `Some((recorded, declared))` when the resume's explicit
+        /// `--model` differs from the recorded override.
+        changed: Option<(String, String)>,
+    },
+    /// The resume refuses — a flag-less resume of an override run (the
+    /// message names the recorded seat + the exact teaching).
+    Refuse(String),
+}
+
+/// Judge a resume's model carry (issue 772): the trace's recorded
+/// override against the live `--model` flag. Explicit argv always wins —
+/// what dies is the silent fallback to the envelope model.
+#[must_use]
+pub fn judge_model(recorded: Option<&str>, declared: Option<&str>) -> ModelVerdict {
+    match (recorded, declared) {
+        // No recorded override (no claim, or an older journal) — nothing
+        // to carry, today's behavior stands.
+        (None, _) => ModelVerdict::Proceed { changed: None },
+        (Some(rec), Some(dec)) if rec == dec => ModelVerdict::Proceed { changed: None },
+        (Some(rec), Some(dec)) => ModelVerdict::Proceed {
+            changed: Some((rec.to_owned(), dec.to_owned())),
+        },
+        (Some(rec), None) => ModelVerdict::Refuse(format!(
+            "the trace was recorded under --model {rec} · a flag-less resume would run \
+             the workflow's envelope model instead — the model is judged, never assumed: \
+             resume with `--model {rec}` to keep the recorded seat, or name the change \
+             explicitly"
+        )),
+    }
+}
+
 /// Parse + validate the repeatable `--answer TASK=VALUE` pairs: the task
 /// must exist AND be a direct `invoke: nika:prompt` (an answer aimed at
 /// anything else would silently do nothing — refused instead, the same
@@ -577,6 +629,69 @@ mod tests {
         assert!(
             message.contains("--resume-compat 0.105.0"),
             "the teaching names the exact token: {message}"
+        );
+    }
+
+    // ── Issue 772 · the model carry judgment ──────────────────────────
+
+    /// A boot manifest with or without the `model_override` field.
+    fn started_with_model(model: Option<&str>) -> Event {
+        let mut e = started(Some("0.107.2"));
+        if let Some(m) = model {
+            e = e.with_field(KeyValue::new(
+                "model_override",
+                FieldValue::String(m.to_owned()),
+            ));
+        }
+        e
+    }
+
+    #[test]
+    fn the_model_reader_finds_the_override_and_absence_is_no_claim() {
+        let events = vec![started_with_model(Some("mock/override"))];
+        assert_eq!(
+            trace_model_override(&events).as_deref(),
+            Some("mock/override")
+        );
+        // No field (an override-less run · an older journal) — no claim.
+        assert_eq!(trace_model_override(&[started_with_model(None)]), None);
+        assert_eq!(trace_model_override(&[]), None);
+    }
+
+    #[test]
+    fn the_model_judgment_proceeds_on_match_and_notices_a_change() {
+        // No recorded override — nothing to carry, whatever argv says.
+        assert_eq!(
+            judge_model(None, None),
+            ModelVerdict::Proceed { changed: None }
+        );
+        assert_eq!(
+            judge_model(None, Some("mock/override")),
+            ModelVerdict::Proceed { changed: None }
+        );
+        // The same seat — proceeds without a claim.
+        assert_eq!(
+            judge_model(Some("mock/override"), Some("mock/override")),
+            ModelVerdict::Proceed { changed: None }
+        );
+        // An explicit different seat — proceeds, the change named.
+        assert_eq!(
+            judge_model(Some("mock/override"), Some("mock/other")),
+            ModelVerdict::Proceed {
+                changed: Some(("mock/override".to_owned(), "mock/other".to_owned())),
+            }
+        );
+    }
+
+    #[test]
+    fn a_flagless_resume_of_an_override_run_refuses_with_the_teaching() {
+        let ModelVerdict::Refuse(message) = judge_model(Some("mock/override"), None) else {
+            panic!("a flag-less resume of an override run refuses");
+        };
+        assert!(message.contains("mock/override"), "{message}");
+        assert!(
+            message.contains("--model mock/override"),
+            "the teaching names the exact flag: {message}"
         );
     }
 

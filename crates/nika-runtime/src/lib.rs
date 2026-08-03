@@ -562,6 +562,7 @@ fn emit_prologue(
     input_origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
     max_cost_usd: Option<f64>,
+    model_override: Option<&str>,
     approvals: &approval::ApprovalBook,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -619,7 +620,14 @@ fn emit_prologue(
     opening.extend(boot_attestation_fields(wf));
     // F-P18 · the pricing-table pin + the resolved operator budget
     // (NEP-0017 — the table that gives sense to ρ rides the pin).
-    opening.extend(cost_pin_fields(max_cost_usd));
+    opening.extend(prologue::cost_pin_fields(max_cost_usd));
+    // Issue 772 · the composer's `--model` override rides the boot
+    // manifest (additive · spec 17 §manifest law — engines MAY add
+    // fields): a resume can only judge what the trace records. Absent
+    // when the run carried no override — no claim, never a guess.
+    if let Some(model) = model_override {
+        opening.push(("model_override", s(model)));
+    }
     // Stamped by hand (not via `emit`) so the opening frame's id comes
     // back as the run nonce — the F-P4 approval scope.
     let (nonce, ts) = stamper.next();
@@ -738,42 +746,6 @@ fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, FieldValue)> 
             "seed",
             i(i64::try_from(entropy.jitter_seed()).unwrap_or(i64::MAX)),
         ));
-    }
-    fields
-}
-
-/// The F-P18 cost fields (NEP-0017 · la table de prix DANS le pin) —
-/// additive, the `permits_json` posture: older readers ignore unknown
-/// fields, newer readers find them absent where no claim exists.
-///
-/// - `pricing` — the versioned pricing table that gives sense to the
-///   run's ρ (usd), journaled as ONE compact JSON text
-///   (`{"as_of","schema","sha256_16"}` — the `outcome` idiom: a nested
-///   object rides as a JSON string, the wire's `Value` having no object
-///   variant). This IS the law's pin: a future cost-replay reads the
-///   run's costs against THIS table — « un coût rejoué en 2031 se lit
-///   contre la table 2026 pinnée ». Compile-time statics only
-///   ([`nika_catalog::pricing_snapshot`] + [`nika_catalog::PRICING_SCHEMA`]
-///   — the `spec_pin` posture: no clock, no I/O, determinism intact);
-/// - `budget` — the resolved operator budget (`--max-cost-usd`), ONE
-///   compact JSON text (`{"max_cost_usd":dollars}` — dollars ride as a
-///   JSON number, the `total_cost_usd` float convention). ABSENT when
-///   the run carries no budget (absent is honest — an unbounded run
-///   journals no claim, never a fake zero/unbounded). A non-finite
-///   budget cannot reach here (the CLI refuses NaN/inf at the flag);
-///   the guard stays so the journal can never carry `null` where a
-///   number was claimed.
-fn cost_pin_fields(max_cost_usd: Option<f64>) -> Vec<(&'static str, FieldValue)> {
-    let snapshot = nika_catalog::pricing_snapshot();
-    let pin = serde_json::json!({
-        "schema": nika_catalog::PRICING_SCHEMA,
-        "as_of": snapshot.as_of,
-        "sha256_16": snapshot.source_sha256_16,
-    });
-    let mut fields = vec![("pricing", s(&pin.to_string()))];
-    if let Some(budget) = max_cost_usd.filter(|b| b.is_finite()) {
-        let resolved = serde_json::json!({ "max_cost_usd": budget });
-        fields.push(("budget", s(&resolved.to_string())));
     }
     fields
 }
@@ -900,6 +872,7 @@ where
             &self.input_origins,
             self.resume_compat.as_deref(),
             self.config.max_cost_usd,
+            self.model_override.as_deref(),
             &self.approvals,
             stamper,
             sink,
@@ -1487,7 +1460,6 @@ fn json_type_name(value: &Value) -> &'static str {
     }
 }
 
-#[cfg(test)]
 mod prologue;
 #[cfg(test)]
 mod tests;
