@@ -203,6 +203,31 @@ jobs:
           fi
 
       # ──────────────────────────────────────────────────────────────────
+      # 6b. try fixture door — the #815 class: a fixture-reading example
+      # must materialize its ingredients in try's own room and leave the
+      # operator's folder untouched ("nothing written, nothing owned").
+      # 01-hello reads no fixtures, so it alone cannot catch a regression.
+      # ──────────────────────────────────────────────────────────────────
+      - name: try fixture door (offline)
+        run: |
+          set -euo pipefail
+          mkdir try-fixture-probe
+          cd try-fixture-probe
+          if nika try meeting-actions --no-progress; then
+            printf '[PASS] nika try meeting-actions exit 0\n'
+          else
+            printf '::error::[FAIL] nika try meeting-actions exited non-zero\n'
+            exit 1
+          fi
+          leftovers="$(ls -A)"
+          if [ -z "$leftovers" ]; then
+            printf '[PASS] operator folder untouched\n'
+          else
+            printf '::error::[FAIL] try left files behind: %s\n' "$leftovers"
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────────
       # 7. nika doctor
       # ──────────────────────────────────────────────────────────────────
       - name: nika doctor
