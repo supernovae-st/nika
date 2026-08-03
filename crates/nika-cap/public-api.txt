@@ -924,6 +924,7 @@ pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
 pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool) -> bool
 pub fn nika_cap::is_dangerous_env_name(name: &str) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool
+pub fn nika_cap::is_pure_internal_call(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::policy_child_keys(family: &str) -> core::option::Option<&'static [&'static str]>
 pub fn nika_cap::policy_violations(policy: &nika_cap::Policy, tasks: &[nika_cap::PolicySubject]) -> alloc::vec::Vec<nika_cap::PolicyViolation>

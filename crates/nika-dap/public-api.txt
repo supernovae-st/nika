@@ -2274,6 +2274,56 @@ impl<T> tracing::instrument::Instrument for nika_dap::resume::CompatVerdict
 impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::CompatVerdict
 impl<T> typenum::type_operators::Same for nika_dap::resume::CompatVerdict
 pub type nika_dap::resume::CompatVerdict::Output = T
+#[non_exhaustive] pub enum nika_dap::resume::ModelVerdict
+pub nika_dap::resume::ModelVerdict::Proceed
+pub nika_dap::resume::ModelVerdict::Proceed::changed: core::option::Option<(alloc::string::String, alloc::string::String)>
+pub nika_dap::resume::ModelVerdict::Refuse(alloc::string::String)
+impl core::clone::Clone for nika_dap::resume::ModelVerdict
+pub fn nika_dap::resume::ModelVerdict::clone(&self) -> nika_dap::resume::ModelVerdict
+impl core::cmp::Eq for nika_dap::resume::ModelVerdict
+impl core::cmp::PartialEq for nika_dap::resume::ModelVerdict
+pub fn nika_dap::resume::ModelVerdict::eq(&self, other: &nika_dap::resume::ModelVerdict) -> bool
+impl core::fmt::Debug for nika_dap::resume::ModelVerdict
+pub fn nika_dap::resume::ModelVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::resume::ModelVerdict
+impl<D> owo_colors::OwoColorize for nika_dap::resume::ModelVerdict
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::resume::ModelVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::resume::ModelVerdict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::resume::ModelVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::resume::ModelVerdict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::resume::ModelVerdict where U: core::convert::From<T>
+pub fn nika_dap::resume::ModelVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::resume::ModelVerdict where U: core::convert::Into<T>
+pub type nika_dap::resume::ModelVerdict::Error = core::convert::Infallible
+pub fn nika_dap::resume::ModelVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::resume::ModelVerdict where U: core::convert::TryFrom<T>
+pub type nika_dap::resume::ModelVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::resume::ModelVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::resume::ModelVerdict where T: core::clone::Clone
+pub type nika_dap::resume::ModelVerdict::Owned = T
+pub fn nika_dap::resume::ModelVerdict::clone_into(&self, target: &mut T)
+pub fn nika_dap::resume::ModelVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::resume::ModelVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::resume::ModelVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::resume::ModelVerdict where T: ?core::marker::Sized
+pub fn nika_dap::resume::ModelVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::resume::ModelVerdict where T: ?core::marker::Sized
+pub fn nika_dap::resume::ModelVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::resume::ModelVerdict where T: core::clone::Clone
+pub unsafe fn nika_dap::resume::ModelVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::resume::ModelVerdict
+pub fn nika_dap::resume::ModelVerdict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::resume::ModelVerdict where T: core::clone::Clone
+pub fn nika_dap::resume::ModelVerdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::resume::ModelVerdict where T: 'static
+pub fn nika_dap::resume::ModelVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::resume::ModelVerdict where T: ?core::marker::Sized
+pub fn nika_dap::resume::ModelVerdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::resume::ModelVerdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::resume::ModelVerdict
+impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::ModelVerdict
+impl<T> typenum::type_operators::Same for nika_dap::resume::ModelVerdict
+pub type nika_dap::resume::ModelVerdict::Output = T
 #[non_exhaustive] pub enum nika_dap::resume::ResumeVersion
 pub nika_dap::resume::ResumeVersion::Exact
 pub nika_dap::resume::ResumeVersion::Mismatch
@@ -2405,11 +2455,13 @@ pub const nika_dap::resume::UNRECORDED_VERSION: &str
 pub fn nika_dap::resume::apply_from(plan: &mut nika_runtime::resume::ResumePlan, wf: &nika_schema::raw::workflow::RawWorkflow, from: &str) -> core::result::Result<(), alloc::string::String>
 pub fn nika_dap::resume::compat_discharges(judgment: &nika_dap::resume::ResumeVersion, compat: core::option::Option<&str>) -> bool
 pub fn nika_dap::resume::fold_plan(events: &[nika_event::event::Event]) -> nika_dap::resume::PlanFold
+pub fn nika_dap::resume::judge_model(recorded: core::option::Option<&str>, declared: core::option::Option<&str>) -> nika_dap::resume::ModelVerdict
 pub fn nika_dap::resume::judge_resume(judgment: &nika_dap::resume::ResumeVersion, compat: core::option::Option<&str>) -> nika_dap::resume::CompatVerdict
 pub fn nika_dap::resume::judge_version(events: &[nika_event::event::Event], current: &str) -> nika_dap::resume::ResumeVersion
 pub fn nika_dap::resume::parse_answers(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, alloc::string::String>
 pub fn nika_dap::resume::summary_line(cache_hits: usize, ran_live: usize) -> alloc::string::String
 pub fn nika_dap::resume::trace_engine_version(events: &[nika_event::event::Event]) -> core::option::Option<alloc::string::String>
+pub fn nika_dap::resume::trace_model_override(events: &[nika_event::event::Event]) -> core::option::Option<alloc::string::String>
 pub mod nika_dap::retention
 #[non_exhaustive] pub enum nika_dap::retention::Reason
 pub nika_dap::retention::Reason::Aged
