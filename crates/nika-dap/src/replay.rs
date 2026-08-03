@@ -106,20 +106,10 @@ impl ReplaySession {
     /// LF-recorded files, against `workflow_sha256_lf` for
     /// CRLF-recorded ones). Only a CONTENT change survives all three.
     fn drift_of(yaml: &str, events: &[nika_event::Event]) -> Option<bool> {
-        let started = events
-            .iter()
-            .find(|e| e.kind == EventKind::WorkflowStarted)?;
-        let recorded = field_str(started, "workflow_sha256")?;
-        if nika_event::source_id::sha256_hex(yaml.as_bytes()) == recorded {
-            return Some(false);
-        }
-        let lf_sha = nika_event::source_id::sha256_hex(
-            nika_event::source_id::lf_normal_form(yaml).as_bytes(),
-        );
-        if lf_sha == recorded || field_str(started, "workflow_sha256_lf") == Some(lf_sha.as_str()) {
-            return Some(false);
-        }
-        Some(true)
+        // ONE comparator, two callers (the resume path owes the same
+        // answer) — the CRLF/BOM nuance above lives there now, stated
+        // once so the two surfaces cannot answer differently.
+        crate::resume::source_drifted(yaml, events)
     }
 
     /// The testable core: source text + folded events.

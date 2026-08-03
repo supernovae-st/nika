@@ -231,6 +231,39 @@ pub fn judge_model(recorded: Option<&str>, declared: Option<&str>) -> ModelVerdi
     }
 }
 
+/// Whether the CURRENT source differs IN CONTENT from the bytes the
+/// recorded run executed — `None` when the trace predates
+/// `workflow_sha256` (no claim, never a guess).
+///
+/// Content, not bytes: an editor re-encoding CRLF↔LF or adding a BOM
+/// moved nothing an author would call a change, and the 0.96.0 review
+/// proved a raw compare cries wolf on exactly that. Raw match first,
+/// then the LF normal forms (against the recorded raw for LF-recorded
+/// files, against `workflow_sha256_lf` for CRLF-recorded ones) — only a
+/// real content change survives all three.
+///
+/// ONE comparator, two callers: the replay session's #210 identity
+/// check (a drifted file moves breakpoint lines) and the resume path,
+/// which owes the operator a word when the file changed under a paused
+/// run — the envelope `model:` can be edited between the pause and the
+/// resume, and the seat swaps with it (measured 2026-08-03).
+#[must_use]
+pub fn source_drifted(yaml: &str, events: &[Event]) -> Option<bool> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    let recorded = str_field(started, "workflow_sha256")?;
+    if nika_event::source_id::sha256_hex(yaml.as_bytes()) == recorded {
+        return Some(false);
+    }
+    let lf_sha =
+        nika_event::source_id::sha256_hex(nika_event::source_id::lf_normal_form(yaml).as_bytes());
+    if lf_sha == recorded || str_field(started, "workflow_sha256_lf") == Some(lf_sha.as_str()) {
+        return Some(false);
+    }
+    Some(true)
+}
+
 /// Parse + validate the repeatable `--answer TASK=VALUE` pairs: the task
 /// must exist AND be a direct `invoke: nika:prompt` (an answer aimed at
 /// anything else would silently do nothing — refused instead, the same

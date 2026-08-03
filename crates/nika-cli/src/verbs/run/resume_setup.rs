@@ -46,6 +46,7 @@ pub(super) struct ResumeSetup {
 pub(super) fn resume_setup(
     resume: Option<&ResumeRequest>,
     wf: &RawWorkflow,
+    source: &str,
     model_override: Option<&str>,
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
@@ -57,7 +58,7 @@ pub(super) fn resume_setup(
             None => (None, None, None),
             Some(trace) => {
                 let (plan, paused, compat) =
-                    load_resume_plan(req, trace, wf, model_override, output_json)?;
+                    load_resume_plan(req, trace, wf, source, model_override, output_json)?;
                 (Some(plan), paused, compat)
             }
         },
@@ -95,6 +96,7 @@ fn load_resume_plan(
     req: &ResumeRequest,
     trace: &std::path::Path,
     wf: &RawWorkflow,
+    source: &str,
     model_override: Option<&str>,
     output_json: bool,
 ) -> Result<
@@ -142,32 +144,13 @@ fn load_resume_plan(
         )]
         other => unreachable!("unknown compat verdict: {other:?}"),
     };
-    // Issue 772 — the model judgment beside the version one: a run
-    // recorded under `--model` must never SILENTLY resume on the
-    // envelope model (the mock-previewed run that resumes onto a
-    // priced seat). Explicit argv wins; silence refuses, naming the
-    // recorded seat + the exact flag.
-    match nika_dap::resume::judge_model(
-        nika_dap::resume::trace_model_override(&recovered.events).as_deref(),
+    judge_seat(
+        &recovered.events,
+        source,
         model_override,
-    ) {
-        nika_dap::resume::ModelVerdict::Proceed { changed } => {
-            if let Some((recorded, declared)) = changed {
-                eprintln!(
-                    "nika run: --resume: model change declared — the trace was recorded \
-                     under --model {recorded}, this resume runs --model {declared}"
-                );
-            }
-        }
-        nika_dap::resume::ModelVerdict::Refuse(message) => {
-            return Err(refuse(format!("--resume: {message}")));
-        }
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown model verdict: {other:?}"),
-    }
+        &label,
+        output_json,
+    )?;
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
@@ -185,4 +168,63 @@ fn load_resume_plan(
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
     Ok((plan, fold.paused, compat))
+}
+
+/// The two judgments about WHICH SEAT the resumed legs will run on —
+/// extracted from [`load_resume_plan`] at the 100-line fn wall, and they
+/// belong together anyway: both answer "is the model this resume uses
+/// the model the recording ran on?", one from the flag and one from the
+/// file.
+///
+/// - **The flag** (issue 772) · a run recorded under `--model` must never
+///   SILENTLY resume on the envelope model — the mock-previewed run that
+///   comes back on a priced seat. Explicit argv wins; silence REFUSES,
+///   naming the recorded seat and the exact flag.
+/// - **The file** (adversarial review 2026-08-03) · the flag judgment
+///   alone was not enough: the envelope `model:` is one line in a file
+///   the operator can edit between the pause and the resume, and the seat
+///   moves with it, no flag involved. The file stays the source of truth
+///   (ADR-099 · an explicit edit re-runs, it never serves a stale
+///   output), so this NOTICES rather than refuses — but it does notice.
+///   The comparator is the replay session's, content-aware: a CRLF/BOM
+///   re-encode is not a change.
+fn judge_seat(
+    events: &[nika_event::Event],
+    source: &str,
+    model_override: Option<&str>,
+    label: &str,
+    output_json: bool,
+) -> Result<(), u8> {
+    match nika_dap::resume::judge_model(
+        nika_dap::resume::trace_model_override(events).as_deref(),
+        model_override,
+    ) {
+        nika_dap::resume::ModelVerdict::Proceed { changed } => {
+            if let Some((recorded, declared)) = changed {
+                eprintln!(
+                    "nika run: --resume: model change declared — the trace was recorded \
+                     under --model {recorded}, this resume runs --model {declared}"
+                );
+            }
+        }
+        nika_dap::resume::ModelVerdict::Refuse(message) => {
+            let message = format!("--resume: {message}");
+            eprintln!("nika run: {message}");
+            epilogue::emit_error_envelope(&message, output_json);
+            return Err(exit::ENV);
+        }
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown model verdict: {other:?}"),
+    }
+    if nika_dap::resume::source_drifted(source, events) == Some(true) {
+        eprintln!(
+            "nika run: --resume: the workflow file CHANGED since {label} recorded it — the \
+             current bytes are what runs (an edited `model:` moves the seat, and edited tasks \
+             re-run instead of serving the recorded output)"
+        );
+    }
+    Ok(())
 }

@@ -278,7 +278,7 @@ fn run_verdict(
     }
 
     // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
-    let setup = match resume_setup(resume, &wf, model_override, output_json) {
+    let setup = match resume_setup(resume, &wf, &source, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -416,7 +416,7 @@ fn answered_leg(
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-    let setup = match resume_setup(Some(request), wf, model_override, output_json) {
+    let setup = match resume_setup(Some(request), wf, source, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
