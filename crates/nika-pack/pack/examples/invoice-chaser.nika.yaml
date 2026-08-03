@@ -25,7 +25,7 @@
 nika: v1
 workflow:
   id: invoice-chaser
-  description: "chase unpaid invoices · ledger CSV → overdue filter → drafted reminders → human gate → drafts file"
+  description: "chase unpaid invoices · ledger CSV → overdue filter → drafted reminder emails → human gate → drafts file"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
 
@@ -75,14 +75,14 @@ tasks:
     infer:
       max_tokens: 900       # a ceiling makes the cost report a number, not UNBOUNDED
       prompt: |
-        Draft one short, polite payment reminder per overdue invoice ·
+        Draft one short, polite payment reminder email per overdue invoice ·
         ${{ with.overdue }}
         Markdown · one section per client · firm but warm.
 
   approve:
     with:
       drafts: ${{ tasks.drafts.output }}
-    when: ${{ with.drafts != null }}   # nothing drafted · nothing to approve
+    when: ${{ with.drafts != null && size(with.drafts) > 0 }}   # nothing drafted — OR an empty answer (a thinking seat can spend the budget in its think block) · nothing to approve
     invoke:
       tool: "nika:prompt"
       args:
@@ -93,7 +93,7 @@ tasks:
     with:
       drafts: ${{ tasks.drafts.output }}
       approved: ${{ tasks.approve.output }}
-    when: ${{ with.drafts != null && with.approved == true }}   # zero overdue → drafts skipped (null) · don't write nothing
+    when: ${{ with.drafts != null && size(with.drafts) > 0 && with.approved == true }}   # skipped (null) OR empty drafts → never write a 0-byte deliverable under a green run
     invoke:
       tool: "nika:write"
       args:

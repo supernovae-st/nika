@@ -167,7 +167,7 @@ tasks:
     # nothing and the run FAILS (NIKA-BUILTIN-CONVERT-002) instead of landing
     # nothing — a refusal must be a quiet no-op, never an error. Every task
     # downstream of a gated one carries its own admission test.
-    when: ${{ with.csv != null }}
+    when: ${{ with.csv != null && size(with.csv) > 0 }}   # skipped read (null) or an empty sheet · nothing to parse
     invoke:
       tool: "nika:convert"
       args:
@@ -179,7 +179,7 @@ tasks:
   revenue:
     with:
       rows: ${{ tasks.rows.output }}
-    when: ${{ with.rows != null }}
+    when: ${{ with.rows != null && size(with.rows) > 0 }}   # zero parsed rows · nothing to summarize
     invoke:
       tool: "nika:jq"
       args:

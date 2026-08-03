@@ -179,7 +179,7 @@ tasks:
   save:
     with:
       brief: ${{ tasks.brief.output }}
-    when: ${{ with.brief != null }}    # a skipped task reads null downstream · gate on the VALUE
+    when: ${{ with.brief != null && size(with.brief) > 0 }}    # skipped (null) or an EMPTY answer · gate on the VALUE, both ways
     invoke:
       tool: "nika:write"
       args:

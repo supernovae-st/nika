@@ -170,7 +170,7 @@ tasks:
       deploys: ${{ tasks.deploys.output }}
       history: ${{ tasks.status_history.output }}
       runbook: ${{ tasks.runbook.output }}
-    when: ${{ with.runbook != null }}   # « no » at the gate → nothing to reconstruct
+    when: ${{ with.runbook != null && size(with.runbook) > 0 }}   # « no » at the gate (null) or an empty answer · nothing to reconstruct
     infer:
       max_tokens: 1500
       prompt: |
