@@ -251,7 +251,7 @@ pub struct ConformanceViolation {
     /// `report_version` stays 1.
     pub severity: FindingSeverity,
     /// The per-code documentation page
-    /// (`https://nika.sh/errors/<CODE>` · [`ERROR_DOCS_BASE`]) —
+    /// (`https://nika.sh/language/errors/<CODE>` · [`ERROR_DOCS_BASE`]) —
     /// editors surface the code as a clickable link. Additive:
     /// `report_version` stays 1.
     pub docs_url: String,
@@ -920,7 +920,7 @@ tasks:
             c["docs_url"]
                 .as_str()
                 .expect("docs_url is a string")
-                .starts_with("https://nika.sh/errors/NIKA-"),
+                .starts_with("https://nika.sh/language/errors/NIKA-"),
         );
     }
 
