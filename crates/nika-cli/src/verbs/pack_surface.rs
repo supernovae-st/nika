@@ -35,7 +35,7 @@ pub fn schema() -> VerbOutput {
 // `run` executes via `verbs::run::example`.
 
 /// The pack identity's two dumps behind one verb — the spec card,
-/// `--canon`, or the JSON Schema (the old `nika schema`, one roof).
+/// `--canon`, or the JSON Schema — one verb over the pack identity.
 #[must_use]
 pub fn spec_or_schema(canon: bool, want_schema: bool) -> crate::verbs::VerbOutput {
     if want_schema { schema() } else { spec(canon) }

@@ -26,12 +26,12 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 | `nika check <file>` | the ADR-092 static ladder (schema→DAG→CEL→effects→permits→cost) | 0 clean · 2 findings |
 | `nika init` | scaffold a repo (.vscode schema wiring · AGENTS.md templates) · bare on a terminal it then OFFERS the guided first workflow (`--yes`/pipe/CI = the classic non-interactive shape byte-for-byte · prompts never appear off-terminal) | 0 · 3 env |
 | `nika inspect <file>` | static anatomy: tasks · verbs · DAG (ASCII §6) · permits · cost interval | 0 · 2 |
-| `nika inspect <file> --format json\|mermaid\|dot\|ascii` | the ONE graph projector · `nika graph` folded into `inspect --format` (§6) | 0 · 2 |
+| `nika inspect <file> --format json\|mermaid\|dot\|ascii` | the ONE graph projector (§6) | 0 · 2 |
 | `nika doctor` | environment diagnosis (PATH · providers reachable · keys present-not-printed · config) | 0 · 3 |
 | `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
 | `nika new <template\|example\|intent> [dest]` | make one yours (V5 positional): exact template · example slug (verbatim, ingredients included) · plain words BM25-route to the closest skeleton · `'?'` = first-class discovery listing (exit 0 · the `embedded set:` line is the editor wire contract) · a lone `<name>.nika.yaml` = destination, wizard on a terminal · bare `nika new` on a terminal = the guided flow, at most three questions (template → file → model · the model question only fires for skeletons carrying a top-level `model:` · the default file name walks past collisions · Enter-only path lands on the offline mock) · bare in a pipe fails fast naming the grammar | 0 · 2 unknown/bare-in-pipe · 3 env |
-| `nika spec` (`--schema` folds the old `nika schema`) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it offline by default (`--model` opts into a real seat · V5) | 0 |
+| `nika spec` (`--schema` prints the JSON Schema) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it offline by default (`--model` opts into a real seat · V5) | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |
 
@@ -170,9 +170,8 @@ the trace path (the flight recorder IS the crash report, owned by the user)
 
 ## 6. The graph projector (one projector · N renderers)
 
-`nika inspect <file> --format json` is the canonical projection (`nika graph`
-folded into `inspect --format`); mermaid/dot/ASCII/webview all derive from
-it. Versioned envelope (`graph_format: 2` · typed edges):
+`nika inspect <file> --format json` is the canonical projection;
+mermaid/dot/ASCII/webview all derive from it. Versioned envelope (`graph_format: 2` · typed edges):
 
 ```json
 {
