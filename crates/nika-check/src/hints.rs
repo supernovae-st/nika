@@ -754,10 +754,17 @@ fn declares_idempotency_key(args: Option<&serde_json::Value>) -> bool {
 /// the validated shape varies across providers/runs. Closing it pins
 /// the shape (the recipe provider-native strict modes require). One
 /// hint per task, however many open nodes.
+///
+/// The verb is CLOSE, never "add": the same hint fires on a node that
+/// omits `additionalProperties` and on one that spells out
+/// `additionalProperties: true`, and telling the second author to *add*
+/// the key they already wrote reads as a bug in the checker. "Close its
+/// object nodes with" is true of both, and needs no second branch to
+/// say so.
 fn push_strictness_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_json::Value>) {
     if schema.is_some_and(has_open_object) {
         hints.push(hint("strictness", id, format!(
-            "`{id}`'s schema admits undeclared keys — add `additionalProperties: false` to its object nodes for a deterministic output shape across providers"
+            "`{id}`'s schema admits undeclared keys — close its object nodes with `additionalProperties: false` for a deterministic output shape across providers"
         )));
     }
 }
