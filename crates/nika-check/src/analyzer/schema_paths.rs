@@ -361,6 +361,50 @@ mod tests {
     }
 
     #[test]
+    fn explicit_false_without_properties_closes_the_level() {
+        // The lock's OTHER closed corner (spec 04 rule 1's parenthetical ·
+        // « `additionalProperties: false` on a level with no `properties:`
+        // also closes it — the declared empty object »). With nothing
+        // declared there is no sibling to suggest, so the refusal carries
+        // no did-you-mean — the suggestion clause must stay silent rather
+        // than invent a candidate.
+        let s = json!({ "type": "object", "additionalProperties": false });
+        let reason = provably_invalid(&s, &[Step::Member("anything".into())]);
+        assert!(
+            reason
+                .as_ref()
+                .is_some_and(|r| r.contains("closed level") && !r.contains("did you mean")),
+            "explicit false without properties refuses, suggestion-free: {reason:?}"
+        );
+    }
+
+    #[test]
+    fn an_undeclared_sibling_read_lists_the_declaration_and_the_near_miss() {
+        // The misspelled-key class the walk exists for. The refusal owes
+        // TWO distinct things, and they come from two different places —
+        // so both are pinned: the ENUMERATION of what the level declares
+        // (`[entities, summary]` · the reader fixes it without opening
+        // the schema) and the near-miss SUGGESTION. Asserting only that
+        // the message mentions `entities` would pass on an empty
+        // enumeration, since the suggestion clause names it too
+        // (mutation-checked: emptying the list must turn this red).
+        let s = json!({
+            "type": "object",
+            "properties": {
+                "entities": { "type": "array" },
+                "summary": { "type": "string" }
+            }
+        });
+        let reason = provably_invalid(&s, &[Step::Member("entitties".into())]);
+        assert!(
+            reason.as_ref().is_some_and(
+                |r| r.contains("[entities, summary]") && r.contains("did you mean `entities`?")
+            ),
+            "the refusal enumerates the declaration AND offers the near-miss: {reason:?}"
+        );
+    }
+
+    #[test]
     fn explicit_additional_properties_reopens_a_declared_level() {
         // The one-line fix the message prescribes has to actually work.
         let s = json!({
