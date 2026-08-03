@@ -6,7 +6,7 @@
 | Layer | L1 — effect crate · the only production site spawning PLAIN subprocesses (`tokio::process`) — one deliberate second site: `nika-mcp`’s stdio MCP client (a persistent pipe session the one-shot shell seam cannot express) |
 | Design | `TokioShell` impl of the L0.5 `nika_kernel::process` traits (`ShellRun` + `ShellCancel`) via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (command blocklist + injection defense) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |
-| LOC (live) | ~2598 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
+| LOC (live) | ~3137 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
