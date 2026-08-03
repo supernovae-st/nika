@@ -109,7 +109,7 @@ timeout boundary (spec 03 · catchable · never retryable).
    verb's env-class `VerbOutput` became a typed error at the descent).
    Exempted `transport-surface` (allowlist row · the RecoverError
    class): an L4 forensic-export error that never crosses into the
-   workflow/verb plane — its ONLY consumer (the `nika evidence` shell)
+   workflow/verb plane — its ONLY consumer (the `nika trace evidence` shell)
    renders `Display` verbatim as the env-class message. Zero NIKA
    range owed.
 

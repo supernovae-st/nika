@@ -189,8 +189,8 @@ jobs:
 
       # ──────────────────────────────────────────────────────────────────
       # 6. try offline UX — the audit's "first example must work offline"
-      # (`nika examples` left the surface in 0.107 — `nika try` is the
-      # showroom door: offline mock rehearsal by default, zero keys.)
+      # (`nika try` is the showroom door: offline mock rehearsal by
+      # default, zero keys.)
       # ──────────────────────────────────────────────────────────────────
       - name: try offline UX
         run: |

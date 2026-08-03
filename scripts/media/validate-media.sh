@@ -98,6 +98,28 @@ import re
 import subprocess
 import sys
 
+
+def _register():
+    """The showroom register the RELEASED binary prints (bare `nika try`).
+
+    Listed once. Offline, no run, no side effect — the only honest way to
+    ask "does this slug resolve?" without executing someone's workflow.
+    """
+    r = subprocess.run(["nika", "try"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(" x `nika try` refused to list the register — cannot judge slugs")
+        sys.exit(1)
+    return r.stdout
+
+
+REGISTER = _register()
+
+
+def shows(slug):
+    """Is `slug` a door bare `nika try` names? (rows read `<slug>.nika.yaml`)"""
+    return f"{slug}.nika.yaml" in REGISTER
+
+
 bad = 0
 for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
     t = p.read_text(encoding="utf-8")
@@ -118,24 +140,26 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
         if "nika: v1" not in body or not re.search(r"workflow\s*:", body):
             print(f" x {p.name}: filecard misses the envelope (nika: v1 + workflow:)")
             bad = 1
-    # Every example slug a scene teaches must resolve on the RELEASED
-    # binary (`nika examples show <slug>` rc=0). When the flatten ships,
-    # this line forces the gallery re-render instead of letting it teach
-    # a dead path.
-    for slug in sorted(set(re.findall(r"examples run\s+([a-z0-9/_-]+)", body))):
-        r = subprocess.run(["nika", "examples", "show", slug],
-                           capture_output=True, text=True)
-        if r.returncode != 0:
+    # Every showroom slug a scene teaches must resolve on the RELEASED
+    # binary — membership in the register bare `nika try` prints. Offline,
+    # no run, no side effect.
+    for slug in sorted(set(re.findall(r"nika try\s+([a-z0-9/_-]+)", body))):
+        if not shows(slug):
             print(f" x {p.name}: teaches slug {slug!r} the released binary refuses")
             bad = 1
 
 # The README teaches slugs too (the pick-a-workflow table) — same law,
 # same executioner: a row the released binary refuses is a dead lesson.
 readme = pathlib.Path("README.md").read_text(encoding="utf-8")
-for slug in sorted(set(re.findall(r"nika examples run\s+([a-z0-9/_-]+)", readme))):
-    r = subprocess.run(["nika", "examples", "show", slug],
-                       capture_output=True, text=True)
-    if r.returncode != 0:
+taught = sorted(set(re.findall(r"nika try\s+([a-z0-9/_-]+)", readme)))
+# A silent zero is how this gate spent its rename passing over nothing:
+# it hunted a grammar the tree had dropped, matched none, and reported
+# clean. The register must never be empty here.
+if not taught:
+    print(" x README.md: teaches no showroom slug — the gate would pass over nothing")
+    bad = 1
+for slug in taught:
+    if not shows(slug):
         print(f" x README.md: teaches slug {slug!r} the released binary refuses")
         bad = 1
 

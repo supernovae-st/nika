@@ -1191,6 +1191,13 @@ fn env_value(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
+/// Do the teaching surfaces and the clap tree agree? Both directions,
+/// in their own file — they answer one question and `main.rs` has a
+/// 1500-LOC ceiling to respect.
+#[cfg(test)]
+#[path = "teaching_parity_tests.rs"]
+mod teaching_parity_tests;
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
@@ -1224,29 +1231,6 @@ mod tests {
             vec!["nika", "try", "01-hello", "--max-cost-usd", "0.05"],
         ] {
             assert!(Cli::try_parse_from(&argv).is_ok(), "{argv:?} must parse");
-        }
-    }
-
-    #[test]
-    fn the_scaffolded_agents_md_teaches_the_live_clap_tree() {
-        let agents = nika_cli::verbs::init::agents_md();
-        for sub in Cli::command().get_subcommands() {
-            let name = sub.get_name();
-            if name == "help" {
-                continue; // clap's auto subcommand — not a teaching target
-            }
-            assert!(
-                agents.contains(name),
-                "the scaffolded AGENTS.md must teach `nika {name}`"
-            );
-        }
-        // The flags an agent needs daily — inputs, resume, goldens.
-        // (The scaffold takes a positional intent since V5 — no flag to teach.)
-        for flag in ["--var", "--resume", "--answer", "--update"] {
-            assert!(
-                agents.contains(flag),
-                "the scaffolded AGENTS.md must teach `{flag}`"
-            );
         }
     }
 

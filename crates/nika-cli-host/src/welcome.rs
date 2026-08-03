@@ -1145,9 +1145,8 @@ fn render_chat_only_json(
             "templates": counts.templates,
         },
         // ONE source with the rendered text (the W8 law): the JSON
-        // mirror derives from `chat_only_moves()` — a hand-maintained
-        // twin array drifted once (the dead `nika examples` survived
-        // here) and never gets the chance again.
+        // mirror derives from `chat_only_moves()`, never a hand-kept
+        // twin array — two lists of the same moves drift.
         "start": chat_only_moves()
             .iter()
             .map(|(cmd, _)| cmd.clone())
