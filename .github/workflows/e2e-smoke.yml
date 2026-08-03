@@ -129,14 +129,20 @@ jobs:
       - name: exec path (offline)
         run: |
           set -euo pipefail
+          # The fixture speaks the living contract: `command` is argv-only
+          # (the string form died at 0.103 — NIKA-PARSE-019) and an absent
+          # `permits:` block is ZERO authority (F-O8 · NEP-0003), so the
+          # exec grant is explicit.
           cat > hello.nika.yaml <<'WORKFLOW'
           nika: v1
           workflow:
             id: hello-smoke
+          permits:
+            exec: [echo]
           tasks:
             greet:
               exec:
-                command: echo hello-from-nika
+                command: [echo, hello-from-nika]
           WORKFLOW
 
           # Gate: structural validity
@@ -182,15 +188,17 @@ jobs:
           fi
 
       # ──────────────────────────────────────────────────────────────────
-      # 6. examples offline UX — the audit's "first example must work offline"
+      # 6. try offline UX — the audit's "first example must work offline"
+      # (`nika examples` left the surface in 0.107 — `nika try` is the
+      # showroom door: offline mock rehearsal by default, zero keys.)
       # ──────────────────────────────────────────────────────────────────
-      - name: examples offline UX
+      - name: try offline UX
         run: |
           set -euo pipefail
-          if nika examples run 01-hello --model mock/echo; then
-            printf '[PASS] examples run 01-hello exit 0\n'
+          if nika try 01-hello --no-progress; then
+            printf '[PASS] nika try 01-hello exit 0\n'
           else
-            printf '::error::[FAIL] examples run 01-hello exited non-zero\n'
+            printf '::error::[FAIL] nika try 01-hello exited non-zero\n'
             exit 1
           fi
 
